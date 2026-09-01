@@ -1,0 +1,44 @@
+{
+	"name": "@okikio/server",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"exports": {
+		".": "./mod.ts",
+		"./gateway": "./gateway/mod.ts",
+		"./service": "./service/mod.ts",
+		"./service/resilience": "./service/resilience.ts",
+		"./endpoint": "./endpoint/mod.ts",
+		"./endpoint/definition": "./endpoint/definition.ts",
+		"./endpoint/handler": "./endpoint/handler.ts",
+		"./endpoint/openapi": "./endpoint/openapi.ts",
+		"./endpoint/types": "./endpoint/types.ts",
+		"./endpoint/path": "./endpoint/path.ts",
+		"./middleware": "./middleware/mod.ts",
+		"./middleware/types": "./middleware/types.ts",
+		"./http": "./http/mod.ts",
+		"./http/types": "./http/types.ts"
+	},
+	"dependencies": {
+		"@standard-schema/spec": "^1.1.0",
+		"@std/async": "npm:@jsr/std__async@^1.5.0",
+		"@okikio/catalog": "workspace:^",
+		"@okikio/context": "workspace:^",
+		"@okikio/env": "workspace:^",
+		"@okikio/http": "workspace:^",
+		"@okikio/query": "workspace:^",
+		"@okikio/record": "workspace:^",
+		"@okikio/requirement": "workspace:^",
+		"@okikio/resilience": "workspace:^",
+		"@okikio/resource": "workspace:^",
+		"@okikio/workflow": "workspace:^",
+		"@okikio/fault": "workspace:^"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
+		"@okikio/failure": "workspace:^",
+		"@okikio/permission": "workspace:^"
+	}
+}

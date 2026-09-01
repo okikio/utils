@@ -1,0 +1,27 @@
+{
+	"name": "@okikio/csv",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"exports": {
+		".": "./mod.ts",
+		"./dialect": "./dialect.ts",
+		"./encoding": "./encoding.ts",
+		"./headers": "./headers.ts",
+		"./options": "./options.ts",
+		"./parse": "./parse.ts",
+		"./stream": "./stream.ts",
+		"./types": "./types.ts"
+	},
+	"dependencies": {
+		"@std/csv": "npm:@jsr/std__csv@^1.0.6",
+		"@okikio/record": "workspace:^"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
+		"mitata": "^1.0.34",
+		"fast-check": "^4.9.0"
+	}
+}

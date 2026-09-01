@@ -1,0 +1,23 @@
+{
+	"name": "@okikio/deno",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"exports": {
+		".": "./mod.ts",
+		"./permissions": "./permissions.ts",
+		"./types": "./types.ts",
+		"./signals": "./signals.ts",
+		"./file": "./file.ts",
+		"./port": "./port.ts"
+	},
+	"dependencies": {
+		"@okikio/context": "workspace:^",
+		"@std/path": "npm:@jsr/std__path@^1.1.6"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20"
+	}
+}

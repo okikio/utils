@@ -1,0 +1,19 @@
+{
+	"name": "@okikio/requirement",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"exports": {
+		".": "./mod.ts",
+		"./types": "./types.ts"
+	},
+	"dependencies": {
+		"@okikio/catalog": "workspace:^",
+		"@okikio/context": "workspace:^"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20"
+	}
+}

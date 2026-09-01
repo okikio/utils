@@ -1,0 +1,37 @@
+{
+	"name": "@okikio/activity",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"exports": {
+		".": "./mod.ts",
+		"./engine": "./engine.ts",
+		"./local": "./local.ts",
+		"./process": "./process.ts",
+		"./types": "./types.ts",
+		"./worker": "./worker.ts"
+	},
+	"dependencies": {
+		"@standard-schema/spec": "^1.1.0",
+		"@okikio/catalog": "workspace:^",
+		"@okikio/context": "workspace:^",
+		"@okikio/effect": "workspace:^",
+		"@okikio/failure": "workspace:^",
+		"@okikio/fault": "workspace:^",
+		"@okikio/permission": "workspace:^",
+		"@okikio/pool": "workspace:^",
+		"@okikio/process": "workspace:^",
+		"@okikio/requirement": "workspace:^",
+		"@okikio/resilience": "workspace:^",
+		"@okikio/resource": "workspace:^",
+		"@okikio/result": "workspace:^",
+		"@okikio/schema": "workspace:^",
+		"@okikio/worker": "workspace:^",
+		"@okikio/workflow": "workspace:^"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20"
+	}
+}

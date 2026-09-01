@@ -1,0 +1,21 @@
+{
+	"name": "@okikio/email",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"exports": {
+		".": "./mod.ts",
+		"./classify": "./classify.ts",
+		"./extract": "./extract.ts",
+		"./normalize": "./normalize.ts",
+		"./types": "./types.ts"
+	},
+	"dependencies": {
+		"@okikio/csv": "workspace:^"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20"
+	}
+}

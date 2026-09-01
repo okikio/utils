@@ -1,0 +1,21 @@
+{
+	"name": "@okikio/utils-workspace",
+	"private": true,
+	"type": "module",
+	"version": "0.0.0",
+	"workspaces": [
+		"packages/*"
+	],
+	"license": "MIT",
+	"scripts": {
+		"bump": "bumpy add",
+		"bump:check": "bumpy check --strict",
+		"release:test": "node --test .bumpy/*.test.mjs",
+		"release:versions": "node .bumpy/sync-deno-versions.mjs --check",
+		"release:version": "bumpy version && node .bumpy/sync-deno-versions.mjs"
+	},
+	"devDependencies": {
+		"@varlock/bumpy": "1.18.1",
+		"typescript": "7.0.2"
+	}
+}

@@ -1,0 +1,32 @@
+{
+	"name": "@okikio/pool",
+	"version": "0.0.0",
+	"publish": {
+		"exclude": [
+			"**/*_test.ts",
+			"**/*.test.ts",
+			"**/*_bench.ts",
+			"**/*.bench.ts",
+			"fixtures/**"
+		]
+	},
+	"exports": {
+		".": "./mod.ts",
+		"./types": "./types.ts"
+	},
+	"imports": {
+		"@okikio/observables": "jsr:@okikio/observables@1.4.0",
+		"@std/expect": "jsr:@std/expect@^1.0.20",
+		"mitata": "npm:mitata@^1.0.34"
+	},
+	"tasks": {
+		"check": "deno fmt --check && deno lint && deno check . && deno doc --lint mod.ts",
+		"test": "deno test -P=test",
+		"bench": "deno bench -P=bench"
+	},
+	"permissions": {
+		"test": {},
+		"bench": {}
+	},
+	"license": "MIT"
+}

@@ -1,0 +1,27 @@
+{
+	"name": "@okikio/process",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"exports": {
+		".": "./mod.ts",
+		"./types": "./types.ts",
+		"./deno": "./deno.ts",
+		"./node": "./node.ts",
+		"./channel": "./channel/mod.ts",
+		"./channel/types": "./channel/types.ts"
+	},
+	"dependencies": {
+		"@okikio/observables": "^1.4.0",
+		"@standard-schema/spec": "^1.1.0",
+		"@okikio/context": "workspace:^",
+		"@okikio/failure": "workspace:^",
+		"@okikio/fault": "workspace:^",
+		"@okikio/schema": "workspace:^"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20"
+	}
+}

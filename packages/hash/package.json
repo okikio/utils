@@ -1,0 +1,25 @@
+{
+	"name": "@okikio/hash",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"exports": {
+		".": "./src/index.ts",
+		"./crc32c": "./src/crc32c.ts",
+		"./sha256": "./src/sha256.ts",
+		"./crc32c/deno": "./src/crc32c-deno.ts",
+		"./sha256/sync": "./src/sha256-sync.ts",
+		"./deno": "./src/deno.ts"
+	},
+	"dependencies": {
+		"@std/encoding": "npm:@jsr/std__encoding@^1.0.11"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20"
+	},
+	"imports": {
+		"#/*": "./src/*"
+	}
+}

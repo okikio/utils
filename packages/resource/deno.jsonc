@@ -1,0 +1,28 @@
+{
+	"name": "@okikio/resource",
+	"version": "0.0.0",
+	"publish": {
+		"exclude": [
+			"**/*_test.ts",
+			"**/*.test.ts",
+			"**/*_bench.ts",
+			"**/*.bench.ts",
+			"fixtures/**"
+		]
+	},
+	"exports": {
+		".": "./mod.ts",
+		"./types": "./types.ts"
+	},
+	"imports": {
+		"@std/expect": "jsr:@std/expect@^1.0.20"
+	},
+	"tasks": {
+		"check": "deno fmt --check && deno lint && deno check . && deno doc --lint mod.ts",
+		"test": "deno test -P=test"
+	},
+	"permissions": {
+		"test": {}
+	},
+	"license": "MIT"
+}

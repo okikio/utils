@@ -1,0 +1,20 @@
+{
+	"name": "@okikio/failure",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"exports": {
+		".": "./mod.ts",
+		"./types": "./types.ts"
+	},
+	"dependencies": {
+		"@standard-schema/spec": "^1.1.0",
+		"@okikio/catalog": "workspace:^",
+		"@okikio/schema": "workspace:^"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20"
+	}
+}

@@ -1,0 +1,17 @@
+{
+	"name": "@okikio/sitemap",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"@std/xml": "npm:@jsr/std__xml@^0.2.0"
+	},
+	"devDependencies": {
+		"saxes": "^6.0.0"
+	}
+}

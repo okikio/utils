@@ -1,0 +1,21 @@
+{
+	"name": "@okikio/css",
+	"version": "0.0.0",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"imports": {
+		"@std/expect": "jsr:@std/expect@^1.0.20",
+		"css-tree": "catalog:"
+	},
+	"license": "MIT",
+	"publish": {
+		"exclude": [
+			"**/*_test.ts",
+			"**/*.test.ts",
+			"**/*_bench.ts",
+			"**/*.bench.ts",
+			"fixtures/**"
+		]
+	}
+}

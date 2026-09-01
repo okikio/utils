@@ -1,0 +1,37 @@
+{
+  "baseBranch": "main",
+  "access": "public",
+  "changelog": [
+    "./.bumpy/changelog.mjs",
+    {
+      "umbrella": "@okikio/utils"
+    }
+  ],
+  "privatePackages": {
+    "version": true,
+    "tag": false
+  },
+  "packages": {
+    "@okikio/*": {
+      "publishCommand": "node ../../.bumpy/publish-jsr.mjs",
+      "skipNpmPublish": true,
+      "cascadeTo": {
+        "@okikio/utils": {
+          "trigger": "patch",
+          "bumpAs": "match"
+        }
+      },
+      "checkPublished": "node ../../.bumpy/check-jsr-published.mjs"
+    },
+    "@okikio/utils": {
+      "publishCommand": "node ../../.bumpy/publish-jsr.mjs",
+      "skipNpmPublish": true,
+      "checkPublished": "node ../../.bumpy/check-jsr-published.mjs"
+    }
+  },
+  "versionPr": {
+    "title": "\ud83d\udc38 Version @okikio/utils packages",
+    "branch": "bumpy/version-packages",
+    "preamble": "This release PR is generated from `.bumpy/*.md`. It updates package versions and changelogs. The workflow then synchronizes the same versions into each JSR `deno.json[c]` manifest before the release commit is finalized."
+  }
+}

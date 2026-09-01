@@ -1,0 +1,17 @@
+{
+	"name": "@okikio/dispose",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": [
+		"./polyfill.ts"
+	],
+	"license": "MIT",
+	"exports": {
+		".": "./mod.ts",
+		"./polyfill": "./polyfill.ts"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20"
+	}
+}

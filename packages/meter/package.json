@@ -1,0 +1,21 @@
+{
+	"name": "@okikio/meter",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"exports": {
+		".": "./mod.ts",
+		"./types": "./types.ts"
+	},
+	"dependencies": {
+		"@okikio/catalog": "workspace:^",
+		"@okikio/effect": "workspace:^",
+		"zod": "^4.5.4"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
+		"@okikio/context": "workspace:^"
+	}
+}

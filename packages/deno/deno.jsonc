@@ -1,0 +1,37 @@
+{
+	"name": "@okikio/deno",
+	"version": "0.0.0",
+	"publish": {
+		"exclude": [
+			"**/*_test.ts",
+			"**/*.test.ts",
+			"**/*_bench.ts",
+			"**/*.bench.ts",
+			"fixtures/**"
+		]
+	},
+	"exports": {
+		".": "./mod.ts",
+		"./permissions": "./permissions.ts",
+		"./signals": "./signals.ts",
+		"./types": "./types.ts",
+		"./file": "./file.ts",
+		"./port": "./port.ts"
+	},
+	"imports": {
+		"@std/expect": "jsr:@std/expect@^1.0.20",
+		"@std/path": "jsr:@std/path@^1.1.6"
+	},
+	"tasks": {
+		"check": "deno fmt --check && deno lint && deno check . && deno doc --lint mod.ts permissions.ts signals.ts file.ts port.ts",
+		"test": "deno test -P=test"
+	},
+	"permissions": {
+		"test": {
+			"read": true,
+			"write": true,
+			"net": true
+		}
+	},
+	"license": "MIT"
+}

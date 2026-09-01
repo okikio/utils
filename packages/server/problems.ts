@@ -1,0 +1,93 @@
+import * as problem from '@okikio/http/problem';
+
+/** Framework-level public and internal problems contributed by the service compiler. */
+export const ServerProblems = problem.catalog('server', {
+		NotFound: problem.define({
+		id: 'server:not-found',
+		type: 'urn:utils:server:not-found',
+		status: 404,
+		title: 'Not found',
+		description: 'No declared service operation matches the request method and path.',
+	}),
+	InvalidRequest: problem.define({
+		id: 'server:invalid-request',
+		type: 'urn:utils:server:invalid-request',
+		status: 400,
+		title: 'Invalid request',
+		description: 'The request did not satisfy the declared endpoint input contract.',
+	}),
+	UnsupportedMediaType: problem.define({
+		id: 'server:unsupported-media-type',
+		type: 'urn:utils:server:unsupported-media-type',
+		status: 415,
+		title: 'Unsupported media type',
+		description: 'The request Content-Type is not supported by the declared endpoint input contract.',
+	}),
+	NotAcceptable: problem.define({
+		id: 'server:not-acceptable',
+		type: 'urn:utils:server:not-acceptable',
+		status: 406,
+		title: 'Not acceptable',
+		description: 'The endpoint cannot produce a representation acceptable to the client.',
+	}),
+	IdempotencyConflict: problem.define({
+		id: 'server:idempotency-conflict',
+		type: 'urn:utils:server:idempotency-conflict',
+		status: 409,
+		title: 'Idempotency conflict',
+		description: 'The idempotency key was reused for a different operation or request representation.',
+	}),
+	RateLimited: problem.define({
+		id: 'server:rate-limited',
+		type: 'urn:utils:server:rate-limited',
+		status: 429,
+		title: 'Rate limit exceeded',
+		description: 'The request exceeded an effective rate limit.',
+		retry: { kind: 'after', header: 'Retry-After' },
+	}),
+	CapacityUnavailable: problem.define({
+		id: 'server:capacity-unavailable',
+		type: 'urn:utils:server:capacity-unavailable',
+		status: 503,
+		title: 'Capacity unavailable',
+		description: 'The operation cannot be admitted because a concurrency or dependency protection policy is open.',
+		retry: { kind: 'after', header: 'Retry-After' },
+	}),
+	BodyTooLarge: problem.define({
+		id: 'server:body-too-large',
+		type: 'urn:utils:server:body-too-large',
+		status: 413,
+		title: 'Request body too large',
+		description: 'The request body exceeds the operation limit.',
+	}),
+	DeadlineExceeded: problem.define({
+		id: 'server:deadline-exceeded',
+		type: 'urn:utils:server:deadline-exceeded',
+		status: 504,
+		title: 'Deadline exceeded',
+		description: 'The operation did not complete before its execution deadline.',
+	}),
+	RuntimeUnavailable: problem.define({
+		id: 'server:runtime-unavailable',
+		type: 'urn:utils:server:runtime-unavailable',
+		status: 503,
+		title: 'Service unavailable',
+		description: 'A required service runtime capability is unavailable.',
+	}),
+	UndeclaredResult: problem.define({
+		id: 'server:undeclared-result',
+		type: 'urn:utils:server:undeclared-result',
+		status: 500,
+		title: 'Internal server error',
+		description: 'The operation returned a result outside its declared response envelope.',
+		exposure: 'internal',
+	}),
+	Internal: problem.define({
+		id: 'server:internal',
+		type: 'urn:utils:server:internal',
+		status: 500,
+		title: 'Internal server error',
+		description: 'The service encountered an unexpected internal failure.',
+		exposure: 'internal',
+	}),
+});

@@ -1,0 +1,11 @@
+{
+	"workspace": [
+		"./packages/*"
+	],
+	"tasks": {
+		"check": "deno fmt --check && deno lint && deno check",
+		"test": "deno test",
+		"bench": "deno bench",
+		"verify": "deno task check && deno task test"
+	}
+}

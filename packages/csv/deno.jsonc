@@ -1,0 +1,48 @@
+{
+	"name": "@okikio/csv",
+	"version": "0.0.0",
+	"publish": {
+		"exclude": [
+			"**/*_test.ts",
+			"**/*.test.ts",
+			"**/*_bench.ts",
+			"**/*.bench.ts",
+			"fixtures/**"
+		]
+	},
+	"exports": {
+		".": "./mod.ts",
+		"./dialect": "./dialect.ts",
+		"./encoding": "./encoding.ts",
+		"./headers": "./headers.ts",
+		"./options": "./options.ts",
+		"./parse": "./parse.ts",
+		"./stream": "./stream.ts",
+		"./types": "./types.ts"
+	},
+	"imports": {
+		"@okikio/record": "../record/mod.ts",
+		"@std/csv": "jsr:@std/csv@^1.0.6",
+		"@std/expect": "jsr:@std/expect@^1.0.20",
+		"fast-check": "npm:fast-check@^4.9.0",
+		"mitata": "npm:mitata@^1.0.34"
+	},
+	"tasks": {
+		"check": "deno fmt --check && deno lint && deno check . && deno doc --lint mod.ts",
+		"test": "deno test -P=test",
+		"bench": "deno bench -P=bench"
+	},
+	"permissions": {
+		"test": {
+			"read": [
+				"./fixtures"
+			]
+		},
+		"bench": {
+			"read": [
+				"./fixtures"
+			]
+		}
+	},
+	"license": "MIT"
+}

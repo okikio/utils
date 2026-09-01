@@ -1,0 +1,21 @@
+{
+	"name": "@okikio/html",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"css-select": "^7.0.0",
+		"domhandler": "^6.0.1",
+		"domutils": "^4.0.2",
+		"parse5": "^8.0.1",
+		"parse5-htmlparser2-tree-adapter": "^8.0.1"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20"
+	}
+}

@@ -1,0 +1,33 @@
+/** Zod-backed capacity authoring through the shared Standard Schema contract. */
+export {
+	create,
+	available,
+	snapshot,
+	acquire,
+	CapacityExceededError,
+	unit,
+	field,
+	constraint,
+	define,
+	compose,
+	check,
+	assert,
+} from './mod.ts';
+export type {
+	MergeFields,
+	CapacityUnit,
+	CapacityField,
+	CapacityFields,
+	CapacityValues,
+	CapacityConstraint,
+	CapacityDefinition,
+	CapacityStatusType,
+	ConstraintResult,
+	CheckResult,
+	AdmissionLimits,
+	AdmissionRequest,
+	Admission,
+	AdmissionCancellation,
+	AdmissionSnapshot,
+	AdmissionLease,
+} from './mod.ts';

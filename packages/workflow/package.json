@@ -1,0 +1,33 @@
+{
+	"name": "@okikio/workflow",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"exports": {
+		".": "./mod.ts",
+		"./history": "./history.ts",
+		"./types": "./types.ts"
+	},
+	"dependencies": {
+		"@standard-schema/spec": "^1.1.0",
+		"@std/encoding": "npm:@jsr/std__encoding@^1.0.11",
+		"@okikio/catalog": "workspace:^",
+		"@okikio/context": "workspace:^",
+		"@okikio/dispose": "workspace:^",
+		"@okikio/effect": "workspace:^",
+		"@okikio/failure": "workspace:^",
+		"@okikio/fault": "workspace:^",
+		"@okikio/queue": "workspace:^",
+		"@okikio/requirement": "workspace:^",
+		"@okikio/resilience": "workspace:^",
+		"@okikio/result": "workspace:^",
+		"@okikio/schema": "workspace:^",
+		"@okikio/record": "workspace:^"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
+		"@okikio/task": "workspace:^"
+	}
+}
