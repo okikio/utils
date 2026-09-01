@@ -8,6 +8,7 @@
 	],
 	"license": "MIT",
 	"scripts": {
+		"audit": "node .agents/scripts/audit-workspace.mjs && node .agents/scripts/audit-release.mjs && node .agents/scripts/audit-qualification.mjs",
 		"bump": "bumpy add",
 		"bump:check": "bumpy check --strict",
 		"release:test": "node --test .bumpy/*.test.mjs",
