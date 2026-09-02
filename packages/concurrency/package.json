@@ -6,9 +6,9 @@
 	"sideEffects": false,
 	"license": "MIT",
 	"exports": {
-		".": "./src/index.ts",
-		"./bounded": "./src/bounded.ts",
-		"./channel": "./src/channel.ts"
+		".": "./mod.ts",
+		"./bounded": "./bounded.ts",
+		"./channel": "./channel.ts"
 	},
 	"dependencies": {
 		"@std/async": "npm:@jsr/std__async@^1.5.0"
@@ -17,6 +17,6 @@
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20"
 	},
 	"imports": {
-		"#/*": "./src/*"
+		"#/*": "./*"
 	}
 }

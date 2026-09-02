@@ -24,7 +24,6 @@ export * as entitlement from '@okikio/entitlement';
 export * as env from '@okikio/env';
 export * as failure from '@okikio/failure';
 export * as fault from '@okikio/fault';
-export * as hash from '@okikio/hash';
 export * as hono from '@okikio/hono';
 export * as html from '@okikio/html';
 export * as http from '@okikio/http';

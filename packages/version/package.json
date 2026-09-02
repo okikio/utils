@@ -6,11 +6,11 @@
 	"sideEffects": false,
 	"license": "MIT",
 	"exports": {
-		".": "./src/index.ts",
-		"./numeric": "./src/numeric.ts",
-		"./resolve": "./src/resolve.ts",
-		"./semver": "./src/semver.ts",
-		"./types": "./src/types.ts"
+		".": "./mod.ts",
+		"./numeric": "./numeric.ts",
+		"./resolve": "./resolve.ts",
+		"./semver": "./semver.ts",
+		"./types": "./types.ts"
 	},
 	"dependencies": {
 		"@std/semver": "npm:@jsr/std__semver@^1.0.8"
@@ -19,6 +19,6 @@
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20"
 	},
 	"imports": {
-		"#/*": "./src/*"
+		"#/*": "./*"
 	}
 }

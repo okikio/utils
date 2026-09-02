@@ -5,7 +5,10 @@
 	"type": "module",
 	"sideEffects": false,
 	"license": "MIT",
+	"imports": {
+		"#/": "./"
+	},
 	"exports": {
-		".": "./src/index.ts"
+		".": "./mod.ts"
 	}
 }
