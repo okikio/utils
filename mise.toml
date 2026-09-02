@@ -1,3 +1,6 @@
+[env]
+_.file = [".env.local"]
+
 [tools]
 deno = "2.9.6"
 node = "26.8.1"
