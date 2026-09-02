@@ -1,0 +1,22 @@
+{
+	"name": "@okikio/sitemap",
+	"version": "0.0.0",
+	"exports": {
+		".": "./mod.ts"
+	},
+	"imports": {
+		"#/": "./",
+		"@std/xml": "jsr:@std/xml@^0.2.0",
+		"saxes": "npm:saxes@^6.0.0"
+	},
+	"license": "MIT",
+	"publish": {
+		"exclude": [
+			"**/*_test.ts",
+			"**/*.test.ts",
+			"**/*_bench.ts",
+			"**/*.bench.ts",
+			"fixtures/**"
+		]
+	}
+}

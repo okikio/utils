@@ -1,0 +1,23 @@
+{
+	"name": "@okikio/concurrency",
+	"version": "0.0.0",
+	"exports": {
+		".": "./mod.ts",
+		"./bounded": "./bounded.ts",
+		"./channel": "./channel.ts"
+	},
+	"imports": {
+		"#/": "./",
+		"@std/async": "jsr:@std/async@^1.5.0"
+	},
+	"license": "MIT",
+	"publish": {
+		"exclude": [
+			"**/*_test.ts",
+			"**/*.test.ts",
+			"**/*_bench.ts",
+			"**/*.bench.ts",
+			"fixtures/**"
+		]
+	}
+}

@@ -1,0 +1,25 @@
+{
+	"name": "@okikio/version",
+	"version": "0.0.0",
+	"exports": {
+		".": "./mod.ts",
+		"./numeric": "./numeric.ts",
+		"./resolve": "./resolve.ts",
+		"./semver": "./semver.ts",
+		"./types": "./types.ts"
+	},
+	"imports": {
+		"#/": "./",
+		"@std/semver": "jsr:@std/semver@^1.0.8"
+	},
+	"license": "MIT",
+	"publish": {
+		"exclude": [
+			"**/*_test.ts",
+			"**/*.test.ts",
+			"**/*_bench.ts",
+			"**/*.bench.ts",
+			"fixtures/**"
+		]
+	}
+}

@@ -1,0 +1,20 @@
+{
+	"name": "@okikio/robots",
+	"version": "0.0.0",
+	"imports": {
+		"#/": "./"
+	},
+	"exports": {
+		".": "./mod.ts"
+	},
+	"license": "MIT",
+	"publish": {
+		"exclude": [
+			"**/*_test.ts",
+			"**/*.test.ts",
+			"**/*_bench.ts",
+			"**/*.bench.ts",
+			"fixtures/**"
+		]
+	}
+}
