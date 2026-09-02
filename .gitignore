@@ -273,5 +273,6 @@ $RECYCLE.BIN/
 .output/
 
 .vscode/
+.agents/
 coverage/
 .artifacts/
