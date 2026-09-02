@@ -19,8 +19,7 @@
 		"./channel/types": "./channel/types.ts"
 	},
 	"imports": {
-		"@okikio/observables": "jsr:@okikio/observables@1.4.0",
-		"@std/expect": "jsr:@std/expect@^1.0.20"
+		"@okikio/observables": "jsr:@okikio/observables@1.4.0"
 	},
 	"tasks": {
 		"check": "deno fmt --check && deno lint && deno check . && deno doc --lint mod.ts deno.ts node.ts channel/mod.ts",

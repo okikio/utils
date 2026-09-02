@@ -17,7 +17,6 @@
 	},
 	"imports": {
 		"@okikio/observables": "jsr:@okikio/observables@1.4.0",
-		"@std/expect": "jsr:@std/expect@^1.0.20",
 		"mitata": "npm:mitata@^1.0.34"
 	},
 	"tasks": {

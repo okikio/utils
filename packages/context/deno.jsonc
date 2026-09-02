@@ -15,8 +15,7 @@
 		"./types": "./types.ts"
 	},
 	"imports": {
-		"@std/async": "jsr:@std/async@^1.5.0",
-		"@std/expect": "jsr:@std/expect@^1.0.20"
+		"@std/async": "jsr:@std/async@^1.5.0"
 	},
 	"tasks": {
 		"check": "deno fmt --check && deno lint && deno check . && deno doc --lint mod.ts",

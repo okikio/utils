@@ -205,6 +205,10 @@ importers:
         version: '@jsr/std__expect@1.0.20'
 
   packages/duration:
+    dependencies:
+      '@js-temporal/polyfill':
+        specifier: ^0.5.1
+        version: 0.5.1
     devDependencies:
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
@@ -304,16 +308,6 @@ importers:
       '@okikio/record':
         specifier: workspace:^
         version: link:../record
-    devDependencies:
-      '@std/expect':
-        specifier: npm:@jsr/std__expect@^1.0.20
-        version: '@jsr/std__expect@1.0.20'
-
-  packages/hash:
-    dependencies:
-      '@std/encoding':
-        specifier: npm:@jsr/std__encoding@^1.0.11
-        version: '@jsr/std__encoding@1.0.11'
     devDependencies:
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
@@ -893,6 +887,10 @@ packages:
   '@colors/colors@1.5.0':
     resolution: {integrity: sha512-ooWCrlZP11i8GImSjTHYHLkvFDP48nS4+204nGb1RiX/WXYHmJA2III9/e2DWVabCESdW7hBAEzHRqUn9OUVvQ==}
     engines: {node: '>=0.1.90'}
+
+  '@js-temporal/polyfill@0.5.1':
+    resolution: {integrity: sha512-hloP58zRVCRSpgDxmqCWJNlizAlUgJFqG2ypq79DCvyv9tHjRYMDOcPFjzfl/A1/YxDvRCZz8wvZvmapQnKwFQ==}
+    engines: {node: '>=12'}
 
   '@jsr/std__assert@1.0.19':
     resolution: {integrity: sha512-pEj6RPkGbqlgRmyKwATp4cUs6+ijxtdrv3bq8v1d2I2CEcMEyPaO8cVKro61wGRDH4cNg8Zx6haztvK/9m7gkA==, tarball: https://npm.jsr.io/~/11/@jsr/std__assert/1.0.19.tgz}
@@ -1516,6 +1514,9 @@ packages:
     resolution: {integrity: sha512-zymm5+u+sCsSWyD9qNaejV3DFvhCKclKdizYaJUuHA83RLjb7nSuGnddCHGv0hk+KY7BMAlsWeK4Ueg6EV6XQg==}
     engines: {node: '>=8'}
 
+  jsbi@4.3.2:
+    resolution: {integrity: sha512-9fqMSQbhJykSeii05nxKl4m6Eqn2P6rOlYiS+C5Dr/HPIU/7yZxu5qzbs40tgaFORiw2Amd0mirjxatXYMkIew==}
+
   lru-cache@11.5.2:
     resolution: {integrity: sha512-4pfM1Ff0x50o0tQwb5ucw/RzNyD0/YJME6IVcStalZuMWxdt3sR3huStTtxz4PUmvZfRguvDejasvQ2kifR11g==}
     engines: {node: 20 || >=22}
@@ -1813,6 +1814,10 @@ snapshots:
 
   '@colors/colors@1.5.0':
     optional: true
+
+  '@js-temporal/polyfill@0.5.1':
+    dependencies:
+      jsbi: 4.3.2
 
   '@jsr/std__assert@1.0.19':
     dependencies:
@@ -2229,6 +2234,8 @@ snapshots:
   import-without-cache@0.4.0: {}
 
   is-fullwidth-code-point@3.0.0: {}
+
+  jsbi@4.3.2: {}
 
   lru-cache@11.5.2: {}
 

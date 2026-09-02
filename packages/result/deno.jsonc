@@ -14,7 +14,6 @@
 		".": "./mod.ts"
 	},
 	"imports": {
-		"@std/expect": "jsr:@std/expect@^1.0.20"
 	},
 	"tasks": {
 		"check": "deno fmt --check && deno lint && deno check . && deno doc --lint mod.ts",

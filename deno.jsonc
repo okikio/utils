@@ -13,7 +13,7 @@
 	},
 	"exports": {},
 	"imports": {
-		"@logtape/logtape": "jsr:@logtape/logtape@^2.3.0",
+		"@logtape/logtape": "jsr:@logtape/logtape@^2.3.2",
 		"@okikio/observables": "jsr:@okikio/observables@^1.4.0",
 		"@okikio/undent": "jsr:@okikio/undent@^0.3.3",
 		"@std/async": "jsr:@std/async@^1.5.0",
@@ -23,7 +23,7 @@
 		"@std/xml": "jsr:@std/xml@^0.2.0",
 		"mitata": "npm:mitata@^1.0.34",
 		"css-tree": "npm:css-tree@^3.2.1",
-		"zod": "npm:zod@^4.4.3"
+		"zod": "npm:zod@^4.5.4"
 	},
 	"compilerOptions": {
 		"lib": [

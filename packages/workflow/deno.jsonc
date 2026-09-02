@@ -17,8 +17,7 @@
 	},
 	"imports": {
 		"@standard-schema/spec": "jsr:@standard-schema/spec@^1.1.0",
-		"@std/encoding": "jsr:@std/encoding@^1.0.11",
-		"@std/expect": "jsr:@std/expect@^1.0.20"
+		"@std/encoding": "jsr:@std/encoding@^1.0.11"
 	},
 	"tasks": {
 		"check": "deno fmt --check && deno lint && deno check . && deno doc --lint mod.ts",

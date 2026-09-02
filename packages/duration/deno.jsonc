@@ -15,7 +15,7 @@
 		"./types": "./types.ts"
 	},
 	"imports": {
-		"@std/expect": "jsr:@std/expect@^1.0.20"
+		"@js-temporal/polyfill": "npm:@js-temporal/polyfill@^0.5.1"
 	},
 	"tasks": {
 		"check": "deno fmt --check && deno lint && deno check . && deno doc --lint mod.ts",

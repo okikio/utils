@@ -23,7 +23,6 @@
 	"imports": {
 		"@okikio/record": "../record/mod.ts",
 		"@std/csv": "jsr:@std/csv@^1.0.6",
-		"@std/expect": "jsr:@std/expect@^1.0.20",
 		"fast-check": "npm:fast-check@^4.9.0",
 		"mitata": "npm:mitata@^1.0.34"
 	},

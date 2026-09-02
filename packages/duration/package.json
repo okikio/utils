@@ -9,6 +9,9 @@
 		".": "./mod.ts",
 		"./types": "./types.ts"
 	},
+	"dependencies": {
+		"@js-temporal/polyfill": "^0.5.1"
+	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20"
 	}
