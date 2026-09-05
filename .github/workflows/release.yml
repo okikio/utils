@@ -3,57 +3,88 @@ name: Release
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: bumpy-release-${{ github.ref }}
   cancel-in-progress: false
 
+# Essential block to grant OIDC token generation permissions
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   plan:
+    name: Plan release
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
+      packages: read
     outputs:
       mode: ${{ steps.plan.outputs.mode }}
       packages: ${{ steps.plan.outputs.packages }}
     steps:
-      - uses: actions/checkout@v7
+      - name: Check out source and release history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: jdx/mise-action@v4
+          persist-credentials: false
+
+      - name: Install tools
+        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
         with:
           cache: true
-      - run: mise run install
+          install: true
+      
       - id: plan
-        run: pnpm exec bumpy ci plan
+        name: Inspect release state
         env:
           GH_TOKEN: ${{ github.token }}
+        run: pnpm exec bumpy ci plan
 
   version-pr:
+    name: Update release PR
     needs: plan
     if: needs.plan.outputs.mode == 'version-pr'
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
+    env:
+      BUMPY_VERSION: ${{ needs.plan.outputs.bumpy_version }}
     steps:
-      - uses: actions/checkout@v7
+      - name: Check out source and release history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: jdx/mise-action@v4
+          persist-credentials: false
+
+      - name: Install tools
+        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
         with:
           cache: true
-      - run: mise run install
+          install: true
+
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          client-id: ${{ secrets.BUMPY_APP_ID }}
+          private-key: ${{ secrets.BUMPY_APP_PRIVATE_KEY }}
+
       - name: Create or update Bumpy version PR
-        run: pnpm exec bumpy ci release --expect-mode version-pr
         env:
           GH_TOKEN: ${{ github.token }}
-          BUMPY_GH_TOKEN: ${{ secrets.BUMPY_GH_TOKEN }}
+          BUMPY_GH_TOKEN: ${{ steps.app-token.outputs.token }} # so `release: published` workflows trigger
+        run: pnpm exec bumpy ci release --expect-mode version-pr
+      
       # - name: Synchronize JSR versions into the generated release commit
       #   shell: bash
       #   env:
-      #     BUMPY_GH_TOKEN: ${{ secrets.BUMPY_GH_TOKEN }}
       #     GITHUB_TOKEN: ${{ github.token }}
+      #     BUMPY_GH_TOKEN: ${{ steps.app-token.outputs.token }} # so `release: published` workflows trigger
       #   run: |
       #     set -euo pipefail
       #     export GH_TOKEN="${BUMPY_GH_TOKEN:-$GITHUB_TOKEN}"
@@ -67,24 +98,44 @@ jobs:
       #     fi
 
   publish:
+    name: Publish packages
     needs: plan
     if: needs.plan.outputs.mode == 'publish'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment: publish
     permissions:
-      contents: write
       id-token: write
+      contents: write
+      packages: write
+    env:
+      BUMPY_VERSION: ${{ needs.plan.outputs.bumpy_version }}
     steps:
-      - uses: actions/checkout@v7
+      - name: Check out source and release history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: jdx/mise-action@v4
+          persist-credentials: false
+
+      - name: Install tools
+        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
         with:
-          cache: true
-      - run: mise run install
-      - run: mise run verify
+          version: 2026.8.6
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify release candidates
+        run: mise run verify
+
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          client-id: ${{ secrets.BUMPY_APP_ID }}
+          private-key: ${{ secrets.BUMPY_APP_PRIVATE_KEY }}
+
       - name: Publish versioned packages to JSR
-        run: pnpm exec bumpy ci release --expect-mode publish
         env:
           GH_TOKEN: ${{ github.token }}
-          BUMPY_GH_TOKEN: ${{ secrets.BUMPY_GH_TOKEN }}
+          BUMPY_GH_TOKEN: ${{ steps.app-token.outputs.token }} # so `release: published` workflows trigger
+        run: pnpm exec bumpy ci release --expect-mode publish
