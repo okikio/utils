@@ -1,0 +1,55 @@
+name: Recovery scenario validation
+
+on:
+  push:
+    branches:
+      - validation/four-week-recovery-scenarios-20260906
+
+permissions:
+  contents: read
+
+concurrency:
+  group: recovery-scenarios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scenarios:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Reconstruct recovery candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat \
+            .github/recovery/recovery16.01 \
+            .github/recovery/recovery16.02 \
+            .github/recovery/recovery16.03 \
+            .github/recovery/recovery16.04 \
+            .github/recovery/recovery16.05 \
+            | tr -d '\n\r' \
+            | base64 --decode \
+            | gzip --decompress \
+            > /tmp/recovery.patch
+          echo '5870b61069bcbf8b6f81425e2f3ffc90a344a606c8c1bee291b6fe5d377d4414  /tmp/recovery.patch' | sha256sum --check -
+          patch --dry-run -p1 < /tmp/recovery.patch
+          patch -p1 < /tmp/recovery.patch
+          rm -rf .github/recovery .github/workflows/recovery-scenario-validation.yml
+
+      - uses: jdx/mise-action@v4
+        with:
+          cache: true
+
+      - name: Install dependencies
+        run: mise run install
+
+      - name: Restartable Worker workflow scenario
+        run: deno test -A tests/restartable-worker.test.ts
+
+      - name: Process orchestration scenario
+        run: deno test -A tests/process-orchestration.test.ts
+
+      - name: Full verification
+        run: mise run verify
