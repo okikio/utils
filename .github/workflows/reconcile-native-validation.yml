@@ -1,0 +1,105 @@
+name: Reconcile native validation
+
+on:
+  push:
+    branches:
+      - chatgpt/reconcile-native-validation-2-20260905
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Check out exact reconciliation base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Apply reconciled checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/reconcile/part-* | base64 --decode | gzip --decompress > /tmp/reconcile.patch
+          git apply --check /tmp/reconcile.patch
+          git apply /tmp/reconcile.patch
+          rm -rf .github/reconcile
+          rm .github/workflows/reconcile-native-validation.yml
+          git diff --check
+
+      - name: Install repository toolchain
+        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
+        with:
+          version: 2026.8.6
+          cache: true
+          install: true
+
+      - name: Report tool versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mise --version
+          deno --version
+          node --version
+          pnpm --version
+
+      - name: Resolve dependencies and generated locks
+        run: mise run install
+
+      - name: First native verification pass
+        run: mise run verify
+
+      - name: Freeze exact validated candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name validation
+          git config user.email validation@example.invalid
+          git add -A
+          git commit -m 'validation: reconciled checkpoint'
+          git status --short
+
+      - name: Reinstall exact pnpm lock
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify exact frozen candidate
+        run: mise run verify
+
+      - name: Check Bumpy release classification
+        run: pnpm exec bumpy check --strict
+
+      - name: Run representative benchmark suite
+        run: mise run bench
+
+      - name: Confirm validation left the candidate unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code
+          git diff --cached --exit-code
+          test -z "$(git status --porcelain)"
+
+      - name: Archive exact validated source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git archive --format=zip --output=/tmp/okikio-utils-reconciled.zip HEAD
+          sha256sum /tmp/okikio-utils-reconciled.zip > /tmp/okikio-utils-reconciled.zip.sha256
+          git rev-parse HEAD > /tmp/validated-head.txt
+          cp pnpm-lock.yaml /tmp/pnpm-lock.yaml
+          cp deno.lock /tmp/deno.lock
+
+      - name: Upload exact validated candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: okikio-utils-reconciled-validation
+          path: |
+            /tmp/okikio-utils-reconciled.zip
+            /tmp/okikio-utils-reconciled.zip.sha256
+            /tmp/validated-head.txt
+            /tmp/pnpm-lock.yaml
+            /tmp/deno.lock
+          if-no-files-found: error
+          retention-days: 1
