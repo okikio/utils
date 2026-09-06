@@ -36,6 +36,8 @@ jobs:
           echo '5870b61069bcbf8b6f81425e2f3ffc90a344a606c8c1bee291b6fe5d377d4414  /tmp/recovery.patch' | sha256sum --check -
           patch --dry-run -p1 < /tmp/recovery.patch
           patch -p1 < /tmp/recovery.patch
+          patch --dry-run -p1 < .github/recovery/fix17.patch
+          patch -p1 < .github/recovery/fix17.patch
           rm -rf .github/recovery .github/workflows/recovery-scenario-validation.yml
 
       - uses: jdx/mise-action@v4
@@ -45,11 +47,32 @@ jobs:
       - name: Install dependencies
         run: mise run install
 
-      - name: Restartable Worker workflow scenario
+      - id: worker
+        name: Restartable Worker workflow scenario
+        continue-on-error: true
         run: deno test -A tests/restartable-worker.test.ts
 
-      - name: Process orchestration scenario
+      - id: process
+        name: Process orchestration scenario
+        continue-on-error: true
         run: deno test -A tests/process-orchestration.test.ts
 
-      - name: Full verification
+      - id: verify
+        name: Full verification
+        continue-on-error: true
         run: mise run verify
+
+      - name: Report validation outcomes
+        if: always()
+        shell: bash
+        env:
+          WORKER_OUTCOME: ${{ steps.worker.outcome }}
+          PROCESS_OUTCOME: ${{ steps.process.outcome }}
+          VERIFY_OUTCOME: ${{ steps.verify.outcome }}
+        run: |
+          printf 'Worker scenario: %s\n' "$WORKER_OUTCOME"
+          printf 'Process scenario: %s\n' "$PROCESS_OUTCOME"
+          printf 'Full verification: %s\n' "$VERIFY_OUTCOME"
+          if [[ "$WORKER_OUTCOME" != success || "$PROCESS_OUTCOME" != success || "$VERIFY_OUTCOME" != success ]]; then
+            exit 1
+          fi
