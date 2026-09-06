@@ -38,8 +38,10 @@ jobs:
           patch -p1 < /tmp/recovery.patch
           patch --dry-run -p1 < .github/recovery/fix17.patch
           patch -p1 < .github/recovery/fix17.patch
-          patch --dry-run -p1 < .github/recovery/fix20.patch
-          patch -p1 < .github/recovery/fix20.patch
+          tr -d '\n\r' < .github/recovery/fix20-exact.gz.b64 | base64 --decode | gzip --decompress > /tmp/fix20.patch
+          echo '2eca9df41a2a27446bad2dc8a9eb10ea7208cf149d5fc1c8449ff13aa6670728  /tmp/fix20.patch' | sha256sum --check -
+          patch --dry-run -p1 < /tmp/fix20.patch
+          patch -p1 < /tmp/fix20.patch
           rm -rf .github/recovery .github/workflows/recovery-scenario-validation.yml
 
       - uses: jdx/mise-action@v4
