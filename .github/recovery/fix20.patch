@@ -1,0 +1,240 @@
+diff --git a/packages/activity/process.ts b/packages/activity/process.ts
+index c1aec3a..84ed46c 100644
+--- a/packages/activity/process.ts
++++ b/packages/activity/process.ts
+@@ -52,6 +52,8 @@ interface Host {
+ 	readonly channel: ProcessChannel<ActivityAttemptType, transport.WireResultType>;
+ 	/** Active child request map keyed by queue claim ID for reverse-call correlation. */
+ 	readonly active: Map<string, Active>;
++	/** Idempotent authoritative teardown used for both leased and idle hosts. */
++	close(reason?: unknown): Promise<void>;
+ }
+@@ -132,6 +134,7 @@ export async function create(options: ProcessProviderOptions): Promise<ProcessPr
+ 		throw new TypeError('Process provider maximum must be a positive safe integer.');
+ 	}
+ 
++	const live = new Set<Host>();
+ 	const hosts = await pool.create<Host>({
+@@ -144,13 +147,7 @@ export async function create(options: ProcessProviderOptions): Promise<ProcessPr
+ 		...(options.maximumIdleAge === undefined ? {} : { maximumIdleAge: options.maximumIdleAge }),
+ 		...(options.acquireTimeout === undefined ? {} : { acquireTimeout: options.acquireTimeout }),
+ 		create: (hostCtx) => openHost(hostCtx),
+-		async close(host, reason) {
+-			try {
+-				await host.channel.close(reason);
+-			} finally {
+-				try { await host.process.stop(reason); } finally { await host.ctx[Symbol.asyncDispose](); }
+-			}
+-		},
++		close: (host, reason) => host.close(reason),
+ 	});
+@@ -176,7 +173,21 @@ export async function create(options: ProcessProviderOptions): Promise<ProcessPr
+ 		},
+ 		stats() { return hosts.stats(); },
+ 		drain(reason?: unknown) { return hosts.drain(reason); },
+-		async [Symbol.asyncDispose]() { await hosts[Symbol.asyncDispose](); },
++		async [Symbol.asyncDispose]() {
++			const reason = new Error('Activity process provider was disposed.');
++			const stopped = await Promise.allSettled([...live].map((host) => host.close(reason)));
++			let disposal: unknown;
++			try {
++				await hosts[Symbol.asyncDispose]();
++			} catch (error) {
++				disposal = error;
++			}
++			const failures = stopped
++				.filter((result): result is PromiseRejectedResult => result.status === 'rejected')
++				.map((result) => result.reason);
++			if (disposal !== undefined) failures.push(disposal);
++			if (failures.length > 0) throw new AggregateError(failures, 'Activity process provider disposal failed.');
++		},
+ 	}) satisfies ProcessProvider;
+@@ -210,7 +221,27 @@ export async function create(options: ProcessProviderOptions): Promise<ProcessPr
+ 				},
+ 			}));
+ 			contexts.check(acquireCtx);
+-			return Object.freeze({ ctx: hostCtx, process: child, channel: connection, active });
++			let closing: Promise<void> | undefined;
++			let host!: Host;
++			const close = (reason?: unknown): Promise<void> => {
++				closing ??= (async () => {
++					try {
++						await connection.close(reason);
++					} finally {
++						try {
++							await child.stop(reason);
++						} finally {
++							try { await hostCtx[Symbol.asyncDispose](); } finally { live.delete(host); }
++						}
++					}
++				})();
++				return closing;
++			};
++			host = Object.freeze({ ctx: hostCtx, process: child, channel: connection, active, close });
++			live.add(host);
++			return host;
+ 		} catch (error) {
+ 			try { await hostCtx[Symbol.asyncDispose](); } catch { /* Preserve the creation failure. */ }
+ 			throw error;
+diff --git a/packages/activity/worker.ts b/packages/activity/worker.ts
+index cbf5a1e..5e5e9d0 100644
+--- a/packages/activity/worker.ts
++++ b/packages/activity/worker.ts
+@@ -48,6 +48,8 @@ interface Host {
+ 	readonly worker: workers.WorkerHandle<ActivityAttemptType, transport.WireResultType>;
+ 	/** Active Worker request map keyed by queue claim ID for reverse-call correlation. */
+ 	readonly active: Map<string, Active>;
++	/** Idempotent authoritative teardown used for both leased and idle hosts. */
++	close(reason?: unknown): Promise<void>;
+ }
+@@ -123,6 +125,7 @@ export async function create(options: WorkerProviderOptions): Promise<WorkerProv
+ 		throw new TypeError('Worker provider maximum must be a positive safe integer.');
+ 	}
+ 
++	const live = new Set<Host>();
+ 	const hosts = await pool.create<Host>({
+@@ -131,9 +134,7 @@ export async function create(options: WorkerProviderOptions): Promise<WorkerProv
+ 		...(options.maximumIdleAge === undefined ? {} : { maximumIdleAge: options.maximumIdleAge }),
+ 		...(options.acquireTimeout === undefined ? {} : { acquireTimeout: options.acquireTimeout }),
+ 		create: (hostCtx) => openHost(hostCtx),
+-		async close(host, reason) {
+-			try { await host.worker.stop(reason); } finally { await host.ctx[Symbol.asyncDispose](); }
+-		},
++		close: (host, reason) => host.close(reason),
+ 	});
+@@ -164,7 +165,21 @@ export async function create(options: WorkerProviderOptions): Promise<WorkerProv
+ 		},
+ 		stats() { return hosts.stats(); },
+ 		drain(reason?: unknown) { return hosts.drain(reason); },
+-		async [Symbol.asyncDispose]() { await hosts[Symbol.asyncDispose](); },
++		async [Symbol.asyncDispose]() {
++			const reason = new workers.WorkerStoppedError('Activity Worker provider was disposed.');
++			const stopped = await Promise.allSettled([...live].map((host) => host.close(reason)));
++			let disposal: unknown;
++			try {
++				await hosts[Symbol.asyncDispose]();
++			} catch (error) {
++				disposal = error;
++			}
++			const failures = stopped
++				.filter((result): result is PromiseRejectedResult => result.status === 'rejected')
++				.map((result) => result.reason);
++			if (disposal !== undefined) failures.push(disposal);
++			if (failures.length > 0) throw new AggregateError(failures, 'Activity Worker provider disposal failed.');
++		},
+ 	});
+@@ -197,7 +212,21 @@ export async function create(options: WorkerProviderOptions): Promise<WorkerProv
+ 			},
+ 			}));
+ 			contexts.check(acquireCtx);
+-			return Object.freeze({ ctx: hostCtx, worker, active });
++			let closing: Promise<void> | undefined;
++			let host!: Host;
++			const close = (reason?: unknown): Promise<void> => {
++				closing ??= (async () => {
++					try {
++						await worker.stop(reason);
++					} finally {
++						try { await hostCtx[Symbol.asyncDispose](); } finally { live.delete(host); }
++					}
++				})();
++				return closing;
++			};
++			host = Object.freeze({ ctx: hostCtx, worker, active, close });
++			live.add(host);
++			return host;
+ 		} catch (error) {
+ 			try { await hostCtx[Symbol.asyncDispose](); } catch { /* Preserve the creation failure. */ }
+ 			throw error;
+diff --git a/tests/restartable-worker.test.ts b/tests/restartable-worker.test.ts
+index 80fd5ae..20af0ca 100644
+--- a/tests/restartable-worker.test.ts
++++ b/tests/restartable-worker.test.ts
+@@ -56,6 +56,21 @@ function deferred() {
+ 	return Object.freeze({ promise, resolve });
+ }
+ 
++/** Bound one scenario stage so lifecycle regressions fail with the blocked ownership boundary. */
++async function within<Value>(promise: Promise<Value>, label: string, milliseconds = 5_000): Promise<Value> {
++	let timer: ReturnType<typeof setTimeout> | undefined;
++	try {
++		return await Promise.race([
++			promise,
++			new Promise<never>((_, reject) => {
++				timer = setTimeout(() => reject(new Error(`Timed out waiting for ${label}.`)), milliseconds);
++			}),
++		]);
++	} finally {
++		if (timer !== undefined) clearTimeout(timer);
++	}
++}
++
+@@ -70,12 +85,12 @@ const Implementation = workflow.implement(Definition, function* (ctx) {
+ 	return yield* workflow.activity(Persist, ctx.input);
+ });
+ 
+ test('worker activity survives Scheduler restart without duplicating the external commit', async () => {
+-	const clock = new context.TestClock();
++	const clock = context.SystemClock;
+ 	await using parent = context.create({ id: 'scenario.restartable-worker.parent', clock });
+ 	const jobs = queue.memory<workflow.ActivityJobType, workflow.ActivityJobResultType>({
+ 		clock,
+-		defaultClaimDuration: { seconds: 2 },
++		defaultClaimDuration: { milliseconds: 500 },
+ 	});
+@@ -80,6 +95,7 @@ test('worker activity survives Scheduler restart without duplicating the externa
+ 	const committed = new Map<string, EffectOccurrence>();
+ 	const attempts: number[] = [];
+ 	const firstCommit = deferred();
++	const secondCommit = deferred();
+ 	const emitter = Object.freeze({
+@@ -84,7 +100,9 @@ test('worker activity survives Scheduler restart without duplicating the externa
+ 			if (occurrence.definition !== Committed) throw new TypeError('Unexpected effect definition.');
+ 			attempts.push((occurrence.value as { attempt: number }).attempt);
+ 			if (!committed.has(occurrence.key)) committed.set(occurrence.key, occurrence);
+-			if ((occurrence.value as { attempt: number }).attempt === 1) firstCommit.resolve();
++			const attempt = (occurrence.value as { attempt: number }).attempt;
++			if (attempt === 1) firstCommit.resolve();
++			if (attempt === 2) secondCommit.resolve();
+ 		},
+@@ -105,7 +123,7 @@ test('worker activity survives Scheduler restart without duplicating the externa
+ 		clock,
+ 		history: firstHistory,
+ 		activityQueue: jobs,
+-		claimDuration: { seconds: 2 },
++		claimDuration: { milliseconds: 500 },
+@@ -117,7 +135,7 @@ test('worker activity survives Scheduler restart without duplicating the externa
+ 	});
+ 	const firstRun = workflow.run({ ctx: firstCtx, implementation: Implementation, scheduler: firstScheduler });
+-	await firstCommit.promise;
++	await within(firstCommit.promise, 'attempt 1 external commit');
+@@ -136,7 +154,7 @@ test('worker activity survives Scheduler restart without duplicating the externa
+ 		clock,
+ 		history: secondHistory,
+ 		activityQueue: jobs,
+-		claimDuration: { seconds: 2 },
++		claimDuration: { milliseconds: 500 },
+@@ -150,10 +168,10 @@ test('worker activity survives Scheduler restart without duplicating the externa
+ 	});
+ 	const recovered = workflow.run({ ctx: secondCtx, implementation: Implementation, scheduler: secondScheduler });
+ 
+-	// Attempt 1 renewed immediately before committing. Expire that full lease so
+-	// replica B can claim the same durable logical job as attempt 2.
+-	clock.advance({ seconds: 3 });
+-	assert.deepEqual(await recovered, { stored: 'acme' });
++	// Attempt 1 renewed immediately before committing. Replica B must observe the
++	// same durable logical job after the real lease expires and own attempt 2.
++	await within(secondCommit.promise, 'replacement attempt external commit');
++	assert.deepEqual(await within(recovered, 'replacement workflow completion'), { stored: 'acme' });
+@@ -162,9 +180,13 @@ test('worker activity survives Scheduler restart without duplicating the externa
+ 	// Tear down the abandoned worker after recovery. Its late result/fault cannot
+ 	// replace the terminal queue result or the durable history completion.
+-	await firstProvider[Symbol.asyncDispose]();
+-	assert.deepEqual(await firstRun, { stored: 'acme' });
+-	assert.deepEqual(await workflow.run({ ctx: secondCtx, implementation: Implementation, scheduler: secondScheduler }), { stored: 'acme' });
++	await within(firstProvider[Symbol.asyncDispose](), 'abandoned Worker provider teardown');
++	assert.deepEqual(await within(firstRun, 'stale Scheduler convergence'), { stored: 'acme' });
++	assert.deepEqual(
++		await within(workflow.run({ ctx: secondCtx, implementation: Implementation, scheduler: secondScheduler }), 'durable replay'),
++		{ stored: 'acme' },
++	);
