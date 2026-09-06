@@ -1,0 +1,21 @@
+name: Export preserved audit parts
+
+on:
+  push:
+    branches:
+      - chatgpt/recover-audit-patch-20260905
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: okikio-utils-preserved-audit-parts
+          path: .github/audit-parts/part-*
+          if-no-files-found: error
+          retention-days: 1
