@@ -1,0 +1,16 @@
+--- a/packages/worker/mod.ts
++++ b/packages/worker/mod.ts
+@@ -514,9 +514,10 @@
+ 		this.handle = Object.freeze({
+ 			id: this.#id,
+ 			events: this.#events.events,
+-			request: (requestCtx, request, requestOptions) => this.#request(requestCtx, request, requestOptions),
+-			pause: (requestId) => this.#pause(requestId),
+-			resume: (requestId) => this.#resume(requestId),
++			request: (requestCtx: Context, request: Request, requestOptions?: WorkerRequestOptions) =>
++				this.#request(requestCtx, request, requestOptions),
++			pause: (requestId: string) => this.#pause(requestId),
++			resume: (requestId: string) => this.#resume(requestId),
+ 			stop: (reason?: unknown) => this.#close(reason),
+ 			[Symbol.asyncDispose]: async () => await this.#close('Worker handle was disposed.'),
+ 		});
