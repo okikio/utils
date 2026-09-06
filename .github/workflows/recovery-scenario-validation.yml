@@ -38,6 +38,8 @@ jobs:
           patch -p1 < /tmp/recovery.patch
           patch --dry-run -p1 < .github/recovery/fix17.patch
           patch -p1 < .github/recovery/fix17.patch
+          patch --dry-run -p1 < .github/recovery/fix20.patch
+          patch -p1 < .github/recovery/fix20.patch
           rm -rf .github/recovery .github/workflows/recovery-scenario-validation.yml
 
       - uses: jdx/mise-action@v4
@@ -50,12 +52,12 @@ jobs:
       - id: worker
         name: Restartable Worker workflow scenario
         continue-on-error: true
-        run: deno test -A tests/restartable-worker.test.ts
+        run: timeout 30s deno test -A tests/restartable-worker.test.ts
 
       - id: process
         name: Process orchestration scenario
         continue-on-error: true
-        run: deno test -A tests/process-orchestration.test.ts
+        run: timeout 45s deno test -A tests/process-orchestration.test.ts
 
       - id: verify
         name: Full verification
