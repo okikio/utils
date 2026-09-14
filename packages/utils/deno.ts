@@ -1,2 +1,2 @@
-/** Convenience re-export for `@okikio/deno`. */
+/** Focused single-install re-export of `@okikio/deno`. @module */
 export * from '@okikio/deno';

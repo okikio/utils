@@ -1,2 +1,2 @@
-/** Convenience re-export for `@okikio/resource`. */
+/** Focused single-install re-export of `@okikio/resource`. @module */
 export * from '@okikio/resource';

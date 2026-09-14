@@ -1,2 +1,2 @@
-/** Convenience re-export for `@okikio/streams`. */
+/** Focused single-install re-export of `@okikio/streams`. @module */
 export * from '@okikio/streams';

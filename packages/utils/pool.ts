@@ -1,2 +1,2 @@
-/** Convenience re-export for `@okikio/pool`. */
+/** Focused single-install re-export of `@okikio/pool`. @module */
 export * from '@okikio/pool';

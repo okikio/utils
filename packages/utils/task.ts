@@ -1,2 +1,2 @@
-/** Convenience re-export for `@okikio/task`. */
+/** Focused single-install re-export of `@okikio/task`. @module */
 export * from '@okikio/task';

@@ -44,6 +44,7 @@ export * as server from '@okikio/server';
 export * as sitemap from '@okikio/sitemap';
 export * as streams from '@okikio/streams';
 export * as task from '@okikio/task';
+export * as telemetry from '@okikio/telemetry';
 export * as version from '@okikio/version';
 export * as worker from '@okikio/worker';
 export * as workflow from '@okikio/workflow';

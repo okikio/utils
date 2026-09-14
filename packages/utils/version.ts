@@ -1,2 +1,2 @@
-/** Convenience re-export for `@okikio/version`. */
+/** Focused single-install re-export of `@okikio/version`. @module */
 export * from '@okikio/version';

@@ -1,2 +1,2 @@
-/** Convenience re-export for `@okikio/workflow`. */
+/** Focused single-install re-export of `@okikio/workflow`. @module */
 export * from '@okikio/workflow';
