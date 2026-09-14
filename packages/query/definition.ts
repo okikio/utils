@@ -1,3 +1,4 @@
+import * as durationCore from '@okikio/duration';
 import * as recordCore from '@okikio/record';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 
@@ -40,7 +41,7 @@ const fieldsetPattern = /^fields\[([^\]]+)]$/;
 const fieldNamePattern = /^[A-Za-z_][A-Za-z0-9_.-]*$/;
 const parameterNamePattern = /^[A-Za-z_][A-Za-z0-9_.-]*$/;
 
-const operatorAliases: Readonly<Record<string, QueryOperatorName>> = Object.freeze({
+const operatorAliases = Object.freeze({
 	eq: 'eq',
 	ne: 'ne',
 	gt: 'gt',
@@ -60,7 +61,7 @@ const operatorAliases: Readonly<Record<string, QueryOperatorName>> = Object.free
 	isnull: 'isNull',
 	is_not_null: 'isNotNull',
 	isnotnull: 'isNotNull',
-});
+} satisfies Readonly<Record<string, QueryOperatorName>>);
 
 /** Define one public query field. */
 export function field<const Schema extends StandardSchemaV1>(
@@ -96,7 +97,7 @@ export function desc<const Field extends string>(
 
 /** Define opaque cursor pagination. Cursor verification belongs to a codec resource. */
 export function cursor(options: CursorPaginationOptions = {}): CursorPaginationDefinition {
-	const definition: CursorPaginationDefinition = Object.freeze({
+	const definition = Object.freeze({
 		kind: 'query-pagination',
 		type: 'cursor',
 		defaultLimit: options.defaultLimit ?? 50,
@@ -107,14 +108,14 @@ export function cursor(options: CursorPaginationOptions = {}): CursorPaginationD
 			cursor: options.parameters?.cursor ?? 'cursor',
 			limit: options.parameters?.limit ?? 'limit',
 		}),
-	});
+	} satisfies CursorPaginationDefinition);
 	assertCursorPagination(definition);
 	return definition;
 }
 
 /** Define bounded offset pagination with both offset/limit and page/per_page syntax. */
 export function offset(options: OffsetPaginationOptions = {}): OffsetPaginationDefinition {
-	const definition: OffsetPaginationDefinition = Object.freeze({
+	const definition = Object.freeze({
 		kind: 'query-pagination',
 		type: 'offset',
 		defaultLimit: options.defaultLimit ?? 50,
@@ -128,7 +129,7 @@ export function offset(options: OffsetPaginationOptions = {}): OffsetPaginationD
 			page: options.parameters?.page ?? 'page',
 			perPage: options.parameters?.perPage ?? 'per_page',
 		}),
-	});
+	} satisfies OffsetPaginationDefinition);
 	assertOffsetPagination(definition);
 	return definition;
 }
@@ -147,7 +148,7 @@ export function pagination(options: PaginationModesOptions): PaginationModesDefi
 	}
 	if (options.cursor !== undefined) assertCursorPagination(options.cursor);
 	if (options.offset !== undefined) assertOffsetPagination(options.offset);
-	assertPaginationParameterCompatibility(options.cursor, options.offset);
+	assertPageParameters(options.cursor, options.offset);
 	return Object.freeze({
 		kind: 'query-pagination-modes',
 		type: 'modes',
@@ -208,11 +209,7 @@ export function define<const Fields extends QueryFields>(
 				return result.success ? { value: result.value } : { issues: result.issues };
 			},
 		},
-		'~standard-json-schema': {
-			version: 1,
-			vendor: 'utils-query',
-			jsonSchema: () => jsonSchema(definition),
-		},
+		wireSchema: () => jsonSchema(definition),
 		parse: async (value: unknown) => {
 			const result = await safeParse(definition, value);
 			if (result.success) return result.value;
@@ -419,9 +416,12 @@ async function parseFilters<Fields extends QueryFields>(
 			continue;
 		}
 		for (const raw of values) {
+			const alias = explicitOperator?.toLowerCase();
 			const operatorName = explicitOperator === undefined
 				? implicitOperator(raw)
-				: operatorAliases[explicitOperator.toLowerCase()] ?? explicitOperator as QueryOperatorName;
+				: alias !== undefined && Object.hasOwn(operatorAliases, alias)
+					? operatorAliases[alias as keyof typeof operatorAliases]
+					: explicitOperator as QueryOperatorName;
 			const allowed = definition.filters[fieldName] ?? Object.freeze([]);
 			const operator = allowed.find((candidate) => candidate.name === operatorName);
 			if (!operator) {
@@ -1218,7 +1218,7 @@ function assertCursorPagination(definition: CursorPaginationDefinition): void {
 	assertLimits(definition);
 	for (const parameter of Object.values(definition.parameters)) assertParameterName(parameter);
 	if (definition.parameters.cursor === definition.parameters.limit) throw new TypeError('Cursor and limit parameter names must differ.');
-	if (definition.ttl !== undefined && durationMilliseconds(definition.ttl) <= 0) {
+	if (definition.ttl !== undefined && durationCore.milliseconds(definition.ttl) <= 0) {
 		throw new TypeError('Cursor ttl must be positive.');
 	}
 }
@@ -1243,7 +1243,7 @@ function assertOffsetPagination(definition: OffsetPaginationDefinition): void {
  *
  * @internal
  */
-function assertPaginationParameterCompatibility(
+function assertPageParameters(
 	cursorDefinition: CursorPaginationDefinition | undefined,
 	offsetDefinition: OffsetPaginationDefinition | undefined,
 ): void {
@@ -1477,14 +1477,6 @@ function assertSchema(value: unknown): asserts value is StandardSchemaV1 {
 	}
 }
 
-/**
- * Converts duration into the millisecond value used by provider-neutral query definitions.
- *
- * @internal
- */
-function durationMilliseconds(duration: Temporal.Duration): number {
-	return duration.total({ unit: 'milliseconds', relativeTo: Temporal.PlainDate.from('2000-01-01') });
-}
 
 /**
  * Create one immutable query-validation issue with an optional source path.

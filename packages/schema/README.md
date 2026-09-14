@@ -142,10 +142,32 @@ detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*_test.ts` files show edge cases, cancellation, invalid input, and lifecycle
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
    behavior as executable examples.
 4. Read internal implementation files only when you need the exact state
    transition or performance-sensitive loop.
 
 The README is the primary user documentation. It intentionally stays close to
 the public source instead of maintaining a separate hand-written API reference.
+
+Standard JSON Schema
+--------------------
+
+Standard Schema validation and Standard JSON Schema representation are related
+but separate contracts. A conforming validator can expose both under the same
+`~standard` properties:
+
+```ts
+const standard = value['~standard'];
+const checked = await standard.validate(input);
+const inputSchema = standard.jsonSchema?.input({ target: 'draft-2020-12' });
+const outputSchema = standard.jsonSchema?.output({ target: 'draft-2020-12' });
+```
+
+Do not assume that the two JSON Schemas are identical. Coercions, defaults,
+codecs, and transforms can make accepted input different from validated output.
+
+`@okikio/schema` does not require Zod to obtain this representation. Current Zod
+releases expose Standard JSON Schema through the standard protocol. A
+provider-specific adapter is only useful when the common protocol omits behavior
+or metadata that the caller actually needs.

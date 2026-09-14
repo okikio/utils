@@ -221,10 +221,23 @@ detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*_test.ts` files show edge cases, cancellation, invalid input, and lifecycle
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
    behavior as executable examples.
 4. Read internal implementation files only when you need the exact state
    transition or performance-sensitive loop.
 
 The README is the primary user documentation. It intentionally stays close to
 the public source instead of maintaining a separate hand-written API reference.
+
+Validation shape versus wire shape
+----------------------------------
+
+A `QueryDefinition` is a Standard Schema validator for the normalized query
+value. Its `wireSchema()` method has a different job: it describes the bracketed
+HTTP query-string representation used by endpoint/OpenAPI documentation.
+
+The two shapes are intentionally different. For example,
+`filter[name][contains]=kai` is an HTTP query-string representation, while a
+database adapter consumes the normalized `QueryValue`. Endpoint documentation
+uses `wireSchema()` so OpenAPI describes the HTTP input rather than the normalized
+JavaScript value.

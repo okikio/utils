@@ -3,9 +3,7 @@
 	"version": "0.0.0",
 	"publish": {
 		"exclude": [
-			"**/*_test.ts",
 			"**/*.test.ts",
-			"**/*_bench.ts",
 			"**/*.bench.ts",
 			"fixtures/**"
 		]
@@ -13,8 +11,6 @@
 	"exports": {
 		".": "./mod.ts",
 		"./standard": "./standard.ts",
-		"./zod": "./zod.ts",
-		"./valibot": "./valibot.ts",
 		"./types": "./types.ts"
 	},
 	"imports": {

@@ -7,7 +7,7 @@ export interface QueryField<Schema extends StandardSchemaV1 = StandardSchemaV1> 
 	readonly description?: string;
 	readonly selectable: boolean;
 	readonly sortable: boolean;
-	readonly jsonSchema?: unknown;
+	readonly jsonSchema?: Readonly<Record<string, unknown>>;
 }
 
 /** Input accepted by {@link field}. */
@@ -15,7 +15,7 @@ export interface QueryFieldOptions {
 	readonly description?: string;
 	readonly selectable?: boolean;
 	readonly sortable?: boolean;
-	readonly jsonSchema?: unknown;
+	readonly jsonSchema?: Readonly<Record<string, unknown>>;
 }
 
 /** Named public field collection. */
@@ -324,11 +324,8 @@ export interface QueryDefinition<Fields extends QueryFields = QueryFields>
 	readonly maximumParameters: number;
 	readonly defaultFields: readonly (keyof Fields & string)[];
 	readonly description?: string;
-	readonly '~standard-json-schema': Readonly<{
-		readonly version: 1;
-		readonly vendor: 'utils-query';
-		readonly jsonSchema: () => Readonly<Record<string, unknown>>;
-	}>;
+	/** JSON Schema for the bracketed HTTP query-string representation. */
+	readonly wireSchema: () => Readonly<Record<string, unknown>>;
 	parse(input: unknown): Promise<QueryValue<Fields>>;
 	safeParse(input: unknown): Promise<QueryParseResult<QueryValue<Fields>>>;
 	encode(value: QueryValue<Fields>): URLSearchParams;

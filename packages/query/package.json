@@ -12,7 +12,8 @@
 	},
 	"dependencies": {
 		"@standard-schema/spec": "^1.1.0",
-		"@okikio/record": "workspace:^"
+		"@okikio/record": "workspace:^",
+		"@okikio/duration": "workspace:^"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20"

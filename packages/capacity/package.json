@@ -7,8 +7,6 @@
 	"exports": {
 		".": "./mod.ts",
 		"./standard": "./standard.ts",
-		"./zod": "./zod.ts",
-		"./valibot": "./valibot.ts",
 		"./types": "./types.ts"
 	},
 	"dependencies": {

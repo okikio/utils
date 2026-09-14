@@ -305,7 +305,7 @@ describe('query definitions', () => {
 	});
 
 	it('projects the actual flat URL parameters for OpenAPI rather than a fictitious pagination object', async () => {
-		const schema = await Definition['~standard-json-schema'].jsonSchema() as {
+		const schema = Definition.wireSchema() as {
 			readonly properties: Readonly<Record<string, unknown>>;
 		};
 		expect(Object.keys(schema.properties)).toEqual([

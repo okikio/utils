@@ -115,10 +115,17 @@ detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*_test.ts` files show edge cases, cancellation, invalid input, and lifecycle
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
    behavior as executable examples.
 4. Read internal implementation files only when you need the exact state
    transition or performance-sensitive loop.
 
 The README is the primary user documentation. It intentionally stays close to
 the public source instead of maintaining a separate hand-written API reference.
+
+Validator interoperability
+--------------------------
+
+Capacity authoring accepts Standard Schema contracts directly. The package does
+not expose Zod- or Valibot-named aliases because those aliases did not add distinct
+behavior. Use the same capacity API with any Standard Schema implementation.
