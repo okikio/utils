@@ -1,41 +1,145 @@
-# `@okikio/sitemap`
+`@okikio/sitemap`
+=================
 
-Network-free, format-neutral sitemap syntax for the application and other consumers.
+Purpose
+-------
 
-Production XML parsing uses `@std/xml`. The adapter does not assume that an unprefixed `@std/xml` callback carries the
-document's default namespace. It tracks `xmlns="…"` scope itself and combines that state with the URI that `@std/xml` reports
-for prefixed names. This makes ordinary default-namespace Sitemaps, prefixed equivalents, namespace shadowing, and extension
-namespaces follow the same semantic reducer.
+`@okikio/sitemap` parses Sitemap XML, RSS, Atom, and plain-text URL lists without
+performing network I/O. It exposes one `SitemapRecord` stream so a discovery
+layer can consume several source formats through the same contract.
 
-Saxes is a **test-only differential oracle**. Keep it until the Deno conformance suite passes against the current pinned
-`@std/xml` release. It is not imported by production sitemap code.
+Use it after another component has fetched a Sitemap resource. HTTP status,
+redirects, decompression, cache policy, crawl admission, prioritization, and
+artifact persistence stay outside this package.
 
-## Public model
+The ordinary problem
+--------------------
 
-```text
-one source
-  -> detect XML / feed / text
-  -> parse incrementally
-  -> UrlRecord | SitemapRecord
+A small Sitemap can be parsed as one XML document and then walked:
+
+```ts
+const text = await response.text();
+const document = parseXml(text);
+const locations = findLocElements(document).map((element) => element.text);
 ```
 
-The utility performs no HTTP requests, decompression, crawl admission, candidate prioritization, or artifact persistence.
-`the consuming discovery package` owns those operations.
+That approach becomes awkward for large sources. The caller must also handle
+Sitemap indexes, RSS/Atom links, plain-text lists, namespace scope, source byte
+limits, hostile chunk splits, cancellation, and incremental backpressure.
 
-## Streaming properties
+Use the utility
+---------------
 
-- XML uses `parseXmlRecordsFromBytes()` so downstream consumers can apply per-record backpressure.
-- Source chunks are re-chunked to 64 KiB before `@std/xml`, which bounds the record buffer produced by one parser chunk.
-- XML 1.0 versus XML 1.1 is selected from a small replayed source prefix before the parser starts.
-- DOCTYPE is rejected by `@std/xml`.
-- Depth and attribute counts are bounded for untrusted discovery input.
-- The caller's byte limit applies to uncompressed bytes and reports `capped` without pretending deliberate truncation is malformed XML.
-- Plain text handles LF, CRLF, BOM, a final line without a newline, and UTF-8 scalars split across source chunks.
-- Atom emits page links only for the default/`alternate` relation; feed metadata such as `self` and `next` does not become a crawl route.
-- Standards-mode Sitemap roots with the wrong XML namespace produce explicit `unexpected_sitemap_namespace` evidence instead of silently returning an empty record stream.
+For a small complete source, use `parse()` or `locations()`:
 
-## Required Deno cutover gate
+```ts
+import * as sitemap from '@okikio/sitemap';
 
-Run the package tests with the frozen dependency graph. The differential corpus covers default and prefixed Sitemap namespaces,
-XHTML hreflang, extension `loc` elements, namespace shadowing, hostile chunk splits, XML 1.1 selection, DOCTYPE rejection, and
-a generated 50,000-entry stream.
+const records = sitemap.parse({
+  url: 'https://example.com/sitemap.xml',
+  text: `<?xml version="1.0"?>
+    <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+      <url><loc>https://example.com/a</loc></url>
+      <url><loc>https://example.com/b</loc></url>
+    </urlset>`,
+});
+
+console.log(records.map((record) => record.loc));
+// ['https://example.com/a', 'https://example.com/b']
+```
+
+For unknown or large input, stream records as the parser discovers them:
+
+```ts
+const result = await sitemap.parseStream({
+  stream: response.body!,
+  url: response.url,
+  contentType: response.headers.get('content-type') ?? undefined,
+  maxBytes: 64 * 1024 * 1024,
+  signal: ctx.signal,
+  async onRecord(record) {
+    await saveCandidate(record);
+  },
+});
+
+console.log(result.byteLength, result.capped, result.problems);
+```
+
+`onRecord` is awaited. A slower consumer therefore applies backpressure instead
+of forcing the package to retain the complete record set.
+
+Use with other utilities
+------------------------
+
+Robots parsing can discover Sitemap sources, and a `Context` can own the fetch
+and parse lifetime:
+
+```ts
+import * as context from '@okikio/context';
+import * as robots from '@okikio/robots';
+import * as sitemap from '@okikio/sitemap';
+
+await using ctx = context.create({ id: 'sitemap-discovery' });
+const policy = robots.parse(robotsText);
+
+for (const url of robots.getSitemapUrls(policy)) {
+  context.check(ctx);
+  const response = await fetch(url, { signal: ctx.signal });
+
+  await sitemap.parseStream({
+    stream: response.body!,
+    url,
+    signal: ctx.signal,
+    async onRecord(record) {
+      if (robots.match(policy, { userAgent: 'KaijuBot', url: record.loc })) {
+        await addCandidate(record.loc);
+      }
+    },
+  });
+}
+```
+
+Each package owns one mechanism: context owns lifetime, robots owns robots syntax
+and matching, and sitemap owns Sitemap/feed/text parsing. The discovery layer
+owns the network and crawl policy that connects them.
+
+Parser and safety model
+-----------------------
+
+Production XML parsing uses `@std/xml`. The adapter tracks default namespace
+scope itself because unprefixed callbacks do not carry enough namespace state
+for Sitemap semantics by themselves. Prefixed and unprefixed Sitemap documents
+therefore pass through one semantic reducer.
+
+The streaming parser also:
+
+- detects XML versus text from source metadata and a bounded prefix;
+- selects XML 1.0 or XML 1.1 from the replayed source prefix;
+- rejects DOCTYPE input;
+- bounds XML nesting and attribute counts;
+- reports deliberate byte-limit truncation as `capped`;
+- handles UTF-8 characters split across byte chunks;
+- treats Atom `alternate` links as page candidates while excluding feed-control
+  links such as `self` and `next`;
+- reports an unexpected Sitemap namespace in standards mode.
+
+Saxes is a **test-only differential oracle**. Production code does not import it.
+Keep the differential corpus until the pinned `@std/xml` path continues to prove
+the same Sitemap semantics.
+
+Convenience and the manual equivalent
+-------------------------------------
+
+| Convenience | Manual equivalent | Utility-owned invariant |
+| --- | --- | --- |
+| `sitemap.parse()` | detect format, parse, normalize records, de-duplicate | one complete-source contract |
+| `sitemap.parseStream()` | byte accounting + format detection + incremental parser + backpressure + cancellation + problem reporting | bounded streaming discovery |
+| `locations()` | parse records and project `loc` values | simple URL-only use |
+
+Source guide
+------------
+
+1. `mod.ts` owns format detection, streaming byte policy, and Sitemap semantics.
+2. `mod.test.ts` covers XML/feed/text behavior and safety limits.
+3. `differential.test.ts` compares production semantics against Saxes on the
+   namespace/chunking corpus.

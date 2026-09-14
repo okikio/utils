@@ -88,7 +88,7 @@ Concrete map
 | Convenience | Manual equivalent | Concrete value |
 | --- | --- | --- |
 | `hono.mount()` | translate one service runtime into Hono routes and adapt request/response/context behavior manually | reuse service contracts without making Hono the contract owner |
-| `hono.fetch()` | compose middleware around Hono fetch handling and preserve Web `Request`/`Response` semantics yourself | one Web-standard handler boundary |
+| `hono.fetch()` | compose middleware around Hono fetch handling and preserve Web `Request`/`Response` semantics yourself | one Web-standard handler contract |
 
 The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
 
@@ -111,10 +111,22 @@ detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*_test.ts` files show edge cases, cancellation, invalid input, and lifecycle
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
    behavior as executable examples.
 4. Read internal implementation files only when you need the exact state
    transition or performance-sensitive loop.
 
 The README is the primary user documentation. It intentionally stays close to
 the public source instead of maintaining a separate hand-written API reference.
+
+Hono adapter role
+----------------
+
+Hono is a host adapter, not the owner of endpoint, webhook, OpenAPI, or service
+compiler semantics. Keep reusable protocol behavior in `@okikio/http` and
+service behavior in `@okikio/server`. This package should translate those
+contracts into Hono concepts only where a Hono application needs that bridge.
+
+The same compiled service can therefore run through the framework-neutral Fetch
+host, a Hono adapter, a gateway, or an embedded protocol handler without changing
+its endpoint definitions.

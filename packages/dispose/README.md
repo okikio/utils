@@ -94,6 +94,6 @@ Source guide
 
 - `mod.ts` documents the import-safe root.
 - `polyfill.ts` installs missing standard globals.
-- `polyfill_test.ts` verifies compatibility behavior.
+- `polyfill.test.ts` verifies compatibility behavior.
 
 The README is the primary user documentation.

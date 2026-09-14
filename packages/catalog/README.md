@@ -139,7 +139,7 @@ Source guide
 
 1. `mod.ts` is the public runtime API and contains the composition algorithm.
 2. `types.ts` defines catalog, selection, metadata, and document contracts.
-3. `mod_test.ts` shows identity conflicts, key preservation, immutability, and
+3. `mod.test.ts` shows identity conflicts, key preservation, immutability, and
    deep nesting as executable cases.
 
 The README is the primary user documentation. There is intentionally no second

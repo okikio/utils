@@ -89,7 +89,7 @@ Concrete map
 
 | Convenience | Manual equivalent | Concrete value |
 | --- | --- | --- |
-| `streams.lines()` | read chunks, incrementally decode UTF-8, carry partial lines, enforce byte/line bounds, and release the reader yourself | correct line framing across arbitrary chunk boundaries |
+| `streams.lines()` | read chunks, incrementally decode UTF-8, carry partial lines, enforce byte/line bounds, and release the reader yourself | correct line framing across arbitrary chunk splits |
 | `batch()` / `map()` / bounded helpers | write async-iterator loops with explicit buffers, concurrency, cancellation, and cleanup every time | small composable streaming mechanics with backpressure |
 
 The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
@@ -122,7 +122,7 @@ detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*_test.ts` files show edge cases, cancellation, invalid input, and lifecycle
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
    behavior as executable examples.
 4. Read internal implementation files only when you need the exact state
    transition or performance-sensitive loop.

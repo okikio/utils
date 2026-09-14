@@ -82,7 +82,7 @@ env.requirementReport(...) project selected requirements without exposing secret
 the two halves visible at the call site.
 
 `isSource()` is mainly for adapters that accept either an existing source or a
-raw record. `requirementReport()` is useful at deployment/startup boundaries
+raw record. `requirementReport()` is useful at deployment and startup checks
 when an operator needs to see which canonical keys are required and why without
 printing the corresponding secret values.
 
@@ -298,7 +298,7 @@ detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*_test.ts` files show edge cases, cancellation, invalid input, and lifecycle
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
    behavior as executable examples.
 4. Read internal implementation files only when you need the exact state
    transition or performance-sensitive loop.

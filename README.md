@@ -1,18 +1,22 @@
 # @okikio/utils
 
-`@okikio/utils` is the shared home for generic TypeScript utility mechanics used across Okikio projects.
+`@okikio/utils` contains generic TypeScript mechanisms shared across Okikio
+projects. The workspace has 41 focused `@okikio/*` packages plus the
+`@okikio/utils` installation package.
 
-The monorepo contains 41 focused packages plus the `@okikio/utils` convenience package. The focused packages keep ownership and dependency boundaries precise; the umbrella gives applications a one-install path when that precision would only create dependency bookkeeping.
+Focused packages own their implementation and dependencies. `@okikio/utils`
+provides matching re-export subpaths for applications that prefer one dependency
+declaration.
 
-## Install once
+## Install
 
-For Deno and JSR-native projects:
+Deno and JSR are the canonical source and runtime model:
 
 ```sh
 deno add jsr:@okikio/utils
 ```
 
-Then import only the capabilities the program needs:
+Import the capability used by the current module:
 
 ```ts
 import * as context from '@okikio/utils/context';
@@ -20,7 +24,7 @@ import * as queue from '@okikio/utils/queue';
 import * as workflow from '@okikio/utils/workflow';
 ```
 
-A project that wants the leaf dependency explicitly can install it directly:
+A reusable package can depend on a focused package directly:
 
 ```sh
 deno add jsr:@okikio/queue
@@ -30,58 +34,118 @@ deno add jsr:@okikio/queue
 import * as queue from '@okikio/queue';
 ```
 
-`@okikio/utils/all` exists for composition roots that intentionally want broad namespace access. It is not the preferred import for ordinary library code.
+Use `@okikio/utils/all` only at a composition root that intentionally needs the
+broad namespace graph.
 
-## Runtime model
+## What the repository owns
 
-Deno source is canonical. JSR publishes that source-native contract directly.
+The repository contains product-neutral mechanisms such as:
 
-Node/npm is a projection of the capabilities that are truthfully portable. Stable `tsdown` emits ESM, CommonJS, and declarations into a staged npm workspace. Deno-only packages and subpaths are omitted rather than shimmed into a false compatibility claim. In particular, `@okikio/deno` remains Deno-only, while the npm form of `@okikio/utils/all` excludes its namespace.
+- execution context, cancellation, clocks, and disposal
+- bounded concurrency, pools, queues, streams, and resilience
+- schema, result, failure, fault, requirement, and permission mechanics
+- HTTP, endpoint, service, gateway, process, activity, and workflow primitives
+- generic CSV, HTML, CSS, robots, sitemap, email, and version utilities.
 
-The npm artifact is currently under qualification in issue #1 / PR #2; it is not yet part of the release workflow.
+Applications own product policy, provider selection, global logging
+configuration, CLI presentation, and deployment composition.
 
-See [`docs/runtimes.md`](docs/runtimes.md) for the exact distribution boundary.
+See [`docs/composition.md`](docs/composition.md) for dependency ownership and
+composition rules.
 
-## What belongs here
+## Service compilation
 
-This repository owns generic mechanics that remain meaningful outside one product:
+`@okikio/server` compiles endpoint, middleware, resource, requirement, response,
+problem, and resilience definitions before traffic begins. The resulting
+`CompiledService` contains a handler-free route plan and prepared operation
+information that the Fetch runtime can consume directly.
 
-- cancellation, clocks, and execution context;
-- resource ownership and disposal;
-- bounded concurrency, queues, pools, streams, and resilience;
-- representation, validation, result, failure, and fault mechanics;
-- HTTP/server middleware and service composition primitives;
-- process and worker control;
-- durable workflow mechanics;
-- generic web parsing helpers such as CSV, HTML, CSS, robots, and sitemaps where the API remains product-neutral.
+```text
+@okikio/http                 Web and HTTP protocol mechanics
+        |
+        v
+@okikio/server               service compiler and Fetch runtime
+        |
+        +--> @okikio/hono    Hono host adapter
+        +--> MCP adapter     protocol package or application adapter
+        +--> gateway         network forwarding and trust policy
+```
 
-Product policy, application logging configuration, concrete providers, domain registries, CLI presentation, and deployment composition stay with the products that own them.
+The service compiler remains independent of Hono and MCP. Protocol adapters use
+Web `Request` and `Response` rather than changing endpoint definitions.
 
-The initial source was reconciled from Kaiju Platform, Kaiju Crawl, and MediaD rather than copied wholesale from one tree. [`docs/merge-ledger.md`](docs/merge-ledger.md) records retained cross-project differences.
+Read [`docs/server.md`](docs/server.md) for the compiler, request lifecycle,
+prepared routing, request state, mounts, gateways, OpenAPI, and MCP transport
+hosting.
 
-## Verify the repository
+## Schema and HTTP representations
 
-Mise owns tool versions and repository tasks:
+Standard Schema is the validator interoperability contract. Standard JSON Schema
+lets a validator describe accepted input and validated output. HTTP query syntax
+and serialized responses can provide explicit wire schemas when those
+representations differ from the validator's JavaScript values.
+
+This separation keeps generated OpenAPI aligned with what an HTTP client sends
+and receives, including schemas that coerce or transform values.
+
+## Packages and tree-shaking
+
+Applications can install `@okikio/utils` once while retaining focused imports:
+
+```ts
+import { parseQuery } from '@okikio/utils/http/request';
+import { prepareRoutes } from '@okikio/utils/server/http';
+```
+
+The umbrella modules re-export focused package entries. They do not contain a
+second implementation. Release checks compare representative focused and
+umbrella bundles to catch eager barrels and import-time effects.
+
+Read [`docs/packaging.md`](docs/packaging.md) for public subpaths, side-effect
+rules, build output, tree-shaking evidence, and package-artifact checks.
+
+## Tests
+
+Package-local tests protect focused contracts. Root [`tests/`](tests/) contains
+cross-package scenarios, public-import checks, and consumer flows.
 
 ```sh
 mise install
+mise run install
 mise run verify
-mise run verify-npm
-mise run bench-smoke
 ```
 
-`verify` covers the canonical Deno source, package/release audits, and cross-project scenarios. `verify-npm` builds and exercises staged Node artifacts. `bench-smoke` executes representative Mitata stories without unstable performance thresholds.
+Read [`docs/testing.md`](docs/testing.md) for test placement and evidence rules.
 
-Read [`docs/testing.md`](docs/testing.md) for the test model and [`docs/benchmarks.md`](docs/benchmarks.md) for benchmark rules.
+## Benchmarks
 
-## Packages and composition
+Package-local benchmarks measure focused mechanisms. Root [`bench/`](bench/)
+contains multi-package benchmark scenarios.
 
-See [`docs/packages.md`](docs/packages.md) for the complete inventory and [`docs/composition.md`](docs/composition.md) for dependency direction and import guidance.
+```sh
+mise run bench
+```
+
+Read [`docs/benchmarks.md`](docs/benchmarks.md) for representative workloads,
+reference implementations, and performance-reporting rules.
 
 ## Releases
 
-Bumpy bump files are the source for semantic release intent and changelog prose. Leaf packages receive focused changelogs; `@okikio/utils` aggregates the user-facing summaries of leaf changes so single-install consumers can understand one release surface.
+Bumpy owns release intent, semantic version propagation, individual package
+changelogs, version PRs, Git tags, and GitHub release notes. JSR publication runs
+per workspace member. npm publication is disabled.
 
-JSR publication is wired today. npm publication remains disabled until the staged tsdown artifact, clean-consumer tests, package linters, and lockfiles are fully qualified.
+```sh
+mise run release-check
+```
 
-See [`docs/releases.md`](docs/releases.md) for the release model.
+Read [`docs/releases.md`](docs/releases.md) for the release workflow.
+
+## Documentation map
+
+- [`docs/composition.md`](docs/composition.md) explains package ownership and composition.
+- [`docs/server.md`](docs/server.md) explains service compilation and request execution.
+- [`docs/packaging.md`](docs/packaging.md) explains exports, tree-shaking, and artifact checks.
+- [`docs/testing.md`](docs/testing.md) explains correctness and consumer tests.
+- [`docs/benchmarks.md`](docs/benchmarks.md) explains performance evidence.
+- [`docs/releases.md`](docs/releases.md) explains versioning and publication.

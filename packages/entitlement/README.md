@@ -101,7 +101,7 @@ Source guide
 
 1. `mod.ts` contains the complete runtime API.
 2. `types.ts` defines the immutable values.
-3. `mod_test.ts`, when present, is the executable behavior reference.
+3. `mod.test.ts`, when present, is the executable behavior reference.
 
 The README is the primary user documentation; there is intentionally no separate
 hand-written API reference.

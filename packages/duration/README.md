@@ -115,7 +115,7 @@ detail:
 1. `mod.ts` contains the two runtime operations and the private deterministic
    calendar anchor.
 2. `types.ts` defines the accepted Temporal input shape.
-3. `mod_test.ts` shows fixed-unit, calendar-unit, negative, and ordering
+3. `mod.test.ts` shows fixed-unit, calendar-unit, negative, and ordering
    behavior as executable examples.
 
 The README is the primary user documentation. It stays close to the public

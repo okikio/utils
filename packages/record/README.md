@@ -81,6 +81,6 @@ Source guide
 
 1. `mod.ts` contains the complete runtime rules and snapshot operation.
 2. `types.ts` contains the exact entry type.
-3. `mod_test.ts` covers prototype, accessor, symbol, hidden-property, and
+3. `mod.test.ts` covers prototype, accessor, symbol, hidden-property, and
    `__proto__` behavior.
-4. `type_test.ts` locks exact key/value inference.
+4. `types.test.ts` locks exact key/value inference.

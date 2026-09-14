@@ -100,8 +100,8 @@ Source guide
 
 1. `mod.ts` contains the complete projection algorithm and operational limits.
 2. `types.ts` defines the JSON-safe output and options.
-3. `mod_test.ts` stresses cycles, accessors, custom objects, and limits.
-4. `type_test.ts` locks the public TypeScript surface.
+3. `mod.test.ts` stresses cycles, accessors, custom objects, and limits.
+4. `type.test.ts` locks the public TypeScript surface.
 
 The README is the primary user documentation. There is no separate hand-written
 API reference to keep in sync.

@@ -19,7 +19,7 @@ How it fits
 `@okikio/result` only carries a success value or a failure value.
 
 This separation keeps `@okikio/result` free of schemas, catalogs, and transport
-concerns.  A result can therefore contain a failure occurrence, a validation
+behavior.  A result can therefore contain a failure occurrence, a validation
 problem, a string, or another exact reason type.
 
 The wrapper is shallowly immutable. `ok()` and `fail()` freeze the discriminated
@@ -153,7 +153,7 @@ detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*_test.ts` files show edge cases, cancellation, invalid input, and lifecycle
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
    behavior as executable examples.
 4. Read internal implementation files only when you need the exact state
    transition or performance-sensitive loop.

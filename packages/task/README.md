@@ -130,7 +130,7 @@ Source guide
 1. `mod.ts` contains the complete Task state machine and public `start()`
    operation.
 2. `types.ts` defines `Task`, `TaskContext`, `TaskOptions`, and lifecycle states.
-3. `mod_test.ts` shows cancellation, pause generations, cleanup, and resource
+3. `mod.test.ts` shows cancellation, pause generations, cleanup, and resource
    borrowing as executable examples.
 4. Read `@okikio/context` and `@okikio/resource` when you need the ownership model
    behind the Task context.
