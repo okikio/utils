@@ -8,19 +8,22 @@
 		"check": "deno check",
 		"test": "deno test -A",
 		"lint": "deno lint",
-		"verify": "deno task fmt && deno task lint && deno task check && deno task test",
-		"bench": "deno run -A packages/ && deno run -A bench/"
+		"verify": "deno task fmt && deno task lint && deno task check && deno task test && deno task package:check && deno task treeshake:check && deno task freeze:check",
+		"bench": "deno task --members --if-present bench && deno run bench/mod.ts",
+		"package:check": "deno run -A tools/check-packaging.ts",
+		"utils:sync": "deno run -A tools/sync-utils-exports.ts",
+		"treeshake:check": "deno run -A tools/check-treeshake.ts",
+		"freeze:check": "deno run --allow-read tools/check-freeze-inference.ts"
 	},
 	"exports": {},
 	"imports": {
-		"@logtape/logtape": "jsr:@logtape/logtape@^2.3.2",
 		"@okikio/observables": "jsr:@okikio/observables@^1.4.0",
-		"@okikio/undent": "jsr:@okikio/undent@^0.3.3",
+		"@standard-schema/spec": "npm:@standard-schema/spec@^1.1.0",
 		"@std/async": "jsr:@std/async@^1.5.0",
 		"@std/encoding": "jsr:@std/encoding@^1.0.11",
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
-		"@std/media-types": "jsr:@std/media-types@^1.1.0",
 		"@std/xml": "jsr:@std/xml@^0.2.0",
+		"fast-check": "npm:fast-check@^4.9.0",
 		"mitata": "npm:mitata@^1.0.34",
 		"css-tree": "npm:css-tree@^3.2.1",
 		"zod": "npm:zod@^4.5.4"

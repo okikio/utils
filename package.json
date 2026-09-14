@@ -9,12 +9,17 @@
 	"license": "MIT",
 	"scripts": {
 		"bump": "bumpy add",
-		"bump:check": "bumpy check --strict"
+		"bump:check": "bumpy check --strict",
+		"package:check": "deno task package:check",
+		"treeshake:check": "deno task treeshake:check",
+		"verify": "deno task verify"
 	},
 	"devDependencies": {
 		"@arethetypeswrong/cli": "0.18.5",
+		"@standard-schema/spec": "1.1.0",
 		"@types/node": "26.4.0",
 		"@varlock/bumpy": "1.18.1",
+		"fast-check": "4.9.0",
 		"mitata": "1.0.34",
 		"publint": "0.3.24",
 		"tsdown": "0.22.14",

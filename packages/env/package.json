@@ -8,7 +8,8 @@
 		".": "./mod.ts",
 		"./standard": "./standard.ts",
 		"./valibot": "./valibot.ts",
-		"./zod": "./zod.ts"
+		"./zod": "./zod.ts",
+		"./types": "./types.ts"
 	},
 	"dependencies": {
 		"@standard-schema/spec": "^1.1.0",

@@ -13,9 +13,7 @@
 	"license": "MIT",
 	"publish": {
 		"exclude": [
-			"**/*_test.ts",
 			"**/*.test.ts",
-			"**/*_bench.ts",
 			"**/*.bench.ts",
 			"fixtures/**"
 		]
