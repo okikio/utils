@@ -332,7 +332,7 @@ describe('workflow Scheduler activity ownership', () => {
 			}),
 		});
 		const base = activity('durable-job', placement({ engine: Engine, mode: 'required' }));
-		const Activity: workflow.ActivityReference = Object.freeze({ ...base, failures: Object.freeze([Blocked]) });
+		const Activity = Object.freeze({ ...base, failures: Object.freeze([Blocked]) } satisfies workflow.ActivityReference);
 		const definition = workflow.define({
 			id: 'scheduler-test.durable-job',
 			version: '1',

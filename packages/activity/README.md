@@ -187,7 +187,7 @@ result handling:
 
 - `catalog()` and `select()` build and narrow named activity definition sets.
 - `document()` produces deterministic, JSON-safe definition metadata for tooling.
-- `try_()` converts one attempt into explicit success/failure/fault/cancellation data
+- `try()` converts one attempt into explicit success/failure/fault/cancellation data
   instead of throwing declared activity failures.
 - `isFailure()` checks whether a result contains one declared activity failure.
 - `InvalidEngineError` reports a provider that claims the wrong engine definition.
@@ -203,7 +203,7 @@ detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*_test.ts` files show edge cases, cancellation, invalid input, and lifecycle
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
    behavior as executable examples.
 4. Read internal implementation files only when you need the exact state
    transition or performance-sensitive loop.

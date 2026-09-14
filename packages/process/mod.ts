@@ -19,6 +19,7 @@ import type {
 	OutputModeType,
 	Process,
 	SignalType,
+	SpawnOptionsType,
 	Spawned,
 	StartOptionsType,
 	StdioType,
@@ -60,199 +61,214 @@ export class ProcessStopTimeoutError extends Error {
 	}
 }
 
-/**
- * Starts one child through an explicit runtime adapter.
- *
- * The adapter finishes once the process has spawned. From that point the returned
- * handle owns output pumps, parent cancellation, graceful shutdown, forced
- * escalation, and final disposal. Keeping those rules here means a Node process
- * and a Deno process present the same lifecycle to higher-level libraries.
- *
- * @example
- * ```ts
- * import nodeProcess from 'node:process';
- * import * as process from '@okikio/process';
- * import * as node from '@okikio/process/node';
- *
- * const child = await process.start(ctx, node.create(), {
- * 	command: nodeProcess.execPath,
- * 	arguments: ['--version'],
- * 	stdout: { type: 'capture', maximumBytes: 4096 },
- * });
- * const exit = await child.wait();
- * ```
- */
-export async function start(ctx: Context, adapter: Adapter, options: StartOptionsType): Promise<Process> {
-	contextCore.check(ctx);
-	if (options.command.trim().length === 0) throw new TypeError('Process command must not be empty.');
-	const tree = options.tree ?? 'direct-child';
-	if (!adapter.trees.includes(tree)) throw new UnsupportedTreeModeError(tree);
-	const stdinMode = options.stdin ?? 'null';
-	const stdoutMode = options.stdout ?? { type: 'inherit' };
-	const stderrMode = options.stderr ?? { type: 'inherit' };
-	validateOutputMode(stdoutMode, 'stdout');
-	validateOutputMode(stderrMode, 'stderr');
-	validateShutdown(options.shutdown);
+/** Process settings resolved before the runtime adapter is allowed to spawn. */
+interface ResolvedStartOptions {
+	/** Process-tree ownership guarantee the selected adapter must implement. */
+	readonly tree: TreeModeType;
+	/** Standard-input ownership translated to the adapter after public `null` semantics are resolved. */
+	readonly stdin: 'inherit' | 'null' | 'piped';
+	/** Standard-output ownership policy retained by the generic process owner. */
+	readonly stdout: OutputModeType;
+	/** Standard-error ownership policy retained by the generic process owner. */
+	readonly stderr: OutputModeType;
+}
 
-	const child = await adapter.spawn({
-		command: options.command,
-		arguments: Object.freeze([...(options.arguments ?? [])]),
-		...(options.cwd === undefined ? {} : { cwd: options.cwd }),
-		...(options.env === undefined ? {} : { env: Object.freeze({ ...options.env }) }),
-		clearEnv: options.clearEnv ?? false,
-		stdin: stdinMode === 'null' ? 'discard' : stdinMode,
-		stdout: spawnMode(stdoutMode),
-		stderr: spawnMode(stderrMode),
-		tree,
-	});
+/** Generic lifecycle owner for one process after a runtime adapter has spawned it. */
+class Runtime {
+	readonly #ctx: Context;
+	readonly #adapter: Adapter;
+	readonly #options: StartOptionsType;
+	readonly #resolved: ResolvedStartOptions;
+	readonly #child: Spawned;
+	readonly #events = new EventBus<ProcessEventType>();
+	readonly #captured: { stdout?: Uint8Array; stderr?: Uint8Array } = {};
+	readonly #outputPumps: Promise<void>[] = [];
+	readonly #ownsTree: boolean;
+	#streamStdout: ReadableStream<Uint8Array> | undefined;
+	#streamStderr: ReadableStream<Uint8Array> | undefined;
+	#outputFailure: unknown;
+	#hasOutputFailure = false;
+	#stopPromise: Promise<void> | undefined;
+	#exitPromise: Promise<ProcessExitType> | undefined;
+	#terminal = false;
+	#disposed = false;
+	readonly process: Process;
 
-	const events = new EventBus<ProcessEventType>();
-	events.emit(Object.freeze({ type: 'started', pid: child.pid }));
-	const captured: { stdout?: Uint8Array; stderr?: Uint8Array } = {};
-	const outputPumps: Promise<void>[] = [];
-	let streamStdout: ReadableStream<Uint8Array> | undefined;
-	let streamStderr: ReadableStream<Uint8Array> | undefined;
-	let outputFailure: unknown;
-	let hasOutputFailure = false;
+	/** Parent cancellation requests process shutdown but does not synchronously throw into the signal handler. */
+	readonly #abort = (): void => void this.#stop(this.#ctx.signal.reason).catch(() => {});
 
-	if (stdoutMode.type === 'stream') streamStdout = requireReadable(child, 'stdout');
-	else if (stdoutMode.type === 'capture' || stdoutMode.type === 'sink') {
-		outputPumps.push(
-			ownOutput(requireReadable(child, 'stdout'), stdoutMode, 'stdout').then((value) => {
-				if (value !== undefined) captured.stdout = value;
+	constructor(
+		ctx: Context,
+		adapter: Adapter,
+		options: StartOptionsType,
+		resolved: ResolvedStartOptions,
+		child: Spawned,
+	) {
+		this.#ctx = ctx;
+		this.#adapter = adapter;
+		this.#options = options;
+		this.#resolved = resolved;
+		this.#child = child;
+		this.#ownsTree = resolved.tree !== 'direct-child';
+		this.#events.emit(Object.freeze({ type: 'started', pid: child.pid }));
+		this.#prepareOutput();
+
+		this.process = Object.freeze({
+			pid: child.pid,
+			tree: resolved.tree,
+			...(resolved.stdin === 'piped' ? { stdin: requireWritable(child) } : {}),
+			...(this.#streamStdout === undefined ? {} : { stdout: this.#streamStdout }),
+			...(this.#streamStderr === undefined ? {} : { stderr: this.#streamStderr }),
+			events: this.#events.events,
+			wait: () => this.#wait(),
+			signal: (signal: SignalType) => void this.#send(signal),
+			stop: (reason?: unknown) => this.#stop(reason),
+			[Symbol.asyncDispose]: async () => await this.#dispose(),
+		});
+
+		ctx.signal.addEventListener('abort', this.#abort, { once: true });
+		if (ctx.signal.aborted) this.#abort();
+	}
+
+	/** Attach streaming outputs directly and start owned capture or sink pumps. */
+	#prepareOutput(): void {
+		if (this.#resolved.stdout.type === 'stream') this.#streamStdout = requireReadable(this.#child, 'stdout');
+		else if (this.#resolved.stdout.type === 'capture' || this.#resolved.stdout.type === 'sink') {
+			this.#pumpOutput(requireReadable(this.#child, 'stdout'), this.#resolved.stdout, 'stdout');
+		}
+
+		if (this.#resolved.stderr.type === 'stream') this.#streamStderr = requireReadable(this.#child, 'stderr');
+		else if (this.#resolved.stderr.type === 'capture' || this.#resolved.stderr.type === 'sink') {
+			this.#pumpOutput(requireReadable(this.#child, 'stderr'), this.#resolved.stderr, 'stderr');
+		}
+	}
+
+	/** Own one capture or sink pump and retain its failure for terminal `wait()` settlement. */
+	#pumpOutput(
+		stream: ReadableStream<Uint8Array>,
+		mode: Extract<OutputModeType, Readonly<{ readonly type: 'capture' | 'sink' }>>,
+		name: 'stdout' | 'stderr',
+	): void {
+		this.#outputPumps.push(
+			this.#ownOutput(stream, mode, name).then((value) => {
+				if (value !== undefined) this.#captured[name] = value;
 			}).catch((error) => {
-				outputFailure = error;
-				hasOutputFailure = true;
+				this.#outputFailure = error;
+				this.#hasOutputFailure = true;
 			}),
 		);
 	}
-	if (stderrMode.type === 'stream') streamStderr = requireReadable(child, 'stderr');
-	else if (stderrMode.type === 'capture' || stderrMode.type === 'sink') {
-		outputPumps.push(
-			ownOutput(requireReadable(child, 'stderr'), stderrMode, 'stderr').then((value) => {
-				if (value !== undefined) captured.stderr = value;
-			}).catch((error) => {
-				outputFailure = error;
-				hasOutputFailure = true;
-			}),
-		);
+
+	/** Memoize terminal process status and join every owned output pump before returning it. */
+	#wait(): Promise<ProcessExitType> {
+		this.#exitPromise ??= this.#completeExit();
+		return this.#exitPromise;
 	}
 
-	let stopPromise: Promise<void> | undefined;
-	let exitPromise: Promise<ProcessExitType> | undefined;
-	let terminal = false;
-	let disposed = false;
-	let owned!: Process;
-	const ownsTree = tree !== 'direct-child';
-	const abort = () => void owned.stop(ctx.signal.reason).catch(() => {});
+	/** Convert adapter status plus bounded captures into the stable public exit contract. */
+	async #completeExit(): Promise<ProcessExitType> {
+		const status = await this.#child.status;
+		this.#terminal = true;
+		this.#ctx.signal.removeEventListener('abort', this.#abort);
+		await Promise.all(this.#outputPumps);
+		if (this.#hasOutputFailure) throw this.#outputFailure;
+		const exit = Object.freeze({
+			code: status.code,
+			success: status.success,
+			...(status.signal === undefined ? {} : { signal: status.signal }),
+			...(this.#captured.stdout === undefined ? {} : { stdout: this.#captured.stdout }),
+			...(this.#captured.stderr === undefined ? {} : { stderr: this.#captured.stderr }),
+		} satisfies ProcessExitType);
+		this.#events.emit(Object.freeze({
+			type: 'exited',
+			code: status.code,
+			success: status.success,
+			...(status.signal === undefined ? {} : { signal: status.signal }),
+		}));
+		return exit;
+	}
 
-	/** Send one signal without treating root-process settlement as proof that an owned process group is empty. */
-	const send = (signal: SignalType): boolean => {
-		if (terminal && !ownsTree) return false;
+	/** Send one signal without treating root settlement as proof that an owned process group is empty. */
+	#send(signal: SignalType): boolean {
+		if (this.#terminal && !this.#ownsTree) return false;
 		try {
-			child.kill(signal);
+			this.#child.kill(signal);
 		} catch (error) {
-			if (child.isGone(error)) return false;
+			if (this.#child.isGone(error)) return false;
 			throw error;
 		}
-		events.emit(Object.freeze({ type: 'signal', signal }));
+		this.#events.emit(Object.freeze({ type: 'signal', signal }));
 		return true;
-	};
+	}
 
-	owned = Object.freeze({
-		pid: child.pid,
-		tree,
-		...(stdinMode === 'piped' ? { stdin: requireWritable(child) } : {}),
-		...(streamStdout === undefined ? {} : { stdout: streamStdout }),
-		...(streamStderr === undefined ? {} : { stderr: streamStderr }),
-		events: events.events,
-		wait() {
-			if (exitPromise !== undefined) return exitPromise;
-			exitPromise = (async () => {
-				const status = await child.status;
-				terminal = true;
-				ctx.signal.removeEventListener('abort', abort);
-				await Promise.all(outputPumps);
-				if (hasOutputFailure) throw outputFailure;
-				const exit: ProcessExitType = Object.freeze({
-					code: status.code,
-					success: status.success,
-					...(status.signal === undefined ? {} : { signal: status.signal }),
-					...(captured.stdout === undefined ? {} : { stdout: captured.stdout }),
-					...(captured.stderr === undefined ? {} : { stderr: captured.stderr }),
-				});
-				events.emit(Object.freeze({
-					type: 'exited',
-					code: status.code,
-					success: status.success,
-					...(status.signal === undefined ? {} : { signal: status.signal }),
-				}));
-				return exit;
-			})();
-			return exitPromise;
-		},
-		signal(signal: SignalType) {
-			void send(signal);
-		},
-		stop(reason?: unknown) {
-			if (stopPromise !== undefined) return stopPromise;
-			stopPromise = (async () => {
-				if (terminal && !ownsTree) {
-					await owned.wait();
-					return;
-				}
-				events.emit(Object.freeze({ type: 'stopping', ...(reason === undefined ? {} : { reason }) }));
-				const shutdown = options.shutdown ?? {};
-				const gracefulSignal = shutdown.signal ?? adapter.signal;
-				const forceSignal = shutdown.forceSignal ?? adapter.forceSignal;
-				const graceMs = shutdown.graceMs ?? 10_000;
-				const forceMs = shutdown.forceMs ?? 5_000;
+	/** Memoize graceful-to-forced shutdown so every owner observes one escalation sequence. */
+	#stop(reason?: unknown): Promise<void> {
+		this.#stopPromise ??= this.#stopProcess(reason);
+		return this.#stopPromise;
+	}
 
-				const graceful = send(gracefulSignal);
-				if (!ownsTree) {
-					if (!graceful || await settlesWithin(owned.wait(), graceMs)) return;
-					events.emit(Object.freeze({ type: 'forced' }));
-					void send(forceSignal);
-					if (!await settlesWithin(owned.wait(), forceMs)) throw new ProcessStopTimeoutError(child.pid);
-					return;
-				}
+	/** Apply direct-child or process-group shutdown semantics after the first stop request. */
+	async #stopProcess(reason: unknown): Promise<void> {
+		if (this.#terminal && !this.#ownsTree) {
+			await this.#wait();
+			return;
+		}
+		this.#events.emit(Object.freeze({ type: 'stopping', ...(reason === undefined ? {} : { reason }) }));
+		const shutdown = this.#options.shutdown ?? {};
+		const gracefulSignal = shutdown.signal ?? this.#adapter.signal;
+		const forceSignal = shutdown.forceSignal ?? this.#adapter.forceSignal;
+		const graceMs = shutdown.graceMs ?? 10_000;
+		const forceMs = shutdown.forceMs ?? 5_000;
+		const graceful = this.#send(gracefulSignal);
 
-				// The group can outlive its leader. A runtime liveness probe lets us return
-				// after graceful group exit; otherwise we conservatively wait the full grace
-				// period and send the force signal to the group even if the leader already exited.
-				if (!graceful && child.treeAlive?.() === false) {
-					await owned.wait();
-					return;
-				}
-				if (child.treeAlive !== undefined && await treeSettlesWithin(child.treeAlive, graceMs)) {
-					await owned.wait();
-					return;
-				}
-				if (child.treeAlive === undefined) await waitFor(graceMs);
+		if (!this.#ownsTree) {
+			await this.#stopDirectChild(graceful, forceSignal, graceMs, forceMs);
+			return;
+		}
+		await this.#stopOwnedTree(graceful, forceSignal, graceMs, forceMs);
+	}
 
-				events.emit(Object.freeze({ type: 'forced' }));
-				void send(forceSignal);
-				if (child.treeAlive !== undefined && !await treeSettlesWithin(child.treeAlive, forceMs)) {
-					throw new ProcessStopTimeoutError(child.pid);
-				}
-				await owned.wait();
-			})();
-			return stopPromise;
-		},
-		async [Symbol.asyncDispose]() {
-			if (disposed) return;
-			disposed = true;
-			try {
-				await owned.stop('Process handle was disposed.');
-			} finally {
-				ctx.signal.removeEventListener('abort', abort);
-				events[Symbol.dispose]();
-			}
-		},
-	});
-	ctx.signal.addEventListener('abort', abort, { once: true });
-	if (ctx.signal.aborted) abort();
-	return owned;
+	/** Stop a direct child once the root process itself reaches terminal status. */
+	async #stopDirectChild(graceful: boolean, forceSignal: SignalType, graceMs: number, forceMs: number): Promise<void> {
+		if (!graceful || await settlesWithin(this.#wait(), graceMs)) return;
+		this.#events.emit(Object.freeze({ type: 'forced' }));
+		void this.#send(forceSignal);
+		if (!await settlesWithin(this.#wait(), forceMs)) throw new ProcessStopTimeoutError(this.#child.pid);
+	}
+
+	/** Stop an owned process group without confusing leader exit with group exit. */
+	async #stopOwnedTree(graceful: boolean, forceSignal: SignalType, graceMs: number, forceMs: number): Promise<void> {
+		// The group can outlive its leader. A liveness probe can end the grace
+		// period early; without one, conservatively wait the full grace interval.
+		if (!graceful && this.#child.treeAlive?.() === false) {
+			await this.#wait();
+			return;
+		}
+		if (this.#child.treeAlive !== undefined && await treeSettlesWithin(this.#child.treeAlive, graceMs)) {
+			await this.#wait();
+			return;
+		}
+		if (this.#child.treeAlive === undefined) await waitFor(graceMs);
+
+		this.#events.emit(Object.freeze({ type: 'forced' }));
+		void this.#send(forceSignal);
+		if (this.#child.treeAlive !== undefined && !await treeSettlesWithin(this.#child.treeAlive, forceMs)) {
+			throw new ProcessStopTimeoutError(this.#child.pid);
+		}
+		await this.#wait();
+	}
+
+	/** Dispose process ownership once and release parent cancellation plus local event observers. */
+	async #dispose(): Promise<void> {
+		if (this.#disposed) return;
+		this.#disposed = true;
+		try {
+			await this.#stop('Process handle was disposed.');
+		} finally {
+			this.#ctx.signal.removeEventListener('abort', this.#abort);
+			this.#events[Symbol.dispose]();
+		}
+	}
 
 	/**
 	 * Drain one owned child-output stream according to its configured mode.
@@ -260,7 +276,7 @@ export async function start(ctx: Context, adapter: Adapter, options: StartOption
 	 * Captured output remains bounded. Exceeding the bound initiates process
 	 * shutdown before surfacing the output-limit failure to the owner.
 	 */
-	async function ownOutput(
+	async #ownOutput(
 		stream: ReadableStream<Uint8Array>,
 		mode: Extract<OutputModeType, Readonly<{ readonly type: 'capture' | 'sink' }>>,
 		name: 'stdout' | 'stderr',
@@ -278,8 +294,8 @@ export async function start(ctx: Context, adapter: Adapter, options: StartOption
 				if (next.done) break;
 				total += next.value.byteLength;
 				if (total > mode.maximumBytes) {
-					events.emit(Object.freeze({ type: 'output-limit', stream: name, maximumBytes: mode.maximumBytes }));
-					void owned.stop(new OutputLimitError(name, mode.maximumBytes)).catch(() => {});
+					this.#events.emit(Object.freeze({ type: 'output-limit', stream: name, maximumBytes: mode.maximumBytes }));
+					void this.#stop(new OutputLimitError(name, mode.maximumBytes)).catch(() => {});
 					throw new OutputLimitError(name, mode.maximumBytes);
 				}
 				chunks.push(next.value);
@@ -290,6 +306,65 @@ export async function start(ctx: Context, adapter: Adapter, options: StartOption
 		}
 	}
 }
+
+/** Resolve and validate public process policy before a runtime adapter acquires resources. */
+function resolveStart(adapter: Adapter, options: StartOptionsType): ResolvedStartOptions {
+	if (options.command.trim().length === 0) throw new TypeError('Process command must not be empty.');
+	const tree = options.tree ?? 'direct-child';
+	if (!adapter.trees.includes(tree)) throw new UnsupportedTreeModeError(tree);
+	const stdin = options.stdin ?? 'null';
+	const stdout = options.stdout ?? { type: 'inherit' };
+	const stderr = options.stderr ?? { type: 'inherit' };
+	validateOutputMode(stdout, 'stdout');
+	validateOutputMode(stderr, 'stderr');
+	validateShutdown(options.shutdown);
+	return Object.freeze({ tree, stdin, stdout, stderr });
+}
+
+/** Translate resolved generic ownership policy into the adapter's spawn contract. */
+function spawnOptions(options: StartOptionsType, resolved: ResolvedStartOptions): SpawnOptionsType {
+	return Object.freeze({
+		command: options.command,
+		arguments: Object.freeze([...(options.arguments ?? [])]),
+		...(options.cwd === undefined ? {} : { cwd: options.cwd }),
+		...(options.env === undefined ? {} : { env: Object.freeze({ ...options.env }) }),
+		clearEnv: options.clearEnv ?? false,
+		stdin: resolved.stdin === 'null' ? 'discard' : resolved.stdin,
+		stdout: spawnMode(resolved.stdout),
+		stderr: spawnMode(resolved.stderr),
+		tree: resolved.tree,
+	});
+}
+
+/**
+ * Starts one child through an explicit runtime adapter.
+ *
+ * The adapter finishes once the process has spawned. From that point the returned
+ * handle owns output pumps, parent cancellation, graceful shutdown, forced
+ * escalation, and final disposal. Keeping those rules here means a Node process
+ * and a Deno process present the same lifecycle to higher-level libraries.
+ *
+ * @example
+ * ```ts
+ * import nodeProcess from 'node:process';
+ * import * as process from '@utils/process';
+ * import * as node from '@utils/process/node';
+ *
+ * const child = await process.start(ctx, node.create(), {
+ * \tcommand: nodeProcess.execPath,
+ * \targuments: ['--version'],
+ * \tstdout: { type: 'capture', maximumBytes: 4096 },
+ * });
+ * const exit = await child.wait();
+ * ```
+ */
+export async function start(ctx: Context, adapter: Adapter, options: StartOptionsType): Promise<Process> {
+	contextCore.check(ctx);
+	const resolved = resolveStart(adapter, options);
+	const child = await adapter.spawn(spawnOptions(options, resolved));
+	return new Runtime(ctx, adapter, options, resolved, child).process;
+}
+
 
 /** Runs one finite process and returns its terminal status and captured output. */
 export async function exec(ctx: Context, adapter: Adapter, options: ExecOptionsType): Promise<ProcessExitType> {

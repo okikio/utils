@@ -64,7 +64,7 @@ The public operations use short namespace-oriented names:
 - `sleep()` requests a durable timer from the command host.
 - `wait()` waits for one declared external signal.
 - `child()` requests a child workflow.
-- `effect()` emits one workflow-declared required effect.
+- `effect()` emits one workflow-declared effect.
 - `defer()` registers serializable cleanup.
 - `continue()` ends the current run and continues with validated new input.
 - `parallel()`, `map()`, `race()`, and `retry()` define control semantics that
@@ -123,7 +123,7 @@ The Scheduler owns:
 A provider owns only delivery of the current fenced attempt. It cannot create a
 new logical retry.
 
-Registration is a live-resource boundary. The Scheduler snapshots the provider's
+Registration creates a live resource. The Scheduler snapshots the provider's
 advertised activity list, affinity facts, capacity, protocol version, and exact
 `run()` / `cancel()` methods when `register()` is called. Later mutation of the
 original configuration or provider object does not silently change that live
@@ -293,7 +293,7 @@ detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*_test.ts` files show edge cases, cancellation, invalid input, and lifecycle
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
    behavior as executable examples.
 4. Read internal implementation files only when you need the exact state
    transition or performance-sensitive loop.

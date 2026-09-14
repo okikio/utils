@@ -2,9 +2,9 @@ import { expect } from '@std/expect';
 import { describe, it } from 'node:test';
 
 import * as context from '@okikio/context';
-import * as queue from './mod.ts';
+import * as queue from '@okikio/queue';
 
-describe('queue qualification', () => {
+describe('queue pressure', () => {
 	it('never grants the same logical item to two simultaneous claims', async () => {
 		await using ctx = context.create({ id: 'queue-pressure', clock: new context.TestClock() });
 		await using jobs = queue.memory<number, number>();

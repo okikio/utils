@@ -263,7 +263,7 @@ higher attempt number.
 
 The next situation explains why lease expiry exists.
 
-The concern is simple. A task can stop after claim time and before completion.
+The failure case is concrete. A task can stop after claim time and before completion.
 That stop can come from process exit, cancellation, a crash, or lost
 connectivity. Without lease expiry, the item can stay stuck forever. Without a
 claim token, an old task can wake up later and overwrite newer work.
@@ -389,7 +389,7 @@ full workflow engine.
 Concrete durable adapters belong in `packages/`.
 
 Read [types.ts](./types.ts) first when you want the public vocabulary.
-Read [mod_test.ts](./mod_test.ts) next when you want short behavior stories.
+Read [mod.test.ts](./mod.test.ts) next when you want short behavior stories.
 Read [mod.ts](./mod.ts) last when you want the step-by-step state rules.
 
 Convenience and the manual equivalent
@@ -439,7 +439,7 @@ detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*_test.ts` files show edge cases, cancellation, invalid input, and lifecycle
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
    behavior as executable examples.
 4. Read internal implementation files only when you need the exact state
    transition or performance-sensitive loop.

@@ -1,6 +1,6 @@
 import type { EventBus } from '@okikio/observables';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
-import type { Context, Snapshot } from '@okikio/context';
+import type { Context, Owned, Snapshot } from '@okikio/context';
 import type { Encoded as EncodedFailure } from '@okikio/failure';
 
 /** Optional Worker-to-parent request/response contract used inside one active request. */
@@ -153,7 +153,7 @@ export interface WorkerRequestControl<Notice = never, CallRequest = never, CallR
 /** Worker-side request operation. */
 export type WorkerRequestRun<Request, Response, Notice = never, CallRequest = never, CallResponse = never> = (
 	request: Request,
-	ctx: Context,
+	ctx: Owned,
 	control: WorkerRequestControl<Notice, CallRequest, CallResponse>,
 ) => Response | WorkerReply<Response> | Promise<Response | WorkerReply<Response>>;
 

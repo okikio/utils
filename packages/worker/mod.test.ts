@@ -36,12 +36,23 @@ class FakeWorker implements RawWorker {
 		error: new Set<(event: ErrorEvent) => void>(),
 		messageerror: new Set<(event: MessageEvent<unknown>) => void>(),
 	};
+	/** Test-owned observers wait for request submission instead of guessing event-loop turns. */
+	readonly #postWaiters = new Set<() => void>();
 	terminated = 0;
 	onPost?: (message: unknown) => void;
 
 	postMessage(message: unknown, transfer?: readonly Transferable[]): void {
 		this.posted.push(Object.freeze({ message, ...(transfer === undefined ? {} : { transfer }) }));
+		for (const resolve of this.#postWaiters) resolve();
+		this.#postWaiters.clear();
 		this.onPost?.(message);
+	}
+
+	/** Wait until the parent sent the requested number of protocol frames. */
+	async waitForPosts(count: number): Promise<void> {
+		while (this.posted.length < count) {
+			await new Promise<void>((resolve) => this.#postWaiters.add(resolve));
+		}
 	}
 
 	terminate(): void {
@@ -139,7 +150,7 @@ describe('Worker handle', () => {
 		const fake = new FakeWorker();
 		await using handle = open(fake, ownerCtx, 'cancelled-request');
 		const pending = handle.request(requestCtx, { value: 'slow' });
-		await nextTurn();
+		await fake.waitForPosts(1);
 		controller.abort('caller stopped waiting');
 		await expect(pending).rejects.toBeInstanceOf(context.ContextCancelledError);
 		expect(
@@ -162,7 +173,7 @@ describe('Worker handle', () => {
 		const fake = new FakeWorker();
 		await using handle = open(fake, ctx, 'known-request');
 		const pending = handle.request(ctx, { value: 'pending' });
-		await nextTurn();
+		await fake.waitForPosts(1);
 		fake.message({ type: 'result', id: 'unknown-request', response: { upper: 'INVALID' } });
 		await expect(pending).rejects.toBeInstanceOf(worker.WorkerStoppedError);
 		expect(fake.terminated).toBe(1);
@@ -176,7 +187,7 @@ describe('Worker handle', () => {
 		const fake = new FakeWorker();
 		await using handle = open(fake, ctx, 'invalid-response');
 		const pending = handle.request(ctx, { value: 'pending' });
-		await nextTurn();
+		await fake.waitForPosts(1);
 		fake.message({ type: 'result', id: 'invalid-response', response: { upper: 42 } });
 		await expect(pending).rejects.toBeInstanceOf(worker.WorkerStoppedError);
 		expect(fake.terminated).toBe(1);
@@ -202,9 +213,20 @@ class FakeWorkerScope implements worker.RawWorkerScope {
 		message: new Set<(event: MessageEvent<unknown>) => void>(),
 		messageerror: new Set<(event: MessageEvent<unknown>) => void>(),
 	};
+	/** Test-owned observers wait for protocol output instead of guessing event-loop turns. */
+	readonly #postWaiters = new Set<() => void>();
 
 	postMessage(message: unknown, transfer?: readonly Transferable[]): void {
 		this.posted.push(Object.freeze({ message, ...(transfer === undefined ? {} : { transfer }) }));
+		for (const resolve of this.#postWaiters) resolve();
+		this.#postWaiters.clear();
+	}
+
+	/** Wait until the worker produced the requested number of protocol frames. */
+	async waitForPosts(count: number): Promise<void> {
+		while (this.posted.length < count) {
+			await new Promise<void>((resolve) => this.#postWaiters.add(resolve));
+		}
 	}
 
 	addEventListener(type: 'message' | 'messageerror', listener: (event: MessageEvent<unknown>) => void): void {
@@ -218,11 +240,6 @@ class FakeWorkerScope implements worker.RawWorkerScope {
 	message(data: unknown): void {
 		for (const listener of this.listeners.message) listener(new MessageEvent('message', { data }));
 	}
-}
-
-async function nextTurn(): Promise<void> {
-	await Promise.resolve();
-	await new Promise<void>((resolve) => queueMicrotask(resolve));
 }
 
 describe('Worker server', () => {
@@ -246,7 +263,7 @@ describe('Worker server', () => {
 			},
 			request: { value: 'value' },
 		});
-		await nextTurn();
+		await scope.waitForPosts(1);
 		expect(scope.posted).toEqual([{
 			message: { type: 'result', id: 'request-1', response: { upper: 'VALUE' } },
 			transfer: [transferred],
@@ -304,9 +321,9 @@ describe('Worker server', () => {
 		});
 		const requestContext = { id: 'worker-failure', startedAt: '2026-08-05T00:00:00Z' };
 		scope.message({ type: 'request', id: 'bad', context: requestContext, request: { value: 'bad' } });
-		await nextTurn();
+		await scope.waitForPosts(1);
 		scope.message({ type: 'request', id: 'good', context: requestContext, request: { value: 'good' } });
-		await nextTurn();
+		await scope.waitForPosts(2);
 		expect(scope.posted[0]?.message).toEqual({
 			type: 'failure',
 			id: 'bad',
@@ -318,10 +335,13 @@ describe('Worker server', () => {
 	it('cancels active work and acknowledges cooperative shutdown after cleanup', async () => {
 		const scope = new FakeWorkerScope();
 		let cancelled = false;
+		let markStarted!: () => void;
+		const started = new Promise<void>((resolve) => markStarted = resolve);
 		await using server = worker.serve({
 			scope,
 			protocol: worker.protocol({ request: RequestSchema, response: ResponseSchema }),
 			async run(_request, ctx) {
+				markStarted();
 				await new Promise<void>((resolve) => {
 					const stop = () => {
 						cancelled = true;
@@ -332,13 +352,13 @@ describe('Worker server', () => {
 				return { upper: 'LATE' };
 			},
 		});
-		scope.message({
+			scope.message({
 			type: 'request',
 			id: 'slow',
 			context: { id: 'worker-slow', startedAt: '2026-08-05T00:00:00Z' },
 			request: { value: 'slow' },
 		});
-		await nextTurn();
+		await started;
 		scope.message({ type: 'shutdown', reason: 'host shutdown' });
 		await server.closed;
 		expect(cancelled).toBe(true);
@@ -376,6 +396,7 @@ describe('Worker intermediate protocol', () => {
 		await using handle = worker.open(ctx, {
 			module: new URL('file:///notice-worker.ts'),
 			id: 'notice-worker',
+			shutdownMs: 0,
 			requestId: () => 'notice-request',
 			protocol: worker.protocol({ request: RequestSchema, response: ResponseSchema, notice: NoticeSchema }),
 			create: () => fake,
@@ -385,7 +406,6 @@ describe('Worker intermediate protocol', () => {
 		});
 
 		expect(await handle.request(ctx, { value: 'value' })).toEqual({ upper: 'DONE' });
-		await nextTurn();
 		expect(notices).toEqual(['capturing']);
 	});
 
@@ -410,6 +430,7 @@ describe('Worker intermediate protocol', () => {
 		await using handle = worker.open(ctx, {
 			module: new URL('file:///call-worker.ts'),
 			id: 'call-worker',
+			shutdownMs: 0,
 			requestId: () => 'call-request',
 			protocol: worker.protocol({
 				request: RequestSchema,
@@ -433,24 +454,31 @@ describe('Worker intermediate protocol', () => {
 		const scope = new FakeWorkerScope();
 		let releaseBeforeCheckpoint!: () => void;
 		const beforeCheckpoint = new Promise<void>((resolve) => releaseBeforeCheckpoint = resolve);
+		let markStarted!: () => void;
+		const started = new Promise<void>((resolve) => markStarted = resolve);
+		let markCheckpoint!: () => void;
+		const checkpoint = new Promise<void>((resolve) => markCheckpoint = resolve);
 		await using _server = worker.serve({
 			scope,
 			protocol: worker.protocol({ request: RequestSchema, response: ResponseSchema }),
 			async run(request, _ctx, control) {
+				markStarted();
 				await beforeCheckpoint;
-				await control.checkpoint();
+				const paused = control.checkpoint();
+				markCheckpoint();
+				await paused;
 				return { upper: request.value.toUpperCase() };
 			},
 		});
 		const requestContext = { id: 'worker-pause', startedAt: '2026-08-05T00:00:00Z' };
 		scope.message({ type: 'request', id: 'paused', context: requestContext, request: { value: 'later' } });
-		await nextTurn();
+		await started;
 		scope.message({ type: 'pause', id: 'paused' });
 		releaseBeforeCheckpoint();
-		await nextTurn();
+		await checkpoint;
 		expect(scope.posted).toEqual([]);
 		scope.message({ type: 'resume', id: 'paused' });
-		await nextTurn();
+		await scope.waitForPosts(1);
 		expect(scope.posted).toEqual([{ message: { type: 'result', id: 'paused', response: { upper: 'LATER' } } }]);
 	});
 
@@ -458,23 +486,36 @@ describe('Worker intermediate protocol', () => {
 		const scope = new FakeWorkerScope();
 		let releaseBeforeCheckpoint!: () => void;
 		const beforeCheckpoint = new Promise<void>((resolve) => releaseBeforeCheckpoint = resolve);
+		let markStarted!: () => void;
+		const started = new Promise<void>((resolve) => markStarted = resolve);
+		let markCheckpoint!: () => void;
+		const checkpoint = new Promise<void>((resolve) => markCheckpoint = resolve);
+		let markReleased!: () => void;
+		const released = new Promise<void>((resolve) => markReleased = resolve);
 		await using _server = worker.serve({
 			scope,
 			protocol: worker.protocol({ request: RequestSchema, response: ResponseSchema }),
 			async run(_request, _ctx, control) {
+				markStarted();
 				await beforeCheckpoint;
-				await control.checkpoint();
+				const paused = control.checkpoint();
+				markCheckpoint();
+				try {
+					await paused;
+				} finally {
+					markReleased();
+				}
 				return { upper: 'LATE' };
 			},
 		});
 		const requestContext = { id: 'worker-pause-cancel', startedAt: '2026-08-05T00:00:00Z' };
 		scope.message({ type: 'request', id: 'cancelled-pause', context: requestContext, request: { value: 'later' } });
-		await nextTurn();
+		await started;
 		scope.message({ type: 'pause', id: 'cancelled-pause' });
 		releaseBeforeCheckpoint();
-		await nextTurn();
+		await checkpoint;
 		scope.message({ type: 'cancel', id: 'cancelled-pause', reason: 'stop' });
-		await nextTurn();
+		await released;
 		expect(scope.posted).toEqual([]);
 	});
 });

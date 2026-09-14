@@ -280,7 +280,7 @@ export class ActivityJobs implements AsyncDisposable {
 		this.#assertOpen();
 		const key = `${ctx.runId}:${fingerprint}`;
 		const activity = command.activity;
-		const job: ActivityJobType = Object.freeze({
+		const job = Object.freeze({
 			activityId: activity.id,
 			activityVersion: activity.version,
 			input: durable.snapshot(command.input, 'activity job input'),
@@ -293,7 +293,7 @@ export class ActivityJobs implements AsyncDisposable {
 			}),
 			context: context.snapshot(ctx),
 			...(command.options.affinity === undefined ? {} : { affinity: freezeAffinity(command.options.affinity, 'activity job affinity') }),
-		});
+		} satisfies ActivityJobType);
 		const ref = await this.#queue.add(ctx, job, { key });
 
 		while (true) {
@@ -327,7 +327,7 @@ export class ActivityJobs implements AsyncDisposable {
 			const attemptCtx = this.#attemptContext(ctx, activity, claim);
 			const attempt = this.#attempt(job, claim, registration, attemptCtx);
 			let renewal = Promise.resolve();
-			const control: ActivityAttemptControl = Object.freeze({
+			const control = Object.freeze({
 				heartbeat: async () => {
 					context.check(attemptCtx);
 					// Serialize renewals so an older renewal response cannot replace a
@@ -337,7 +337,7 @@ export class ActivityJobs implements AsyncDisposable {
 					});
 					await renewal;
 				},
-			});
+			} satisfies ActivityAttemptControl);
 
 			const cancel = (): void => {
 				try {
@@ -399,6 +399,11 @@ export class ActivityJobs implements AsyncDisposable {
 				const persisted = Object.freeze({ type: 'fault', fault: jobValue(details, 'activity fault') }) satisfies ActivityJobResultType;
 				await this.#queue.complete(this.#control, claim, persisted);
 				return Object.freeze({ type: 'fault', fault: details });
+			} catch (error) {
+					// A replacement worker can complete the same durable job after this
+					// lease expires. The stale owner must re-observe that terminal state.
+					if (error instanceof queue.StaleClaimError) continue;
+					throw error;
 			} finally {
 				await attemptCtx[Symbol.asyncDispose]();
 				this.#release(registration);

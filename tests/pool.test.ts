@@ -2,9 +2,9 @@ import { expect } from '@std/expect';
 import { describe, it } from 'node:test';
 
 import * as context from '@okikio/context';
-import * as pool from './mod.ts';
+import * as pool from '@okikio/pool';
 
-describe('pool qualification', () => {
+describe('pool pressure', () => {
 	it('never exceeds maximum ownership under concurrent acquisition pressure', async () => {
 		await using owner = context.create({ id: 'pool-pressure' });
 		let open = 0;

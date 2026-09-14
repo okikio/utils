@@ -1,4 +1,3 @@
-import '@okikio/dispose/polyfill';
 import type { Cause } from './kernel.ts';
 
 /** Maximum live child branches one scope may own concurrently. @internal */

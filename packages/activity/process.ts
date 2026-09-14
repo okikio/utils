@@ -52,6 +52,8 @@ interface Host {
 	readonly channel: ProcessChannel<ActivityAttemptType, transport.WireResultType>;
 	/** Active child request map keyed by queue claim ID for reverse-call correlation. */
 	readonly active: Map<string, Active>;
+	/** Idempotent authoritative teardown used for both leased and idle hosts. */
+	close(reason?: unknown): Promise<void>;
 }
 
 /** Child-process launch input controlled by the provider. */
@@ -132,6 +134,7 @@ export async function create(options: ProcessProviderOptions): Promise<ProcessPr
 		throw new TypeError('Process provider maximum must be a positive safe integer.');
 	}
 
+	const live = new Set<Host>();
 	const hosts = await pool.create<Host>({
 		ctx: options.ctx,
 		maximum: options.maximum,
@@ -140,13 +143,7 @@ export async function create(options: ProcessProviderOptions): Promise<ProcessPr
 		...(options.maximumIdleAge === undefined ? {} : { maximumIdleAge: options.maximumIdleAge }),
 		...(options.acquireTimeout === undefined ? {} : { acquireTimeout: options.acquireTimeout }),
 		create: (hostCtx) => openHost(hostCtx),
-		async close(host, reason) {
-			try {
-				await host.channel.close(reason);
-			} finally {
-				try { await host.process.stop(reason); } finally { await host.ctx[Symbol.asyncDispose](); }
-			}
-		},
+		close: (host, reason) => host.close(reason),
 	});
 
 	return Object.freeze({
@@ -173,7 +170,21 @@ export async function create(options: ProcessProviderOptions): Promise<ProcessPr
 		},
 		stats() { return hosts.stats(); },
 		drain(reason?: unknown) { return hosts.drain(reason); },
-		async [Symbol.asyncDispose]() { await hosts[Symbol.asyncDispose](); },
+		async [Symbol.asyncDispose]() {
+			const reason = new Error('Activity process provider was disposed.');
+			const stopped = await Promise.allSettled([...live].map((host) => host.close(reason)));
+			let disposal: unknown;
+			try {
+				await hosts[Symbol.asyncDispose]();
+			} catch (error) {
+				disposal = error;
+			}
+			const failures = stopped
+				.filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+				.map((result) => result.reason);
+			if (disposal !== undefined) failures.push(disposal);
+			if (failures.length > 0) throw new AggregateError(failures, 'Activity process provider disposal failed.');
+		},
 	}) satisfies ProcessProvider;
 
 	/** Start one child with protocol-only stdin/stdout, then open its framed channel. */
@@ -205,7 +216,25 @@ export async function create(options: ProcessProviderOptions): Promise<ProcessPr
 				},
 			}));
 			contexts.check(acquireCtx);
-			return Object.freeze({ ctx: hostCtx, process: child, channel: connection, active });
+			let closing: Promise<void> | undefined;
+			let host!: Host;
+			const close = (reason?: unknown): Promise<void> => {
+				closing ??= (async () => {
+					try {
+						await connection.close(reason);
+					} finally {
+						try {
+							await child.stop(reason);
+						} finally {
+							try { await hostCtx[Symbol.asyncDispose](); } finally { live.delete(host); }
+						}
+					}
+				})();
+				return closing;
+			};
+			host = Object.freeze({ ctx: hostCtx, process: child, channel: connection, active, close });
+			live.add(host);
+			return host;
 		} catch (error) {
 			try { await hostCtx[Symbol.asyncDispose](); } catch { /* Preserve the creation failure. */ }
 			throw error;

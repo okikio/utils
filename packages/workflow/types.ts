@@ -113,7 +113,7 @@ export interface WorkflowDefinition<Authoring extends WorkflowOptions = Workflow
 	readonly result: Authoring['result'];
 	/** Expected failure definitions or data declared by this workflow. */
 	readonly failures: readonly FailureDefinition[];
-	/** Required effect definitions or scoped effect state associated with this workflow. */
+	/** Effect definitions that code in this workflow may announce. */
 	readonly effects: readonly EffectDefinition[];
 	/** Exact activity definitions admitted by this immutable workflow contract. */
 	readonly activities: readonly ActivityReference[];
@@ -255,11 +255,11 @@ export interface ChildWorkflowCommand<Value = unknown, Failure = unknown> extend
 	readonly _failure?: Failure;
 }
 
-/** Emit one required effect through the Scheduler's authoritative effect owner. */
+/** Emit one declared effect through the Scheduler's authoritative effect owner. */
 export interface WorkflowEffectCommand extends WorkflowCommandBase {
 	/** Stable discriminant for this workflow effect variant. */
 	readonly type: 'effect';
-	/** Exact required-effect definition emitted by this workflow instruction. */
+	/** Exact declared effect definition emitted by this workflow instruction. */
 	readonly effect: EffectDefinition;
 	/** Effect value validated by the exact effect definition before authoritative acceptance. */
 	readonly value: unknown;
@@ -785,7 +785,7 @@ export interface SchedulerOptions {
 	readonly disposeHistory?: boolean;
 	/** Host interpreters used for active workflow and activity admission requirements. */
 	readonly requirements?: RequirementScopeOptions;
-	/** Authoritative owner for workflow-level required effects. */
+	/** Authoritative owner for workflow-level effect announcements. */
 	readonly effect?: EffectEmitter;
 	/** Queue used as the authoritative process-local or durable activity job store. */
 	readonly activityQueue?: Queue<ActivityJobType, ActivityJobResultType>;
@@ -855,7 +855,7 @@ export interface WorkflowDocument {
 	readonly resultVendor: string;
 	/** Expected failure definitions or data declared by this workflow. */
 	readonly failures: readonly string[];
-	/** Required effect definitions or scoped effect state associated with this workflow. */
+	/** Effect definitions that code in this workflow may announce. */
 	readonly effects: readonly string[];
 	/** Stable IDs of activities declared by this workflow contract. */
 	readonly activities: readonly string[];

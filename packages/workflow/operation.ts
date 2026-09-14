@@ -86,7 +86,7 @@ export function fromPromise<Value>(
 				(failure) => {
 					if (!settled) {
 						settled = true;
-						const cause: Cause = Object.freeze({ type: 'failure', failure });
+						const cause = Object.freeze({ type: 'failure', failure } satisfies Cause);
 						resolve(Object.freeze({ type: 'failure', cause }));
 					}
 					settleDiscard();
@@ -129,7 +129,7 @@ export function fromCallback<Value>(
 			const discard = start(
 				(value) => finish(Object.freeze({ type: 'success', value })),
 				(failure) => {
-					const cause: Cause = Object.freeze({ type: 'failure', failure });
+					const cause = Object.freeze({ type: 'failure', failure } satisfies Cause);
 					finish(Object.freeze({ type: 'failure', cause }));
 				},
 				branch.signal,
@@ -139,7 +139,7 @@ export function fromCallback<Value>(
 				let released: void | Promise<void>;
 				try { released = discard(); }
 				catch (failure) {
-					const cause: Cause = Object.freeze({ type: 'failure', failure });
+					const cause = Object.freeze({ type: 'failure', failure } satisfies Cause);
 					done(Object.freeze({ type: 'failure', cause }));
 					return;
 				}
@@ -514,7 +514,7 @@ function iteratorSource<Value, Return>(
 		);
 		return closing;
 	};
-	const source: PullSource<Value, Return> = Object.freeze({
+	const source = Object.freeze({
 		/**
 		 * Advances to the next value without crossing ownership between independent consumers of the live structured-concurrency kernel.
 		 *
@@ -546,7 +546,7 @@ function iteratorSource<Value, Return>(
 		async [Symbol.asyncDispose](): Promise<void> {
 			await close();
 		},
-	});
+	} satisfies PullSource<Value, Return>);
 	return source;
 }
 

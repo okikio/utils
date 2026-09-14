@@ -105,7 +105,7 @@ export function memory(options: HistoryOptions = {}): MemoryHistory {
 	const entries = new Map<string, EntryState>();
 	let closed = false;
 
-	const history: MemoryHistory = Object.freeze({
+	const history = Object.freeze({
 		async schedule(input: HistoryInput): Promise<WorkflowCompletionAny> {
 			if (closed) throw new Error('Workflow history is closed.');
 			context.check(input.ctx);
@@ -165,7 +165,7 @@ export function memory(options: HistoryOptions = {}): MemoryHistory {
 		async [Symbol.asyncDispose](): Promise<void> {
 			await history.close();
 		},
-	});
+	} satisfies MemoryHistory);
 	return history;
 }
 

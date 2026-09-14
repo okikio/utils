@@ -126,7 +126,7 @@ async function expectGone(pid: number): Promise<void> {
 			if ((error as NodeJS.ErrnoException).code === 'ESRCH') return;
 			throw error;
 		}
-		// qualification-allow-timing: the descendant is not a Node ChildProcess handle, so the OS process table is the observable boundary.
+		// test-allow-timing: the descendant is not a Node ChildProcess handle, so the OS process table is the observable result.
 		await new Promise((resolve) => setTimeout(resolve, 20));
 	}
 	throw new Error(`Descendant process ${pid} remained alive after process-group shutdown.`);

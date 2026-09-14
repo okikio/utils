@@ -28,7 +28,7 @@ export interface ActivityOptions {
 	readonly result: ActivitySchema;
 	/** Expected failure definitions or data declared by this activity. */
 	readonly failures?: CatalogDefinitionInput<FailureDefinition>;
-	/** Required one-way consequences this activity can emit. */
+	/** One-way consequences this activity can announce. */
 	readonly effects?: EffectDefinitions;
 	/** Ordered execution-target selection interpreted by the workflow Scheduler. */
 	readonly placement: EnginePlacementInputType;
@@ -54,7 +54,7 @@ export interface ActivityDefinition<Authoring extends ActivityOptions = Activity
 	readonly result: Authoring['result'];
 	/** Expected failure definitions or data declared by this activity. */
 	readonly failures: readonly FailureDefinition[];
-	/** Required effect definitions or scoped effect state associated with this activity. */
+	/** Declared effect definitions or scoped effect state associated with this activity. */
 	readonly effects: readonly EffectDefinition[];
 	/** Ordered engine placement declaration used before attempt dispatch. */
 	readonly placement: EnginePlacementType;
@@ -83,7 +83,7 @@ export type ActivityFailures<Activity extends ActivityDefinition> =
 export interface ActivityContext<Activity extends ActivityDefinition = ActivityDefinition> extends BaseContext, OwnedResources {
 	/** Permission state for dynamic checks declared by this activity attempt. */
 	readonly permissions: PermissionRuntime;
-	/** Required-effect state that limits emission to effects declared by this activity. */
+	/** Effect state that limits announcements to effects declared by this activity. */
 	readonly effects: EffectRuntime;
 	/** Active requirement runtime inherited by resource borrows inside this attempt. */
 	readonly requirements: RequirementRuntime;
@@ -140,7 +140,7 @@ export interface ActivityRunOptions<Activity extends ActivityDefinition> {
 	readonly attempt: number;
 	/** Optional policy evaluator used by dynamic permission checks. */
 	readonly permission?: PermissionChecker;
-	/** Optional authoritative owner for required effect emission. */
+	/** Optional authoritative owner for declared effect announcements. */
 	readonly effect?: EffectEmitter;
 	/** Additional requirement-family interpreters available to this direct host. */
 	readonly requirements?: RequirementRuntime;
@@ -178,7 +178,7 @@ export interface ActivityDocument {
 	readonly resultVendor: string;
 	/** Expected failure definitions or data declared by this activity. */
 	readonly failures: readonly string[];
-	/** Required effect definitions or scoped effect state associated with this activity. */
+	/** Effect definitions that code in this activity may announce. */
 	readonly effects: readonly string[];
 	/** Ordered JSON-safe engine placement documentation. */
 	readonly placement: readonly EnginePlacementDocumentType[];

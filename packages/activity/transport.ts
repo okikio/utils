@@ -64,7 +64,7 @@ export interface NoticeType {
 export interface HostServices {
 	/** Optional policy checker used to answer reverse permission calls. */
 	readonly permission?: PermissionChecker;
-	/** Optional required-effect owner used to answer reverse effect calls. */
+	/** Optional effect owner used to answer reverse effect calls. */
 	readonly effect?: EffectEmitter;
 }
 

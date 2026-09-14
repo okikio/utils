@@ -37,12 +37,12 @@ const StringSchema = schema((value) => {
 	if (typeof value !== 'string') throw new TypeError('Expected a string.');
 	return value;
 });
-const TestEngine: workflow.EngineReference = Object.freeze({ kind: 'activity-engine', id: 'test' });
-const TestPlacement: workflow.EnginePlacementReference = Object.freeze({
+const TestEngine = Object.freeze({ kind: 'activity-engine', id: 'test' } satisfies workflow.EngineReference);
+const TestPlacement = Object.freeze({
 	kind: 'activity-engine-placement',
 	choices: Object.freeze([Object.freeze({ kind: 'activity-engine-choice', mode: 'required', engine: TestEngine })]),
-});
-const TestActivity: workflow.ActivityReference = Object.freeze({
+} satisfies workflow.EnginePlacementReference);
+const TestActivity = Object.freeze({
 	kind: 'activity',
 	id: 'test.operation',
 	version: '1',
@@ -52,7 +52,7 @@ const TestActivity: workflow.ActivityReference = Object.freeze({
 	requirements: Object.freeze([]),
 	placement: TestPlacement,
 	resilience: Object.freeze([]),
-});
+} satisfies workflow.ActivityReference);
 
 /** One test activity request. */
 function operation<Value = unknown, Failure = unknown>(input: unknown, key?: string): workflow.WorkflowOperation<Value, Failure> {
@@ -86,11 +86,11 @@ interface ExecuteOptions {
 function history(
 	schedule: workflow.History['schedule'],
 ): workflow.History {
-	const value: workflow.History = Object.freeze({
+	const value = Object.freeze({
 		schedule,
 		async close() {},
 		async [Symbol.asyncDispose]() {},
-	});
+	} satisfies workflow.History);
 	return value;
 }
 
@@ -167,7 +167,7 @@ describe('workflow programming model', () => {
 	it('applies active activity requirements before engine placement', async () => {
 		const policy = Object.freeze({ kind: 'test-policy', id: 'test.admit' });
 		const gate = requirement.define({ family: 'test', action: 'require', definition: policy });
-		const gated: workflow.ActivityReference = Object.freeze({ ...TestActivity, id: 'test.gated', requirements: Object.freeze([gate]) });
+		const gated = Object.freeze({ ...TestActivity, id: 'test.gated', requirements: Object.freeze([gate]) } satisfies workflow.ActivityReference);
 		const contract = workflow.define({ id: 'test.gated-workflow', version: '1', input: AnySchema, result: AnySchema, activities: [gated] });
 		const implementation = workflow.implement(contract, function* () { return yield* workflow.activity(gated, 'value'); });
 		await using parent = context.create({ id: 'test-admission', clock: new context.TestClock() });
@@ -472,6 +472,7 @@ describe('workflow programming model', () => {
 	it('snapshots durable instruction data without executing or losing caller state', () => {
 		const negativeZero = operation(-0)[Symbol.iterator]().next();
 		if (negativeZero.done) throw new Error('Expected an activity instruction.');
+		if (negativeZero.value.type !== 'activity') throw new Error('Expected an activity instruction.');
 		expect(negativeZero.value.input).toBe(0);
 		expect(Object.is(negativeZero.value.input, -0)).toBe(false);
 

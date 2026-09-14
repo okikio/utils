@@ -12,7 +12,8 @@
 	"dependencies": {
 		"@okikio/observables": "^1.4.0",
 		"@okikio/context": "workspace:^",
-		"@okikio/failure": "workspace:^"
+		"@okikio/failure": "workspace:^",
+		"@okikio/duration": "workspace:^"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",

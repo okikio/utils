@@ -73,17 +73,21 @@ describe('reusable value pool', () => {
 	});
 
 	it('times out acquisition without leaking a waiter', async () => {
-		await using owner = context.create({ id: 'pool-timeout', clock: context.SystemClock });
+		const clock = new context.TestClock();
+		await using owner = context.create({ id: 'pool-timeout', clock });
 		await using values = await pool.create({
 			ctx: owner,
 			maximum: 1,
-			acquireTimeout: { milliseconds: 5 },
+			acquireTimeout: { seconds: 5 },
 			create: () => ({}),
 			close: () => {},
 		});
 		await using first = await values.acquire(owner);
 		void first;
-		await expect(values.acquire(owner)).rejects.toThrow(pool.PoolAcquireTimeoutError);
+		const waiting = values.acquire(owner);
+		expect(values.stats().waiting).toBe(1);
+		clock.advance({ seconds: 5 });
+		await expect(waiting).rejects.toThrow(pool.PoolAcquireTimeoutError);
 		expect(values.stats().waiting).toBe(0);
 	});
 

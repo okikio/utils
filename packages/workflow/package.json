@@ -15,6 +15,7 @@
 		"@okikio/catalog": "workspace:^",
 		"@okikio/context": "workspace:^",
 		"@okikio/dispose": "workspace:^",
+		"@okikio/duration": "workspace:^",
 		"@okikio/effect": "workspace:^",
 		"@okikio/failure": "workspace:^",
 		"@okikio/fault": "workspace:^",

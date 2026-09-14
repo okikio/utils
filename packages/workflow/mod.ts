@@ -8,6 +8,7 @@
  */
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { encodeHex } from '@std/encoding/hex';
+import * as durationCore from '@okikio/duration';
 import * as catalogCore from '@okikio/catalog';
 import type { DefinitionInput as CatalogDefinitionInput } from '@okikio/catalog';
 import * as contextCore from '@okikio/context';
@@ -260,7 +261,7 @@ export function activity<Value, Failure>(
 	options: ActivityCommandOptions = {},
 ): WorkflowOperation<Value, Failure> {
 	const normalizedOptions = normalizeActivityOptions(options);
-	const command: ActivityCommand<Value, Failure> = Object.freeze({
+	const command = Object.freeze({
 		category: 'command',
 		type: 'activity',
 		version: builtInInstructionVersion,
@@ -268,7 +269,7 @@ export function activity<Value, Failure>(
 		input: durable.snapshot(input, 'activity input'),
 		options: normalizedOptions,
 		...instructionMetadata(normalizedOptions),
-	});
+	} satisfies ActivityCommand<Value, Failure>);
 	return operation(command);
 }
 
@@ -277,13 +278,13 @@ export function sleep(
 	duration: Temporal.DurationLike | string,
 	options: WorkflowCommandOptions = {},
 ): WorkflowOperation<Temporal.Instant> {
-	const command: WorkflowSleepCommand = Object.freeze({
+	const command = Object.freeze({
 		category: 'command',
 		type: 'sleep',
 		version: builtInInstructionVersion,
 		duration: Temporal.Duration.from(duration),
 		...instructionMetadata(options),
-	});
+	} satisfies WorkflowSleepCommand);
 	return operation(command);
 }
 
@@ -293,14 +294,14 @@ export function wait<Value>(
 	input: unknown,
 	options: WorkflowCommandOptions = {},
 ): WorkflowOperation<Value> {
-	const command: WorkflowWaitCommand<Value> = Object.freeze({
+	const command = Object.freeze({
 		category: 'command',
 		type: 'wait',
 		version: builtInInstructionVersion,
 		signal: definition,
 		input: durable.snapshot(input, 'wait input'),
 		...instructionMetadata(options),
-	});
+	} satisfies WorkflowWaitCommand<Value>);
 	return operation(command);
 }
 
@@ -311,7 +312,7 @@ export function child<WorkflowDefinition extends WorkflowReference>(
 	options: ChildOptions = {},
 ): WorkflowOperation<import('./types.ts').WorkflowResult<WorkflowDefinition>, import('./types.ts').WorkflowFailures<WorkflowDefinition>> {
 	const normalizedOptions = normalizeChildOptions(options);
-	const command: ChildWorkflowCommand = Object.freeze({
+	const command = Object.freeze({
 		category: 'command',
 		type: 'child-workflow',
 		version: builtInInstructionVersion,
@@ -319,12 +320,12 @@ export function child<WorkflowDefinition extends WorkflowReference>(
 		input: durable.snapshot(input, 'child workflow input'),
 		options: normalizedOptions,
 		...instructionMetadata(normalizedOptions),
-	});
+	} satisfies ChildWorkflowCommand);
 	return operation(command);
 }
 
 /**
- * Request one workflow-level required effect.
+ * Request one workflow-level effect announcement.
  *
  * The operation is deterministic data. Delivery happens only when the Scheduler
  * interprets the instruction, and the operation completes only after the
@@ -335,14 +336,14 @@ export function effect<Effect_ extends effects.EffectDefinition>(
 	value: effects.EffectValueInput<Effect_>,
 	options: WorkflowCommandOptions = {},
 ): WorkflowOperation<void> {
-	const command: WorkflowEffectCommand = Object.freeze({
+	const command = Object.freeze({
 		category: 'command',
 		type: 'effect',
 		version: builtInInstructionVersion,
 		effect: definition,
 		value: durable.snapshot(value, 'effect value'),
 		...instructionMetadata(options),
-	});
+	} satisfies WorkflowEffectCommand);
 	return operation(command);
 }
 
@@ -355,25 +356,25 @@ export function defer(cleanup: WorkflowOperation<unknown, unknown>, options: Wor
 	) {
 		throw new TypeError('workflow.defer cleanup must be one activity or child-workflow operation.');
 	}
-	const command: WorkflowDeferCommand = Object.freeze({
+	const command = Object.freeze({
 		category: 'command',
 		type: 'defer',
 		version: builtInInstructionVersion,
 		cleanup: cleanupInstruction,
 		...instructionMetadata(options),
-	});
+	} satisfies WorkflowDeferCommand);
 	return operation(command);
 }
 
 /** End the current run and request an atomic continuation with new input. */
 function continueRun<WorkflowInput>(input: WorkflowInput, options: WorkflowCommandOptions = {}): WorkflowOperation<never> {
-	const command: import('./types.ts').WorkflowContinueCommand = Object.freeze({
+	const command = Object.freeze({
 		category: 'command',
 		type: 'continue',
 		version: builtInInstructionVersion,
 		input: durable.snapshot(input, 'continue-as-new input'),
 		...instructionMetadata(options),
-	});
+	} satisfies import('./types.ts').WorkflowContinueCommand);
 	return operation(command);
 }
 
@@ -394,7 +395,7 @@ export function parallel<Values extends WorkflowOperations>(
 ): WorkflowOperation<unknown, unknown> {
 	recordCore.assert(options, 'workflow parallel options');
 	assertOperations(operations);
-	const instruction: WorkflowParallelInstruction<Values> = Object.freeze({
+	const instruction = Object.freeze({
 		category: 'control',
 		type: 'parallel',
 		version: builtInInstructionVersion,
@@ -404,7 +405,7 @@ export function parallel<Values extends WorkflowOperations>(
 			? {}
 			: { concurrency: boundedConcurrency(options.concurrency, 'parallel concurrency') }),
 		...instructionMetadata(options),
-	});
+	} satisfies WorkflowParallelInstruction<Values>);
 	return operation(instruction);
 }
 
@@ -418,13 +419,13 @@ export function race<Values extends WorkflowOperations>(
 	if (Object.keys(operations).length > MAX_ACTIVE_CHILDREN) {
 		throw new RangeError(`Workflow race cannot start more than ${MAX_ACTIVE_CHILDREN} child operations.`);
 	}
-	const instruction: WorkflowRaceInstruction<Values> = Object.freeze({
+	const instruction = Object.freeze({
 		category: 'control',
 		type: 'race',
 		version: builtInInstructionVersion,
 		operations: freezeRecord(operations),
 		...instructionMetadata(options),
-	});
+	} satisfies WorkflowRaceInstruction<Values>);
 	return operation(instruction);
 }
 
@@ -458,7 +459,7 @@ export function map<Item, Value, Failure>(
 		assertOperation(childOperation);
 		return Object.freeze({ key, operation: childOperation });
 	}));
-	const instruction: WorkflowMapInstruction<Value, Failure> = Object.freeze({
+	const instruction = Object.freeze({
 		category: 'control',
 		type: 'map',
 		version: builtInInstructionVersion,
@@ -467,7 +468,7 @@ export function map<Item, Value, Failure>(
 		failure: options.failure ?? 'fail-fast',
 		...(options.instructionKey === undefined ? {} : { key: options.instructionKey }),
 		...(options.annotations === undefined ? {} : { annotations: freezeAnnotations(options.annotations) }),
-	});
+	} satisfies WorkflowMapInstruction<Value, Failure>);
 	return operation(instruction);
 }
 
@@ -491,7 +492,7 @@ export function retry<Value, Failure>(
 	if (delay === undefined && (maximumDelay !== undefined || backoff !== 1 || jitter !== 0)) {
 		throw new TypeError('retry maximumDelay, backoff, and jitter require retry delay.');
 	}
-	const instruction: WorkflowRetryInstruction<Value, Failure> = Object.freeze({
+	const instruction = Object.freeze({
 		category: 'control',
 		type: 'retry',
 		version: builtInInstructionVersion,
@@ -502,7 +503,7 @@ export function retry<Value, Failure>(
 		...(maximumDelay === undefined ? {} : { maximumDelay }),
 		jitter,
 		...instructionMetadata(options),
-	});
+	} satisfies WorkflowRetryInstruction<Value, Failure>);
 	return operation(instruction);
 }
 
@@ -511,7 +512,7 @@ export async function context<Workflow extends WorkflowDefinition>(
 	options: WorkflowContextOptions<Workflow>,
 ): Promise<WorkflowContext<Workflow> & AsyncDisposable> {
 	recordCore.assert(options, 'workflow context options');
-	const normalized: WorkflowContextOptions<Workflow> = Object.freeze({ ...options });
+	const normalized = Object.freeze({ ...options } satisfies WorkflowContextOptions<Workflow>);
 	assertIdentifier(normalized.runId, 'workflow run');
 	const input = await schema.parse(normalized.definition.input, normalized.input) as import('./types.ts').WorkflowInput<Workflow>;
 	const owned = contextCore.child(normalized.ctx, { id: normalized.runId });
@@ -546,7 +547,7 @@ export async function run<Workflow extends WorkflowDefinition>(
 	options: WorkflowRunOptions<Workflow>,
 ): Promise<import('./types.ts').WorkflowResult<Workflow>> {
 	recordCore.assert(options, 'workflow run options');
-	const normalized: WorkflowRunOptions<Workflow> = Object.freeze({ ...options });
+	const normalized = Object.freeze({ ...options } satisfies WorkflowRunOptions<Workflow>);
 	if (normalized.implementation.definition !== normalized.ctx.workflow) {
 		throw new TypeError('Workflow implementation and context must reference the same exact definition.');
 	}
@@ -600,12 +601,12 @@ async function resolveOperation<Value, Failure>(
  */
 export function scheduler(input: SchedulerOptions = {}): Scheduler {
 	recordCore.assert(input, 'workflow scheduler options');
-	const options: SchedulerOptions = Object.freeze({ ...input });
+	const options = Object.freeze({ ...input } satisfies SchedulerOptions);
 	const jobs = createActivityJobs(options, options.clock ?? contextCore.SystemClock);
 	let closed = false;
 	let closePromise: Promise<void> | undefined;
 
-	const scheduler: Scheduler = Object.freeze({
+	const scheduler = Object.freeze({
 		async schedule(ctx: WorkflowContext, instruction: WorkflowInstruction, path: string) {
 			if (closed) return fault(new SchedulerClosedError());
 			const identity = await identify(instruction, path);
@@ -664,10 +665,8 @@ export function scheduler(input: SchedulerOptions = {}): Scheduler {
 			})();
 			return closePromise;
 		},
-		[Symbol.asyncDispose]() {
-			return scheduler.close();
-		},
-	});
+		[Symbol.asyncDispose]: async (): Promise<void> => await scheduler.close(),
+	} satisfies Scheduler);
 	return scheduler;
 }
 
@@ -886,7 +885,7 @@ async function driveIterator<Value>(
 			if (step.done) return step.value;
 			const instruction = step.value;
 			assertInstruction(instruction);
-			assertUniqueInstructionKey(explicitKeys, instruction);
+			assertUniqueKey(explicitKeys, instruction);
 			const path = instructionPath(basePath, index, instruction);
 			index += 1;
 			let completion: WorkflowCompletionAny;
@@ -1019,7 +1018,7 @@ async function runParallel(
 					result.ok(await resolveOperation(childOperation, branchCtx, scheduler, `${path}/${encodeURIComponent(key)}`)),
 				] as const;
 			} catch (error) {
-				if (isTerminalExecutionError(error)) throw error;
+				if (isTerminalError(error)) throw error;
 				return [key, result.fail(error)] as const;
 			}
 		});
@@ -1101,7 +1100,7 @@ async function runMap(
 					await resolveOperation(entry.operation, branchCtx, scheduler, `${path}/${encodeURIComponent(entry.key)}`),
 				);
 			} catch (error) {
-				if (isTerminalExecutionError(error)) throw error;
+				if (isTerminalError(error)) throw error;
 				return result.fail(error);
 			}
 		});
@@ -1131,7 +1130,7 @@ async function runRetry(
 		try {
 			return success(await resolveOperation(instruction.operation, ctx, scheduler, `${path}/attempt:${attempt}`));
 		} catch (error) {
-			if (isTerminalExecutionError(error)) throw error;
+			if (isTerminalError(error)) throw error;
 			previous = error;
 			if (attempt < instruction.maximumAttempts && instruction.delay !== undefined) {
 				const delay = retryDelay(instruction, path, attempt);
@@ -1148,10 +1147,10 @@ async function runRetry(
  * @internal
  */
 function retryDelay(instruction: WorkflowRetryInstruction, path: string, failedAttempt: number): Temporal.Duration {
-	const initialMilliseconds = durationMilliseconds(instruction.delay!);
+	const initialMilliseconds = retryMilliseconds(instruction.delay!);
 	const maximumMilliseconds = instruction.maximumDelay === undefined
 		? Number.POSITIVE_INFINITY
-		: durationMilliseconds(instruction.maximumDelay);
+		: retryMilliseconds(instruction.maximumDelay);
 	const backedOff = Math.min(initialMilliseconds * instruction.backoff ** (failedAttempt - 1), maximumMilliseconds);
 	const jitterScale = instruction.jitter === 0
 		? 1
@@ -1164,10 +1163,10 @@ function retryDelay(instruction: WorkflowRetryInstruction, path: string, failedA
  *
  * @internal
  */
-function durationMilliseconds(duration: Temporal.Duration): number {
+function retryMilliseconds(value: Temporal.Duration): number {
 	let milliseconds: number;
 	try {
-		milliseconds = duration.total({ unit: 'milliseconds', relativeTo: Temporal.PlainDate.from('2000-01-01') });
+		milliseconds = durationCore.milliseconds(value);
 	} catch (error) {
 		throw new TypeError('Workflow retry delay must be convertible to milliseconds.', { cause: error });
 	}
@@ -1572,7 +1571,7 @@ function encodeFault(value: unknown): faultCore.FaultValue {
  *
  * @internal
  */
-function assertUniqueInstructionKey(keys: Set<string>, instruction: WorkflowInstruction): void {
+function assertUniqueKey(keys: Set<string>, instruction: WorkflowInstruction): void {
 	if (instruction.key === undefined) return;
 	assertStableKey(instruction.key);
 	if (keys.has(instruction.key)) {
@@ -1625,7 +1624,7 @@ function positiveInteger(value: number, label: string): number {
  *
  * @internal
  */
-function isTerminalExecutionError(error: unknown): boolean {
+function isTerminalError(error: unknown): boolean {
 	return error instanceof FaultError || error instanceof ContinueAsNewError || error instanceof CleanupFailureError ||
 		isCancellation(error);
 }

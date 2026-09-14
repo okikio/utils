@@ -11,19 +11,29 @@ function ids(): () => string {
 	return () => `benchmark-${++next}`;
 }
 
+/** Run the full owned queue lifecycle and expose its terminal counters to the oracle and timer. */
+async function cycle(): Promise<queue.QueueStats> {
+	const clock = new context.TestClock();
+	await using ctx = context.create({ id: 'queue-benchmark', clock });
+	await using jobs = queue.memory<number, number>({ clock, id: ids() });
+
+	for (let index = 0; index < ITEMS; index += 1) await jobs.add(ctx, index);
+	const claims = await jobs.claim(ctx, { limit: ITEMS, owner: 'benchmark' });
+	for (const claim of claims) await jobs.complete(ctx, claim, claim.value);
+	return await jobs.stats();
+}
+
+const initial = await cycle();
+if (initial.completed !== ITEMS || initial.queued !== 0 || initial.claimed !== 0) {
+	throw new Error('Queue lifecycle benchmark did not complete its fixed work set.');
+}
+
 group('memory queue lifecycle', () => {
 	bench('queue.memory: add + claim + complete 1k items', async () => {
-		const clock = new context.TestClock();
-		await using ctx = context.create({ id: 'queue-benchmark', clock });
-		await using jobs = queue.memory<number, number>({ clock, id: ids() });
-
-		for (let index = 0; index < ITEMS; index += 1) await jobs.add(ctx, index);
-		const claims = await jobs.claim(ctx, { limit: ITEMS, owner: 'benchmark' });
-		for (const claim of claims) await jobs.complete(ctx, claim, claim.value);
-		do_not_optimize(jobs.stats());
+		do_not_optimize(await cycle());
 	});
 
-	bench('array push + shift baseline: 1k items', () => {
+	bench('array FIFO primitive: enqueue + dequeue 1k values', () => {
 		const values: number[] = [];
 		for (let index = 0; index < ITEMS; index += 1) values.push(index);
 		while (values.length > 0) do_not_optimize(values.shift());

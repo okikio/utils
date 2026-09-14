@@ -20,7 +20,8 @@
  * @module
  */
 import { EventBus } from '@okikio/observables';
-import * as contextCore from '@okikio/context';
+import * as duration from '@okikio/duration';
+import * as context from '@okikio/context';
 import type { Context } from '@okikio/context';
 import type { Encoded as EncodedFailure } from '@okikio/failure';
 
@@ -33,6 +34,7 @@ import type {
 	Queue,
 	QueueRef,
 	QueueRetryOptions,
+	QueueStats,
 } from './types.ts';
 
 export { fifo } from './fifo.ts';
@@ -212,390 +214,304 @@ interface Waiter {
  * durable adapters also need.
  */
 export function memory<Input, Output>(options: MemoryQueueOptions = {}): Queue<Input, Output> {
-	const capacity = options.capacity === undefined ? Number.POSITIVE_INFINITY : positiveInteger(options.capacity, 'queue capacity');
-	const clock = options.clock ?? contextCore.SystemClock;
-	const createId = options.id ?? defaultId;
-	const defaultClaimDuration = positiveDuration(options.defaultClaimDuration ?? { seconds: 30 }, 'default claim duration');
-	const events = new EventBus<QueueEventType>();
-	// One map stores item records.
-	// Small side maps track idempotent keys and blocked waiters.
-	// The split keeps result lookup and wake-up checks cheap.
-	const items = new Map<string, Item<Input, Output>>();
-	const itemIdsByKey = new Map<string, string>();
-	const claimWaiters = new Set<Waiter>();
-	const resultWaiters = new Map<string, Set<Waiter>>();
-	let order = 0;
-	let closed = false;
-	let closeReason: unknown;
+	return new Runtime<Input, Output>(options).queue;
+}
 
-	const queue: Queue<Input, Output> = Object.freeze({
-		events: events.events,
-		/**
-		 * Adds one logical work item and returns its stable reference.
-		 *
-		 * `add()` does more than append to a list.
-		 * The call checks whether the queue is open, optionally deduplicates by
-		 * key, enforces active capacity, records delayed availability, emits an
-		 * event, and wakes workers blocked in `claim({ wait: true })`.
-		 *
-		 * The returned `QueueRef` identifies the logical item, not a specific claim
-		 * attempt.
-		 * Stable identity lets callers wait for results even when the item is
-		 * retried or reclaimed later.
-		 *
-		 * @internal
-		 */
-		async add(ctx: Context, input: Input, addOptions: QueueAddOptions = {}) {
-			contextCore.check(ctx);
-			assertOpen();
-			if (addOptions.key !== undefined) {
-				assertKey(addOptions.key);
-				const existingId = itemIdsByKey.get(addOptions.key);
-				if (existingId !== undefined) return Object.freeze({ id: existingId });
-			}
-			if (activeCount() >= capacity) throw new QueueCapacityError(capacity);
-			const id = uniqueId(createId, items);
-			const item: Item<Input, Output> = {
-				id,
-				...(addOptions.key === undefined ? {} : { key: addOptions.key }),
-				input,
-				order: order++,
-				state: 'queued',
-				priority: integer(addOptions.priority ?? 0, 'queue priority'),
-				availableAt: addOptions.availableAt ?? clock.now(),
-				attempt: 0,
-			};
-			items.set(id, item);
-			if (item.key !== undefined) itemIdsByKey.set(item.key, id);
-			events.emit(Object.freeze({ type: 'added', itemId: id, ...(item.key === undefined ? {} : { key: item.key }) }));
-			wakeClaimWaiters();
-			return Object.freeze({ id });
-		},
-		/**
-		 * Claims up to `limit` eligible items and returns temporary ownership tokens.
-		 *
-		 * Three rules control eligibility:
-		 * - the item must still be in `queued` state;
-		 * - its `availableAt` time must be in the past;
-		 * - expired claims must be returned to `queued` first.
-		 *
-		 * QueueClaim order is deterministic.
-		 * Higher priority wins.
-		 * Equal priority falls back to FIFO insertion order.
-		 *
-		 * When `wait` is true, the caller blocks until one of these conditions
-		 * changes the answer: new work arrives, delayed work becomes available, a
-		 * claim expires, the caller is cancelled, or the queue closes.
-		 *
-		 * @internal
-		 */
-		async claim(ctx: Context, claimOptions: QueueClaimOptions = {}) {
-			const owner = claimOptions.owner ?? ctx.id;
-			assertOwner(owner);
-			const limit = positiveInteger(claimOptions.limit ?? 1, 'claim limit');
-			if (claimOptions.ref !== undefined && limit !== 1) {
-				throw new TypeError('A specific queue ref claim limit must be 1.');
-			}
-			const duration = positiveDuration(claimOptions.duration ?? defaultClaimDuration, 'claim duration');
-			while (true) {
-				contextCore.check(ctx);
-				assertOpen();
-				expireClaims();
-				const now = clock.now();
-				const candidates = claimOptions.ref === undefined
-					? [...items.values()]
-					: [getEntry(claimOptions.ref.id)];
-				const available = candidates
-					.filter((item) => item.state === 'queued' && Temporal.Instant.compare(item.availableAt, now) <= 0)
-					.sort(compareItems)
-					.slice(0, limit);
-				if (available.length > 0) {
-					return Object.freeze(available.map((item) => claimEntry(item, owner, duration)));
-				}
-				if (claimOptions.ref !== undefined) {
-					const item = getEntry(claimOptions.ref.id);
-					if (item.state === 'completed' || item.state === 'failed' || item.state === 'cancelled') return Object.freeze([]);
-				}
-				if (claimOptions.wait !== true) return Object.freeze([]);
-				const wakeAt = claimOptions.ref === undefined
-					? nextClaimWakeAt()
-					: nextWakeAt(getEntry(claimOptions.ref.id));
-				await waitForChange(ctx, claimWaiters, wakeAt === undefined ? undefined : millisecondsUntil(wakeAt, clock.now()));
-			}
-		},
-		/**
-		 * Waits for one exact item to become claimable or terminal without taking a claim.
-		 *
-		 * This is intentionally separate from `claim({ wait: true })`. A scheduler
-		 * can release provider capacity while an item is delayed or owned by another
-		 * consumer, then compete for capacity and ownership again when state changes.
-		 *
-		 * @internal
-		 */
-		async wait(ctx: Context, ref: QueueRef) {
-			while (true) {
-				contextCore.check(ctx);
-				assertOpen();
-				expireClaims();
-				const item = getEntry(ref.id);
-				if (item.state === 'completed' || item.state === 'failed' || item.state === 'cancelled') return 'terminal' as const;
-				const now = clock.now();
-				if (item.state === 'queued' && Temporal.Instant.compare(item.availableAt, now) <= 0) return 'claimable' as const;
-				const wakeAt = nextWakeAt(item);
-				await waitForChange(ctx, claimWaiters, wakeAt === undefined ? undefined : millisecondsUntil(wakeAt, clock.now()));
-			}
-		},
-		/**
-		 * Commits successful output for the current claim owner.
-		 *
-		 * The queue first checks whether the supplied claim still owns the item.
-		 * The stale-claim check prevents an older worker from overwriting work that
-		 * a newer worker already reclaimed and completed.
-		 *
-		 * @internal
-		 */
-		async complete(ctx: Context, claim: QueueClaim<Input>, output: Output) {
-			contextCore.check(ctx);
-			const item = currentClaim(claim);
-			item.state = 'completed';
-			item.output = output;
-			item.claim = undefined;
-			events.emit(Object.freeze({ type: 'completed', itemId: item.id, claimId: claim.id }));
-			settleResultWaiters(item);
-			wakeClaimWaiters();
-		},
-		/**
-		 * Commits a declared failure for the current claim owner.
-		 *
-		 * `fail()` uses the same fence as `complete()`.
-		 * A stale worker cannot publish a failure after ownership moved to a newer
-		 * attempt.
-		 *
-		 * @internal
-		 */
-		async fail(ctx: Context, claim: QueueClaim<Input>, failure: EncodedFailure) {
-			contextCore.check(ctx);
-			const item = currentClaim(claim);
-			item.state = 'failed';
-			item.failure = Object.freeze({ ...failure });
-			item.claim = undefined;
-			events.emit(Object.freeze({ type: 'failed', itemId: item.id, claimId: claim.id, failureId: failure.id }));
-			settleResultWaiters(item);
-			wakeClaimWaiters();
-		},
-		/**
-		 * Returns claimed work to `queued` state for a later attempt.
-		 *
-		 * Retry keeps the same logical item id but clears the current claim. The
-		 * next claim receives a new claim id and a higher attempt number.
-		 *
-		 * The caller may delay the next availability or set an absolute
-		 * availability time. Backoff can change without losing the item record.
-		 *
-		 * @internal
-		 */
-		async retry(ctx: Context, claim: QueueClaim<Input>, retryOptions: QueueRetryOptions = {}) {
-			contextCore.check(ctx);
-			if (retryOptions.availableAt !== undefined && retryOptions.delay !== undefined) {
-				throw new TypeError('Queue retry accepts either availableAt or delay, not both.');
-			}
-			const item = currentClaim(claim);
-			const now = clock.now();
-			const delay = nonNegativeDuration(retryOptions.delay ?? 'PT0S', 'retry delay');
-			item.state = 'queued';
-			item.claim = undefined;
-			item.availableAt = retryOptions.availableAt ?? now.add(delay);
-			if (retryOptions.priority !== undefined) item.priority = integer(retryOptions.priority, 'queue priority');
-			events.emit(Object.freeze({ type: 'retried', itemId: item.id, claimId: claim.id, availableAt: item.availableAt.toString() }));
-			wakeClaimWaiters();
-		},
-		/**
-		 * Cancels a non-terminal item by stable reference.
-		 *
-		 * Cancellation acts on the logical item, not on one claim.
-		 * The queue keeps terminal identity and wakes callers waiting for new work
-		 * or for the cancelled result.
-		 *
-		 * @internal
-		 */
-		async cancel(ctx: Context, owner: QueueRef | QueueClaim<Input>, reason?: unknown) {
-			contextCore.check(ctx);
-			const item = 'itemId' in owner ? currentClaim(owner) : getEntry(owner.id);
-			if (item.state === 'cancelled') return;
-			if (item.state === 'completed' || item.state === 'failed') return;
-			item.state = 'cancelled';
-			item.claim = undefined;
-			item.cancellation = reason;
-			events.emit(Object.freeze({ type: 'cancelled', itemId: item.id }));
-			settleResultWaiters(item);
-			wakeClaimWaiters();
-		},
-		/**
-		 * Waits for one item to reach terminal state without taking ownership.
-		 *
-		 * `result()` helps observers, producers, and higher-level orchestration code
-		 * that need the final outcome but must not interfere with worker
-		 * ownership.
-		 * `result()` returns completed output, throws a typed error for a failed or
-		 * cancelled item, or waits until the item settles.
-		 *
-		 * @internal
-		 */
-		async result(ctx: Context, ref: QueueRef) {
-			while (true) {
-				contextCore.check(ctx);
-				const item = getEntry(ref.id);
-				if (item.state === 'completed') return item.output as Output;
-				if (item.state === 'failed') throw new QueueItemFailedError(item.id, item.failure!);
-				if (item.state === 'cancelled') throw new QueueItemCancelledError(item.id, item.cancellation);
-				if (closed) throw new QueueClosedError(closeReason);
-				let waiters = resultWaiters.get(item.id);
-				if (waiters === undefined) {
-					waiters = new Set();
-					resultWaiters.set(item.id, waiters);
-				}
-				await waitForChange(ctx, waiters);
-			}
-		},
-		/**
-		 * Extends the expiry time of the current claim owner.
-		 *
-		 * Renewal does not create a new claim id.
-		 * Renewal keeps the same ownership attempt and only moves the expiry time.
-		 *
-		 * @internal
-		 */
-		async renew(ctx: Context, claim: QueueClaim<Input>, duration: Temporal.Duration | Temporal.DurationLike | string) {
-			contextCore.check(ctx);
-			const item = currentClaim(claim);
-			const renewed = Object.freeze({ ...claim, expiresAt: clock.now().add(positiveDuration(duration, 'claim renewal duration')) });
-			item.claim = renewed;
-			events.emit(Object.freeze({ type: 'renewed', itemId: item.id, claimId: claim.id, expiresAt: renewed.expiresAt.toString() }));
-			return renewed;
-		},
-		/**
-		 * Returns a state snapshot without exposing mutable queue internals.
-		 *
-		 * The snapshot includes item counts and blocked waiter counts.
-		 * Stale claims expire first so the numbers match current ownership.
-		 *
-		 * @internal
-		 */
-		async stats() {
-			expireClaims();
-			const counts: Record<ItemState, number> = { queued: 0, claimed: 0, completed: 0, failed: 0, cancelled: 0 };
-			for (const item of items.values()) counts[item.state] += 1;
-			return Object.freeze({
-				...counts,
-				waitingClaims: claimWaiters.size,
-				waitingResults: [...resultWaiters.values()].reduce((total, waiters) => total + waiters.size, 0),
-			});
-		},
-		/**
-		 * Closes the queue and rejects blocked waiters.
-		 *
-		 * After closure, the queue stops admitting and claiming work.
-		 * Blocked claim and result waiters receive `QueueClosedError` because no
-		 * later state can satisfy their wait.
-		 *
-		 * @internal
-		 */
-		async close(reason?: unknown) {
-			if (closed) return;
-			closed = true;
-			closeReason = reason;
-			const error = new QueueClosedError(reason);
-			rejectWaiters(claimWaiters, error);
-			for (const waiters of resultWaiters.values()) rejectWaiters(waiters, error);
-			resultWaiters.clear();
-			events.emit(Object.freeze({ type: 'closed' }));
-			const dispose = (events as { [Symbol.dispose]?: () => void })[Symbol.dispose];
-			dispose?.call(events);
-		},
-		/**
-		 * Async disposal closes the queue with a stable disposal reason.
-		 *
-		 * @internal
-		 */
-		async [Symbol.asyncDispose]() {
-			await queue.close('Queue was disposed.');
-		},
-	});
-	return queue;
+/**
+ * Mutable process-local owner behind one immutable `Queue` facade.
+ *
+ * One runtime owns all logical item records, temporary claim authority, and
+ * blocked waiters. Keeping those transitions on named methods makes the two
+ * important fences visible: terminal item state is durable for lookup, while a
+ * claim may mutate an item only while its exact claim id and owner still match.
+ */
+class Runtime<Input, Output> {
+	/** Maximum number of queued or claimed items admitted at one time. */
+	readonly #capacity: number;
+	/** Clock used for availability, claim expiry, retry delay, and renewal. */
+	readonly #clock: Context['clock'];
+	/** Caller-supplied or default source for item and claim identifiers. */
+	readonly #id: () => string;
+	/** Lease duration used when a claim does not override it. */
+	readonly #duration: Temporal.Duration;
+	/** Lifecycle event source disposed when the queue closes. */
+	readonly #events = new EventBus<QueueEventType>();
+	/** Authoritative record for every admitted logical item, including terminals. */
+	readonly #items = new Map<string, Item<Input, Output>>();
+	/** Stable idempotency key to logical item identity. Terminal mappings remain reusable. */
+	readonly #keys = new Map<string, string>();
+	/** Callers blocked until global claimability may have changed. */
+	readonly #claimWaiters = new Set<Waiter>();
+	/** Callers waiting for one exact item to reach a terminal state. */
+	readonly #resultWaiters = new Map<string, Set<Waiter>>();
+	/** Immutable caller-facing queue facade. */
+	readonly #queue: Queue<Input, Output>;
+	/** FIFO tie-breaker assigned once when each logical item is admitted. */
+	#order = 0;
+	/** Whether admission and claiming have stopped permanently. */
+	#closed = false;
+	/** Caller-supplied closure reason retained for later rejected operations. */
+	#reason: unknown;
 
-	/**
-	 * Rejects new queue work after closure.
-	 *
-	 * All mutating entry points use the same queue-open check.
-	 * All failures use the same error shape and stored closure reason.
-	 *
-	 * @internal
-	 */
-	function assertOpen(): void {
-		if (closed) throw new QueueClosedError(closeReason);
+	/** Validate queue policy once and construct the frozen caller-facing facade. */
+	constructor(options: MemoryQueueOptions) {
+		this.#capacity = options.capacity === undefined
+			? Number.POSITIVE_INFINITY
+			: positiveInteger(options.capacity, 'queue capacity');
+		this.#clock = options.clock ?? context.SystemClock;
+		this.#id = options.id ?? defaultId;
+		this.#duration = positiveDuration(options.defaultClaimDuration ?? { seconds: 30 }, 'default claim duration');
+		this.#queue = Object.freeze({
+			events: this.#events.events,
+			add: (ctx: Context, input: Input, addOptions?: QueueAddOptions) => this.#add(ctx, input, addOptions),
+			claim: (ctx: Context, claimOptions?: QueueClaimOptions) => this.#claim(ctx, claimOptions),
+			wait: (ctx: Context, ref: QueueRef) => this.#wait(ctx, ref),
+			complete: (ctx: Context, claim: QueueClaim<Input>, output: Output) => this.#complete(ctx, claim, output),
+			fail: (ctx: Context, claim: QueueClaim<Input>, failure: EncodedFailure) => this.#fail(ctx, claim, failure),
+			retry: (ctx: Context, claim: QueueClaim<Input>, retryOptions?: QueueRetryOptions) => this.#retry(ctx, claim, retryOptions),
+			cancel: (ctx: Context, owner: QueueRef | QueueClaim<Input>, reason?: unknown) => this.#cancel(ctx, owner, reason),
+			result: (ctx: Context, ref: QueueRef) => this.#result(ctx, ref),
+			renew: (ctx: Context, claim: QueueClaim<Input>, duration: Temporal.Duration | Temporal.DurationLike | string) =>
+				this.#renew(ctx, claim, duration),
+			stats: async () => this.#stats(),
+			close: (reason?: unknown) => this.#close(reason),
+			[Symbol.asyncDispose]: () => this.#close('Queue was disposed.'),
+		});
+	}
+
+	/** Immutable queue facade backed by this runtime owner. */
+	get queue(): Queue<Input, Output> {
+		return this.#queue;
+	}
+
+	/** Admit one logical item after idempotency and active-capacity checks. */
+	async #add(ctx: Context, input: Input, options: QueueAddOptions = {}): Promise<QueueRef> {
+		context.check(ctx);
+		this.#open();
+		if (options.key !== undefined) {
+			assertKey(options.key);
+			const existingId = this.#keys.get(options.key);
+			if (existingId !== undefined) return Object.freeze({ id: existingId });
+		}
+		if (this.#active() >= this.#capacity) throw new QueueCapacityError(this.#capacity);
+		const id = uniqueId(this.#id, this.#items);
+		const item: Item<Input, Output> = {
+			id,
+			...(options.key === undefined ? {} : { key: options.key }),
+			input,
+			order: this.#order++,
+			state: 'queued',
+			priority: integer(options.priority ?? 0, 'queue priority'),
+			availableAt: options.availableAt ?? this.#clock.now(),
+			attempt: 0,
+		};
+		this.#items.set(id, item);
+		if (item.key !== undefined) this.#keys.set(item.key, id);
+		this.#events.emit(Object.freeze({ type: 'added', itemId: id, ...(item.key === undefined ? {} : { key: item.key }) }));
+		this.#wake();
+		return Object.freeze({ id });
 	}
 
 	/**
-	 * Counts only non-terminal items for active-capacity enforcement.
+	 * Claim eligible work in deterministic priority/FIFO order.
 	 *
-	 * Terminal items keep stable identity for result lookup and key-based
-	 * idempotency.
-	 * Terminal items no longer consume active capacity.
-	 *
-	 * @internal
+	 * Waiting never transfers ownership. Each wake re-runs expiry and eligibility
+	 * checks, so a caller cannot rely on stale state observed before suspension.
 	 */
-	function activeCount(): number {
+	async #claim(ctx: Context, options: QueueClaimOptions = {}): Promise<readonly QueueClaim<Input>[]> {
+		const owner = options.owner ?? ctx.id;
+		assertOwner(owner);
+		const limit = positiveInteger(options.limit ?? 1, 'claim limit');
+		if (options.ref !== undefined && limit !== 1) throw new TypeError('A specific queue ref claim limit must be 1.');
+		const duration = positiveDuration(options.duration ?? this.#duration, 'claim duration');
+		while (true) {
+			context.check(ctx);
+			this.#open();
+			this.#expire();
+			const now = this.#clock.now();
+			const candidates = options.ref === undefined ? [...this.#items.values()] : [this.#item(options.ref.id)];
+			const available = candidates
+				.filter((item) => item.state === 'queued' && Temporal.Instant.compare(item.availableAt, now) <= 0)
+				.sort(compareItems)
+				.slice(0, limit);
+			if (available.length > 0) return Object.freeze(available.map((item) => this.#take(item, owner, duration)));
+			if (options.ref !== undefined) {
+				const item = this.#item(options.ref.id);
+				if (terminal(item)) return Object.freeze([]);
+			}
+			if (options.wait !== true) return Object.freeze([]);
+			const wakeAt = options.ref === undefined ? this.#soonest() : this.#next(this.#item(options.ref.id));
+			await waitForChange(ctx, this.#claimWaiters, wakeAt === undefined ? undefined : millisecondsUntil(wakeAt, this.#clock.now()));
+		}
+	}
+
+	/** Wait for one exact item to become claimable or terminal without taking ownership. */
+	async #wait(ctx: Context, ref: QueueRef): Promise<'claimable' | 'terminal'> {
+		while (true) {
+			context.check(ctx);
+			this.#open();
+			this.#expire();
+			const item = this.#item(ref.id);
+			if (terminal(item)) return 'terminal';
+			const now = this.#clock.now();
+			if (item.state === 'queued' && Temporal.Instant.compare(item.availableAt, now) <= 0) return 'claimable';
+			const wakeAt = this.#next(item);
+			await waitForChange(ctx, this.#claimWaiters, wakeAt === undefined ? undefined : millisecondsUntil(wakeAt, this.#clock.now()));
+		}
+	}
+
+	/** Commit successful output only while the supplied claim still owns the item. */
+	async #complete(ctx: Context, claim: QueueClaim<Input>, output: Output): Promise<void> {
+		context.check(ctx);
+		const item = this.#claimed(claim);
+		item.state = 'completed';
+		item.output = output;
+		item.claim = undefined;
+		this.#events.emit(Object.freeze({ type: 'completed', itemId: item.id, claimId: claim.id }));
+		this.#settle(item);
+		this.#wake();
+	}
+
+	/** Commit an encoded failure only while the supplied claim still owns the item. */
+	async #fail(ctx: Context, claim: QueueClaim<Input>, failure: EncodedFailure): Promise<void> {
+		context.check(ctx);
+		const item = this.#claimed(claim);
+		item.state = 'failed';
+		item.failure = Object.freeze({ ...failure });
+		item.claim = undefined;
+		this.#events.emit(Object.freeze({ type: 'failed', itemId: item.id, claimId: claim.id, failureId: failure.id }));
+		this.#settle(item);
+		this.#wake();
+	}
+
+	/** Return the current claim to queued state while preserving logical item identity. */
+	async #retry(ctx: Context, claim: QueueClaim<Input>, options: QueueRetryOptions = {}): Promise<void> {
+		context.check(ctx);
+		if (options.availableAt !== undefined && options.delay !== undefined) {
+			throw new TypeError('Queue retry accepts either availableAt or delay, not both.');
+		}
+		const item = this.#claimed(claim);
+		const now = this.#clock.now();
+		const delay = nonNegativeDuration(options.delay ?? 'PT0S', 'retry delay');
+		item.state = 'queued';
+		item.claim = undefined;
+		item.availableAt = options.availableAt ?? now.add(delay);
+		if (options.priority !== undefined) item.priority = integer(options.priority, 'queue priority');
+		this.#events.emit(Object.freeze({ type: 'retried', itemId: item.id, claimId: claim.id, availableAt: item.availableAt.toString() }));
+		this.#wake();
+	}
+
+	/** Cancel one logical item using producer authority or one still-live consumer claim. */
+	async #cancel(ctx: Context, owner: QueueRef | QueueClaim<Input>, reason?: unknown): Promise<void> {
+		context.check(ctx);
+		const item = 'itemId' in owner ? this.#claimed(owner) : this.#item(owner.id);
+		if (item.state === 'cancelled' || item.state === 'completed' || item.state === 'failed') return;
+		item.state = 'cancelled';
+		item.claim = undefined;
+		item.cancellation = reason;
+		this.#events.emit(Object.freeze({ type: 'cancelled', itemId: item.id }));
+		this.#settle(item);
+		this.#wake();
+	}
+
+	/** Wait for terminal output without acquiring or extending consumer ownership. */
+	async #result(ctx: Context, ref: QueueRef): Promise<Output> {
+		while (true) {
+			context.check(ctx);
+			const item = this.#item(ref.id);
+			if (item.state === 'completed') return item.output as Output;
+			if (item.state === 'failed') throw new QueueItemFailedError(item.id, item.failure!);
+			if (item.state === 'cancelled') throw new QueueItemCancelledError(item.id, item.cancellation);
+			if (this.#closed) throw new QueueClosedError(this.#reason);
+			let waiters = this.#resultWaiters.get(item.id);
+			if (waiters === undefined) {
+				waiters = new Set();
+				this.#resultWaiters.set(item.id, waiters);
+			}
+			await waitForChange(ctx, waiters);
+		}
+	}
+
+	/** Extend one live claim without changing its claim id or attempt number. */
+	async #renew(
+		ctx: Context,
+		claim: QueueClaim<Input>,
+		duration: Temporal.Duration | Temporal.DurationLike | string,
+	): Promise<QueueClaim<Input>> {
+		context.check(ctx);
+		const item = this.#claimed(claim);
+		const renewed = Object.freeze({ ...claim, expiresAt: this.#clock.now().add(positiveDuration(duration, 'claim renewal duration')) });
+		item.claim = renewed;
+		this.#events.emit(Object.freeze({ type: 'renewed', itemId: item.id, claimId: claim.id, expiresAt: renewed.expiresAt.toString() }));
+		return renewed;
+	}
+
+	/** Snapshot item states and blocked-waiter pressure after expiring stale claims. */
+	#stats(): QueueStats {
+		this.#expire();
+		const counts: Record<ItemState, number> = { queued: 0, claimed: 0, completed: 0, failed: 0, cancelled: 0 };
+		for (const item of this.#items.values()) counts[item.state] += 1;
+		return Object.freeze({
+			...counts,
+			waitingClaims: this.#claimWaiters.size,
+			waitingResults: [...this.#resultWaiters.values()].reduce((total, waiters) => total + waiters.size, 0),
+		});
+	}
+
+	/** Permanently stop admission and reject every waiter that can no longer make progress. */
+	async #close(reason?: unknown): Promise<void> {
+		if (this.#closed) return;
+		this.#closed = true;
+		this.#reason = reason;
+		const error = new QueueClosedError(reason);
+		rejectWaiters(this.#claimWaiters, error);
+		for (const waiters of this.#resultWaiters.values()) rejectWaiters(waiters, error);
+		this.#resultWaiters.clear();
+		this.#events.emit(Object.freeze({ type: 'closed' }));
+		const dispose = (this.#events as { [Symbol.dispose]?: () => void })[Symbol.dispose];
+		dispose?.call(this.#events);
+	}
+
+	/** Reject new admission and claiming after the permanent close transition. */
+	#open(): void {
+		if (this.#closed) throw new QueueClosedError(this.#reason);
+	}
+
+	/** Count queued and claimed items; terminal identities do not consume active capacity. */
+	#active(): number {
 		let count = 0;
-		for (const item of items.values()) if (item.state === 'queued' || item.state === 'claimed') count += 1;
+		for (const item of this.#items.values()) if (item.state === 'queued' || item.state === 'claimed') count += 1;
 		return count;
 	}
 
-	/**
-	 * Gets the authoritative item record for a stable item id.
-	 *
-	 * Callers outside the queue never receive the record directly.
-	 * Callers receive immutable references and claims instead.
-	 *
-	 * @internal
-	 */
-	function getEntry(id: string): Item<Input, Output> {
-		const item = items.get(id);
+	/** Return the authoritative mutable record for one stable logical item id. */
+	#item(id: string): Item<Input, Output> {
+		const item = this.#items.get(id);
 		if (item === undefined) throw new QueueItemNotFoundError(id);
 		return item;
 	}
 
 	/**
-	 * Requires exact live ownership before a claim-scoped mutation proceeds.
+	 * Require exact current claim ownership before a consumer-scoped mutation.
 	 *
-	 * All claim-driven mutations use the same fence.
-	 * QueueClaim id, item id, owner, and current claimed state must still match after
-	 * expired claims are cleaned up.
-	 * Any mismatch means the caller holds a stale claim.
-	 *
-	 * @internal
+	 * Expiry runs first. Item id, claim id, owner, and claimed state must all still
+	 * match, so a late worker cannot complete, fail, retry, renew, or cancel work
+	 * that a newer attempt owns.
 	 */
-	function currentClaim(claim: QueueClaim<Input>): Item<Input, Output> {
-		expireClaims();
-		const item = getEntry(claim.itemId);
+	#claimed(claim: QueueClaim<Input>): Item<Input, Output> {
+		this.#expire();
+		const item = this.#item(claim.itemId);
 		if (item.state !== 'claimed' || item.claim?.id !== claim.id || item.claim.owner !== claim.owner) {
 			throw new StaleClaimError(claim.itemId, claim.id);
 		}
 		return item;
 	}
 
-	/**
-	 * Transitions one eligible item into a new claimed attempt.
-	 *
-	 * The item id stays stable.
-	 * The claim id is new.
-	 * Logical work identity stays separate from temporary ownership identity.
-	 *
-	 * @internal
-	 */
-	function claimEntry(item: Item<Input, Output>, owner: string, duration: Temporal.Duration): QueueClaim<Input> {
-		const claimedAt = clock.now();
+	/** Move one eligible logical item into a new temporary ownership attempt. */
+	#take(item: Item<Input, Output>, owner: string, duration: Temporal.Duration): QueueClaim<Input> {
+		const claimedAt = this.#clock.now();
 		const claim = Object.freeze({
-			id: uniqueClaimId(createId, items),
+			id: uniqueClaimId(this.#id, this.#items),
 			itemId: item.id,
 			owner,
 			value: item.input,
@@ -606,89 +522,65 @@ export function memory<Input, Output>(options: MemoryQueueOptions = {}): Queue<I
 		item.state = 'claimed';
 		item.attempt = claim.attempt;
 		item.claim = claim;
-		events.emit(Object.freeze({ type: 'claimed', itemId: item.id, claimId: claim.id, owner, attempt: claim.attempt }));
+		this.#events.emit(Object.freeze({ type: 'claimed', itemId: item.id, claimId: claim.id, owner, attempt: claim.attempt }));
 		return claim;
 	}
 
-	/**
-	 * Returns expired claims to queued state before other operations observe ownership.
-	 *
-	 * `expireClaims()` recovers abandoned work.
-	 * Without the check, a worker that crashes or stalls forever could hold the
-	 * item indefinitely.
-	 *
-	 * @internal
-	 */
-	function expireClaims(): void {
-		const now = clock.now();
-		for (const item of items.values()) {
+	/** Return every expired live claim to queued state before ownership is observed. */
+	#expire(): void {
+		const now = this.#clock.now();
+		for (const item of this.#items.values()) {
 			if (item.state !== 'claimed' || item.claim === undefined) continue;
 			if (Temporal.Instant.compare(item.claim.expiresAt, now) > 0) continue;
 			const expired = item.claim;
 			item.state = 'queued';
 			item.claim = undefined;
 			item.availableAt = now;
-			events.emit(Object.freeze({ type: 'claim-expired', itemId: item.id, claimId: expired.id }));
+			this.#events.emit(Object.freeze({ type: 'claim-expired', itemId: item.id, claimId: expired.id }));
 		}
 	}
 
-	/**
-	 * Finds the earliest future instant that may make `claim()` return a different answer.
-	 *
-	 * The next wake-up can come from delayed queued work becoming eligible or
-	 * from an active claim expiring and returning to `queued`.
-	 *
-	 * @internal
-	 */
 	/** Return the next instant that can change claimability for one known item. */
-	function nextWakeAt(item: Item<Input, Output>): Temporal.Instant | undefined {
+	#next(item: Item<Input, Output>): Temporal.Instant | undefined {
 		if (item.state === 'queued') return item.availableAt;
 		if (item.state === 'claimed') return item.claim?.expiresAt;
 		return undefined;
 	}
 
-	/** Return the next eligibility or claim-expiry instant that can change this exact item's claimability. */
-function nextClaimWakeAt(): Temporal.Instant | undefined {
+	/** Return the earliest delayed-availability or claim-expiry instant across the queue. */
+	#soonest(): Temporal.Instant | undefined {
 		let next: Temporal.Instant | undefined;
-		for (const item of items.values()) {
-			let candidate: Temporal.Instant | undefined;
-			if (item.state === 'queued') candidate = item.availableAt;
-			else if (item.state === 'claimed') candidate = item.claim?.expiresAt;
+		for (const item of this.#items.values()) {
+			const candidate = this.#next(item);
 			if (candidate !== undefined && (next === undefined || Temporal.Instant.compare(candidate, next) < 0)) next = candidate;
 		}
 		return next;
 	}
 
-	/**
-	 * Wakes callers waiting for one item to reach terminal state.
-	 *
-	 * @internal
-	 */
-	function settleResultWaiters(item: Item<Input, Output>): void {
-		const waiters = resultWaiters.get(item.id);
+	/** Release every observer waiting for this exact logical item to settle. */
+	#settle(item: Item<Input, Output>): void {
+		const waiters = this.#resultWaiters.get(item.id);
 		if (waiters === undefined) return;
-		resultWaiters.delete(item.id);
+		this.#resultWaiters.delete(item.id);
 		for (const waiter of waiters) {
 			waiter.unlink();
 			waiter.resolve();
 		}
 	}
 
-	/**
-	 * Wakes blocked claimers after queue state changes may have made work eligible.
-	 *
-	 * The queue uses a broadcast wake-up model. Each awakened claimer re-checks
-	 * queue state and either claims work, waits again, or observes closure.
-	 *
-	 * @internal
-	 */
-	function wakeClaimWaiters(): void {
-		for (const waiter of claimWaiters) {
-			claimWaiters.delete(waiter);
+	/** Broadcast a possible claimability change; each waiter re-checks authoritative state after waking. */
+	#wake(): void {
+		for (const waiter of this.#claimWaiters) {
+			this.#claimWaiters.delete(waiter);
 			waiter.unlink();
 			waiter.resolve();
 		}
 	}
+}
+
+/** Return whether an item has reached a terminal state that can no longer be claimed. */
+function terminal<Input, Output>(item: Item<Input, Output>): boolean {
+	return item.state === 'completed' || item.state === 'failed' || item.state === 'cancelled';
 }
 
 /**
@@ -705,7 +597,7 @@ function nextClaimWakeAt(): Temporal.Instant | undefined {
  *
  * @internal
  */
-function waitForChange(ctx: contextCore.Context, waiters: Set<Waiter>, delayMilliseconds?: number): Promise<void> {
+function waitForChange(ctx: context.Context, waiters: Set<Waiter>, delayMilliseconds?: number): Promise<void> {
 	return new Promise<void>((resolve, reject) => {
 		let waiter!: Waiter;
 		let timer: ReturnType<typeof setTimeout> | undefined;
@@ -718,10 +610,10 @@ function waitForChange(ctx: contextCore.Context, waiters: Set<Waiter>, delayMill
 			unlink();
 			action();
 		};
-		const abort = () => settle(() => reject(ctx.signal.reason ?? new contextCore.ContextCancelledError()));
+		const abort = () => settle(() => reject(ctx.signal.reason ?? new context.ContextCancelledError()));
 		waiter = { resolve, reject, unlink };
 		if (ctx.signal.aborted) {
-			reject(ctx.signal.reason ?? new contextCore.ContextCancelledError());
+			reject(ctx.signal.reason ?? new context.ContextCancelledError());
 			return;
 		}
 		waiters.add(waiter);
@@ -842,9 +734,9 @@ function integer(value: number, label: string): number {
  * @internal
  */
 function positiveDuration(value: Temporal.Duration | Temporal.DurationLike | string, label: string): Temporal.Duration {
-	const duration = getDuration(value, label);
-	if (durationMilliseconds(duration) <= 0) throw new TypeError(`${label} must be positive.`);
-	return duration;
+	const parsed = getDuration(value, label);
+	if (duration.milliseconds(parsed) <= 0) throw new TypeError(`${label} must be positive.`);
+	return parsed;
 }
 
 /**
@@ -853,9 +745,9 @@ function positiveDuration(value: Temporal.Duration | Temporal.DurationLike | str
  * @internal
  */
 function nonNegativeDuration(value: Temporal.Duration | Temporal.DurationLike | string, label: string): Temporal.Duration {
-	const duration = getDuration(value, label);
-	if (durationMilliseconds(duration) < 0) throw new TypeError(`${label} must not be negative.`);
-	return duration;
+	const parsed = getDuration(value, label);
+	if (duration.milliseconds(parsed) < 0) throw new TypeError(`${label} must not be negative.`);
+	return parsed;
 }
 
 /**
@@ -872,15 +764,6 @@ function getDuration(value: Temporal.Duration | Temporal.DurationLike | string, 
 	} catch (error) {
 		throw new TypeError(`${label} must be positive.`, error === undefined ? undefined : { cause: error });
 	}
-}
-
-/**
- * Converts a duration into milliseconds for validation and timer math.
- *
- * @internal
- */
-function durationMilliseconds(value: Temporal.Duration): number {
-	return value.total({ unit: 'milliseconds', relativeTo: Temporal.PlainDate.from('2000-01-01') });
 }
 
 /**

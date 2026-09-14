@@ -46,7 +46,11 @@ export function create(): Adapter {
 					child.kill(signal as Deno.Signal);
 				},
 				isGone(error: unknown) {
-					return error instanceof Deno.errors.NotFound;
+					// Deno exposes a structured NotFound error for a missing process group,
+					// but ChildProcess.kill reports a raced child exit as this TypeError.
+					// Both mean shutdown has already reached its intended terminal state.
+					return error instanceof Deno.errors.NotFound ||
+						(error instanceof TypeError && error.message === 'Child process has already terminated');
 				},
 			});
 		},

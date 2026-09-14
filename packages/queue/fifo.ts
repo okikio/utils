@@ -88,7 +88,7 @@ export function fifo<Input, Output>(queue: Queue<Input, Output>, options: FifoQu
  * because the renewed claim carries a new expiry time.
  */
 function taken<Input, Output>(queue: Queue<Input, Output>, owner: Context, claim: QueueClaim<Input>): QueueClaimHandle<Input, Output> {
-	const handle: QueueClaimHandle<Input, Output> = Object.freeze({
+	const handle = Object.freeze({
 		id: claim.id,
 		itemId: claim.itemId,
 		owner: claim.owner,
@@ -115,6 +115,6 @@ function taken<Input, Output>(queue: Queue<Input, Output>, owner: Context, claim
 		async [Symbol.asyncDispose]() {
 			// The FIFO adapter does not choose a terminal action implicitly.
 		},
-	});
+	} satisfies QueueClaimHandle<Input, Output>);
 	return handle;
 }

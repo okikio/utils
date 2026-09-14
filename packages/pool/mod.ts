@@ -7,16 +7,20 @@
  * @module
  */
 import { EventBus } from '@okikio/observables';
-import * as contextCore from '@okikio/context';
-import type { Context } from '@okikio/context';
+import * as context from '@okikio/context';
+import * as duration from '@okikio/duration';
+import type { Context, Owned } from '@okikio/context';
 
 import type { CreateOptions, Event, Lease, Pool, Stats } from './types.ts';
 
 /** Acquisition attempted while a pool is draining or disposed. */
 export class PoolUnavailableError extends Error {
+	/** Lifecycle state that rejected the acquisition. */
 	readonly state: 'draining' | 'disposed';
+	/** Original drain/disposal reason when the owner supplied one. */
 	readonly reason: unknown;
 
+	/** Create one unavailable error without losing the owner-supplied stop reason. */
 	constructor(state: 'draining' | 'disposed', reason?: unknown) {
 		super(`Pool is ${state}.`, reason === undefined ? undefined : { cause: reason });
 		this.name = 'PoolUnavailableError';
@@ -27,8 +31,10 @@ export class PoolUnavailableError extends Error {
 
 /** Pool acquisition exceeded its configured timeout. */
 export class PoolAcquireTimeoutError extends Error {
+	/** Configured timeout that elapsed before a value became available. */
 	readonly duration: Temporal.Duration;
 
+	/** Create one acquisition-timeout error with the normalized configured duration. */
 	constructor(duration: Temporal.Duration) {
 		super(`Pool acquisition exceeded ${duration.toString()}.`);
 		this.name = 'PoolAcquireTimeoutError';
@@ -36,21 +42,56 @@ export class PoolAcquireTimeoutError extends Error {
 	}
 }
 
-interface IdleValue<Value> {
+/** One reusable value retained by the pool after its previous lease returned it. */
+interface Idle<Value> {
+	/** Pool-owned reusable value. */
 	readonly value: Value;
+	/** Time when the previous lease returned the value to idle ownership. */
 	readonly returnedAt: Temporal.Instant;
 }
 
+/** One FIFO acquisition continuation blocked while the pool is at capacity. */
 interface Waiter {
+	/** Resume the acquisition after a state change can make progress possible. */
 	readonly resolve: () => void;
+	/** Reject the acquisition when cancellation or pool shutdown ends the wait. */
 	readonly reject: (reason: unknown) => void;
+	/** Remove the waiter's abort listener before the continuation is released. */
 	readonly unlink: () => void;
 }
 
+/** Mutable ownership state retained behind one immutable public lease. */
 interface LeaseState {
+	/** Whether the borrower marked the value unsafe to reuse. */
 	invalid: boolean;
+	/** Optional invalidation reason passed to provider cleanup. */
 	reason?: unknown;
+	/** Whether this lease has already completed its one release transition. */
 	released: boolean;
+}
+
+/** Acquisition-scoped child context and its owned cleanup path. */
+interface Acquisition {
+	/** Context passed to provider creation and pool wait checks. */
+	readonly ctx: Context;
+	/** Normalized timeout used to map a deadline failure into the pool error type. */
+	readonly timeout?: Temporal.Duration;
+	/** Dispose every child context created only for this acquisition. */
+	readonly dispose: () => Promise<void>;
+}
+
+/** Validated immutable limits captured before the pool starts provider work. */
+interface Limits {
+	/** Minimum number of retained reusable values. */
+	readonly minimum: number;
+	/** Maximum number of values owned, leased, or being created. */
+	readonly maximum: number;
+	/** Maximum number of returned values retained while idle. */
+	readonly maximumIdle: number;
+	/** Maximum idle age before a reusable value is retired. */
+	readonly maximumIdleAge?: Temporal.Duration;
+	/** Optional upper bound for one acquisition wait. */
+	readonly acquireTimeout?: Temporal.Duration;
 }
 
 /**
@@ -65,15 +106,463 @@ interface LeaseState {
  *    |
  *    `-- saturated -> FIFO waiter -> release ------> retry acquire
  *
- * Lease.release() -> idle queue or destroy(value)
- * Lease.invalidate(reason) -> destroy(value)
- * Pool.dispose() -> stop admission -> wait leases -> destroy idle
+ * Lease.dispose() -> idle queue or close(value)
+ * Lease.invalidate(reason) -> close(value)
+ * Pool.drain() -> stop admission -> wait active transitions -> close idle
  * ```
  *
- * The pool owns created values. A lease only borrows one value until it releases
- * or invalidates that value.
+ * The pool owns every created value. A lease only borrows one value until its
+ * disposal either returns a healthy value to the pool or closes it.
  */
 export async function create<Value>(options: CreateOptions<Value>): Promise<Pool<Value>> {
+	const limits = resolve(options);
+	const runtime = new Runtime(options, limits);
+	await runtime.start();
+	return runtime.pool;
+}
+
+/**
+ * Mutable lifecycle owner behind one immutable public `Pool` facade.
+ *
+ * Named ownership transitions keep the important races reviewable: creation can
+ * finish after cancellation, release can overlap drain, and drain must wait for
+ * every transition that can still own a value.
+ */
+class Runtime<Value> {
+	/** Caller-owned provider behavior and parent context borrowed for this pool. */
+	readonly #options: CreateOptions<Value>;
+	/** Validated capacity and timing policy captured before provider work begins. */
+	readonly #limits: Limits;
+	/** Child context that owns the complete pool lifetime after startup. */
+	readonly #owner: Owned;
+	/** Lifecycle event bus disposed with the pool. */
+	readonly #events = new EventBus<Event>();
+	/** Immutable public facade. Mutable lifecycle state stays private to this owner. */
+	readonly #pool: Pool<Value>;
+	/** Reusable values currently retained by the pool. */
+	readonly #idle: Idle<Value>[] = [];
+	/** Values temporarily borrowed by live leases. */
+	readonly #leased = new Map<Value, LeaseState>();
+	/** FIFO acquisitions blocked because the pool cannot currently make progress. */
+	readonly #waiters: Waiter[] = [];
+	/** Cleanup failures retained so drain cannot falsely report successful shutdown. */
+	readonly #failures: unknown[] = [];
+	/** Provider creations that may still produce a pool-owned value. */
+	#creating = 0;
+	/** Async transitions that can still inspect, return, create, or close a value. */
+	#operations = 0;
+	/** Current admission and ownership state. */
+	#state: 'active' | 'draining' | 'disposed' = 'active';
+	/** Reason supplied when drain or disposal stopped new admission. */
+	#reason: unknown;
+	/** Shared drain barrier used by concurrent drain/dispose callers. */
+	#drain: Promise<void> | undefined;
+	/** Resolver released only after every pool-owned transition has settled. */
+	#resolve: (() => void) | undefined;
+
+	/** Create one lifecycle owner and its frozen public facade without starting provider work. */
+	constructor(options: CreateOptions<Value>, limits: Limits) {
+		this.#options = options;
+		this.#limits = limits;
+		this.#owner = context.child(options.ctx, { id: `${options.ctx.id}:pool` });
+		this.#pool = Object.freeze({
+			events: this.#events.events,
+			acquire: (ctx: Context) => this.acquire(ctx),
+			stats: () => this.stats(),
+			maintain: () => this.maintain(),
+			drain: (reason?: unknown) => this.drain(reason),
+			[Symbol.asyncDispose]: () => this.dispose(),
+		});
+	}
+
+	/** Immutable caller-facing pool facade backed by this runtime owner. */
+	get pool(): Pool<Value> {
+		return this.#pool;
+	}
+
+	/**
+	 * Create the configured minimum before the pool becomes observable to callers.
+	 *
+	 * Startup uses its own child context. If one creation fails, every value that
+	 * was already created is closed before the failure escapes.
+	 */
+	async start(): Promise<void> {
+		await using startupCtx = context.child(this.#options.ctx, { id: `${this.#options.ctx.id}:pool-startup` });
+		try {
+			for (let index = 0; index < this.#limits.minimum; index += 1) {
+				const value = await this.#create(startupCtx);
+				try {
+					context.check(startupCtx);
+				} catch (error) {
+					await this.#discard(value, error);
+				}
+				this.#idle.push({ value, returnedAt: this.#options.ctx.clock.now() });
+			}
+		} catch (error) {
+			await this.#cleanup(error);
+		}
+	}
+
+	/** Acquire one healthy value or wait FIFO until cancellation, timeout, or capacity changes. */
+	async acquire(ctx: Context): Promise<Lease<Value>> {
+		const acquisition = this.#context(ctx);
+		this.#begin();
+		try {
+			while (true) {
+				this.#check(acquisition.ctx);
+				this.#admit();
+				if (this.#idle.length === 0 && this.#owned() >= this.#limits.maximum) {
+					await this.#wait(acquisition.ctx);
+					continue;
+				}
+
+				await this.#expire();
+				const reused = await this.#take();
+				if (reused !== undefined) return this.#lease(reused);
+				if (this.#owned() < this.#limits.maximum) {
+					const value = await this.#create(acquisition.ctx);
+					try {
+						this.#check(acquisition.ctx);
+						this.#admit();
+					} catch (error) {
+						await this.#discard(value, error);
+					}
+					return this.#lease(value);
+				}
+				await this.#wait(acquisition.ctx);
+			}
+		} catch (error) {
+			if (acquisition.timeout !== undefined && error instanceof context.ContextDeadlineExceededError) {
+				throw new PoolAcquireTimeoutError(acquisition.timeout);
+			}
+			throw error;
+		} finally {
+			try {
+				await acquisition.dispose();
+			} finally {
+				this.#end();
+			}
+		}
+	}
+
+	/** Return an immutable snapshot of current pool occupancy and waiter pressure. */
+	stats(): Stats {
+		return Object.freeze({
+			state: this.#state,
+			minimum: this.#limits.minimum,
+			maximum: this.#limits.maximum,
+			idle: this.#idle.length,
+			leased: this.#leased.size,
+			creating: this.#creating,
+			waiting: this.#waiters.length,
+		});
+	}
+
+	/** Retire idle values that exceeded their age limit without reducing the configured minimum. */
+	async maintain(): Promise<void> {
+		this.#begin();
+		try {
+			this.#admit();
+			await this.#expire();
+		} finally {
+			this.#end();
+		}
+	}
+
+	/**
+	 * Stop admission and wait until no pool-owned transition can still produce or retain a value.
+	 *
+	 * Drain closes retained idle values immediately, but it remains pending while
+	 * leases, creations, health checks, release cleanup, or other active pool
+	 * operations can still change ownership.
+	 */
+	async drain(reason?: unknown): Promise<void> {
+		if (this.#state === 'disposed') return;
+		if (this.#drain === undefined) {
+			this.#state = 'draining';
+			this.#reason = reason;
+			this.#events.emit(Object.freeze({ type: 'draining', ...(reason === undefined ? {} : { reason }) }));
+			this.#rejectAll(new PoolUnavailableError('draining', reason));
+			this.#drain = new Promise<void>((resolve) => this.#resolve = resolve);
+
+			const values = this.#idle.splice(0).map((entry) => entry.value);
+			const settled = await Promise.allSettled(values.map((value) => this.#close(value, reason)));
+			for (const result of settled) if (result.status === 'rejected') this.#failures.push(result.reason);
+			this.#settle();
+		}
+		await this.#drain;
+		this.#throwFailures();
+	}
+
+	/** Drain and release the owner context and event bus exactly once. */
+	async dispose(): Promise<void> {
+		if (this.#state === 'disposed') return;
+		let drainFailed = false;
+		let drainFailure: unknown;
+		try {
+			await this.drain('Pool was disposed.');
+		} catch (error) {
+			drainFailed = true;
+			drainFailure = error;
+		} finally {
+			this.#state = 'disposed';
+			await this.#owner[Symbol.asyncDispose]();
+			this.#events.emit(Object.freeze({ type: 'disposed' }));
+			this.#events[Symbol.dispose]();
+		}
+		if (drainFailed) throw drainFailure;
+	}
+
+	/** Build one acquisition child context and optionally tighten it with the configured timeout. */
+	#context(ctx: Context): Acquisition {
+		const borrowed = context.child(this.#owner, {
+			id: ctx.id,
+			signal: ctx.signal,
+			deadline: ctx.deadline,
+			clock: ctx.clock,
+		});
+		if (this.#limits.acquireTimeout === undefined) {
+			return Object.freeze({
+				ctx: borrowed,
+				dispose: async () => await borrowed[Symbol.asyncDispose](),
+			});
+		}
+
+		const timeout = this.#limits.acquireTimeout;
+		const timed = context.deadline(borrowed, borrowed.clock.now().add(timeout));
+		return Object.freeze({
+			ctx: timed,
+			timeout,
+			dispose: async () => {
+				await timed[Symbol.asyncDispose]();
+				await borrowed[Symbol.asyncDispose]();
+			},
+		});
+	}
+
+	/** Reject cancellation/deadline before a pool action can transfer or create ownership. */
+	#check(ctx: Context): void {
+		if (ctx.signal.aborted) throw ctx.signal.reason ?? new context.ContextCancelledError();
+		context.check(ctx);
+	}
+
+	/** Reject new work after drain has stopped admission. */
+	#admit(): void {
+		if (this.#state === 'active') return;
+		throw new PoolUnavailableError(this.#state, this.#reason);
+	}
+
+	/** Count idle, leased, and in-flight-created values against the configured capacity. */
+	#owned(): number {
+		return this.#idle.length + this.#leased.size + this.#creating;
+	}
+
+	/** Create one provider value while keeping drain aware of in-flight ownership. */
+	async #create(ctx: Context): Promise<Value> {
+		this.#creating += 1;
+		this.#events.emit(Object.freeze({ type: 'creating' }));
+		try {
+			const value = await this.#options.create(ctx);
+			this.#events.emit(Object.freeze({ type: 'created' }));
+			return value;
+		} finally {
+			this.#creating -= 1;
+			this.#settle();
+		}
+	}
+
+	/** Remove idle values from shared ownership until one passes the optional health check. */
+	async #take(): Promise<Value | undefined> {
+		while (this.#idle.length > 0) {
+			const entry = this.#idle.shift()!;
+			if (await this.#healthy(entry.value)) return entry.value;
+			await this.#close(entry.value, 'Pool health check failed.');
+		}
+		return undefined;
+	}
+
+	/** Create one immutable lease whose disposal performs exactly one return-or-close transition. */
+	#lease(value: Value): Lease<Value> {
+		const acquiredAt = this.#options.ctx.clock.now();
+		const state: LeaseState = { invalid: false, released: false };
+		this.#leased.set(value, state);
+		this.#events.emit(Object.freeze({ type: 'acquired', acquiredAt: acquiredAt.toString() }));
+
+		return Object.freeze({
+			value,
+			acquiredAt,
+			get invalid() { return state.invalid; },
+			invalidate: (reason?: unknown) => this.#invalidate(state, reason),
+			[Symbol.asyncDispose]: () => this.#release(value, state),
+		});
+	}
+
+	/** Mark one live lease invalid without closing it before the borrower releases ownership. */
+	#invalidate(state: LeaseState, reason?: unknown): void {
+		if (state.released || state.invalid) return;
+		state.invalid = true;
+		state.reason = reason;
+		this.#events.emit(Object.freeze({ type: 'invalidated', ...(reason === undefined ? {} : { reason }) }));
+	}
+
+	/** Return a released healthy value to idle ownership or close it before waking the next waiter. */
+	async #release(value: Value, lease: LeaseState): Promise<void> {
+		if (lease.released) return;
+		lease.released = true;
+		this.#begin();
+		this.#leased.delete(value);
+		let reusable = false;
+		let releaseFailed = false;
+		let releaseFailure: unknown;
+		try {
+			reusable = !lease.invalid && this.#state === 'active' && await this.#healthy(value);
+			if (reusable && this.#idle.length < this.#limits.maximumIdle) {
+				this.#idle.push({ value, returnedAt: this.#options.ctx.clock.now() });
+			} else {
+				reusable = false;
+				await this.#close(value, lease.reason ?? this.#reason);
+			}
+		} catch (error) {
+			releaseFailed = true;
+			releaseFailure = error;
+			this.#failures.push(error);
+		} finally {
+			this.#events.emit(Object.freeze({ type: 'released', reusable }));
+			this.#wake();
+			this.#end();
+		}
+		if (releaseFailed) throw releaseFailure;
+	}
+
+	/** Treat provider health-check exceptions as an unhealthy reusable value. */
+	async #healthy(value: Value): Promise<boolean> {
+		if (this.#options.check === undefined) return true;
+		try {
+			return await this.#options.check(value);
+		} catch {
+			return false;
+		}
+	}
+
+	/** Close one pool-owned value and emit closure even when provider cleanup fails. */
+	async #close(value: Value, reason?: unknown): Promise<void> {
+		try {
+			await this.#options.close(value, reason);
+		} finally {
+			this.#events.emit(Object.freeze({ type: 'closed-value', ...(reason === undefined ? {} : { reason }) }));
+		}
+	}
+
+	/** Close a value created after its acquisition became invalid, preserving primary and cleanup failures. */
+	async #discard(value: Value, primaryFailure: unknown): Promise<never> {
+		try {
+			await this.#close(value, primaryFailure);
+		} catch (closeFailure) {
+			throw new AggregateError([primaryFailure, closeFailure], 'Pool acquisition and cleanup failed.');
+		}
+		throw primaryFailure;
+	}
+
+	/** Retire expired idle values while preserving at least the configured minimum. */
+	async #expire(): Promise<void> {
+		if (this.#limits.maximumIdleAge === undefined || this.#idle.length === 0) return;
+		const now = this.#options.ctx.clock.now();
+		const retained: Idle<Value>[] = [];
+		const expired: Value[] = [];
+		for (const entry of this.#idle) {
+			const age = entry.returnedAt.until(now);
+			if (duration.compare(age, this.#limits.maximumIdleAge) >= 0 && this.#idle.length - expired.length > this.#limits.minimum) {
+				expired.push(entry.value);
+			} else {
+				retained.push(entry);
+			}
+		}
+		this.#idle.splice(0, this.#idle.length, ...retained);
+		await Promise.allSettled(expired.map((value) => this.#close(value, 'Pool idle timeout elapsed.')));
+	}
+
+	/** Block one acquisition without transferring value ownership to the waiter. */
+	#wait(ctx: Context): Promise<void> {
+		return new Promise<void>((resolve, reject) => {
+			let waiter!: Waiter;
+			const abort = () => {
+				const index = this.#waiters.indexOf(waiter);
+				if (index >= 0) this.#waiters.splice(index, 1);
+				reject(ctx.signal.reason ?? new context.ContextCancelledError());
+			};
+			const unlink = () => ctx.signal.removeEventListener('abort', abort);
+			waiter = { resolve, reject, unlink };
+			if (ctx.signal.aborted) {
+				reject(ctx.signal.reason ?? new context.ContextCancelledError());
+				return;
+			}
+			this.#waiters.push(waiter);
+			ctx.signal.addEventListener('abort', abort, { once: true });
+		});
+	}
+
+	/** Wake the oldest waiter after release or cleanup may have made capacity available. */
+	#wake(): void {
+		const waiter = this.#waiters.shift();
+		if (waiter === undefined) return;
+		waiter.unlink();
+		waiter.resolve();
+	}
+
+	/** Reject every waiter when drain makes future acquisition impossible. */
+	#rejectAll(reason: unknown): void {
+		while (this.#waiters.length > 0) {
+			const waiter = this.#waiters.shift()!;
+			waiter.unlink();
+			waiter.reject(reason);
+		}
+	}
+
+	/** Record one async transition that can still affect pool ownership. */
+	#begin(): void {
+		this.#operations += 1;
+	}
+
+	/** Finish one async ownership transition and re-evaluate the drain barrier. */
+	#end(): void {
+		this.#operations -= 1;
+		if (this.#operations < 0) throw new Error('Pool active-operation count became negative.');
+		this.#settle();
+	}
+
+	/** Release the drain barrier only when no lease, creation, or async ownership transition remains. */
+	#settle(): void {
+		if (this.#state !== 'draining' || this.#leased.size > 0 || this.#creating > 0 || this.#operations > 0) return;
+		this.#resolve?.();
+		this.#resolve = undefined;
+	}
+
+	/** Surface retained provider-close failures instead of reporting a clean drain. */
+	#throwFailures(): void {
+		if (this.#failures.length === 0) return;
+		throw new AggregateError([...this.#failures], 'One or more pooled values could not be closed.');
+	}
+
+	/** Release partially initialized values and runtime resources after startup fails. */
+	async #cleanup(primaryFailure: unknown): Promise<never> {
+		this.#state = 'draining';
+		const settled = await Promise.allSettled(
+			this.#idle.splice(0).map((entry) => this.#close(entry.value, primaryFailure)),
+		);
+		await this.#owner[Symbol.asyncDispose]();
+		this.#events[Symbol.dispose]();
+		const closeFailures = settled
+			.filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+			.map((result) => result.reason);
+		if (closeFailures.length > 0) {
+			throw new AggregateError([primaryFailure, ...closeFailures], 'Pool startup and cleanup failed.');
+		}
+		throw primaryFailure;
+	}
+}
+
+/** Validate and freeze pool limits before creating contexts or provider values. */
+function resolve<Value>(options: CreateOptions<Value>): Limits {
 	const minimum = nonNegativeInteger(options.minimum ?? 0, 'pool minimum');
 	const maximum = positiveInteger(options.maximum, 'pool maximum');
 	if (minimum > maximum) throw new TypeError('Pool minimum must not exceed maximum.');
@@ -86,534 +575,43 @@ export async function create<Value>(options: CreateOptions<Value>): Promise<Pool
 	const acquireTimeout = options.acquireTimeout === undefined
 		? undefined
 		: positiveDuration(options.acquireTimeout, 'pool acquireTimeout');
-	await using startupCtx = contextCore.child(options.ctx, { id: `${options.ctx.id}:pool-startup` });
-	const ownerCtx = contextCore.child(options.ctx, { id: `${options.ctx.id}:pool` });
-	const events = new EventBus<Event>();
-	const idle: IdleValue<Value>[] = [];
-	const leased = new Map<Value, LeaseState>();
-	const waiters: Waiter[] = [];
-	let creating = 0;
-	let activeOperations = 0;
-	let state: 'active' | 'draining' | 'disposed' = 'active';
-	let stopReason: unknown;
-	let drainPromise: Promise<void> | undefined;
-	let resolveDrain: (() => void) | undefined;
-	const disposalFailures: unknown[] = [];
-
-	const pool: Pool<Value> = Object.freeze({
-		events: events.events,
-		/**
-		 * Acquires a reusable value through the capacity, health, cancellation, and waiter rules of the bounded reusable-resource pool.
-		 *
-		 * Pool internals keep acquisition, validation, leases, draining, waiter wake-up, and reverse cleanup under one owner.
-		 *
-		 * @internal
-		 */
-		async acquire(ctx: Context) {
-			const acquisition = acquisitionContext(ctx);
-			beginOperation();
-			try {
-				while (true) {
-					checkAcquisition(acquisition.ctx);
-					assertActive();
-					if (idle.length === 0 && totalOwned() >= maximum) {
-						await waitForAvailability(acquisition.ctx);
-						continue;
-					}
-					await removeExpiredIdle();
-					const reused = await takeHealthyIdle();
-					if (reused !== undefined) return createLease(reused);
-					if (totalOwned() < maximum) {
-						const value = await createValue(acquisition.ctx);
-						try {
-							checkAcquisition(acquisition.ctx);
-							assertActive();
-						} catch (error) {
-							await closeRejectedValue(value, error);
-						}
-						return createLease(value);
-					}
-					await waitForAvailability(acquisition.ctx);
-				}
-			} catch (error) {
-				if (acquisition.timeout !== undefined && error instanceof contextCore.ContextDeadlineExceededError) {
-					throw new PoolAcquireTimeoutError(acquisition.timeout);
-				}
-				throw error;
-			} finally {
-				try {
-					await acquisition.dispose();
-				} finally {
-					endOperation();
-				}
-			}
-		},
-		/**
-		 * Calculates the stats snapshot reported by the bounded reusable-resource pool.
-		 *
-		 * @internal
-		 */
-		stats() {
-			return snapshotStats();
-		},
-		/**
-		 * Maintains minimum idle capacity and retires stale idle values for the bounded reusable-resource pool.
-		 *
-		 * @internal
-		 */
-		async maintain() {
-			beginOperation();
-			try {
-				assertActive();
-				await removeExpiredIdle();
-			} finally {
-				endOperation();
-			}
-		},
-		/**
-		 * Drains owned work before the bounded reusable-resource pool reports terminal completion.
-		 *
-		 * Pool internals keep acquisition, validation, leases, draining, waiter wake-up, and reverse cleanup under one owner.
-		 *
-		 * @internal
-		 */
-		async drain(reason?: unknown) {
-			if (state === 'disposed') return;
-			if (drainPromise === undefined) {
-				state = 'draining';
-				stopReason = reason;
-				events.emit(Object.freeze({ type: 'draining', ...(reason === undefined ? {} : { reason }) }));
-				rejectWaiters(new PoolUnavailableError('draining', reason));
-				drainPromise = new Promise<void>((resolve) => resolveDrain = resolve);
-				const values = idle.splice(0).map((entry) => entry.value);
-				const settled = await Promise.allSettled(values.map((value) => closeValue(value, reason)));
-				for (const result of settled) if (result.status === 'rejected') disposalFailures.push(result.reason);
-				resolveDrainIfComplete();
-			}
-			await drainPromise;
-			throwDisposalFailures();
-		},
-		/**
-		 * Releases owned state and waits for cleanup completion when used with `await using`.
-		 *
-		 * It keeps one owner for reusable values and makes acquisition, draining, validation, and disposal order explicit.
-		 *
-		 * @internal
-		 */
-		async [Symbol.asyncDispose]() {
-			if (state === 'disposed') return;
-			let drainFailed = false;
-			let drainFailure: unknown;
-			try {
-				await pool.drain('Pool was disposed.');
-			} catch (error) {
-				drainFailed = true;
-				drainFailure = error;
-			} finally {
-				state = 'disposed';
-				await ownerCtx[Symbol.asyncDispose]();
-				events.emit(Object.freeze({ type: 'disposed' }));
-				events[Symbol.dispose]();
-			}
-			if (drainFailed) throw drainFailure;
-		},
-	});
-
-	try {
-		for (let index = 0; index < minimum; index += 1) {
-			const value = await createValue(startupCtx);
-			try {
-				contextCore.check(startupCtx);
-			} catch (error) {
-				await closeRejectedValue(value, error);
-			}
-			idle.push({ value, returnedAt: options.ctx.clock.now() });
-		}
-		return pool;
-	} catch (error) {
-		state = 'draining';
-		const settled = await Promise.allSettled(idle.splice(0).map((entry) => closeValue(entry.value, error)));
-		await ownerCtx[Symbol.asyncDispose]();
-		events[Symbol.dispose]();
-		const closeFailures = settled.filter((result): result is PromiseRejectedResult => result.status === 'rejected').map((result) => result.reason);
-		if (closeFailures.length > 0) throw new AggregateError([error, ...closeFailures], 'Pool startup and cleanup failed.');
-		throw error;
-	}
-
-	/**
-	 * Creates the acquisition context that carries ownership and cancellation through the bounded reusable-resource pool.
-	 *
-	 * Pool internals keep acquisition, validation, leases, draining, waiter wake-up, and reverse cleanup under one owner.
-	 *
-	 * @internal
-	 */
-	function acquisitionContext(ctx: Context): Readonly<{
-		readonly ctx: Context;
-		readonly timeout?: Temporal.Duration;
-		readonly dispose: () => Promise<void>;
-	}> {
-		const borrowed = contextCore.child(ownerCtx, { id: ctx.id, signal: ctx.signal, deadline: ctx.deadline, clock: ctx.clock });
-		if (acquireTimeout === undefined) {
-			return Object.freeze({
-				ctx: borrowed,
-				/**
-				 * Releases the borrowed acquisition context after the provider finishes acquisition.
-				 *
-				 * This path has no acquisition deadline, so it owns only the child context created
-				 * for the provider call.
-				 *
-				 * @internal
-				 */
-				async dispose() {
-					await borrowed[Symbol.asyncDispose]();
-				},
-			});
-		}
-		const timed = contextCore.deadline(borrowed, borrowed.clock.now().add(acquireTimeout));
-		return Object.freeze({
-			ctx: timed,
-			timeout: acquireTimeout,
-			/**
-			 * Disposes owned state exactly once and releases all module-owned resources.
-			 *
-			 * @internal
-			 */
-			async dispose() {
-				await timed[Symbol.asyncDispose]();
-				await borrowed[Symbol.asyncDispose]();
-			},
-		});
-	}
-
-	/**
-	 * Checks the acquisition before the bounded reusable-resource pool performs side effects.
-	 *
-	 * @internal
-	 */
-	function checkAcquisition(ctx: Context): void {
-		if (ctx.signal.aborted) throw ctx.signal.reason ?? new contextCore.ContextCancelledError();
-		contextCore.check(ctx);
-	}
-
-	/**
-	 * Rejects invalid active before it can enter authoritative module state.
-	 *
-	 * @internal
-	 */
-	function assertActive(): void {
-		if (state === 'active') return;
-		throw new PoolUnavailableError(state, stopReason);
-	}
-
-	/**
-	 * Calculates how many reusable values the pool currently owns or is creating.
-	 *
-	 * @internal
-	 */
-	function totalOwned(): number {
-		return idle.length + leased.size + creating;
-	}
-
-	/**
-	 * Creates value while preserving the module's ownership rules.
-	 *
-	 * It keeps one owner for reusable values and makes acquisition, draining, validation, and disposal order explicit.
-	 *
-	 * @internal
-	 */
-	async function createValue(ctx: Context): Promise<Value> {
-		creating += 1;
-		events.emit(Object.freeze({ type: 'creating' }));
-		try {
-			const value = await options.create(ctx);
-			events.emit(Object.freeze({ type: 'created' }));
-			return value;
-		} finally {
-			creating -= 1;
-			resolveDrainIfComplete();
-		}
-	}
-
-	/**
-	 * Takes the healthy idle from the bounded reusable-resource pool without leaving it available to another owner.
-	 *
-	 * @internal
-	 */
-	async function takeHealthyIdle(): Promise<Value | undefined> {
-		while (idle.length > 0) {
-			const entry = idle.shift()!;
-			if (await healthy(entry.value)) return entry.value;
-			await closeValue(entry.value, 'Pool health check failed.');
-		}
-		return undefined;
-	}
-
-	/**
-	 * Creates lease while preserving the module's ownership rules.
-	 *
-	 * It keeps one owner for reusable values and makes acquisition, draining, validation, and disposal order explicit.
-	 *
-	 * @internal
-	 */
-	function createLease(value: Value): Lease<Value> {
-		const acquiredAt = options.ctx.clock.now();
-		const leaseState: LeaseState = { invalid: false, released: false };
-		leased.set(value, leaseState);
-		events.emit(Object.freeze({ type: 'acquired', acquiredAt: acquiredAt.toString() }));
-		const lease: Lease<Value> = {
-			value,
-			acquiredAt,
-			get invalid() { return leaseState.invalid; },
-			/**
-			 * Marks the current owned value invalid so the bounded reusable-resource pool cannot return it to reusable state.
-			 *
-			 * @internal
-			 */
-			invalidate(reason?: unknown) {
-				if (leaseState.released || leaseState.invalid) return;
-				leaseState.invalid = true;
-				leaseState.reason = reason;
-				events.emit(Object.freeze({ type: 'invalidated', ...(reason === undefined ? {} : { reason }) }));
-			},
-			/**
-			 * Releases owned state and waits for cleanup completion when used with `await using`.
-			 *
-			 * It keeps one owner for reusable values and makes acquisition, draining, validation, and disposal order explicit.
-			 *
-			 * @internal
-			 */
-			async [Symbol.asyncDispose]() {
-				if (leaseState.released) return;
-				leaseState.released = true;
-				beginOperation();
-				leased.delete(value);
-				let reusable = false;
-				let releaseFailed = false;
-				let releaseFailure: unknown;
-				try {
-					reusable = !leaseState.invalid && state === 'active' && await healthy(value);
-					if (reusable && idle.length < maximumIdle) idle.push({ value, returnedAt: options.ctx.clock.now() });
-					else {
-						reusable = false;
-						await closeValue(value, leaseState.reason ?? stopReason);
-					}
-				} catch (error) {
-					releaseFailed = true;
-					releaseFailure = error;
-					disposalFailures.push(error);
-				} finally {
-					events.emit(Object.freeze({ type: 'released', reusable }));
-					wakeNextWaiter();
-					endOperation();
-				}
-				if (releaseFailed) throw releaseFailure;
-			},
-		};
-		return Object.freeze(lease);
-	}
-
-	/**
-	 * Checks whether the current value remains healthy enough for reuse by the bounded reusable-resource pool.
-	 *
-	 * @internal
-	 */
-	async function healthy(value: Value): Promise<boolean> {
-		if (options.check === undefined) return true;
-		try { return await options.check(value); }
-		catch { return false; }
-	}
-
-	/**
-	 * Closes value and waits for the cleanup that the current owner is responsible for.
-	 *
-	 * @internal
-	 */
-	async function closeValue(value: Value, reason?: unknown): Promise<void> {
-		try { await options.close(value, reason); }
-		finally { events.emit(Object.freeze({ type: 'closed-value', ...(reason === undefined ? {} : { reason }) })); }
-	}
-
-	/**
-	 * Closes rejected value and waits for the cleanup that the current owner is responsible for.
-	 *
-	 * @internal
-	 */
-	async function closeRejectedValue(value: Value, primaryFailure: unknown): Promise<never> {
-		try {
-			await closeValue(value, primaryFailure);
-		} catch (closeFailure) {
-			throw new AggregateError([primaryFailure, closeFailure], 'Pool acquisition and cleanup failed.');
-		}
-		throw primaryFailure;
-	}
-
-	/**
-	 * Propagates disposal failures through the controlled iterator path used by the bounded reusable-resource pool.
-	 *
-	 * @internal
-	 */
-	function throwDisposalFailures(): void {
-		if (disposalFailures.length === 0) return;
-		throw new AggregateError([...disposalFailures], 'One or more pooled values could not be closed.');
-	}
-
-	/**
-	 * Removes expired idle while preserving the remaining module invariants.
-	 *
-	 * It keeps one owner for reusable values and makes acquisition, draining, validation, and disposal order explicit.
-	 *
-	 * @internal
-	 */
-	async function removeExpiredIdle(): Promise<void> {
-		if (maximumIdleAge === undefined || idle.length === 0) return;
-		const now = options.ctx.clock.now();
-		const retained: IdleValue<Value>[] = [];
-		const expired: Value[] = [];
-		for (const entry of idle) {
-			const age = entry.returnedAt.until(now);
-			if (Temporal.Duration.compare(age, maximumIdleAge) >= 0 && idle.length - expired.length > minimum) expired.push(entry.value);
-			else retained.push(entry);
-		}
-		idle.splice(0, idle.length, ...retained);
-		await Promise.allSettled(expired.map((value) => closeValue(value, 'Pool idle timeout elapsed.')));
-	}
-
-	/**
-	 * Waits for availability without transferring ownership to the waiter.
-	 *
-	 * It keeps one owner for reusable values and makes acquisition, draining, validation, and disposal order explicit.
-	 *
-	 * @internal
-	 */
-	function waitForAvailability(ctx: Context): Promise<void> {
-		return new Promise<void>((resolve, reject) => {
-			let waiter!: Waiter;
-			const abort = () => {
-				const index = waiters.indexOf(waiter);
-				if (index >= 0) waiters.splice(index, 1);
-				reject(ctx.signal.reason ?? new contextCore.ContextCancelledError());
-			};
-			const unlink = () => ctx.signal.removeEventListener('abort', abort);
-			waiter = { resolve, reject, unlink };
-			if (ctx.signal.aborted) {
-				reject(ctx.signal.reason ?? new contextCore.ContextCancelledError());
-				return;
-			}
-			waiters.push(waiter);
-			ctx.signal.addEventListener('abort', abort, { once: true });
-		});
-	}
-
-	/**
-	 * Wakes next waiter after a state change may allow the bounded reusable-resource pool to make progress.
-	 *
-	 * @internal
-	 */
-	function wakeNextWaiter(): void {
-		while (waiters.length > 0) {
-			const waiter = waiters.shift()!;
-			waiter.unlink();
-			waiter.resolve();
-			return;
-		}
-	}
-
-	/**
-	 * Rejects waiters when the bounded reusable-resource pool can no longer satisfy their wait.
-	 *
-	 * @internal
-	 */
-	function rejectWaiters(reason: unknown): void {
-		while (waiters.length > 0) {
-			const waiter = waiters.shift()!;
-			waiter.unlink();
-			waiter.reject(reason);
-		}
-	}
-
-	/** Record an asynchronous pool transition that can still own, create, inspect, or close a value. @internal */
-	function beginOperation(): void {
-		activeOperations += 1;
-	}
-
-	/** Finish an asynchronous pool transition and re-check whether drain can now complete. @internal */
-	function endOperation(): void {
-		activeOperations -= 1;
-		if (activeOperations < 0) throw new Error('Pool active-operation count became negative.');
-		resolveDrainIfComplete();
-	}
-
-	/**
-	 * Resolves drain if complete from already validated module inputs.
-	 *
-	 * @internal
-	 */
-	function resolveDrainIfComplete(): void {
-		if (state !== 'draining' || leased.size > 0 || creating > 0 || activeOperations > 0) return;
-		resolveDrain?.();
-		resolveDrain = undefined;
-	}
-
-	/**
-	 * Creates the immutable statistics snapshot reported by the bounded reusable-resource pool.
-	 *
-	 * @internal
-	 */
-	function snapshotStats(): Stats {
-		return Object.freeze({ state, minimum, maximum, idle: idle.length, leased: leased.size, creating, waiting: waiters.length });
-	}
+	return Object.freeze({ minimum, maximum, maximumIdle, maximumIdleAge, acquireTimeout });
 }
 
-/**
- * Validates positive integer before it is used by the bounded reusable-resource pool.
- *
- * @internal
- */
+/** Validate one positive integer before it becomes a capacity limit. */
 function positiveInteger(value: number, label: string): number {
 	if (!Number.isSafeInteger(value) || value < 1) throw new TypeError(`${label} must be a positive safe integer.`);
 	return value;
 }
 
-/**
- * Validates non negative integer before it is used by the bounded reusable-resource pool.
- *
- * @internal
- */
+/** Validate one non-negative integer before it becomes a capacity limit. */
 function nonNegativeInteger(value: number, label: string): number {
 	if (!Number.isSafeInteger(value) || value < 0) throw new TypeError(`${label} must be a non-negative safe integer.`);
 	return value;
 }
 
-/**
- * Validates and normalizes positive duration for the timing rules used by the bounded reusable-resource pool.
- *
- * @internal
- */
+/** Normalize a positive duration before it becomes an acquisition timing rule. */
 function positiveDuration(value: Temporal.Duration | Temporal.DurationLike | string, label: string): Temporal.Duration {
-	const duration = Temporal.Duration.from(value);
-	if (compareDuration(duration, Temporal.Duration.from('PT0S')) <= 0) throw new TypeError(`${label} must be positive.`);
-	return duration;
+	let parsed: Temporal.Duration;
+	try {
+		parsed = Temporal.Duration.from(value);
+	} catch {
+		throw new TypeError(`${label} must be positive.`);
+	}
+	if (duration.compare(parsed, Temporal.Duration.from('PT0S')) <= 0) throw new TypeError(`${label} must be positive.`);
+	return parsed;
 }
 
-/**
- * Validates and normalizes non negative duration for the timing rules used by the bounded reusable-resource pool.
- *
- * @internal
- */
+/** Normalize a non-negative duration before it becomes an idle-retirement timing rule. */
 function nonNegativeDuration(value: Temporal.Duration | Temporal.DurationLike | string, label: string): Temporal.Duration {
-	const duration = Temporal.Duration.from(value);
-	if (compareDuration(duration, Temporal.Duration.from('PT0S')) < 0) throw new TypeError(`${label} must not be negative.`);
-	return duration;
-}
-
-/**
- * Compares duration using the stable ordering required by the bounded reusable-resource pool.
- *
- * @internal
- */
-function compareDuration(left: Temporal.Duration, right: Temporal.Duration): number {
-	const relativeTo = Temporal.PlainDate.from('2000-01-01');
-	return Math.sign(left.total({ unit: 'millisecond', relativeTo }) - right.total({ unit: 'millisecond', relativeTo }));
+	let parsed: Temporal.Duration;
+	try {
+		parsed = Temporal.Duration.from(value);
+	} catch {
+		throw new TypeError(`${label} must not be negative.`);
+	}
+	if (duration.compare(parsed, Temporal.Duration.from('PT0S')) < 0) throw new TypeError(`${label} must not be negative.`);
+	return parsed;
 }
 
 export type { Event, Stats, Lease, Pool, CreateOptions } from './types.ts';

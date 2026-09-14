@@ -39,7 +39,7 @@ function snapshotValue(value: unknown, path: string, parents: Set<object>): Work
 /** Snapshot a dense array without dropping caller-visible enumerable properties. */
 function snapshotArray(value: readonly unknown[], path: string, parents: Set<object>): readonly WorkflowDurableValue[] {
 	const descriptors = Object.getOwnPropertyDescriptors(value);
-	assertNoEnumerableSymbols(value, path);
+	assertNoSymbols(value, path);
 
 	for (const [key, descriptor] of Object.entries(descriptors)) {
 		if (key === 'length' || isArrayIndex(key, value.length) || !descriptor.enumerable) continue;
@@ -69,7 +69,7 @@ function isArrayIndex(key: string, length: number): boolean {
 function snapshotRecord(value: object, path: string, parents: Set<object>): Readonly<Record<string, WorkflowDurableValue>> {
 	const prototype = Object.getPrototypeOf(value);
 	if (prototype !== Object.prototype && prototype !== null) throw new TypeError(`${path} contains a non-plain object.`);
-	assertNoEnumerableSymbols(value, path);
+	assertNoSymbols(value, path);
 
 	const descriptors = Object.getOwnPropertyDescriptors(value);
 	const output: Record<string, WorkflowDurableValue> = Object.create(null);
@@ -83,7 +83,7 @@ function snapshotRecord(value: object, path: string, parents: Set<object>): Read
 }
 
 /** Reject enumerable symbol data because string-keyed durable state cannot preserve it. */
-function assertNoEnumerableSymbols(value: object, path: string): void {
+function assertNoSymbols(value: object, path: string): void {
 	for (const symbol of Object.getOwnPropertySymbols(value)) {
 		if (Object.getOwnPropertyDescriptor(value, symbol)?.enumerable) {
 			throw new TypeError(`${path} contains an enumerable symbol property.`);

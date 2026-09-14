@@ -70,16 +70,18 @@ describe('memory queue', () => {
 	});
 
 	it('waits for one exact item without taking ownership or holding unrelated work', async () => {
-		await using ctx = context.create({ id: 'queue-ready-wait', clock: context.SystemClock });
+		const clock = new context.TestClock();
+		await using ctx = context.create({ id: 'queue-ready-wait', clock });
 		await using jobs = queue.memory<string, string>({
-			clock: context.SystemClock,
+			clock,
 			id: ids('delayed', 'other', 'other-claim', 'delayed-claim'),
 		});
-		const delayed = await jobs.add(ctx, 'delayed', { availableAt: context.SystemClock.now().add({ milliseconds: 15 }) });
+		const delayed = await jobs.add(ctx, 'delayed', { availableAt: clock.now().add({ milliseconds: 15 }) });
 		await jobs.add(ctx, 'other');
 		const waiting = jobs.wait(ctx, delayed);
 		const other = (await jobs.claim(ctx, { owner: 'other-owner' }))[0]!;
 		expect(other.value).toBe('other');
+		clock.advance({ milliseconds: 15 });
 		expect(await waiting).toBe('claimable');
 		const claim = (await jobs.claim(ctx, { ref: delayed, owner: 'scheduler' }))[0]!;
 		expect(claim.value).toBe('delayed');
@@ -154,19 +156,24 @@ describe('memory queue', () => {
 	});
 
 	it('wakes waiting claims when delayed work becomes available and when ownership expires', async () => {
-		await using ctx = context.create({ id: 'queue-time-wake', clock: context.SystemClock });
+		const clock = new context.TestClock();
+		await using ctx = context.create({ id: 'queue-time-wake', clock });
 		await using jobs = queue.memory<string, string>({
-			clock: context.SystemClock,
+			clock,
 			id: ids('delayed-item', 'delayed-claim', 'expired-item', 'first-claim', 'recovery-claim'),
 		});
-		await jobs.add(ctx, 'delayed', { availableAt: context.SystemClock.now().add({ milliseconds: 10 }) });
-		const delayed = await jobs.claim(ctx, { wait: true, duration: { milliseconds: 20 } });
+		await jobs.add(ctx, 'delayed', { availableAt: clock.now().add({ milliseconds: 10 }) });
+		const delayedWaiting = jobs.claim(ctx, { wait: true, duration: { milliseconds: 20 } });
+		clock.advance({ milliseconds: 10 });
+		const delayed = await delayedWaiting;
 		expect(delayed[0]?.value).toBe('delayed');
 		await jobs.complete(ctx, delayed[0]!, 'done');
 
 		await jobs.add(ctx, 'expires');
 		const first = (await jobs.claim(ctx, { duration: { milliseconds: 10 } }))[0]!;
-		const recovered = await jobs.claim(ctx, { wait: true, owner: 'recovery', duration: { milliseconds: 20 } });
+		const recoveryWaiting = jobs.claim(ctx, { wait: true, owner: 'recovery', duration: { milliseconds: 20 } });
+		clock.advance({ milliseconds: 10 });
+		const recovered = await recoveryWaiting;
 		expect(recovered[0]?.itemId).toBe(first.itemId);
 		expect(recovered[0]?.attempt).toBe(2);
 	});

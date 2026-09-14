@@ -48,6 +48,8 @@ interface Host {
 	readonly worker: workers.WorkerHandle<ActivityAttemptType, transport.WireResultType>;
 	/** Active Worker request map keyed by queue claim ID for reverse-call correlation. */
 	readonly active: Map<string, Active>;
+	/** Idempotent authoritative teardown used for both leased and idle hosts. */
+	close(reason?: unknown): Promise<void>;
 }
 
 /** Options for one bounded Worker engine provider. */
@@ -123,6 +125,7 @@ export async function create(options: WorkerProviderOptions): Promise<WorkerProv
 		throw new TypeError('Worker provider maximum must be a positive safe integer.');
 	}
 
+	const live = new Set<Host>();
 	const hosts = await pool.create<Host>({
 		ctx: options.ctx,
 		maximum: options.maximum,
@@ -131,12 +134,10 @@ export async function create(options: WorkerProviderOptions): Promise<WorkerProv
 		...(options.maximumIdleAge === undefined ? {} : { maximumIdleAge: options.maximumIdleAge }),
 		...(options.acquireTimeout === undefined ? {} : { acquireTimeout: options.acquireTimeout }),
 		create: (hostCtx) => openHost(hostCtx),
-		async close(host, reason) {
-			try { await host.worker.stop(reason); } finally { await host.ctx[Symbol.asyncDispose](); }
-		},
+		close: (host, reason) => host.close(reason),
 	});
 
-	const provider: WorkerProvider = Object.freeze({
+	const provider = Object.freeze({
 		activities: Object.freeze([...activities.values()]),
 		async run(ctx: Context, attempt: ActivityAttemptType, control: ActivityAttemptControl): Promise<ActivityAttemptResultType> {
 			const definition = getActivity(activities, options.engine, attempt);
@@ -164,8 +165,22 @@ export async function create(options: WorkerProviderOptions): Promise<WorkerProv
 		},
 		stats() { return hosts.stats(); },
 		drain(reason?: unknown) { return hosts.drain(reason); },
-		async [Symbol.asyncDispose]() { await hosts[Symbol.asyncDispose](); },
-	});
+		async [Symbol.asyncDispose]() {
+			const reason = new workers.WorkerStoppedError('Activity Worker provider was disposed.');
+			const stopped = await Promise.allSettled([...live].map((host) => host.close(reason)));
+			let disposal: unknown;
+			try {
+				await hosts[Symbol.asyncDispose]();
+			} catch (error) {
+				disposal = error;
+			}
+			const failures = stopped
+				.filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+				.map((result) => result.reason);
+			if (disposal !== undefined) failures.push(disposal);
+			if (failures.length > 0) throw new AggregateError(failures, 'Activity Worker provider disposal failed.');
+		},
+	} satisfies WorkerProvider);
 	return provider;
 
 	/** Open one Worker under a stable pool-owned lifetime rather than the short acquisition context. */
@@ -197,7 +212,21 @@ export async function create(options: WorkerProviderOptions): Promise<WorkerProv
 			},
 			}));
 			contexts.check(acquireCtx);
-			return Object.freeze({ ctx: hostCtx, worker, active });
+			let closing: Promise<void> | undefined;
+			let host!: Host;
+			const close = (reason?: unknown): Promise<void> => {
+				closing ??= (async () => {
+					try {
+						await worker.stop(reason);
+					} finally {
+						try { await hostCtx[Symbol.asyncDispose](); } finally { live.delete(host); }
+					}
+				})();
+				return closing;
+			};
+			host = Object.freeze({ ctx: hostCtx, worker, active, close });
+			live.add(host);
+			return host;
 		} catch (error) {
 			try { await hostCtx[Symbol.asyncDispose](); } catch { /* Preserve the creation failure. */ }
 			throw error;
@@ -210,7 +239,7 @@ export async function create(options: WorkerProviderOptions): Promise<WorkerProv
  *
  * The server borrows the supplied resource collection. Every attempt restores
  * a fresh local context from the parent snapshot, then `activity.run()` owns
- * the attempt-local child scope. Permission checks, required effects, and
+ * the attempt-local child scope. Permission checks, declared effects, and
  * heartbeats use reverse request/result calls to the Scheduler-owning host.
  */
 export function serve(options: WorkerServeOptions): WorkerServer {

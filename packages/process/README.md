@@ -10,6 +10,8 @@ That split keeps process ownership consistent when a library runs in Node or Den
 
 Use this package when an independently useful capability must own a subprocess. Keep queues, workflows, and domain-specific process meaning outside it.
 
+Do not add a second watcher or restart supervisor around a runtime command that already owns that lifecycle. For example, `deno serve --watch` already watches the module graph, stops the previous server, and rebinds its listener. If unrelated services restart together, inspect their static import graph and composition ownership before introducing another process layer.
+
 Start here
 ----------
 
@@ -139,7 +141,7 @@ detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*_test.ts` files show edge cases, cancellation, invalid input, and lifecycle
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
    behavior as executable examples.
 4. Read internal implementation files only when you need the exact state
    transition or performance-sensitive loop.

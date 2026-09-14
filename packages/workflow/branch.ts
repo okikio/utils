@@ -248,7 +248,7 @@ export class Branch<Value> implements BranchView {
 		} catch (error) {
 			unwindFailure = error;
 		}
-		const cancellation: Cause = Object.freeze({ type: 'cancelled', reason: this.#cancelReason });
+		const cancellation = Object.freeze({ type: 'cancelled', reason: this.#cancelReason } satisfies Cause);
 		void this.scope.close(this.#cancelReason).then((cleanupCauses) => {
 			const causes: Cause[] = [cancellation];
 			if (discardCause !== undefined) causes.push(discardCause);
