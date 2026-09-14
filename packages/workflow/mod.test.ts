@@ -231,7 +231,13 @@ describe('workflow programming model', () => {
 		const output = await runProgram(function* () {
 			const first = yield* operation<string>('first');
 			try { yield* operation('fail'); }
-			catch (error) { expect(error).toBe(expectedFailure); }
+			catch (error) {
+				expect(failures.isOccurrence(error)).toBe(true);
+				if (failures.isOccurrence(error)) {
+					expect(error.definition).toBe(TestFailure);
+					expect(error.data).toEqual({ operation: 'fail' });
+				}
+			}
 			const third = yield* operation<string>('third', 'stable-third');
 			return `${first}:${third}`;
 		}, {
@@ -309,9 +315,10 @@ describe('workflow programming model', () => {
 		const output = await runProgram(function* () {
 			try {
 				yield* workflow.parallel({ blocker: operation('block'), failure: operation('fail') });
-			} catch (error) {
-				expect(error).toBe(primaryFailure);
-			}
+				} catch (error) {
+					expect(failures.isOccurrence(error)).toBe(true);
+					if (failures.isOccurrence(error)) expect(error.definition).toBe(TestFailure);
+				}
 			expect(blockerStopped).toBe(true);
 			return 'cancelled and awaited';
 		}, {
@@ -434,11 +441,15 @@ describe('workflow programming model', () => {
 			});
 			throw new Error('Expected workflow execution to fail.');
 		} catch (error) {
-			expect(error).toBeInstanceOf(workflow.CleanupFailureError);
-			if (error instanceof workflow.CleanupFailureError) {
-				expect(error.primary).toBe(primary);
-				expect(error.cleanupFailures).toEqual([cleanup]);
-			}
+				expect(error).toBeInstanceOf(workflow.CleanupFailureError);
+				if (error instanceof workflow.CleanupFailureError) {
+					expect(failures.isOccurrence(error.primary)).toBe(true);
+					if (failures.isOccurrence(error.primary)) expect(error.primary.data).toEqual({ phase: 'primary' });
+					expect(error.cleanupFailures).toHaveLength(1);
+					const cleanupFailure = error.cleanupFailures[0];
+					expect(failures.isOccurrence(cleanupFailure)).toBe(true);
+					if (failures.isOccurrence(cleanupFailure)) expect(cleanupFailure.data).toEqual({ phase: 'cleanup' });
+				}
 		}
 	});
 

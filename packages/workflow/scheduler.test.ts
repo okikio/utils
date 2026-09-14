@@ -5,8 +5,8 @@ import type { StandardSchemaV1 } from '@standard-schema/spec';
 import * as context from '@okikio/context';
 import * as failures from '@okikio/failure';
 import * as history from './history.ts';
-import * as queue from '@okikio/queue';
 import * as resilience from '@okikio/resilience';
+import * as activityDispatch from './dispatch.ts';
 import * as workflow from './mod.ts';
 
 /** Creates a minimal Standard Schema contract for Scheduler integration tests. */
@@ -101,17 +101,17 @@ function deferred<Value = void>() {
  * Scheduler job input and terminal output must not retain schemas, functions,
  * failure definitions, or other live objects.
  */
-function cloneQueue() {
-	const base = queue.memory<workflow.ActivityJobType, workflow.ActivityJobResultType>();
+function cloneDispatch() {
+	const base = activityDispatch.memory();
 	return Object.freeze({
 		...base,
-		async add(ctx: context.Context, input: workflow.ActivityJobType, options?: queue.QueueAddOptions) {
+		async add(ctx: context.Context, input: workflow.ActivityJobType, options: workflow.ActivityAddOptions) {
 			return await base.add(ctx, structuredClone(input), options);
 		},
-		async complete(ctx: context.Context, claim: queue.QueueClaim<workflow.ActivityJobType>, output: workflow.ActivityJobResultType) {
+		async complete(ctx: context.Context, claim: workflow.ActivityClaimType, output: workflow.ActivityJobResultType) {
 			await base.complete(ctx, claim, structuredClone(output));
 		},
-	});
+	} satisfies workflow.ActivityDispatch);
 }
 
 describe('workflow Scheduler activity ownership', () => {
@@ -350,13 +350,13 @@ describe('workflow Scheduler activity ownership', () => {
 			}
 		});
 		await using parent = context.create({ id: 'scheduler-durable-job' });
-		const jobs = cloneQueue();
+		const jobs = cloneDispatch();
 		await using records = history.memory({ maximumEntries: 8 });
 		const runId = 'durable-run';
 		let providerCalls = 0;
 
 		await using firstCtx = await workflow.context({ definition, runId, input: {}, ctx: parent });
-		await using first = workflow.scheduler({ activityQueue: jobs, history: records });
+		await using first = workflow.scheduler({ activityDispatch: jobs, history: records });
 		await using registration = await first.register({
 			engine: Engine,
 			hostId: 'durable-host',
@@ -384,7 +384,7 @@ describe('workflow Scheduler activity ownership', () => {
 		// A second Scheduler can replay the terminal job from the queue without a
 		// live engine registration because the persisted value contains only data.
 		await using replayCtx = await workflow.context({ definition, runId, input: {}, ctx: parent });
-		await using replay = workflow.scheduler({ activityQueue: jobs });
+		await using replay = workflow.scheduler({ activityDispatch: jobs });
 		expect(await workflow.run({ ctx: replayCtx, implementation, scheduler: replay })).toBe('blocked');
 		expect(providerCalls).toBe(1);
 	});

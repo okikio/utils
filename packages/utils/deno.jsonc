@@ -148,6 +148,7 @@
 		"./worker/deno": "./worker/deno.ts",
 		"./worker/types": "./worker/types.ts",
 		"./workflow": "./workflow.ts",
+		"./workflow/dispatch": "./workflow/dispatch.ts",
 		"./workflow/history": "./workflow/history.ts",
 		"./workflow/types": "./workflow/types.ts"
 	},

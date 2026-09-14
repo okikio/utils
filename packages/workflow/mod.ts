@@ -1,8 +1,8 @@
 /**
  * Deterministic iterator workflow definitions, instructions, controls, and interpreter.
  *
- * The generic interpreter owns orchestration semantics. Durable storage, claims,
- * timers, queues, and provider work belong in concrete packages.
+ * The generic interpreter owns orchestration semantics. Dispatch contracts keep
+ * activity item and executor ownership separate from concrete storage adapters.
  *
  * @module
  */
@@ -594,10 +594,9 @@ async function resolveOperation<Value, Failure>(
 /**
  * Create the standard workflow Scheduler.
  *
- * The Scheduler interprets control instructions, owns activity job admission
- * and engine placement, and delegates other leaf commands to the configured
- * command handler. The default activity queue is process-local; callers can
- * inject a durable queue that implements the same claim contract.
+ * The Scheduler interprets control instructions, admits activity items to the
+ * configured dispatch owner, and delegates other leaf commands to the command
+ * host. Independent executors claim matching activity work from dispatch.
  */
 export function scheduler(input: SchedulerOptions = {}): Scheduler {
 	recordCore.assert(input, 'workflow scheduler options');
@@ -1662,7 +1661,7 @@ function isSiblingCancellation(error: unknown): boolean {
 }
 
 export { continueRun as continue };
-export { PlacementError, RegistrationConflictError, SchedulerClosedError } from './jobs.ts';
+export { SchedulerClosedError } from './jobs.ts';
 export type {
 	WorkflowSchema,
 	EngineReference,
@@ -1731,20 +1730,33 @@ export type {
 	HistoryCompletionType,
 	HistoryInput,
 	History,
-	MemoryHistory,
+		MemoryHistory,
 	HistoryOptions,
 	HistoryEntryType,
 	HistorySnapshotType,
 	EngineCapacityType,
 	ActivityOriginType,
-	ActivityJobType,
-	ActivityJobResultType,
-	ActivityAttemptType,
+		ActivityJobType,
+		ActivityJobResultType,
+		ActivityRefType,
+		ActivityAddOptions,
+		ActivityClaimOptions,
+		ActivityClaimType,
+		ActivityRetryOptions,
+		ActivityDispatch,
+		ActivityDispatchStatsType,
+		MemoryDispatchOptions,
+		ComputeType,
+		ExecutorActivityType,
+		ExecutorJoinOptions,
+		ExecutorLeaseType,
+		ActivityAttemptType,
 	ActivityAttemptResultType,
 	ActivityAttemptControl,
 	EngineProvider,
 	EngineRegistrationOptions,
-	EngineRegistration,
+		EngineRegistration,
+		ExecutorOptions,
 	SchedulerOptions,
 	Scheduler,
 	WorkflowContextOptions,
@@ -1753,3 +1765,5 @@ export type {
 	WorkflowSelection,
 	WorkflowDocument,
 } from './types.ts';
+
+export { executor } from './jobs.ts';

@@ -10,7 +10,6 @@ import type { EffectDefinition, EffectDefinitions, EffectEmitter } from '@okikio
 import type { Definition as FailureDefinition, Occurrence as FailureOccurrence } from '@okikio/failure';
 import type { RequirementDefinition, RequirementInput, RequirementDocument, RequirementScopeOptions } from '@okikio/requirement';
 import type { Result as ExplicitResult } from '@okikio/result';
-import type { Queue } from '@okikio/queue';
 import type { ResiliencePolicy } from '@okikio/resilience';
 
 /** Static schema accepted by workflow definitions, signals, and events. */
@@ -658,6 +657,8 @@ export interface ActivityJobType {
 	readonly context: ContextSnapshot;
 	/** Serializable affinity facts that must match before placement. */
 	readonly affinity?: EngineAffinityType;
+	/** Ordered engine choices copied from the activity contract for storage-side placement. */
+	readonly placement: readonly EnginePlacementDocumentType[];
 }
 
 /** Serializable terminal result retained by the authoritative activity job store. */
@@ -666,6 +667,184 @@ export type ActivityJobResultType =
 	| Readonly<{ readonly type: 'failure'; readonly failure: HistoryFailureOccurrenceType }>
 	| Readonly<{ readonly type: 'fault'; readonly fault: HistoryValueType }>
 	| Readonly<{ readonly type: 'cancelled'; readonly reason: HistoryValueType }>;
+
+/** Stable reference to one logical activity item across every execution attempt. */
+export interface ActivityRefType {
+	/** Store-assigned identity retained through retries and terminal result lookup. */
+	readonly id: string;
+}
+
+/** Optional compute identity advertised by an executor. */
+export interface ComputeType {
+	/** Stable identity chosen by the compute owner. */
+	readonly id: string;
+	/** Open compute class such as `process`, `thread`, `container`, or an application-owned term. */
+	readonly kind?: string;
+	/** Optional parent compute identity when this host participates in a hierarchy. */
+	readonly parent?: string;
+	/** Serializable facts for diagnostics or compute-aware placement policy. */
+	readonly attributes?: EngineAffinityType;
+}
+
+/** Serializable activity identity advertised by one executor generation. */
+export interface ExecutorActivityType {
+	/** Stable activity definition ID. */
+	readonly id: string;
+	/** Exact activity contract version accepted by the executor. */
+	readonly version: string;
+}
+
+/** Durable registration lease used to claim and fence activity attempts. */
+export interface ExecutorLeaseType {
+	/** Store-assigned identity for this exact host generation. */
+	readonly id: string;
+	/** Engine identity advertised by the executor. */
+	readonly engineId: string;
+	/** Stable host identity whose reconnects advance `generation`. */
+	readonly hostId: string;
+	/** Monotonic generation that fences work from an older incarnation of the same host. */
+	readonly generation: number;
+	/** Protocol version used to reject incompatible hosts. */
+	readonly protocolVersion: number;
+	/** Activity contracts this executor can run. */
+	readonly activities: readonly ExecutorActivityType[];
+	/** Serializable placement facts advertised by this executor. */
+	readonly affinity?: EngineAffinityType;
+	/** Optional topology-neutral compute identity. */
+	readonly compute?: ComputeType;
+	/** Maximum simultaneous attempts admitted through this executor. */
+	readonly capacity: number;
+	/** Absolute expiry for a leased registration, or undefined for an explicitly owned local registration. */
+	readonly expiresAt?: Temporal.Instant;
+}
+
+/** Temporary ownership token for one activity attempt. */
+export interface ActivityClaimType {
+	/** Unique claim identity used to fence every attempt mutation. */
+	readonly id: string;
+	/** Stable logical activity item identity. */
+	readonly itemId: string;
+	/** Exact executor registration generation that owns the attempt. */
+	readonly executorId: string;
+	/** One-based attempt number for this logical activity item. */
+	readonly attempt: number;
+	/** Activity item input and placement contract retained by the dispatch owner. */
+	readonly value: ActivityJobType;
+	/** Instant when ownership was granted. */
+	readonly claimedAt: Temporal.Instant;
+	/** Instant after which another executor may recover the item. */
+	readonly expiresAt: Temporal.Instant;
+}
+
+/** Idempotent admission options for one logical activity item. */
+export interface ActivityAddOptions {
+	/** Stable key derived from complete workflow instruction identity. */
+	readonly key: string;
+}
+
+/** Inputs used to register one independently hosted executor. */
+export interface ExecutorJoinOptions {
+	/** Engine identity advertised by the executor. */
+	readonly engineId: string;
+	/** Stable host identity whose reconnects advance the generation fence. */
+	readonly hostId: string;
+	/** Activity identities accepted by this executor. */
+	readonly activities: readonly ExecutorActivityType[];
+	/** Maximum simultaneous attempts this executor can own. */
+	readonly capacity: number;
+	/** Serializable placement facts considered by dispatch matching. */
+	readonly affinity?: EngineAffinityType;
+	/** Optional compute identity; omit it for a topology-free executor pool. */
+	readonly compute?: ComputeType;
+	/** Provider protocol version recorded for compatibility checks. */
+	readonly protocolVersion: number;
+	/** Optional registration lease for crash recovery. */
+	readonly duration?: Temporal.Duration | Temporal.DurationLike | string;
+}
+
+/** Options used when one executor claims available activity items. */
+export interface ActivityClaimOptions {
+	/** Maximum items to claim without exceeding registered capacity. */
+	readonly limit?: number;
+	/** Attempt lease duration. */
+	readonly duration: Temporal.Duration | Temporal.DurationLike | string;
+	/** Wait for matching work instead of returning an empty collection. */
+	readonly wait?: boolean;
+}
+
+/** Retry timing committed by the current activity attempt owner. */
+export interface ActivityRetryOptions {
+	/** Relative delay before the item can be claimed again. */
+	readonly delay?: Temporal.Duration | Temporal.DurationLike | string;
+}
+
+/** Snapshot counters for one activity dispatch owner. */
+export interface ActivityDispatchStatsType {
+	/** Logical items currently eligible for a future claim. */
+	readonly queued: number;
+	/** Logical items currently owned by temporary attempt claims. */
+	readonly claimed: number;
+	/** Logical items with a stored success, declared failure, or fault. */
+	readonly completed: number;
+	/** Logical items with a stored cancellation result. */
+	readonly cancelled: number;
+	/** Live executor generations currently known to this dispatch owner. */
+	readonly executors: number;
+	/** Executor claim calls currently blocked for matching capacity and work. */
+	readonly waitingClaims: number;
+	/** Scheduler calls currently waiting for terminal item results. */
+	readonly waitingResults: number;
+}
+
+/**
+ * Durable activity item, executor registration, placement, and claim authority.
+ *
+ * Concrete adapters must make each mutation atomic in their storage model and
+ * use storage-authoritative time for leases. The memory implementation is a
+ * process-local conformance reference, not a persistence claim.
+ */
+export interface ActivityDispatch extends AsyncDisposable {
+	/** Admit or find one logical item by complete idempotency key. */
+	add(ctx: BaseContext, value: ActivityJobType, options: ActivityAddOptions): Promise<ActivityRefType>;
+	/** Wait for and return the authoritative terminal result of one logical item. */
+	result(ctx: BaseContext, ref: ActivityRefType): Promise<ActivityJobResultType>;
+	/** Cancel one logical item using producer authority. */
+	cancel(ctx: BaseContext, ref: ActivityRefType, reason?: HistoryValueType): Promise<void>;
+	/** Register a new executor generation and fence an older generation of the same host. */
+	join(ctx: BaseContext, options: ExecutorJoinOptions): Promise<ExecutorLeaseType>;
+	/** Extend one exact executor registration lease. */
+	renewExecutor(ctx: BaseContext, lease: ExecutorLeaseType, duration: Temporal.Duration | Temporal.DurationLike | string): Promise<ExecutorLeaseType>;
+	/** Change future claim capacity for one exact executor generation. */
+	resize(ctx: BaseContext, lease: ExecutorLeaseType, capacity: number): Promise<ExecutorLeaseType>;
+	/** Stop new claims and wait until the executor has no active attempts. */
+	drain(ctx: BaseContext, lease: ExecutorLeaseType): Promise<void>;
+	/** Remove a drained executor generation from placement. */
+	leave(ctx: BaseContext, lease: ExecutorLeaseType): Promise<void>;
+	/** Claim matching items without exceeding registered executor capacity. */
+	claim(ctx: BaseContext, lease: ExecutorLeaseType, options: ActivityClaimOptions): Promise<readonly ActivityClaimType[]>;
+	/** Wait until a claimed item is cancelled or this exact attempt loses ownership. */
+	watch(ctx: BaseContext, claim: ActivityClaimType): Promise<'cancelled' | 'lost'>;
+	/** Extend one exact activity attempt claim. */
+	renew(ctx: BaseContext, claim: ActivityClaimType, duration: Temporal.Duration | Temporal.DurationLike | string): Promise<ActivityClaimType>;
+	/** Conditionally store a terminal result for the current claim owner. */
+	complete(ctx: BaseContext, claim: ActivityClaimType, result: ActivityJobResultType): Promise<void>;
+	/** Return the current claim to queued state with optional backoff. */
+	retry(ctx: BaseContext, claim: ActivityClaimType, options?: ActivityRetryOptions): Promise<void>;
+	/** Return authoritative item, executor, and local waiter counters. */
+	stats(): Promise<ActivityDispatchStatsType>;
+	/** Stop admission and reject blocked dispatch calls. */
+	close(reason?: unknown): Promise<void>;
+}
+
+/** Options for the process-local activity dispatch reference implementation. */
+export interface MemoryDispatchOptions {
+	/** Maximum queued or claimed logical activity items. */
+	readonly capacity?: number;
+	/** Clock used for placement, availability, and leases. */
+	readonly clock?: BaseContext['clock'];
+	/** Optional deterministic identity source used by tests. */
+	readonly id?: () => string;
+}
 
 /** Serializable identity and input for one fenced activity attempt. */
 export interface ActivityAttemptType {
@@ -733,6 +912,8 @@ export interface EngineRegistrationOptions {
 	readonly capacity?: number;
 	/** Serializable host-affinity facts considered during placement. */
 	readonly affinity?: EngineAffinityType;
+	/** Optional compute identity; hierarchy-aware hosts can provide `parent`, while flat hosts omit it. */
+	readonly compute?: ComputeType;
 	/** Provider protocol version recorded for compatibility checks. */
 	readonly protocolVersion?: number;
 	/** Optional registration lease. Omit for a process-local registration owned by explicit disposal. */
@@ -755,6 +936,8 @@ export interface EngineRegistration extends AsyncDisposable {
 	readonly protocolVersion: number;
 	/** Serializable affinity facts used by Scheduler placement. */
 	readonly affinity: EngineAffinityType | undefined;
+	/** Optional topology-neutral compute identity advertised by this executor. */
+	readonly compute: ComputeType | undefined;
 	/** Exact activity definitions this provider can execute. */
 	readonly activities: readonly ActivityReference[];
 	/** Current local admission capacity snapshot. */
@@ -764,9 +947,9 @@ export interface EngineRegistration extends AsyncDisposable {
 	/** Whether the registration has stopped accepting new placement. */
 	readonly draining: boolean;
 	/** Extend a leased registration from the Scheduler clock. */
-	renew(duration: Temporal.Duration | Temporal.DurationLike | string): void;
+	renew(duration: Temporal.Duration | Temporal.DurationLike | string): Promise<void>;
 	/** Change the maximum local attempt capacity advertised for future placement. */
-	resize(maximum: number): void;
+	resize(maximum: number): Promise<void>;
 	/** Stop new placement and resolve after active attempts leave the registration. */
 	drain(): Promise<void>;
 }
@@ -787,14 +970,24 @@ export interface SchedulerOptions {
 	readonly requirements?: RequirementScopeOptions;
 	/** Authoritative owner for workflow-level effect announcements. */
 	readonly effect?: EffectEmitter;
-	/** Queue used as the authoritative process-local or durable activity job store. */
-	readonly activityQueue?: Queue<ActivityJobType, ActivityJobResultType>;
-	/** Maximum items for the default process-local activity queue. */
+	/** Durable dispatch owner shared by workflow schedulers and independent executors. */
+	readonly activityDispatch?: ActivityDispatch;
+	/** Maximum items for the default process-local activity dispatch. */
 	readonly activityCapacity?: number;
 	/** Default activity claim duration before a stalled attempt can be retried. */
 	readonly claimDuration?: Temporal.Duration | Temporal.DurationLike | string;
-	/** Dispose an injected activity queue when the Scheduler closes. */
-	readonly disposeActivityQueue?: boolean;
+	/** Dispose an injected activity dispatch owner when the Scheduler closes. */
+	readonly disposeActivityDispatch?: boolean;
+}
+
+/** Options accepted by the independently hosted activity executor. */
+export interface ExecutorOptions extends EngineRegistrationOptions {
+	/** Durable dispatch owner shared with one or more workflow schedulers. */
+	readonly dispatch: ActivityDispatch;
+	/** Parent host lifetime. Omit to create an independently owned root lifetime. */
+	readonly ctx?: BaseContext;
+	/** Attempt claim duration renewed by activity heartbeats. */
+	readonly claimDuration?: Temporal.Duration | Temporal.DurationLike | string;
 }
 
 /** Workflow interpreter and activity-placement authority. */

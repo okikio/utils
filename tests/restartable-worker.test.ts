@@ -4,8 +4,8 @@ import { test } from 'node:test';
 import * as activityWorker from '@okikio/activity/worker';
 import * as context from '@okikio/context';
 import type { EffectOccurrence } from '@okikio/effect';
-import * as queue from '@okikio/queue';
 import * as workflow from '@okikio/workflow';
+import * as dispatch from '@okikio/workflow/dispatch';
 import { Committed, Engine, InputSchema, Persist, ResultSchema } from './fixtures/restartable-activity.ts';
 
 interface DurableEntry {
@@ -85,9 +85,8 @@ const Implementation = workflow.implement(Definition, function* (ctx) {
 test('worker activity survives Scheduler restart without duplicating the external commit', async () => {
 	const clock = context.SystemClock;
 	await using parent = context.create({ id: 'scenario.restartable-worker.parent', clock });
-	const jobs = queue.memory<workflow.ActivityJobType, workflow.ActivityJobResultType>({
+	const jobs = dispatch.memory({
 		clock,
-		defaultClaimDuration: { seconds: 3 },
 	});
 	const durable = new Map<string, DurableEntry>();
 	const committed = new Map<string, EffectOccurrence>();
@@ -120,12 +119,14 @@ test('worker activity survives Scheduler restart without duplicating the externa
 		id: 'scenario-scheduler-a',
 		clock,
 		history: firstHistory,
-		activityQueue: jobs,
+		activityDispatch: jobs,
 		claimDuration: { seconds: 3 },
 	});
-	const firstRegistration = await firstScheduler.register({
+	const firstRegistration = await workflow.executor({
+		dispatch: jobs,
 		engine: Engine,
 		hostId: 'worker-a',
+		claimDuration: { seconds: 3 },
 		provider: firstProvider,
 	});
 	const firstCtx = await workflow.context({
@@ -158,12 +159,14 @@ test('worker activity survives Scheduler restart without duplicating the externa
 		id: 'scenario-scheduler-b',
 		clock,
 		history: secondHistory,
-		activityQueue: jobs,
+		activityDispatch: jobs,
 		claimDuration: { seconds: 3 },
 	});
-	const secondRegistration = await secondScheduler.register({
+	const secondRegistration = await workflow.executor({
+		dispatch: jobs,
 		engine: Engine,
 		hostId: 'worker-b',
+		claimDuration: { seconds: 3 },
 		provider: secondProvider,
 	});
 	const secondCtx = await workflow.context({

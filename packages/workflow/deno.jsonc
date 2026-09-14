@@ -10,6 +10,7 @@
 	},
 	"exports": {
 		".": "./mod.ts",
+		"./dispatch": "./dispatch.ts",
 		"./history": "./history.ts",
 		"./types": "./types.ts"
 	},
@@ -19,10 +20,12 @@
 	},
 	"tasks": {
 		"check": "deno fmt --check && deno lint && deno check . && deno doc --lint mod.ts",
-		"test": "deno test -P=test"
+		"test": "deno test -P=test",
+		"bench": "deno run -P=bench dispatch.bench.ts"
 	},
 	"permissions": {
-		"test": {}
+		"test": {},
+		"bench": {}
 	},
 	"license": "MIT"
 }

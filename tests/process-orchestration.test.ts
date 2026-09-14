@@ -8,6 +8,7 @@ import type { EffectOccurrence } from '@okikio/effect';
 import * as denoProcess from '@okikio/process/deno';
 import * as schema from '@okikio/schema';
 import * as workflow from '@okikio/workflow';
+import * as dispatch from '@okikio/workflow/dispatch';
 import { Attempted, Engine, Execute, ResultSchema } from './fixtures/process-activity.ts';
 
 const AnySchema = Object.freeze({
@@ -79,13 +80,16 @@ test('parallel workflow fan-out survives a child-process crash and fans back in 
 		maximumIdle: 2,
 		effect: emitter,
 	});
-	await using scheduler = workflow.scheduler({ claimDuration: { seconds: 5 } });
-	await using registration = await scheduler.register({
-		engine: Engine,
-		hostId: 'process-pool',
-		capacity: 2,
+		await using jobs = dispatch.memory();
+		await using scheduler = workflow.scheduler({ activityDispatch: jobs, claimDuration: { seconds: 5 } });
+		await using registration = await workflow.executor({
+			dispatch: jobs,
+			engine: Engine,
+			hostId: 'process-pool',
+			claimDuration: { seconds: 5 },
+			capacity: 2,
 		provider,
-	});
+		});
 	await using runCtx = await workflow.context({
 		definition: Definition,
 		runId: 'process-orchestration-run',
@@ -107,5 +111,5 @@ test('parallel workflow fan-out survives a child-process crash and fans back in 
 	assert.equal(fragile.length, 2);
 	assert.notEqual(fragile[0]!.pid, fragile[1]!.pid, 'retry should run in a replacement child process');
 	assert.equal(output.first.fragile.attempt, 2);
-	assert.equal(provider.stats().leased, 0);
-});
+		assert.equal(provider.stats().leased, 0);
+	});
