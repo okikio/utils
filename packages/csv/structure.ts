@@ -137,7 +137,8 @@ function scoreHeader(records: readonly (readonly string[])[], index: number): nu
 	const nonEmpty = row.filter((value) => value.trim().length > 0)
 	if (nonEmpty.length < 1) return Number.NEGATIVE_INFINITY
 
-	const textLike = row.filter(looksLikeHeaderValue).length
+	const textLike = row.filter(isHeaderValue).length
+	const nonHeader = nonEmpty.length - textLike
 	const normalized = nonEmpty.map(normalizeHeader)
 	const duplicates = normalized.length - new Set(normalized).size
 	const following = records
@@ -148,11 +149,14 @@ function scoreHeader(records: readonly (readonly string[])[], index: number): nu
 		: following.filter((candidate) => candidate.length === row.length).length / following.length
 	const uniqueness = normalized.length === 0 ? 0 : new Set(normalized).size / normalized.length
 
-	return textLike * 8 + consistent * 40 + uniqueness * 20 + Math.min(row.length, 40) - duplicates * 3 - index * 2
+	// A final row cannot establish that it names following data. Keep a sole
+	// header usable, but avoid treating a trailing data record as a header.
+	const trailing = index > 0 && following.length === 0 ? 24 : 0
+	return textLike * 8 + consistent * 40 + uniqueness * 20 + Math.min(row.length, 40) - duplicates * 3 - nonHeader * 20 - index * 2 - trailing
 }
 
 /** Return whether a source value has the structural shape expected of a header label. */
-function looksLikeHeaderValue(value: string): boolean {
+function isHeaderValue(value: string): boolean {
 	const normalized = value.trim()
 	if (!normalized || normalized.length > 160) return false
 	if (/https?:\/\//i.test(normalized) || /\S+@\S+/.test(normalized)) return false

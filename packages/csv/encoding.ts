@@ -15,7 +15,7 @@ export interface DecodedCsvSource {
  *
  * @internal
  */
-function startsWithUtf8Bom(bytes: Uint8Array): boolean {
+function hasUtf8Bom(bytes: Uint8Array): boolean {
 	return bytes.length >= UTF8_BOM.length && UTF8_BOM.every((byte, index) => bytes[index] === byte)
 }
 
@@ -45,7 +45,7 @@ export function decodeBytes(
 	bytes: Uint8Array,
 	encoding: NonNullable<CsvParseOptions['encoding']> = 'auto',
 ): DecodedCsvSource {
-	const hasBom = startsWithUtf8Bom(bytes)
+	const hasBom = hasUtf8Bom(bytes)
 	const body = hasBom ? bytes.subarray(UTF8_BOM.length) : bytes
 	const diagnostics: CsvDiagnostic[] = []
 	let text: string

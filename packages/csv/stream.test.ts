@@ -58,7 +58,7 @@ describe('CSV streaming parser', () => {
 	})
 
 	it('attaches recoverable observations to the exact streamed row', async () => {
-		await using document = await csv.parseStream(stream('Company,Domain\n=WEBSERVICE("x"),example.com,extra\n'))
+		await using document = await csv.parseStream(stream('Company,Domain\n"=WEBSERVICE(""x"")",example.com,extra\n'))
 		const rows = await Array.fromAsync(document.rows)
 		expect(rows[0]?.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
 			'row-width-mismatch',

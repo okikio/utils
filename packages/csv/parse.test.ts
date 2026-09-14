@@ -72,7 +72,7 @@ describe('CSV collecting parser', () => {
 		expect(document.rows[0]?.values).toEqual(['Northstar', 'northstar.example'])
 	})
 
-	it('enforces each collecting safety limit at the public boundary', () => {
+	it('enforces each collecting safety limit at the public parser', () => {
 		expect(() => csv.parse('Company,Domain\nOne,one.example\nTwo,two.example', { maximumRows: 1 }))
 			.toThrow(csv.CsvParseError)
 		expect(() => csv.parse('Company,Domain\nOne,one.example', { maximumColumns: 1 }))

@@ -173,7 +173,7 @@ export async function parseStream(
 	const encoding = decoded.encoding === 'windows-1252' ? 'windows-1252' : 'utf-8'
 	const records = replayStream(peeked)
 		.pipeThrough(byteLimit(resolved.maximumBytes))
-		.pipeThrough(createTextDecoderStream(encoding))
+		.pipeThrough(decoderStream(encoding))
 		.pipeThrough(new CsvParseStream({ separator: delimiter, fieldsPerRecord: -1 }))
 	const recordReader = records.getReader()
 	let disposed = false
@@ -256,7 +256,7 @@ export async function parseStream(
 		}
 
 		let activeIterator: AsyncGenerator<CsvRow> | undefined
-		const rows: AsyncIterable<CsvRow> = Object.freeze({
+		const rows = Object.freeze({
 			/**
 			 * Returns the native async iterator view used by streaming iteration protocols.
 			 *
@@ -269,7 +269,7 @@ export async function parseStream(
 				activeIterator = rowIterator()
 				return activeIterator
 			},
-		})
+		} satisfies AsyncIterable<CsvRow>)
 		return Object.freeze({
 			...(resolved.fileName !== undefined ? { fileName: resolved.fileName } : {}),
 			encoding: decoded.encoding,
@@ -304,7 +304,7 @@ export async function parseStream(
  *
  * @internal
  */
-function createTextDecoderStream(
+function decoderStream(
 	encoding: 'utf-8' | 'windows-1252',
 ): TransformStream<Uint8Array<ArrayBufferLike>, string> {
 	const decoder = new TextDecoder(encoding)

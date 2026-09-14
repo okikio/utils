@@ -14,7 +14,7 @@ const representativeText = [
 ].join('\n')
 const representativeBytes = encoder.encode(representativeText)
 
-/** Present benchmark bytes as deterministic chunks so streaming measurements include boundary handling. */
+/** Present benchmark bytes as deterministic chunks so streaming measurements include chunk-split handling. */
 function chunks(bytes: Uint8Array, size = 64 * 1024): ReadableStream<Uint8Array> {
 	let offset = 0
 	return new ReadableStream({
@@ -28,6 +28,20 @@ function chunks(bytes: Uint8Array, size = 64 * 1024): ReadableStream<Uint8Array>
 			offset = end
 		},
 	})
+}
+
+/** Consume the one-shot stream fixture outside the timer and retain only its semantic row count. */
+async function streamRows(): Promise<number> {
+	await using document = await csv.parseStream(chunks(representativeBytes))
+	return (await Array.fromAsync(document.rows)).length
+}
+
+const small = csv.parseBytes(smallBytes)
+const representative = csv.parseBytes(representativeBytes)
+const baseline = parseRows(representativeText, { fieldsPerRecord: -1 })
+const streamed = await streamRows()
+if (small.rows.length !== 1 || representative.rows.length !== 10_000 || baseline.length !== 10_001 || streamed !== 10_000) {
+	throw new Error('CSV benchmark fixtures did not preserve their documented row counts.')
 }
 
 group('CSV collecting', () => {

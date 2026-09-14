@@ -30,7 +30,18 @@ const PARSE_KEYS = Object.freeze({
 	headerScanRows: true,
 } as const)
 
-const STREAM_KEYS = Object.freeze({ ...PARSE_KEYS, maximumPeekBytes: true } as const)
+const STREAM_KEYS = Object.freeze({
+	fileName: true,
+	delimiter: true,
+	headerRow: true,
+	encoding: true,
+	maximumBytes: true,
+	maximumRows: true,
+	maximumColumns: true,
+	maximumCellCharacters: true,
+	headerScanRows: true,
+	maximumPeekBytes: true,
+} as const)
 
 /** Resolved collecting-parser options after defaults, limits, and unknown-key validation are applied. */
 export interface ResolvedCsvOptions {

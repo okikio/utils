@@ -18,6 +18,7 @@ describe('CSV options', () => {
 		expect(reads).toEqual(0)
 		expect(() => options.parse(Object.create({ maximumRows: 1 }))).toThrow(TypeError)
 		expect(() => options.parse({ unsupported: true } as never)).toThrow(TypeError)
+		expect(() => options.stream({ maximumCharacters: 8 } as never)).toThrow(TypeError)
 	})
 
 	it('resolves full-word limits and clamps peek bytes to the source bound', () => {
