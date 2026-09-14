@@ -34,7 +34,7 @@ describe('codec object records', () => {
 	it('rejects hidden codec shape properties instead of dropping them from composition', () => {
 		const shape = { identity: StringCodec };
 		Object.defineProperty(shape, 'hidden', { value: StringCodec, enumerable: false });
-		expect(() => codec.object(shape)).toThrow('plain object or null-prototype record');
+		expect(() => codec.object(shape)).toThrow('enumerable data property');
 	});
 
 	it('rejects accessor-backed object input instead of executing getters during validation', async () => {

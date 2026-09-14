@@ -50,18 +50,18 @@ function install<Name extends 'SuppressedError' | 'DisposableStack' | 'AsyncDisp
 }
 
 if (global.SuppressedError === undefined) {
-	function SuppressedErrorPolyfill(error: unknown, suppressed: unknown, message = ''): SuppressedError {
+	function SuppressedPolyfill(error: unknown, suppressed: unknown, message = ''): SuppressedError {
 		const value = new Error(message) as SuppressedError;
-		Object.setPrototypeOf(value, SuppressedErrorPolyfill.prototype);
+		Object.setPrototypeOf(value, SuppressedPolyfill.prototype);
 		value.name = 'SuppressedError';
 		value.error = error;
 		value.suppressed = suppressed;
 		return value;
 	}
-	SuppressedErrorPolyfill.prototype = Object.create(Error.prototype, {
-		constructor: { value: SuppressedErrorPolyfill, configurable: true, writable: true },
+	SuppressedPolyfill.prototype = Object.create(Error.prototype, {
+		constructor: { value: SuppressedPolyfill, configurable: true, writable: true },
 	});
-	install('SuppressedError', SuppressedErrorPolyfill as SuppressedErrorConstructor);
+	install('SuppressedError', SuppressedPolyfill as SuppressedErrorConstructor);
 }
 
 if (global.DisposableStack === undefined) {

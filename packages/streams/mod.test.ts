@@ -124,6 +124,11 @@ describe('stream adapters and limits', () => {
 		expect(cancelled).toBe(true);
 	});
 
+	it('retains consecutive synchronous yields when adapting an iterable to a Web Stream', async () => {
+		const result = await Array.fromAsync(streams.iterable(streams.readable(['one', 'two', 'three'])));
+		expect(result).toEqual(['one', 'two', 'three']);
+	});
+
 	it('pipes iterable values through native Web Stream pressure handling', async () => {
 		const written: number[] = [];
 		await streams.pipe(

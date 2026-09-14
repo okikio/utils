@@ -89,13 +89,13 @@ export function create<
 		keyByEntry.set(entry, key);
 	}
 
-	const metadata: CatalogMetadata = Object.freeze({
+	const metadata = Object.freeze({
 		type: 'catalog',
 		namespace,
 		keys: Object.freeze(keys as string[]),
 		entries: Object.freeze(orderedEntries),
 		keyByEntry: immutableMap(keyByEntry),
-	});
+	} satisfies CatalogMetadata);
 
 	catalogMetadata.set(target, metadata);
 	return Object.freeze(target) as Catalog<Entries[keyof Entries], Entries>;
@@ -186,14 +186,14 @@ export function select<
 	}
 
 	const selectedKeys = Object.freeze([...seenKeys]);
-	const metadata: CatalogSelectionMetadata<Entry> = Object.freeze({
+	const metadata = Object.freeze({
 		type: 'selection',
 		namespace: sourceMetadata.namespace,
 		source,
 		keys: selectedKeys,
 		entries: Object.freeze(selectedEntries),
 		keyByEntry: immutableMap(keyByEntry),
-	});
+	} satisfies CatalogSelectionMetadata<Entry>);
 
 	selectionMetadata.set(target, metadata);
 	return Object.freeze(target) as CatalogSelection<Entries[keyof Entries], Pick<Entries, Keys[number]>>;

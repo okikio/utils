@@ -7,5 +7,5 @@ import { Temporal as PolyfillTemporal } from "@js-temporal/polyfill";
  * the reference-compatible implementation on runtimes that do not provide it.
  */
 export const Temporal: typeof PolyfillTemporal =
-  (globalThis as { Temporal?: typeof PolyfillTemporal }).Temporal ??
+  (globalThis as unknown as { Temporal?: typeof PolyfillTemporal }).Temporal ??
   PolyfillTemporal;

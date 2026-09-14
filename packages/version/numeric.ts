@@ -3,7 +3,7 @@ import type { ParsedVersion, VersionOrder, VersionScheme } from './types.ts';
 const NUMERIC_DOTTED_PATTERN = /^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:\.(\d+))?(?:[-+]([0-9A-Za-z.-]+))?$/u;
 
 /** Generic dotted-numeric scheme for products that do not claim SemVer. */
-export const numericDottedVersionScheme: VersionScheme = Object.freeze({
+export const numericDottedVersionScheme = Object.freeze({
 	id: 'numeric-dotted',
 	description: 'One to four ordered numeric components with an optional opaque qualifier.',
 	parse(value: string): ParsedVersion | undefined {
@@ -43,7 +43,7 @@ export const numericDottedVersionScheme: VersionScheme = Object.freeze({
 		if (!left.qualifier || !right.qualifier) return undefined;
 		return compareText(left.qualifier, right.qualifier);
 	},
-});
+} satisfies VersionScheme);
 
 /** Compare dotted numeric components, treating missing trailing components as zero. */
 export function compareNumericParts(left: readonly number[], right: readonly number[]): VersionOrder {

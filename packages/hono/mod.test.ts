@@ -21,10 +21,22 @@ const Message = response.ok({
 	},
 }, { id: 'hono:message', description: 'Hono adapter test response.' });
 
+const ItemParams = {
+	'~standard': {
+		version: 1 as const,
+		vendor: 'test',
+		validate(value: unknown) {
+			return typeof value === 'object' && value !== null && typeof (value as { id?: unknown }).id === 'string'
+				? { value }
+				: { issues: [{ message: 'Expected item parameters.' }] };
+		},
+	},
+};
+
 /** Create one tiny compiled service used by Hono adapter tests. */
 function createRuntime(): service.ServiceRuntime {
 	const Ping = endpoint.get({ id: 'hono.ping', path: '/ping', responses: [Message] });
-	const Item = endpoint.get({ id: 'hono.item', path: '/items/:id', responses: [Message] });
+	const Item = endpoint.get({ id: 'hono.item', path: '/items/:id', param: ItemParams, responses: [Message] });
 	const Current = endpoint.get({ id: 'hono.current', path: '/items/me', responses: [Message] });
 	const definition = service.define({ id: 'hono', path: '/api', endpoints: [Ping, Item, Current] });
 	return service.create(service.compile(service.implement(definition, {
@@ -76,7 +88,7 @@ describe('Hono server adapter', () => {
 		const result = await app.request('/fault');
 		expect(result.status).toBe(500);
 		expect(await result.json()).toEqual({
-			type: 'https://api.example.invalid/problems/internal',
+			type: 'urn:utils:server:internal',
 			title: 'Internal server error',
 			status: 500,
 			instance: '/fault',

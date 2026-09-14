@@ -17,6 +17,9 @@ const source = env.record({
 	MODE: 'production',
 });
 
+const initial = BenchmarkEnvironment.parseSync(source);
+if (initial.PORT !== 8787 || initial.MODE !== 'production') throw new Error('Environment benchmark fixture did not parse its typed values.');
+
 group('@okikio/env', () => {
 	bench('parse two Zod-backed fields', () => {
 		do_not_optimize(BenchmarkEnvironment.parseSync(source));

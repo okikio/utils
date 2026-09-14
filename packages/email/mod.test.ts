@@ -50,11 +50,11 @@ describe('email-domain utilities', () => {
 	})
 
 	it('extracts ranked immutable company-domain evidence from streamed rows', async () => {
-		const columns: readonly DomainColumnType[] = Object.freeze([
+		const columns = Object.freeze([
 			Object.freeze({ index: 0, name: 'Company', key: 'company', normalizedName: 'company', role: 'company' }),
 			Object.freeze({ index: 1, name: 'Website', key: 'website', normalizedName: 'website', role: 'website' }),
 			Object.freeze({ index: 2, name: 'Email', key: 'email', normalizedName: 'email', role: 'email' }),
-		])
+		] satisfies readonly DomainColumnType[])
 		const sourceRow = Object.freeze({
 			row: 2,
 			values: Object.freeze(['Northstar', 'https://www.northstar.example', 'sales@northstar.example; owner@gmail.com']),

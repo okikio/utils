@@ -7,7 +7,6 @@
  *
  * @module
  */
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as requirements from '@okikio/requirement';
 import * as resource from '@okikio/resource';

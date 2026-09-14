@@ -5,7 +5,7 @@ import type { ParsedVersion, VersionOrder, VersionScheme } from '#/types.ts';
 const PARTIAL_SEMVER_PATTERN = /^v?(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?$/u;
 
 /** Strict Semantic Versioning with explicit support for coarse major/minor observations. */
-export const semanticVersionScheme: VersionScheme = Object.freeze({
+export const semanticVersionScheme = Object.freeze({
 	id: 'semver',
 	description: 'Semantic Versioning 2.0.0; major and major.minor observations are retained as coarse families.',
 	parse(value: string): ParsedVersion | undefined {
@@ -45,7 +45,7 @@ export const semanticVersionScheme: VersionScheme = Object.freeze({
 		if (!leftSemVer || !rightSemVer) return undefined;
 		return compare(leftSemVer, rightSemVer) as VersionOrder;
 	},
-});
+} satisfies VersionScheme);
 
 function parsedSemVer(rawValue: string, semver: SemVer): ParsedVersion {
 	const prerelease = semver.prerelease && semver.prerelease.length > 0 ? [...semver.prerelease] : [];

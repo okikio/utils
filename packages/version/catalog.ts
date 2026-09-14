@@ -1,7 +1,7 @@
 import type { VersionScheme, VersionSchemeCatalog } from '#/types.ts';
 
 /** Create an immutable catalog and reject duplicate scheme identities. */
-export function createVersionSchemeCatalog(schemes: readonly VersionScheme[]): VersionSchemeCatalog {
+export function catalog(schemes: readonly VersionScheme[]): VersionSchemeCatalog {
 	const schemesById = new Map<string, VersionScheme>();
 	for (const scheme of schemes) {
 		if (schemesById.has(scheme.id)) throw new TypeError(`Duplicate version scheme id: ${scheme.id}`);

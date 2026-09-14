@@ -97,14 +97,14 @@ describe('Standard Schema environment definitions', () => {
 
 		const hidden = { VISIBLE: field } as Record<string, typeof field>;
 		Object.defineProperty(hidden, 'HIDDEN', { value: field, enumerable: false });
-		expect(() => env.environment(hidden)).toThrow('must be enumerable');
+		expect(() => env.environment(hidden)).toThrow('must be an enumerable data property');
 
 		const accessor = {} as Record<string, typeof field>;
 		Object.defineProperty(accessor, 'VALUE', { get: () => field, enumerable: true });
-		expect(() => env.environment(accessor)).toThrow('must be a data property');
+		expect(() => env.environment(accessor)).toThrow('must be an enumerable data property');
 
 		const inherited = Object.create({ INHERITED: field }) as Record<string, typeof field>;
-		expect(() => env.environment(inherited)).toThrow('plain object or a null-prototype record');
+		expect(() => env.environment(inherited)).toThrow('plain object or null-prototype record');
 	});
 
 	it('supports prototype-shaped definition keys without false conflicts', () => {
