@@ -23,6 +23,8 @@ export interface RequestCorrelation {
 /** Options used when establishing request correlation. */
 export interface RequestCorrelationOptions {
 	readonly requestId?: string | ((request: Request) => string | undefined);
+	/** Accept X-Request-ID from this request as trusted ingress metadata. Defaults to false. */
+	readonly trustRequestId?: boolean;
 	readonly sampled?: boolean;
 	readonly maximumTraceStateLength?: number;
 }
@@ -135,12 +137,14 @@ function correlationOptions(options: RequestCorrelationOptions): RequestCorrelat
 	if (options.requestId !== undefined && typeof options.requestId !== 'string' && typeof options.requestId !== 'function') {
 		throw new TypeError('requestId must be a string or function when provided.');
 	}
+	if (options.trustRequestId !== undefined && typeof options.trustRequestId !== 'boolean') throw new TypeError('trustRequestId must be a boolean when provided.');
 	if (options.sampled !== undefined && typeof options.sampled !== 'boolean') throw new TypeError('sampled must be a boolean when provided.');
 	if (options.maximumTraceStateLength !== undefined && (!Number.isSafeInteger(options.maximumTraceStateLength) || options.maximumTraceStateLength < 0)) {
 		throw new TypeError('maximumTraceStateLength must be a non-negative safe integer.');
 	}
 	return Object.freeze({
 		...(options.requestId === undefined ? {} : { requestId: options.requestId }),
+		...(options.trustRequestId === undefined ? {} : { trustRequestId: options.trustRequestId }),
 		...(options.sampled === undefined ? {} : { sampled: options.sampled }),
 		...(options.maximumTraceStateLength === undefined ? {} : { maximumTraceStateLength: options.maximumTraceStateLength }),
 	});
@@ -160,7 +164,8 @@ async function establishCorrelation(
 	const suppliedRequestId = typeof options.requestId === 'function'
 		? options.requestId(request)
 		: options.requestId;
-	const resolvedRequestId = requestId(suppliedRequestId ?? request.headers.get('x-request-id'));
+	const upstreamRequestId = options.trustRequestId === true ? request.headers.get('x-request-id') : undefined;
+	const resolvedRequestId = requestId(suppliedRequestId ?? upstreamRequestId);
 	const incomingValue = request.headers.get('traceparent');
 	const incoming = parseTraceParent(incomingValue);
 	let source: RequestCorrelation['source'] = 'replaced-invalid-parent';

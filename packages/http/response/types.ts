@@ -37,6 +37,8 @@ export interface ResponseDefinition<Schema extends ResponseSchema | undefined = 
 	readonly status: Status;
 	readonly description: string;
 	readonly schema?: Schema;
+	/** Explicit JSON Schema for the serialized HTTP body when it differs from validation output. */
+	readonly jsonSchema?: unknown;
 	readonly contentType?: string;
 	readonly headers?: ResponseHeaders;
 	readonly examples?: readonly ResponseExample[];
@@ -53,6 +55,8 @@ export interface ResponseDefinitionInput<Schema extends ResponseSchema | undefin
 	readonly status: Status;
 	readonly description: string;
 	readonly schema?: Schema;
+	/** Explicit JSON Schema for the serialized HTTP body when it differs from validation output. */
+	readonly jsonSchema?: unknown;
 	readonly contentType?: string;
 	readonly headers?: HeaderInput;
 	readonly examples?: readonly ResponseExample[];

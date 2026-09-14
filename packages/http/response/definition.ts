@@ -13,11 +13,9 @@ import type {
 	ResponseStatus,
 } from './types.ts';
 
-const defaultPaginationPolicy: PaginationResponsePolicy = Object.freeze({ links: 'both', totals: 'both' });
+const defaultPaginationPolicy = Object.freeze({ links: 'both', totals: 'both' } satisfies PaginationResponsePolicy);
 
-const htmlBodySchema: ResponseSchema<unknown, HtmlBody> & Readonly<{
-	readonly '~standard-json-schema': Readonly<{ readonly version: 1; readonly vendor: 'utils-http-response'; readonly jsonSchema: Readonly<Record<string, unknown>> }>;
-}> = Object.freeze({
+const htmlBodySchema = Object.freeze({
 	'~standard': Object.freeze({
 		version: 1,
 		vendor: 'utils-http-response',
@@ -32,12 +30,7 @@ const htmlBodySchema: ResponseSchema<unknown, HtmlBody> & Readonly<{
 				: { issues: [{ message: 'Expected an HTML string, byte stream, or async iterable.' }] };
 		},
 	}),
-	'~standard-json-schema': Object.freeze({
-		version: 1,
-		vendor: 'utils-http-response',
-		jsonSchema: Object.freeze({ type: 'string', description: 'HTML document or streamed HTML representation.' }),
-	}),
-});
+} satisfies ResponseSchema<unknown, HtmlBody>);
 
 /** Define one immutable successful HTTP response contract. */
 export function define<const Schema extends ResponseSchema | undefined, const Status extends ResponseStatus>(
@@ -51,6 +44,7 @@ export function define<const Schema extends ResponseSchema | undefined, const St
 		status: input.status,
 		description: input.description,
 		...(input.schema !== undefined ? { schema: input.schema } : {}),
+		...(input.jsonSchema !== undefined ? { jsonSchema: input.jsonSchema } : {}),
 		...(input.contentType !== undefined ? { contentType: input.contentType } : {}),
 		...(input.headers !== undefined ? { headers: headers(input.headers) } : {}),
 		...(input.examples ? { examples: Object.freeze(input.examples.map((example) => Object.freeze({ ...example }))) } : {}),
@@ -163,6 +157,7 @@ export function html(
 		id: options.id ?? defaultId(200, options.description),
 		status: 200,
 		schema: htmlBodySchema,
+		jsonSchema: Object.freeze({ type: 'string', description: 'HTML document or streamed HTML representation.' }),
 		mode: 'html',
 		contentType: options.contentType ?? 'text/html; charset=utf-8',
 	}) as ResponseDefinition<typeof htmlBodySchema, 200> & { readonly mode: 'html' };

@@ -15,21 +15,40 @@ interface ExactRouteType {
 	readonly handler: Handler;
 }
 
+/** Controls which pathname a mounted child Fetch handler receives. */
+export interface MountOptions {
+	readonly requestPath?: 'preserve' | 'strip-prefix';
+}
+
 /** Prefix-mounted Fetch handler owned by one framework-neutral HTTP application. @internal */
 interface MountRouteType {
 	readonly kind: 'mount';
 	readonly path: string;
 	readonly handler: Handler;
+	readonly requestPath: 'preserve' | 'strip-prefix';
 }
 
 /** Route or mounted handler owned by one framework-neutral HTTP application. */
 export type RouteType = ExactRouteType | MountRouteType;
+
+/** Handler-free route description retained by a compiler or deployment artifact. */
+export type RoutePlanInput =
+	| Readonly<{ readonly kind: 'route'; readonly method: string; readonly path: string }>
+	| Readonly<{ readonly kind: 'mount'; readonly path: string }>;
+
+/** Immutable handler-free route plan prepared before request dispatch. */
+export interface RoutePlan {
+	readonly kind: 'http-route-plan';
+	readonly routes: readonly RoutePlanInput[];
+}
 
 /** Options used to create one framework-neutral HTTP application. */
 export interface CreateOptionsType {
 	readonly routes?: readonly RouteType[];
 	readonly middleware?: readonly Middleware[];
 	readonly notFound?: Handler;
+	/** Optional compiler-produced plan. Every authored route must bind to it exactly. */
+	readonly plan?: RoutePlan;
 }
 
 /** Fetch-compatible HTTP application assembled from explicit routes and middleware. */

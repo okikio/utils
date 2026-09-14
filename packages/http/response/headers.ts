@@ -44,6 +44,21 @@ export function appendHeaders(base: HeaderInput, additional: HeaderInput): Respo
 	return fieldsToRecord([...normalizeSource(base), ...normalizeSource(additional)]);
 }
 
+/** Merge request field names into one HTTP `Vary` value without duplicates. */
+export function mergeVary(current: string | null | undefined, ...names: readonly string[]): string {
+	const values = (current ?? '').split(',').map((value) => value.trim()).filter(Boolean);
+	if (values.some((value) => value === '*')) return '*';
+	const seen = new Set(values.map((value) => value.toLowerCase()));
+	for (const name of names) {
+		if (!fieldNamePattern.test(name)) throw new TypeError(`Invalid Vary field name ${JSON.stringify(name)}.`);
+		const lower = name.toLowerCase();
+		if (seen.has(lower)) continue;
+		seen.add(lower);
+		values.push(name);
+	}
+	return values.join(', ');
+}
+
 /** Return a standard Headers instance while preserving repeatable values where the runtime permits it. */
 export function toHeaders(input: HeaderInput): Headers {
 	const result = new Headers();
@@ -58,7 +73,7 @@ export function headerValues(input: HeaderInput, name: string): readonly string[
 }
 
 /** Return whether header input uses the explicit readonly tuple-list form. @internal */
-function isHeaderFieldList(input: HeaderInput): input is readonly HeaderField[] {
+function isFieldList(input: HeaderInput): input is readonly HeaderField[] {
 	return Array.isArray(input);
 }
 
@@ -114,7 +129,7 @@ function normalizeSource(input: HeaderInput): HeaderField[] {
 		for (const value of cookies) fields.push(normalizeField('Set-Cookie', value));
 		return fields;
 	}
-	if (isHeaderFieldList(input)) return normalizeFieldList(input);
+	if (isFieldList(input)) return normalizeFieldList(input);
 	for (const [name, value] of recordCore.entries(input, 'HTTP header record')) {
 		if (Array.isArray(value)) fields.push(...normalizeHeaderValues(name, value));
 		else fields.push(normalizeField(name, value));

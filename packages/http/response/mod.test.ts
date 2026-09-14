@@ -26,6 +26,14 @@ const BytesSchema: StandardSchemaV1<unknown, Uint8Array> = {
 	},
 };
 
+describe('response Vary merging', () => {
+	it('deduplicates field names case-insensitively and preserves wildcard semantics', () => {
+		expect(response.mergeVary('Accept-Encoding, Origin', 'origin', 'Accept')).toBe('Accept-Encoding, Origin, Accept');
+		expect(response.mergeVary('*', 'Accept')).toBe('*');
+		expect(() => response.mergeVary(null, 'bad field')).toThrow(TypeError);
+	});
+});
+
 describe('HTTP status contracts', () => {
 	it('provides portable Standard Schema status subsets without Zod coupling', async () => {
 		expect(response.status.success.is(200)).toBe(true);
@@ -36,7 +44,7 @@ describe('HTTP status contracts', () => {
 		expect(response.isContentlessStatus(200)).toBe(false);
 		expect((await response.status.problem['~standard'].validate(503))).toEqual({ value: 503 });
 		expect('issues' in await response.status.problem['~standard'].validate(200)).toBe(true);
-		expect(response.status.problem['~standard-json-schema'].jsonSchema).toMatchObject({
+		expect(response.status.problem['~standard'].jsonSchema.output({ target: 'draft-2020-12' })).toMatchObject({
 			type: 'integer',
 		});
 	});
@@ -352,7 +360,7 @@ describe('response transport helpers', () => {
 		const wrapped = response.onComplete(new Response('example'), (value) => { observed = value; });
 		expect(await wrapped.text()).toBe('example');
 		await Promise.resolve();
-		expect(observed).toEqual({ outcome: 'completed', bytes: 5 });
+		expect(observed).toEqual({ outcome: 'completed', bytes: 7 });
 	});
 
 	it('isolates synchronous and asynchronous completion observer failures', async () => {

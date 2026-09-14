@@ -45,7 +45,7 @@ const values = request.parseQuery('?tag=one&tag=two&enabled=true');
 // { tag: ['one', 'two'], enabled: 'true' }
 ```
 
-The helper performs transport parsing only. A Zod or other Standard Schema at
+The request parser performs transport parsing only. A Zod or other Standard Schema at
 the endpoint layer still decides whether `enabled` is a boolean and whether the
 `tag` values are valid.
 
@@ -173,7 +173,7 @@ resource graph, runtime host, or workflow is not yet clear.
 Record-shaped request options and response headers
 --------------------------------------------------
 
-When an HTTP helper accepts a JavaScript record for parsing limits or headers,
+When an HTTP operation accepts a JavaScript record for parsing limits or headers,
 that record must be a plain object or null-prototype data record. Hidden,
 inherited, symbol, and accessor properties are rejected before their values are
 read. Native `Headers` objects and explicit `[name, value]` header tuples keep
@@ -216,10 +216,37 @@ detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*_test.ts` files show edge cases, cancellation, invalid input, and lifecycle
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
    behavior as executable examples.
 4. Read internal implementation files only when you need the exact state
    transition or performance-sensitive loop.
 
 The README is the primary user documentation. It intentionally stays close to
 the public source instead of maintaining a separate hand-written API reference.
+
+
+Webhooks
+--------
+
+`@okikio/http/webhook` verifies exact request bytes without owning routes.
+`@okikio/http/webhook/standard` also signs outbound Standard Webhooks v1
+messages.
+
+An inbound service endpoint verifies the request before normal parsing. An
+outbound sender signs the serialized bytes that it will transmit. A service that
+uses both directions composes these two roles independently.
+
+Durable subscriptions, delivery attempts, retry schedules, replay, dead-letter
+records, endpoint health, and delivery telemetry need persistent application
+state. Those persistent delivery responsibilities belong to a higher-level webhook capability if Okikio
+needs a reusable implementation.
+
+Read [`webhook/README.md`](webhook/README.md) for signing, verification, limits,
+and the inbound and outbound flows.
+
+Focused imports
+---------------
+
+HTTP subpaths are public package entries. A reusable library can depend on
+`@okikio/http/request`. An application that uses the single-install suite can
+import the same implementation from `@okikio/utils/http/request`.

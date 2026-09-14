@@ -1,7 +1,8 @@
 import * as httpResponse from '@okikio/http/response';
 import * as recordCore from '@okikio/record';
-import type { App, CreateOptionsType, Handler, Middleware, RouteType } from './types.ts';
-import { compareRouteSpecificity, matchPath, normalizePath } from './path.ts';
+import type { App, CreateOptionsType, Handler, Middleware, MountOptions, RoutePlanInput, RouteType } from './types.ts';
+import { normalizePath } from './path.ts';
+import { matchMount, matchRoute, normalizeMountPath, prepare, routeKey, stripMountPrefix } from './router.ts';
 
 /** Create one exact method/path route using native Request and Response values. */
 export function route(method: string, path: string, handler: Handler): RouteType {
@@ -13,18 +14,21 @@ export function route(method: string, path: string, handler: Handler): RouteType
 	return Object.freeze({ kind: 'route', method: normalizedMethod, path: normalizePath(path), handler });
 }
 
-/** Mount one fetch handler below a path prefix without rewriting the request URL. */
-export function mount(path: string, handler: Handler): RouteType {
+/**
+ * Mount one Fetch handler below a path prefix.
+ *
+ * `preserve` leaves the original URL untouched. `strip-prefix` presents the
+ * child with a URL relative to the mount, which is useful for embedded Fetch
+ * applications and transports such as MCP while preserving method, headers,
+ * query, body stream, and abort signal.
+ */
+export function mount(path: string, handler: Handler, options: MountOptions = {}): RouteType {
 	if (typeof path !== 'string') throw new TypeError('HTTP mount path must be a string.');
 	if (typeof handler !== 'function') throw new TypeError('HTTP mount handler must be a function.');
-	return Object.freeze({ kind: 'mount', path: normalizeMountPath(path), handler });
-}
-
-
-/** Canonicalize a mount prefix so `/api` and `/api/` cannot claim the same subtree. @internal */
-function normalizeMountPath(path: string): string {
-	const normalized = normalizePath(path);
-	return normalized.length > 1 && normalized.endsWith('/') ? normalized.slice(0, -1) : normalized;
+	recordCore.assert(options, 'HTTP mount options');
+	const requestPath = options.requestPath ?? 'preserve';
+	if (requestPath !== 'preserve' && requestPath !== 'strip-prefix') throw new TypeError('HTTP mount requestPath must be preserve or strip-prefix.');
+	return Object.freeze({ kind: 'mount', path: normalizeMountPath(path), handler, requestPath });
 }
 
 /** Compose Fetch-compatible middleware around one terminal handler in authored order. */
@@ -40,30 +44,53 @@ export function compose(handler: Handler, middleware: readonly Middleware[] = []
 	return current;
 }
 
-/** Create a small framework-neutral HTTP application with deterministic route ownership. */
+/** Create a framework-neutral HTTP application from a prepared route plan and exact handlers. */
 export function create(options: CreateOptionsType = {}): App {
 	recordCore.assert(options, 'HTTP application options');
 	const routes = routeList(options.routes ?? []);
-	validateRoutes(routes);
+	const plan = options.plan ?? prepare(routes.map(routeDescriptor));
+	const handlers = bind(plan, routes);
 	const notFound = options.notFound ?? (() => new Response('Not found.', { status: 404 }));
 	if (typeof notFound !== 'function') throw new TypeError('HTTP notFound handler must be a function when provided.');
 	const middleware = middlewareList(options.middleware ?? []);
 	const dispatch: Handler = async (request) => {
 		const url = new URL(request.url);
 		const method = request.method.toUpperCase();
-		const route = selectRoute(routes, method, url.pathname);
-		if (route !== undefined) {
-			const response = await route.handler(request);
+		const key = matchRoute(plan, method, url.pathname);
+		if (key !== undefined) {
+			const selected = handlers.get(key)!;
+			const response = await selected.handler(request);
 			return method === 'HEAD' ? await withoutBody(response) : response;
 		}
-		const mounted = selectMount(routes, url.pathname);
-		if (mounted !== undefined) return await mounted.handler(request);
+		const mountKey = matchMount(plan, url.pathname);
+		if (mountKey !== undefined) {
+			const selected = handlers.get(mountKey)!;
+			const mountedRequest = selected.kind === 'mount' && selected.requestPath === 'strip-prefix'
+				? new Request(stripMountPrefix(url, selected.path), request)
+				: request;
+			return await selected.handler(mountedRequest);
+		}
 		return await notFound(request);
 	};
 	return Object.freeze({ routes, fetch: compose(dispatch, middleware) });
 }
 
-/** Snapshot one dense middleware list without invoking accessor-backed array entries. @internal */
+/** Bind exact handlers to an inert compiler route plan and reject plan drift. */
+function bind(plan: import('./types.ts').RoutePlan, routes: readonly RouteType[]): ReadonlyMap<string, RouteType> {
+	const actual = new Map(routes.map((entry) => [routeKey(routeDescriptor(entry)), entry] as const));
+	const expected = new Set(plan.routes.map(routeKey));
+	for (const key of expected) if (!actual.has(key)) throw new TypeError(`Prepared HTTP route ${key} has no bound handler.`);
+	for (const key of actual.keys()) if (!expected.has(key)) throw new TypeError(`Bound HTTP route ${key} is absent from the prepared plan.`);
+	return actual;
+}
+
+function routeDescriptor(value: RouteType): RoutePlanInput {
+	return value.kind === 'mount'
+		? Object.freeze({ kind: 'mount', path: value.path })
+		: Object.freeze({ kind: 'route', method: value.method, path: value.path });
+}
+
+/** Snapshot one dense middleware list without invoking accessor-backed array entries. */
 function middlewareList(values: readonly Middleware[]): readonly Middleware[] {
 	if (!Array.isArray(values)) throw new TypeError('HTTP middleware must be an array of functions.');
 	const result: Middleware[] = [];
@@ -77,7 +104,7 @@ function middlewareList(values: readonly Middleware[]): readonly Middleware[] {
 	return Object.freeze(result);
 }
 
-/** Snapshot route definitions so later caller mutation cannot change dispatch ownership. @internal */
+/** Snapshot route definitions so later caller mutation cannot change dispatch ownership. */
 function routeList(values: readonly RouteType[]): readonly RouteType[] {
 	if (!Array.isArray(values)) throw new TypeError('HTTP routes must be an array.');
 	const result: RouteType[] = [];
@@ -87,73 +114,14 @@ function routeList(values: readonly RouteType[]): readonly RouteType[] {
 		const value = descriptor.value as unknown;
 		recordCore.assert(value, `HTTP route at index ${index}`);
 		if (value.kind === 'route') result.push(route(value.method as string, value.path as string, value.handler as Handler));
-		else if (value.kind === 'mount') result.push(mount(value.path as string, value.handler as Handler));
+		else if (value.kind === 'mount') result.push(mount(value.path as string, value.handler as Handler, { requestPath: value.requestPath as MountOptions['requestPath'] }));
 		else throw new TypeError(`HTTP route at index ${index} has an invalid kind.`);
 	}
 	return Object.freeze(result);
 }
 
-/** Select the most specific matching route independently of authored order. @internal */
-function selectRoute(routes: readonly RouteType[], method: string, pathname: string): RouteType | undefined {
-	let selected: RouteType | undefined;
-	let selectedMethodRank = 0;
-	for (const entry of routes) {
-		if (entry.kind !== 'route') continue;
-		let methodRank = 0;
-		if (entry.method === method) methodRank = 2;
-		else if (method === 'HEAD' && entry.method === 'GET') methodRank = 1;
-		if (methodRank === 0 || !matchPath(entry.path, pathname)) continue;
-		if (
-			selected === undefined ||
-			methodRank > selectedMethodRank ||
-			(methodRank === selectedMethodRank && compareRouteSpecificity(entry.path, selected.path) > 0)
-		) {
-			selected = entry;
-			selectedMethodRank = methodRank;
-		}
-	}
-	return selected;
-}
-
-/** Select the longest matching mount path independently of authored order. @internal */
-function selectMount(routes: readonly RouteType[], pathname: string): RouteType | undefined {
-	let selected: RouteType | undefined;
-	for (const entry of routes) {
-		if (entry.kind !== 'mount' || !matchesMount(entry.path, pathname)) continue;
-		if (selected === undefined || entry.path.length > selected.path.length) selected = entry;
-	}
-	return selected;
-}
-
-/** Match one path prefix without allowing `/api` to match `/apiv2`. */
-function matchesMount(prefix: string, pathname: string): boolean {
-	if (prefix === '/') return true;
-	return pathname === prefix || pathname.startsWith(`${prefix}/`);
-}
-
-/** Reject exact duplicate route ownership before traffic starts. @internal */
-function validateRoutes(routes: readonly RouteType[]): void {
-	const exact = new Set<string>();
-	const mounts = new Set<string>();
-	for (const entry of routes) {
-		if (entry.kind === 'mount') {
-			if (mounts.has(entry.path)) throw new TypeError(`Duplicate HTTP mount path: ${entry.path}.`);
-			mounts.add(entry.path);
-			continue;
-		}
-		const shape = entry.path.replace(/:[^/]+/gu, ':parameter');
-		const key = `${entry.method} ${shape}`;
-		if (exact.has(key)) throw new TypeError(`Duplicate HTTP route shape: ${entry.method} ${entry.path}.`);
-		exact.add(key);
-	}
-}
-
-/** Preserve GET response metadata while cancelling the body that HEAD will never transmit. @internal */
+/** Preserve GET response metadata while cancelling the body that HEAD will never transmit. */
 async function withoutBody(response: Response): Promise<Response> {
 	await httpResponse.discard(response);
-	return new Response(null, {
-		status: response.status,
-		statusText: response.statusText,
-		headers: response.headers,
-	});
+	return new Response(null, { status: response.status, statusText: response.statusText, headers: response.headers });
 }

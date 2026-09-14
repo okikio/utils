@@ -29,13 +29,13 @@ type NormalizedCreateOptions = Readonly<Omit<CreateResponseOptions, 'headers' | 
 type CreatedResponseBody<Definition extends ResponseDefinition> =
 	Definition['mode'] extends 'empty' | 'redirect' ? null : Exclude<ResponseBody<Definition>, undefined>;
 
-const defaultParameters: PaginationParameters = Object.freeze({
+const defaultParameters = Object.freeze({
 	cursor: 'cursor',
 	limit: 'limit',
 	offset: 'offset',
 	page: 'page',
 	perPage: 'per_page',
-});
+} satisfies PaginationParameters);
 
 /** Instantiate a definition-associated logical result. Request-dependent work happens in {@link finalize}. */
 export function create<Definition extends ResponseDefinition>(
@@ -115,7 +115,7 @@ export function finalize<Definition extends ResponseDefinition>(
 	const generatedMeta = buildMeta(definition.timestamp, metadata.options.meta, pagination, normalizedOptions.now);
 	const shouldEnvelope = definition.envelope === 'data' || generatedMeta !== undefined || definition.mode === 'page';
 	if (shouldEnvelope && definition.mode !== 'empty' && definition.mode !== 'redirect') {
-		const envelope: SuccessEnvelope = Object.freeze({
+		const envelope = Object.freeze({
 			data: body,
 			...(generatedMeta !== undefined ? { meta: generatedMeta } : {}),
 			...(definition.mode === 'page' &&
@@ -123,7 +123,7 @@ export function finalize<Definition extends ResponseDefinition>(
 				links !== undefined && Object.keys(links).length > 0
 				? { links }
 				: {}),
-		});
+		} satisfies SuccessEnvelope);
 		body = envelope;
 	}
 	return Object.freeze({ definition, body, status: result[1], headers: resolvedHeaders });
@@ -586,13 +586,13 @@ function paginationParameters(parameters: Partial<PaginationParameters>): Pagina
 	for (const key of Object.keys(parameters)) {
 		if (!allowed.has(key as keyof PaginationParameters)) throw new TypeError(`Unknown pagination parameter ${JSON.stringify(key)}.`);
 	}
-	const result: PaginationParameters = Object.freeze({
+	const result = Object.freeze({
 		cursor: parameterName(parameters.cursor ?? defaultParameters.cursor, 'cursor'),
 		limit: parameterName(parameters.limit ?? defaultParameters.limit, 'limit'),
 		offset: parameterName(parameters.offset ?? defaultParameters.offset, 'offset'),
 		page: parameterName(parameters.page ?? defaultParameters.page, 'page'),
 		perPage: parameterName(parameters.perPage ?? defaultParameters.perPage, 'perPage'),
-	});
+	} satisfies PaginationParameters);
 	const names = Object.values(result);
 	if (new Set(names).size !== names.length) throw new TypeError('Pagination parameter names must be distinct.');
 	return result;

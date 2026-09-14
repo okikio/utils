@@ -7,7 +7,11 @@ import { RequestTransportError } from './types.ts';
 /** Read request bytes once with a hard upper bound and Content-Length precheck. */
 export async function readBody(request: Request, options: RequestParsingOptions = {}): Promise<Uint8Array> {
 	const policy = limits(options);
-	const declared = parseContentLength(request.headers.get('content-length'));
+	// Transfer-Encoding defines framing when present. Do not trust a simultaneous
+	// Content-Length for admission; enforce the actual streamed byte count below.
+	const declared = request.headers.has('transfer-encoding')
+		? undefined
+		: parseContentLength(request.headers.get('content-length'));
 	if (declared !== undefined && declared > policy.maximumBodyBytes) throw bodyTooLarge(policy.maximumBodyBytes);
 	if (request.body === null) return new Uint8Array();
 	const reader = request.body.getReader();

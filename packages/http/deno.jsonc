@@ -3,9 +3,7 @@
 	"version": "0.0.0",
 	"publish": {
 		"exclude": [
-			"**/*_test.ts",
 			"**/*.test.ts",
-			"**/*_bench.ts",
 			"**/*.bench.ts",
 			"fixtures/**"
 		]
@@ -16,13 +14,17 @@
 		"./problem": "./problem/mod.ts",
 		"./problem/testing": "./problem/testing/mod.ts",
 		"./request": "./request/mod.ts",
+		"./webhook": "./webhook/mod.ts",
+		"./webhook/standard": "./webhook/standard.ts",
 		"./response": "./response/mod.ts",
 		"./response/body": "./response/body.ts",
 		"./response/types": "./response/types.ts",
 		"./response/headers": "./response/headers.ts",
 		"./response/completion": "./response/completion.ts",
 		"./response/http": "./response/http.ts",
-		"./response/status": "./response/status.ts"
+		"./response/status": "./response/status.ts",
+		"./problem/types": "./problem/types.ts",
+		"./request/types": "./request/types.ts"
 	},
 	"imports": {
 		"@standard-schema/spec": "jsr:@standard-schema/spec@^1.1.0",
@@ -31,7 +33,7 @@
 		"fast-check": "npm:fast-check@^4.9.0"
 	},
 	"tasks": {
-		"check": "deno fmt --check && deno lint && deno check . && deno doc --lint mod.ts cookie/mod.ts request/mod.ts problem/mod.ts response/mod.ts",
+		"check": "deno fmt --check && deno lint && deno check . && deno doc --lint mod.ts cookie/mod.ts request/mod.ts problem/mod.ts response/mod.ts webhook/mod.ts webhook/standard.ts",
 		"test": "deno test -P=test"
 	},
 	"permissions": {

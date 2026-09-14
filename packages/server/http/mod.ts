@@ -30,3 +30,6 @@ export type { PrettyJsonOptionsType } from './json.ts';
 export type { TrailingSlashOptions } from './path.ts';
 export type { RequestIdOptions } from './request.ts';
 export type { TimingOptions } from './timing.ts';
+
+export { matchMount, matchRoute, prepare as prepareRoutes, routeKey } from './router.ts';
+export type { MountOptions, RoutePlan, RoutePlanInput } from './types.ts';

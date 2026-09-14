@@ -3,7 +3,7 @@
  *
  * The module keeps protocol status vocabulary independent from response construction so callers can validate status policy without creating a Response.
  */
-import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { StandardJSONSchemaV1, StandardSchemaV1 } from '@standard-schema/spec';
 
 /** Informational HTTP status codes currently registered by IANA. */
 export type InformationalStatus = 100 | 101 | 102 | 103 | 104;
@@ -27,15 +27,13 @@ export type ContentlessStatus = 101 | 204 | 205 | 304;
 export type ContentfulStatus = Exclude<HttpStatus, ContentlessStatus>;
 
 /** Standard Schema plus JSON Schema projection for an HTTP status subset. */
-export interface HttpStatusSchema<Status extends number = HttpStatus> extends StandardSchemaV1<unknown, Status> {
+export type HttpStatusSchema<Status extends number = HttpStatus> =
+	& StandardSchemaV1<unknown, Status>
+	& StandardJSONSchemaV1<unknown, Status>
+	& Readonly<{
 	readonly values: readonly Status[];
-	readonly '~standard-json-schema': Readonly<{
-		readonly version: 1;
-		readonly vendor: 'utils-http-status';
-		readonly jsonSchema: Readonly<{ readonly type: 'integer'; readonly enum: readonly Status[] }>;
-	}>;
 	is(value: unknown): value is Status;
-}
+	}>;
 
 // 104 Upload Resumption Supported is a temporary IANA registration that expires 2026-11-13 unless extended or made permanent.
 const informationalValues = [100, 101, 102, 103, 104] as const;
@@ -116,11 +114,10 @@ function createStatusSchema<const Values extends readonly number[]>(values: Valu
 					? { value: value as Values[number] }
 					: { issues: [{ message: `Expected one of the supported HTTP statuses: ${frozen.join(', ')}.` }] };
 			},
-		}),
-		'~standard-json-schema': Object.freeze({
-			version: 1 as const,
-			vendor: 'utils-http-status' as const,
-			jsonSchema: Object.freeze({ type: 'integer' as const, enum: frozen }),
+			jsonSchema: Object.freeze({
+				input: () => Object.freeze({ type: 'integer' as const, enum: frozen }),
+				output: () => Object.freeze({ type: 'integer' as const, enum: frozen }),
+			}),
 		}),
 		/**
 		 * Checks whether the value satisfies the condition required by logical HTTP response construction.

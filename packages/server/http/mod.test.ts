@@ -11,6 +11,7 @@ import {
 	health,
 	mount,
 	prettyJson,
+	prepareRoutes,
 	ready,
 	requestId,
 	route,
@@ -131,6 +132,40 @@ describe('framework-neutral HTTP host', () => {
 		})).toThrow(/Duplicate HTTP mount path/u);
 	});
 
+	it('binds a compiler-prepared route plan and rejects plan drift', async () => {
+		const routes = [
+			route('GET', '/static', () => new Response('static')),
+			route('POST', '/items/:id', () => new Response('item')),
+		];
+		const plan = prepareRoutes(routes);
+		const app = create({ routes, plan });
+		expect(await (await app.fetch(new Request('http://localhost/static'))).text()).toBe('static');
+		expect(await (await app.fetch(new Request('http://localhost/items/1', { method: 'POST' }))).text()).toBe('item');
+		expect(() => create({ routes: [route('GET', '/other', () => new Response('other'))], plan })).toThrow(/bound handler|absent from/u);
+	});
+
+	it('strips a mount prefix without changing MCP-style method, headers, query, or body', async () => {
+		const seen: Array<Readonly<{ method: string; path: string; search: string; header: string | null; body: string }>> = [];
+		const app = create({
+			routes: [mount('/mcp', async (request) => {
+				const url = new URL(request.url);
+				const body = request.method === 'POST' ? await request.text() : '';
+				seen.push({ method: request.method, path: url.pathname, search: url.search, header: request.headers.get('x-test'), body });
+				if (request.method === 'GET') return new Response('event: ready\n\n', { headers: { 'Content-Type': 'text/event-stream' } });
+				return new Response(null, { status: 204 });
+			}, { requestPath: 'strip-prefix' })],
+		});
+		await app.fetch(new Request('http://localhost/mcp/messages?session=abc', { method: 'POST', headers: { 'X-Test': 'yes' }, body: 'payload' }));
+		const stream = await app.fetch(new Request('http://localhost/mcp/events?session=abc', { headers: { Accept: 'text/event-stream', 'X-Test': 'sse' } }));
+		await app.fetch(new Request('http://localhost/mcp/session?session=abc', { method: 'DELETE', headers: { 'X-Test': 'delete' } }));
+		expect(stream.headers.get('content-type')).toContain('text/event-stream');
+		expect(seen).toEqual([
+			{ method: 'POST', path: '/messages', search: '?session=abc', header: 'yes', body: 'payload' },
+			{ method: 'GET', path: '/events', search: '?session=abc', header: 'sse', body: '' },
+			{ method: 'DELETE', path: '/session', search: '?session=abc', header: 'delete', body: '' },
+		]);
+	});
+
 	it('preserves onion ordering in authored middleware order', async () => {
 		const observed: string[] = [];
 		const handler = compose(
@@ -166,7 +201,7 @@ describe('framework-neutral HTTP host', () => {
 		const result = await handler(new Request('http://localhost/fault'));
 		expect(result.status).toBe(500);
 		expect(await result.json()).toEqual({
-			type: 'https://api.example.invalid/problems/internal',
+			type: 'urn:utils:server:internal',
 			title: 'Internal server error',
 			status: 500,
 			instance: '/fault',
@@ -187,7 +222,7 @@ describe('framework-neutral HTTP host', () => {
 		expect(result.status).toBe(500);
 		expect(observed).toBeInstanceOf(AggregateError);
 		expect(await result.json()).toEqual({
-			type: 'https://api.example.invalid/problems/internal',
+			type: 'urn:utils:server:internal',
 			title: 'Internal server error',
 			status: 500,
 			instance: '/fault',
@@ -265,7 +300,7 @@ describe('framework-neutral HTTP host', () => {
 
 	it('rejects invalid credentialed wildcard and max-age CORS configuration', async () => {
 		expect(() => cors({ origin: '*', credentials: true })).toThrow(/wildcard origin/u);
-		expect(() => cors({ maxAge: -1 })).toThrow(/non-negative integer/u);
+		expect(() => cors({ maxAge: -1 })).toThrow(/non-negative safe integer/u);
 		const dynamic = cors({ credentials: true, origin: () => '*' });
 		const handler = compose(() => new Response('ok'), [dynamic]);
 		await expect(handler(new Request('http://localhost/', {
@@ -290,6 +325,18 @@ describe('framework-neutral HTTP host', () => {
 		const result = await handler(new Request('http://localhost/echo', { method: 'POST', body: 'hello' }));
 		expect(result.headers.get('x-request-id')).toBe('request-123');
 		expect(await result.json()).toEqual({ id: 'request-123', body: 'hello' });
+	});
+
+	it('replaces untrusted inbound request IDs unless explicitly configured to trust them', async () => {
+		const replaced = compose((request) => new Response(request.headers.get('x-request-id')), [
+			requestId({ generate: () => 'gateway-owned' }),
+		]);
+		expect(await (await replaced(new Request('http://localhost/', { headers: { 'X-Request-ID': 'client-owned' } }))).text()).toBe('gateway-owned');
+
+		const trusted = compose((request) => new Response(request.headers.get('x-request-id')), [
+			requestId({ trustIncoming: true, generate: () => 'gateway-owned' }),
+		]);
+		expect(await (await trusted(new Request('http://localhost/', { headers: { 'X-Request-ID': 'client-owned' } }))).text()).toBe('client-owned');
 	});
 
 	it('validates caller-generated request IDs before forwarding them', async () => {

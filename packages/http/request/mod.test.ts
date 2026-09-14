@@ -254,6 +254,32 @@ describe('request validation diagnostics', () => {
 	});
 });
 
+describe('request body framing and native form parsing', () => {
+	it('does not trust Content-Length when Transfer-Encoding defines framing', async () => {
+		const requestValue = new Request('https://service.invalid', { method: 'POST', body: '12345' });
+		Object.defineProperty(requestValue, 'headers', { value: new Headers({ 'Content-Length': '999', 'Transfer-Encoding': 'chunked' }) });
+		expect(await request.readBody(requestValue, { maximumBodyBytes: 8 })).toEqual(new TextEncoder().encode('12345'));
+	});
+
+	it('enforces the actual streamed byte count when Transfer-Encoding is present', async () => {
+		const value = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode('12345')); controller.close(); } });
+		const requestValue = new Request('https://service.invalid', { method: 'POST', body: value, duplex: 'half' } as RequestInit);
+		Object.defineProperty(requestValue, 'headers', { value: new Headers({ 'Content-Length': '1', 'Transfer-Encoding': 'chunked' }) });
+		await expect(request.readBody(requestValue, { maximumBodyBytes: 4 })).rejects.toThrow('exceeds 4 bytes');
+	});
+
+	it('delegates URL-encoded decoding to the platform parser for opaque token values', async () => {
+		const token = 'eyJhbGciOiJIUzI1NiJ9.a%2Bb%2Fc%3D%3D.signature';
+		const parsed = await request.parseForm(new Request('https://service.invalid', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			body: `assertion=${token}&state=a%3Db%26c`,
+		}));
+		expect(parsed.assertion).toBe('eyJhbGciOiJIUzI1NiJ9.a+b/c==.signature');
+		expect(parsed.state).toBe('a=b&c');
+	});
+});
+
 describe('request correlation and memo ownership', () => {
 	it('continues valid W3C context with a fresh span and sanitized request ID', async () => {
 		const incomingTrace = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
@@ -264,8 +290,8 @@ describe('request correlation and memo ownership', () => {
 				'x-request-id': 'request_123',
 			},
 		});
-		const first = await request.correlation(raw);
-		const second = await request.correlation(raw);
+		const first = await request.correlation(raw, { trustRequestId: true });
+		const second = await request.correlation(raw, { trustRequestId: true });
 		expect(second).toBe(first);
 		expect(first).toMatchObject({
 			requestId: 'request_123',
@@ -277,6 +303,16 @@ describe('request correlation and memo ownership', () => {
 		});
 		expect(first.spanId).toMatch(/^[0-9a-f]{16}$/);
 		expect(request.propagationHeaders(first).get('traceparent')).toBe(first.traceparent);
+	});
+
+	it('does not trust an inbound request ID unless ingress trust is explicit', async () => {
+		const raw = new Request('https://service.invalid', { headers: { 'x-request-id': 'attacker-controlled' } });
+		const generated = await request.correlation(raw);
+		expect(generated.requestId).not.toBe('attacker-controlled');
+		const trusted = await request.correlation(new Request(raw), { trustRequestId: true });
+		expect(trusted.requestId).toBe('attacker-controlled');
+		const explicit = await request.correlation(new Request(raw), { requestId: 'gateway-owned' });
+		expect(explicit.requestId).toBe('gateway-owned');
 	});
 
 	it('projects redaction-safe structured correlation fields', async () => {

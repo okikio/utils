@@ -33,6 +33,7 @@ export {
 	headers,
 	headerValues,
 	mergeHeaders,
+	mergeVary,
 	toHeaders,
 } from './headers.ts';
 export {

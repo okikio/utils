@@ -18,7 +18,7 @@ function redirectStatusContract(): void {
 void redirectStatusContract;
 
 /** Compile-time fixture proving custom pagination callbacks retain the page variant. */
-function paginationLinkContextContract(): void {
+function paginationContract(): void {
 	const page = {
 		kind: 'offset' as const,
 		items: ['a', 'b'],
@@ -37,4 +37,4 @@ function paginationLinkContextContract(): void {
 	});
 }
 
-void paginationLinkContextContract;
+void paginationContract;

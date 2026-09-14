@@ -42,7 +42,7 @@ export function negotiateContent(accept: string | null, supported: readonly stri
 	// `@std/http` handles RFC quality, wildcard, and specificity ordering. This
 	// focused fallback retains the documented structured-suffix range such
 	// as `application/*+json`, which is useful for vendor JSON media types.
-	for (const range of acceptedStructuredSuffixRanges(accept)) {
+	for (const range of structuredSuffixRanges(accept)) {
 		const match = supported.find((candidate) => mediaRangeMatches(range, candidate));
 		if (match !== undefined) return match;
 	}
@@ -58,7 +58,7 @@ export function negotiateContent(accept: string | null, supported: readonly stri
  *
  * @internal
  */
-function acceptedStructuredSuffixRanges(accept: string | null): readonly string[] {
+function structuredSuffixRanges(accept: string | null): readonly string[] {
 	if (accept === null) return Object.freeze([]);
 	return Object.freeze(accept.split(',').map((part) => part.split(';', 1)[0]!.trim().toLowerCase())
 		.filter((range) => range.includes('*+')));

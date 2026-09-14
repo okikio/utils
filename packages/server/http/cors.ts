@@ -1,4 +1,5 @@
 import * as recordCore from '@okikio/record';
+import { mergeVary } from '@okikio/http/response';
 import type { Middleware } from './types.ts';
 import { withHeaders } from './response.ts';
 
@@ -144,11 +145,4 @@ function addCorsHeaders(value: Response, fields: Headers, varyOrigin: boolean): 
 	const headers = new Headers(fields);
 	if (varyOrigin) headers.set('Vary', mergeVary(value.headers.get('vary'), 'Origin'));
 	return withHeaders(value, headers);
-}
-
-/** Merge one case-insensitive field name into an HTTP `Vary` value exactly once. */
-function mergeVary(current: string | null, name: string): string {
-	const values = (current ?? '').split(',').map((value) => value.trim()).filter(Boolean);
-	if (!values.some((value) => value.toLowerCase() === name.toLowerCase())) values.push(name);
-	return values.join(', ');
 }
