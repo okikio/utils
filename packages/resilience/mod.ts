@@ -6,6 +6,7 @@
  *
  * @module
  */
+import * as durationCore from '@okikio/duration';
 import type {
 	BodyLimitPolicy,
 	BulkheadPolicy,
@@ -16,6 +17,7 @@ import type {
 	ResilienceInput,
 	ResilienceOperationSafety,
 	ResiliencePolicy,
+	ResilienceOwner,
 	ResilienceStage,
 	ResilienceValidationIssue,
 	ResilienceValidationResult,
@@ -32,15 +34,19 @@ export function timeout(duration: Temporal.Duration | Temporal.DurationLike | st
 export function idempotent(options: Readonly<{
 	readonly header?: string;
 	readonly required?: boolean;
+	readonly maximumKeyBytes?: number;
 	readonly ttl?: Temporal.Duration | Temporal.DurationLike | string;
 }> = {}): IdempotencyPolicy {
 	const header = options.header ?? 'Idempotency-Key';
+	const maximumKeyBytes = options.maximumKeyBytes ?? 256;
 	assertHeaderName(header);
+	assertPositiveInteger(maximumKeyBytes, 'idempotency maximumKeyBytes');
 	return Object.freeze({
 		kind: 'resilience',
 		type: 'idempotency',
 		header,
 		required: options.required ?? true,
+		maximumKeyBytes,
 		...(options.ttl !== undefined ? { ttl: positiveDuration(options.ttl, 'idempotency ttl') } : {}),
 	});
 }
@@ -60,7 +66,7 @@ export function retry(options: Readonly<{
 	if (!Number.isFinite(multiplier) || multiplier < 1) throw new TypeError('Retry multiplier must be at least 1.');
 	const initialDelay = positiveDuration(options.initialDelay ?? { milliseconds: 100 }, 'initial retry delay');
 	const maximumDelay = positiveDuration(options.maximumDelay ?? { seconds: 5 }, 'maximum retry delay');
-	if (durationMilliseconds(maximumDelay) < durationMilliseconds(initialDelay)) {
+	if (durationCore.milliseconds(maximumDelay) < durationCore.milliseconds(initialDelay)) {
 		throw new TypeError('Maximum retry delay must not be shorter than the initial retry delay.');
 	}
 	return Object.freeze({
@@ -90,8 +96,8 @@ export function retryDelay(
 	options: Readonly<{ readonly jitter?: number }> = {},
 ): Temporal.Duration {
 	assertPositiveInteger(failedAttempt, 'failedAttempt');
-	const initial = durationMilliseconds(policy.initialDelay);
-	const maximum = durationMilliseconds(policy.maximumDelay);
+	const initial = durationCore.milliseconds(policy.initialDelay);
+	const maximum = durationCore.milliseconds(policy.maximumDelay);
 	let milliseconds = Math.min(
 		maximum,
 		initial * Math.pow(policy.multiplier, failedAttempt - 1),
@@ -131,7 +137,7 @@ export function bulkhead(options: Readonly<{
 	readonly queue?: number;
 }>): BulkheadPolicy {
 	assertPositiveInteger(options.concurrency, 'bulkhead concurrency');
-	assertNonNegativeInteger(options.queue ?? 0, 'bulkhead queue');
+	assertNonNegative(options.queue ?? 0, 'bulkhead queue');
 	return Object.freeze({
 		kind: 'resilience',
 		type: 'bulkhead',
@@ -162,16 +168,34 @@ export function bodyLimit(bytes: number): BodyLimitPolicy {
 	return Object.freeze({ kind: 'resilience', type: 'body-limit', bytes });
 }
 
+/** Return which runtime owns the concrete behavior for one policy. */
+export function owner(policy: ResiliencePolicy): ResilienceOwner {
+	switch (policy.type) {
+		case 'timeout':
+		case 'body-limit':
+			return 'server';
+		case 'idempotency':
+		case 'rate-limit':
+		case 'bulkhead':
+		case 'retry':
+		case 'circuit-breaker':
+			return 'adapter';
+	}
+}
+
 /**
- * Return the service-runtime stage that owns a policy.
+ * Return when one policy runs in the service request lifecycle.
  *
- * Admission policies decide whether one validated request may enter the
- * protected operation. Operation policies wrap each individual handler
- * attempt, so retrying also recreates `aroundOperation` middleware such as a
- * database transaction.
+ * Request policies protect raw request execution. Admission policies run once
+ * after validation before application requirements and the handler. Operation
+ * policies wrap endpoint execution and can therefore control retry attempts or
+ * circuit state.
  */
 export function stage(policy: ResiliencePolicy): ResilienceStage {
 	switch (policy.type) {
+		case 'timeout':
+		case 'body-limit':
+			return 'request';
 		case 'idempotency':
 		case 'rate-limit':
 		case 'bulkhead':
@@ -179,9 +203,6 @@ export function stage(policy: ResiliencePolicy): ResilienceStage {
 		case 'retry':
 		case 'circuit-breaker':
 			return 'operation';
-		case 'timeout':
-		case 'body-limit':
-			throw new TypeError(`${policy.type} is implemented directly by the HTTP runtime and has no delegated stage.`);
 	}
 }
 
@@ -248,8 +269,10 @@ export function is(value: unknown): value is ResiliencePolicy {
 export function document(input: ResilienceInput): readonly ResilienceDocument[] {
 	return Object.freeze(compose(input).map((policy) => Object.freeze({
 		type: policy.type,
+		owner: owner(policy),
+		stage: stage(policy),
 		configuration: Object.freeze(configuration(policy)),
-	})));
+	} satisfies ResilienceDocument)));
 }
 
 /**
@@ -300,18 +323,10 @@ function positiveDuration(
 	name: string,
 ): Temporal.Duration {
 	const duration = Temporal.Duration.from(value);
-	if (!(durationMilliseconds(duration) > 0)) throw new TypeError(`${name} must be positive.`);
+	if (!(durationCore.milliseconds(duration) > 0)) throw new TypeError(`${name} must be positive.`);
 	return duration;
 }
 
-/**
- * Converts duration into the millisecond value used by resilience policy normalization.
- *
- * @internal
- */
-function durationMilliseconds(value: Temporal.Duration): number {
-	return value.total({ unit: 'milliseconds', relativeTo: Temporal.PlainDate.from('2000-01-01') });
-}
 
 /**
  * Rejects invalid positive integer before it can enter authoritative module state.
@@ -327,7 +342,7 @@ function assertPositiveInteger(value: number, name: string): void {
  *
  * @internal
  */
-function assertNonNegativeInteger(value: number, name: string): void {
+function assertNonNegative(value: number, name: string): void {
 	if (!Number.isInteger(value) || value < 0) throw new TypeError(`${name} must be a non-negative integer.`);
 }
 
@@ -349,6 +364,7 @@ export type {
 	BulkheadPolicy,
 	RateLimitPolicy,
 	BodyLimitPolicy,
+	ResilienceOwner,
 	ResilienceStage,
 	ResiliencePolicy,
 	ResilienceInput,

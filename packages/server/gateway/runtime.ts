@@ -1,10 +1,12 @@
 import type { CatalogEntryIdentity } from '@okikio/catalog';
+import * as durationCore from '@okikio/duration';
 import { joinPath } from '@okikio/server/endpoint/path';
 import * as response from '@okikio/http/response';
 import * as problem from '@okikio/http/problem';
 import * as requestWire from '@okikio/http/request';
 import { GatewayProblems } from './problems.ts';
 import * as fault from '@okikio/fault';
+import * as http from '../http/mod.ts';
 import type {
 	CompiledGateway,
 	CompiledGatewayRoute,
@@ -30,16 +32,13 @@ const removedResponseHeaders = Object.freeze(new Set([
 	'transfer-encoding', 'upgrade',
 ]));
 
-const matcherCache = new WeakMap<CompiledGateway, readonly RouteMatcher[]>();
+const routeIndexCache = new WeakMap<CompiledGateway, ReadonlyMap<string, CompiledGatewayRoute>>();
 
-interface RouteMatcher {
-	readonly route: CompiledGatewayRoute;
-	matches(request: Pick<Request, 'method' | 'url'>): boolean;
-}
-
-/** Match one request against the deterministic public route table. */
+/** Match one request against the compiler-prepared public route table. */
 export function match(compiled: CompiledGateway, request: Pick<Request, 'method' | 'url'>): CompiledGatewayRoute | undefined {
-	return matchers(compiled).find((matcher) => matcher.matches(request))?.route;
+	const pathname = new URL(request.url).pathname;
+	const key = http.matchRoute(compiled.routePlan, request.method, pathname);
+	return key === undefined ? undefined : routeIndex(compiled).get(key);
 }
 
 /**
@@ -73,7 +72,7 @@ export async function prepare(
 
 /** Create a fetch-compatible runtime from one compiled gateway. */
 export function create(compiled: CompiledGateway, options: CreateGatewayOptions = {}): GatewayRuntime {
-	validateConcernRuntimes(compiled, options);
+	validateRuntimeAdapters(compiled, options);
 	const fetcher = options.fetch ?? globalThis.fetch;
 	const observers = observerIndex(options.observers ?? []);
 	return Object.freeze({
@@ -111,11 +110,11 @@ async function forward(
 	if (route.timeout !== undefined) {
 		timer = setTimeout(
 			() => controller.abort(new DOMException('Gateway deadline exceeded.', 'TimeoutError')),
-			durationMilliseconds(route.timeout),
+			timerMilliseconds(route.timeout),
 		);
 	}
 	const requestId = correlation.requestId;
-	const state: GatewayRequestState = Object.freeze({ request, route, requestId, correlation, signal });
+	const state = Object.freeze({ request, route, requestId, correlation, signal } satisfies GatewayRequestState);
 	const base = (kind: GatewayObserverEventKind): GatewayObserverEvent => event(kind, compiled.definition.id, correlation, request, route);
 	const finish = (httpResponse: Response): Response => {
 		const abortable = abortableResponse(httpResponse, signal);
@@ -128,7 +127,7 @@ async function forward(
 				...base(kind),
 				status: httpResponse.status,
 				responseBytes: completion.bytes,
-				completion,
+				completion: Object.freeze({ outcome: completion.outcome, bytes: completion.bytes }),
 			}));
 		});
 	};
@@ -137,10 +136,10 @@ async function forward(
 		const headers = sanitizedHeaders(request.headers, route, options);
 		for (const [name, value] of requestWire.propagationHeaders(correlation)) headers.set(name, value);
 		applyForwardingHeaders(headers, request, options.clientIp?.(request));
-		const authentication = await runConcern(options.concerns?.authenticate, route.authenticate, state);
+		const authentication = await runAdapter(options.adapters?.authenticate, route.authenticate, state);
 		if (problem.is(authentication)) return finishProblem(authentication);
 		applyHeaders(headers, authentication?.headers);
-		const assertion = await runConcern(options.concerns?.assert, route.assertions, state);
+		const assertion = await runAdapter(options.adapters?.assert, route.assertions, state);
 		if (problem.is(assertion)) return finishProblem(assertion);
 		applyHeaders(headers, assertion?.headers);
 		applyMetadataHeaders(headers, route, requestId, options.metadataHeaders);
@@ -176,7 +175,7 @@ async function forward(
 		await emit(route.observers, observers, Object.freeze({ ...base('response'), status: upstreamResponse.status }));
 		const redirected = applyRedirectPolicy(upstreamResponse, route, source);
 		if (problem.is(redirected)) return finishProblem(redirected);
-		const credentialsApplied = applyResponseCredentialPolicy(redirected, route);
+		const credentialsApplied = applyResponseCredentials(redirected, route);
 		return finish(applyCachePolicy(credentialsApplied, route.cache.mode));
 	} catch (error) {
 		if (request.signal.aborted) {
@@ -205,28 +204,28 @@ async function forward(
 }
 
 /**
- * Runs concern while preserving the module's cancellation and completion contract.
+ * Runs one gateway runtime adapter while preserving the module's cancellation and completion contract.
  *
  * @internal
  */
-async function runConcern(
+async function runAdapter(
 	runtime: ((requirements: readonly CatalogEntryIdentity[], state: GatewayRequestState) => GatewayRequestPatch | problem.ProblemResult | void | Promise<GatewayRequestPatch | problem.ProblemResult | void>) | undefined,
 	requirements: readonly CatalogEntryIdentity[],
 	state: GatewayRequestState,
 ): Promise<GatewayRequestPatch | problem.ProblemResult | void> {
 	if (requirements.length === 0) return undefined;
-	if (!runtime) throw new TypeError('A required gateway concern runtime was not supplied.');
+	if (!runtime) throw new TypeError('A required gateway runtime adapter was not supplied.');
 	return await runtime(requirements, state);
 }
 
 /**
- * Checks concern runtimes and preserves the deterministic issues needed by callers.
+ * Checks required gateway runtime adapters before traffic starts.
  *
  * @internal
  */
-function validateConcernRuntimes(compiled: CompiledGateway, options: CreateGatewayOptions): void {
-	if (compiled.routes.some((route) => route.authenticate.length > 0) && !options.concerns?.authenticate) throw new TypeError('Compiled gateway requires an authentication runtime.');
-	if (compiled.routes.some((route) => route.assertions.length > 0) && !options.concerns?.assert) throw new TypeError('Compiled gateway requires an assertion runtime.');
+function validateRuntimeAdapters(compiled: CompiledGateway, options: CreateGatewayOptions): void {
+	if (compiled.routes.some((route) => route.authenticate.length > 0) && !options.adapters?.authenticate) throw new TypeError('Compiled gateway requires an authentication runtime.');
+	if (compiled.routes.some((route) => route.assertions.length > 0) && !options.adapters?.assert) throw new TypeError('Compiled gateway requires an assertion runtime.');
 	const handlers = new Map((options.observers ?? []).map((handler) => [handler.definition, handler] as const));
 	for (const definition of compiled.definition.observers) {
 		if (!handlers.has(definition)) throw new TypeError(`Gateway observer ${JSON.stringify(definition.id)} has no runtime handler.`);
@@ -295,20 +294,16 @@ function event(
 	});
 }
 
-/** Build and cache route matchers in static-specificity order. */
-function matchers(compiled: CompiledGateway): readonly RouteMatcher[] {
-	const existing = matcherCache.get(compiled);
+/** Bind compiler route identities to concrete gateway routes once per compiled gateway. */
+function routeIndex(compiled: CompiledGateway): ReadonlyMap<string, CompiledGatewayRoute> {
+	const existing = routeIndexCache.get(compiled);
 	if (existing) return existing;
-	const value = Object.freeze(compiled.routes
-		.map(routeMatcher)
-		.toSorted((left, right) => routeSpecificity(right.route) - routeSpecificity(left.route)));
-	matcherCache.set(compiled, value);
+	const value = new Map<string, CompiledGatewayRoute>();
+	for (const route of compiled.routes) {
+		value.set(http.routeKey({ kind: 'route', method: route.method, path: route.path }), route);
+	}
+	routeIndexCache.set(compiled, value);
 	return value;
-}
-
-/** Prefer static path templates over parameter templates when both can match. */
-function routeSpecificity(route: CompiledGatewayRoute): number {
-	return route.path.split('/').filter(Boolean).reduce((score, segment) => score + (segment.startsWith(':') ? 1 : 10), 0);
 }
 
 /** Construct forwarding metadata only from gateway-owned request state. */
@@ -327,7 +322,7 @@ function correlated(value: Response, requestId: string, options: CreateGatewayOp
 	return new Response(value.body, { status: value.status, statusText: value.statusText, headers });
 }
 
-/** Apply routing metadata only after client headers and concern patches have been sanitized. */
+/** Apply routing metadata only after client headers and adapter patches have been sanitized. */
 function applyMetadataHeaders(
 	headers: Headers,
 	route: CompiledGatewayRoute,
@@ -337,34 +332,6 @@ function applyMetadataHeaders(
 	if (names?.requestId !== undefined) headers.set(names.requestId, requestId);
 	if (names?.serviceId !== undefined) headers.set(names.serviceId, route.serviceId);
 	if (names?.routeId !== undefined) headers.set(names.routeId, route.id);
-}
-
-/**
- * Builds or matches the route matcher used by compiled gateway routing.
- *
- * @internal
- */
-function routeMatcher(route: CompiledGatewayRoute): RouteMatcher {
-	const Constructor = (globalThis as typeof globalThis & {
-		URLPattern?: new (input: { pathname: string }) => { test(input: string | URL): boolean };
-	}).URLPattern;
-	if (Constructor) {
-		const pattern = new Constructor({ pathname: route.path });
-		return Object.freeze({ route, matches: (request: Pick<Request, 'method' | 'url'>) => route.method === request.method.toUpperCase() && pattern.test(request.url) });
-	}
-	return Object.freeze({ route, matches: (request: Pick<Request, 'method' | 'url'>) => route.method === request.method.toUpperCase() && pathMatches(route.path, new URL(request.url).pathname) });
-}
-
-/**
- * Matches a concrete request path against the compiled gateway path template and returns decoded parameters.
- *
- * @internal
- */
-function pathMatches(template: string, pathname: string): boolean {
-	const templateParts = template.split('/').filter(Boolean);
-	const pathParts = pathname.split('/').filter(Boolean);
-	if (templateParts.length !== pathParts.length) return false;
-	return templateParts.every((part, index) => part.startsWith(':') || part === pathParts[index]);
 }
 
 const tooLarge = Symbol('gateway-body-too-large');
@@ -430,7 +397,7 @@ function sanitizedForwardHeaders(input: Headers, options: PrepareGatewayRequestO
 	return output;
 }
 
-/** Return whether a client header is reserved for trusted gateway-owned concern output. @internal */
+/** Return whether a client header is reserved for trusted gateway-owned adapter output. @internal */
 function trustedHeader(name: string, options: PrepareGatewayRequestOptions): boolean {
 	if (options.trustedRequestHeaders?.some((value) => value.toLowerCase() === name)) return true;
 	if (options.trustedRequestHeaderPrefixes?.some((value) => name.startsWith(value.toLowerCase()))) return true;
@@ -457,7 +424,7 @@ function applyHeaders(headers: Headers, patch: Readonly<Record<string, string>> 
  *
  * @internal
  */
-function applyResponseCredentialPolicy(value: Response, route: CompiledGatewayRoute): Response {
+function applyResponseCredentials(value: Response, route: CompiledGatewayRoute): Response {
 	if (route.credentials.responseCookies === 'preserve') return value;
 	const headers = copyResponseHeaders(value.headers, false);
 	return new Response(value.body, { status: value.status, statusText: value.statusText, headers });
@@ -650,8 +617,8 @@ function contentLength(request: Request): Readonly<{ readonly requestBytes: numb
  *
  * @internal
  */
-function durationMilliseconds(duration: Temporal.Duration): number {
-	return Math.max(1, Math.min(2_147_483_647, duration.total({ unit: 'milliseconds', relativeTo: Temporal.PlainDate.from('2000-01-01') })));
+function timerMilliseconds(value: Temporal.Duration): number {
+	return Math.max(1, Math.min(2_147_483_647, durationCore.milliseconds(value)));
 }
 
 

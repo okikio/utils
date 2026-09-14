@@ -1,12 +1,13 @@
 import { retry as retryAsync, RetryError } from '@std/async/retry';
-import type { EmptyEndpointHost } from '@okikio/server/endpoint';
+import * as durationCore from '@okikio/duration';
+import type { EmptyEndpointHost } from '@okikio/server/endpoint/types';
 import type { RetryPolicy, ResiliencePolicy } from '@okikio/resilience';
 import * as fault from '@okikio/fault';
 
 import type {
-	ServiceConcernValues,
+	ServiceRequestValues,
 	ServiceRequestState,
-	ServiceResilienceHost,
+	ServiceResilienceAdapter,
 	ServiceStageResult,
 } from './types.ts';
 
@@ -30,7 +31,7 @@ export class RetryableOperationError extends Error {
 /** Configuration for the standard-library-backed retry runtime. */
 export interface ServiceRetryOptions<
 	Host extends object = EmptyEndpointHost,
-	Concerns extends ServiceConcernValues = ServiceConcernValues,
+	Values extends ServiceRequestValues = ServiceRequestValues,
 > {
 	/**
 	 * Override retry classification for provider/domain-specific errors.
@@ -39,24 +40,24 @@ export interface ServiceRetryOptions<
 	readonly isRetriable?: (
 		error: Error,
 		policy: RetryPolicy,
-		state: ServiceRequestState<Host, Concerns>,
+		state: ServiceRequestState<Host, Values>,
 	) => boolean;
 }
 
 /**
- * Create a service resilience runtime backed by `@std/async/retry`.
+ * Create a service resilience adapter backed by `@std/async/retry`.
  *
- * This runtime supports only `retry` policies. Compose it with a durable
- * idempotency, rate-limit, circuit-breaker, or bulkhead runtime through
+ * This adapter supports only `retry` policies. Compose it with a durable
+ * idempotency, rate-limit, circuit-breaker, or bulkhead adapter through
  * {@link resilience} when an operation declares several policies.
  */
 export function retry<
 	Host extends object = EmptyEndpointHost,
-	Concerns extends ServiceConcernValues = ServiceConcernValues,
->(options: ServiceRetryOptions<Host, Concerns> = {}): ServiceResilienceHost<Host, Concerns> {
+	Values extends ServiceRequestValues = ServiceRequestValues,
+>(options: ServiceRetryOptions<Host, Values> = {}): ServiceResilienceAdapter<Host, Values> {
 	return Object.freeze({
 		/**
-		 * Checks whether supports is supported by the compiled service runtime.
+		 * Return whether this adapter owns the declared policy.
 		 *
 		 * @internal
 		 */
@@ -65,23 +66,21 @@ export function retry<
 		},
 
 		/**
-		 * Executes work as one finite phase of the module runtime.
-		 *
-		 * It links service definitions to exact implementations before traffic and keeps request-stage ownership visible at runtime.
+		 * Run one retry-controlled operation phase.
 		 *
 		 * @internal
 		 */
 		async run(
 			policies: readonly ResiliencePolicy[],
-			state: ServiceRequestState<Host, Concerns>,
+			state: ServiceRequestState<Host, Values>,
 			next: () => Promise<ServiceStageResult>,
 		): Promise<ServiceStageResult> {
 			const policy = exactlyOneRetry(policies);
 			try {
 				return await retryAsync(next, {
 					maxAttempts: policy.maximumAttempts,
-					minTimeout: durationMilliseconds(policy.initialDelay),
-					maxTimeout: durationMilliseconds(policy.maximumDelay),
+					minTimeout: durationCore.milliseconds(policy.initialDelay),
+					maxTimeout: durationCore.milliseconds(policy.maximumDelay),
 					multiplier: policy.multiplier,
 					jitter: policy.jitter ? 1 : 0,
 					signal: state.ctx.signal,
@@ -99,61 +98,59 @@ export function retry<
 }
 
 /**
- * Compose focused resilience runtimes into one deterministic onion.
+ * Compose focused resilience adapters into one deterministic onion.
  *
- * Every delegated policy must be owned by exactly one runtime. Runtimes execute
- * in the order of the first policy they own; their after-work unwinds in reverse
+ * Every adapter-owned policy must be owned by exactly one adapter. Adapters execute
+ * in the order of the first policy they own. After-work unwinds in reverse
  * order, matching middleware and resource-lifecycle expectations.
  */
 export function resilience<
 	Host extends object = EmptyEndpointHost,
-	Concerns extends ServiceConcernValues = ServiceConcernValues,
+	Values extends ServiceRequestValues = ServiceRequestValues,
 >(
-	...hosts: readonly ServiceResilienceHost<Host, Concerns>[]
-): ServiceResilienceHost<Host, Concerns> {
+	...adapters: readonly ServiceResilienceAdapter<Host, Values>[]
+): ServiceResilienceAdapter<Host, Values> {
 	return Object.freeze({
 		/**
-		 * Checks whether supports is supported by the compiled service runtime.
+		 * Return whether this adapter owns the declared policy.
 		 *
 		 * @internal
 		 */
 		supports(policy: ResiliencePolicy): boolean {
-			return owners(policy, hosts).length === 1;
+			return matchingAdapters(policy, adapters).length === 1;
 		},
 
 		/**
-		 * Executes work as one finite phase of the module runtime.
-		 *
-		 * It links service definitions to exact implementations before traffic and keeps request-stage ownership visible at runtime.
+		 * Run the supplied stage through the adapters that own its policies.
 		 *
 		 * @internal
 		 */
 		async run(
 			policies: readonly ResiliencePolicy[],
-			state: ServiceRequestState<Host, Concerns>,
+			state: ServiceRequestState<Host, Values>,
 			next: () => Promise<ServiceStageResult>,
 		): Promise<ServiceStageResult> {
 			const plans: Array<Readonly<{
-				readonly runtime: ServiceResilienceHost<Host, Concerns>;
+				readonly adapter: ServiceResilienceAdapter<Host, Values>;
 				readonly policies: ResiliencePolicy[];
 			}>> = [];
-			const byRuntime = new Map<ServiceResilienceHost<Host, Concerns>, ResiliencePolicy[]>();
+			const byAdapter = new Map<ServiceResilienceAdapter<Host, Values>, ResiliencePolicy[]>();
 
 			for (const policy of policies) {
-				const matched = owners(policy, hosts);
+				const matched = matchingAdapters(policy, adapters);
 				if (matched.length !== 1) {
 					throw new TypeError(
 						matched.length === 0
-							? `No resilience runtime supports ${policy.type}.`
-							: `More than one resilience runtime claims ${policy.type}.`,
+							? `No resilience adapter supports ${policy.type}.`
+							: `More than one resilience adapter claims ${policy.type}.`,
 					);
 				}
-				const runtime = matched[0]!;
-				let owned = byRuntime.get(runtime);
+				const adapter = matched[0]!;
+				let owned = byAdapter.get(adapter);
 				if (owned === undefined) {
 					owned = [];
-					byRuntime.set(runtime, owned);
-					plans.push(Object.freeze({ runtime, policies: owned }));
+					byAdapter.set(adapter, owned);
+					plans.push(Object.freeze({ adapter, policies: owned }));
 				}
 				owned.push(policy);
 			}
@@ -162,7 +159,7 @@ export function resilience<
 			for (let index = plans.length - 1; index >= 0; index -= 1) {
 				const plan = plans[index]!;
 				const inner = invoke;
-				invoke = async () => await plan.runtime.run(Object.freeze([...plan.policies]), state, inner);
+				invoke = async () => await plan.adapter.run(Object.freeze([...plan.policies]), state, inner);
 			}
 			return await invoke();
 		},
@@ -170,31 +167,31 @@ export function resilience<
 }
 
 /**
- * Collects the resilience policy owners that contribute to one effective operation without applying a policy twice.
+ * Collect the adapters that claim one policy so composition can reject missing or ambiguous ownership.
  *
  * @internal
  */
-function owners<Host extends object, Concerns extends ServiceConcernValues>(
+function matchingAdapters<Host extends object, Values extends ServiceRequestValues>(
 	policy: ResiliencePolicy,
-	hosts: readonly ServiceResilienceHost<Host, Concerns>[],
-): readonly ServiceResilienceHost<Host, Concerns>[] {
-	return hosts.filter((runtime) => runtime.supports(policy));
+	adapters: readonly ServiceResilienceAdapter<Host, Values>[],
+): readonly ServiceResilienceAdapter<Host, Values>[] {
+	return adapters.filter((adapter) => adapter.supports(policy));
 }
 
 /**
- * Requires one retry policy owner when retry behavior must have a single unambiguous runtime authority.
+ * Require one retry policy when the retry adapter must receive an unambiguous configuration.
  *
  * @internal
  */
 function exactlyOneRetry(policies: readonly ResiliencePolicy[]): RetryPolicy {
 	if (policies.length !== 1 || policies[0]?.type !== 'retry') {
-		throw new TypeError('The standard retry runtime requires exactly one retry policy.');
+		throw new TypeError('The standard retry adapter requires exactly one retry policy.');
 	}
 	return policies[0];
 }
 
 /**
- * Creates the fallback retry decision used when the compiled service runtime receives no explicit value.
+ * Create the fallback retry decision when no application classifier accepts the failure.
  *
  * @internal
  */
@@ -203,14 +200,6 @@ function defaultRetryDecision(error: Error, policy: RetryPolicy): boolean {
 	return policy.retryOn === undefined || (error.code !== undefined && policy.retryOn.includes(error.code));
 }
 
-/**
- * Converts duration into the millisecond value used by the compiled service runtime.
- *
- * @internal
- */
-function durationMilliseconds(duration: Temporal.Duration): number {
-	return duration.total({ unit: 'milliseconds', relativeTo: Temporal.PlainDate.from('2000-01-01') });
-}
 
 /**
  * Normalizes error into the canonical internal form used by later phases.

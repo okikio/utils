@@ -16,7 +16,7 @@ describe('@okikio/meter', () => {
 		expect(Bytes.effect.id).toBe('meter:bytes');
 	});
 
-	it('records one timestamped fact through the required effect owner', async () => {
+	it('records one timestamped fact through the authoritative effect owner', async () => {
 		await using owned = base('meter-record');
 		const Bytes = meter.define({ id: 'bytes', unit: 'byte' });
 		let accepted: effects.EffectOccurrence | undefined;
@@ -27,7 +27,7 @@ describe('@okikio/meter', () => {
 
 		const occurrence = await meter.record(ctx, Bytes, 42, { key: 'asset:42', attributes: { source: 'test' } });
 		expect(occurrence).toBe(accepted);
-		expect(meter.MeterReadingSchema.safeParse(occurrence.value).success).toBe(true);
+		expect('value' in await meter.MeterReadingSchema['~standard'].validate(occurrence.value)).toBe(true);
 		expect(occurrence.value).toMatchObject({ value: 42, attributes: { source: 'test' } });
 	});
 });

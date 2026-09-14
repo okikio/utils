@@ -9,6 +9,7 @@ import type {
 import type { ProblemDefinition, ProblemResult } from '@okikio/http/problem';
 import type { ResponseDefinition, ResponseResult } from '@okikio/http/response';
 import type { Context } from '@okikio/context';
+import type { EffectContext, EffectDefinitions } from '@okikio/effect';
 import type { RequestParsingOptions } from '@okikio/http/request';
 import type { MiddlewareInput } from '@okikio/server/middleware';
 import type { ResilienceInput } from '@okikio/resilience';
@@ -71,7 +72,13 @@ export type EndpointInputSchema<Slot> = Slot extends EndpointInput<infer Schema>
 	: Slot extends EndpointSchema ? Slot
 	: never;
 
-/** Parsed output values exposed to an endpoint handler. */
+/** Wire/authored input values callers must provide before schema transforms. */
+export type InferEndpointWireInputs<Inputs extends EndpointInputSlots> = {
+	readonly [Source in keyof Inputs as Inputs[Source] extends undefined ? never : Source]:
+		StandardSchemaV1.InferInput<EndpointInputSchema<NonNullable<Inputs[Source]>>>;
+};
+
+/** Parsed and validated output values exposed to an endpoint handler. */
 export type InferEndpointInputs<Inputs extends EndpointInputSlots> = {
 	readonly [Source in keyof Inputs as Inputs[Source] extends undefined ? never : Source]:
 		StandardSchemaV1.InferOutput<EndpointInputSchema<NonNullable<Inputs[Source]>>>;
@@ -88,6 +95,8 @@ export interface EndpointContributions {
 	readonly middleware?: MiddlewareInput;
 	readonly authentication?: DefinitionInput<CatalogEntryIdentity>;
 	readonly requirements?: RequirementInput;
+	/** Required one-way consequences that code in this endpoint scope may announce. */
+	readonly effects?: EffectDefinitions;
 	readonly resources?: DefinitionInput<EndpointResourceDefinition>;
 	readonly problems?: DefinitionInput<ProblemDefinition>;
 	readonly responses?: DefinitionInput<ResponseDefinition>;
@@ -297,6 +306,8 @@ export interface EndpointOperationDocument {
 	readonly responses: readonly string[];
 	readonly problems: readonly string[];
 	readonly resources: readonly string[];
+	/** Effect IDs declared by the effective endpoint path and operation. */
+	readonly effects: readonly string[];
 }
 
 /** JSON-safe endpoint projection with fully composed path. */
@@ -332,23 +343,17 @@ export interface EndpointResourceResolver<Allowed extends EndpointResourceDefini
 }
 
 /** Request execution context propagated by the owning host. */
-export type EndpointContext = Context;
+export type EndpointContext = EffectContext<Context>;
 
 
 /**
- * Provider-neutral request concern values attached by a service runtime.
+ * Empty base contract for application-owned values added during request execution.
  *
- * Domain packages may specialize these fields with their exact identity,
- * identity and requirement-state types. The portable endpoint package keeps
- * requirement families open so permission, entitlement, meter, quota, consent,
- * or future packages can participate without changing this interface.
+ * Applications extend this type with exact provider-neutral values such as a
+ * session, principal, membership, tenant, or authorization snapshot. The
+ * endpoint package does not reserve domain field names.
  */
-export interface EndpointConcernValues {
-	readonly authentication?: object;
-	readonly actor?: object;
-	readonly organization?: object;
-	readonly requirements?: Readonly<Record<string, object>>;
-}
+export type EndpointRequestValues = Readonly<Record<never, never>>;
 
 /** Empty host value used when an endpoint handler does not require host state. */
 export type EmptyEndpointHost = Readonly<Record<never, never>>;
@@ -356,7 +361,7 @@ export type EmptyEndpointHost = Readonly<Record<never, never>>;
 /**
  * Portable handler context specialized by a service runtime adapter.
  *
- * Concern values are intersected with the fixed HTTP context instead of being
+ * Request values are intersected with the fixed HTTP context instead of being
  * reduced to a hard-coded field list. A domain package can therefore add
  * provider-neutral values such as `session`, `identity`, or `membership` and
  * keep those exact types from authentication through the endpoint handler.
@@ -365,14 +370,14 @@ export type EndpointHandlerContext<
 	Endpoint extends EndpointDefinition = EndpointDefinition,
 	Operation extends EndpointOperation = EndpointOperation,
 	Host extends object = EmptyEndpointHost,
-	Concerns extends EndpointConcernValues = EndpointConcernValues,
+	Values extends EndpointRequestValues = EndpointRequestValues,
 > = Readonly<{
 	readonly request: Request;
 	readonly host: Host;
 	readonly input: InferEndpointInputs<MergeEndpointInputs<Endpoint['inputs'], Operation['inputs']>>;
 	readonly resources: EndpointResourceResolver<EndpointResources<Endpoint, Operation>>;
 	readonly ctx: EndpointContext;
-} & Concerns>;
+} & Values>;
 
 /** Response definition union retained by an operation. */
 export type OperationResponse<Operation extends EndpointOperation> =
@@ -397,9 +402,9 @@ export type EndpointHandler<
 	Endpoint extends EndpointDefinition,
 	Operation extends EndpointOperation,
 	Host extends object = EmptyEndpointHost,
-	Concerns extends EndpointConcernValues = EndpointConcernValues,
+	Values extends EndpointRequestValues = EndpointRequestValues,
 > = (
-	context: EndpointHandlerContext<Endpoint, Operation, Host, Concerns>,
+	context: EndpointHandlerContext<Endpoint, Operation, Host, Values>,
 ) => EndpointHandlerResult<Operation> | Promise<EndpointHandlerResult<Operation>>;
 
 /** Direct binding between imported endpoint/operation values and behavior. */
@@ -407,12 +412,12 @@ export interface EndpointHandlerBinding<
 	Endpoint extends EndpointDefinition = EndpointDefinition,
 	Operation extends EndpointOperation = EndpointOperation,
 	Host extends object = EmptyEndpointHost,
-	Concerns extends EndpointConcernValues = EndpointConcernValues,
+	Values extends EndpointRequestValues = EndpointRequestValues,
 > {
 	readonly kind: 'endpoint-handler';
 	readonly endpoint: Endpoint;
 	readonly operation: Operation;
-	readonly handle: EndpointHandler<Endpoint, Operation, Host, Concerns>;
+	readonly handle: EndpointHandler<Endpoint, Operation, Host, Values>;
 }
 
 
@@ -429,10 +434,6 @@ export interface ErasedEndpointHandlerContext {
 	readonly input: EndpointRuntimeInputValues;
 	readonly resources: EndpointResourceResolver;
 	readonly ctx: EndpointContext;
-	readonly authentication?: object | undefined;
-	readonly actor?: object | undefined;
-	readonly organization?: object | undefined;
-	readonly requirements?: Readonly<Record<string, object>> | undefined;
 }
 
 /**

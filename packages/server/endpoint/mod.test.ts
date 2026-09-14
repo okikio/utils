@@ -1,12 +1,12 @@
 import { expect } from '@std/expect';
 import { describe, it } from 'node:test';
-import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { StandardJSONSchemaV1, StandardSchemaV1 } from '@standard-schema/spec';
 
 import * as response from '@okikio/http/response';
 import * as problem from '@okikio/http/problem';
 import * as endpoint from './mod.ts';
 
-function schema<Output>(jsonSchema: Readonly<Record<string, unknown>>, validate: (value: unknown) => Output): StandardSchemaV1<unknown, Output> & endpoint.StandardJsonSchemaV1 {
+function schema<Output>(jsonSchema: Readonly<Record<string, unknown>>, validate: (value: unknown) => Output): StandardSchemaV1<unknown, Output> & StandardJSONSchemaV1<unknown, Output> {
 	return {
 		'~standard': {
 			version: 1,
@@ -15,8 +15,8 @@ function schema<Output>(jsonSchema: Readonly<Record<string, unknown>>, validate:
 				try { return { value: validate(value) }; }
 				catch (error) { return { issues: [{ message: error instanceof Error ? error.message : String(error) }] }; }
 			},
+			jsonSchema: { input: () => jsonSchema, output: () => jsonSchema },
 		},
-		'~standard-json-schema': { version: 1, vendor: 'test', jsonSchema },
 	};
 }
 
@@ -75,6 +75,20 @@ describe('endpoint definitions and handlers', () => {
 
 		expect(query).toBe(Query);
 		expect(param).toBe(Path);
+	});
+
+	it('keeps wire input distinct from transformed handler input', () => {
+		const Transformed: StandardSchemaV1<{ readonly amount: string }, { readonly amount: number }> = {
+			'~standard': { version: 1, vendor: 'transform-test', validate(value) {
+				if (typeof value !== 'object' || value === null || typeof (value as { amount?: unknown }).amount !== 'string') return { issues: [{ message: 'amount must be a string' }] };
+				return { value: { amount: Number((value as { amount: string }).amount) } };
+			} },
+		};
+		type Slots = Readonly<{ readonly json: typeof Transformed }>;
+		const wire: endpoint.InferEndpointWireInputs<Slots> = { json: { amount: '42' } };
+		const validated: endpoint.InferEndpointInputs<Slots> = { json: { amount: 42 } };
+		expect(wire.json.amount).toBe('42');
+		expect(validated.json.amount).toBe(42);
 	});
 
 	it('rejects accessor-backed endpoint authoring without invoking getters', () => {
@@ -174,10 +188,11 @@ describe('endpoint definitions and handlers', () => {
 	it('projects exact path parameters, request inputs, responses, and RFC problems to OpenAPI', async () => {
 		const Widgets = endpoint.group({ id: 'widgets', path: '/widgets', endpoints: [WidgetById] });
 		const document = await endpoint.openapi(Widgets, { title: 'Widgets', version: '1.0.0' });
+		expect(document.openapi).toBe('3.1.2');
 		const operation = document.paths['/widgets/{widgetId}']?.get as Record<string, unknown>;
 		expect(operation.operationId).toBe('getWidget');
 		expect(operation.parameters).toEqual([
-			{ in: 'param', name: 'widgetId', required: true, schema: { type: 'string' } },
+			{ in: 'path', name: 'widgetId', required: true, schema: { type: 'string' } },
 			{ in: 'query', name: 'include', required: false, schema: { type: 'array', items: { type: 'string' } }, style: 'form', explode: true },
 		]);
 		const responses = operation.responses as Record<string, unknown>;
@@ -185,6 +200,17 @@ describe('endpoint definitions and handlers', () => {
 	});
 
 
+
+	it('documents a declared raw body independently of runtime parsing', async () => {
+		const Raw = endpoint.input(Widget, { contentType: 'application/vnd.example.signed+json', description: 'Signed exact bytes.' });
+		const Receive = endpoint.post({ id: 'webhooks.receive', path: '/webhooks', raw: Raw, responses: [Detail] });
+		const document = await endpoint.openapi(Receive, { title: 'Webhooks', version: '1' });
+		const operation = document.paths['/webhooks']?.post as Readonly<Record<string, unknown>>;
+		const requestBody = operation.requestBody as Readonly<Record<string, unknown>>;
+		const content = requestBody.content as Readonly<Record<string, unknown>>;
+		expect(content['application/vnd.example.signed+json']).toBeDefined();
+		expect(requestBody.description).toBe('Signed exact bytes.');
+	});
 
 	it('rejects accessor-backed OpenAPI options without invoking getters', async () => {
 		let reads = 0;

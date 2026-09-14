@@ -14,6 +14,8 @@ export interface IdempotencyPolicy {
 	readonly type: 'idempotency';
 	readonly header: string;
 	readonly required: boolean;
+	/** Maximum UTF-8 bytes accepted for a caller-controlled idempotency key. */
+	readonly maximumKeyBytes: number;
 	readonly ttl?: Temporal.Duration;
 }
 
@@ -62,8 +64,11 @@ export interface BodyLimitPolicy {
 	readonly bytes: number;
 }
 
-/** Runtime stage that owns one service-level resilience policy. */
-export type ResilienceStage = 'admission' | 'operation';
+/** Runtime owner responsible for executing one resilience policy. */
+export type ResilienceOwner = 'server' | 'adapter';
+
+/** Request lifecycle stage where one resilience policy takes effect. */
+export type ResilienceStage = 'request' | 'admission' | 'operation';
 
 /** Any static resiliency policy. */
 export type ResiliencePolicy =
@@ -97,5 +102,9 @@ export type ResilienceValidationResult =
 /** JSON-safe policy documentation. */
 export interface ResilienceDocument {
 	readonly type: ResiliencePolicy['type'];
+	/** Runtime owner responsible for executing the policy. */
+	readonly owner: ResilienceOwner;
+	/** Request lifecycle stage where the policy takes effect. */
+	readonly stage: ResilienceStage;
 	readonly configuration: Readonly<Record<string, string | number | boolean | readonly string[]>>;
 }

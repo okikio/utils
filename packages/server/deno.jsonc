@@ -3,28 +3,31 @@
 	"version": "0.0.0",
 	"publish": {
 		"exclude": [
-			"**/*_test.ts",
 			"**/*.test.ts",
-			"**/*_bench.ts",
 			"**/*.bench.ts",
 			"fixtures/**"
 		]
 	},
 	"exports": {
 		".": "./mod.ts",
-		"./gateway": "./gateway/mod.ts",
-		"./service": "./service/mod.ts",
-		"./service/resilience": "./service/resilience.ts",
 		"./endpoint": "./endpoint/mod.ts",
 		"./endpoint/definition": "./endpoint/definition.ts",
 		"./endpoint/handler": "./endpoint/handler.ts",
 		"./endpoint/openapi": "./endpoint/openapi.ts",
-		"./endpoint/types": "./endpoint/types.ts",
 		"./endpoint/path": "./endpoint/path.ts",
+		"./endpoint/types": "./endpoint/types.ts",
+		"./gateway": "./gateway/mod.ts",
+		"./gateway/definition": "./gateway/definition.ts",
+		"./gateway/types": "./gateway/types.ts",
+		"./http": "./http/mod.ts",
+		"./http/router": "./http/router.ts",
+		"./http/types": "./http/types.ts",
 		"./middleware": "./middleware/mod.ts",
 		"./middleware/types": "./middleware/types.ts",
-		"./http": "./http/mod.ts",
-		"./http/types": "./http/types.ts"
+		"./service": "./service/mod.ts",
+		"./service/definition": "./service/definition.ts",
+		"./service/resilience": "./service/resilience.ts",
+		"./service/types": "./service/types.ts"
 	},
 	"imports": {
 		"@standard-schema/spec": "jsr:@standard-schema/spec@^1.1.0",
@@ -32,7 +35,8 @@
 	},
 	"tasks": {
 		"check": "deno fmt --check && deno lint && deno check . && deno doc --lint mod.ts http/mod.ts middleware/mod.ts endpoint/mod.ts service/mod.ts gateway/mod.ts",
-		"test": "deno test -P=test"
+		"test": "deno test -P=test",
+		"bench": "deno run -A http/router.bench.ts"
 	},
 	"permissions": {
 		"test": {}

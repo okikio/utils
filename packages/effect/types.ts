@@ -20,10 +20,10 @@ export interface EffectOptions<Id extends string = string, ValueSchema extends E
 	readonly value: ValueSchema;
 }
 
-/** Immutable declaration of one required one-way consequence. */
+/** Immutable declaration of one one-way consequence that code may announce. */
 export interface EffectDefinition<Id extends string = string, ValueSchema extends EffectSchema = EffectSchema>
 	extends CatalogEntryIdentity {
-	/** Stable discriminant for one required effect contract. */
+	/** Stable discriminant for one declared effect contract. */
 	readonly kind: 'effect';
 	/** Stable effect identity used by emitters, outboxes, and exact handlers. */
 	readonly id: Id;
@@ -74,7 +74,7 @@ export interface EffectCreateOptions {
 }
 
 /**
- * Authoritative owner for required effects.
+ * Authoritative owner for declared effects when code announces an occurrence.
  *
  * Resolution means the owner accepted responsibility. It does not mean any
  * downstream work triggered by the effect has completed.
@@ -84,7 +84,7 @@ export interface EffectEmitter {
 	emit(ctx: BaseContext, occurrence: EffectOccurrence): Promise<void>;
 }
 
-/** Required-effect state attached to one local execution context. */
+/** Declared-effect state attached to one local execution context. */
 export interface EffectRuntime {
 	/** Authoritative effect owner used by `effects.emit()` in this execution context. */
 	readonly emitter?: EffectEmitter;
@@ -92,7 +92,7 @@ export interface EffectRuntime {
 	readonly effects: readonly EffectDefinition[];
 }
 
-/** Execution-context view with required-effect delivery available. */
+/** Execution-context view with declared-effect delivery available. */
 export type EffectContext<Base extends BaseContext = BaseContext> = Base & Readonly<{ readonly effects: EffectRuntime }>;
 
 /** Options accepted by `effects.scope()`. */

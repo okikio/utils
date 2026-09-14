@@ -4,6 +4,7 @@
  * Middleware policy remains descriptive until a service or gateway runtime compiles and invokes it.
  */
 import * as catalogProtocol from '@okikio/catalog';
+import * as effect from '@okikio/effect';
 import * as recordCore from '@okikio/record';
 import * as resilience from '@okikio/resilience';
 import * as requirement from '@okikio/requirement';
@@ -92,6 +93,7 @@ export function define<
 		...(input.resources !== undefined ? { resources: snapshotInput(input.resources) } : {}),
 		...(input.problems !== undefined ? { problems: snapshotInput(input.problems) } : {}),
 		...(input.requirements !== undefined ? { requirements: requirement.compose(input.requirements) } : {}),
+		...(input.effects !== undefined ? { effects: effect.compose(input.effects) } : {}),
 		...(input.authentication !== undefined ? { authentication: snapshotInput(input.authentication) } : {}),
 		...(input.resiliency !== undefined ? { resiliency: resilience.compose(input.resiliency) } : {}),
 		...(input.documentation ? { documentation: snapshotDocumentation(input.documentation) } : {}),
@@ -280,6 +282,7 @@ export function document(input: DefinitionInput<MiddlewareDefinition>): readonly
 		resources: ids(definition.resources),
 		problems: ids(definition.problems),
 		requirements: requirement.document(definition.requirements ?? []),
+		effects: definition.effects === undefined ? Object.freeze([]) : Object.freeze(effect.compose(definition.effects).map((entry) => entry.id)),
 		resiliency: definition.resiliency === undefined ? Object.freeze([]) : Object.freeze(resilience.compose(definition.resiliency).map((policy) => policy.type)),
 		...(definition.documentation !== undefined ? { documentation: definition.documentation } : {}),
 	})));

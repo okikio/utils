@@ -2,6 +2,8 @@
 export interface Clock {
 	/** Return the current absolute instant. */
 	now(): Temporal.Instant;
+	/** Wait for a bounded duration using the same time source as `now()`. */
+	sleep(milliseconds: number, signal?: AbortSignal): Promise<void>;
 }
 
 /**

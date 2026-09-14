@@ -50,10 +50,10 @@ export class UnknownEffectDefinitionError extends TypeError {
 
 /** Error raised when runtime code emits an effect that was not declared by the execution scope. */
 export class UndeclaredEffectError extends Error {
-	/** Exact effect definition claimed by more than one handler. */
+	/** Exact effect definition that the active execution did not declare. */
 	readonly definition: EffectDefinition;
 
-	/** Create one configuration error for duplicate authoritative effect ownership. */
+	/** Create one execution error for an undeclared effect announcement. */
 	constructor(definition: EffectDefinition) {
 		super(`Effect ${JSON.stringify(definition.id)} is not declared by this execution scope.`);
 		this.name = 'UndeclaredEffectError';
@@ -84,10 +84,10 @@ export class DuplicateEffectHandlerError extends TypeError {
 
 /** Error raised when an effect owner has no exact handler for a declared effect. */
 export class MissingEffectHandlerError extends Error {
-	/** Exact required effect definition for which no authoritative handler exists. */
+	/** Exact declared effect definition for which no authoritative handler exists. */
 	readonly definition: EffectDefinition;
 
-	/** Create one execution error for a required effect with no accepting handler. */
+	/** Create one execution error for a declared effect with no accepting handler. */
 	constructor(definition: EffectDefinition) {
 		super(`Effect ${JSON.stringify(definition.id)} has no authoritative handler.`);
 		this.name = 'MissingEffectHandlerError';
@@ -95,7 +95,7 @@ export class MissingEffectHandlerError extends Error {
 	}
 }
 
-/** Define one immutable required effect contract. */
+/** Define one immutable effect contract that code may announce. */
 export function define<
 	const Id extends string,
 	ValueSchema extends import('./types.ts').EffectSchema,
@@ -174,10 +174,10 @@ export function scope<Base extends import('@okikio/context').Context>(
 	if (options.emitter !== undefined && typeof options.emitter.emit !== 'function') {
 		throw new TypeError('Effect emitter must provide emit().');
 	}
-	const runtime: EffectRuntime = Object.freeze({
+	const runtime = Object.freeze({
 		...(options.emitter === undefined ? {} : { emitter: options.emitter }),
 		effects,
-	});
+	} satisfies EffectRuntime);
 	return contextCore.view(ctx, { effects: runtime });
 }
 
@@ -260,7 +260,7 @@ export function is<Effect extends EffectDefinition>(value: unknown, definition: 
 
 /** Validate one occurrence before durable encoding. */
 function assertOccurrence(value: EffectOccurrence): void {
-	if (!isOccurrence(value)) throw new TypeError('EffectValue is not an effect occurrence.');
+	if (!isOccurrence(value)) throw new TypeError('Value is not an effect occurrence.');
 	assertKey(value.key);
 }
 
@@ -367,7 +367,7 @@ export function outbox(options: EffectOutboxOptions): EffectOutbox {
 	let closed = false;
 	let closePromise: Promise<void> | undefined;
 
-	const box: EffectOutbox = Object.freeze({
+	const box = Object.freeze({
 		async emit(ctx: Context, occurrence: EffectOccurrence) {
 			contextCore.check(ctx);
 			if (closed) throw new Error('Effect outbox is closed.');
@@ -409,7 +409,7 @@ export function outbox(options: EffectOutboxOptions): EffectOutbox {
 		async [Symbol.asyncDispose]() {
 			await box.close('Effect outbox was disposed.');
 		},
-	});
+	} satisfies EffectOutbox);
 	return box;
 }
 

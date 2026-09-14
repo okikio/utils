@@ -7,7 +7,10 @@ function baseContext(id: string): Context {
 		id,
 		startedAt: Object.freeze({}) as Temporal.Instant,
 		signal: new AbortController().signal,
-		clock: Object.freeze({ now: () => Object.freeze({}) as Temporal.Instant }),
+		clock: Object.freeze({
+			now: () => Object.freeze({}) as Temporal.Instant,
+			sleep: () => Promise.resolve(),
+		}),
 	});
 }
 

@@ -7,8 +7,8 @@
  *
  * @module
  */
-import '@okikio/dispose/polyfill';
 import { delay as standardDelay } from '@std/async/delay';
+import * as durationCore from '@okikio/duration';
 import type { ChildOptions, Clock, Context, CreateOptions, Owned, RestoreOptions, Snapshot } from './types.ts';
 
 const owners = new WeakMap<Owned, Readonly<{ controller: AbortController; dispose: () => Promise<void> }>>();
@@ -38,43 +38,73 @@ export class ContextDeadlineExceededError extends Error {
 	}
 }
 
-/** Clock backed by the runtime's native Temporal implementation. */
-export const SystemClock: Clock = Object.freeze({ now: () => Temporal.Now.instant() });
+/** Clock backed by the runtime's native Temporal implementation and timer queue. */
+export const SystemClock = Object.freeze({
+	now: () => Temporal.Now.instant(),
+	sleep: (milliseconds, signal) => delay(milliseconds, signal),
+} satisfies Clock);
+
+type TestClockWaiter = Readonly<{
+	target: Temporal.Instant;
+	resolve: () => void;
+	reject: (reason?: unknown) => void;
+	signal?: AbortSignal;
+	abort?: () => void;
+}>;
 
 /** Mutable deterministic clock intended for tests and simulations. */
 export class TestClock implements Clock {
 	#instant: Temporal.Instant;
+	readonly #waiters = new Set<TestClockWaiter>();
 
 	constructor(initial: Temporal.Instant | string = '2000-01-01T00:00:00Z') {
 		this.#instant = toInstant(initial);
 	}
 
-	/**
-	 * Reads the current instant from the context clock so tests and runtime code share the same time source.
-	 *
-	 * @internal
-	 */
+	/** Return the current deterministic instant. */
 	now(): Temporal.Instant {
 		return this.#instant;
 	}
 
-	/**
-	 * Sets state on the internal builder or record used by the operation context.
-	 *
-	 * @internal
-	 */
-	set(instant: Temporal.Instant | string): void {
-		this.#instant = toInstant(instant);
+	/** Wait until deterministic time advances by the requested milliseconds. */
+	sleep(milliseconds: number, signal?: AbortSignal): Promise<void> {
+		assertDelay(milliseconds);
+		if (signal?.aborted) return Promise.reject(abortReason(signal));
+		if (milliseconds === 0) return Promise.resolve();
+		const target = this.#instant.add({ milliseconds });
+		return new Promise<void>((resolve, reject) => {
+			let waiter!: TestClockWaiter;
+			const settle = (action: () => void) => {
+				if (!this.#waiters.delete(waiter)) return;
+				if (waiter.signal !== undefined && waiter.abort !== undefined) {
+					waiter.signal.removeEventListener('abort', waiter.abort);
+				}
+				action();
+			};
+			const abort = signal === undefined ? undefined : () => settle(() => reject(abortReason(signal)));
+			waiter = Object.freeze({ target, resolve: () => settle(resolve), reject, ...(signal ? { signal, abort } : {}) });
+			this.#waiters.add(waiter);
+			if (signal !== undefined && abort !== undefined) signal.addEventListener('abort', abort, { once: true });
+		});
 	}
 
-	/**
-	 * Advances state by one controlled transition under the operation context.
-	 *
-	 * @internal
-	 */
+	/** Set deterministic time and release sleepers whose target is now due. */
+	set(instant: Temporal.Instant | string): void {
+		this.#instant = toInstant(instant);
+		this.#wake();
+	}
+
+	/** Advance deterministic time and release sleepers whose target is now due. */
 	advance(duration: Temporal.Duration | Temporal.DurationLike | string): Temporal.Instant {
 		this.#instant = this.#instant.add(Temporal.Duration.from(duration));
+		this.#wake();
 		return this.#instant;
+	}
+
+	#wake(): void {
+		for (const waiter of [...this.#waiters]) {
+			if (Temporal.Instant.compare(waiter.target, this.#instant) <= 0) waiter.resolve();
+		}
 	}
 }
 
@@ -90,31 +120,29 @@ export function create(options: CreateOptions): Owned {
 	const controller = new AbortController();
 	const resources = new AsyncDisposableStack();
 	const unlinkParent = linkSignal(options.signal, controller);
-	let timer: ReturnType<typeof setTimeout> | undefined;
 	let resolveClosed!: () => void;
 	const closed = new Promise<void>((resolve) => resolveClosed = resolve);
 	let disposal: Promise<void> | undefined;
 
 	if (options.deadline !== undefined) {
-		const delay = millisecondsUntil(options.deadline, clock.now());
-		if (delay <= 0) controller.abort(new ContextDeadlineExceededError(options.deadline, clock.now()));
+		const milliseconds = millisecondsUntil(options.deadline, clock.now());
+		if (milliseconds <= 0) controller.abort(new ContextDeadlineExceededError(options.deadline, clock.now()));
 		else {
-			timer = setTimeout(() => {
-				controller.abort(new ContextDeadlineExceededError(options.deadline!, clock.now()));
-			}, delay);
+			void clock.sleep(milliseconds, controller.signal).then(() => {
+				if (!controller.signal.aborted) controller.abort(new ContextDeadlineExceededError(options.deadline!, clock.now()));
+			}, () => {});
 		}
 	}
 
 	const dispose = (): Promise<void> => {
 		if (disposal !== undefined) return disposal;
-		if (timer !== undefined) clearTimeout(timer);
 		unlinkParent();
 		if (!controller.signal.aborted) controller.abort(new ContextCancelledError('Context was disposed.'));
 		disposal = resources.disposeAsync().finally(resolveClosed);
 		return disposal;
 	};
 
-	const owned: Owned = Object.freeze({
+	const owned = Object.freeze({
 		id: options.id,
 		...(options.traceId !== undefined ? { traceId: options.traceId } : {}),
 		...(options.deploymentId !== undefined ? { deploymentId: options.deploymentId } : {}),
@@ -136,7 +164,7 @@ export function create(options: CreateOptions): Owned {
 		[Symbol.asyncDispose]() {
 			return dispose();
 		},
-	});
+	} satisfies Owned);
 	owners.set(owned, Object.freeze({ controller, dispose }));
 	return owned;
 }
@@ -171,8 +199,8 @@ export function timeout(parent: Context, duration: Temporal.DurationLike | strin
  * Create a typed view that adds runtime-local fields without creating a new lifetime.
  *
  * The view retains the source context's cancellation and ownership identity. It is
- * useful when a focused utility adds one execution concern, such as permissions
- * or required effects, while another utility adds a different concern to the
+ * useful when a focused utility adds one execution capability, such as permissions
+	 * or declared effects, while another utility adds a different typed view to the
  * same operation. Views can be nested safely.
  *
  * Stable Context properties cannot be replaced at compile time, and no property
@@ -239,7 +267,7 @@ export async function wait(
 	check(ctx);
 	const milliseconds = durationMilliseconds(duration);
 	try {
-		await delay(milliseconds, ctx.signal);
+		await ctx.clock.sleep(milliseconds, ctx.signal);
 	} catch (error) {
 		check(ctx);
 		throw error;
@@ -258,11 +286,21 @@ export function delay(
 	milliseconds: number,
 	cancellation?: AbortSignal | AbortController,
 ): Promise<void> {
+	assertDelay(milliseconds);
+	const signal = cancellation instanceof AbortController ? cancellation.signal : cancellation;
+	return signal === undefined ? standardDelay(milliseconds) : standardDelay(milliseconds, { signal });
+}
+
+/** Validate the bounded timer range shared by system and deterministic clocks. @internal */
+function assertDelay(milliseconds: number): void {
 	if (!Number.isFinite(milliseconds) || milliseconds < 0 || milliseconds > 2_147_483_647) {
 		throw new RangeError('Delay must be between 0 and 2147483647 milliseconds.');
 	}
-	const signal = cancellation instanceof AbortController ? cancellation.signal : cancellation;
-	return signal === undefined ? standardDelay(milliseconds) : standardDelay(milliseconds, { signal });
+}
+
+/** Return an AbortSignal reason with a standards-compatible fallback. @internal */
+function abortReason(signal: AbortSignal): unknown {
+	return signal.reason ?? new DOMException('The operation was aborted.', 'AbortError');
 }
 
 /** Create a serializable context snapshot. Cancellation is intentionally not serialized. */
@@ -352,7 +390,7 @@ function durationMilliseconds(value: Temporal.Duration | Temporal.DurationLike |
 	if (duration.years !== 0 || duration.months !== 0) {
 		throw new RangeError('Context wait does not accept calendar years or months.');
 	}
-	const milliseconds = duration.total({ unit: 'millisecond', relativeTo: Temporal.PlainDate.from('2000-01-01') });
+	const milliseconds = durationCore.milliseconds(duration);
 	if (!Number.isFinite(milliseconds) || milliseconds < 0 || milliseconds > 2_147_483_647) {
 		throw new RangeError('Context wait duration must be between 0 and 2147483647 milliseconds.');
 	}

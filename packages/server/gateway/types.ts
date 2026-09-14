@@ -1,7 +1,7 @@
 import type { CatalogEntryIdentity, DefinitionInput } from '@okikio/catalog';
-import type { EndpointCompositionInput, EndpointDefinition, EndpointMethod } from '@okikio/server/endpoint';
+import type { RoutePlan } from '../http/types.ts';
+import type { EndpointCompositionInput, EndpointDefinition, EndpointMethod } from '@okikio/server/endpoint/types';
 import type { ProblemResult } from '@okikio/http/problem';
-import type { ResponseCompletion } from '@okikio/http/response';
 import type { RequestCorrelation } from '@okikio/http/request';
 import type { CompiledService, ServiceDefinition, ServiceManifest, ServiceRoute, ServiceRouteManifestEntry, ServiceSelection } from '../service/types.ts';
 
@@ -77,7 +77,7 @@ export interface GatewayObserverEvent {
 	readonly status?: number;
 	readonly requestBytes?: number;
 	readonly responseBytes?: number;
-	readonly completion?: ResponseCompletion;
+	readonly completion?: Readonly<{ readonly outcome: 'completed' | 'cancelled' | 'errored'; readonly bytes: number }>;
 	readonly error?: Readonly<{ readonly name: string; readonly message: string }>;
 }
 
@@ -204,6 +204,7 @@ export interface CompiledGateway<Definition extends GatewayDefinition = GatewayD
 	readonly kind: 'compiled-gateway';
 	readonly definition: Definition;
 	readonly routes: readonly CompiledGatewayRoute[];
+	readonly routePlan: RoutePlan;
 	readonly manifest: GatewayManifest;
 }
 
@@ -249,8 +250,8 @@ export interface GatewayRequestPatch {
 	readonly headers?: Readonly<Record<string, string>>;
 }
 
-/** Host-specific gateway concern runtimes. */
-export interface GatewayConcernRuntimes {
+/** Host-specific gateway runtime adapters. */
+export interface GatewayRuntimeAdapters {
 	readonly authenticate?: (
 		requirements: readonly CatalogEntryIdentity[],
 		state: GatewayRequestState,
@@ -294,14 +295,21 @@ export interface PreparedGatewayRequest {
 /** Runtime options for one compiled gateway. */
 export interface CreateGatewayOptions extends PrepareGatewayRequestOptions {
 	readonly fetch?: typeof fetch;
-	readonly concerns?: GatewayConcernRuntimes;
+	readonly adapters?: GatewayRuntimeAdapters;
 	/** Optional product/host header names for trusted routing metadata. No product prefix is chosen by default. */
 	readonly metadataHeaders?: GatewayMetadataHeaders;
 	readonly onError?: (error: Error, state?: GatewayRequestState) => void | Promise<void>;
 	readonly observers?: readonly GatewayObserverHandler[];
 }
 
-/** Live gateway request handler. */
+/**
+ * Live gateway request handler owned by a transport host.
+ *
+ * Mounting service definitions compiles route metadata only. The gateway does
+ * not start service runtimes, open sockets, or own an HTTP listener. A host
+ * such as `deno serve`, a framework adapter, or an edge runtime owns transport
+ * startup and shutdown around this Fetch-compatible handler.
+ */
 export interface GatewayRuntime {
 	readonly fetch: (request: Request) => Promise<Response>;
 }

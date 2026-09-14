@@ -1,135 +1,88 @@
 `@okikio/requirement`
 ====================
 
-Purpose
--------
+`@okikio/requirement` is the open policy-family mechanism used by the service
+compiler. A requirement says that one exact domain rule can become active. The
+requirement package preserves identity, family, action, reachability, and runtime
+activation without implementing the policy engine itself.
 
-`@okikio/requirement` is the provider-neutral declaration and activation seam for
-policy families such as permissions and entitlements.
+Define a requirement
+--------------------
 
-Start here
-----------
-
-A requirement connects one generic family/action to an exact domain definition:
-
-```ts
+~~~~ typescript
 import * as requirement from '@okikio/requirement';
 
-const FileRead = Object.freeze({
-  id: 'capability:file-read',
-  kind: 'capability',
-  description: 'Read one caller-selected file.',
+const AccountRead = Object.freeze({
+  id: 'account:read',
+  kind: 'permission',
+  description: 'Read one account.',
 });
 
-const RequiredFileRead = requirement.define({
+const RequiredAccountRead = requirement.define({
   family: 'permission',
   action: 'require',
-  definition: FileRead,
+  definition: AccountRead,
 });
+~~~~
 
-console.log(requirement.document(RequiredFileRead));
-```
+The generic requirement does not know whether `permission` means an RBAC role,
+an ACL row, a relationship graph, a Zanzibar tuple, or a remote authorization
+service. The application supplies the interpreter.
 
-The requirement itself does not know how `permission` works. The host supplies
-the family interpreter at runtime.
+Interpret one family
+--------------------
 
-Activate through an interpreter
--------------------------------
-
-```ts
-import * as context from '@okikio/context';
-
-await using base = context.create({ id: 'example' });
-const ctx = requirement.scope(base, {
+~~~~ typescript
+const ctx = requirement.scope(parent, {
   interpreters: {
-    permission: {
-      async apply(_ctx, entries) {
-        console.log('apply', entries.map((entry) => entry.definition.id));
-      },
-    },
-  },
-});
-
-await requirement.apply(ctx, RequiredFileRead);
-```
-
-Unknown active families reject by default. A permissive test host must opt into
-`unknown: 'ignore'` explicitly.
-
-A requirement has one family, action, and exact definition identity. It does
-not contain a policy engine.
-
-The runtime keeps three views distinct:
-
-- **direct**: declared by the exact definition that is active now;
-- **reachable**: can occur through referenced activities, workflows, or
-  resources;
-- **active**: must be interpreted at this execution point.
-
-`requirements.bind()` attaches family-specific runtime views from reachable
-metadata without activating it. `requirements.apply()` is the only operation
-that interprets active requirements.
-
-Unknown active families reject by default:
-
-```ts
-const ctx = requirements.scope(parent, {
-  interpreters: {
-    permission: permissions.interpreter(checker),
+    permission: permission.interpreter(graphPermissionChecker),
+    entitlement: entitlement.interpreter(entitlementProvider),
   },
   unknown: 'reject',
 });
-```
 
-A deliberately permissive test or observational host can set
-`unknown: 'ignore'`. Omission never silently disables an active requirement
-family.
+await requirement.apply(ctx, RequiredAccountRead);
+~~~~
 
-Convenience and the manual equivalent
--------------------------------------
+An active family with no interpreter rejects by default. A test or observational
+host must choose `unknown: 'ignore'` explicitly when ignoring unknown families is
+intentional.
 
-Concrete map
-~~~~~~~~~~~~
+Direct, reachable, and active requirements
+------------------------------------------
 
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `requirement.define()` | freeze requirement identity/family/data metadata and validate stable IDs yourself | one provider-neutral capability dependency |
-| `scope()` / `bind()` | resolve interpreters, attach the runtime to context, and preserve allowed requirement families manually | declarations become live behavior only at a host boundary |
-| `document()` | walk composed requirements and build documentation metadata yourself | same definitions power runtime and docs |
+The compiler keeps three states separate:
 
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
+ -  **direct**: the exact service, endpoint, operation, middleware, workflow, or
+    resource declares the requirement for the current work.
+ -  **reachable**: a declared dependency can activate the requirement later.
+ -  **active**: runtime work has reached the point where the interpreter must
+    evaluate the requirement.
 
+This distinction supports object and graph authorization. An endpoint can declare
+that `AccountPermissions.Read` is reachable before the account ID exists. After
+the handler resolves the concrete account, it can activate the declared
+permission with that target. The compiler can still prove that the permission
+family is part of the service contract before traffic starts.
 
-`@okikio/requirement` is a convenience layer, not a hidden runtime. You can reproduce its
-core mechanics with immutable requirement records grouped by family and an explicit switch that interprets active entries.
+What belongs here
+-----------------
 
-The utility adds reachability, scoping, family composition, and fail-closed handling for unknown active requirements.
+Requirements are appropriate for rules that answer whether work is allowed or
+which policy state applies. Examples include:
 
-When debugging or extending the package, keep that manual model in mind. The
-utility should remove repetitive correctness work without making the underlying
-Web, ECMAScript, Standard Schema, or runtime primitives impossible to recognize.
+ -  permissions
+ -  entitlements
+ -  quotas
+ -  consent
+ -  compliance rules
+ -  feature eligibility
+ -  organization or tenant admission rules
 
+A requirement is not the right mechanism for every cross-cutting service feature.
+Metrics and logs are observations. Usage and meter records are declared effects
+when their announcement needs durable ownership.
+Retries and rate limits are resilience policies. Live graph clients and stores
+are resources.
 
-Composition and unsupported requirements
-----------------------------------------
-
-`compose()` flattens requirement definitions/sets without activating providers.
-`UnsupportedRequirementError` is raised when active interpretation uses the
-`reject` policy and no configured interpreter owns the requirement family.
-
-
-Source guide
-------------
-
-Start with this README, then use the source in this order when you need more
-detail:
-
-1. `mod.ts` shows the supported runtime operations and the composition shape.
-2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*_test.ts` files show edge cases, cancellation, invalid input, and lifecycle
-   behavior as executable examples.
-4. Read internal implementation files only when you need the exact state
-   transition or performance-sensitive loop.
-
-The README is the primary user documentation. It intentionally stays close to
-the public source instead of maintaining a separate hand-written API reference.
+This separation keeps each extension family honest about its runtime semantics.

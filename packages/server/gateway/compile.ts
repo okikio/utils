@@ -1,6 +1,7 @@
 import * as catalog from '@okikio/catalog';
 import type { CatalogEntryIdentity } from '@okikio/catalog';
 import type { EndpointDefinition } from '@okikio/server/endpoint';
+import { prepareRoutes } from '../http/mod.ts';
 import { leafEndpoints } from '../service/definition.ts';
 import { validate as validateService } from '../service/compile.ts';
 import type {
@@ -28,9 +29,9 @@ import type {
 	GatewayValidationSubject,
 } from './types.ts';
 
-const defaultCache: GatewayCachePolicy = Object.freeze({ kind: 'gateway-cache', mode: 'no-store' });
-const defaultCredentials: GatewayCredentialPolicy = Object.freeze({ kind: 'gateway-credentials', requestCookies: 'strip', requestAuthorization: 'strip', responseCookies: 'strip' });
-const defaultRedirects: GatewayRedirectPolicy = Object.freeze({ kind: 'gateway-redirects', mode: 'rewrite-origin', allowedOrigins: Object.freeze([]) });
+const defaultCache = Object.freeze({ kind: 'gateway-cache', mode: 'no-store' } satisfies GatewayCachePolicy);
+const defaultCredentials = Object.freeze({ kind: 'gateway-credentials', requestCookies: 'strip', requestAuthorization: 'strip', responseCookies: 'strip' } satisfies GatewayCredentialPolicy);
+const defaultRedirects = Object.freeze({ kind: 'gateway-redirects', mode: 'rewrite-origin', allowedOrigins: Object.freeze([]) } satisfies GatewayRedirectPolicy);
 
 /** Error raised when a gateway cannot be compiled safely. */
 export class GatewayCompilationError extends Error {
@@ -109,7 +110,7 @@ export function compile<Definition extends GatewayDefinition>(
 			}
 			const policies = definition.policies.filter((policy) => policyTargets.get(policy)?.has(route.endpoint));
 			const effective = effectivePolicy(policies, issues, route);
-			const compiledRoute: CompiledGatewayRoute = Object.freeze({
+			const compiledRoute = Object.freeze({
 				id: `${definition.id}:${route.id}`,
 				gateway: definition,
 				serviceId: service.id,
@@ -127,7 +128,7 @@ export function compile<Definition extends GatewayDefinition>(
 				credentials: effective.credentials,
 				redirects: effective.redirects,
 				observers: definition.observers,
-			});
+			} satisfies CompiledGatewayRoute);
 			const key = `${compiledRoute.method} ${normalizeRouteShape(compiledRoute.path)}`;
 			const owner = routeOwners.get(key);
 			if (owner && owner.serviceId !== compiledRoute.serviceId) {
@@ -144,6 +145,7 @@ export function compile<Definition extends GatewayDefinition>(
 		kind: 'compiled-gateway',
 		definition,
 		routes: frozenRoutes,
+		routePlan: prepareRoutes(frozenRoutes.map((route) => Object.freeze({ kind: 'route' as const, method: route.method, path: route.path }))),
 		manifest: manifest(definition, frozenRoutes),
 	});
 }

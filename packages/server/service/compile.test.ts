@@ -1,8 +1,9 @@
 import { expect } from '@std/expect';
 import { describe, it } from 'node:test';
-import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { StandardJSONSchemaV1, StandardSchemaV1 } from '@standard-schema/spec';
 
 import * as endpoint from '@okikio/server/endpoint';
+import * as effect from '@okikio/effect';
 import * as failure from '@okikio/failure';
 import * as response from '@okikio/http/response';
 import * as resilience from '@okikio/resilience';
@@ -11,10 +12,9 @@ import * as resource from '@okikio/resource';
 import * as permissions from '@okikio/permission';
 import * as service from './mod.ts';
 
-function schema<Output>(jsonSchema: Readonly<Record<string, unknown>>): StandardSchemaV1<unknown, Output> & endpoint.StandardJsonSchemaV1 {
+function schema<Output>(jsonSchema: Readonly<Record<string, unknown>>): StandardSchemaV1<unknown, Output> & StandardJSONSchemaV1<unknown, Output> {
 	return {
-		'~standard': { version: 1, vendor: 'test', validate: (value) => ({ value: value as Output }) },
-		'~standard-json-schema': { version: 1, vendor: 'test', jsonSchema },
+		'~standard': { version: 1, vendor: 'test', validate: (value) => ({ value: value as Output }), jsonSchema: { input: () => jsonSchema, output: () => jsonSchema } },
 	};
 }
 
@@ -24,6 +24,11 @@ const WidgetSchema = schema<{ id: string }>({
 	required: ['id'],
 });
 const WidgetResponse = response.ok(WidgetSchema, { id: 'widgets:detail', description: 'Widget detail.' });
+const WidgetRead = effect.define({
+	id: 'widgets.read',
+	description: 'A widget detail was read.',
+	value: WidgetSchema,
+});
 const ServiceUnavailable = problem.define({
 	id: 'widgets:unavailable',
 	type: 'https://api.example.invalid/problems/widgets-unavailable',
@@ -55,18 +60,21 @@ const GetWidget = endpoint.get({
 		required: ['widgetId'],
 	}),
 	resources: [WidgetRepository],
+	effects: [WidgetRead],
 	problems: [ServiceUnavailable],
 	responses: [WidgetResponse],
 });
 const ReadWidgets = permissions.define({ id: 'widgets:read', description: 'Read widgets.' });
 const ReadWidgetsRequirement = permissions.require(ReadWidgets);
 const policy = service.policy({ id: 'widgets.dashboard', endpoints: [GetWidget], requirements: [ReadWidgetsRequirement] });
+const Diagnostics = service.observer.define({ id: 'widgets.diagnostics', description: 'Observe widget requests.' });
 const definition = service.define({
 	id: 'widgets',
 	path: '/api/dashboard/v1',
 	description: 'Widget APIs.',
 	endpoints: [GetWidget],
 	policies: [policy],
+	observers: [Diagnostics],
 });
 const handler = endpoint.handler(GetWidget, async ({ resources }) => {
 	const repository = await resources.get(WidgetRepository);
@@ -89,10 +97,17 @@ describe('service compiler', () => {
 		}));
 		expect(compiled.operations).toHaveLength(1);
 		expect(compiled.operations[0]?.path).toBe('/api/dashboard/v1/widgets/:widgetId');
+		expect(compiled.routePlan.kind).toBe('http-route-plan');
+		expect(compiled.operations[0]?.execution.inputs.map((entry) => entry.source)).toEqual(['param']);
+		expect(compiled.manifest.routes[0]?.execution.inputs).toEqual(['param']);
 		expect(compiled.operations[0]?.requirements).toEqual([ReadWidgetsRequirement]);
+		expect(compiled.operations[0]?.effects).toEqual([WidgetRead]);
 		expect(compiled.operations[0]?.problems).toContain(ServiceUnavailable);
 		expect(compiled.operations[0]?.problems.some((entry) => entry.id === WidgetRepositoryUnavailable.id)).toBe(false);
 		expect(compiled.manifest.routes[0]?.endpointId).toBe(GetWidget.id);
+		expect(compiled.manifest.routes[0]?.effects).toEqual([WidgetRead.id]);
+		expect(compiled.manifest.effects).toEqual([WidgetRead.id]);
+		expect(compiled.manifest.observers).toEqual([Diagnostics.id]);
 	});
 
 	it('selects exact endpoints whose effective contract requires authentication', () => {
@@ -179,6 +194,20 @@ describe('service compiler', () => {
 		const ResilientWidgets = service.define({ id: 'widgets-resilient', path: '/api/v1', endpoints: [CreateWidget] });
 		const binding = endpoint.handler(CreateWidget, async ({ input }) => response.create(Accepted, input.json));
 		const compiled = service.compile(service.implement(ResilientWidgets, { endpoints: [binding] }));
+		expect(compiled.manifest.routes[0]?.resiliency).toEqual([
+			{
+				type: 'idempotency',
+				owner: 'adapter',
+				stage: 'admission',
+					configuration: { header: 'Idempotency-Key', required: true },
+			},
+			{
+				type: 'rate-limit',
+				owner: 'adapter',
+				stage: 'admission',
+				configuration: { limit: 10, window: 'PT1M' },
+			},
+		]);
 		const statuses = compiled.operations[0]?.problems.map((entry) => entry.status) ?? [];
 		expect(statuses).toContain(409);
 		expect(statuses).toContain(429);

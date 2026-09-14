@@ -11,7 +11,7 @@
 	"dependencies": {
 		"@okikio/catalog": "workspace:^",
 		"@okikio/effect": "workspace:^",
-		"zod": "^4.5.4"
+		"@standard-schema/spec": "^1.1.0"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",

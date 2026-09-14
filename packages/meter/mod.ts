@@ -1,8 +1,8 @@
 /**
- * Meter definitions and required measurement effects.
+ * Meter definitions and declared measurement effects.
  *
  * A meter names a quantity. Recording is runtime work, so `record()` creates
- * and emits one required effect. The package does not aggregate usage, reserve
+ * and announces one effect. The package does not aggregate usage, reserve
  * quota, or bill a customer; the configured effect owner decides how accepted
  * measurements become durable or operational state.
  *
@@ -56,14 +56,14 @@ export function compose<Entry extends MeterDefinition>(
 	return catalogCore.compose(...input);
 }
 
-/** Return the exact required-effect definition used to record this meter. */
+/** Return the exact declared effect definition used to record this meter. */
 export function effect(definition: MeterDefinition): import('@okikio/effect').EffectDefinition {
 	assertDefinition(definition);
 	return definition.effect;
 }
 
 /**
- * Record one measurement as a required effect.
+ * Record one measurement as an effect announcement.
  *
  * The occurrence time comes from the execution context clock, not ambient
  * `Date.now()`, so tests and replay-aware hosts can control time consistently.
@@ -111,3 +111,5 @@ export type {
 	MeterRecordOptions,
 	MeterSelection,
 } from './types.ts';
+
+export { MeterReadingSchema };

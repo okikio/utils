@@ -1,4 +1,6 @@
-import * as endpoint from '@okikio/server/endpoint';
+import * as durationCore from '@okikio/duration';
+import * as endpoint from '@okikio/server/endpoint/definition';
+import type { EndpointCompositionInput, EndpointDefinition, EndpointEntry } from '@okikio/server/endpoint/types';
 import type { ServiceDefinition, ServiceSelection } from '../service/types.ts';
 import type {
 	GatewayCachePolicy,
@@ -57,7 +59,7 @@ export function policy(input: GatewayPolicyInput): GatewayPolicy {
 		throw new TypeError('Gateway bodyLimit must be a positive safe integer.');
 	}
 	const timeout = input.timeout === undefined ? undefined : Temporal.Duration.from(input.timeout);
-	if (timeout !== undefined && durationMilliseconds(timeout) <= 0) throw new TypeError('Gateway timeout must be positive.');
+	if (timeout !== undefined && durationCore.milliseconds(timeout) <= 0) throw new TypeError('Gateway timeout must be positive.');
 	return Object.freeze({
 		kind: 'gateway-policy',
 		id: input.id,
@@ -206,10 +208,10 @@ export function passThroughCache(): GatewayCachePolicy {
 }
 
 /** Flatten an endpoint composition to exact leaf definitions without copying routes. */
-export function leafEndpoints(input: import('@okikio/server/endpoint').EndpointCompositionInput): readonly import('@okikio/server/endpoint').EndpointDefinition[] {
-	const result: import('@okikio/server/endpoint').EndpointDefinition[] = [];
-	const seen = new Set<import('@okikio/server/endpoint').EndpointDefinition>();
-	const visit = (entry: import('@okikio/server/endpoint').EndpointEntry): void => {
+export function leafEndpoints(input: EndpointCompositionInput): readonly EndpointDefinition[] {
+	const result: EndpointDefinition[] = [];
+	const seen = new Set<EndpointDefinition>();
+	const visit = (entry: EndpointEntry): void => {
 		if (entry.kind === 'endpoint') {
 			if (!seen.has(entry)) {
 				seen.add(entry);
@@ -268,14 +270,6 @@ function isLoopbackHttp(url: URL): boolean {
 	return url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
 }
 
-/**
- * Converts duration into the millisecond value used by compiled gateway routing.
- *
- * @internal
- */
-function durationMilliseconds(duration: Temporal.Duration): number {
-	return duration.total({ unit: 'milliseconds', relativeTo: Temporal.PlainDate.from('2000-01-01') });
-}
 
 /**
  * Rejects invalid identifier before it can enter authoritative module state.

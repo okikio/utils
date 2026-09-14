@@ -15,6 +15,12 @@ describe('resilience policies', () => {
 		if (!conflict.valid) expect(conflict.issues[0]?.code).toBe('conflicting-policy');
 	});
 
+	it('bounds caller-controlled idempotency keys in the portable policy', () => {
+		expect(resilience.idempotent().maximumKeyBytes).toBe(256);
+		expect(resilience.idempotent({ maximumKeyBytes: 64 }).maximumKeyBytes).toBe(64);
+		expect(() => resilience.idempotent({ maximumKeyBytes: 0 })).toThrow(TypeError);
+	});
+
 	it('rejects retries for unsafe operations without idempotency', () => {
 		const invalid = resilience.validate(resilience.retry(), { safety: 'unsafe' });
 		expect(invalid.valid).toBe(false);
@@ -46,13 +52,21 @@ describe('resilience policies', () => {
 		expect(() => resilience.retryDelay(policy, 0)).toThrow(TypeError);
 	});
 
-	it('assigns policies to explicit admission and operation stages', () => {
-		expect(resilience.stage(resilience.idempotent())).toBe('admission');
-		expect(resilience.stage(resilience.rateLimit({ limit: 10, window: { minutes: 1 } }))).toBe('admission');
-		expect(resilience.stage(resilience.bulkhead({ concurrency: 2 }))).toBe('admission');
-		expect(resilience.stage(resilience.retry())).toBe('operation');
-		expect(resilience.stage(resilience.circuitBreaker())).toBe('operation');
-		expect(() => resilience.stage(resilience.timeout({ seconds: 1 }))).toThrow(TypeError);
+	it('classifies runtime ownership and lifecycle stage independently', () => {
+		const policies = [
+			[resilience.bodyLimit(1_024), 'server', 'request'],
+			[resilience.timeout({ seconds: 1 }), 'server', 'request'],
+			[resilience.idempotent(), 'adapter', 'admission'],
+			[resilience.rateLimit({ limit: 10, window: { minutes: 1 } }), 'adapter', 'admission'],
+			[resilience.bulkhead({ concurrency: 2 }), 'adapter', 'admission'],
+			[resilience.retry(), 'adapter', 'operation'],
+			[resilience.circuitBreaker(), 'adapter', 'operation'],
+		] as const;
+
+		for (const [policy, owner, stage] of policies) {
+			expect(resilience.owner(policy)).toBe(owner);
+			expect(resilience.stage(policy)).toBe(stage);
+		}
 	});
 
 	it('validates limits and produces deterministic documentation', () => {
@@ -61,8 +75,8 @@ describe('resilience policies', () => {
 			resilience.bodyLimit(1_024),
 			resilience.bulkhead({ concurrency: 4, queue: 8 }),
 		])).toEqual([
-			{ type: 'body-limit', configuration: { bytes: 1_024 } },
-			{ type: 'bulkhead', configuration: { concurrency: 4, queue: 8 } },
+			{ type: 'body-limit', owner: 'server', stage: 'request', configuration: { bytes: 1_024 } },
+			{ type: 'bulkhead', owner: 'adapter', stage: 'admission', configuration: { concurrency: 4, queue: 8 } },
 		]);
 	});
 });

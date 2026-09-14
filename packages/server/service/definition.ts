@@ -1,5 +1,6 @@
 import * as catalog from '@okikio/catalog';
-import * as endpoint from '@okikio/server/endpoint';
+import * as effect from '@okikio/effect';
+import * as endpoint from '@okikio/server/endpoint/definition';
 import * as resilience from '@okikio/resilience';
 import type {
 	EndpointCompositionInput,
@@ -7,11 +8,14 @@ import type {
 	EndpointEntry,
 	EndpointGroup,
 	EndpointGroupSelection,
-} from '@okikio/server/endpoint';
+} from '@okikio/server/endpoint/types';
 
 import type {
 	ServiceDefinition,
 	ServiceDefinitionInput,
+	ServiceObserverDefinition,
+	ServiceObserverEventKind,
+	ServiceObserverHandler,
 	ServicePolicy,
 	ServicePolicyInput,
 	ServiceSelection,
@@ -31,6 +35,10 @@ export function define<
 	for (const value of policies) {
 		if (value.kind !== 'service-policy') throw new TypeError('Service policies must be created with service.policy().');
 	}
+	const observers = Object.freeze([...(input.observers ?? [])]);
+	for (const value of observers) {
+		if (value.kind !== 'service-observer') throw new TypeError('Service observers must be created with service.observer.define().');
+	}
 	return Object.freeze({
 		...pickContributions(input),
 		kind: 'service',
@@ -41,8 +49,46 @@ export function define<
 		endpoints,
 		workflows,
 		policies,
+		observers,
 	});
 }
+
+const OBSERVER_KINDS = Object.freeze({
+	started: true,
+	response: true,
+	completed: true,
+	failed: true,
+	aborted: true,
+} satisfies Record<ServiceObserverEventKind, true>);
+const OBSERVER_EVENTS = Object.freeze(Object.keys(OBSERVER_KINDS) as ServiceObserverEventKind[]);
+
+/** Create one import-safe service observer definition. */
+function defineObserver(input: Readonly<{
+	readonly id: string;
+	readonly description: string;
+	readonly events?: readonly ServiceObserverEventKind[];
+}>): ServiceObserverDefinition {
+	assertIdentifier(input.id, 'service observer');
+	if (input.description.trim().length === 0) throw new TypeError('Service observer description cannot be empty.');
+	const events = Object.freeze([...(input.events ?? OBSERVER_EVENTS)]);
+	if (events.length === 0 || events.some((event) => !Object.hasOwn(OBSERVER_KINDS, event))) {
+		throw new TypeError('Service observer events are invalid.');
+	}
+	return Object.freeze({ kind: 'service-observer', id: input.id, description: input.description, events });
+}
+
+/** Bind one runtime handler to an exact service observer definition. */
+function observerHandler<Definition extends ServiceObserverDefinition>(
+	definition: Definition,
+	handle: ServiceObserverHandler<Definition>['handle'],
+): ServiceObserverHandler<Definition> {
+	if (definition.kind !== 'service-observer') throw new TypeError('Service observer handlers require an exact observer definition.');
+	if (typeof handle !== 'function') throw new TypeError('Service observer handler must be a function.');
+	return Object.freeze({ kind: 'service-observer-handler', definition, handle });
+}
+
+/** Service lifecycle observer definition and handler namespace. */
+export const observer = Object.freeze({ define: defineObserver, handler: observerHandler });
 
 /** Define one selector-based additive service policy. */
 export function policy(input: ServicePolicyInput): ServicePolicy {
@@ -140,6 +186,7 @@ function pickContributions(input: ServiceDefinitionInput | ServicePolicyInput) {
 		...(input.middleware !== undefined ? { middleware: snapshotInput(input.middleware) } : {}),
 		...(input.authentication !== undefined ? { authentication: snapshotInput(input.authentication) } : {}),
 		...(input.requirements !== undefined ? { requirements: snapshotInput(input.requirements) } : {}),
+		...(input.effects !== undefined ? { effects: effect.compose(input.effects) } : {}),
 		...(input.resources !== undefined ? { resources: snapshotInput(input.resources) } : {}),
 		...(input.problems !== undefined ? { problems: snapshotInput(input.problems) } : {}),
 		...(input.resiliency !== undefined ? { resiliency: resilience.compose(input.resiliency) } : {}),

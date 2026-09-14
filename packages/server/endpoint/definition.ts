@@ -1,5 +1,6 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import * as catalog from '@okikio/catalog';
+import * as effect from '@okikio/effect';
 import type { CatalogEntryIdentity, DefinitionInput } from '@okikio/catalog';
 import * as resilience from '@okikio/resilience';
 import * as recordCore from '@okikio/record';
@@ -240,7 +241,7 @@ export function group<
 	recordCore.assert(definition, 'endpoint group definition');
 	assertId(definition.id, 'endpoint group');
 	assertPath(definition.path);
-	const named = isNamedMemberRecord(definition.endpoints) ? freezeNamedEntries(definition.endpoints) : undefined;
+	const named = isNamedMembers(definition.endpoints) ? freezeNamedEntries(definition.endpoints) : undefined;
 	const endpoints = named ? Object.values(named) : flattenComposition(definition.endpoints as EndpointCompositionInput);
 	if (endpoints.length === 0) throw new TypeError('An endpoint group must contain at least one endpoint or group.');
 	return Object.freeze({
@@ -390,6 +391,11 @@ export function document(input: EndpointCompositionInput): readonly EndpointDocu
 				responses: contributionIds(operation.responses),
 				problems: Object.freeze([...contributionIds(endpoint.problems), ...contributionIds(operation.problems)]),
 				resources: Object.freeze([...contributionIds(endpoint.resources), ...contributionIds(operation.resources)]),
+				effects: Object.freeze([
+					...groups.flatMap((group) => contributionIds(group.effects)),
+					...contributionIds(endpoint.effects),
+					...contributionIds(operation.effects),
+				]),
 			}))),
 		}));
 	});
@@ -494,11 +500,15 @@ function pickInputs<Input extends EndpointInputSlots>(definition: Input): PickEn
 function pickContributions(definition: object): EndpointContributionsRecord {
 	const source = definition as Readonly<Record<PropertyKey, unknown>>;
 	const result: EndpointContributionsRecord = {};
-	for (const key of ['middleware', 'authentication', 'requirements', 'resources', 'problems', 'responses', 'resiliency'] as const) {
+	for (const key of ['middleware', 'authentication', 'requirements', 'effects', 'resources', 'problems', 'responses', 'resiliency'] as const) {
 		const value = source[key];
 		if (value === undefined) continue;
 		if (key === 'resiliency') {
 			result[key] = resilience.compose(value as import('@okikio/resilience').ResilienceInput);
+			continue;
+		}
+		if (key === 'effects') {
+			result[key] = effect.compose(value as import('@okikio/effect').EffectDefinitions);
 			continue;
 		}
 		result[key] = snapshotInput(value);
@@ -599,7 +609,7 @@ function camelOperationId(id: string): string {
  *
  * @internal
  */
-function isNamedMemberRecord(value: EndpointGroupMembers): value is Readonly<Record<string, EndpointEntry>> {
+function isNamedMembers(value: EndpointGroupMembers): value is Readonly<Record<string, EndpointEntry>> {
 	return recordCore.is(value) && !Object.hasOwn(value, 'kind') &&
 		Object.values(value).every((entry) => isEntry(entry));
 }

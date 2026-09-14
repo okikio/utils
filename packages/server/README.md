@@ -29,7 +29,7 @@ const fetch = async (request: Request): Promise<Response> => {
 
 Keep that model in mind. `@okikio/server` does not replace Fetch. It removes the
 repeated work around declared routes, Standard Schema input, resources, expected
-problems, middleware concerns, OpenAPI projection, and deterministic gateway
+problems, middleware behavior, OpenAPI projection, and deterministic gateway
 composition.
 
 How it fits
@@ -45,7 +45,7 @@ import definitions and implementations
   -> compile the selected graph
   -> reject missing or conflicting contracts
   -> create owned runtime resources
-  -> handle requests
+  -> serve requests
   -> dispose the runtime
 ~~~~
 
@@ -110,6 +110,26 @@ Definitions remain import-safe. Runtime construction is where resources and host
 behavior are supplied. Generic built-in server/gateway failures use stable
 `urn:utils:...` problem types. Product APIs can define their own HTTP problem
 namespaces with `@okikio/http/problem.url()`.
+
+Observability remains host policy
+--------------------------------
+
+Service and Gateway can declare import-safe observer definitions. Their runtimes
+emit lifecycle metadata but do not configure a logging backend. Applications can
+bind those observers directly or use `@okikio/telemetry/server` to translate them
+into portable telemetry records.
+
+```ts
+const scope = telemetry.create(reporter, { fields: { deployment_id: 'blue' } });
+const runtime = service.create(compiled, {
+  host,
+  observers: [serverTelemetry.service(Diagnostics, scope)],
+});
+```
+
+This preserves the same ownership rule as the listener: reusable server code owns
+HTTP lifecycle semantics; the executable host owns logging, tracing, redaction,
+exporters, and vendor configuration.
 
 HTTP relationship
 -----------------
@@ -183,10 +203,24 @@ detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*_test.ts` files show edge cases, cancellation, invalid input, and lifecycle
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
    behavior as executable examples.
 4. Read internal implementation files only when you need the exact state
    transition or performance-sensitive loop.
 
 The README is the primary user documentation. It intentionally stays close to
 the public source instead of maintaining a separate hand-written API reference.
+
+Compiled service
+----------------
+
+`service.compile()` prepares the stable information that request handling needs:
+effective operations, a handler-free route plan, operation execution plans,
+resource and requirement information, and a JSON-safe manifest. The Fetch
+runtime reads this prepared state instead of rebuilding the same route and policy
+information for every request.
+
+The compiler remains independent of Hono and MCP. Request-local mutable values
+belong to `middleware.context()`. Longer-lived session and provider capabilities
+belong to explicit resources. Read [`../../docs/server.md`](../../docs/server.md)
+for the compiler and request-lifecycle model.

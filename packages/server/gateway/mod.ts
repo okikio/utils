@@ -45,7 +45,7 @@ export type {
 	GatewayValidationResult,
 	GatewayRequestState,
 	GatewayRequestPatch,
-	GatewayConcernRuntimes,
+	GatewayRuntimeAdapters,
 	GatewayMetadataHeaders,
 	CreateGatewayOptions,
 	GatewayRuntime,

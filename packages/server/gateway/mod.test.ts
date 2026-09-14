@@ -50,7 +50,7 @@ function gatewayDefinition(options: Readonly<{
 	});
 }
 
-function concerns() {
+function adapters() {
 	return {
 		authenticate: () => ({ headers: { 'x-trusted-actor': 'actor_1' } }),
 		assert: () => ({ headers: { 'x-trusted-assertion': 'signed' } }),
@@ -110,13 +110,13 @@ describe('gateway compiler', () => {
 	});
 
 	it('uses optional compiled service manifests only to detect definition drift', () => {
-		const manifest: service.ServiceManifest = Object.freeze({
+		const manifest = Object.freeze({
 			...compiledService.manifest,
 			routes: Object.freeze(compiledService.manifest.routes.map((route) => Object.freeze({
 				...route,
 				operationId: `${route.operationId}.stale`,
 			}))),
-		});
+		} satisfies service.ServiceManifest);
 		expect(() => gateway.compile(gatewayDefinition(), { services: [manifest] })).toThrow(gateway.GatewayCompilationError);
 	});
 
@@ -147,7 +147,7 @@ describe('gateway request and response policy', () => {
 			requestId: () => 'request_1',
 			clientIp: () => '203.0.113.9',
 			trustedRequestHeaderPrefixes: ['x-trusted-'],
-			concerns: concerns(),
+			adapters: adapters(),
 			fetch: async (input, init) => {
 				forwarded = input instanceof Request ? input : new Request(input, init);
 				const headers = new Headers({ connection: 'close', 'x-upstream': 'kept' });
@@ -200,7 +200,7 @@ describe('gateway request and response policy', () => {
 				serviceId: 'x-product-service-id',
 				routeId: 'x-product-route-id',
 			},
-			concerns: concerns(),
+			adapters: adapters(),
 			fetch: async (input, init) => {
 				forwarded = input instanceof Request ? input : new Request(input, init);
 				return new Response('ok');
@@ -219,7 +219,7 @@ describe('gateway request and response policy', () => {
 	it('strips response cookies by default', async () => {
 		const compiled = gateway.compile(gatewayDefinition(), { services: [compiledService] });
 		const runtime = gateway.create(compiled, {
-			concerns: concerns(),
+			adapters: adapters(),
 			fetch: () => Promise.resolve(new Response('ok', { headers: { 'Set-Cookie': 'secret=1' } })),
 		});
 		const result = await runtime.fetch(new Request('http://localhost/api/v1/items', { method: 'POST' }));
@@ -229,7 +229,7 @@ describe('gateway request and response policy', () => {
 	it('rewrites internal redirect origins and can reject unapproved external redirects', async () => {
 		const rewrite = gateway.compile(gatewayDefinition(), { services: [compiledService] });
 		const rewriteRuntime = gateway.create(rewrite, {
-			concerns: concerns(),
+			adapters: adapters(),
 			fetch: () => Promise.resolve(new Response(null, {
 				status: 302,
 				headers: { Location: 'http://127.0.0.1:8787/next?ok=1' },
@@ -242,7 +242,7 @@ describe('gateway request and response policy', () => {
 			redirects: gateway.redirects({ mode: 'reject-cross-origin' }),
 		}), { services: [compiledService] });
 		const rejectRuntime = gateway.create(reject, {
-			concerns: concerns(),
+			adapters: adapters(),
 			fetch: () => Promise.resolve(new Response(null, { status: 302, headers: { Location: 'https://evil.example/path' } })),
 		});
 		const rejected = await rejectRuntime.fetch(new Request('https://api.example.invalid/api/v1/items', { method: 'POST' }));
@@ -254,7 +254,7 @@ describe('gateway request and response policy', () => {
 		const compiled = gateway.compile(gatewayDefinition(), { services: [compiledService] });
 		let upstreamCalls = 0;
 		const runtime = gateway.create(compiled, {
-			concerns: concerns(),
+			adapters: adapters(),
 			fetch: () => {
 				upstreamCalls += 1;
 				return Promise.resolve(new Response('unexpected'));
@@ -273,7 +273,7 @@ describe('gateway request and response policy', () => {
 	it('rejects bodies larger than the explicit gateway policy', async () => {
 		const compiled = gateway.compile(gatewayDefinition(), { services: [compiledService] });
 		const runtime = gateway.create(compiled, {
-			concerns: concerns(),
+			adapters: adapters(),
 			fetch: () => Promise.resolve(new Response('unexpected')),
 		});
 		const result = await runtime.fetch(new Request('http://localhost/api/v1/items', {
@@ -284,12 +284,27 @@ describe('gateway request and response policy', () => {
 	});
 });
 
+describe('gateway host behavior', () => {
+	it('mounts service definitions without acquiring listener or service-runtime ownership', () => {
+		const compiled = gateway.compile(gatewayDefinition(), { services: [compiledService] });
+		const runtime = gateway.create(compiled, {
+			adapters: adapters(),
+			fetch: () => Promise.resolve(new Response('ok')),
+		});
+
+		expect(Object.keys(runtime)).toEqual(['fetch']);
+		expect('listen' in runtime).toBe(false);
+		expect('close' in runtime).toBe(false);
+		expect(Symbol.asyncDispose in runtime).toBe(false);
+	});
+});
+
 describe('gateway lifecycle', () => {
 	it('propagates caller cancellation during bounded body reads without contacting upstream', async () => {
 		const compiled = gateway.compile(gatewayDefinition(), { services: [compiledService] });
 		let upstreamCalls = 0;
 		const runtime = gateway.create(compiled, {
-			concerns: concerns(),
+			adapters: adapters(),
 			fetch: () => {
 				upstreamCalls += 1;
 				return Promise.resolve(new Response('unexpected'));
@@ -319,7 +334,7 @@ describe('gateway lifecycle', () => {
 		const compiled = gateway.compile(definition, { services: [compiledService] });
 		const events: gateway.GatewayObserverEvent[] = [];
 		const runtime = gateway.create(compiled, {
-			concerns: concerns(),
+			adapters: adapters(),
 			observers: [gateway.observer.handler(Observer, (event) => { events.push(event); })],
 			fetch: () => Promise.resolve(new Response('streamed')),
 		});
@@ -347,7 +362,7 @@ describe('gateway lifecycle', () => {
 		}), { services: [compiledService] });
 		const events: gateway.GatewayObserverEvent[] = [];
 		const runtime = gateway.create(compiled, {
-			concerns: concerns(),
+			adapters: adapters(),
 			observers: [gateway.observer.handler(Observer, (event) => { events.push(event); })],
 			fetch: () => Promise.resolve(new Response(new ReadableStream<Uint8Array>({
 				pull() { return new Promise<void>(() => undefined); },
@@ -364,7 +379,7 @@ describe('gateway lifecycle', () => {
 		const compiled = gateway.compile(definition, { services: [compiledService] });
 		const events: gateway.GatewayObserverEvent[] = [];
 		const runtime = gateway.create(compiled, {
-			concerns: concerns(),
+			adapters: adapters(),
 			observers: [gateway.observer.handler(Observer, (event) => { events.push(event); })],
 		});
 		const result = await runtime.fetch(new Request('https://api.example.invalid/not-mounted?api_key=secret'));

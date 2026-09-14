@@ -6,7 +6,6 @@
  *
  * @module
  */
-import '@okikio/dispose/polyfill';
 import * as recordCore from '@okikio/record';
 import * as catalogCore from '@okikio/catalog';
 import type {
@@ -498,13 +497,13 @@ class LiveCollection implements ResourceCollection {
 				? resourceCtx
 				: requirement.bind(resourceCtx, implementation.requirements);
 			if (implementation.requirements.length > 0) await requirement.apply(createCtx, implementation.requirements);
-			const args: ResourceCreateArgumentsAny = Object.freeze({
+			const args = Object.freeze({
 				definition,
 				dependencies: Object.freeze(dependencies),
 				environment: selectEnvironment(definition, this.#environment),
 				host: this.#host,
 				ctx: createCtx,
-			});
+			} satisfies ResourceCreateArgumentsAny);
 			const value = await implementation.create(args);
 			if (isDisposable(value) && !registered.has(value as object)) ownedCtx.use(value);
 

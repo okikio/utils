@@ -52,11 +52,11 @@ export async function openapi(
 function effectiveEndpoint(
 	effective: EffectiveServiceOperation,
 ): EndpointDefinition {
-	const operation: EndpointOperation = Object.freeze({
+	const operation = Object.freeze({
 		...effective.operation,
 		problems: effective.problems,
 		responses: effective.responses,
-	});
+	} satisfies EndpointOperation);
 	return Object.freeze({
 		kind: 'endpoint',
 		id: `${effective.id}:openapi`,

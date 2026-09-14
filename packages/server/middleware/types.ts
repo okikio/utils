@@ -6,6 +6,7 @@ import type {
 	ValuedCatalogEntry,
 } from '@okikio/catalog';
 import type { Context } from '@okikio/context';
+import type { EffectContext, EffectDefinitions } from '@okikio/effect';
 import type { ProblemDefinition } from '@okikio/http/problem';
 import type { ResilienceInput } from '@okikio/resilience';
 import type { RequirementInput, RequirementDocument } from '@okikio/requirement';
@@ -49,6 +50,8 @@ export interface MiddlewareDefinition<
 	readonly resources?: DefinitionInput<Resources>;
 	readonly problems?: DefinitionInput<Problems>;
 	readonly requirements?: RequirementInput;
+	/** Required one-way consequences this middleware may announce when it runs. */
+	readonly effects?: EffectDefinitions;
 	readonly authentication?: DefinitionInput<CatalogEntryIdentity>;
 	readonly resiliency?: ResilienceInput;
 	readonly documentation?: Readonly<{ readonly url?: string; readonly notes?: string }>;
@@ -66,6 +69,8 @@ export interface MiddlewareDefinitionInput<
 	readonly resources?: DefinitionInput<MiddlewareResourceDefinition>;
 	readonly problems?: DefinitionInput<ProblemDefinition>;
 	readonly requirements?: RequirementInput;
+	/** Required one-way consequences this middleware may announce when it runs. */
+	readonly effects?: EffectDefinitions;
 	readonly authentication?: DefinitionInput<CatalogEntryIdentity>;
 	readonly resiliency?: ResilienceInput;
 	readonly documentation?: Readonly<{ readonly url?: string; readonly notes?: string }>;
@@ -121,7 +126,7 @@ export interface MiddlewareHandlerContext<
 		DefinitionEntry<NonNullable<Definition['resources']>>,
 		MiddlewareResourceDefinition
 	>>;
-	readonly ctx: Context;
+	readonly ctx: EffectContext<Context>;
 }
 
 /** Onion-style continuation used by middleware handlers. */
@@ -197,6 +202,8 @@ export interface MiddlewareDocument {
 	readonly resources: readonly string[];
 	readonly problems: readonly string[];
 	readonly requirements: readonly RequirementDocument[];
+	/** Effect IDs this middleware may announce. */
+	readonly effects: readonly string[];
 	readonly resiliency: readonly string[];
 	readonly documentation?: Readonly<{ readonly url?: string; readonly notes?: string }>;
 }

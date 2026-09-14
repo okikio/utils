@@ -4,26 +4,30 @@ import type {
 	EndpointCompositionInput,
 	EndpointDefinition,
 	EndpointEntry,
-	EndpointConcernValues,
+	EndpointRequestValues,
 	EmptyEndpointHost,
 	EndpointGroup,
 	EndpointMethod,
 	EndpointOperation,
+	EndpointInputSlot,
+	EndpointInputSource,
 	EndpointRuntimeInputValues,
-} from '@okikio/server/endpoint';
+} from '@okikio/server/endpoint/types';
 import type { EnvironmentDefinition, EnvironmentManifest } from '@okikio/env';
 import type { Context } from '@okikio/context';
+import type { EffectContext, EffectDefinition, EffectDefinitions, EffectEmitter } from '@okikio/effect';
 import type {
 	MiddlewareContextDefinition,
 	MiddlewareContextValue,
 	MiddlewareHandler,
 	MiddlewareInput,
 	MiddlewarePlan,
-} from '@okikio/server/middleware';
-import type { ResilienceInput, ResiliencePolicy } from '@okikio/resilience';
+} from '@okikio/server/middleware/types';
+import type { ResilienceDocument, ResilienceInput, ResiliencePolicy } from '@okikio/resilience';
 import type { ProblemDefinition, ProblemResult } from '@okikio/http/problem';
-import type { ResponseCompletion, ResponseDefinition, ResponseResult } from '@okikio/http/response';
+import type { ResponseDefinition, ResponseResult } from '@okikio/http/response';
 import type { RequestParsingOptions } from '@okikio/http/request';
+import type { RoutePlan } from '../http/types.ts';
 import type {
 	ResourceImplementationAny,
 	ResourceCollection,
@@ -41,6 +45,8 @@ export interface ServiceContributions {
 	readonly authentication?: DefinitionInput<CatalogEntryIdentity>;
 	/** Requirements owned directly by this service contributions; reachable dependency requirements remain separate. */
 	readonly requirements?: RequirementInput;
+	/** One-way consequences code in this service scope may announce. */
+	readonly effects?: EffectDefinitions;
 	/** Resource definitions or collection available to this service contributions. */
 	readonly resources?: DefinitionInput<ResourceDefinition>;
 	readonly problems?: DefinitionInput<ProblemDefinition>;
@@ -61,6 +67,40 @@ export type ServicePolicyInput = Readonly<{
 	readonly endpoints: EndpointCompositionInput;
 }> & ServiceContributions;
 
+/** Service lifecycle events available to observational handlers. */
+export type ServiceObserverEventKind = 'started' | 'response' | 'completed' | 'failed' | 'aborted';
+
+/** Import-safe subscription to selected service request lifecycle events. */
+export interface ServiceObserverDefinition extends CatalogEntryIdentity {
+	readonly kind: 'service-observer';
+	readonly description: string;
+	readonly events: readonly ServiceObserverEventKind[];
+}
+
+/** Credential-free service request metadata emitted by the framework-neutral runtime. Error text still requires host redaction before external export. */
+export interface ServiceObserverEvent {
+	readonly kind: ServiceObserverEventKind;
+	readonly serviceId: string;
+	readonly requestId?: string;
+	readonly traceId?: string;
+	readonly spanId?: string;
+	readonly method: string;
+	readonly path: string;
+	readonly endpointId: string;
+	readonly operationId: string;
+	readonly status?: number;
+	readonly responseBytes?: number;
+	readonly completion?: Readonly<{ readonly outcome: 'completed' | 'cancelled' | 'errored'; readonly bytes: number }>;
+	readonly error?: Readonly<{ readonly name: string; readonly message: string }>;
+}
+
+/** Runtime handler bound to one exact import-safe service observer definition. */
+export interface ServiceObserverHandler<Definition extends ServiceObserverDefinition = ServiceObserverDefinition> {
+	readonly kind: 'service-observer-handler';
+	readonly definition: Definition;
+	readonly handle: (event: ServiceObserverEvent) => void | Promise<void>;
+}
+
 /** Import-safe service definition. */
 export interface ServiceDefinition<
 	Id extends string = string,
@@ -76,6 +116,7 @@ export interface ServiceDefinition<
 	readonly endpoints: readonly EndpointEntry[];
 	readonly workflows: readonly WorkflowDefinition[];
 	readonly policies: readonly ServicePolicy[];
+	readonly observers: readonly ServiceObserverDefinition[];
 }
 
 /** Input accepted by `service.define()`. */
@@ -90,6 +131,7 @@ export type ServiceDefinitionInput<
 	readonly endpoints: EndpointCompositionInput;
 	readonly workflows?: DefinitionInput<WorkflowDefinition>;
 	readonly policies?: readonly ServicePolicy[];
+	readonly observers?: readonly ServiceObserverDefinition[];
 }> & ServiceContributions;
 
 /** Exact named subset of a service's imported endpoint graph. */
@@ -141,6 +183,27 @@ export interface ServiceRoute {
 	readonly path: string;
 }
 
+
+/** One request input selected during service compilation. */
+export interface ServiceExecutionInput {
+	readonly source: EndpointInputSource;
+	readonly slot: EndpointInputSlot;
+}
+
+/**
+ * Request-time work selected once during service compilation.
+ *
+ * This plan removes repeated discovery from the hot path. It never suppresses
+ * declared validation, authentication, requirements, middleware, or resilience.
+ */
+export interface ServiceExecutionPlan {
+	readonly inputs: readonly ServiceExecutionInput[];
+	readonly bodyLimit?: number;
+	readonly timeout?: Temporal.Duration;
+	readonly admission: readonly ResiliencePolicy[];
+	readonly operation: readonly ResiliencePolicy[];
+}
+
 /** Fully resolved static contract for one operation. */
 export interface EffectiveServiceOperation extends ServiceRoute {
 	readonly middleware: MiddlewarePlan;
@@ -149,11 +212,14 @@ export interface EffectiveServiceOperation extends ServiceRoute {
 	readonly requirements: readonly RequirementDefinition[];
 	/** Requirements reachable through declared resources and other selected definitions. */
 	readonly reachableRequirements: readonly RequirementDefinition[];
-	/** Resource definitions or collection available to this effect ive service operation. */
+	/** Required one-way consequences code in this operation may announce. */
+	readonly effects: readonly EffectDefinition[];
+	/** Resource definitions or collection available to this effective service operation. */
 	readonly resources: readonly ResourceDefinition[];
 	readonly problems: readonly ProblemDefinition[];
 	readonly responses: readonly ResponseDefinition[];
 	readonly resiliency: readonly ResiliencePolicy[];
+	readonly execution: ServiceExecutionPlan;
 	readonly handler: AnyEndpointHandlerBinding;
 }
 
@@ -173,12 +239,16 @@ export interface ServiceRouteManifestEntry {
 	readonly requirements: readonly RequirementDocument[];
 	/** Requirements that can become active through this compiled route and its dependencies. */
 	readonly reachableRequirements: readonly RequirementDocument[];
+	/** Effect IDs code in this compiled route may announce. */
+	readonly effects: readonly string[];
 	/** Resource definitions or collection available to this service route manifest. */
 	readonly resources: readonly string[];
 	readonly problems: readonly string[];
 	readonly responses: readonly string[];
 	readonly middleware: Readonly<Record<string, readonly string[]>>;
-	readonly resiliency: readonly string[];
+	/** Effective resilience policies with their runtime owner and lifecycle stage. */
+	readonly resiliency: readonly ResilienceDocument[];
+	readonly execution: Readonly<{ readonly inputs: readonly EndpointInputSource[]; readonly bodyLimit?: number; readonly timeout?: string }>;
 }
 
 /** Deterministic compiled service manifest. */
@@ -198,11 +268,15 @@ export interface ServiceManifest {
 	readonly requirements: readonly RequirementDocument[];
 	/** Complete requirements reachable anywhere in this compiled service. */
 	readonly reachableRequirements: readonly RequirementDocument[];
+	/** Distinct effect IDs reachable from compiled service operations. */
+	readonly effects: readonly string[];
 	readonly problems: readonly string[];
 	readonly responses: readonly string[];
 	readonly middleware: readonly string[];
+	/** Distinct resilience policy kinds used anywhere in this service. */
 	readonly resiliency: readonly string[];
 	readonly workflows: readonly string[];
+	readonly observers: readonly string[];
 }
 
 /** Compiled service ready for runtime creation and artifact generation. */
@@ -217,6 +291,7 @@ export interface CompiledService<
 	readonly implementation: ServiceImplementation<Definition, Host>;
 	/** Keyed child operations coordinated by this compiled service. */
 	readonly operations: readonly EffectiveServiceOperation[];
+	readonly routePlan: RoutePlan;
 	readonly manifest: ServiceManifest;
 }
 
@@ -259,31 +334,32 @@ export type ServiceValidationResult =
 
 
 /**
- * Exact application concern values propagated through one request.
+ * Empty base contract for application-owned values added during one service request.
  *
- * Identity and requirement-family packages specialize this interface with
- * their provider-neutral domain types. `utils/server` only coordinates the
- * stages and never imports permission, entitlement, meter, quota, or provider packages.
+ * Applications extend this type with exact provider-neutral fields. The generic
+ * server reserves no authentication, actor, organization, or policy-state keys.
  */
-export type ServiceConcernValues = EndpointConcernValues;
+export type ServiceRequestValues = EndpointRequestValues;
+
+/** Execution context used by service handlers after effect and requirement scopes are attached. */
+export type ServiceExecutionContext = RequirementContext<EffectContext<Context>>;
 
 /** Validated values grouped by HTTP request location. */
 export type ServiceInputValues = EndpointRuntimeInputValues;
 
 /**
- * Request values exposed to service concern runtimes.
+ * Fixed request state plus provider-neutral values contributed by runtime adapters.
  *
- * The service utility owns the fixed request/runtime fields. Domain concern
- * packages contribute provider-neutral request values through the generic
- * `Concerns` object. Concern values remain partial while ordered request stages
- * accumulate them, and framework-owned fields cannot be replaced by concerns.
+ * Request values remain partial while ordered adapters add them. Adapters cannot
+ * replace framework-owned fields such as the Request, host, inputs, resources,
+ * execution context, or compiled operation.
  */
 type ServiceRequestCore<Host extends object> = Readonly<{
 	/** Request payload carried by this service request state. */
 	readonly request: Request;
 	readonly host: Host;
 	/** Borrowed parent execution context for this service request state. */
-	readonly ctx: RequirementContext<Context>;
+	readonly ctx: ServiceExecutionContext;
 	/** Input carried by this service request state. */
 	readonly input: ServiceInputValues;
 	/** Context-bound resolver for resources reachable by this operation. */
@@ -294,56 +370,57 @@ type ServiceRequestCore<Host extends object> = Readonly<{
 }>;
 
 /**
- * Request values exposed to service concern runtimes.
+ * Fixed request state plus provider-neutral values contributed by runtime adapters.
  *
- * The service utility owns the fixed request/runtime fields. Domain concern
- * packages contribute provider-neutral request values through the generic
- * `Concerns` object. Concern values remain partial while ordered request stages
- * accumulate them, and framework-owned fields cannot be replaced by concerns.
+ * Request values remain partial while ordered adapters add them. Adapters cannot
+ * replace framework-owned fields such as the Request, host, inputs, resources,
+ * execution context, or compiled operation.
  */
-export type ServiceConcernPatch<Concerns extends ServiceConcernValues = ServiceConcernValues> = Readonly<{
-	readonly [Key in keyof Concerns]?: Exclude<Concerns[Key], undefined>;
+export type ServiceValuePatch<Values extends ServiceRequestValues = ServiceRequestValues> = Readonly<{
+	readonly [Key in keyof Values]?: Exclude<Values[Key], undefined>;
 }>;
 
-/** Immutable request state composed without allowing concern patches to replace framework-owned core fields. */
+/** Immutable request state that prevents adapter patches from replacing framework-owned fields. */
 export type ServiceRequestState<
 	Host extends object = EmptyEndpointHost,
-	Concerns extends ServiceConcernValues = ServiceConcernValues,
-> = Readonly<ServiceRequestCore<Host> & Omit<ServiceConcernPatch<Concerns>, keyof ServiceRequestCore<Host>>>;
+	Values extends ServiceRequestValues = ServiceRequestValues,
+> = Readonly<ServiceRequestCore<Host> & Omit<ServiceValuePatch<Values>, keyof ServiceRequestCore<Host>>>;
 
-/** Patch returned by a concern runtime after successful evaluation. Present keys always carry concrete values. */
-export type ServiceRequestStatePatch<Concerns extends ServiceConcernValues = ServiceConcernValues> = ServiceConcernPatch<Concerns>;
+/** Request-value patch returned by a runtime adapter after successful evaluation. */
+export type ServiceRequestStatePatch<Values extends ServiceRequestValues = ServiceRequestValues> = ServiceValuePatch<Values>;
 
 /**
- * Host adapter for resilience policies not implemented by the generic server.
+ * Runtime adapter for resilience policies not implemented by the generic server.
  *
- * Timeout and body limits are native. Admission/idempotency/retry/circuit and
- * bulkhead semantics require an explicit durable or distributed host adapter.
+ * The server owns timeout and body-limit behavior. Idempotency, rate limiting,
+ * bulkheads, retries, and circuit breakers require an explicit runtime adapter.
  */
-export interface ServiceResilienceHost<Host extends object = EmptyEndpointHost, Concerns extends ServiceConcernValues = ServiceConcernValues> {
-	/** Return whether this host implements the exact declared resilience policy. */
+export interface ServiceResilienceAdapter<Host extends object = EmptyEndpointHost, Values extends ServiceRequestValues = ServiceRequestValues> {
+	/** Return whether this adapter implements the exact declared resilience policy. */
 	supports(policy: ResiliencePolicy): boolean;
-	/** Run one concrete unit of service resilience host behavior. */
+	/** Run the adapter-owned policies for one lifecycle stage. */
 	run(
 		policies: readonly ResiliencePolicy[],
-		state: ServiceRequestState<Host, Concerns>,
+		state: ServiceRequestState<Host, Values>,
 		next: () => Promise<ServiceStageResult>,
 	): Promise<ServiceStageResult>;
 }
 
-/** Provider/domain concern runtimes supplied by a composition root. */
-export interface ServiceConcernRuntimes<Host extends object = EmptyEndpointHost, Concerns extends ServiceConcernValues = ServiceConcernValues> {
+/** Runtime adapters supplied by the application composition root. */
+export interface ServiceRuntimeAdapters<Host extends object = EmptyEndpointHost, Values extends ServiceRequestValues = ServiceRequestValues> {
 	readonly authenticate?: (
 		requirements: readonly CatalogEntryIdentity[],
-		state: ServiceRequestState<Host, Concerns>,
-	) => Promise<ServiceRequestStatePatch<Concerns> | ProblemResult | void>;
+		state: ServiceRequestState<Host, Values>,
+	) => Promise<ServiceRequestStatePatch<Values> | ProblemResult | void>;
 	/** Active requirement interpreters. Unknown families reject unless this runtime explicitly selects `ignore`. */
 	readonly requirements?: RequirementRuntime;
-	/** Static resilience policies applied at the service concern runtimes lifecycle. */
-	readonly resilience?: ServiceResilienceHost<Host, Concerns>;
+	/** Optional emitter used only when runtime code announces a declared effect. */
+	readonly effect?: EffectEmitter;
+	/** Adapter for resilience policies that the generic server cannot execute itself. */
+	readonly resilience?: ServiceResilienceAdapter<Host, Values>;
 }
 
-/** Direct-identity context store used by middleware and concern adapters. */
+/** Direct-identity context store used by middleware and runtime adapters. */
 export interface ServiceContextStore {
 	has<Definition extends MiddlewareContextDefinition>(definition: Definition): boolean;
 	/** Get one addressable value under this service context store contract. */
@@ -355,26 +432,15 @@ export interface ServiceContextStore {
 }
 
 /** Options used to create a live framework-neutral service runtime. */
-export interface CreateServiceOptions<Host extends object = EmptyEndpointHost, Concerns extends ServiceConcernValues = ServiceConcernValues> {
+export interface CreateServiceOptions<Host extends object = EmptyEndpointHost, Values extends ServiceRequestValues = ServiceRequestValues> {
 	readonly environment?: Readonly<Record<string, unknown>>;
 	readonly host: Host;
-	readonly concerns?: ServiceConcernRuntimes<Host, Concerns>;
+	readonly adapters?: ServiceRuntimeAdapters<Host, Values>;
 	/** Add domain-specific runtime views after validation and active admission requirements. */
-	readonly context?: (ctx: RequirementContext, state: ServiceRequestState<Host, Concerns>, reachable: readonly RequirementDefinition[]) => RequirementContext;
+	readonly requirementContext?: (ctx: ServiceExecutionContext, state: ServiceRequestState<Host, Values>, reachable: readonly RequirementDefinition[]) => ServiceExecutionContext;
 	readonly requestParsing?: RequestParsingOptions;
-	readonly onError?: (error: Error, state?: ServiceRequestState<Host, Concerns>) => void | Promise<void>;
-	readonly onResponseComplete?: (event: Readonly<{
-		/** Stable request identity carried by this create service. */
-		readonly requestId: string;
-		/** Stable operation identity carried by this create service. */
-		readonly operationId: string;
-		readonly method: string;
-		/** Deterministic or canonical path associated with this create service. */
-		readonly path: string;
-		readonly status: number;
-		/** Recorded terminal completion returned during workflow replay. */
-		readonly completion: ResponseCompletion;
-	}>) => void | Promise<void>;
+	/** Exact observer handlers required by observer definitions imported by this service. */
+	readonly observers?: readonly ServiceObserverHandler[];
 	/** Stable request identity carried by this create service. */
 	readonly requestId?: (request: Request) => string;
 	/** Stable trace identity carried by this create service. */
@@ -391,7 +457,13 @@ export interface ServiceRuntimeRoute {
 	readonly handler: (request: Request) => Response | Promise<Response>;
 }
 
-/** Live service runtime owned by one host. */
+/**
+ * Live service runtime owned by one transport host.
+ *
+ * The runtime owns service resources and request contexts, not the network
+ * listener. Hosts expose `fetch` through Deno, Node, an edge adapter, or
+ * another HTTP transport and dispose this runtime when that host shuts down.
+ */
 export interface ServiceRuntime extends AsyncDisposable {
 	/** Exact compiled routes in canonical adapter-registration order. */
 	readonly routes: readonly ServiceRuntimeRoute[];
@@ -401,7 +473,7 @@ export interface ServiceRuntime extends AsyncDisposable {
 	readonly resources: ResourceCollection;
 }
 
-/** Result returned by a middleware or concern stage. */
+/** Result returned by a middleware or runtime-adapter stage. */
 export type ServiceStageResult =
 	| ResponseResult
 	| ProblemResult

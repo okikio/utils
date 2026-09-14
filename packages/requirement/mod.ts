@@ -61,14 +61,14 @@ export function define<
 		return existing as RequirementDefinition<Family, Action, Entry>;
 	}
 
-	const value: RequirementDefinition<Family, Action, Entry> = Object.freeze({
+	const value = Object.freeze({
 		kind: 'requirement',
 		id: `${input.family}:${input.action}:${input.definition.id}`,
 		family: input.family,
 		action: input.action,
 		definition: input.definition,
 		...(input.description === undefined ? {} : { description: input.description }),
-	});
+	} satisfies RequirementDefinition<Family, Action, Entry>);
 	owned.set(key, value);
 	definitions.set(input.definition, owned);
 	return value;
@@ -122,10 +122,10 @@ export function scope<Base extends import('@okikio/context').Context>(
 	ctx: Base,
 	options: RequirementScopeOptions = {},
 ): RequirementContext<Base> {
-	const runtime: RequirementRuntime = Object.freeze({
+	const runtime = Object.freeze({
 		interpreters: Object.freeze({ ...(options.interpreters ?? {}) }),
 		unknown: options.unknown ?? 'reject',
-	});
+	} satisfies RequirementRuntime);
 	return context.view(ctx, { requirements: runtime });
 }
 

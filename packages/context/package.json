@@ -9,8 +9,8 @@
 		"./types": "./types.ts"
 	},
 	"dependencies": {
-		"@okikio/dispose": "workspace:^",
-		"@std/async": "npm:@jsr/std__async@^1.5.0"
+		"@std/async": "npm:@jsr/std__async@^1.5.0",
+		"@okikio/duration": "workspace:^"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20"

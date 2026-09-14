@@ -1,18 +1,19 @@
 import { expect } from '@std/expect';
 import { describe, it } from 'node:test';
 import * as requestContext from '@okikio/context';
+import * as effect from '@okikio/effect';
 import * as requirement from '@okikio/requirement';
 import * as resilience from '@okikio/resilience';
 
 import { resilience as resilienceHost, RetryableOperationError, retry as retryHost } from './resilience.ts';
-import type { ServiceRequestState, ServiceResilienceHost } from './types.ts';
+import type { ServiceRequestState, ServiceResilienceAdapter } from './types.ts';
 
 const owner = requestContext.create({
 	id: 'request_test',
 	signal: new AbortController().signal,
-	clock: { now: () => Temporal.Instant.from('2026-08-02T00:00:00Z') },
+	clock: { now: () => Temporal.Instant.from('2026-08-02T00:00:00Z'), sleep: () => Promise.resolve() },
 });
-const ctx = requirement.scope(owner);
+const ctx = effect.scope(requirement.scope(owner), { effects: [] });
 
 const state = {
 	request: new Request('https://api.example.invalid/imports'),
@@ -24,7 +25,7 @@ const state = {
 	operation: {} as ServiceRequestState['operation'],
 } satisfies ServiceRequestState;
 
-describe('service resilience runtimes', () => {
+describe('service resilience adapters', () => {
 	it('does not invoke custom Error message accessors while wrapping retryable failures', () => {
 		let reads = 0;
 		const cause = new Error();
@@ -68,7 +69,7 @@ describe('service resilience runtimes', () => {
 
 	it('composes focused runtimes in policy order', async () => {
 		const events: string[] = [];
-		const runtime = (type: 'idempotency' | 'retry'): ServiceResilienceHost => ({
+		const runtime = (type: 'idempotency' | 'retry'): ServiceResilienceAdapter => ({
 			supports: (policy) => policy.type === type,
 			async run(_policies, _state, next) {
 				events.push(`${type}:before`);

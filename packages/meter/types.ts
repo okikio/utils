@@ -13,7 +13,7 @@ export interface MeterOptions {
 	readonly aggregation?: string;
 }
 
-/** Immutable meter contract and its required effect definition. */
+/** Immutable meter contract and its declared effect definition. */
 export interface MeterDefinition extends CatalogEntryIdentity {
 	/** Stable discriminant for this meter value. */
 	readonly kind: 'meter';
@@ -23,7 +23,7 @@ export interface MeterDefinition extends CatalogEntryIdentity {
 	readonly unit?: string;
 	/** Suggested downstream aggregation meaning retained as static metadata. */
 	readonly aggregation?: string;
-	/** Required effect used when a runtime records one measurement. */
+	/** Effect declared for runtimes that record one measurement. */
 	readonly effect: EffectDefinition;
 }
 

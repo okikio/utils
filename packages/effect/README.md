@@ -1,158 +1,261 @@
 `@okikio/effect`
-===============
+================
 
-Purpose
--------
+`@okikio/effect` lets code declare and announce externally observable side
+effects without coupling the declaration to a queue, database, workflow engine,
+or provider SDK.
 
-An effect is a required one-way consequence that another owner must accept. It is not a general computation type, a log, or an optional observation.
+An effect answers two questions:
 
-```ts
+1.  Which side effect may this execution announce?
+2.  Which live owner accepts responsibility when that side effect occurs?
+
+It is not the Effect TypeScript runtime. It is also not the generic logging or
+metrics API. Optional observations belong in telemetry. An effect is used when
+announcing the side effect is part of the operation's declared behavior.
+
+Declare the side effect
+-----------------------
+
+An effect definition is import-safe data. Its schema describes the value carried
+by one announcement.
+
+~~~~ typescript
 import * as effect from '@okikio/effect';
 
 const RouteCommitted = effect.define({
-	id: 'capture.route-committed',
-	description: 'A route unit became authoritative.',
-	value: RouteCommittedSchema,
+  id: 'capture.route-committed',
+  description: 'A route unit became authoritative.',
+  value: RouteCommittedSchema,
 });
-```
+~~~~
 
-Definition, occurrence, and delivery are separate:
+Declaring an effect does not mean every execution emits it. It means code in
+that execution scope is allowed to announce it.
 
-```text
-effect.define()
-    static import-safe contract
-        |
-        v
-effect.create()
-    validated frozen occurrence
-    no effect delivery
-        |
-        v
-effect.emit()
-    required delivery
-    resolves after exact owner accepts responsibility
-```
+For example, an endpoint can declare the side effects that its handler may
+announce:
 
-Start here
-----------
+~~~~ typescript
+const CommitRoute = endpoint.post({
+  id: 'routes.commit',
+  path: '/routes/:routeId/commit',
+  effects: [RouteCommitted],
+  responses: [RouteResponse],
+});
+~~~~
 
-`create()` validates the value and requires a caller-owned stable key. It does not call the effect emitter.
+The service compiler carries that exact definition into the effective operation
+and generated service manifest. A declaration allows an announcement; it does
+not require every request, or service startup, to have an effect owner.
 
-```ts
+Announce one occurrence
+-----------------------
+
+`effect.emit()` announces that one declared side effect occurred. It validates
+the value and requires a stable logical key.
+
+~~~~ typescript
+const CommitRouteHandler = endpoint.handler(CommitRoute, async ({ ctx, input }) => {
+  const route = await commitRoute(input.param.routeId);
+
+  await effect.emit(
+    ctx,
+    RouteCommitted,
+    { routeId: route.id, revision: route.revision },
+    { key: `${route.id}:${route.revision}` },
+  );
+
+  return response.create(RouteResponse, route);
+});
+~~~~
+
+The stable key identifies the logical occurrence. Retries that represent the
+same side effect must reuse the same key. Do not include an attempt number merely
+because execution retried.
+
+`create()` performs the validation and occurrence construction without delivery:
+
+~~~~ typescript
 const occurrence = await effect.create(
-	RouteCommitted,
-	{ captureId, generation, routeId, reference },
-	{ key: `${generation}:${routeId}` },
+  RouteCommitted,
+  { routeId, revision },
+  { key: `${routeId}:${revision}` },
 );
-```
+~~~~
 
-The key identifies the logical consequence within its owning execution. It must contain 1 to 512 characters. Durable handlers normally combine it with stable execution identity such as an activity job ID. Do not use an activity attempt number when a retry represents the same logical consequence.
+This is useful when another component decides when the announcement is accepted.
 
-Delivery
---------
+Acceptance has an exact meaning
+-------------------------------
 
-Create an effect-aware scope around the current execution context:
+When configured, `emit()` resolves when the `EffectEmitter` accepts
+responsibility for the occurrence. Acceptance is the point after which the
+producer may rely on the announcement having an owner. An unconfigured emitter
+only matters when code actually calls `emit()`.
 
-```ts
-const effectCtx = effect.scope(ctx, {
-	effects: [RouteCommitted],
-	emitter,
+Acceptance can mean different concrete things:
+
+- a direct handler completed the required work;
+- a database transaction committed an outbox record;
+- a queue durably accepted an idempotent item;
+- another runtime accepted responsibility for later delivery.
+
+Acceptance does not mean every asynchronous consequence has finished.
+
+A direct owner executes the exact handler before returning:
+
+~~~~ typescript
+const effects = effect.emitter(
+  effect.implement(RouteCommitted, async (ctx, occurrence) => {
+    await publishCommittedRoute(ctx, occurrence.value);
+  }),
+);
+~~~~
+
+A service supplies that owner explicitly:
+
+~~~~ typescript
+await using runtime = service.create(compiled, {
+  host,
+  adapters: {
+    effect: effects,
+  },
 });
+~~~~
 
-await effect.emit(effectCtx, occurrence);
-```
+If a compiled execution can emit an effect and no owner is configured, runtime
+creation fails. If code tries to emit an effect that the execution did not
+declare, `UndeclaredEffectError` fails that call.
 
-Ordinary call sites can use the create-and-emit form:
+Atomicity is owned where the side effect occurs
+-----------------------------------------------
 
-```ts
-await effect.emit(
-	effectCtx,
-	RouteCommitted,
-	{ captureId, generation, routeId, reference },
-	{ key: `${generation}:${routeId}` },
-);
-```
+`effect.emit()` does not make an earlier database mutation and a later
+announcement atomic by itself.
 
-`emit()` resolves when the emitter accepts ownership. Acceptance can mean that the handler completed the consequence directly, committed a database transaction, wrote an outbox record, or admitted an idempotent downstream job. It does not mean downstream asynchronous work is finished.
+When the domain mutation and the announcement must commit together, the
+application must put both under one authoritative transaction or outbox design.
+For example:
 
-Declaration safety
-------------------
+~~~~ text
+transaction
+  |
+  +-- update domain row
+  +-- insert effect outbox occurrence
+  `-- commit
+          |
+          v
+      effect accepted
+          |
+          v
+      later delivery
+~~~~
 
-`effect.scope()` creates a typed `context.view()` and receives the exact effect definitions the current execution path declared. It can wrap a permission-aware context without dropping the permission runtime. Emitting another definition throws `UndeclaredEffectError`. A missing emitter throws `MissingEffectEmitterError` instead of turning a required consequence into an optional no-op.
+A billing reservation, usage commitment, audit record, or workflow-start event
+may need this stronger form. A direct in-memory emitter is appropriate only when
+its weaker ownership semantics are acceptable.
 
-This mirrors the project rule for permissions: static definitions describe what runtime work can demand or cause, while a live host supplies the implementation.
+Use `outbox()` when queue acceptance is the handoff point
+---------------------------------------------------------
 
-Durable transport
------------------
+`effect.outbox()` provides a queue-backed `EffectEmitter`. Producer acceptance
+occurs when the queue accepts the idempotent encoded occurrence. `drain()` later
+claims occurrences and sends each one to its exact handler.
 
-`encode()` stores only the stable definition ID, logical key, and validated value. `decode()` requires trusted imported definitions and validates the value again before recreating an occurrence.
+~~~~ typescript
+await using effects = effect.outbox({
+  queue,
+  handlers: [
+    effect.implement(RouteCommitted, handleCommittedRoute),
+  ],
+  maximumAttempts: 8,
+  retryDelay: { seconds: 1 },
+});
+~~~~
 
-The encoded envelope is treated as inert data. It must be a plain object or
-null-prototype record with own enumerable data properties; accessor-backed fields
-are rejected without invoking their getters. The nested `value` is then validated
-by the trusted effect definition.
+The outbox separates producer acceptance from downstream completion while
+retaining the same definition identity and stable occurrence key.
 
-Occurrence immutability is shallow. The occurrence wrapper is frozen, while its
-schema-produced `value` is borrowed. A schema or producer that requires immutable
-nested data must enforce that contract itself.
+Scopes enforce declarations
+---------------------------
 
-This permits process, Worker, queue, outbox, and durable-store adapters without serializing live definition objects or runtime resources.
+Hosts attach the definitions available to an execution with `effect.scope()`.
+Service, activity, and workflow runtimes do this from their compiled/static
+contracts.
 
-Cancellation
-------------
+~~~~ typescript
+const effectCtx = effect.scope(ctx, {
+  effects: [RouteCommitted],
+  emitter,
+});
+~~~~
 
-`emit()` checks cancellation before delivery. Cancellation before acceptance means the producer cannot assume the consequence exists. Once the emitter resolves, ownership has transferred and later producer cancellation does not recall the accepted effect or change the successful acknowledgement into a cancellation error. The emitter owns downstream recovery from that point.
+The scope is a typed `@okikio/context` view. It borrows the parent lifetime and
+does not create a registry or hidden resource container.
 
-Convenience and the manual equivalent
--------------------------------------
+The service compiler gathers effects contributed by the service, targeted
+service policies, endpoint groups, endpoint paths, endpoint operations, and
+middleware. A resource does not silently add side effects to an operation. If an
+externally visible side effect is part of the operation contract, declare it at
+a service or execution composition layer where callers and tooling can see it.
 
-Concrete map
-~~~~~~~~~~~~
+Durable transport revalidates data
+----------------------------------
 
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `effect.define()` + `effect.create()` | freeze identity metadata, validate the occurrence value, derive a stable key, and mark process-local occurrence identity | one typed logical effect occurrence |
-| `effect.emitter()` | build a handler index, reject duplicates/missing handlers, and route each occurrence yourself | one explicit effect-delivery boundary |
-| `effect.outbox()` | encode an occurrence, persist an idempotent acceptance record, and separate acceptance from later delivery | durable acceptance without embedding a provider in definitions |
+`encode()` stores the stable definition ID, logical key, and validated value.
+`decode()` accepts trusted imported definitions and validates the value again
+before recreating an occurrence.
 
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
+~~~~ typescript
+const encoded = await effect.encode(occurrence);
+const restored = await effect.decode(encoded, [RouteCommitted]);
+~~~~
 
+The encoded envelope must be an inert plain record with own enumerable data
+properties. Accessor-backed transport values are rejected without invoking their
+getters.
 
-`@okikio/effect` is a convenience layer, not a hidden runtime. You can reproduce its
-core mechanics with call a handler directly, or persist an outbox record and invoke the handler later.
+The occurrence wrapper is shallowly frozen. Its schema-produced `value` is
+borrowed. A schema or producer that requires immutable nested data must enforce
+that rule itself.
 
-The utility gives both forms the same declared effect identity, stable key, scope, and acceptance semantics.
+Cancellation and failure
+------------------------
 
-When debugging or extending the package, keep that manual model in mind. The
-utility should remove repetitive correctness work without making the underlying
-Web, ECMAScript, Standard Schema, or runtime primitives impossible to recognize.
+`emit()` checks cancellation before transferring responsibility. If cancellation
+wins before the emitter accepts the occurrence, the producer cannot assume the
+announcement exists.
 
+After the emitter resolves, ownership has transferred. Later producer
+cancellation does not recall the accepted occurrence.
 
-Composition, handlers, and expected errors
------------------------------------------
+The main failures are deliberate and specific:
 
-Beyond `define()`, `create()`, `emit()`, and `outbox()`:
+| Failure | Meaning |
+| ------- | ------- |
+| `UndeclaredEffectError` | Code tried to announce an effect outside the declarations available to this execution. |
+| `MissingEffectEmitterError` | The execution declared effects but no live owner can accept an emission. |
+| `DuplicateEffectHandlerError` | Two direct/outbox handlers claim the same exact definition. |
+| `MissingEffectHandlerError` | The owner has no handler for an occurrence it was asked to deliver. |
+| `UnknownEffectDefinitionError` | Durable data names an effect definition not trusted by this receiving process. |
 
-- `catalog()`, `select()`, and `compose()` build import-safe effect definition sets.
-- `implement()` binds one exact effect definition to its authoritative handler.
-- `isOccurrence()` verifies process-local identity for an occurrence created by this module instance; a copied lookalike object is not accepted.
-- `DuplicateEffectHandlerError` rejects two handlers claiming the same exact definition.
-- `MissingEffectHandlerError` reports an emitted/queued effect with no authoritative handler.
-- `UnknownEffectDefinitionError` reports durable encoded data whose definition ID is not trusted by the receiving host.
+Use effects for required announcements, not diagnostics
+-------------------------------------------------------
 
+An effect is appropriate when the system needs an explicit, typed record that a
+side effect occurred or when another component must accept responsibility for a
+required consequence.
 
-Source guide
-------------
+Typical examples include:
 
-Start with this README, then use the source in this order when you need more
-detail:
+- usage and meter occurrences;
+- billing or balance consequences;
+- audit records that must not disappear silently;
+- notification or webhook delivery intents;
+- workflow or activity side-effect announcements;
+- domain events whose delivery is part of correctness.
 
-1. `mod.ts` shows the supported runtime operations and the composition shape.
-2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*_test.ts` files show edge cases, cancellation, invalid input, and lifecycle
-   behavior as executable examples.
-4. Read internal implementation files only when you need the exact state
-   transition or performance-sensitive loop.
-
-The README is the primary user documentation. It intentionally stays close to
-the public source instead of maintaining a separate hand-written API reference.
+Metrics, logs, and traces normally use observers instead. An observer is allowed
+to fail without changing a successful application result; an announced effect is
+not.

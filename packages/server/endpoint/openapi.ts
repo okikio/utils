@@ -2,7 +2,7 @@ import { joinPath, pathParameters } from './path.ts';
 import * as catalog from '@okikio/catalog'
 import * as record from '@okikio/record'
 import { freeze as freezeOpenApi } from '../openapi/value.ts'
-import type { StandardSchemaV1 } from '@standard-schema/spec'
+import type { StandardJSONSchemaV1, StandardSchemaV1 } from '@standard-schema/spec'
 import type { ProblemDefinition } from '@okikio/http/problem'
 import type { ResponseDefinition, ResponseExample } from '@okikio/http/response'
 
@@ -18,18 +18,14 @@ import type {
 	EndpointOperation,
 } from './types.ts'
 
-/** Minimal Standard JSON Schema trait used without coupling to a schema library. */
-export interface StandardJsonSchemaV1 {
-	readonly '~standard-json-schema': {
-		readonly version: 1
-		readonly vendor: string
-		readonly jsonSchema: unknown | (() => unknown | Promise<unknown>)
-	}
-}
+/** OpenAPI document versions that this projector can emit. */
+export type OpenApiSpecVersion = '3.1.0' | '3.1.1' | '3.1.2' | '3.2.0'
 
 /** Context supplied when OpenAPI needs a schema-library-specific projection. */
 export interface OpenApiSchemaProjectionContext {
 	readonly purpose: 'request' | 'response'
+	readonly specVersion: OpenApiSpecVersion
+	readonly target: 'draft-2020-12'
 }
 
 /** Optional adapter used when a Standard Schema does not expose Standard JSON Schema directly. */
@@ -46,7 +42,7 @@ export interface OpenApiServer {
 
 /** OpenAPI 3.1 document generated from one endpoint composition. */
 export interface OpenApiDocument {
-	readonly openapi: '3.1.0'
+	readonly openapi: OpenApiSpecVersion
 	readonly info: Readonly<{
 		readonly title: string
 		readonly version: string
@@ -62,11 +58,20 @@ export interface OpenApiOptions {
 	readonly version: string
 	readonly description?: string
 	readonly includeInternal?: boolean
+	/** OpenAPI document version. Defaults to 3.1.2. Selecting 3.2.0 does not synthesize features that only exist in 3.2. */
+	readonly specVersion?: OpenApiSpecVersion
+	/** Controls whether a configured projector is a fallback or replaces the validator's Standard JSON Schema projection. */
+	readonly schemaProjectorMode?: 'fallback' | 'override'
 	/** Server origins advertised to generated clients and API reference tooling. */
 	readonly servers?: readonly OpenApiServer[]
-	/** Project schemas from libraries such as Zod when they do not expose the Standard JSON Schema trait. */
+	/** Optional projection for validators that do not expose Standard JSON Schema directly. */
 	readonly schemaProjector?: OpenApiSchemaProjector
 }
+
+/** Fully normalized options used by the OpenAPI projection after validation. */
+type NormalizedOpenApiOptions = Omit<OpenApiOptions, 'specVersion'> & Readonly<{
+	readonly specVersion: OpenApiSpecVersion
+}>
 
 interface EndpointVisit {
 	readonly endpoint: EndpointDefinition
@@ -109,7 +114,7 @@ export async function openapi(
 	}
 
 	return freezeOpenApi({
-		openapi: '3.1.0' as const,
+		openapi: normalizedOptions.specVersion,
 		info: {
 			title: normalizedOptions.title,
 			version: normalizedOptions.version,
@@ -232,7 +237,7 @@ function parameterObjects(
 			)
 		}
 		return freezeOpenApi({
-			in: source,
+			in: source === 'param' ? 'path' : source,
 			name,
 			required: source === 'param' || required.has(name),
 			schema: property,
@@ -257,7 +262,7 @@ function requestBodyObject(
 	schema: unknown,
 ): Readonly<Record<string, unknown>> {
 	const input = documented(slot)
-	const mediaType = input?.contentType ?? defaultContentType(source)
+	const mediaType = input?.contentType ?? defaultRequestContentType(source)
 	return freezeOpenApi({
 		required: input?.required ?? true,
 		...(input?.description !== undefined ? { description: input.description } : {}),
@@ -328,7 +333,9 @@ async function successResponseObject(
 		]))
 	}
 	if (definition.schema !== undefined && definition.mode !== 'empty' && definition.mode !== 'redirect') {
-		const projected = await projectBareSchema(definition.schema, internal, options, 'response')
+		const projected = definition.jsonSchema !== undefined
+			? freezeOpenApi(definition.jsonSchema)
+			: await projectBareSchema(definition.schema, internal, options, 'response')
 		result.content = {
 			[contentType]: {
 				schema: responseBodySchema(definition, projected),
@@ -546,23 +553,37 @@ async function projectSchema(
 ): Promise<unknown> {
 	const input = documented(slot)
 	if (input?.jsonSchema !== undefined) return freezeOpenApi(input.jsonSchema)
-	return await projectBareSchema(schemaOf(slot), internal, options, 'request')
+	const schema = schemaOf(slot) as StandardSchemaV1 & { readonly wireSchema?: () => unknown }
+	if (typeof schema.wireSchema === 'function') return freezeOpenApi(schema.wireSchema())
+	return await projectBareSchema(schema, internal, options, 'request')
 }
 
-/**
- * Projects bare schema into the narrower representation used by the endpoint OpenAPI projection.
- *
- * @internal
- */
+/** Project Standard JSON Schema in the correct wire direction, with explicit mapper precedence. */
 async function projectBareSchema(
 	schema: StandardSchemaV1,
 	internal: boolean,
 	options: OpenApiOptions,
 	purpose: OpenApiSchemaProjectionContext['purpose'],
 ): Promise<unknown> {
-	const trait = (schema as StandardSchemaV1 & Partial<StandardJsonSchemaV1>)['~standard-json-schema']
-	if (trait) return freezeOpenApi(typeof trait.jsonSchema === 'function' ? await trait.jsonSchema() : trait.jsonSchema)
-	const projected = await options.schemaProjector?.(schema, { purpose })
+	const target = 'draft-2020-12' as const
+	const context: OpenApiSchemaProjectionContext = { purpose, specVersion: options.specVersion ?? '3.1.2', target }
+	if (options.schemaProjectorMode === 'override') {
+		const projected = await options.schemaProjector?.(schema, context)
+		if (projected !== undefined) return freezeOpenApi(projected)
+	}
+	const standard = schema as StandardSchemaV1 & Partial<StandardJSONSchemaV1>
+	const converter = standard['~standard'].jsonSchema
+	if (converter !== undefined) {
+		try {
+			return freezeOpenApi(purpose === 'request' ? converter.input({ target }) : converter.output({ target }))
+		} catch (error) {
+			if (options.schemaProjector === undefined) {
+				if (internal) return freezeOpenApi({})
+				throw new TypeError('Public endpoint schema could not be projected through Standard JSON Schema.', { cause: error })
+			}
+		}
+	}
+	const projected = await options.schemaProjector?.(schema, context)
 	if (projected !== undefined) return freezeOpenApi(projected)
 	if (internal) return freezeOpenApi({})
 	throw new TypeError('Public endpoint schema has no Standard JSON Schema projection or configured projector.')
@@ -723,7 +744,7 @@ function problemExamplesObject(definition: ProblemDefinition): Readonly<Record<s
  *
  * @internal
  */
-function defaultContentType(source: 'json' | 'form' | 'raw'): string {
+function defaultRequestContentType(source: 'json' | 'form' | 'raw'): string {
 	if (source === 'json') return 'application/json'
 	if (source === 'form') return 'application/x-www-form-urlencoded'
 	return 'application/octet-stream'
@@ -741,22 +762,27 @@ function defaultResponseContentType(definition: ResponseDefinition): string {
 }
 
 /** Normalize OpenAPI options before projection can observe caller mutation or accessors. @internal */
-function normalizeOptions(options: OpenApiOptions): OpenApiOptions {
+function normalizeOptions(options: OpenApiOptions): NormalizedOpenApiOptions {
 	record.assert(options, 'OpenAPI options')
 	if (typeof options.title !== 'string' || options.title.length === 0) throw new TypeError('OpenAPI title must be a non-empty string.')
 	if (typeof options.version !== 'string' || options.version.length === 0) throw new TypeError('OpenAPI version must be a non-empty string.')
 	if (options.description !== undefined && typeof options.description !== 'string') throw new TypeError('OpenAPI description must be a string.')
 	if (options.includeInternal !== undefined && typeof options.includeInternal !== 'boolean') throw new TypeError('includeInternal must be a boolean.')
 	if (options.schemaProjector !== undefined && typeof options.schemaProjector !== 'function') throw new TypeError('schemaProjector must be a function.')
+	const specVersion = options.specVersion ?? '3.1.2'
+	if (!['3.1.0', '3.1.1', '3.1.2', '3.2.0'].includes(specVersion)) throw new TypeError('Unsupported OpenAPI specVersion.')
+	if (options.schemaProjectorMode !== undefined && options.schemaProjectorMode !== 'fallback' && options.schemaProjectorMode !== 'override') throw new TypeError('schemaProjectorMode must be fallback or override.')
 	const servers = options.servers === undefined ? undefined : normalizeServers(options.servers)
 	return Object.freeze({
 		title: options.title,
 		version: options.version,
+		specVersion,
 		...(options.description !== undefined ? { description: options.description } : {}),
 		...(options.includeInternal !== undefined ? { includeInternal: options.includeInternal } : {}),
 		...(servers !== undefined ? { servers } : {}),
 		...(options.schemaProjector !== undefined ? { schemaProjector: options.schemaProjector } : {}),
-	})
+		...(options.schemaProjectorMode !== undefined ? { schemaProjectorMode: options.schemaProjectorMode } : {}),
+	} satisfies NormalizedOpenApiOptions)
 }
 
 /** Snapshot advertised servers as inert OpenAPI data. @internal */

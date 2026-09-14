@@ -4,7 +4,7 @@
 Import-driven edge routing and forwarding derived from import-safe service
 definitions. Compiled service manifests are optional drift checks, not route
 discovery inputs. Gateway definitions do not copy service path strings and do
-not own application requirement interpretation or domain validation. A gateway may authenticate a caller or add a signed assertion when its policy declares that edge behavior, but service-level permission, entitlement, meter, quota, consent, and future requirement families remain service concerns.
+not own application requirement interpretation or domain validation. A gateway may authenticate a caller or add a signed assertion when its policy declares that edge behavior, but service-level permission, entitlement, meter, quota, consent, and future requirement families remain service-owned extensions.
 
 ```text
 import-safe service route
@@ -54,6 +54,34 @@ treatment, redirect behavior, observers, and manifests before a runtime is
 created. Hosts may additionally pass compiled service manifests to
 `gateway.compile()` when deployment validation should reject definition/runtime
 drift. The manifests never become the route source of truth.
+
+Host ownership
+--------------
+
+A mount is **route metadata**, not service startup. `gateway.mount(Service, {
+origin })` reads an import-safe service definition so compilation can determine
+which upstream owns each method/path. It does not instantiate that service,
+open its resources, spawn a process, or bind its origin.
+
+`gateway.create()` returns one Fetch-compatible handler. The surrounding host
+owns the listener and its restart lifecycle:
+
+```text
+service definition --import--> gateway.compile()
+                              |
+                              v
+                       gateway.create()
+                              |
+                              v
+                         { fetch }
+                              |
+                 transport host owns socket
+```
+
+For example, a Deno application can export the handler to `deno serve`; Deno
+then owns the TCP listener. Adding `Deno.serve()`, `Deno.listen()`, or a process
+supervisor inside this package would create competing transport ownership and
+is intentionally outside the gateway contract.
 
 Secure defaults
 ---------------
@@ -154,3 +182,16 @@ failed
 ```
  Durable security audits should still be written through an
 outbox rather than relying on best-effort logging.
+
+Prepared routing
+----------------
+
+Gateway compilation now prepares the same handler-free route plan used by the
+framework-neutral HTTP host. Runtime matching therefore does not choose between
+`URLPattern` and a separate fallback algorithm based on host capabilities.
+Deno, Node, Bun, and edge runtimes use the same route-template semantics.
+
+The gateway remains the owner of network forwarding and trust decisions rather than an in-process mount. It
+still owns forwarding-header reconstruction, correlation, credential policy,
+body admission, timeouts, redirects, response filtering, and body-completion
+observation after a route has been selected.

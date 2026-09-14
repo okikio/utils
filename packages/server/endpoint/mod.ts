@@ -39,7 +39,7 @@ export type {
 	EndpointContext,
 	EndpointRuntimeInputValues,
 	ErasedEndpointHandlerContext,
-	EndpointConcernValues,
+	EndpointRequestValues,
 	EmptyEndpointHost,
 	EndpointGroup,
 	EndpointGroupInput,
@@ -67,6 +67,7 @@ export type {
 	EndpointValidationIssue,
 	EndpointValidationResult,
 	InferEndpointInputs,
+	InferEndpointWireInputs,
 	MergeEndpointInputs,
 	PickEndpointInputSlots,
 	SingleMethodEndpointInput,
@@ -79,5 +80,4 @@ export type {
 	OpenApiSchemaProjectionContext,
 	OpenApiSchemaProjector,
 	OpenApiServer,
-	StandardJsonSchemaV1,
 } from './openapi.ts';

@@ -28,7 +28,7 @@ A serializable snapshot can cross a queue, process, or Worker message. The recei
 Runtime views
 -------------
 
-`context.view()` adds typed runtime-local fields without creating a new execution lifetime. The returned object retains the source context's cancellation and ownership identity, so focused utilities can compose concerns safely:
+`context.view()` adds typed runtime-local fields without creating a new execution lifetime. The returned object retains the source context's cancellation and ownership identity, so focused utilities can compose typed runtime views safely:
 
 ```ts
 import * as context from '@okikio/context';
@@ -47,7 +47,7 @@ dispose the returned value.
 
 Asynchronous disposal:
 
- - clears the deadline timer;
+ - cancels the clock-owned deadline wait;
  - removes the parent abort listener;
  - aborts unfinished local work;
  - disposes values registered through `use()`, `adopt()`, and `defer()` in standard LIFO order;
@@ -57,7 +57,7 @@ Because owned cleanup can be asynchronous, an owned context implements `AsyncDis
 
 A child can shorten a deadline. It cannot extend its parent deadline. A child links cancellation to its parent, but it is still an independently owned scope unless another owner explicitly adopts it.
 
-Timing has two levels. `context.delay(milliseconds, signalOrController?)` is a thin convenience over `@std/async/delay`. `context.wait(ctx, duration)` adds context semantics: it checks cancellation and deadlines before and after the timer and converts context cancellation into the context error model.
+Timing has two levels. `context.delay(milliseconds, signalOrController?)` is a thin convenience over `@std/async/delay`. `context.wait(ctx, duration)` uses `ctx.clock.sleep()` so the same clock controls both observed time and waiting, then adds context cancellation/deadline checks around that wait. `SystemClock` uses the runtime timer queue; `TestClock` resolves sleepers only when `advance()` or `set()` reaches their target.
 
 ```ts
 await context.delay(250);
@@ -102,7 +102,7 @@ parent Context
     +-- context.child() / timeout()
     |       |
     |       +--> child AbortController
-    |       +--> shorter-or-equal deadline timer
+    |       +--> shorter-or-equal clock deadline wait
     |       +--> parent abort listener
     |       `--> child AsyncDisposableStack
     |
@@ -124,8 +124,8 @@ Concrete map
 
 | Convenience | Manual equivalent | Concrete value |
 | --- | --- | --- |
-| `context.child()` | create an `AbortController`, link the parent signal, clamp the deadline, install a timer, and own an `AsyncDisposableStack` | one child lifetime with deterministic cleanup |
-| `context.wait(ctx, duration)` | check cancellation/deadline, call `@std/async/delay`, then check again | timer completion cannot hide context cancellation |
+| `context.child()` | create an `AbortController`, link the parent signal, clamp the deadline, schedule the deadline through the inherited clock, and own an `AsyncDisposableStack` | one child lifetime with deterministic cleanup |
+| `context.wait(ctx, duration)` | check cancellation/deadline, wait through `ctx.clock.sleep()`, then check again | deterministic clocks control both observed time and wake-up |
 | `snapshot()` / `restore()` | serialize IDs/timestamps only and create a fresh local controller on the other side | serializable identity without serializing live resources |
 
 The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
@@ -151,7 +151,7 @@ the rest of the local operation model:
 - `cause()` returns the normalized cancellation/deadline cause after a signal stops.
 - `remaining()` reports the remaining deadline duration without starting a timer.
 - `combineSignals()` combines borrowed signals when an integration needs one signal.
-- `SystemClock` is the normal real-time clock; `TestClock` is deterministic test time.
+- `SystemClock` is the normal real-time clock; `TestClock` is deterministic test time and deterministic sleeping.
 - `ContextCancelledError` and `ContextDeadlineExceededError` distinguish explicit
   cancellation from deadline expiry.
 
@@ -164,7 +164,7 @@ detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*_test.ts` files show edge cases, cancellation, invalid input, and lifecycle
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
    behavior as executable examples.
 4. Read internal implementation files only when you need the exact state
    transition or performance-sensitive loop.

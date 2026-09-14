@@ -3,6 +3,7 @@ import * as catalog from '@okikio/catalog';
 import * as fault from '@okikio/fault';
 
 import * as endpoint from '@okikio/server/endpoint';
+import * as effect from '@okikio/effect';
 import * as http from '../http/mod.ts';
 import * as context from '@okikio/context';
 import type { Context, Owned } from '@okikio/context';
@@ -14,21 +15,19 @@ import type {
 	MiddlewareResourceResolver,
 } from '@okikio/server/middleware';
 import * as query from '@okikio/query';
-import * as resilience from '@okikio/resilience';
 import * as problem from '@okikio/http/problem';
 import * as response from '@okikio/http/response';
 import type { ResourceCollection, ResourceDefinition } from '@okikio/resource';
 import * as resource from '@okikio/resource';
 import * as requestWire from '@okikio/http/request';
 import * as requirements from '@okikio/requirement';
-import type { RequirementContext } from '@okikio/requirement';
 
 import { ServerProblems } from '../problems.ts';
 import type {
 	CompiledService,
 	CreateServiceOptions,
 	EffectiveServiceOperation,
-	ServiceConcernRuntimes,
+	ServiceRuntimeAdapters,
 	ServiceContextStore,
 	ServiceRequestState,
 	ServiceRequestStatePatch,
@@ -36,13 +35,18 @@ import type {
 	ServiceRuntime,
 	ServiceRuntimeRoute,
 	ServiceStageResult,
-	ServiceConcernValues,
+	ServiceRequestValues,
+	ServiceObserverDefinition,
+	ServiceObserverEvent,
+	ServiceObserverEventKind,
+	ServiceObserverHandler,
+	ServiceExecutionContext,
 } from './types.ts';
 
 /** Framework-owned problems that a service runtime may produce independently of endpoint declarations. */
-const FrameworkProblemDefinitions: readonly problem.ProblemDefinition[] = Object.freeze(Object.values(ServerProblems));
+const FrameworkProblemDefinitions = Object.freeze(Object.values(ServerProblems) satisfies readonly problem.ProblemDefinition[]);
 
-/** Error raised when a compiled service is missing a required concern runtime. */
+/** Error raised when a compiled service is missing a required runtime adapter. */
 export class ServiceRuntimeConfigurationError extends Error {
 	constructor(message: string) {
 		super(message);
@@ -51,11 +55,12 @@ export class ServiceRuntimeConfigurationError extends Error {
 }
 
 /** Create a framework-neutral Fetch runtime from one fully compiled service. */
-export function create<Host extends object, Concerns extends ServiceConcernValues = ServiceConcernValues>(
+export function create<Host extends object, Values extends ServiceRequestValues = ServiceRequestValues>(
 	compiled: CompiledService<import('./types.ts').ServiceDefinition, Host>,
-	options: CreateServiceOptions<Host, Concerns>,
+	options: CreateServiceOptions<Host, Values>,
 ): ServiceRuntime {
-	validateConcernRuntimes(compiled, options.concerns);
+	validateRuntimeAdapters(compiled, options.adapters);
+	const observers = observerIndex(compiled.definition.observers, options.observers ?? []);
 	const serviceContext = context.create({ id: `service:${compiled.definition.id}` });
 	let resources: ResourceCollection;
 	try {
@@ -63,7 +68,7 @@ export function create<Host extends object, Concerns extends ServiceConcernValue
 			...(options.environment !== undefined ? { environment: options.environment } : {}),
 			host: options.host,
 			ctx: serviceContext,
-			...(options.concerns?.requirements === undefined ? {} : { requirements: options.concerns.requirements }),
+			...(options.adapters?.requirements === undefined ? {} : { requirements: options.adapters.requirements }),
 		});
 	} catch (error) {
 		void serviceContext[Symbol.asyncDispose]();
@@ -78,7 +83,7 @@ export function create<Host extends object, Concerns extends ServiceConcernValue
 		path: operation.path,
 		handler(request: Request) {
 			if (disposed) return new Response('Service runtime is disposed.', { status: 503 });
-			return runOperation(operation, request, resources, serviceContext, middlewareByDefinition, options);
+			return runOperation(operation, request, resources, serviceContext, middlewareByDefinition, observers, options);
 		},
 	})).sort(compareServiceRoutes));
 	const app = http.create({
@@ -134,7 +139,7 @@ function compareServiceRoutes(
  *   -> correlation + Context
  *   -> request middleware
  *   -> parse and validate input
- *   -> authentication and service concerns
+ *   -> authentication and runtime adapters
  *   -> endpoint handler
  *   -> validate declared result
  *   -> response middleware
@@ -149,13 +154,14 @@ function compareServiceRoutes(
  *
  * @internal
  */
-async function runOperation<Host extends object, Concerns extends ServiceConcernValues>(
+async function runOperation<Host extends object, Values extends ServiceRequestValues>(
 	operation: EffectiveServiceOperation,
 	request: Request,
 	resources: ResourceCollection,
 	serviceContext: Context,
 	middlewareByDefinition: ReadonlyMap<MiddlewareDefinition, MiddlewareHandler>,
-	options: CreateServiceOptions<Host, Concerns>,
+	observers: ReadonlyMap<ServiceObserverDefinition, ServiceObserverHandler>,
+	options: CreateServiceOptions<Host, Values>,
 ): Promise<Response> {
 	let prepared: PreparedServiceRequestType;
 	try {
@@ -165,7 +171,13 @@ async function runOperation<Host extends object, Concerns extends ServiceConcern
 			? error
 			: new ServiceRequestSetupError(normalizeError(error));
 		const cause = setupError.cause instanceof Error ? setupError.cause : setupError;
-		await reportError(options, cause);
+		await emitObservers(operation.service.observers, observers, serviceEvent(
+			'failed',
+			operation,
+			request,
+			setupError.correlation,
+			{ error: cause },
+		));
 		const result = http.problemResponse(problem.create(ServerProblems.Internal, {
 			instance: new URL(request.url).pathname,
 			cause,
@@ -175,8 +187,9 @@ async function runOperation<Host extends object, Concerns extends ServiceConcern
 			: http.withHeaders(result, { 'X-Request-ID': setupError.requestId });
 	}
 	const { requestId, requestContext, requestRequirements, values } = prepared;
+	await emitObservers(operation.service.observers, observers, serviceEvent('started', operation, request, prepared));
 	let activeRequest = request;
-	let mutableState: MutableServiceRequestState<Host, Concerns> = {
+	let mutableState: MutableServiceRequestState<Host, Values> = {
 		request: activeRequest,
 		host: options.host,
 		ctx: requestRequirements,
@@ -184,7 +197,7 @@ async function runOperation<Host extends object, Concerns extends ServiceConcern
 		resources,
 		values,
 		operation,
-		concerns: emptyConcernPatch<Concerns>(),
+		requestValues: emptyValuePatch<Values>(),
 	};
 	let disposed = false;
 	const disposeRequest = async (): Promise<void> => {
@@ -196,37 +209,47 @@ async function runOperation<Host extends object, Concerns extends ServiceConcern
 			try { await requestWire.disposeMemo(request); } catch { /* cleanup remains best effort */ }
 		}
 	};
-	const finish = (httpResponse: Response): Response => {
+	const finish = async (httpResponse: Response): Promise<Response> => {
 		const completedResponse = http.withHeaders(httpResponse, { 'X-Request-ID': requestId });
+		await emitObservers(operation.service.observers, observers, serviceEvent(
+			'response',
+			operation,
+			activeRequest,
+			prepared,
+			{ status: completedResponse.status },
+		));
 		return response.onComplete(completedResponse, async (completion) => {
 			await disposeRequest();
-			try {
-				await options.onResponseComplete?.(Object.freeze({
-				requestId,
-				operationId: operation.operation.id,
-				method: operation.method,
-				path: operation.path,
-				status: completedResponse.status,
-				completion,
-			}));
-			} catch {
-				// Completion observers cannot change a response already in flight.
-			}
+			const kind: ServiceObserverEventKind = completion.outcome === 'completed'
+				? 'completed'
+				: completion.outcome === 'cancelled' ? 'aborted' : 'failed';
+			await emitObservers(operation.service.observers, observers, serviceEvent(
+				kind,
+				operation,
+				activeRequest,
+				prepared,
+				{
+					status: completedResponse.status,
+					responseBytes: completion.bytes,
+					completion: Object.freeze({ outcome: completion.outcome, bytes: completion.bytes }),
+					...(completion.reason === undefined ? {} : { error: completion.reason }),
+				},
+			));
 		});
 	};
 
 	try {
-		const bodyLimit = operation.resiliency.find((policy) => policy.type === 'body-limit');
-		if (bodyLimit?.type === 'body-limit' && request.body !== null) {
-			const bounded = await boundedRequest(request, bodyLimit.bytes);
+		const bodyLimit = operation.execution.bodyLimit;
+		if (bodyLimit !== undefined && request.body !== null) {
+			const bounded = await boundedRequest(request, bodyLimit);
 			if (bounded === bodyTooLarge) {
-				return finish(await toResponse(problem.create(ServerProblems.BodyTooLarge, {
-					detail: `The request body exceeds ${bodyLimit.bytes} bytes.`,
+				return await finish(await toResponse(problem.create(ServerProblems.BodyTooLarge, {
+					detail: `The request body exceeds ${bodyLimit} bytes.`,
 					instance: new URL(request.url).pathname,
 				}), activeRequest));
 			}
 			if (bounded === invalidBody) {
-				return finish(await toResponse(problem.create(ServerProblems.InvalidRequest, {
+				return await finish(await toResponse(problem.create(ServerProblems.InvalidRequest, {
 					detail: 'The Content-Length header is invalid.',
 					instance: new URL(request.url).pathname,
 				}), activeRequest));
@@ -243,24 +266,37 @@ async function runOperation<Host extends object, Concerns extends ServiceConcern
 				operation.middleware.beforeValidation,
 				mutableState,
 				middlewareByDefinition,
-				async () => await runAuthenticationAndValidation(),
+				async () => await authenticateAndValidate(),
 			),
 		);
 		const result = await raceWithSignal(pipeline, requestContext.signal);
-		return finish(await finalizeResult(operation, result, activeRequest));
+		return await finish(await finalizeResult(operation, result, activeRequest));
 	} catch (error) {
 		if (request.signal.aborted) {
+			await emitObservers(operation.service.observers, observers, serviceEvent(
+				'aborted',
+				operation,
+				activeRequest,
+				prepared,
+				{ error: request.signal.reason ?? error },
+			));
 			await disposeRequest();
 			throw request.signal.reason ?? new DOMException('Request aborted.', 'AbortError');
 		}
-		await reportError<Host, Concerns>(options, error, freezeState(mutableState));
+		await emitObservers(operation.service.observers, observers, serviceEvent(
+			'failed',
+			operation,
+			activeRequest,
+			prepared,
+			{ error },
+		));
 		if (error instanceof context.ContextDeadlineExceededError) {
-			return finish(await toResponse(problem.create(ServerProblems.DeadlineExceeded, {
+			return await finish(await toResponse(problem.create(ServerProblems.DeadlineExceeded, {
 				instance: new URL(request.url).pathname,
 				cause: error,
 			}), activeRequest));
 		}
-		return finish(await toResponse(problem.create(ServerProblems.Internal, {
+		return await finish(await toResponse(problem.create(ServerProblems.Internal, {
 			instance: new URL(request.url).pathname,
 			cause: error,
 		}), activeRequest));
@@ -273,9 +309,9 @@ async function runOperation<Host extends object, Concerns extends ServiceConcern
 	 *
 	 * @internal
 	 */
-	async function runAuthenticationAndValidation(): Promise<ServiceStageResult> {
-		const authentication = await runConcern(
-			options.concerns?.authenticate,
+	async function authenticateAndValidate(): Promise<ServiceStageResult> {
+		const authentication = await runAdapter(
+			options.adapters?.authenticate,
 			operation.authentication,
 			mutableState,
 		);
@@ -306,7 +342,7 @@ async function runOperation<Host extends object, Concerns extends ServiceConcern
 					// providers can inspect it without making @okikio/permission depend on HTTP.
 					executionContext = context.view(executionContext, { service: freezeState(mutableState) }) as typeof executionContext;
 					executionContext = requirements.bind(executionContext, operation.reachableRequirements);
-					executionContext = options.context?.(executionContext, freezeState(mutableState), operation.reachableRequirements) ?? executionContext;
+					executionContext = options.requirementContext?.(executionContext, freezeState(mutableState), operation.reachableRequirements) ?? executionContext;
 					await requirements.apply(executionContext, operation.requirements);
 					mutableState = { ...mutableState, ctx: executionContext };
 
@@ -320,7 +356,7 @@ async function runOperation<Host extends object, Concerns extends ServiceConcern
 							input: mutableState.input,
 							resources: createResourceResolver(resources, new Set(operation.resources), executionContext),
 							ctx: executionContext,
-							...mutableState.concerns,
+							...mutableState.requestValues,
 						}),
 					);
 					return await runResilienceStage(operation, 'operation', mutableState, options, runAttempt);
@@ -340,18 +376,16 @@ async function runOperation<Host extends object, Concerns extends ServiceConcern
  *
  * @internal
  */
-async function runResilienceStage<Host extends object, Concerns extends ServiceConcernValues>(
+async function runResilienceStage<Host extends object, Values extends ServiceRequestValues>(
 	operation: EffectiveServiceOperation,
-	stage: import('@okikio/resilience').ResilienceStage,
-	state: MutableServiceRequestState<Host, Concerns>,
-	options: CreateServiceOptions<Host, Concerns>,
+	stage: 'admission' | 'operation',
+	state: MutableServiceRequestState<Host, Values>,
+	options: CreateServiceOptions<Host, Values>,
 	next: () => Promise<ServiceStageResult>,
 ): Promise<ServiceStageResult> {
-	const policies = Object.freeze(operation.resiliency.filter((policy) =>
-		policy.type !== 'timeout' && policy.type !== 'body-limit' && resilience.stage(policy) === stage
-	));
+	const policies = stage === 'admission' ? operation.execution.admission : operation.execution.operation;
 	if (policies.length === 0) return await next();
-	return await options.concerns!.resilience!.run(policies, freezeState(state), next);
+	return await options.adapters!.resilience!.run(policies, freezeState(state), next);
 }
 
 
@@ -396,84 +430,159 @@ function cancellationReason(signal: AbortSignal): Error {
 /** Request state prepared before the compiled middleware and handler pipeline starts. @internal */
 interface PreparedServiceRequestType {
 	readonly requestId: string;
+	readonly traceId: string;
+	readonly spanId: string;
 	readonly requestContext: Owned;
-	readonly requestRequirements: RequirementContext;
+	readonly requestRequirements: ServiceExecutionContext;
 	readonly values: ServiceContextStore;
 }
 
 /** Setup error that preserves a request ID when correlation succeeded before setup failed. @internal */
 class ServiceRequestSetupError extends Error {
-	readonly requestId: string | undefined;
+	readonly correlation: Readonly<{ readonly requestId?: string; readonly traceId?: string; readonly spanId?: string }>;
 
-	constructor(cause: Error, requestId?: string) {
+	constructor(
+		cause: Error,
+		correlation: Readonly<{ readonly requestId?: string; readonly traceId?: string; readonly spanId?: string }> = Object.freeze({}),
+	) {
 		super('Service request setup failed.', { cause });
 		this.name = 'ServiceRequestSetupError';
-		this.requestId = requestId;
+		this.correlation = Object.freeze({ ...correlation });
+	}
+
+	get requestId(): string | undefined {
+		return this.correlation.requestId;
 	}
 }
 
 /** Prepare request-local context and requirements, releasing partial ownership if setup fails. @internal */
-async function prepareRequest<Host extends object, Concerns extends ServiceConcernValues>(
+async function prepareRequest<Host extends object, Values extends ServiceRequestValues>(
 	operation: EffectiveServiceOperation,
 	request: Request,
 	serviceContext: Context,
-	options: CreateServiceOptions<Host, Concerns>,
+	options: CreateServiceOptions<Host, Values>,
 ): Promise<PreparedServiceRequestType> {
 	let requestId: string | undefined;
+	let traceId: string | undefined;
+	let spanId: string | undefined;
 	let requestContext: Owned | undefined;
 	try {
-		const timeout = operation.resiliency.find((policy) => policy.type === 'timeout');
+		const timeout = operation.execution.timeout;
 		const correlation = await requestWire.correlation(
 			request,
 			options.requestId === undefined ? {} : { requestId: options.requestId },
 		);
 		requestId = correlation.requestId;
-		const traceId = options.traceId?.(request) ?? correlation.traceId;
+		traceId = options.traceId?.(request) ?? correlation.traceId;
+		spanId = correlation.spanId;
 		const clock = serviceContext.clock;
 		requestContext = context.child(serviceContext, {
 			id: requestId,
 			...(traceId !== undefined ? { traceId } : {}),
 			signal: request.signal,
-			...(timeout?.type === 'timeout' ? { deadline: clock.now().add(timeout.duration) } : {}),
+			...(timeout === undefined ? {} : { deadline: clock.now().add(timeout) }),
 		});
 		const values = createContextStore();
-		const requirementRuntime = options.concerns?.requirements ?? Object.freeze({
+		const requirementRuntime = options.adapters?.requirements ?? Object.freeze({
 			interpreters: Object.freeze({}),
 			unknown: 'reject' as const,
 		});
-		const requestRequirements = requirements.scope(requestContext, {
+		const requestEffects = effect.scope(requestContext, {
+			effects: operation.effects,
+			...(options.adapters?.effect === undefined ? {} : { emitter: options.adapters.effect }),
+		});
+		const requestRequirements = requirements.scope(requestEffects, {
 			interpreters: requirementRuntime.interpreters,
 			unknown: requirementRuntime.unknown,
 		});
-		return Object.freeze({ requestId, requestContext, requestRequirements, values });
+		return Object.freeze({ requestId, traceId, spanId, requestContext, requestRequirements, values });
 	} catch (error) {
 		if (requestContext !== undefined) {
 			try { await requestContext[Symbol.asyncDispose](); } catch { /* preserve the setup failure */ }
 		}
 		try { await requestWire.disposeMemo(request); } catch { /* cleanup remains best effort */ }
-		throw new ServiceRequestSetupError(normalizeError(error), requestId);
+		throw new ServiceRequestSetupError(normalizeError(error), { requestId, traceId, spanId });
 	}
 }
 
-/**
- * Reports an unexpected service runtime error through the host error hook without changing the response contract.
- *
- * Service internals link exact endpoint and middleware definitions to implementations before traffic and preserve request-stage ownership at runtime.
- *
- * @internal
- */
-async function reportError<Host extends object, Concerns extends ServiceConcernValues>(
-	options: CreateServiceOptions<Host, Concerns>,
-	error: unknown,
-	state?: ServiceRequestState<Host, Concerns>,
-): Promise<void> {
-	if (options.onError === undefined) return;
-	try {
-		await options.onError(normalizeError(error), state);
-	} catch {
-		// Error reporting is observational and must not replace the original
-		// request failure or change its declared HTTP problem mapping.
+/** Index exact observer handlers and reject definitions that cannot be observed at runtime. @internal */
+function observerIndex(
+	definitions: readonly ServiceObserverDefinition[],
+	handlers: readonly ServiceObserverHandler[],
+): ReadonlyMap<ServiceObserverDefinition, ServiceObserverHandler> {
+	const expected = new Set(definitions);
+	const result = new Map<ServiceObserverDefinition, ServiceObserverHandler>();
+	for (const handler of handlers) {
+		if (!expected.has(handler.definition)) {
+			throw new ServiceRuntimeConfigurationError(
+				`Observer ${JSON.stringify(handler.definition.id)} is not imported by this service.`,
+			);
+		}
+		if (result.has(handler.definition)) {
+			throw new ServiceRuntimeConfigurationError(
+				`Observer ${JSON.stringify(handler.definition.id)} has more than one runtime handler.`,
+			);
+		}
+		result.set(handler.definition, handler);
 	}
+	for (const definition of definitions) {
+		if (!result.has(definition)) {
+			throw new ServiceRuntimeConfigurationError(
+				`Observer ${JSON.stringify(definition.id)} has no runtime handler.`,
+			);
+		}
+	}
+	return result;
+}
+
+/** Emit one redacted service lifecycle event without making observation authoritative. @internal */
+async function emitObservers(
+	definitions: readonly ServiceObserverDefinition[],
+	handlers: ReadonlyMap<ServiceObserverDefinition, ServiceObserverHandler>,
+	value: ServiceObserverEvent,
+): Promise<void> {
+	for (const definition of definitions) {
+		if (!definition.events.includes(value.kind)) continue;
+		const handler = handlers.get(definition);
+		if (!handler) continue;
+		try {
+			await handler.handle(value);
+		} catch {
+			// Diagnostics are observational. A broken observer must not change the
+			// service response, cancellation, or cleanup contract.
+		}
+	}
+}
+
+/** Build one credential-free service lifecycle event from compiled route identity. @internal */
+function serviceEvent(
+	kind: ServiceObserverEventKind,
+	operation: EffectiveServiceOperation,
+	request: Request,
+	correlation: Readonly<{ readonly requestId?: string; readonly traceId?: string; readonly spanId?: string }> | undefined,
+	details: Readonly<{
+		readonly status?: number;
+		readonly responseBytes?: number;
+		readonly completion?: Readonly<{ readonly outcome: 'completed' | 'cancelled' | 'errored'; readonly bytes: number }>;
+		readonly error?: unknown;
+	}> = Object.freeze({}),
+): ServiceObserverEvent {
+	const normalized = details.error === undefined ? undefined : normalizeError(details.error);
+	return Object.freeze({
+		kind,
+		serviceId: operation.service.id,
+		...(correlation?.requestId === undefined ? {} : { requestId: correlation.requestId }),
+		...(correlation?.traceId === undefined ? {} : { traceId: correlation.traceId }),
+		...(correlation?.spanId === undefined ? {} : { spanId: correlation.spanId }),
+		method: request.method.toUpperCase(),
+		path: operation.path,
+		endpointId: operation.endpoint.id,
+		operationId: operation.operation.operationId,
+		...(details.status === undefined ? {} : { status: details.status }),
+		...(details.responseBytes === undefined ? {} : { responseBytes: details.responseBytes }),
+		...(details.completion === undefined ? {} : { completion: details.completion }),
+		...(normalized === undefined ? {} : { error: Object.freeze({ name: normalized.name, message: normalized.message }) }),
+	});
 }
 
 /**
@@ -483,9 +592,9 @@ async function reportError<Host extends object, Concerns extends ServiceConcernV
  *
  * @internal
  */
-async function runMiddleware<Host extends object, Concerns extends ServiceConcernValues>(
+async function runMiddleware<Host extends object, Values extends ServiceRequestValues>(
 	definitions: readonly MiddlewareDefinition[],
-	state: MutableServiceRequestState<Host, Concerns>,
+	state: MutableServiceRequestState<Host, Values>,
 	handlers: ReadonlyMap<MiddlewareDefinition, MiddlewareHandler>,
 	final: () => Promise<ServiceStageResult>,
 ): Promise<ServiceStageResult> {
@@ -509,19 +618,19 @@ async function runMiddleware<Host extends object, Concerns extends ServiceConcer
 }
 
 /**
- * Runs concern while preserving the module's cancellation and completion contract.
+ * Runs one runtime adapter while preserving the module's cancellation and completion contract.
  *
  * @internal
  */
-async function runConcern<Host extends object, Concerns extends ServiceConcernValues, Definition>(
-	runtime: ((definitions: readonly Definition[], state: ServiceRequestState<Host, Concerns>) => Promise<ServiceRequestStatePatch<Concerns> | problem.ProblemResult | void>) | undefined,
+async function runAdapter<Host extends object, Values extends ServiceRequestValues, Definition>(
+	runtime: ((definitions: readonly Definition[], state: ServiceRequestState<Host, Values>) => Promise<ServiceRequestStatePatch<Values> | problem.ProblemResult | void>) | undefined,
 	definitions: readonly Definition[],
-	state: MutableServiceRequestState<Host, Concerns>,
+	state: MutableServiceRequestState<Host, Values>,
 	required = true,
-): Promise<Readonly<{ readonly patch?: ServiceRequestStatePatch<Concerns>; readonly result?: problem.ProblemResult }>> {
+): Promise<Readonly<{ readonly patch?: ServiceRequestStatePatch<Values>; readonly result?: problem.ProblemResult }>> {
 	if (definitions.length === 0) return Object.freeze({});
 	if (!runtime) {
-		if (required) throw new ServiceRuntimeConfigurationError('A required service concern runtime was not supplied.');
+		if (required) throw new ServiceRuntimeConfigurationError('A required service runtime adapter was not supplied.');
 		return Object.freeze({});
 	}
 	const result = await runtime(definitions, freezeState(state));
@@ -546,11 +655,8 @@ async function parseInputs(
 > {
 	const input: Partial<Record<endpoint.EndpointInputSource, unknown>> = Object.create(null);
 	const issues: requestWire.RequestValidationDetail[] = [];
-	const bodyLimit = operation.resiliency.find((policy) => policy.type === 'body-limit');
-	const maximumBodyBytes = bodyLimit?.type === 'body-limit' ? bodyLimit.bytes : parsing?.maximumBodyBytes;
-	for (const source of ['param', 'query', 'header', 'cookie', 'json', 'form', 'raw'] as const) {
-		const slot = operation.operation.inputs[source] ?? operation.endpoint.inputs[source];
-		if (!slot) continue;
+	const maximumBodyBytes = operation.execution.bodyLimit ?? parsing?.maximumBodyBytes;
+	for (const { source, slot } of operation.execution.inputs) {
 		let raw: unknown;
 		try {
 			const inputParsing = endpoint.isInput(slot) ? slot.parsing : undefined;
@@ -682,12 +788,13 @@ async function toResponse(
 		: { body: result[0], status: result[1], headers: result[2] };
 	let body = resolved.body;
 	let headers = resolved.headers;
-	if (isAsyncIterable(body)) body = streamFromAsyncIterable(body);
+	if (isAsyncIterable(body)) body = streamFromAsync(body);
 	const contentType = responseContentType(result, body, headers);
 	if (contentType !== undefined && !hasHeader(headers, 'Content-Type')) {
 		headers = response.mergeHeaders(headers, { 'Content-Type': contentType });
 	}
 	if (negotiate && response.is(result) && contentType !== undefined && body !== null && body !== undefined) {
+		headers = response.mergeHeaders(headers, { Vary: response.mergeVary(response.headerValues(headers, 'Vary')[0], 'Accept') });
 		try {
 			requestWire.negotiateContent(request.headers.get('accept'), [contentType.split(';', 1)[0]!]);
 		} catch (error) {
@@ -696,6 +803,7 @@ async function toResponse(
 					detail: `This operation produces ${contentType.split(';', 1)[0]}.`,
 					instance: new URL(request.url).pathname,
 					extensions: { supported: [contentType.split(';', 1)[0]] },
+					headers: { Vary: 'Accept' },
 				}), request, undefined, false);
 			}
 			throw error;
@@ -779,7 +887,7 @@ function isAsyncIterable(value: unknown): value is AsyncIterable<string | Uint8A
  *
  * @internal
  */
-function streamFromAsyncIterable(iterable: AsyncIterable<string | Uint8Array>): ReadableStream<Uint8Array> {
+function streamFromAsync(iterable: AsyncIterable<string | Uint8Array>): ReadableStream<Uint8Array> {
 	const iterator = iterable[Symbol.asyncIterator]();
 	const encoder = new TextEncoder();
 	return new ReadableStream<Uint8Array>({
@@ -861,10 +969,10 @@ function createContextStore(): ServiceContextStore {
  *
  * @internal
  */
-function requireConcreteResourceDefinition(
+function requireConcreteResource(
 	definition: endpoint.EndpointResourceDefinition,
 ): ResourceDefinition {
-	if (!isConcreteResourceDefinition(definition)) {
+	if (!isConcreteResource(definition)) {
 		throw new ServiceRuntimeConfigurationError(
 			`Resource reference ${JSON.stringify(definition.id)} is not a concrete @okikio/resource definition.`,
 		);
@@ -877,7 +985,7 @@ function requireConcreteResourceDefinition(
  *
  * @internal
  */
-function isConcreteResourceDefinition(
+function isConcreteResource(
 	definition: endpoint.EndpointResourceDefinition,
 ): definition is ResourceDefinition {
 	return definition.kind === 'resource' &&
@@ -896,7 +1004,7 @@ function isConcreteResourceDefinition(
 function createResourceResolver(
 	collection: ResourceCollection,
 	allowed: ReadonlySet<ResourceDefinition>,
-	ctx: RequirementContext,
+	ctx: ServiceExecutionContext,
 ): endpoint.EndpointResourceResolver & MiddlewareResourceResolver {
 	return Object.freeze({
 		/**
@@ -905,7 +1013,7 @@ function createResourceResolver(
 		 * @internal
 		 */
 		has<Definition extends endpoint.EndpointResourceDefinition>(definition: Definition): boolean {
-			return isConcreteResourceDefinition(definition) && allowed.has(definition) && collection.has(definition);
+			return isConcreteResource(definition) && allowed.has(definition) && collection.has(definition);
 		},
 		/**
 		 * Gets state from the compiled service runtime after its ownership and validation rules have been established.
@@ -915,7 +1023,7 @@ function createResourceResolver(
 		async get<Definition extends endpoint.EndpointResourceDefinition>(
 			definition: Definition,
 		): Promise<endpoint.EndpointResourceValue<Definition>> {
-			const concrete = requireConcreteResourceDefinition(definition);
+			const concrete = requireConcreteResource(definition);
 			if (!allowed.has(concrete)) {
 				throw new TypeError(`Resource ${JSON.stringify(concrete.id)} is outside the effective operation envelope.`);
 			}
@@ -933,7 +1041,7 @@ function createResourceResolver(
  */
 function resourceClosure(input: MiddlewareDefinition['resources']): ResourceDefinition[] {
 	if (input === undefined) return [];
-	const roots = catalog.values(input).map(requireConcreteResourceDefinition);
+	const roots = catalog.values(input).map(requireConcreteResource);
 	const result: ResourceDefinition[] = [];
 	const seen = new Set<ResourceDefinition>();
 	const visit = (definition: ResourceDefinition): void => {
@@ -951,10 +1059,10 @@ function resourceClosure(input: MiddlewareDefinition['resources']): ResourceDefi
  *
  * @internal
  */
-function freezeState<Host extends object, Concerns extends ServiceConcernValues>(state: MutableServiceRequestState<Host, Concerns>): ServiceRequestState<Host, Concerns> {
-	const { concerns, resources, ...base } = state;
+function freezeState<Host extends object, Values extends ServiceRequestValues>(state: MutableServiceRequestState<Host, Values>): ServiceRequestState<Host, Values> {
+	const { requestValues, resources, ...base } = state;
 	return Object.freeze({
-		...concerns,
+		...requestValues,
 		...base,
 		resources: createResourceResolver(resources, new Set(state.operation.resources), state.ctx),
 	});
@@ -965,45 +1073,40 @@ function freezeState<Host extends object, Concerns extends ServiceConcernValues>
  *
  * @internal
  */
-function applyPatch<Host extends object, Concerns extends ServiceConcernValues>(
-	state: MutableServiceRequestState<Host, Concerns>,
-	patch: ServiceRequestStatePatch<Concerns> | undefined,
-): MutableServiceRequestState<Host, Concerns> {
+function applyPatch<Host extends object, Values extends ServiceRequestValues>(
+	state: MutableServiceRequestState<Host, Values>,
+	patch: ServiceRequestStatePatch<Values> | undefined,
+): MutableServiceRequestState<Host, Values> {
 	if (patch === undefined) return state;
-	const previousRequirements = state.concerns.requirements;
-	const requirements = patch.requirements === undefined
-		? previousRequirements
-		: Object.freeze({ ...(previousRequirements ?? {}), ...patch.requirements }) as Concerns['requirements'];
 	return {
 		...state,
-		concerns: {
-			...state.concerns,
+		requestValues: {
+			...state.requestValues,
 			...patch,
-			...(requirements === undefined ? {} : { requirements }),
 		},
 	};
 }
 
 /**
- * Checks concern runtimes and preserves the deterministic issues needed by callers.
+ * Checks required runtime adapters before traffic starts.
  *
  * It links service definitions to exact implementations before traffic and keeps request-stage ownership visible at runtime.
  *
  * @internal
  */
-function validateConcernRuntimes<Host extends object, Concerns extends ServiceConcernValues>(
+function validateRuntimeAdapters<Host extends object, Values extends ServiceRequestValues>(
 	compiled: CompiledService,
-	concerns: ServiceConcernRuntimes<Host, Concerns> | undefined,
+	adapters: ServiceRuntimeAdapters<Host, Values> | undefined,
 ): void {
 	const required = [
-		['authentication', compiled.operations.some((operation) => operation.authentication.length > 0), concerns?.authenticate],
+		['authentication', compiled.operations.some((operation) => operation.authentication.length > 0), adapters?.authenticate],
 	] as const;
 	for (const [name, needed, runtime] of required) {
 		if (needed && runtime === undefined) throw new ServiceRuntimeConfigurationError(`Service requires a ${name} runtime.`);
 	}
 
 	const activeFamilies = [...new Set(compiled.operations.flatMap((operation) => operation.requirements.map((entry) => entry.family)))];
-	const requirementRuntime = concerns?.requirements;
+	const requirementRuntime = adapters?.requirements;
 	if (activeFamilies.length > 0 && requirementRuntime === undefined) {
 		throw new ServiceRuntimeConfigurationError(`Service requires requirement interpreters for: ${activeFamilies.join(', ')}.`);
 	}
@@ -1014,19 +1117,19 @@ function validateConcernRuntimes<Host extends object, Concerns extends ServiceCo
 			}
 		}
 	}
-	const delegated = [...new Set(compiled.operations.flatMap((operation) =>
+	const adapterPolicies = [...new Set(compiled.operations.flatMap((operation) =>
 		operation.resiliency.filter((policy) => policy.type !== 'timeout' && policy.type !== 'body-limit')
 	))];
-	if (delegated.length === 0) return;
-	const runtime = concerns?.resilience;
+	if (adapterPolicies.length === 0) return;
+	const runtime = adapters?.resilience;
 	if (runtime === undefined) {
 		throw new ServiceRuntimeConfigurationError(
-			`Service requires a resilience runtime for: ${[...new Set(delegated.map((policy) => policy.type))].join(', ')}.`,
+			`Service requires a resilience adapter for: ${[...new Set(adapterPolicies.map((policy) => policy.type))].join(', ')}.`,
 		);
 	}
-	for (const policy of delegated) {
+	for (const policy of adapterPolicies) {
 		if (!runtime.supports(policy)) {
-			throw new ServiceRuntimeConfigurationError(`The resilience runtime does not support ${policy.type}.`);
+			throw new ServiceRuntimeConfigurationError(`The resilience adapter does not support ${policy.type}.`);
 		}
 	}
 }
@@ -1100,33 +1203,32 @@ async function validateResponseBody(
 
 
 /**
- * Creates the empty generic concern patch used before any concern runtime has
- * contributed values.
+ * Creates the empty request-value patch used before an adapter contributes values.
  *
  * TypeScript cannot prove that an empty object satisfies an optional mapped
  * type over an unresolved generic key set. The assertion is isolated here;
- * runtime construction contains no keys, so it cannot violate a concern value
+ * runtime construction contains no keys, so it cannot violate the request-value
  * contract.
  *
  * @internal
  */
-function emptyConcernPatch<Concerns extends ServiceConcernValues>(): ServiceRequestStatePatch<Concerns> {
-	return Object.freeze({}) as ServiceRequestStatePatch<Concerns>;
+function emptyValuePatch<Values extends ServiceRequestValues>(): ServiceRequestStatePatch<Values> {
+	return Object.freeze({}) as ServiceRequestStatePatch<Values>;
 }
 
-/** Internal mutable request state used while ordered concern stages progressively add validated values. */
+/** Internal mutable request state used while ordered adapters add validated request values. */
 interface MutableServiceRequestState<
 	Host extends object,
-	Concerns extends ServiceConcernValues,
+	Values extends ServiceRequestValues,
 > {
 	request: Request;
 	readonly host: Host;
-	ctx: RequirementContext<Context>;
+	ctx: ServiceExecutionContext;
 	readonly resources: ResourceCollection;
 	readonly values: ServiceContextStore;
 	readonly operation: EffectiveServiceOperation;
 	input: ServiceInputValues;
-	concerns: ServiceRequestStatePatch<Concerns>;
+	requestValues: ServiceRequestStatePatch<Values>;
 }
 
 /** Normalize JavaScript's unrestricted thrown values before exposing them to host callbacks. */

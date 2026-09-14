@@ -3,6 +3,8 @@ import type { CatalogEntryIdentity } from '@okikio/catalog';
 import { joinPath } from '@okikio/server/endpoint/path';
 import * as endpoint from '@okikio/server/endpoint';
 import * as env from '@okikio/env';
+import * as effect from '@okikio/effect';
+import type { EffectDefinition } from '@okikio/effect';
 import type {
 	EndpointContributions,
 	EndpointDefinition,
@@ -16,7 +18,7 @@ import type {
 import * as middleware from '@okikio/server/middleware';
 import type { MiddlewareDefinition, MiddlewareHandler, MiddlewareInput } from '@okikio/server/middleware';
 import * as resilience from '@okikio/resilience';
-import type { ResilienceInput } from '@okikio/resilience';
+import type { ResilienceInput, ResiliencePolicy } from '@okikio/resilience';
 import type { ProblemDefinition } from '@okikio/http/problem';
 import type { ResponseDefinition } from '@okikio/http/response';
 import * as requirement from '@okikio/requirement';
@@ -24,6 +26,7 @@ import type { RequirementDefinition } from '@okikio/requirement';
 import * as resource from '@okikio/resource';
 import type { ResourceImplementationAny, ResourceDefinition } from '@okikio/resource';
 import { ServerProblems } from '../problems.ts';
+import { prepareRoutes } from '../http/mod.ts';
 
 import { leafEndpoints } from './definition.ts';
 import type {
@@ -31,6 +34,7 @@ import type {
 	EffectiveServiceOperation,
 	ServiceContributions,
 	ServiceDefinition,
+	ServiceExecutionPlan,
 	ServiceImplementation,
 	ServiceManifest,
 	ServicePolicy,
@@ -136,7 +140,7 @@ function compileImplementation<
 
 	// Phase 3: resolve the effective contract for each concrete method/path.
 	// Contributions are additive from service -> targeted policies -> groups ->
-	// endpoint -> operation; inner layers cannot silently erase outer concerns.
+	// endpoint -> operation; inner layers cannot silently erase outer contributions.
 	for (const route of routes) {
 		const handler = handlerByEndpoint.get(route.endpoint)?.get(route.operation);
 		if (!handler) {
@@ -186,6 +190,13 @@ function compileImplementation<
 			continue;
 		}
 
+		const effects = effect.compose(
+			definitions<EffectDefinition>(sources, 'effects'),
+			middlewareDefinitions(middlewareValidation.plan).flatMap((candidate) =>
+				candidate.effects === undefined ? [] : effect.compose(candidate.effects)
+			),
+		);
+
 		const problems = uniqueByIdentity([
 			...definitions<ProblemDefinition>(sources, 'problems'),
 			...middlewareDefinitions(middlewareValidation.plan).flatMap((candidate) =>
@@ -196,6 +207,7 @@ function compileImplementation<
 		const responses = route.operation.responses === undefined
 			? Object.freeze([])
 			: catalog.values(route.operation.responses);
+		const execution = executionPlan(route, resiliencyValidation.policies);
 
 		effective.push(Object.freeze({
 			...route,
@@ -214,10 +226,12 @@ function compileImplementation<
 				),
 				resource.reachable(resources),
 			),
+			effects,
 			resources: Object.freeze(resources),
 			problems: Object.freeze(problems),
 			responses: Object.freeze(responses),
 			resiliency: resiliencyValidation.policies,
+			execution,
 			handler,
 		}));
 	}
@@ -248,6 +262,7 @@ function compileImplementation<
 		definition,
 		implementation,
 		operations,
+		routePlan: prepareRoutes(operations.map((operation) => Object.freeze({ kind: 'route' as const, method: operation.method, path: operation.path }))),
 		manifest: manifest(definition, operations, implementation.resources),
 	});
 }
@@ -340,7 +355,7 @@ function validateRouteIdentity(routes: readonly ServiceRoute[], issues: ServiceV
 }
 
 /**
- * Collects the definition sources that contribute requirements, resilience, problems, and resources to an operation.
+ * Collects the definition sources that contribute requirements, effects, resilience, problems, and resources to an operation.
  *
  * Service internals link exact endpoint and middleware definitions to implementations before traffic and preserve request-stage ownership at runtime.
  *
@@ -367,7 +382,7 @@ function contributionSources(
  */
 function definitions<Entry extends CatalogEntryIdentity>(
 	sources: readonly (ServiceContributions | EndpointContributions)[],
-	field: 'requirements' | 'resources' | 'problems',
+	field: 'requirements' | 'effects' | 'resources' | 'problems',
 ): Entry[] {
 	const result: Entry[] = [];
 	for (const source of sources) {
@@ -489,7 +504,7 @@ function concreteResourceDefinitions(
 ): ResourceDefinition[] {
 	const result: ResourceDefinition[] = [];
 	for (const definition of candidates) {
-		if (!isConcreteResourceDefinition(definition)) {
+		if (!isConcreteResource(definition)) {
 			issues.push(issue(
 				'invalid-definition',
 				`Resource reference ${JSON.stringify(definition.id)} is not a concrete @okikio/resource definition.`,
@@ -507,7 +522,7 @@ function concreteResourceDefinitions(
  *
  * @internal
  */
-function isConcreteResourceDefinition(value: CatalogEntryIdentity): value is ResourceDefinition {
+function isConcreteResource(value: CatalogEntryIdentity): value is ResourceDefinition {
 	return value.kind === 'resource' &&
 		typeof value === 'object' && value !== null &&
 		'dependencies' in value &&
@@ -652,6 +667,50 @@ function operationSafety(method: EndpointMethod): import('@okikio/resilience').R
 }
 
 /**
+ * Precompute request parsing and resilience work for one effective operation.
+ *
+ * The plan removes repeated policy scans from the request path. It does not
+ * remove declared validation, authentication, requirements, or middleware.
+ *
+ * @internal
+ */
+function executionPlan(
+	route: ServiceRoute,
+	policies: readonly ResiliencePolicy[],
+): ServiceExecutionPlan {
+	const inputs = [] as ServiceExecutionPlan['inputs'][number][];
+	for (const source of ['param', 'query', 'header', 'cookie', 'json', 'form', 'raw'] as const) {
+		const slot = route.operation.inputs[source] ?? route.endpoint.inputs[source];
+		if (slot !== undefined) inputs.push(Object.freeze({ source, slot }));
+	}
+
+	let bodyLimit: number | undefined;
+	let timeout: Temporal.Duration | undefined;
+	const admission: ResiliencePolicy[] = [];
+	const operation: ResiliencePolicy[] = [];
+	for (const policy of policies) {
+		if (policy.type === 'body-limit') {
+			bodyLimit = policy.bytes;
+			continue;
+		}
+		if (policy.type === 'timeout') {
+			timeout = policy.duration;
+			continue;
+		}
+		if (resilience.stage(policy) === 'admission') admission.push(policy);
+		else operation.push(policy);
+	}
+
+	return Object.freeze({
+		inputs: Object.freeze(inputs),
+		...(bodyLimit === undefined ? {} : { bodyLimit }),
+		...(timeout === undefined ? {} : { timeout }),
+		admission: Object.freeze(admission),
+		operation: Object.freeze(operation),
+	} satisfies ServiceExecutionPlan);
+}
+
+/**
  * Normalizes route shape into the canonical internal form used by later phases.
  *
  * @internal
@@ -673,6 +732,7 @@ function manifest(
 	implementations: import('@okikio/resource').ResourceImplementationSet,
 ): ServiceManifest {
 	const resources = uniqueByIdentity(operations.flatMap((operation) => operation.resources));
+	const effects = uniqueByIdentity(operations.flatMap((operation) => operation.effects));
 	return Object.freeze({
 		id: definition.id,
 		path: definition.path,
@@ -683,11 +743,13 @@ function manifest(
 		resourceGraph: resource.document(resources, implementations),
 		requirements: requirement.document(requirement.compose(operations.map((operation) => operation.requirements))),
 		reachableRequirements: requirement.document(requirement.compose(operations.map((operation) => operation.reachableRequirements))),
+		effects: Object.freeze(effects.map((entry) => entry.id)),
 		problems: Object.freeze(uniqueByIdentity(operations.flatMap((operation) => operation.problems)).map((entry) => entry.id)),
 		responses: Object.freeze(uniqueByIdentity(operations.flatMap((operation) => operation.responses)).map((entry) => entry.id)),
 		middleware: Object.freeze(uniqueByIdentity(operations.flatMap((operation) => middlewareDefinitions(operation.middleware))).map((entry) => entry.id)),
 		resiliency: Object.freeze([...new Set(operations.flatMap((operation) => operation.resiliency.map((policy) => policy.type)))]),
 		workflows: Object.freeze(definition.workflows.map((workflow) => workflow.id)),
+		observers: Object.freeze(definition.observers.map((observer) => observer.id)),
 	});
 }
 
@@ -708,6 +770,7 @@ function routeManifest(operation: EffectiveServiceOperation): ServiceRouteManife
 		authentication: Object.freeze(operation.authentication.map(definitionId)),
 		requirements: requirement.document(operation.requirements),
 		reachableRequirements: requirement.document(operation.reachableRequirements),
+		effects: Object.freeze(operation.effects.map((entry) => entry.id)),
 		resources: Object.freeze(operation.resources.map((entry) => entry.id)),
 		problems: Object.freeze(operation.problems.map((entry) => entry.id)),
 		responses: Object.freeze(operation.responses.map((entry) => entry.id)),
@@ -717,7 +780,12 @@ function routeManifest(operation: EffectiveServiceOperation): ServiceRouteManife
 			afterValidation: Object.freeze(operation.middleware.afterValidation.map((entry) => entry.id)),
 			aroundOperation: Object.freeze(operation.middleware.aroundOperation.map((entry) => entry.id)),
 		}),
-		resiliency: Object.freeze(operation.resiliency.map((policy) => policy.type)),
+		resiliency: resilience.document(operation.resiliency),
+		execution: Object.freeze({
+			inputs: Object.freeze(operation.execution.inputs.map((input) => input.source)),
+			...(operation.execution.bodyLimit === undefined ? {} : { bodyLimit: operation.execution.bodyLimit }),
+			...(operation.execution.timeout === undefined ? {} : { timeout: operation.execution.timeout.toString() }),
+		}),
 	});
 }
 

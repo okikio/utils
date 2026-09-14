@@ -247,10 +247,10 @@ export function scope<Base extends import('@okikio/context').Context>(
 ): PermissionContext<Base> {
 	const permissions = catalogCore.compose(options.permissions);
 	if (options.checker !== undefined) assertChecker(options.checker);
-	const runtime: PermissionRuntime = Object.freeze({
+	const runtime = Object.freeze({
 		...(options.checker === undefined ? {} : { checker: options.checker }),
 		permissions,
-	});
+	} satisfies PermissionRuntime);
 	return contextCore.view(ctx, { permissions: runtime });
 }
 

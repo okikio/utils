@@ -12,7 +12,7 @@ composed by the server compiler.
 Definitions and context
 -----------------------
 
-```ts
+~~~~ts
 import * as middleware from '@okikio/server/middleware';
 
 export const Authentication = middleware.context<{
@@ -37,12 +37,17 @@ export const ResolveOrganization = middleware.define({
   resources: [OrganizationRepository],
   problems: [OrganizationRequired],
 });
-```
+~~~~
 
-Definitions are static data. Runtime behavior is supplied separately and bound
-by direct identity:
+Definitions are static data. A middleware definition may also declare `effects`
+when its runtime handler can announce an externally visible side effect. The
+service compiler carries those effect definitions into every operation where the
+middleware is active, so `effect.emit()` remains checked against the compiled
+execution contract.
 
-```ts
+Runtime behavior is supplied separately and bound by direct identity:
+
+~~~~ts
 export const ResolveOrganizationHandler = middleware.handler(
   ResolveOrganization,
   async (context, next) => {
@@ -50,7 +55,7 @@ export const ResolveOrganizationHandler = middleware.handler(
     return await next();
   },
 );
-```
+~~~~
 
 Placement and ordering
 ----------------------
@@ -58,29 +63,29 @@ Placement and ordering
 A plain middleware definition uses the normal `afterValidation` lane. Special
 placement is explicit at the composition site:
 
-```ts
+~~~~ts
 middleware: [
   middleware.wholeRequest(RequestDiagnostics),
   middleware.beforeValidation(VerifyWebhookSignature),
   ResolveOrganization,
   middleware.aroundOperation(TransactionScope),
 ]
-```
+~~~~
 
 The lane names describe **what they surround**, not what the middleware itself does:
 
-1. `wholeRequest` — surrounds every application stage from raw request guards
+1. `wholeRequest`: surrounds every application stage from raw request guards
    through the declared handler result. It does not imply that a streamed body
    has finished reaching the client.
-2. `beforeValidation` — runs after whole-request setup and before endpoint input
+2. `beforeValidation`: runs after whole-request setup and before endpoint input
    parsing/Standard Schema validation. Use it for exact raw webhook signatures
    and other pre-parsing guards.
-3. `afterValidation` — the default lane. It receives validated inputs and runs
+3. `afterValidation`: the default lane. It receives validated inputs and runs
    before generic requirement interpretation and the operation.
-4. `aroundOperation` — the innermost lane immediately around the endpoint
+4. `aroundOperation`: the innermost lane immediately around the endpoint
    handler. Use it for transactions and units of work.
 
-```text
+~~~~text
 incoming Request
 │
 ├─ wholeRequest.before
@@ -105,7 +110,7 @@ incoming Request
 ├─ materialize with the service request state
 └─ response-completion observer
    body drained, cancelled, aborted, or errored
-```
+~~~~
 
 Authored order is preserved within each lane. Each lane uses normal onion
 semantics, so post-`next()` work unwinds in reverse order. Response completion
@@ -119,13 +124,13 @@ When the same imported middleware definition is intentionally contributed at
 several composition layers, wrap its runtime binding rather than storing state
 in a framework context or module-global sets:
 
-```ts
+~~~~ts
 export const RequestMetricsHandler = middleware.once(
   middleware.handler(RequestMetrics, async (context, next) => {
     return await recordRequest(context, next);
   }),
 );
-```
+~~~~
 
 The wrapper is keyed by the actual `Request` object and exact middleware
 definition. Duplicate occurrences still call `next()`, while the wrapped inner
@@ -141,7 +146,7 @@ Validation and documentation
 - `middleware.middlewareCatalog()`, `select()`, and `compose()` provide reusable
   immutable collections without global registration.
 - `middleware.document()` produces JSON-safe context, resource, problem,
-  requirement and resiliency inventories.
+  requirement, effect, and resiliency inventories.
 
 Definitions snapshot nested contribution arrays, so later mutation of authoring
 inputs cannot change a compiled graph.

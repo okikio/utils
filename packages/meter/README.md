@@ -28,7 +28,7 @@ const DownloadBytes = meter.define({
 });
 ```
 
-`meter.effect(DownloadBytes)` returns the exact required-effect definition for
+`meter.effect(DownloadBytes)` returns the exact declared effect definition for
 that measurement. An activity or workflow can declare it before runtime work
 starts:
 
@@ -112,7 +112,7 @@ Concrete map
 | Convenience | Manual equivalent | Concrete value |
 | --- | --- | --- |
 | `meter.define()` | freeze measurement identity/unit/aggregation metadata yourself | one stable measurement definition |
-| `meter.record()` | read the context clock, build the reading envelope, create the required effect occurrence, and submit it to the effect owner | measurement recording reuses effect acceptance instead of inventing transport |
+| `meter.record()` | read the context clock, build the reading envelope, create the declared effect occurrence, and submit it to the effect owner | measurement recording reuses effect acceptance instead of inventing transport |
 
 The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
 
@@ -135,9 +135,18 @@ Source guide
 
 1. `mod.ts` contains the definitions, catalog helpers, effect mapping, and
    `record()` operation.
-2. `types.ts` contains the public definition, reading, and catalog contracts.
-3. `mod_test.ts` shows validation and effect emission behavior.
-4. Read `@okikio/effect` when you need to understand acceptance, durability, or
+2. `schema.ts` contains `MeterReadingSchema` and its validated reading type.
+3. `types.ts` contains the public meter definition and catalog contracts.
+4. `mod.test.ts` shows validation and effect emission behavior.
+5. Read `@okikio/effect` when you need to understand acceptance, durability, or
    delivery after `record()`.
 
 The README is the primary user documentation.
+
+Validator independence
+----------------------
+
+`MeterReadingSchema` implements Standard Schema and Standard JSON Schema
+directly. `@okikio/meter` therefore does not require Zod to validate or document
+its stable reading record. Applications can use any Standard Schema implementation
+for surrounding domain schemas.

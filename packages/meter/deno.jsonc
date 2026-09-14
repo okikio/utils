@@ -3,9 +3,7 @@
 	"version": "0.0.0",
 	"publish": {
 		"exclude": [
-			"**/*_test.ts",
 			"**/*.test.ts",
-			"**/*_bench.ts",
 			"**/*.bench.ts",
 			"fixtures/**"
 		]
@@ -15,7 +13,7 @@
 		"./types": "./types.ts"
 	},
 	"imports": {
-		"zod": "npm:zod@^4.5.4"
+		"@standard-schema/spec": "npm:@standard-schema/spec@^1.1.0"
 	},
 	"tasks": {
 		"check": "deno fmt --check && deno lint && deno check . && deno doc --lint mod.ts",

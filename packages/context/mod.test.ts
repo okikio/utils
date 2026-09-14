@@ -63,6 +63,40 @@ describe('context', () => {
 		expect(events).toEqual(['cleanup']);
 	});
 
+	it('advances deterministic sleepers and deadlines without wall-clock timers', async () => {
+		const clock = new context.TestClock('2026-08-05T00:00:00Z');
+		let slept = false;
+		const sleeping = clock.sleep(5_000).then(() => slept = true);
+		clock.advance({ seconds: 4 });
+		await Promise.resolve();
+		expect(slept).toBe(false);
+		clock.advance({ seconds: 1 });
+		await sleeping;
+		expect(slept).toBe(true);
+
+		await using ctx = context.create({
+			id: 'deterministic-deadline',
+			clock,
+			deadline: clock.now().add({ seconds: 10 }),
+		});
+		clock.advance({ seconds: 10 });
+		await Promise.resolve();
+		expect(ctx.signal.reason).toBeInstanceOf(context.ContextDeadlineExceededError);
+	});
+
+	it('uses the context clock for waits', async () => {
+		const clock = new context.TestClock();
+		await using ctx = context.create({ id: 'deterministic-wait', clock });
+		let settled = false;
+		const waiting = context.wait(ctx, { minutes: 2 }).then(() => settled = true);
+		clock.advance({ minutes: 1 });
+		await Promise.resolve();
+		expect(settled).toBe(false);
+		clock.advance({ minutes: 1 });
+		await waiting;
+		expect(settled).toBe(true);
+	});
+
 	it('delay delegates cancellation to the standard async timer', async () => {
 		const controller = new AbortController();
 		controller.abort(new Error('cancel timer'));

@@ -8,7 +8,7 @@ import type {
 	AnyEndpointHandler,
 	AnyEndpointHandlerBinding,
 	EndpointHandlerSet,
-	EndpointConcernValues,
+	EndpointRequestValues,
 	EmptyEndpointHost,
 	EndpointMethod,
 	EndpointOperation,
@@ -18,31 +18,31 @@ import type {
 export function handler<
 	Endpoint extends EndpointDefinition<string, EndpointInputSlots, readonly [EndpointOperation]>,
 	Host extends object = EmptyEndpointHost,
-	Concerns extends EndpointConcernValues = EndpointConcernValues,
+	Values extends EndpointRequestValues = EndpointRequestValues,
 >(
 	endpoint: Endpoint,
-	handle: EndpointHandler<Endpoint, Endpoint['operations'][0], Host, Concerns>,
-): EndpointHandlerBinding<Endpoint, Endpoint['operations'][0], Host, Concerns>;
+	handle: EndpointHandler<Endpoint, Endpoint['operations'][0], Host, Values>,
+): EndpointHandlerBinding<Endpoint, Endpoint['operations'][0], Host, Values>;
 /** Bind every method of one endpoint through an exhaustive lowercase method map. */
 export function handler<
 	Endpoint extends EndpointDefinition,
 	Host extends object = EmptyEndpointHost,
-	Concerns extends EndpointConcernValues = EndpointConcernValues,
+	Values extends EndpointRequestValues = EndpointRequestValues,
 >(
 	endpoint: Endpoint,
-	handles: HandlerMap<Endpoint, Host, Concerns>,
+	handles: HandlerMap<Endpoint, Host, Values>,
 ): EndpointHandlerSet<Endpoint>;
 /** Bind one imported operation from a multi-method endpoint. */
 export function handler<
 	Endpoint extends EndpointDefinition,
 	Operation extends Endpoint['operations'][number],
 	Host extends object = EmptyEndpointHost,
-	Concerns extends EndpointConcernValues = EndpointConcernValues,
+	Values extends EndpointRequestValues = EndpointRequestValues,
 >(
 	endpoint: Endpoint,
 	operation: Operation,
-	handle: EndpointHandler<Endpoint, Operation, Host, Concerns>,
-): EndpointHandlerBinding<Endpoint, Operation, Host, Concerns>;
+	handle: EndpointHandler<Endpoint, Operation, Host, Values>,
+): EndpointHandlerBinding<Endpoint, Operation, Host, Values>;
 /** Normalize direct, operation-specific, or exhaustive handler authoring. */
 export function handler(
 	endpoint: EndpointDefinition,
@@ -98,7 +98,7 @@ export function handlers(
 	const result: AnyEndpointHandlerBinding[] = [];
 	const seenBindings = new Map<EndpointDefinition, Map<EndpointOperation, AnyEndpointHandlerBinding>>();
 	const visit = (value: EndpointHandlerInput): void => {
-		if (isHandlerInputArray(value)) {
+		if (isHandlerArray(value)) {
 			for (const item of value) visit(item);
 			return;
 		}
@@ -126,12 +126,12 @@ export function handlers(
 	return Object.freeze(result);
 }
 
-type HandlerMap<Endpoint extends EndpointDefinition, Host extends object, Concerns extends EndpointConcernValues> = {
+type HandlerMap<Endpoint extends EndpointDefinition, Host extends object, Values extends EndpointRequestValues> = {
 	readonly [Method in Endpoint['operations'][number]['method']]: EndpointHandler<
 		Endpoint,
 		Extract<Endpoint['operations'][number], { readonly method: Method }>,
 		Host,
-		Concerns
+		Values
 	>;
 };
 
@@ -153,7 +153,7 @@ function erasedBinding(
  *
  * @internal
  */
-function isHandlerInputArray(value: EndpointHandlerInput): value is readonly EndpointHandlerInput[] {
+function isHandlerArray(value: EndpointHandlerInput): value is readonly EndpointHandlerInput[] {
 	return Array.isArray(value);
 }
 

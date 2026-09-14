@@ -229,13 +229,13 @@ describe('resource definitions and collections', () => {
 
 	it('projects environment fields and passes the exact host and collection context', async () => {
 		await using ctx = createTestContext();
-		const StringSchema: StandardSchemaV1<unknown, string> = Object.freeze({
+		const StringSchema = Object.freeze({
 			'~standard': Object.freeze({
 				version: 1 as const,
 				vendor: 'test',
 				validate(value: unknown) { return typeof value === 'string' ? { value } : { issues: [{ message: 'Expected a string.' }] }; },
 			}),
-		});
+		} satisfies StandardSchemaV1<unknown, string>);
 		const environment = env.define({ DATABASE_URL: env.variable(StringSchema, { description: 'Database URL.' }) });
 		const requirementDefinition = env.requirement('test.resource-environment', environment, {
 			DATABASE_URL: 'Connect to the test database.',
@@ -248,7 +248,9 @@ describe('resource definitions and collections', () => {
 		const host = Object.freeze({ name: 'test-host' });
 		const implementation = resource.implement<typeof Database, resource.ResourceValue<typeof Database>, typeof host>(Database, {
 			create({ environment, host: receivedHost, ctx: receivedContext }) {
-				return { url: environment.DATABASE_URL!, hostName: receivedHost.name, requestId: receivedContext.id };
+				const url = environment.DATABASE_URL;
+				if (typeof url !== 'string') throw new TypeError('DATABASE_URL must be a string.');
+				return { url, hostName: receivedHost.name, requestId: receivedContext.id };
 			},
 		});
 		await using collection = resource.create(resource.implementations(implementation), {
