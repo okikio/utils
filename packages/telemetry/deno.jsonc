@@ -1,0 +1,28 @@
+{
+	"name": "@okikio/telemetry",
+	"version": "0.0.0",
+	"publish": {
+		"exclude": [
+			"**/*.test.ts",
+			"**/*.bench.ts",
+			"fixtures/**"
+		]
+	},
+	"exports": {
+		".": "./mod.ts",
+		"./types": "./types.ts",
+		"./logtape": "./logtape.ts",
+		"./otel": "./otel.ts",
+		"./server": "./server.ts",
+		"./lifecycle": "./lifecycle.ts"
+	},
+	"imports": {},
+	"tasks": {
+		"check": "deno fmt --check && deno lint && deno check . && deno doc --lint mod.ts logtape.ts otel.ts server.ts lifecycle.ts",
+		"test": "deno test -P=test"
+	},
+	"permissions": {
+		"test": {}
+	},
+	"license": "MIT"
+}

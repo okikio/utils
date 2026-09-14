@@ -1,0 +1,50 @@
+{
+	"name": "@okikio/telemetry",
+	"version": "0.0.0",
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"exports": {
+		".": "./mod.ts",
+		"./types": "./types.ts",
+		"./logtape": "./logtape.ts",
+		"./otel": "./otel.ts",
+		"./server": "./server.ts",
+		"./lifecycle": "./lifecycle.ts"
+	},
+	"dependencies": {
+		"@okikio/fault": "workspace:^"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
+		"@okikio/server": "workspace:^",
+		"@okikio/queue": "workspace:^",
+		"@okikio/pool": "workspace:^",
+		"@okikio/worker": "workspace:^",
+		"@okikio/process": "workspace:^"
+	},
+	"peerDependencies": {
+		"@okikio/server": "workspace:^",
+		"@okikio/queue": "workspace:^",
+		"@okikio/pool": "workspace:^",
+		"@okikio/worker": "workspace:^",
+		"@okikio/process": "workspace:^"
+	},
+	"peerDependenciesMeta": {
+		"@okikio/server": {
+			"optional": true
+		},
+		"@okikio/queue": {
+			"optional": true
+		},
+		"@okikio/pool": {
+			"optional": true
+		},
+		"@okikio/worker": {
+			"optional": true
+		},
+		"@okikio/process": {
+			"optional": true
+		}
+	}
+}
