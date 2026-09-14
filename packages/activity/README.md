@@ -121,26 +121,28 @@ const placement = engine.oneOf(
 
 `require()` selects one exact engine. `prefer()` and `allow()` define an ordered
 fallback choice. Placement does not start a process or Worker. Live engine
-providers register with `workflow.scheduler()`.
+providers run through `workflow.executor()`; `scheduler.register()` is the
+attached-host convenience.
 
 Provider subpaths
 -----------------
 
 The package includes generic providers that compose existing runtime utilities:
 
-- `@okikio/activity/local` executes an implementation in the Scheduler process.
+- `@okikio/activity/local` executes an implementation in the executor host.
 - `@okikio/activity/worker` composes `@okikio/pool` and `@okikio/worker`.
 - `@okikio/activity/process` composes `@okikio/pool`, `@okikio/process`, and the
   typed process channel.
 
-The Scheduler remains the only owner of the logical activity attempt and retry
-number. Providers report success, declared failure, fault, cancellation, or
-loss. They do not silently create another attempt.
+Activity dispatch remains the authority for logical item identity, attempt
+number, and terminal result. Providers report success, declared failure, fault,
+cancellation, or loss. Executors commit retry decisions through dispatch rather
+than silently creating another logical item.
 
 Permissions, effects, and heartbeats cross Worker/process transports as
 correlated reverse calls. The authoritative host validates the permission
 target or effect definition again before it answers. A heartbeat becomes
-meaningful only after the Scheduler renews the exact active queue claim.
+meaningful only after the executor renews the exact active dispatch claim.
 
 Pause and cancellation
 ----------------------

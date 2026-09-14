@@ -58,7 +58,7 @@ export class MissingActivityError extends Error {
  * Create one borrowed process-local engine provider.
  *
  * The returned provider owns no resource collection and starts no background
- * worker. Every `run()` call executes one Scheduler-owned attempt immediately.
+ * worker. Every `run()` call executes one dispatch-owned attempt immediately.
  */
 export function create(options: LocalProviderOptions): EngineProvider {
 	assertEngine(options.engine);

@@ -152,23 +152,25 @@ Durable work example
 --------------------
 
 When work must survive process loss, process-local concurrency is no longer the
-correct abstraction by itself. A workflow can coordinate queue-backed activity
-while workers own remote execution:
+correct abstraction by itself. A workflow can admit durable activity items while
+independent executors own live runtime resources:
 
 ```text
 workflow history
       |
       v
- durable queue ----> worker/process provider
+durable dispatch <---- executor ----> Worker/process provider
       |                    |
       |                    `--> context + resource lifetime
       v
- retry / completion
+item / claim / result
 ```
 
 Use `@okikio/task` for one process-local operation. Use `@okikio/workflow` when
 identity, history, retry, replay, or restart recovery must survive the process.
-Use `@okikio/queue` when work needs claims and durable completion state.
+Use `@okikio/queue` for generic claimed work. Use
+`@okikio/workflow/dispatch` when activity placement, executor generations, and
+stored workflow-facing results must share one durable authority.
 
 Choosing an import
 ------------------

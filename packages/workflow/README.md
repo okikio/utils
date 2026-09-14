@@ -75,21 +75,28 @@ Every yielded instruction is also a cooperative checkpoint.
 Scheduler
 ---------
 
-`workflow.scheduler()` is the default instruction interpreter and the one
-logical activity-placement authority.
+`workflow.scheduler()` is the default instruction interpreter. It admits
+activity items to a dispatch owner and waits for stored terminal results. An
+executor can run in the same process, another Worker/process host, or a remote
+runtime that shares the same durable dispatch adapter.
 
 ```ts
+import * as dispatch from '@okikio/workflow/dispatch';
+
+await using jobs = dispatch.memory();
 await using scheduler = workflow.scheduler({
   requirements: requirementRuntime,
   effect: effectEmitter,
-  activityQueue,
+  activityDispatch: jobs,
 });
 
-await using registration = await scheduler.register({
+await using executor = await workflow.executor({
+  dispatch: jobs,
   engine: Browser,
   hostId: 'browser-host-1',
   capacity: 4,
   affinity: { region: 'ca-central', browser: 'chromium' },
+  compute: { id: 'browser-process-1', kind: 'process' },
   provider: browserProvider,
 });
 
@@ -110,31 +117,27 @@ The Scheduler owns:
 - workflow control-instruction semantics;
 - deterministic instruction identity;
 - direct activity admission requirements;
-- idempotent activity job admission;
-- live engine registration and generation;
-- placement and capacity reservation;
-- queue claims and attempt numbers;
-- heartbeats and claim renewal;
-- activity retry decisions;
-- stale completion fencing;
+- idempotent activity item admission;
 - workflow-level effect delivery;
 - terminal activity completion returned to the generator.
 
-A provider owns only delivery of the current fenced attempt. It cannot create a
-new logical retry.
+The dispatch owner stores logical items, executor generations, placement data,
+temporary claims, retry timing, cancellation, and terminal results. An executor
+owns its provider, local resources, bounded capacity, claim renewal, and attempt
+delivery. It commits a declared retry through dispatch instead of creating a
+second item.
 
-Registration creates a live resource. The Scheduler snapshots the provider's
+Registration creates a live resource. The executor snapshots the provider's
 advertised activity list, affinity facts, capacity, protocol version, and exact
-`run()` / `cancel()` methods when `register()` is called. Later mutation of the
+`run()` / `cancel()` methods when it starts. Later mutation of the
 original configuration or provider object does not silently change that live
 registration. The provider object itself remains the owner of its live resources;
 when `disposeProvider: true` transfers cleanup ownership, the disposal method is
 captured at registration too.
 
-Manually, this is the same pattern as copying immutable placement metadata into a
-registration record while retaining bound callbacks to the live host. The utility
-adds generation fencing, capacity accounting, queue claims, and disposal ordering
-around that ordinary ownership split.
+`scheduler.register()` remains a local convenience. It starts an attached
+executor against the Scheduler's dispatch owner; it does not use a separate
+scheduler-local placement path.
 
 Instruction identity and history
 --------------------------------
@@ -171,12 +174,12 @@ choose SQLite, Postgres, Deno KV, or another persistence provider. Concrete
 durable history, run claims, timers, and signal stores belong in packages that
 implement the same semantic contracts.
 
-Activity jobs and engine registrations
+Activity items, dispatch, and executors
 --------------------------------------
 
-The Scheduler uses `@okikio/queue` for logical activity jobs and temporary
-claims. Replaying the same workflow instruction produces the same stable job
-key. A claim creates the attempt number.
+The Scheduler copies one complete serializable item into `ActivityDispatch`.
+Replaying the same workflow instruction produces the same stable key. The
+stored item remains authoritative while temporary claims create attempt numbers.
 
 A registration advertises one exact engine definition, supported activity
 definitions, capacity, optional affinity, and a host generation. Reconnecting
@@ -190,16 +193,21 @@ logical job
    `-- attempt 2 -> host generation 5 -> success
 ```
 
-The default queue is process-local. `ActivityJobType` deliberately stores only
+The default dispatch is process-local. `ActivityJobType` deliberately stores only
 serializable activity ID/version, validated input, workflow origin, context
-snapshot, and affinity. `ActivityJobResultType` stores JSON-safe terminal data
+snapshot, placement, and affinity. `ActivityJobResultType` stores JSON-safe terminal data
 and encoded declared failures. The replayed workflow instruction remains the
 authority that resolves those IDs back to the exact imported activity contract.
 
-Injecting a durable `Queue` therefore preserves the same Scheduler ownership
-model without asking the queue to persist JavaScript definitions or maintain a
-global registry, and without putting concrete database behavior in
-`@okikio/workflow`.
+`@okikio/workflow/dispatch` provides the bounded memory reference. A SQL, OPFS,
+or remote implementation can implement the same contract with atomic selection
+and storage-authoritative lease time. It must not persist JavaScript definitions,
+schemas, provider callbacks, or live resources.
+
+Compute metadata is optional and topology-neutral. A flat executor omits it. A
+hierarchical runtime can provide an open `kind`, identity, optional parent, and
+attributes at any level it uses, without adopting a fixed cluster/pod/container/
+process/thread taxonomy.
 
 Requirements and effects
 ------------------------
@@ -235,14 +243,14 @@ Concrete durable providers can supply:
 
 - workflow run/activation claims;
 - instruction history;
-- durable activity `Queue` storage;
+- durable activity dispatch storage;
 - timers and external signal storage;
 - effect outboxes;
 - wake-up and reconciliation services.
 
 Those are concrete persistence/runtime capabilities and therefore belong in
-`packages/`. They must preserve the Scheduler's deterministic identity, claim,
-retry, and fencing contracts rather than invent a second execution model.
+`packages/`. They must preserve deterministic identity, item, claim, retry, and
+fencing contracts rather than invent a second execution model.
 
 Convenience and the manual equivalent
 -------------------------------------
@@ -254,8 +262,9 @@ Concrete map
 | --- | --- | --- |
 | `workflow.define()` + `implement()` | freeze workflow metadata, write a generator contract, then separately maintain deterministic instruction IDs and replay rules | one deterministic orchestration definition |
 | `workflow.activity()` / `sleep()` / `wait()` / `child()` | manually construct serializable instruction records with stable keys/paths/annotations for each operation kind | typed durable instructions without embedding transports |
-| `workflow.scheduler()` | persist/compare instruction identity, enqueue activity jobs, claim attempts, place by affinity/capacity, heartbeat, retry, fence stale completion, deliver effects, and run cleanup yourself | one execution authority instead of several overlapping retry/placement loops |
-| `scheduler.register()` | snapshot advertised activities/affinity/capacity and bind provider callbacks while retaining the provider as the live disposal owner | mutable host objects cannot silently rewrite a registration generation |
+| `workflow.scheduler()` | persist/compare instruction identity, admit activity items, await stored results, deliver workflow effects, and run cleanup | deterministic workflow interpretation without importing activity hosts |
+| `workflow.executor()` | register capabilities, claim matching items up to capacity, restore local contexts, run providers, renew leases, and conditionally commit results | an independently hostable activity consumer |
+| `scheduler.register()` | start `workflow.executor()` against the Scheduler's dispatch owner | an attached-host convenience with the same dispatch semantics |
 
 The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
 
