@@ -428,7 +428,7 @@ class Runtime<Input, Output> {
 				waiters = new Set();
 				this.#resultWaiters.set(item.id, waiters);
 			}
-			await waitForChange(ctx, waiters);
+			await waitForChange(ctx, this.#clock, waiters);
 		}
 	}
 
