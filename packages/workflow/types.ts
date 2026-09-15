@@ -42,6 +42,14 @@ export interface EnginePlacementReference {
 	readonly choices: readonly EngineChoiceReference[];
 }
 
+/** One stored engine choice after a scheduler copies a definition placement. */
+export interface EnginePlacementType {
+	/** Stable engine definition ID used to select a compatible executor. */
+	readonly engine: string;
+	/** Selection mode retained from the activity contract. */
+	readonly mode: EngineChoiceModeType;
+}
+
 /** Structural activity contract referenced by workflow instructions. */
 export interface ActivityReference extends CatalogEntryIdentity {
 	/** Stable discriminant for this activity value. */
@@ -658,7 +666,7 @@ export interface ActivityJobType {
 	/** Serializable affinity facts that must match before placement. */
 	readonly affinity?: EngineAffinityType;
 	/** Ordered engine choices copied from the activity contract for storage-side placement. */
-	readonly placement: readonly EnginePlacementDocumentType[];
+	readonly placement: readonly EnginePlacementType[];
 }
 
 /** Serializable terminal result retained by the authoritative activity job store. */

@@ -9,6 +9,7 @@ import type {
 	ActivityJobType,
 	EngineChoiceModeType,
 	ExecutorJoinOptions,
+	WorkflowDurableValue,
 } from './types.ts';
 
 /** Build one JSON-safe activity item without importing live activity definitions. */
@@ -48,8 +49,8 @@ function host(engineId: string, hostId: string, input: Partial<ExecutorJoinOptio
 }
 
 /** Return one successful stored terminal value. */
-function success(value: unknown): ActivityJobResultType {
-	return Object.freeze({ type: 'success', value: Object.freeze({ kind: 'value', value }) });
+function success(value: WorkflowDurableValue): ActivityJobResultType {
+	return Object.freeze({ type: 'success', value: Object.freeze({ kind: 'value', value }) } satisfies ActivityJobResultType);
 }
 
 describe('activity dispatch memory contract', () => {

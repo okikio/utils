@@ -1634,6 +1634,7 @@ export type {
 	EngineChoiceModeType,
 	EngineChoiceReference,
 	EnginePlacementReference,
+	EnginePlacementType,
 	ActivityReference,
 	WorkflowReference,
 	WorkflowOptions,

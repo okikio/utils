@@ -531,17 +531,17 @@ function retryFault(activity: ActivityReference, attempt: number): boolean {
 
 /** Determine whether one expected failure identity is explicitly retryable. */
 function retryFailure(activity: ActivityReference, value: unknown, attempt: number): boolean {
-	const retry = retryPolicy(activity.resilience);
-	if (retry === undefined || attempt >= retry.maximumAttempts) return false;
+	const policy = retryPolicy(activity.resilience);
+	if (policy === undefined || attempt >= policy.maximumAttempts) return false;
 	const id = failureId(value);
-	return id !== undefined && retry.retryableFailures.includes(id);
+	return id !== undefined && policy.retryOn?.includes(id) === true;
 }
 
 /** Compute deterministic retry timing from activity policy and stable item identity. */
 function delay(activity: ActivityReference, failedAttempt: number, seed: string): Temporal.Duration {
-	const retry = retryPolicy(activity.resilience);
-	if (retry === undefined) return Temporal.Duration.from('PT0S');
-	return retryDelay(retry, failedAttempt, retry.jitter ? { jitter: retry.unit(`${seed}:${failedAttempt}`) } : undefined);
+	const policy = retryPolicy(activity.resilience);
+	if (policy === undefined) return Temporal.Duration.from('PT0S');
+	return retryDelay(policy, failedAttempt, policy.jitter ? { jitter: retry.unit(`${seed}:${failedAttempt}`) } : undefined);
 }
 
 /** Extract an expected-failure identity without importing an activity implementation package. */

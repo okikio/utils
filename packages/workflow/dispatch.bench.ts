@@ -2,7 +2,7 @@ import { bench, do_not_optimize, group, run } from 'mitata';
 
 import * as context from '@okikio/context';
 import * as dispatch from './dispatch.ts';
-import type { ActivityJobType } from './types.ts';
+import type { ActivityJobResultType, ActivityJobType } from './types.ts';
 
 const ITEMS = 1_000;
 
@@ -47,8 +47,8 @@ async function cycle(): Promise<import('./types.ts').ActivityDispatchStatsType> 
 	for (const claim of claims) {
 		await store.complete(ctx, claim, Object.freeze({
 			type: 'success',
-			value: Object.freeze({ kind: 'value', value: claim.value.input }),
-		}));
+			value: Object.freeze({ kind: 'value', value: null }),
+		} satisfies ActivityJobResultType));
 	}
 	return await store.stats();
 }
