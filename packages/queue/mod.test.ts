@@ -163,7 +163,13 @@ describe('memory queue', () => {
 			id: ids('delayed-item', 'delayed-claim', 'expired-item', 'first-claim', 'recovery-claim'),
 		});
 		await jobs.add(ctx, 'delayed', { availableAt: clock.now().add({ milliseconds: 10 }) });
-		const delayedWaiting = jobs.claim(ctx, { wait: true, duration: { milliseconds: 20 } });
+		let delayedReady = false;
+		const delayedWaiting = jobs.claim(ctx, { wait: true, duration: { milliseconds: 20 } }).then((claims) => {
+			delayedReady = true;
+			return claims;
+		});
+		await Promise.resolve();
+		expect(delayedReady).toBe(false);
 		clock.advance({ milliseconds: 10 });
 		const delayed = await delayedWaiting;
 		expect(delayed[0]?.value).toBe('delayed');

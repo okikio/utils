@@ -341,7 +341,7 @@ class Runtime<Input, Output> {
 			}
 			if (options.wait !== true) return Object.freeze([]);
 			const wakeAt = options.ref === undefined ? this.#soonest() : this.#next(this.#item(options.ref.id));
-			await waitForChange(ctx, this.#claimWaiters, wakeAt === undefined ? undefined : millisecondsUntil(wakeAt, this.#clock.now()));
+			await waitForChange(ctx, this.#clock, this.#claimWaiters, wakeAt === undefined ? undefined : millisecondsUntil(wakeAt, this.#clock.now()));
 		}
 	}
 
@@ -356,7 +356,7 @@ class Runtime<Input, Output> {
 			const now = this.#clock.now();
 			if (item.state === 'queued' && Temporal.Instant.compare(item.availableAt, now) <= 0) return 'claimable';
 			const wakeAt = this.#next(item);
-			await waitForChange(ctx, this.#claimWaiters, wakeAt === undefined ? undefined : millisecondsUntil(wakeAt, this.#clock.now()));
+			await waitForChange(ctx, this.#clock, this.#claimWaiters, wakeAt === undefined ? undefined : millisecondsUntil(wakeAt, this.#clock.now()));
 		}
 	}
 
@@ -589,7 +589,7 @@ function terminal<Input, Output>(item: Item<Input, Output>): boolean {
  * A waiter can settle in three ways:
  * - another queue operation wakes it;
  * - the context is cancelled;
- * - an optional timer fires because delayed work or claim expiry may now matter.
+ * - the queue clock reaches a delayed item or claim expiry.
  *
  * The helper only suspends the caller.
  * The helper does not change item ownership.
@@ -597,13 +597,18 @@ function terminal<Input, Output>(item: Item<Input, Output>): boolean {
  *
  * @internal
  */
-function waitForChange(ctx: context.Context, waiters: Set<Waiter>, delayMilliseconds?: number): Promise<void> {
+function waitForChange(
+	ctx: context.Context,
+	clock: context.Clock,
+	waiters: Set<Waiter>,
+	delayMilliseconds?: number,
+): Promise<void> {
 	return new Promise<void>((resolve, reject) => {
 		let waiter!: Waiter;
-		let timer: ReturnType<typeof setTimeout> | undefined;
+		const timer = delayMilliseconds === undefined ? undefined : new AbortController();
 		const unlink = () => {
 			ctx.signal.removeEventListener('abort', abort);
-			if (timer !== undefined) clearTimeout(timer);
+			timer?.abort();
 		};
 		const settle = (action: () => void) => {
 			if (!waiters.delete(waiter)) return;
@@ -618,7 +623,9 @@ function waitForChange(ctx: context.Context, waiters: Set<Waiter>, delayMillisec
 		}
 		waiters.add(waiter);
 		ctx.signal.addEventListener('abort', abort, { once: true });
-		if (delayMilliseconds !== undefined) timer = setTimeout(() => settle(resolve), Math.max(0, delayMilliseconds));
+		if (timer !== undefined) {
+			void clock.sleep(Math.max(0, delayMilliseconds!), timer.signal).then(() => settle(resolve), () => {});
+		}
 	});
 }
 
@@ -767,9 +774,9 @@ function getDuration(value: Temporal.Duration | Temporal.DurationLike | string, 
 }
 
 /**
- * Calculates the bounded timer delay until one instant from another.
+ * Calculates the bounded clock wait until one instant from another.
  *
- * The upper bound matches the practical `setTimeout()` range.
+ * The upper bound matches the supported `Clock.sleep()` range.
  * Delayed work and claim expiry can then schedule safe wake-ups.
  *
  * @internal
