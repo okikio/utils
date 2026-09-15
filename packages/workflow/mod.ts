@@ -1508,9 +1508,9 @@ async function encodeCompletion(
 		return Object.freeze({ type: 'failure', failure: Object.freeze({ kind: 'value', value: durable.value(completion.failure, 'workflow failure') }) });
 	}
 	if (completion.type === 'cancelled') {
-		return Object.freeze({ type: 'cancelled', reason: durable.value(encodeFault(completion.reason), 'workflow cancellation') });
+		return Object.freeze({ type: 'cancelled', reason: durable.value(faultCore.encode(completion.reason), 'workflow cancellation') });
 	}
-	return Object.freeze({ type: 'fault', fault: durable.value(encodeFault(completion.fault), 'workflow fault') });
+	return Object.freeze({ type: 'fault', fault: durable.value(faultCore.encode(completion.fault), 'workflow fault') });
 }
 
 /** Decode one persisted completion through exact definitions imported by the replayed workflow. */
@@ -1535,11 +1535,6 @@ function workflowFailures(workflow: WorkflowDefinition): readonly import('@okiki
 	// contract. Its internal activities are not part of the parent's authority.
 	for (const child of workflow.workflows) for (const failure of child.failures) failures.add(failure);
 	return Object.freeze([...failures]);
-}
-
-/** Convert unexpected runtime reasons to bounded JSON-safe diagnostic data. */
-function encodeFault(value: unknown): faultCore.FaultValue {
-	return faultCore.encode(value);
 }
 
 /**
@@ -1607,8 +1602,7 @@ function isTerminalError(error: unknown): boolean {
  */
 function isCancellation(error: unknown): boolean {
 	return error instanceof CancelledError ||
-		error instanceof contextCore.ContextCancelledError ||
-		error instanceof contextCore.ContextDeadlineExceededError;
+		contextCore.cancelled(error);
 }
 
 /**

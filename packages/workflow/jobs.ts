@@ -134,8 +134,8 @@ export class ActivityJobs implements AsyncDisposable {
 		try {
 			return await decode(await this.#dispatch.result(ctx, ref), activity);
 		} catch (error) {
-			if (!isCancellation(error) && !ctx.signal.aborted) throw error;
-			const reason = durable.value(encodeFault(ctx.signal.aborted ? ctx.signal.reason : error), 'activity cancellation');
+			if (!context.cancelled(error) && !ctx.signal.aborted) throw error;
+			const reason = durable.value(faultCore.encode(ctx.signal.aborted ? ctx.signal.reason : error), 'activity cancellation');
 			await this.#dispatch.cancel(this.#control, ref, reason);
 			return Object.freeze({ type: 'cancelled', reason: durable.restore(reason) });
 		}
@@ -318,7 +318,7 @@ class ExecutorRuntime {
 			await this.#commit(claim, Object.freeze({
 				type: 'fault',
 				fault: durable.value(
-					encodeFault(new Error(`Executor cannot resolve activity ${JSON.stringify(`${claim.value.activityId}@${claim.value.activityVersion}`)}.`)),
+					faultCore.encode(new Error(`Executor cannot resolve activity ${JSON.stringify(`${claim.value.activityId}@${claim.value.activityVersion}`)}.`)),
 					'activity fault',
 				),
 			}));
@@ -378,7 +378,7 @@ class ExecutorRuntime {
 					if (retryFault(activity, claim.attempt)) {
 						await this.#dispatch.retry(this.#control, claim, { delay: delay(activity, claim.attempt, claim.itemId) });
 					} else {
-						await this.#commit(claim, Object.freeze({ type: 'fault', fault: durable.value(encodeFault(error), 'activity fault') }));
+						await this.#commit(claim, Object.freeze({ type: 'fault', fault: durable.value(faultCore.encode(error), 'activity fault') }));
 					}
 				}
 				return;
@@ -395,7 +395,7 @@ class ExecutorRuntime {
 			if (result.type === 'cancelled') {
 				await this.#commit(claim, Object.freeze({
 					type: 'cancelled',
-					reason: durable.value(encodeFault(result.reason), 'activity cancellation'),
+					reason: durable.value(faultCore.encode(result.reason), 'activity cancellation'),
 				}));
 				return;
 			}
@@ -406,7 +406,7 @@ class ExecutorRuntime {
 			const reason = result.type === 'failure'
 				? new TypeError(`Activity ${JSON.stringify(activity.id)} returned an undeclared failure.`)
 				: result.type === 'lost' ? result.reason : result.fault;
-			await this.#commit(claim, Object.freeze({ type: 'fault', fault: durable.value(encodeFault(reason), 'activity fault') }));
+			await this.#commit(claim, Object.freeze({ type: 'fault', fault: durable.value(faultCore.encode(reason), 'activity fault') }));
 		} catch (error) {
 			if (!(error instanceof dispatch.StaleActivityClaimError) && !(error instanceof dispatch.StaleExecutorError)) throw error;
 		}
@@ -567,11 +567,6 @@ function storedFailure(value: failures.Encoded): HistoryFailureOccurrenceType {
 	});
 }
 
-/** Convert an unexpected runtime reason to bounded durable diagnostics. */
-function encodeFault(value: unknown): faultCore.FaultValue {
-	return faultCore.encode(value);
-}
-
 /** Capture provider behavior without invoking accessors or retaining mutable metadata. */
 function normalizeProvider(provider: EngineProvider, disposeProvider: boolean): ProviderRuntime {
 	if (typeof provider !== 'object' || provider === null) throw new TypeError('Engine provider must be an object.');
@@ -658,9 +653,4 @@ function milliseconds(value: Temporal.Duration): number {
 		throw new TypeError('Executor lease duration cannot contain calendar units.');
 	}
 	return value.total({ unit: 'milliseconds' });
-}
-
-/** Return whether a reason represents cooperative context cancellation. */
-function isCancellation(value: unknown): boolean {
-	return value instanceof context.ContextCancelledError || value instanceof context.ContextDeadlineExceededError;
 }
