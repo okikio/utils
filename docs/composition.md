@@ -167,8 +167,10 @@ item / claim / result
 ```
 
 Use `@okikio/task` for one process-local operation. Use `@okikio/workflow` when
-identity, history, retry, replay, or restart recovery must survive the process.
-Use `@okikio/queue` for generic claimed work. Use
+the program needs deterministic instruction identity, replay semantics, or
+activity dispatch contracts. Its bundled `memory()` history and dispatch stores
+remain process-local; restart recovery requires a concrete durable History and
+ActivityDispatch adapter. Use `@okikio/queue` for generic claimed work. Use
 `@okikio/workflow/dispatch` when activity placement, executor generations, and
 stored workflow-facing results must share one durable authority.
 

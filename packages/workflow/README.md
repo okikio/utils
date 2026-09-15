@@ -1,318 +1,255 @@
 `@okikio/workflow`
-=================
+===================
 
-`@okikio/workflow` owns deterministic orchestration and the default Scheduler.
-Process-local asynchronous work belongs to `@okikio/task`; workflow generators
-produce serializable instructions that can be identified, recorded, replayed,
-and routed to activity engines.
+`@okikio/workflow` interprets deterministic generator programs. A workflow
+program yields serializable instructions. The Scheduler gives each instruction
+a stable path, records or replays its completion through `History`, and admits
+external activity work through `ActivityDispatch`.
 
-Start here
-----------
+Use `@okikio/task` for finite work that is local to one process. Use this
+package when the work needs replayable instruction identity, declared external
+activities, or an explicit stored handoff between scheduling and execution.
 
-`workflow.define()` creates immutable metadata. `workflow.implement()` binds one
-exact definition to a generator program.
+Start with one local host
+-------------------------
+
+This complete example runs one activity through the process-local reference
+stores. It is useful for tests and local development. It deliberately does not
+claim crash recovery because both `memory()` stores disappear when the process
+exits.
 
 ```ts
+import * as activity from '@okikio/activity';
+import * as engine from '@okikio/activity/engine';
+import * as context from '@okikio/context';
+import * as dispatch from '@okikio/workflow/dispatch';
+import * as history from '@okikio/workflow/history';
 import * as workflow from '@okikio/workflow';
 
-const Convert = workflow.define({
-  id: 'media.convert',
+const TextSchema = Object.freeze({
+  '~standard': Object.freeze({
+    version: 1,
+    vendor: 'example',
+    validate(value: unknown) {
+      return typeof value === 'string'
+        ? { value }
+        : { issues: [{ message: 'Expected text.' }] };
+    },
+  }),
+});
+
+const Local = engine.define({ id: 'local' });
+const Echo = activity.define({
+  id: 'example.echo',
   version: '1',
-  input: ConvertInputSchema,
-  result: ConvertResultSchema,
-  activities: [Inspect, Save],
-  effects: [MediaCommitted],
+  input: TextSchema,
+  result: TextSchema,
+  placement: engine.require(Local),
 });
 
-const ConvertLive = workflow.implement(Convert, function* (ctx) {
-  const inspected = yield* activities.request(Inspect, ctx.input);
-  return yield* activities.request(Save, inspected);
+const EchoWorkflow = workflow.define({
+  id: 'example.echo-workflow',
+  version: '1',
+  input: TextSchema,
+  result: TextSchema,
+  activities: [Echo],
 });
-```
-
-The generator itself does not call a queue, Worker, process, database, or
-network service. It yields instructions and receives typed completions.
-
-Workflow context
-----------------
-
-`workflow.context()` validates input and creates one owned local context for a
-specific workflow run. The context contains stable workflow/run identity and a
-cooperative checkpoint. Live resources are deliberately absent.
-
-```ts
-await using ctx = await workflow.context({
-  definition: Convert,
-  runId: 'run-42',
-  input,
-  ctx: parent,
+const EchoLive = workflow.implement(EchoWorkflow, function* (ctx) {
+  return yield* activity.request(Echo, ctx.input);
 });
-```
 
-Context snapshots can cross a runtime seam because they contain serializable
-identity and timing values. `AbortSignal`, resource collections, browser
-handles, processes, Workers, and provider clients do not enter snapshots or
-workflow history.
-
-Operations
-----------
-
-The public operations use short namespace-oriented names:
-
-- `activity()` creates a structural activity operation used by
-  `@okikio/activity.request()`.
-- `sleep()` requests a durable timer from the command host.
-- `wait()` waits for one declared external signal.
-- `child()` requests a child workflow.
-- `effect()` emits one workflow-declared effect.
-- `defer()` registers serializable cleanup.
-- `continue()` ends the current run and continues with validated new input.
-- `parallel()`, `map()`, `race()`, and `retry()` define control semantics that
-  the Scheduler interprets itself.
-
-Every yielded instruction is also a cooperative checkpoint.
-
-Scheduler
----------
-
-`workflow.scheduler()` is the default instruction interpreter. It admits
-activity items to a dispatch owner and waits for stored terminal results. An
-executor can run in the same process, another Worker/process host, or a remote
-runtime that shares the same durable dispatch adapter.
-
-```ts
-import * as dispatch from '@okikio/workflow/dispatch';
-
+await using parent = context.create({ id: 'example-parent' });
 await using jobs = dispatch.memory();
+await using records = history.memory();
 await using scheduler = workflow.scheduler({
-  requirements: requirementRuntime,
-  effect: effectEmitter,
   activityDispatch: jobs,
+  history: records,
 });
-
 await using executor = await workflow.executor({
   dispatch: jobs,
-  engine: Browser,
-  hostId: 'browser-host-1',
-  capacity: 4,
-  affinity: { region: 'ca-central', browser: 'chromium' },
-  compute: { id: 'browser-process-1', kind: 'process' },
-  provider: browserProvider,
+  engine: Local,
+  hostId: 'example-host',
+  capacity: 1,
+  provider: {
+    activities: [Echo],
+    async run(_ctx, attempt) {
+      return Object.freeze({ type: 'success', value: attempt.input });
+    },
+  },
+});
+await using run = await workflow.context({
+  definition: EchoWorkflow,
+  runId: 'example-run',
+  input: 'hello',
+  ctx: parent,
 });
 
-// A command can require some or all of those host facts.
-const convert = workflow.activity(ConvertPage, input, {
-  affinity: { browser: 'chromium' },
-});
-
-const result = await workflow.run({
-  ctx,
-  implementation: ConvertLive,
+console.log(await workflow.run({
+  ctx: run,
+  implementation: EchoLive,
   scheduler,
-});
+})); // hello
 ```
 
-The Scheduler owns:
+The generator never holds a queue, Worker, process, database connection, or
+provider callback. It only creates an `activity.request()` instruction. The
+Scheduler copies the serializable item to dispatch. The executor claims the
+item, owns the live provider call, and conditionally stores the terminal result.
 
-- workflow control-instruction semantics;
-- deterministic instruction identity;
-- direct activity admission requirements;
-- idempotent activity item admission;
-- workflow-level effect delivery;
-- terminal activity completion returned to the generator.
+What the package provides today
+-------------------------------
 
-The dispatch owner stores logical items, executor generations, placement data,
-temporary claims, retry timing, cancellation, and terminal results. An executor
-owns its provider, local resources, bounded capacity, claim renewal, and attempt
-delivery. It commits a declared retry through dispatch instead of creating a
-second item.
-
-Registration creates a live resource. The executor snapshots the provider's
-advertised activity list, affinity facts, capacity, protocol version, and exact
-`run()` / `cancel()` methods when it starts. Later mutation of the
-original configuration or provider object does not silently change that live
-registration. The provider object itself remains the owner of its live resources;
-when `disposeProvider: true` transfers cleanup ownership, the disposal method is
-captured at registration too.
-
-`scheduler.register()` remains a local convenience. It starts an attached
-executor against the Scheduler's dispatch owner; it does not use a separate
-scheduler-local placement path.
-
-Instruction identity and history
---------------------------------
-
-`workflow.describe()` creates JSON-safe instruction history data.
-`workflow.identify()` adds a stable SHA-256 fingerprint. A Scheduler can borrow
-one `History` implementation to persist, compare, replay, or audit that identity.
-The process-local reference implementation lives at `@okikio/workflow/history`.
-
-```text
-run id + deterministic path + instruction fingerprint
-                     |
-                     +-- same identity -> replay/reattach
-                     `-- different identity -> workflow divergence
-```
-
-```ts
-import * as history from '@okikio/workflow/history';
-
-await using records = history.memory({ maximumEntries: 10_000 });
-await using scheduler = workflow.scheduler({ history: records });
-```
-
-`history.memory()` coalesces concurrent scheduling, returns recorded completions
-on replay, rejects changed fingerprints, and bounds retained instruction state.
-The Scheduler encodes each completion before history retains it. Stored history
-contains only JSON-safe `HistoryCompletionType` data; expected failure
-occurrences are reduced to stable ID/data/message and reconstructed through the
-current replayed workflow definitions. History never needs to persist schemas,
-functions, live errors, or resource values.
-
-It is process-local and is not a durability claim. The generic utility does not
-choose SQLite, Postgres, Deno KV, or another persistence provider. Concrete
-durable history, run claims, timers, and signal stores belong in packages that
-implement the same semantic contracts.
-
-Activity items, dispatch, and executors
---------------------------------------
-
-The Scheduler copies one complete serializable item into `ActivityDispatch`.
-Replaying the same workflow instruction produces the same stable key. The
-stored item remains authoritative while temporary claims create attempt numbers.
-
-A registration advertises one exact engine definition, supported activity
-definitions, capacity, optional affinity, and a host generation. Reconnecting
-the same host creates a new generation. A late result from an older generation
-is fenced before it can mutate terminal job state.
-
-```text
-logical job
-   |
-   +-- attempt 1 -> host generation 4 -> lost
-   `-- attempt 2 -> host generation 5 -> success
-```
-
-The default dispatch is process-local. `ActivityJobType` deliberately stores only
-serializable activity ID/version, validated input, workflow origin, context
-snapshot, placement, and affinity. `ActivityJobResultType` stores JSON-safe terminal data
-and encoded declared failures. The replayed workflow instruction remains the
-authority that resolves those IDs back to the exact imported activity contract.
-
-`@okikio/workflow/dispatch` provides the bounded memory reference. A SQL, OPFS,
-or remote implementation can implement the same contract with atomic selection
-and storage-authoritative lease time. It must not persist JavaScript definitions,
-schemas, provider callbacks, or live resources.
-
-Compute metadata is optional and topology-neutral. A flat executor omits it. A
-hierarchical runtime can provide an open `kind`, identity, optional parent, and
-attributes at any level it uses, without adopting a fixed cluster/pod/container/
-process/thread taxonomy.
-
-Requirements and effects
-------------------------
-
-Workflow definitions keep their direct requirements. Activity definitions keep
-their own direct requirements. Reachable declarations can be inspected without
-being eagerly activated.
-
-Before engine placement, the Scheduler applies the activity's direct active
-requirements. A target-bearing permission remains a declaration until activity
-code supplies the target to `permissions.check()` or `permissions.assert()`.
-
-Workflow effects must be declared by the workflow definition. The Scheduler
-creates an occurrence whose default key is the deterministic instruction
-fingerprint and waits for the configured effect owner to accept it.
-
-Cleanup and cancellation
-------------------------
-
-`workflow.defer()` registers one activity or child-workflow cleanup operation.
-Registration occurs before the generator advances. Required cleanup runs even
-when the workflow body fails. Cleanup execution does not wait behind a paused
-checkpoint during cancellation.
-
-A workflow run can use a parent `@okikio/task` checkpoint gate. Without a Task,
-the same workflow checkpoint still checks cancellation and deadlines.
-
-Durable hosting
----------------
-
-The generic package defines orchestration semantics, not a database service.
-Concrete durable providers can supply:
-
-- workflow run/activation claims;
-- instruction history;
-- durable activity dispatch storage;
-- timers and external signal storage;
-- effect outboxes;
-- wake-up and reconciliation services.
-
-Those are concrete persistence/runtime capabilities and therefore belong in
-`packages/`. They must preserve deterministic identity, item, claim, retry, and
-fencing contracts rather than invent a second execution model.
-
-Convenience and the manual equivalent
--------------------------------------
-
-Concrete map
-~~~~~~~~~~~~
-
-| Convenience | Manual equivalent | Concrete value |
+| Capability | Current behavior | Limit |
 | --- | --- | --- |
-| `workflow.define()` + `implement()` | freeze workflow metadata, write a generator contract, then separately maintain deterministic instruction IDs and replay rules | one deterministic orchestration definition |
-| `workflow.activity()` / `sleep()` / `wait()` / `child()` | manually construct serializable instruction records with stable keys/paths/annotations for each operation kind | typed durable instructions without embedding transports |
-| `workflow.scheduler()` | persist/compare instruction identity, admit activity items, await stored results, deliver workflow effects, and run cleanup | deterministic workflow interpretation without importing activity hosts |
-| `workflow.executor()` | register capabilities, claim matching items up to capacity, restore local contexts, run providers, renew leases, and conditionally commit results | an independently hostable activity consumer |
-| `scheduler.register()` | start `workflow.executor()` against the Scheduler's dispatch owner | an attached-host convenience with the same dispatch semantics |
+| Workflow definitions and instructions | Immutable definitions, JSON-safe descriptions, stable fingerprints, replayable paths | Definitions and schemas stay in the importing program |
+| Scheduler | Interprets activity and workflow-control instructions, requirements, effects, cleanup, cancellation, and retry | It is not an activation or timer service |
+| `history.memory()` | Bounds local instruction history, coalesces local scheduling, replays recorded completions | Process-local only |
+| `dispatch.memory()` | Stores logical items, placement, fenced executor generations, claims, retry timing, cancellation, and results | Process-local only |
+| `workflow.executor()` | Independently claims matching work through `ActivityDispatch` with bounded capacity | A remote or process host needs a shared authoritative adapter |
+| Compute metadata | Optional `id`, open `kind`, optional `parent`, and attributes | Describes topology; it does not enforce one |
 
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
+The interfaces are ready for a durable adapter, but this package does **not**
+provide SQLite, Postgres, OPFS, Deno KV, activation claims, durable timers,
+external signal storage, an outbox, or a reconciler. An in-memory implementation
+that has the same methods is still not durable.
 
+Owners and handoffs
+-------------------
 
-`@okikio/workflow` is a convenience layer, not a hidden runtime. You can reproduce its
-core mechanics with persist instruction history, replay a generator, enqueue activities, schedule timers, deliver signals, and fence duplicate completions yourself.
+```text
+workflow program
+    | yields a serializable instruction
+    v
+Scheduler ---- History
+    | admits one logical activity item
+    v
+ActivityDispatch <---- Executor ----> provider resources
+    |                         |
+    | stores claim/result      `-- runs one fenced attempt
+    v
+replayed workflow completion
+```
 
-The utility owns the deterministic instruction contract and scheduler model. Concrete durable history, activation, timer, and queue stores remain provider packages.
+The Scheduler owns deterministic instruction identity and workflow-control
+semantics. `History` owns whether an existing instruction completion can be
+replayed or new work can advance. `ActivityDispatch` owns the logical item,
+placement, claim, retry, cancellation, and terminal result. An executor owns
+provider resources, local capacity, claim renewal, and attempt delivery.
 
-When debugging or extending the package, keep that manual model in mind. The
-utility should remove repetitive correctness work without making the underlying
-Web, ECMAScript, Standard Schema, or runtime primitives impossible to recognize.
+This separation matters when an executor changes host. Replaying the same
+workflow instruction adds the same logical dispatch key. A late completion from
+an old executor generation is fenced, and a new claim can create the next
+attempt without producing a second logical item.
 
+```text
+logical item
+   |
+   +-- attempt 1, host generation 4 -> host lost
+   `-- attempt 2, host generation 5 -> terminal result
+```
 
-Composition, terminal helpers, and scheduler errors
+`scheduler.register()` is only a local convenience. It creates an executor
+against the Scheduler's configured dispatch owner. It does not use a separate
+placement path.
+
+Workflow programs
+-----------------
+
+`workflow.define()` declares input, result, direct requirements, activities,
+effects, child workflows, and expected failures. `workflow.implement()` binds
+one exact definition to a generator program. `workflow.context()` validates one
+run input and creates a local cancellation/checkpoint lifetime.
+
+| Operation | Meaning |
+| --- | --- |
+| `activity()` or `activity.request()` | Request one declared external activity |
+| `sleep()` | Ask the command host to interpret a timer instruction |
+| `wait()` | Ask the command host to interpret one declared external signal |
+| `child()` | Request a declared child workflow |
+| `effect()` | Announce one declared workflow effect |
+| `defer()` | Register serializable cleanup before the program advances |
+| `continue()` | End this run and validate the next input |
+| `parallel()`, `map()`, `race()`, `retry()` | Scheduler-owned deterministic control operations |
+
+Every yielded instruction is a cooperative checkpoint. Context snapshots contain
+serializable identity and timing only. Do not put an `AbortSignal`, browser
+handle, process, Worker, provider client, or resource collection in workflow
+input or history.
+
+History and durable values
+--------------------------
+
+`workflow.describe()` returns JSON-safe instruction data. `workflow.identify()`
+adds a stable SHA-256 fingerprint. A `History` implementation must record that
+identity before it starts external work, return a stored completion on replay,
+and reject a different fingerprint at the same deterministic path.
+
+History and activity results retain JSON-safe data. `undefined` has an explicit
+marker so storage does not erase the difference between an absent JavaScript
+value and a stored value. Expected failures are reduced to stable definition ID,
+data, and message; the replayed definition reconstructs the occurrence. Live
+schemas, functions, errors, and provider objects do not cross the storage seam.
+
+`history.memory()` is useful for local replay tests. A durable implementation
+needs storage-authoritative ownership and an atomic or recoverable protocol for
+identity, completion, and concurrent claims. It must record committed outcomes,
+not merely attempted work.
+
+Placement and compute
+---------------------
+
+An activity declares ordered engine choices. An executor advertises one exact
+engine, supported activities, capacity, optional affinity, protocol version, and
+optional compute metadata. Dispatch matches activity version and affinity before
+it grants a claim.
+
+Compute metadata is topology-neutral. A flat host can omit it. A deployment
+that models a process and child threads can use `parent`; another deployment can
+use different open `kind` names or no hierarchy at all. The contract carries
+facts for placement and diagnostics without imposing a cluster/pod/container
+taxonomy.
+
+Requirements, effects, cleanup, and cancellation
 -------------------------------------------------
 
-Definition tooling uses `catalog()`, `select()`, `compose()`, and `document()` in
-the same import-safe style as other definition utilities. Terminal helpers
-`failed()`, `fault()`, and `cancelled()` create explicit completion variants for
-interpreter/provider code.
+Workflow definitions keep direct requirements. Activity definitions keep their
+own direct requirements. The Scheduler applies an activity's active direct
+requirements before placement; target-bearing permissions remain declarations
+until activity code checks a concrete target.
 
-The scheduler exposes distinct errors rather than collapsing orchestration faults:
-`FaultError`, `CancelledError`, `ContinueAsNewError`, `PlacementError`,
-`RegistrationConflictError`, `SchedulerClosedError`, `CleanupInstructionError`,
-and `CleanupFailureError`. Their names correspond to different replay, placement,
-shutdown, or cleanup states and should not be handled as one generic retry signal.
+Workflow effects must be declared by the workflow definition. The Scheduler
+gives an occurrence a deterministic default key and waits for the configured
+effect owner to accept it. Durable delivery still needs a concrete outbox or
+equivalent owner.
 
+`workflow.defer()` records cleanup before the generator moves forward. Required
+cleanup runs after a failure and during cancellation. Cancellation asks work to
+stop cooperatively; it does not make an uncooperative provider safe to abandon
+without fencing or lease recovery.
+
+Building a durable host
+-----------------------
+
+A concrete host can implement `History` and `ActivityDispatch`, but must add:
+
+1. Persisted and fenced workflow-run or activation ownership.
+2. Instruction identity before external dispatch and terminal completion through
+   the same authority.
+3. Atomic activity claims using storage-authoritative lease time.
+4. Reconciliation for expired registrations and claims that rejects late results.
+5. Timer and signal storage, wake-ups, and an outbox or equivalent idempotent
+   effect commitment.
+
+Do not persist definitions, schemas, callbacks, live errors, or provider
+resources. Import the exact definitions in the host, then resolve stored identity
+through the replayed workflow contract.
 
 Source guide
 ------------
 
-Start with this README, then use the source in this order when you need more
-detail:
-
-1. `mod.ts` shows the supported runtime operations and the composition shape.
-2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
-   behavior as executable examples.
-4. Read internal implementation files only when you need the exact state
-   transition or performance-sensitive loop.
-
-The README is the primary user documentation. It intentionally stays close to
-the public source instead of maintaining a separate hand-written API reference.
-
-Unexpected runtime diagnostics
-------------------------------
-
-Unexpected thrown values are projected through `@okikio/fault` before they cross
-runtime or durable seams. This is separate from `@okikio/failure`, which represents
-expected declared failures with stable application identity.
+1. `mod.ts` owns definitions, instructions, identity, and the Scheduler.
+2. `types.ts` defines public contracts and storage documents.
+3. `history.ts` and `dispatch.ts` provide bounded process-local references.
+4. `jobs.ts` owns executor admission, provider snapshots, and lease delivery.
+5. `*.test.ts` demonstrates replay, stale-generation fencing, cancellation,
+   virtual-clock retry, and accessor-safe durable snapshots.
