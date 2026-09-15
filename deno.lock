@@ -1233,6 +1233,7 @@
         "npm:@varlock/bumpy@1.18.1",
         "npm:fast-check@4.9.0",
         "npm:mitata@1.0.34",
+        "npm:oxc-parser@0.145.0",
         "npm:publint@0.3.24",
         "npm:tsdown@0.22.14",
         "npm:typescript@7.0.2"

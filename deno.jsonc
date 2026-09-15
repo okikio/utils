@@ -13,7 +13,8 @@
 		"package:check": "deno run -A tools/check-packaging.ts",
 		"utils:sync": "deno run -A tools/sync-utils-exports.ts",
 		"treeshake:check": "deno run -A tools/check-treeshake.ts",
-		"freeze:check": "deno run --allow-read tools/check-freeze-inference.ts"
+		"freeze:check": "deno run --allow-read tools/check-freeze-inference.ts",
+		"audit:duplicates": "deno run --no-check --allow-read --allow-env --allow-ffi tools/audit-duplicates.ts"
 	},
 	"exports": {},
 	"imports": {

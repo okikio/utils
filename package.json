@@ -21,6 +21,7 @@
 		"@varlock/bumpy": "1.18.1",
 		"fast-check": "4.9.0",
 		"mitata": "1.0.34",
+		"oxc-parser": "0.145.0",
 		"publint": "0.3.24",
 		"tsdown": "0.22.14",
 		"typescript": "7.0.2"
