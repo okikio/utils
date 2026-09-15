@@ -38,22 +38,34 @@ non-trivial inference.
 A useful fixture set includes a program that must type-check and a program that
 must fail for the intended reason.
 
+Run the TypeScript compiler with the Deno runtime declarations that the package
+targets:
+
+~~~~ sh
+deno task type
+~~~~
+
+The task generates those declarations in a temporary directory, then invokes
+the pinned local TypeScript compiler. It does not run `deno check` or commit a
+runtime compatibility file. Use this gate for TypeScript diagnostics. Use Deno
+tests for Deno runtime behavior.
+
 Failure and limit cases
 -----------------------
 
 Test the cases that change behavior or ownership. Depending on the capability,
 this can include:
 
- -  empty or malformed input
- -  the exact minimum and maximum values
- -  one value outside each supported limit
- -  cancellation before and during work
- -  partial reads or writes
- -  cleanup after failure
- -  concurrent operations
- -  stale completion
- -  retry exhaustion
- -  unsupported runtime capabilities
+- empty or malformed input
+- the exact minimum and maximum values
+- one value outside each supported limit
+- cancellation before and during work
+- partial reads or writes
+- cleanup after failure
+- concurrent operations
+- stale completion
+- retry exhaustion
+- unsupported runtime capabilities
 
 Do not add every case to every package. Add the cases that protect the package's
 actual contract.

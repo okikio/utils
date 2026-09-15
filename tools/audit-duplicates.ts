@@ -64,6 +64,24 @@ export interface FindingType {
 	readonly functions: readonly FunctionType[];
 }
 
+/** A source-level policy signal that needs a human review before remediation. */
+export interface IssueType {
+	/** Source pattern that triggered the review signal. */
+	readonly kind: 'any' | 'empty-catch' | 'import-cycle' | 'long-name';
+	/** Evidence strength. Policy signals are not compiler errors. */
+	readonly confidence: 'high' | 'review';
+	/** Concrete reason the source needs review. */
+	readonly reason: string;
+	/** Repository-relative source path where the issue begins. */
+	readonly file: string;
+	/** One-based source line where the issue begins. */
+	readonly line: number;
+	/** Optional symbol associated with the source pattern. */
+	readonly name?: string;
+	/** Other modules involved in one issue, such as a relative import cycle. */
+	readonly related?: readonly string[];
+}
+
 /** Parse and candidate-count summary for one root directory. */
 export interface AuditType {
 	/** Absolute root passed to the audit. */
@@ -80,6 +98,18 @@ export interface AuditType {
 	readonly names: readonly DuplicateType[];
 	/** Context-aware timer bypasses and matching private lifecycle implementations. */
 	readonly findings: readonly FindingType[];
+	/** Source-policy signals that need contract review before changes are made. */
+	readonly issues: readonly IssueType[];
+}
+
+/** Parsed module facts used to find source-local and graph-level policy signals. */
+interface SourceType {
+	/** Repository-relative source path. */
+	readonly file: string;
+	/** Relative module specifiers imported from this source. */
+	readonly imports: readonly string[];
+	/** Source-local policy signals. */
+	readonly issues: readonly IssueType[];
 }
 
 /** Oxc AST nodes retain a type discriminant and source offsets. */
@@ -94,6 +124,7 @@ interface NodeType {
 export async function audit(root: string): Promise<AuditType> {
 	const absoluteRoot = await Deno.realPath(root);
 	const files: FunctionType[] = [];
+	const sources: SourceType[] = [];
 	const errors: Array<Readonly<{ readonly file: string; readonly message: string }>> = [];
 	let parsedFiles = 0;
 	for await (const entry of walk(absoluteRoot)) {
@@ -106,6 +137,11 @@ export async function audit(root: string): Promise<AuditType> {
 		parsedFiles += 1;
 		const program = result.program as NodeType;
 		files.push(...functions(program, source, entry.relative, packageOf(absoluteRoot, entry.relative), exportsOf(program), contextBindings(program)));
+		sources.push(Object.freeze({
+			file: entry.relative,
+			imports: importsOf(program),
+			issues: issuesOf(program, source, entry.relative),
+		} satisfies SourceType));
 	}
 
 	return Object.freeze({
@@ -116,6 +152,10 @@ export async function audit(root: string): Promise<AuditType> {
 		shapes: groups(files, (value) => value.size >= 80 ? value.shape : undefined, 'shape'),
 		names: groups(files, (value) => value.name, 'name'),
 		findings: findings(files),
+		issues: Object.freeze([
+			...sources.flatMap((value) => value.issues),
+			...importCycles(sources),
+		].sort((left, right) => left.file.localeCompare(right.file) || left.line - right.line || left.kind.localeCompare(right.kind))),
 	} satisfies AuditType);
 }
 
@@ -253,6 +293,91 @@ function contextBindings(program: NodeType): ReadonlySet<string> {
 	return names;
 }
 
+/** Collect relative module specifiers so the audit can identify local import cycles. */
+function importsOf(program: NodeType): readonly string[] {
+	const values = new Set<string>();
+	const body = program.body;
+	if (!Array.isArray(body)) return Object.freeze([]);
+	for (const statement of body) {
+		if (!nodeType(statement) || statement.type !== 'ImportDeclaration') continue;
+		const specifier = stringValue(statement.source);
+		if (specifier?.startsWith('.')) values.add(specifier);
+	}
+	return Object.freeze([...values].sort());
+}
+
+/** Collect source-local policy signals that TypeScript does not classify as type errors. */
+function issuesOf(program: NodeType, source: string, file: string): readonly IssueType[] {
+	const values: IssueType[] = [];
+	visit(program, undefined, (node, parent) => {
+		if (node.type === 'TSAnyKeyword') {
+			values.push(issue('any', 'review', 'Explicit any bypasses TypeScript narrowing and should use a narrower boundary type.', file, source, node));
+		}
+		if (node.type === 'CatchClause' && emptyCatch(node) && !commentedCatch(node, source)) {
+			values.push(issue('empty-catch', 'review', 'An empty catch discards a failure without recording why that is safe.', file, source, node));
+		}
+		if (!functionNode(node)) return;
+		const name = nameOf(node, parent);
+		if (name === undefined || !longName(name)) return;
+		values.push(issue(
+			'long-name',
+			'review',
+			'Function names should stay short and normally use no more than two capital letters.',
+			file,
+			source,
+			node,
+			name,
+		));
+	});
+	return Object.freeze(values);
+}
+
+/** Build one immutable source-policy signal from an AST node. */
+function issue(
+	kind: IssueType['kind'],
+	confidence: IssueType['confidence'],
+	reason: string,
+	file: string,
+	source: string,
+	node: NodeType,
+	name?: string,
+	related?: readonly string[],
+): IssueType {
+	return Object.freeze({
+		kind,
+		confidence,
+		reason,
+		file,
+		line: line(source, node.start),
+		...(name === undefined ? {} : { name }),
+		...(related === undefined ? {} : { related: Object.freeze([...related]) }),
+	} satisfies IssueType);
+}
+
+/** Return whether one parsed node represents a named or anonymous function expression. */
+function functionNode(node: NodeType): boolean {
+	return node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression';
+}
+
+/** Return whether a catch clause has no body statements. */
+function emptyCatch(node: NodeType): boolean {
+	const body = node.body;
+	return nodeType(body) && body.type === 'BlockStatement' && Array.isArray(body.body) && body.body.length === 0;
+}
+
+/** Return whether an empty catch records a local rationale in a source comment. */
+function commentedCatch(node: NodeType, source: string): boolean {
+	const body = node.body;
+	if (!nodeType(body)) return false;
+	const contents = source.slice(body.start + 1, body.end - 1);
+	return contents.includes('/*') || contents.includes('//');
+}
+
+/** Return whether a function name exceeds the repository's concise-name guideline. */
+function longName(name: string): boolean {
+	return name.length > 40 || [...name].filter((character) => character >= 'A' && character <= 'Z').length > 2;
+}
+
 /** Collect every identifier used or declared in one function tree. */
 function identifiers(root: NodeType): ReadonlySet<string> {
 	const names = new Set<string>();
@@ -357,6 +482,66 @@ function groups(
 		.filter(([, value]) => value.length > 1)
 		.map(([key, value]) => Object.freeze({ kind, key, functions: Object.freeze(value) } satisfies DuplicateType))
 		.sort((left, right) => right.functions.length - left.functions.length || left.key.localeCompare(right.key)));
+}
+
+/** Find cycles made only from source-local relative imports. */
+function importCycles(sources: readonly SourceType[]): readonly IssueType[] {
+	const byFile = new Map(sources.map((value) => [value.file, value]));
+	const reported = new Set<string>();
+	const values: IssueType[] = [];
+	for (const source of sources) visitImports(source.file, [], byFile, reported, values);
+	return Object.freeze(values);
+}
+
+/** Traverse one import path and report each local module cycle once. */
+function visitImports(
+	file: string,
+	path: readonly string[],
+	byFile: ReadonlyMap<string, SourceType>,
+	reported: Set<string>,
+	values: IssueType[],
+): void {
+	const source = byFile.get(file);
+	if (source === undefined) return;
+	const nextPath = [...path, file];
+	for (const specifier of source.imports) {
+		const target = resolveImport(file, specifier);
+		if (!byFile.has(target)) continue;
+		const index = nextPath.indexOf(target);
+		if (index === -1) {
+			visitImports(target, nextPath, byFile, reported, values);
+			continue;
+		}
+		const cycle = [...nextPath.slice(index), target];
+		const key = canonicalCycle(cycle);
+		if (reported.has(key)) continue;
+		reported.add(key);
+		values.push(Object.freeze({
+			kind: 'import-cycle',
+			confidence: 'review',
+			reason: 'Relative imports form a module cycle that can expose partially initialized exports.',
+			file,
+			line: 1,
+			related: Object.freeze(cycle),
+		} satisfies IssueType));
+	}
+}
+
+/** Resolve one relative TypeScript specifier against a repository-relative source path. */
+function resolveImport(file: string, specifier: string): string {
+	const parts = file.split('/').slice(0, -1);
+	for (const part of specifier.split('/')) {
+		if (part === '.' || part.length === 0) continue;
+		if (part === '..') parts.pop();
+		else parts.push(part);
+	}
+	return parts.join('/');
+}
+
+/** Produce one order-independent cycle key so recursive traversal reports it once. */
+function canonicalCycle(cycle: readonly string[]): string {
+	const values = cycle.slice(0, -1);
+	return values.map((_, index) => [...values.slice(index), ...values.slice(0, index)].join('\u0000')).sort()[0] ?? '';
 }
 
 /** Rank context timer bypasses and exact private lifecycle clones for human ownership review. */

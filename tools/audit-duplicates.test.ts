@@ -58,4 +58,30 @@ describe('duplicate audit', () => {
 			await Deno.remove(root, { recursive: true });
 		}
 	});
+
+	it('reports source-policy signals without treating them as compiler errors', async () => {
+		const root = await Deno.makeTempDir({ prefix: 'okikio-audit-' });
+		try {
+			await Deno.writeTextFile(
+				`${root}/first.ts`,
+				'import "./second.ts"; export function readHTTPURLJSONValue(value: any) { try { return value; } catch {} }',
+			);
+			await Deno.writeTextFile(`${root}/second.ts`, 'import "./first.ts"; export const value = 1;');
+
+			const result = await audit(root);
+			expect(result.issues.map((value) => value.kind)).toEqual([
+				'any',
+				'empty-catch',
+				'long-name',
+				'import-cycle',
+			]);
+			expect(result.issues.find((value) => value.kind === 'import-cycle')?.related).toEqual([
+				'first.ts',
+				'second.ts',
+				'first.ts',
+			]);
+		} finally {
+			await Deno.remove(root, { recursive: true });
+		}
+	});
 });

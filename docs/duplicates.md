@@ -1,13 +1,14 @@
 # Duplicate Review
 
-`deno task audit:duplicates` finds production TypeScript functions that need an
-ownership review. It does not decide that two functions should share code.
+`deno task audit:code` finds production TypeScript patterns that need a human
+review. It does not decide that two functions should share code or that every
+source-policy signal is a defect.
 
 Run the audit before a large refactor, after extracting a package, or when a
 new helper appears to repeat lifecycle work from another package:
 
 ```sh
-deno task audit:duplicates packages
+deno task audit:code packages
 ```
 
 The report contains three evidence levels.
@@ -17,6 +18,7 @@ The report contains three evidence levels.
 | `shapes` | Function bodies have the same identifier-insensitive AST shape. | Check whether they have the same contract and owner. |
 | `names` | Functions use the same local name. | Check behavior before treating the name as a duplicate. |
 | `findings` | Lifecycle markers expose a possible ownership bypass or private clone. | Trace callers, tests, docs, and package exports before changing code. |
+| `issues` | AST signals show `any`, empty catches, long names, or relative-import cycles. | Confirm the source contract, then narrow, document, split, or retain it deliberately. |
 
 ## Ownership Rules
 
@@ -38,6 +40,20 @@ Do not move process shutdown, Worker shutdown, transport retention, or protocol
 gates into `context` only because they use a timer or an `AbortSignal`. Context
 can own a generic clock race through `settles()`, while the host still owns its
 shutdown policy, termination actions, and timeout errors.
+
+## Source Signals
+
+`any` hides the type boundary that a library consumer needs to understand. Use
+`unknown` with validation, or a narrow generic, when the value is truly
+untrusted. An undocumented empty catch needs a local explanation and a concrete
+reason that discarding the failure is safe. A long function name can hide several actions;
+split the work or select a shorter domain verb when that makes the behavior
+clearer.
+
+A relative import cycle can expose an export before its module initializes. It
+is sometimes safe for type-only contracts, but do not assume that it is safe
+for runtime values. Trace the import direction and move shared values to a
+lower-level module when both modules need the same initialized value.
 
 ## Review Method
 
