@@ -148,4 +148,5 @@ Read [`docs/releases.md`](docs/releases.md) for the release workflow.
 - [`docs/packaging.md`](docs/packaging.md) explains exports, tree-shaking, and artifact checks.
 - [`docs/testing.md`](docs/testing.md) explains correctness and consumer tests.
 - [`docs/benchmarks.md`](docs/benchmarks.md) explains performance evidence.
+- [`docs/duplicates.md`](docs/duplicates.md) explains AST evidence and duplicate ownership review.
 - [`docs/releases.md`](docs/releases.md) explains versioning and publication.
