@@ -13,15 +13,34 @@ import { parseSync } from 'npm:oxc-parser';
 export interface FunctionType {
 	/** Repository-relative source path. */
 	readonly file: string;
+	/** Focused package that owns the source file, or `root` for repository tooling. */
+	readonly package: string;
 	/** Declared identifier when the function has one. */
 	readonly name?: string;
+	/** Whether this declaration is exported from its source module. */
+	readonly exported: boolean;
 	/** One-based declaration line. */
 	readonly line: number;
 	/** Source length used to exclude trivial helpers from structural groups. */
 	readonly size: number;
 	/** Identifier-insensitive AST shape fingerprint. */
 	readonly shape: string;
+	/** Lifecycle operations observed inside the function body. */
+	readonly markers: readonly MarkerType[];
+	/** Whether this function references one binding imported from `@okikio/context`. */
+	readonly usesContext: boolean;
 }
+
+/** Lifecycle behavior that makes a function relevant to duplicate ownership review. */
+export type MarkerType =
+	| 'abort-cleanup'
+	| 'abort-listener'
+	| 'abort-controller'
+	| 'clock-wait'
+	| 'promise-race'
+	| 'signal-any'
+	| 'signal-check'
+	| 'timer';
 
 /** One candidate group that needs an ownership review. */
 export interface DuplicateType {
@@ -30,6 +49,18 @@ export interface DuplicateType {
 	/** Shared AST shape or helper name. */
 	readonly key: string;
 	/** Functions belonging to the candidate group. */
+	readonly functions: readonly FunctionType[];
+}
+
+/** A behavior-based finding that needs an explicit package ownership decision. */
+export interface FindingType {
+	/** Why the function or group needs review. */
+	readonly kind: 'owner-bypass' | 'private-lifecycle';
+	/** Evidence strength. The tool never treats a finding as an automatic refactor. */
+	readonly confidence: 'high' | 'review';
+	/** Concrete behavior that caused the finding. */
+	readonly reason: string;
+	/** Functions that form the candidate. */
 	readonly functions: readonly FunctionType[];
 }
 
@@ -47,6 +78,8 @@ export interface AuditType {
 	readonly shapes: readonly DuplicateType[];
 	/** Repeated private helper names, including non-identical implementations. */
 	readonly names: readonly DuplicateType[];
+	/** Context-aware timer bypasses and matching private lifecycle implementations. */
+	readonly findings: readonly FindingType[];
 }
 
 /** Oxc AST nodes retain a type discriminant and source offsets. */
@@ -71,7 +104,8 @@ export async function audit(root: string): Promise<AuditType> {
 			continue;
 		}
 		parsedFiles += 1;
-		files.push(...functions(result.program as NodeType, source, entry.relative));
+		const program = result.program as NodeType;
+		files.push(...functions(program, source, entry.relative, packageOf(absoluteRoot, entry.relative), exportsOf(program), contextBindings(program)));
 	}
 
 	return Object.freeze({
@@ -81,6 +115,7 @@ export async function audit(root: string): Promise<AuditType> {
 		errors: Object.freeze(errors),
 		shapes: groups(files, (value) => value.size >= 80 ? value.shape : undefined, 'shape'),
 		names: groups(files, (value) => value.name, 'name'),
+		findings: findings(files),
 	} satisfies AuditType);
 }
 
@@ -91,18 +126,18 @@ if (import.meta.main) {
 }
 
 /** Walk production TypeScript source while excluding generated and test-only paths. */
-async function* walk(root: string): AsyncGenerator<Readonly<{ readonly absolute: string; readonly relative: string }>> {
+async function* walk(root: string, base: string = root): AsyncGenerator<Readonly<{ readonly absolute: string; readonly relative: string }>> {
 	const entries = [];
 	for await (const entry of Deno.readDir(root)) entries.push(entry);
 	for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
 		if (excluded(entry.name)) continue;
 		const absolute = `${root}/${entry.name}`;
 		if (entry.isDirectory) {
-			yield* walk(absolute);
+			yield* walk(absolute, base);
 			continue;
 		}
 		if (!entry.isFile || !sourceFile(entry.name) || testFile(entry.name)) continue;
-		yield Object.freeze({ absolute, relative: absolute.slice(root.length + 1) });
+		yield Object.freeze({ absolute, relative: absolute.slice(base.length + 1) });
 	}
 }
 
@@ -126,22 +161,151 @@ function testFile(name: string): boolean {
 }
 
 /** Collect declared and variable-bound function-like expressions from one source tree. */
-function functions(program: NodeType, source: string, file: string): readonly FunctionType[] {
+function functions(
+	program: NodeType,
+	source: string,
+	file: string,
+	packageName: string,
+	exportedNames: ReadonlySet<string>,
+	contextNames: ReadonlySet<string>,
+): readonly FunctionType[] {
 	const values: FunctionType[] = [];
 	visit(program, undefined, (node, parent) => {
 		if (node.type !== 'FunctionDeclaration' && node.type !== 'FunctionExpression' && node.type !== 'ArrowFunctionExpression') return;
 		const body = node.type === 'ArrowFunctionExpression' && node.expression === true ? node : node.body;
 		if (!nodeType(body)) return;
 		const name = nameOf(node, parent);
+		const names = identifiers(node);
 		values.push(Object.freeze({
 			file,
+			package: packageName,
 			...(name === undefined ? {} : { name }),
+			exported: name !== undefined && exportedNames.has(name),
 			line: line(source, node.start),
 			size: body.end - body.start,
 			shape: hash(shape(body)),
+			markers: Object.freeze([...markers(body)].sort()),
+			usesContext: [...contextNames].some((value) => names.has(value)),
 		} satisfies FunctionType));
 	});
 	return Object.freeze(values);
+}
+
+/** Return the focused package that owns a repository-relative source path. */
+function packageOf(root: string, file: string): string {
+	const parts = file.split('/');
+	const index = parts.indexOf('packages');
+	if (index !== -1) return parts[index + 1] ?? 'root';
+	const rootParts = root.split('/');
+	const name = rootParts[rootParts.length - 1] ?? 'root';
+	return rootParts[rootParts.length - 2] === 'packages' ? name : name === 'packages' ? parts[0] ?? 'root' : 'root';
+}
+
+/** Collect local bindings that a module exposes as its own public declarations. */
+function exportsOf(program: NodeType): ReadonlySet<string> {
+	const names = new Set<string>();
+	const body = program.body;
+	if (!Array.isArray(body)) return names;
+	for (const statement of body) {
+		if (!nodeType(statement) || statement.type !== 'ExportNamedDeclaration') continue;
+		const declaration = statement.declaration;
+		if (nodeType(declaration)) declaredNames(declaration, names);
+		const specifiers = statement.specifiers;
+		if (!Array.isArray(specifiers)) continue;
+		for (const specifier of specifiers) {
+			if (!nodeType(specifier)) continue;
+			const local = identifierName(specifier.local);
+			if (local !== undefined) names.add(local);
+		}
+	}
+	return names;
+}
+
+/** Add the direct names declared by one exported declaration. */
+function declaredNames(node: NodeType, names: Set<string>): void {
+	const direct = identifierName(node.id);
+	if (direct !== undefined) names.add(direct);
+	if (node.type !== 'VariableDeclaration') return;
+	const declarations = node.declarations;
+	if (!Array.isArray(declarations)) return;
+	for (const declaration of declarations) {
+		if (!nodeType(declaration)) continue;
+		const name = identifierName(declaration.id);
+		if (name !== undefined) names.add(name);
+	}
+}
+
+/** Collect locally named imports from `@okikio/context`. */
+function contextBindings(program: NodeType): ReadonlySet<string> {
+	const names = new Set<string>();
+	const body = program.body;
+	if (!Array.isArray(body)) return names;
+	for (const statement of body) {
+		if (!nodeType(statement) || statement.type !== 'ImportDeclaration' || stringValue(statement.source) !== '@okikio/context') continue;
+		const specifiers = statement.specifiers;
+		if (!Array.isArray(specifiers)) continue;
+		for (const specifier of specifiers) {
+			if (!nodeType(specifier)) continue;
+			const name = identifierName(specifier.local);
+			if (name !== undefined) names.add(name);
+		}
+	}
+	return names;
+}
+
+/** Collect every identifier used or declared in one function tree. */
+function identifiers(root: NodeType): ReadonlySet<string> {
+	const names = new Set<string>();
+	visit(root, undefined, (node) => {
+		const name = identifierName(node);
+		if (name !== undefined) names.add(name);
+	});
+	return names;
+}
+
+/** Identify lifecycle operations while preserving the surrounding package's own semantics. */
+function markers(root: NodeType): ReadonlySet<MarkerType> {
+	const values = new Set<MarkerType>();
+	visit(root, undefined, (node) => {
+		if (node.type === 'NewExpression' && identifierName(node.callee) === 'AbortController') values.add('abort-controller');
+		if (node.type !== 'CallExpression') return;
+		if (identifierName(node.callee) === 'setTimeout') values.add('timer');
+		if (memberCall(node.callee, 'Promise', 'race')) values.add('promise-race');
+		if (memberCall(node.callee, 'AbortSignal', 'any')) values.add('signal-any');
+		if (memberProperty(node.callee) === 'sleep') values.add('clock-wait');
+		if (memberProperty(node.callee) === 'throwIfAborted') values.add('signal-check');
+		if (memberProperty(node.callee) === 'addEventListener' && firstString(node.arguments) === 'abort') values.add('abort-listener');
+		if (memberProperty(node.callee) === 'removeEventListener' && firstString(node.arguments) === 'abort') values.add('abort-cleanup');
+	});
+	return values;
+}
+
+/** Return one direct identifier name without interpreting a member expression as a binding. */
+function identifierName(value: unknown): string | undefined {
+	return nodeType(value) && value.type === 'Identifier' && typeof value.name === 'string' ? value.name : undefined;
+}
+
+/** Return the literal string value from one parser node. */
+function stringValue(value: unknown): string | undefined {
+	return nodeType(value) && typeof value.value === 'string' ? value.value : undefined;
+}
+
+/** Return the property name for a static member call. */
+function memberProperty(value: unknown): string | undefined {
+	if (!nodeType(value)) return undefined;
+	return identifierName(value.property);
+}
+
+/** Return whether a call targets one static object property. */
+function memberCall(value: unknown, object: string, property: string): boolean {
+	if (!nodeType(value) || memberProperty(value) !== property) return false;
+	return identifierName(value.object) === object;
+}
+
+/** Return the first string argument supplied to one call. */
+function firstString(value: unknown): string | undefined {
+	if (!Array.isArray(value)) return undefined;
+	return stringValue(value[0]);
 }
 
 /** Visit child AST nodes without depending on an unstable generated node union. */
@@ -193,6 +357,37 @@ function groups(
 		.filter(([, value]) => value.length > 1)
 		.map(([key, value]) => Object.freeze({ kind, key, functions: Object.freeze(value) } satisfies DuplicateType))
 		.sort((left, right) => right.functions.length - left.functions.length || left.key.localeCompare(right.key)));
+}
+
+/** Rank context timer bypasses and exact private lifecycle clones for human ownership review. */
+function findings(functions: readonly FunctionType[]): readonly FindingType[] {
+	const values: FindingType[] = [];
+	for (const value of functions) {
+		if (value.exported || !value.usesContext || !value.markers.includes('timer')) continue;
+		values.push(Object.freeze({
+			kind: 'owner-bypass',
+			confidence: 'high',
+			reason: 'A private context-aware function starts a wall-clock timer instead of using an injected clock.',
+			functions: Object.freeze([value]),
+		} satisfies FindingType));
+	}
+	for (const duplicate of groups(functions.filter((value) => !value.exported && value.name !== undefined), (value) => value.size >= 80 ? value.shape : undefined, 'shape')) {
+		if (!duplicate.functions.some((value) => lifecycle(value))) continue;
+		if (new Set(duplicate.functions.map((value) => value.package)).size < 2) continue;
+		values.push(Object.freeze({
+			kind: 'private-lifecycle',
+			confidence: 'review',
+			reason: 'Private functions in separate packages have matching lifecycle control flow; confirm one owner before extracting code.',
+			functions: duplicate.functions,
+		} satisfies FindingType));
+	}
+	return Object.freeze(values.sort((left, right) => left.kind.localeCompare(right.kind) || left.reason.localeCompare(right.reason)));
+}
+
+/** Return whether a private helper contains lifecycle control flow worth reviewing across package boundaries. */
+function lifecycle(value: FunctionType): boolean {
+	return value.markers.includes('abort-listener') || value.markers.includes('clock-wait') || value.markers.includes('promise-race') ||
+		value.markers.includes('timer');
 }
 
 /** Return whether an unknown value is one parse-tree node. */
