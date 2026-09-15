@@ -262,7 +262,7 @@ function requestBodyObject(
 	schema: unknown,
 ): Readonly<Record<string, unknown>> {
 	const input = documented(slot)
-	const mediaType = input?.contentType ?? defaultRequestContentType(source)
+	const mediaType = input?.contentType ?? requestMedia(source)
 	return freezeOpenApi({
 		required: input?.required ?? true,
 		...(input?.description !== undefined ? { description: input.description } : {}),
@@ -322,7 +322,7 @@ async function successResponseObject(
 	internal: boolean,
 	options: OpenApiOptions,
 ): Promise<Readonly<Record<string, unknown>>> {
-	const contentType = definition.contentType ?? defaultResponseContentType(definition)
+	const contentType = definition.contentType ?? responseMedia(definition)
 	const result: Record<string, unknown> = {
 		description: definition.description,
 	}
@@ -740,22 +740,22 @@ function problemExamplesObject(definition: ProblemDefinition): Readonly<Record<s
 }
 
 /**
- * Creates the fallback content type used when the endpoint OpenAPI projection receives no explicit value.
+ * Creates the fallback request media type used when the endpoint OpenAPI projection receives no explicit value.
  *
  * @internal
  */
-function defaultRequestContentType(source: 'json' | 'form' | 'raw'): string {
+function requestMedia(source: 'json' | 'form' | 'raw'): string {
 	if (source === 'json') return 'application/json'
 	if (source === 'form') return 'application/x-www-form-urlencoded'
 	return 'application/octet-stream'
 }
 
 /**
- * Creates the fallback response content type used when the endpoint OpenAPI projection receives no explicit value.
+ * Creates the fallback response media type used when the endpoint OpenAPI projection receives no explicit value.
  *
  * @internal
  */
-function defaultResponseContentType(definition: ResponseDefinition): string {
+function responseMedia(definition: ResponseDefinition): string {
 	if (definition.mode === 'download' || definition.mode === 'stream') return 'application/octet-stream'
 	if (definition.mode === 'html') return 'text/html; charset=utf-8'
 	return 'application/json'
