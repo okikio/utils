@@ -207,7 +207,10 @@ detail:
 2. `types.ts`, when present, shows the public value and behavior contracts.
 3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
    behavior as executable examples.
-4. Read internal implementation files only when you need the exact state
+4. `remote.ts` owns the common activity identity, catalog checks, and protocol
+   schemas for process and Worker providers. `process.ts` and `worker.ts` retain
+   their separate host startup, transport, and shutdown behavior.
+5. Read other internal implementation files only when you need the exact state
    transition or performance-sensitive loop.
 
 The README is the primary user documentation. It intentionally stays close to

@@ -11,7 +11,6 @@
 import * as contexts from '@okikio/context';
 import type { Context, Owned } from '@okikio/context';
 import type { EffectEmitter } from '@okikio/effect';
-import * as faultCore from '@okikio/fault';
 import type { PermissionChecker } from '@okikio/permission';
 import * as pool from '@okikio/pool';
 import type { Pool } from '@okikio/pool';
@@ -26,6 +25,7 @@ import type {
 	EngineProvider,
 } from '@okikio/workflow';
 import * as activity from './mod.ts';
+import * as remote from './remote.ts';
 import * as transport from './transport.ts';
 import type { ActivityDefinition, ActivityImplementation } from './types.ts';
 import type { EngineDefinition } from './engine.ts';
@@ -119,8 +119,8 @@ export interface WorkerServeOptions {
  * decides whether the logical activity job receives another attempt.
  */
 export async function create(options: WorkerProviderOptions): Promise<WorkerProvider> {
-	assertEngine(options.engine);
-	const activities = indexDefinitions(options.activities);
+	remote.engine(options.engine, 'Worker provider');
+	const activities = remote.definitions(options.activities, 'Worker provider');
 	if (!Number.isSafeInteger(options.maximum) || options.maximum < 1) {
 		throw new TypeError('Worker provider maximum must be a positive safe integer.');
 	}
@@ -140,7 +140,12 @@ export async function create(options: WorkerProviderOptions): Promise<WorkerProv
 	const provider = Object.freeze({
 		activities: Object.freeze([...activities.values()]),
 		async run(ctx: Context, attempt: ActivityAttemptType, control: ActivityAttemptControl): Promise<ActivityAttemptResultType> {
-			const definition = getActivity(activities, options.engine, attempt);
+			const definition = remote.definition(
+				activities,
+				options.engine,
+				attempt,
+				(id, version) => new MissingWorkerActivityError(id, version),
+			);
 			await using lease = await hosts.acquire(ctx);
 			const host = lease.value;
 			if (host.active.has(attempt.claimId)) {
@@ -197,7 +202,7 @@ export async function create(options: WorkerProviderOptions): Promise<WorkerProv
 			transport.HostReplyType
 			>(hostCtx, {
 				module: options.module,
-			protocol: protocol(),
+			protocol: workers.protocol(remote.protocol()),
 			...(options.name === undefined ? {} : { name: options.name }),
 			...(options.shutdownMs === undefined ? {} : { shutdownMs: options.shutdownMs }),
 			...(options.create === undefined ? {} : { create: options.create }),
@@ -243,19 +248,19 @@ export async function create(options: WorkerProviderOptions): Promise<WorkerProv
  * heartbeats use reverse request/result calls to the Scheduler-owning host.
  */
 export function serve(options: WorkerServeOptions): WorkerServer {
-	assertEngine(options.engine);
-	const implementations = indexImplementations(options.implementations);
-	const maximumChecks = checkLimit(options.maximumChecks);
+	remote.engine(options.engine, 'Worker server');
+	const implementations = remote.implementations(options.implementations, 'Worker server');
+	const maximumChecks = remote.maximumChecks(options.maximumChecks, 'Worker');
 	return workers.serve({
-		protocol: protocol(),
+		protocol: workers.protocol(remote.protocol()),
 		...(options.scope === undefined ? {} : { scope: options.scope }),
 		async run(attempt, ctx, control) {
-			const implementation = implementations.get(identity(attempt.activityId, attempt.activityVersion));
+			const implementation = implementations.get(remote.identity(attempt.activityId, attempt.activityVersion));
 			if (implementation === undefined) {
-				return Object.freeze({ type: 'fault', fault: fault(new MissingWorkerActivityError(attempt.activityId, attempt.activityVersion)) });
+				return Object.freeze({ type: 'fault', fault: remote.fault(new MissingWorkerActivityError(attempt.activityId, attempt.activityVersion)) });
 			}
 			if (attempt.engineId !== options.engine.id) {
-				return Object.freeze({ type: 'fault', fault: fault(new activity.InvalidEngineError(attempt.activityId, attempt.engineId)) });
+				return Object.freeze({ type: 'fault', fault: remote.fault(new activity.InvalidEngineError(attempt.activityId, attempt.engineId)) });
 			}
 			const call = (request: transport.HostCallType) => control.call(request);
 			try {
@@ -279,8 +284,8 @@ export function serve(options: WorkerServeOptions): WorkerServer {
 				if (activity.isFailure(implementation.definition, error)) {
 					return await transport.wire(implementation.definition, Object.freeze({ type: 'failure', failure: error }));
 				}
-				if (ctx.signal.aborted) return Object.freeze({ type: 'cancelled', reason: fault(ctx.signal.reason) });
-				return Object.freeze({ type: 'fault', fault: fault(error) });
+				if (ctx.signal.aborted) return Object.freeze({ type: 'cancelled', reason: remote.fault(ctx.signal.reason) });
+				return Object.freeze({ type: 'fault', fault: remote.fault(error) });
 			}
 		},
 	});
@@ -295,77 +300,11 @@ export class MissingWorkerActivityError extends Error {
 
 	/** Create one configuration error when the Worker lacks the requested activity implementation. */
 	constructor(activityId: string, version: string) {
-		super(`Worker activity provider has no implementation for ${JSON.stringify(identity(activityId, version))}.`);
+		super(`Worker activity provider has no implementation for ${JSON.stringify(remote.identity(activityId, version))}.`);
 		this.name = 'MissingWorkerActivityError';
 		this.activityId = activityId;
 		this.version = version;
 	}
-}
-
-/** Create the common activity attempt protocol used by every Worker host. */
-function protocol() {
-	return workers.protocol({
-		request: transport.AttemptSchema,
-		response: transport.ResultSchema,
-		notice: transport.NoticeSchema,
-		call: { request: transport.CallSchema, response: transport.ReplySchema },
-	});
-}
-
-/** Index exact activity definitions while rejecting identity collisions. */
-function indexDefinitions(input: readonly ActivityDefinition[]): Map<string, ActivityDefinition> {
-	if (input.length === 0) throw new TypeError('Worker provider requires at least one activity definition.');
-	const output = new Map<string, ActivityDefinition>();
-	for (const definition of input) {
-		const key = identity(definition.id, definition.version);
-		const existing = output.get(key);
-		if (existing !== undefined && existing !== definition) throw new TypeError(`Activity identity ${JSON.stringify(key)} belongs to different definitions.`);
-		output.set(key, definition);
-	}
-	return output;
-}
-
-/** Index child-side implementations by stable activity/version identity. */
-function indexImplementations(input: readonly ActivityImplementation[]): Map<string, ActivityImplementation> {
-	if (input.length === 0) throw new TypeError('Worker server requires at least one activity implementation.');
-	const output = new Map<string, ActivityImplementation>();
-	for (const implementation of input) {
-		const key = identity(implementation.definition.id, implementation.definition.version);
-		if (output.has(key)) throw new TypeError(`Worker server has more than one implementation for ${JSON.stringify(key)}.`);
-		output.set(key, implementation);
-	}
-	return output;
-}
-
-/** Resolve one Scheduler attempt to the exact activity contract advertised by the provider. */
-function getActivity(
-	activities: Map<string, ActivityDefinition>,
-	engine: EngineDefinition,
-	attempt: ActivityAttemptType,
-): ActivityDefinition {
-	if (attempt.engineId !== engine.id) throw new activity.InvalidEngineError(attempt.activityId, attempt.engineId);
-	const definition = activities.get(identity(attempt.activityId, attempt.activityVersion));
-	if (definition === undefined) throw new MissingWorkerActivityError(attempt.activityId, attempt.activityVersion);
-	return definition;
-}
-
-/** Return the stable key shared by parent definitions and child implementations. */
-function identity(id: string, version: string): string {
-	return `${id}@${version}`;
-}
-
-/** Validate the activity-engine definition before any Worker is created. */
-function assertEngine(value: EngineDefinition): void {
-	if (typeof value !== 'object' || value === null || value.kind !== 'activity-engine' || typeof value.id !== 'string') {
-		throw new TypeError('Worker provider requires an activity-engine definition.');
-	}
-}
-
-/** Bound one remote logical permission batch before exposing the checker to activity code. */
-function checkLimit(value: number | undefined): number {
-	const limit = value ?? 1_000;
-	if (!Number.isSafeInteger(limit) || limit < 1) throw new TypeError('Worker permission maximumChecks must be a positive safe integer.');
-	return limit;
 }
 
 /** Return whether a failed request means the reusable Worker can no longer be trusted. */
@@ -373,9 +312,4 @@ function workerFault(value: unknown): boolean {
 	return value instanceof workers.WorkerFaultError ||
 		value instanceof workers.WorkerProtocolError ||
 		value instanceof workers.WorkerStoppedError;
-}
-
-/** Convert unexpected runtime values to bounded serializable diagnostics. */
-function fault(value: unknown): faultCore.FaultValue {
-	return faultCore.encode(value);
 }

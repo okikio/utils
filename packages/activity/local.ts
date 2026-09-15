@@ -17,6 +17,7 @@ import type {
 	EngineProvider,
 } from '@okikio/workflow';
 import * as activity from './mod.ts';
+import * as remote from './remote.ts';
 import type { ActivityDefinition, ActivityImplementation } from './types.ts';
 import type { EngineDefinition } from './engine.ts';
 
@@ -61,7 +62,7 @@ export class MissingActivityError extends Error {
  * worker. Every `run()` call executes one dispatch-owned attempt immediately.
  */
 export function create(options: LocalProviderOptions): EngineProvider {
-	assertEngine(options.engine);
+	remote.engine(options.engine, 'Local provider');
 	if (options.implementations.length === 0) throw new TypeError('Local engine provider requires at least one implementation.');
 	const byDefinition = new Map<ActivityDefinition, ActivityImplementation>();
 	const byIdentity = new Map<string, ActivityImplementation>();
@@ -70,7 +71,7 @@ export function create(options: LocalProviderOptions): EngineProvider {
 		if (byDefinition.has(implementation.definition)) {
 			throw new TypeError(`Activity ${JSON.stringify(implementation.definition.id)} has more than one local implementation.`);
 		}
-		const key = identity(implementation.definition);
+		const key = remote.identity(implementation.definition.id, implementation.definition.version);
 		if (byIdentity.has(key)) throw new TypeError(`Activity identity ${JSON.stringify(key)} belongs to different local definitions.`);
 		byDefinition.set(implementation.definition, implementation);
 		byIdentity.set(key, implementation);
@@ -86,7 +87,7 @@ export function create(options: LocalProviderOptions): EngineProvider {
 			if (attempt.engineId !== options.engine.id) {
 				return Object.freeze({ type: 'fault', fault: new activity.InvalidEngineError(attempt.activityId, attempt.engineId) });
 			}
-			const implementation = byIdentity.get(`${attempt.activityId}@${attempt.activityVersion}`);
+			const implementation = byIdentity.get(remote.identity(attempt.activityId, attempt.activityVersion));
 			if (implementation === undefined) {
 				return Object.freeze({ type: 'fault', fault: new MissingActivityError(attempt.activityId, attempt.activityVersion) });
 			}
@@ -111,7 +112,7 @@ export function create(options: LocalProviderOptions): EngineProvider {
 				if (activity.isFailure(implementation.definition, error)) {
 					return Object.freeze({ type: 'failure', failure: error });
 				}
-				if (isCancellation(error) || ctx.signal.aborted) {
+				if (context.cancelled(error) || ctx.signal.aborted) {
 					return Object.freeze({ type: 'cancelled', reason: ctx.signal.aborted ? ctx.signal.reason : error });
 				}
 				return Object.freeze({ type: 'fault', fault: error });
@@ -120,26 +121,9 @@ export function create(options: LocalProviderOptions): EngineProvider {
 	});
 }
 
-/** Return the stable in-process identity for one exact activity version. */
-function identity(definition: ActivityDefinition): string {
-	return `${definition.id}@${definition.version}`;
-}
-
 /** Reject a malformed implementation before provider registration. */
 function assertImplementation(value: ActivityImplementation): void {
 	if (typeof value !== 'object' || value === null || value.definition?.kind !== 'activity' || typeof value.run !== 'function') {
 		throw new TypeError('Local provider implementation must bind an activity definition to run().');
 	}
-}
-
-/** Reject a malformed activity-engine definition before provider creation. */
-function assertEngine(value: EngineDefinition): void {
-	if (typeof value !== 'object' || value === null || value.kind !== 'activity-engine' || typeof value.id !== 'string') {
-		throw new TypeError('Local provider requires an activity-engine definition.');
-	}
-}
-
-/** Return whether the reason represents cooperative context cancellation. */
-function isCancellation(value: unknown): boolean {
-	return value instanceof context.ContextCancelledError || value instanceof context.ContextDeadlineExceededError;
 }
