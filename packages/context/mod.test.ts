@@ -97,6 +97,42 @@ describe('context', () => {
 		expect(settled).toBe(true);
 	});
 
+	it('removes external gate callbacks after resume or cancellation', async () => {
+		const controller = new AbortController();
+		await using ctx = context.create({ id: 'external-gate', signal: controller.signal });
+		const waiters = new Set<() => void>();
+		const wait = () => context.waitFor(ctx, (resume) => {
+			waiters.add(resume);
+			return () => {
+				waiters.delete(resume);
+			};
+		});
+
+		const resumed = wait();
+		expect(waiters.size).toBe(1);
+		waiters.values().next().value!();
+		await resumed;
+		expect(waiters.size).toBe(0);
+
+		const cancelled = wait();
+		controller.abort('stop gate');
+		await expect(cancelled).rejects.toBeInstanceOf(context.ContextCancelledError);
+		expect(waiters.size).toBe(0);
+	});
+
+	it('reports whether a value settles before a controlled clock duration', async () => {
+		const clock = new context.TestClock();
+		let resolve!: () => void;
+		const pending = new Promise<void>((done) => resolve = done);
+		const timedOut = context.settles(pending, 1_000, clock);
+		clock.advance({ milliseconds: 1_000 });
+		expect(await timedOut).toBe(false);
+
+		const settled = context.settles(Promise.reject(new Error('expected shutdown rejection')), 1_000, clock);
+		expect(await settled).toBe(true);
+		resolve();
+	});
+
 	it('delay delegates cancellation to the standard async timer', async () => {
 		const controller = new AbortController();
 		controller.abort(new Error('cancel timer'));

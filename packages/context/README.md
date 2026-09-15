@@ -57,15 +57,28 @@ Because owned cleanup can be asynchronous, an owned context implements `AsyncDis
 
 A child can shorten a deadline. It cannot extend its parent deadline. A child links cancellation to its parent, but it is still an independently owned scope unless another owner explicitly adopts it.
 
-Timing has two levels. `context.delay(milliseconds, signalOrController?)` is a thin convenience over `@std/async/delay`. `context.wait(ctx, duration)` uses `ctx.clock.sleep()` so the same clock controls both observed time and waiting, then adds context cancellation/deadline checks around that wait. `SystemClock` uses the runtime timer queue; `TestClock` resolves sleepers only when `advance()` or `set()` reaches their target.
+Timing has three levels. `context.delay(milliseconds, signalOrController?)` is a thin convenience over `@std/async/delay`. `context.wait(ctx, duration)` uses `ctx.clock.sleep()` so the same clock controls both observed time and waiting, then adds context cancellation/deadline checks around that wait. `context.settles(value, milliseconds, clock?)` reports whether a value settles before a clock duration without cancelling the value. `SystemClock` uses the runtime timer queue; `TestClock` resolves sleepers only when `advance()` or `set()` reaches their target.
 
 ```ts
 await context.delay(250);
 await context.delay(250, controller);
 await context.wait(ctx, { seconds: 2 });
+const stopped = await context.settles(child.closed, 5_000);
 ```
 
 The manual equivalent of `context.delay(250, signal)` is `delay(250, { signal })` from `@std/async/delay`. Use the context form only when the wait belongs to an operation context.
+
+External gates
+--------------
+
+`context.waitFor(ctx, listen)` waits for a cooperative in-memory gate. The
+`listen` callback receives `resume()` and returns cleanup that removes it. The
+context owns cancellation and listener cleanup. The gate owner still decides
+what resumes work.
+
+Use this for a local queue, protocol pause, or resource availability gate. Do
+not use it for elapsed time. Use `context.wait()` when a duration is the reason
+to wait, and use a workflow instruction when a wait must survive a restart.
 
 
 Start here
@@ -126,6 +139,8 @@ Concrete map
 | --- | --- | --- |
 | `context.child()` | create an `AbortController`, link the parent signal, clamp the deadline, schedule the deadline through the inherited clock, and own an `AsyncDisposableStack` | one child lifetime with deterministic cleanup |
 | `context.wait(ctx, duration)` | check cancellation/deadline, wait through `ctx.clock.sleep()`, then check again | deterministic clocks control both observed time and wake-up |
+| `context.waitFor(ctx, listen)` | register one external resume callback, remove it on resume or cancellation, and retain context cancellation semantics | cooperative gates do not leak callbacks |
+| `context.settles(value, milliseconds, clock?)` | race one value against a clock wait and cancel only the losing clock wait | host cleanup can keep its own shutdown policy |
 | `snapshot()` / `restore()` | serialize IDs/timestamps only and create a fresh local controller on the other side | serializable identity without serializing live resources |
 
 The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
@@ -150,6 +165,8 @@ the rest of the local operation model:
 - `cancel()` cancels an owned context explicitly.
 - `cause()` returns the normalized cancellation/deadline cause after a signal stops.
 - `remaining()` reports the remaining deadline duration without starting a timer.
+- `waitFor()` waits for an external cooperative gate and removes its callback after settlement.
+- `settles()` reports whether a value settled before a clock duration without cancelling that value.
 - `combineSignals()` combines borrowed signals when an integration needs one signal.
 - `SystemClock` is the normal real-time clock; `TestClock` is deterministic test time and deterministic sleeping.
 - `ContextCancelledError` and `ContextDeadlineExceededError` distinguish explicit

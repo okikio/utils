@@ -230,10 +230,10 @@ class Runtime {
 
 	/** Stop a direct child once the root process itself reaches terminal status. */
 	async #stopDirectChild(graceful: boolean, forceSignal: SignalType, graceMs: number, forceMs: number): Promise<void> {
-		if (!graceful || await settlesWithin(this.#wait(), graceMs)) return;
+		if (!graceful || await contextCore.settles(this.#wait(), graceMs)) return;
 		this.#events.emit(Object.freeze({ type: 'forced' }));
 		void this.#send(forceSignal);
-		if (!await settlesWithin(this.#wait(), forceMs)) throw new ProcessStopTimeoutError(this.#child.pid);
+		if (!await contextCore.settles(this.#wait(), forceMs)) throw new ProcessStopTimeoutError(this.#child.pid);
 	}
 
 	/** Stop an owned process group without confusing leader exit with group exit. */
@@ -418,20 +418,6 @@ function requireReadable(child: Spawned, name: 'stdout' | 'stderr'): ReadableStr
 function requireWritable(child: Spawned): WritableStream<Uint8Array> {
 	if (child.stdin === undefined) throw new TypeError('Process adapter did not provide piped stdin.');
 	return child.stdin;
-}
-
-/** Waits for a promise for at most the requested number of milliseconds. */
-async function settlesWithin(value: Promise<unknown>, milliseconds: number): Promise<boolean> {
-	if (milliseconds <= 0) return false;
-	let timer: ReturnType<typeof setTimeout> | undefined;
-	try {
-		return await Promise.race([
-			value.then(() => true, () => true),
-			new Promise<boolean>((resolve) => timer = setTimeout(() => resolve(false), milliseconds)),
-		]);
-	} finally {
-		if (timer !== undefined) clearTimeout(timer);
-	}
 }
 
 /** Wait for a process-group liveness probe to report no members within one shutdown period. */

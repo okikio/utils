@@ -301,7 +301,7 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 		const control = Object.freeze({
 			checkpoint: async () => {
 				contextCore.check(requestCtx);
-				if (pause.paused) await waitForResume(requestCtx, pause);
+				if (pause.paused) await wait(requestCtx, pause);
 				contextCore.check(requestCtx);
 			},
 			notify: async (notice: Notice, messageOptions: WorkerMessageOptions = {}) => {
@@ -605,7 +605,7 @@ class Handle<Request, Response, Notice, CallRequest, CallResponse> {
 		} catch {
 			// Forced termination below still owns cleanup when the channel is already broken.
 		}
-		const cooperative = await settlesWithin(this.#stopped, this.#shutdownMs);
+		const cooperative = await contextCore.settles(this.#stopped, this.#shutdownMs);
 		if (!cooperative) this.#raw.terminate();
 		this.#finish(reason, !cooperative);
 	}
@@ -864,25 +864,18 @@ function resume(state: PauseState): void {
 	state.waiters.clear();
 }
 
-/** Wait for resume or cancellation without claiming that arbitrary provider work can be suspended. */
-async function waitForResume(ctx: Context, state: PauseState): Promise<void> {
-	if (!state.paused) return;
-	await new Promise<void>((resolve, reject) => {
-		let done = false;
-		const finish = (error?: unknown) => {
-			if (done) return;
-			done = true;
-			state.waiters.delete(release);
-			ctx.signal.removeEventListener('abort', abort);
-			if (error === undefined) resolve();
-			else reject(error);
+/** Wait for a Worker resume message or context cancellation at one cooperative checkpoint. */
+function wait(ctx: Context, state: PauseState): Promise<void> {
+	if (!state.paused) return Promise.resolve();
+	return contextCore.waitFor(ctx, (resume) => {
+		if (!state.paused) {
+			resume();
+			return () => {};
+		}
+		state.waiters.add(resume);
+		return () => {
+			state.waiters.delete(resume);
 		};
-		const release = () => finish();
-		const abort = () => finish(new contextCore.ContextCancelledError(ctx.signal.reason));
-		state.waiters.add(release);
-		ctx.signal.addEventListener('abort', abort, { once: true });
-		if (!state.paused) release();
-		else if (ctx.signal.aborted) abort();
 	});
 }
 
@@ -912,20 +905,6 @@ function assertId(value: string, label: string): void {
 /** Narrow unknown values before protocol envelope property access. */
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null;
-}
-
-/** Wait for cooperative shutdown for no longer than the configured grace period. */
-async function settlesWithin(value: Promise<unknown>, milliseconds: number): Promise<boolean> {
-	if (milliseconds <= 0) return false;
-	let timer: ReturnType<typeof setTimeout> | undefined;
-	try {
-		return await Promise.race([
-			value.then(() => true, () => true),
-			new Promise<boolean>((resolve) => timer = setTimeout(() => resolve(false), milliseconds)),
-		]);
-	} finally {
-		if (timer !== undefined) clearTimeout(timer);
-	}
 }
 
 export type * from './types.ts';

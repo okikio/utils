@@ -276,6 +276,67 @@ export async function wait(
 }
 
 /**
+ * Wait for one external cooperative gate while the context remains cancellable.
+ *
+ * `listen` owns the external gate and returns the cleanup that removes its
+ * resume callback. This helper owns the context abort listener and removes both
+ * listeners when either path settles. It does not cancel work outside the gate.
+ */
+export function waitFor(
+	ctx: Pick<Context, 'signal'>,
+	listen: (resume: () => void) => () => void,
+): Promise<void> {
+	if (ctx.signal.aborted) return Promise.reject(new ContextCancelledError(ctx.signal.reason));
+	return new Promise<void>((resolve, reject) => {
+		let remove = () => {};
+		let settled = false;
+		const finish = (action: () => void): void => {
+			if (settled) return;
+			settled = true;
+			ctx.signal.removeEventListener('abort', abort);
+			remove();
+			action();
+		};
+		const resume = () => finish(resolve);
+		const abort = () => finish(() => reject(new ContextCancelledError(ctx.signal.reason)));
+		ctx.signal.addEventListener('abort', abort, { once: true });
+		try {
+			remove = listen(resume);
+		} catch (error) {
+			finish(() => reject(error));
+			return;
+		}
+		if (settled) remove();
+		else if (ctx.signal.aborted) abort();
+	});
+}
+
+/**
+ * Return whether a value settles before the supplied clock reaches a duration.
+ *
+ * Settlement includes fulfillment and rejection. This helper does not cancel the
+ * value when time expires. It only cancels its own clock wait, so a host can
+ * continue its existing shutdown or cleanup policy after a `false` result.
+ */
+export async function settles(
+	value: PromiseLike<unknown>,
+	milliseconds: number,
+	clock: Pick<Clock, 'sleep'> = SystemClock,
+): Promise<boolean> {
+	if (milliseconds <= 0) return false;
+	assertDelay(milliseconds);
+	const controller = new AbortController();
+	try {
+		return await Promise.race([
+			Promise.resolve(value).then(() => true, () => true),
+			clock.sleep(milliseconds, controller.signal).then(() => false),
+		]);
+	} finally {
+		controller.abort();
+	}
+}
+
+/**
  * Delay for a bounded number of milliseconds using `@std/async/delay`.
  *
  * Passing an `AbortSignal` is equivalent to calling

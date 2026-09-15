@@ -785,25 +785,18 @@ function resume(state: PauseState): void {
 	state.waiters.clear();
 }
 
-/** Wait until resume or cancellation without claiming the process can suspend an arbitrary provider call. */
-async function wait(ctx: Context, state: PauseState): Promise<void> {
-	if (!state.paused) return;
-	await new Promise<void>((resolve, reject) => {
-		let done = false;
-		const finish = (error?: unknown) => {
-			if (done) return;
-			done = true;
-			state.waiters.delete(release);
-			ctx.signal.removeEventListener('abort', abort);
-			if (error === undefined) resolve();
-			else reject(error);
+/** Wait for a process resume frame or context cancellation at one cooperative checkpoint. */
+function wait(ctx: Context, state: PauseState): Promise<void> {
+	if (!state.paused) return Promise.resolve();
+	return contextCore.waitFor(ctx, (resume) => {
+		if (!state.paused) {
+			resume();
+			return () => {};
+		}
+		state.waiters.add(resume);
+		return () => {
+			state.waiters.delete(resume);
 		};
-		const release = () => finish();
-		const abort = () => finish(new contextCore.ContextCancelledError(ctx.signal.reason));
-		state.waiters.add(release);
-		ctx.signal.addEventListener('abort', abort, { once: true });
-		if (!state.paused) release();
-		else if (ctx.signal.aborted) abort();
 	});
 }
 
