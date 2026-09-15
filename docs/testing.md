@@ -38,17 +38,16 @@ non-trivial inference.
 A useful fixture set includes a program that must type-check and a program that
 must fail for the intended reason.
 
-Run the TypeScript compiler with the Deno runtime declarations that the package
-targets:
+Run the TypeScript compiler with the declared `@types/deno` runtime types:
 
 ~~~~ sh
 deno task type
 ~~~~
 
-The task generates those declarations in a temporary directory, then invokes
-the pinned local TypeScript compiler. It does not run `deno check` or commit a
-runtime compatibility file. Use this gate for TypeScript diagnostics. Use Deno
-tests for Deno runtime behavior.
+The task invokes the pinned local TypeScript compiler against the root
+`tsconfig.json`. It does not run `deno check` or generate a second declaration
+source. Use this gate for TypeScript diagnostics. Use Deno tests for Deno runtime
+behavior.
 
 Failure and limit cases
 -----------------------

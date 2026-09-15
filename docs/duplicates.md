@@ -43,7 +43,7 @@ shutdown policy, termination actions, and timeout errors.
 
 ## Source Signals
 
-`any` hides the type boundary that a library consumer needs to understand. Use
+`any` hides the typed input and output contract that a library consumer needs to understand. Use
 `unknown` with validation, or a narrow generic, when the value is truly
 untrusted. An undocumented empty catch needs a local explanation and a concrete
 reason that discarding the failure is safe. A long function name can hide several actions;
