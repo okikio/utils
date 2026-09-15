@@ -4,6 +4,13 @@ import { describe, it } from 'node:test';
 import * as context from './mod.ts';
 
 describe('context', () => {
+	it('recognizes explicit cancellation and deadline errors without treating arbitrary failures as cancellation', () => {
+		const deadline = Temporal.Instant.from('2000-01-01T00:00:00Z');
+		expect(context.cancelled(new context.ContextCancelledError('stopped'))).toBe(true);
+		expect(context.cancelled(new context.ContextDeadlineExceededError(deadline, deadline))).toBe(true);
+		expect(context.cancelled(new Error('failed'))).toBe(false);
+	});
+
 	it('inherits parent cancellation and preserves its cause', async () => {
 		const parentController = new AbortController();
 		await using parent = context.create({ id: 'request-1', signal: parentController.signal });

@@ -38,6 +38,11 @@ export class ContextDeadlineExceededError extends Error {
 	}
 }
 
+/** Return whether a reason represents explicit context cancellation or deadline expiry. */
+export function cancelled(value: unknown): boolean {
+	return value instanceof ContextCancelledError || value instanceof ContextDeadlineExceededError;
+}
+
 /** Clock backed by the runtime's native Temporal implementation and timer queue. */
 export const SystemClock = Object.freeze({
 	now: () => Temporal.Now.instant(),

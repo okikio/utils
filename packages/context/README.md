@@ -163,6 +163,7 @@ The basic examples use `check()`, `wait()`, and `delay()`. These exports cover
 the rest of the local operation model:
 
 - `cancel()` cancels an owned context explicitly.
+- `cancelled()` distinguishes context cancellation and deadline errors from ordinary failures.
 - `cause()` returns the normalized cancellation/deadline cause after a signal stops.
 - `remaining()` reports the remaining deadline duration without starting a timer.
 - `waitFor()` waits for an external cooperative gate and removes its callback after settlement.
