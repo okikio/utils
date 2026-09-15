@@ -20,10 +20,12 @@ import * as result from '@okikio/result';
 import * as recordCore from '@okikio/record';
 import * as schema from '@okikio/schema';
 import { freeze as freezeAffinity } from './affinity.ts';
+import * as assert from './assert.ts';
 import * as durable from './durable.ts';
 import { Branch } from './branch.ts';
 import * as kernelOperation from './operation.ts';
 import { Reducer } from './reducer.ts';
+import * as retryCore from './retry.ts';
 import { MAX_ACTIVE_CHILDREN, Scope } from './scope.ts';
 import { createActivityJobs, SchedulerClosedError } from './jobs.ts';
 import type { Cause, Exit } from './kernel.ts';
@@ -497,7 +499,7 @@ export function retry<Value, Failure>(
 		type: 'retry',
 		version: builtInInstructionVersion,
 		operation: childOperation,
-		maximumAttempts: positiveInteger(options.maximumAttempts, 'retry maximumAttempts'),
+		maximumAttempts: assert.positive(options.maximumAttempts, 'retry maximumAttempts'),
 		...(delay === undefined ? {} : { delay }),
 		backoff,
 		...(maximumDelay === undefined ? {} : { maximumDelay }),
@@ -1153,7 +1155,7 @@ function retryDelay(instruction: WorkflowRetryInstruction, path: string, failedA
 	const backedOff = Math.min(initialMilliseconds * instruction.backoff ** (failedAttempt - 1), maximumMilliseconds);
 	const jitterScale = instruction.jitter === 0
 		? 1
-		: 1 + ((deterministicUnit(`${path}:${failedAttempt}`) * 2) - 1) * instruction.jitter;
+		: 1 + ((retryCore.unit(`${path}:${failedAttempt}`) * 2) - 1) * instruction.jitter;
 	return Temporal.Duration.from({ milliseconds: Math.max(0, Math.round(backedOff * jitterScale)) });
 }
 
@@ -1173,20 +1175,6 @@ function retryMilliseconds(value: Temporal.Duration): number {
 		throw new TypeError('Workflow retry delay must be a finite non-negative duration.');
 	}
 	return milliseconds;
-}
-
-/**
- * Derives a stable unit interval value from instruction identity so replay uses the same retry jitter.
- *
- * @internal
- */
-function deterministicUnit(value: string): number {
-	let hash = 2166136261;
-	for (let index = 0; index < value.length; index += 1) {
-		hash ^= value.charCodeAt(index);
-		hash = Math.imul(hash, 16777619);
-	}
-	return (hash >>> 0) / 0xffff_ffff;
 }
 
 /**
@@ -1503,7 +1491,7 @@ async function encodeCompletion(
 	completion: WorkflowCompletionAny,
 ): Promise<import('./types.ts').HistoryCompletionType> {
 	if (completion.type === 'success') {
-		return Object.freeze({ type: 'success', value: historyValue(completion.value, 'workflow success') });
+		return Object.freeze({ type: 'success', value: durable.value(completion.value, 'workflow success') });
 	}
 	if (completion.type === 'failure') {
 		if (failures.isOccurrence(completion.failure)) {
@@ -1517,12 +1505,12 @@ async function encodeCompletion(
 				}),
 			});
 		}
-		return Object.freeze({ type: 'failure', failure: Object.freeze({ kind: 'value', value: historyValue(completion.failure, 'workflow failure') }) });
+		return Object.freeze({ type: 'failure', failure: Object.freeze({ kind: 'value', value: durable.value(completion.failure, 'workflow failure') }) });
 	}
 	if (completion.type === 'cancelled') {
-		return Object.freeze({ type: 'cancelled', reason: historyValue(encodeFault(completion.reason), 'workflow cancellation') });
+		return Object.freeze({ type: 'cancelled', reason: durable.value(encodeFault(completion.reason), 'workflow cancellation') });
 	}
-	return Object.freeze({ type: 'fault', fault: historyValue(encodeFault(completion.fault), 'workflow fault') });
+	return Object.freeze({ type: 'fault', fault: durable.value(encodeFault(completion.fault), 'workflow fault') });
 }
 
 /** Decode one persisted completion through exact definitions imported by the replayed workflow. */
@@ -1530,23 +1518,12 @@ async function decodeCompletion(
 	workflow: WorkflowDefinition,
 	completion: import('./types.ts').HistoryCompletionType,
 ): Promise<WorkflowCompletionAny> {
-	if (completion.type === 'success') return success(historyValueOutput(completion.value));
-	if (completion.type === 'cancelled') return cancelled(historyValueOutput(completion.reason));
-	if (completion.type === 'fault') return fault(historyValueOutput(completion.fault));
-	if (completion.failure.kind === 'value') return failed(historyValueOutput(completion.failure.value));
+	if (completion.type === 'success') return success(durable.restore(completion.value));
+	if (completion.type === 'cancelled') return cancelled(durable.restore(completion.reason));
+	if (completion.type === 'fault') return fault(durable.restore(completion.fault));
+	if (completion.failure.kind === 'value') return failed(durable.restore(completion.failure.value));
 	const trusted = workflowFailures(workflow);
 	return failed(await failures.decode(completion.failure.value, trusted));
-}
-
-/** Encode `undefined` explicitly while keeping every other completion value JSON-safe. */
-function historyValue(value: unknown, label: string): import('./types.ts').HistoryValueType {
-	if (value === undefined) return Object.freeze({ kind: 'undefined' });
-	return Object.freeze({ kind: 'value', value: durable.snapshot(value, label) });
-}
-
-/** Restore the explicit undefined marker used by durable completion history. */
-function historyValueOutput(value: import('./types.ts').HistoryValueType): unknown {
-	return value.kind === 'undefined' ? undefined : value.value;
 }
 
 /** Collect exact failure definitions reachable from one workflow without global registration. */
@@ -1606,16 +1583,11 @@ function assertStableKey(value: string): void {
  * @internal
  */
 function boundedConcurrency(value: number, label: string): number {
-	const concurrency = positiveInteger(value, label);
+	const concurrency = assert.positive(value, label);
 	if (concurrency > MAX_ACTIVE_CHILDREN) {
 		throw new RangeError(`${label} cannot exceed ${MAX_ACTIVE_CHILDREN}.`);
 	}
 	return concurrency;
-}
-
-function positiveInteger(value: number, label: string): number {
-	if (!Number.isSafeInteger(value) || value < 1) throw new TypeError(`${label} must be a positive safe integer.`);
-	return value;
 }
 
 /**

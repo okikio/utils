@@ -10,6 +10,7 @@
  * @module
  */
 import * as context from '@okikio/context';
+import * as assert from './assert.ts';
 import type {
 	History,
 	HistoryCompletionType,
@@ -101,7 +102,7 @@ interface EntryState {
  * ```
  */
 export function memory(options: HistoryOptions = {}): MemoryHistory {
-	const maximum = positive(options.maximumEntries ?? 10_000, 'history maximumEntries');
+	const maximum = assert.positive(options.maximumEntries ?? 10_000, 'history maximumEntries');
 	const entries = new Map<string, EntryState>();
 	let closed = false;
 
@@ -172,10 +173,4 @@ export function memory(options: HistoryOptions = {}): MemoryHistory {
 /** Returns the collision-free process-local map key for one run instruction. */
 function entryKey(runId: string, path: string): string {
 	return `${runId.length}:${runId}${path}`;
-}
-
-/** Rejects invalid bounded counts before allocating process-local history state. */
-function positive(value: number, name: string): number {
-	if (!Number.isSafeInteger(value) || value < 1) throw new TypeError(`${name} must be a positive safe integer.`);
-	return value;
 }

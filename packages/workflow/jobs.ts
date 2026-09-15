@@ -14,8 +14,11 @@ import * as record from '@okikio/record';
 import * as schema from '@okikio/schema';
 import { retryDelay, type RetryPolicy, type TimeoutPolicy } from '@okikio/resilience';
 import { freeze as freezeAffinity } from './affinity.ts';
+import * as assert from './assert.ts';
+import * as compute from './compute.ts';
 import * as dispatch from './dispatch.ts';
 import * as durable from './durable.ts';
+import * as retry from './retry.ts';
 import type {
 	ActivityAttemptControl,
 	ActivityAttemptResultType,
@@ -32,7 +35,6 @@ import type {
 	ExecutorLeaseType,
 	ExecutorOptions,
 	HistoryFailureOccurrenceType,
-	HistoryValueType,
 	SchedulerOptions,
 	WorkflowContext,
 } from './types.ts';
@@ -133,9 +135,9 @@ export class ActivityJobs implements AsyncDisposable {
 			return await decode(await this.#dispatch.result(ctx, ref), activity);
 		} catch (error) {
 			if (!isCancellation(error) && !ctx.signal.aborted) throw error;
-			const reason = jobValue(encodeFault(ctx.signal.aborted ? ctx.signal.reason : error), 'activity cancellation');
+			const reason = durable.value(encodeFault(ctx.signal.aborted ? ctx.signal.reason : error), 'activity cancellation');
 			await this.#dispatch.cancel(this.#control, ref, reason);
-			return Object.freeze({ type: 'cancelled', reason: jobValueOutput(reason) });
+			return Object.freeze({ type: 'cancelled', reason: durable.restore(reason) });
 		}
 	}
 
@@ -210,18 +212,18 @@ class ExecutorRuntime {
 	constructor(options: ExecutorOptions) {
 		record.assert(options, 'executor options');
 		assertEngine(options.engine);
-		assertId(options.hostId, 'executor host');
+		assert.id(options.hostId, 'executor host');
 		this.#dispatch = options.dispatch;
 		this.#engine = options.engine;
 		this.#provider = normalizeProvider(options.provider, options.disposeProvider ?? false);
 		this.#hostId = options.hostId;
-		this.#capacity = positive(options.capacity ?? 1, 'executor capacity');
+		this.#capacity = assert.positive(options.capacity ?? 1, 'executor capacity');
 		this.#affinity = options.affinity === undefined ? undefined : freezeAffinity(options.affinity, 'executor affinity');
-		this.#compute = options.compute === undefined ? undefined : freezeCompute(options.compute);
-		this.#protocolVersion = positive(options.protocolVersion ?? 1, 'executor protocolVersion');
+		this.#compute = options.compute === undefined ? undefined : compute.freeze(options.compute);
+		this.#protocolVersion = assert.positive(options.protocolVersion ?? 1, 'executor protocolVersion');
 		this.#disposeProvider = options.disposeProvider ?? false;
-		this.#claimDuration = positiveDuration(options.claimDuration ?? { seconds: 45 }, 'activity claim duration');
-		this.#registrationDuration = positiveDuration(options.lease ?? { seconds: 30 }, 'executor lease duration');
+		this.#claimDuration = assert.duration(options.claimDuration ?? { seconds: 45 }, 'activity claim duration');
+		this.#registrationDuration = assert.duration(options.lease ?? { seconds: 30 }, 'executor lease duration');
 		this.#control = options.ctx === undefined
 			? context.create({ id: `executor:${options.engine.id}:${options.hostId}` })
 			: context.child(options.ctx, { id: `executor:${options.engine.id}:${options.hostId}` });
@@ -315,7 +317,7 @@ class ExecutorRuntime {
 		if (activity === undefined) {
 			await this.#commit(claim, Object.freeze({
 				type: 'fault',
-				fault: jobValue(
+				fault: durable.value(
 					encodeFault(new Error(`Executor cannot resolve activity ${JSON.stringify(`${claim.value.activityId}@${claim.value.activityVersion}`)}.`)),
 					'activity fault',
 				),
@@ -371,12 +373,12 @@ class ExecutorRuntime {
 			if (result.type === 'success') {
 				try {
 					const value = await schema.parse(activity.result, result.value);
-					await this.#commit(claim, Object.freeze({ type: 'success', value: jobValue(value, 'activity result') }));
+					await this.#commit(claim, Object.freeze({ type: 'success', value: durable.value(value, 'activity result') }));
 				} catch (error) {
 					if (retryFault(activity, claim.attempt)) {
 						await this.#dispatch.retry(this.#control, claim, { delay: delay(activity, claim.attempt, claim.itemId) });
 					} else {
-						await this.#commit(claim, Object.freeze({ type: 'fault', fault: jobValue(encodeFault(error), 'activity fault') }));
+						await this.#commit(claim, Object.freeze({ type: 'fault', fault: durable.value(encodeFault(error), 'activity fault') }));
 					}
 				}
 				return;
@@ -393,7 +395,7 @@ class ExecutorRuntime {
 			if (result.type === 'cancelled') {
 				await this.#commit(claim, Object.freeze({
 					type: 'cancelled',
-					reason: jobValue(encodeFault(result.reason), 'activity cancellation'),
+					reason: durable.value(encodeFault(result.reason), 'activity cancellation'),
 				}));
 				return;
 			}
@@ -404,7 +406,7 @@ class ExecutorRuntime {
 			const reason = result.type === 'failure'
 				? new TypeError(`Activity ${JSON.stringify(activity.id)} returned an undeclared failure.`)
 				: result.type === 'lost' ? result.reason : result.fault;
-			await this.#commit(claim, Object.freeze({ type: 'fault', fault: jobValue(encodeFault(reason), 'activity fault') }));
+			await this.#commit(claim, Object.freeze({ type: 'fault', fault: durable.value(encodeFault(reason), 'activity fault') }));
 		} catch (error) {
 			if (!(error instanceof dispatch.StaleActivityClaimError) && !(error instanceof dispatch.StaleExecutorError)) throw error;
 		}
@@ -448,7 +450,7 @@ class ExecutorRuntime {
 	}
 
 	async #resize(capacity: number): Promise<void> {
-		this.#capacity = positive(capacity, 'executor capacity');
+		this.#capacity = assert.positive(capacity, 'executor capacity');
 		this.#lease = await this.#dispatch.resize(this.#control, this.#requiredLease(), capacity);
 	}
 
@@ -495,13 +497,13 @@ class ExecutorRuntime {
 /** Create the dispatch and admission facade used by `workflow.scheduler()`. */
 export function createActivityJobs(options: SchedulerOptions, clock: context.Clock): ActivityJobs {
 	const id = options.id ?? 'workflow-scheduler';
-	assertId(id, 'Scheduler');
+	assert.id(id, 'Scheduler');
 	const owner = options.activityDispatch ?? dispatch.memory({ capacity: options.activityCapacity ?? 10_000, clock });
 	return new ActivityJobs({
 		id,
 		clock,
 		dispatch: owner,
-		claimDuration: positiveDuration(options.claimDuration ?? { seconds: 45 }, 'activity claim duration'),
+		claimDuration: assert.duration(options.claimDuration ?? { seconds: 45 }, 'activity claim duration'),
 		disposeDispatch: options.activityDispatch === undefined || options.disposeActivityDispatch === true,
 	});
 }
@@ -511,9 +513,9 @@ async function decode(result: ActivityJobResultType, activity: ActivityReference
 	if (result.type === 'failure') {
 		return Object.freeze({ type: 'failure', failure: await failures.decode(result.failure, activity.failures) });
 	}
-	if (result.type === 'success') return Object.freeze({ type: 'success', value: jobValueOutput(result.value) });
-	if (result.type === 'fault') return Object.freeze({ type: 'fault', fault: jobValueOutput(result.fault) });
-	return Object.freeze({ type: 'cancelled', reason: jobValueOutput(result.reason) });
+	if (result.type === 'success') return Object.freeze({ type: 'success', value: durable.restore(result.value) });
+	if (result.type === 'fault') return Object.freeze({ type: 'fault', fault: durable.restore(result.fault) });
+	return Object.freeze({ type: 'cancelled', reason: durable.restore(result.reason) });
 }
 
 /** Return the activity retry policy when exactly one was compiled. */
@@ -539,7 +541,7 @@ function retryFailure(activity: ActivityReference, value: unknown, attempt: numb
 function delay(activity: ActivityReference, failedAttempt: number, seed: string): Temporal.Duration {
 	const retry = retryPolicy(activity.resilience);
 	if (retry === undefined) return Temporal.Duration.from('PT0S');
-	return retryDelay(retry, failedAttempt, retry.jitter ? { jitter: deterministicUnit(`${seed}:${failedAttempt}`) } : undefined);
+	return retryDelay(retry, failedAttempt, retry.jitter ? { jitter: retry.unit(`${seed}:${failedAttempt}`) } : undefined);
 }
 
 /** Extract an expected-failure identity without importing an activity implementation package. */
@@ -565,30 +567,9 @@ function storedFailure(value: failures.Encoded): HistoryFailureOccurrenceType {
 	});
 }
 
-/** Encode explicit undefined while keeping every other stored value durable. */
-function jobValue(value: unknown, label: string): HistoryValueType {
-	if (value === undefined) return Object.freeze({ kind: 'undefined' });
-	return Object.freeze({ kind: 'value', value: durable.snapshot(value, label) });
-}
-
-/** Restore the explicit undefined marker retained by activity dispatch. */
-function jobValueOutput(value: HistoryValueType): unknown {
-	return value.kind === 'undefined' ? undefined : value.value;
-}
-
 /** Convert an unexpected runtime reason to bounded durable diagnostics. */
 function encodeFault(value: unknown): faultCore.FaultValue {
 	return faultCore.encode(value);
-}
-
-/** Derive one replay-stable unit interval value for retry jitter. */
-function deterministicUnit(value: string): number {
-	let hash = 2166136261;
-	for (let index = 0; index < value.length; index += 1) {
-		hash ^= value.charCodeAt(index);
-		hash = Math.imul(hash, 16777619);
-	}
-	return (hash >>> 0) / 0xffff_ffff;
 }
 
 /** Capture provider behavior without invoking accessors or retaining mutable metadata. */
@@ -663,47 +644,12 @@ function providerDisposer(provider: EngineProvider): (() => void | Promise<void>
 	return dispose === undefined ? undefined : () => dispose.call(provider);
 }
 
-/** Freeze optional compute metadata without defining a required hierarchy. */
-function freezeCompute(value: NonNullable<EngineRegistrationOptions['compute']>): NonNullable<EngineRegistrationOptions['compute']> {
-	if (typeof value !== 'object' || value === null) throw new TypeError('Executor compute metadata must be an object.');
-	record.assert(value, 'executor compute metadata');
-	assertId(value.id, 'compute');
-	if (value.kind !== undefined) assertId(value.kind, 'compute kind');
-	if (value.parent !== undefined) assertId(value.parent, 'compute parent');
-	return Object.freeze({
-		id: value.id,
-		...(value.kind === undefined ? {} : { kind: value.kind }),
-		...(value.parent === undefined ? {} : { parent: value.parent }),
-		...(value.attributes === undefined ? {} : { attributes: freezeAffinity(value.attributes, 'compute attributes') }),
-	});
-}
-
 /** Reject malformed engine identity before an executor joins dispatch. */
 function assertEngine(value: EngineRegistrationOptions['engine']): void {
 	if (typeof value !== 'object' || value === null || value.kind !== 'activity-engine') {
 		throw new TypeError('Executor requires an activity-engine definition.');
 	}
-	assertId(value.id, 'activity engine');
-}
-
-/** Reject malformed stable identities used in dispatch and executor state. */
-function assertId(value: string, label: string): void {
-	if (typeof value !== 'string' || value.trim().length === 0 || value.length > 512) {
-		throw new TypeError(`${label} id must contain 1 to 512 characters.`);
-	}
-}
-
-/** Validate a positive safe integer used for capacity or protocol policy. */
-function positive(value: number, label: string): number {
-	if (!Number.isSafeInteger(value) || value < 1) throw new TypeError(`${label} must be a positive safe integer.`);
-	return value;
-}
-
-/** Validate a strictly positive lease duration. */
-function positiveDuration(value: Temporal.Duration | Temporal.DurationLike | string, label: string): Temporal.Duration {
-	const duration = Temporal.Duration.from(value);
-	if (duration.sign <= 0) throw new TypeError(`${label} must be greater than zero.`);
-	return duration;
+	assert.id(value.id, 'activity engine');
 }
 
 /** Convert a non-calendar lease duration to a host timer interval. */

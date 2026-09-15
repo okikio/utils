@@ -7,11 +7,34 @@
  *
  * @module
  */
-import type { WorkflowDurableValue } from './types.ts';
+import type { HistoryValueType, WorkflowDurableValue } from './types.ts';
 
-/** Snapshot one JSON-shaped value without executing caller-owned accessors. */
+/**
+ * Snapshot one JSON-shaped value without executing caller-owned accessors.
+ *
+ * @internal
+ */
 export function snapshot(value: unknown, label: string): WorkflowDurableValue {
 	return snapshotValue(value, label, new Set<object>());
+}
+
+/**
+ * Encode explicit undefined without weakening the JSON-only durable value contract.
+ *
+ * @internal
+ */
+export function value(input: unknown, label: string): HistoryValueType {
+	if (input === undefined) return Object.freeze({ kind: 'undefined' });
+	return Object.freeze({ kind: 'value', value: snapshot(input, label) });
+}
+
+/**
+ * Restore the explicit undefined marker used by workflow history and activity dispatch.
+ *
+ * @internal
+ */
+export function restore(value: HistoryValueType): unknown {
+	return value.kind === 'undefined' ? undefined : value.value;
 }
 
 /** Recursively snapshot one durable value while tracking only the active parent chain. */

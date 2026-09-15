@@ -11,6 +11,8 @@
 import * as context from '@okikio/context';
 import * as record from '@okikio/record';
 import { freeze as freezeAffinity, matches as affinityMatches } from './affinity.ts';
+import * as assert from './assert.ts';
+import * as compute from './compute.ts';
 import * as durable from './durable.ts';
 import type {
 	ActivityAddOptions,
@@ -22,7 +24,6 @@ import type {
 	ActivityJobType,
 	ActivityRefType,
 	ActivityRetryOptions,
-	ComputeType,
 	ExecutorJoinOptions,
 	ExecutorLeaseType,
 	HistoryValueType,
@@ -164,7 +165,7 @@ class Runtime {
 	#reason: unknown;
 
 	constructor(options: MemoryDispatchOptions) {
-		this.#capacity = options.capacity === undefined ? Number.POSITIVE_INFINITY : positive(options.capacity, 'dispatch capacity');
+		this.#capacity = options.capacity === undefined ? Number.POSITIVE_INFINITY : assert.positive(options.capacity, 'dispatch capacity');
 		this.#clock = options.clock ?? context.SystemClock;
 		this.#id = options.id ?? (() => crypto.randomUUID());
 		this.#dispatch = Object.freeze({
@@ -195,7 +196,7 @@ class Runtime {
 		context.check(ctx);
 		this.#open();
 		record.assert(options, 'activity add options');
-		assertId(options.key, 'activity item key');
+		assert.id(options.key, 'activity item key');
 		const existing = this.#keys.get(options.key);
 		if (existing !== undefined) return Object.freeze({ id: existing } satisfies ActivityRefType);
 		if (this.#activeItems() >= this.#capacity) throw new DispatchCapacityError(this.#capacity);
@@ -252,20 +253,20 @@ class Runtime {
 		context.check(ctx);
 		this.#open();
 		record.assert(options, 'executor join options');
-		assertId(options.engineId, 'executor engine');
-		assertId(options.hostId, 'executor host');
-		positive(options.capacity, 'executor capacity');
-		positive(options.protocolVersion, 'executor protocolVersion');
+		assert.id(options.engineId, 'executor engine');
+		assert.id(options.hostId, 'executor host');
+		assert.positive(options.capacity, 'executor capacity');
+		assert.positive(options.protocolVersion, 'executor protocolVersion');
 		if (options.activities.length === 0) throw new TypeError('Executor must advertise at least one activity.');
 		const advertised = durable.snapshot(options.activities, 'executor activities') as unknown as ExecutorJoinOptions['activities'];
 		const activities = Object.freeze(advertised.map((activity) => {
-			assertId(activity.id, 'executor activity');
-			assertId(activity.version, 'executor activity version');
+			assert.id(activity.id, 'executor activity');
+			assert.id(activity.version, 'executor activity version');
 			return Object.freeze({ id: activity.id, version: activity.version });
 		}));
 		const affinity = options.affinity === undefined ? undefined : freezeAffinity(options.affinity, 'executor affinity');
-		const compute = options.compute === undefined ? undefined : freezeCompute(options.compute);
-		const duration = options.duration === undefined ? undefined : positiveDuration(options.duration, 'executor lease duration');
+		const computeValue = options.compute === undefined ? undefined : compute.freeze(options.compute);
+		const duration = options.duration === undefined ? undefined : assert.duration(options.duration, 'executor lease duration');
 		const key = executorKey(options.engineId, options.hostId);
 		const previous = this.#current.get(key);
 		if (previous !== undefined) this.#revoke(previous);
@@ -279,7 +280,7 @@ class Runtime {
 			protocolVersion: options.protocolVersion,
 			activities,
 			...(affinity === undefined ? {} : { affinity }),
-			...(compute === undefined ? {} : { compute }),
+			...(computeValue === undefined ? {} : { compute: computeValue }),
 			capacity: options.capacity,
 			...(duration === undefined ? {} : { expiresAt: this.#clock.now().add(duration) }),
 		} satisfies ExecutorLeaseType);
@@ -299,7 +300,7 @@ class Runtime {
 		const state = this.#executor(lease);
 		state.lease = Object.freeze({
 			...state.lease,
-			expiresAt: this.#clock.now().add(positiveDuration(duration, 'executor lease renewal duration')),
+			expiresAt: this.#clock.now().add(assert.duration(duration, 'executor lease renewal duration')),
 		} satisfies ExecutorLeaseType);
 		return state.lease;
 	}
@@ -307,7 +308,7 @@ class Runtime {
 	async #resize(ctx: context.Context, lease: ExecutorLeaseType, capacity: number): Promise<ExecutorLeaseType> {
 		context.check(ctx);
 		const state = this.#executor(lease);
-		state.lease = Object.freeze({ ...state.lease, capacity: positive(capacity, 'executor capacity') } satisfies ExecutorLeaseType);
+		state.lease = Object.freeze({ ...state.lease, capacity: assert.positive(capacity, 'executor capacity') } satisfies ExecutorLeaseType);
 		this.#wake(this.#claimWaiters);
 		return state.lease;
 	}
@@ -335,8 +336,8 @@ class Runtime {
 		lease: ExecutorLeaseType,
 		options: ActivityClaimOptions,
 	): Promise<readonly ActivityClaimType[]> {
-		const limit = positive(options.limit ?? 1, 'activity claim limit');
-		const duration = positiveDuration(options.duration, 'activity claim duration');
+		const limit = assert.positive(options.limit ?? 1, 'activity claim limit');
+		const duration = assert.duration(options.duration, 'activity claim duration');
 		while (true) {
 			context.check(ctx);
 			this.#open();
@@ -364,7 +365,7 @@ class Runtime {
 		const item = this.#claimed(claim);
 		const renewed = Object.freeze({
 			...claim,
-			expiresAt: this.#clock.now().add(positiveDuration(duration, 'activity claim renewal duration')),
+			expiresAt: this.#clock.now().add(assert.duration(duration, 'activity claim renewal duration')),
 		} satisfies ActivityClaimType);
 		item.claim = renewed;
 		return renewed;
@@ -591,21 +592,6 @@ class Runtime {
 	}
 }
 
-/** Freeze optional topology metadata without imposing a fixed compute taxonomy. */
-function freezeCompute(value: ComputeType): ComputeType {
-	record.assert(value, 'compute metadata');
-	assertId(value.id, 'compute');
-	if (value.kind !== undefined) assertId(value.kind, 'compute kind');
-	if (value.parent !== undefined) assertId(value.parent, 'compute parent');
-	const attributes = value.attributes === undefined ? undefined : freezeAffinity(value.attributes, 'compute attributes');
-	return Object.freeze({
-		id: value.id,
-		...(value.kind === undefined ? {} : { kind: value.kind }),
-		...(value.parent === undefined ? {} : { parent: value.parent }),
-		...(attributes === undefined ? {} : { attributes }),
-	} satisfies ComputeType);
-}
-
 /** Return whether one activity item can no longer create another attempt. */
 function terminal(item: ItemState): boolean {
 	return item.state === 'completed' || item.state === 'cancelled';
@@ -620,7 +606,7 @@ function executorKey(engineId: string, hostId: string): string {
 function unique<Value>(create: () => string, values: ReadonlyMap<string, Value>): string {
 	for (let attempt = 0; attempt < 100; attempt += 1) {
 		const id = create();
-		assertId(id, 'dispatch');
+		assert.id(id, 'dispatch');
 		if (!values.has(id)) return id;
 	}
 	throw new Error('Activity dispatch ID source produced too many collisions.');
@@ -631,7 +617,7 @@ function uniqueClaim(create: () => string, items: ReadonlyMap<string, ItemState>
 	const active = new Set([...items.values()].flatMap((item) => item.claim === undefined ? [] : [item.claim.id]));
 	for (let attempt = 0; attempt < 100; attempt += 1) {
 		const id = create();
-		assertId(id, 'activity claim');
+		assert.id(id, 'activity claim');
 		if (!active.has(id)) return id;
 	}
 	throw new Error('Activity dispatch claim ID source produced too many collisions.');
@@ -673,26 +659,6 @@ function reject(waiters: Set<Waiter>, reason: unknown): void {
 		waiter.unlink();
 		waiter.reject(reason);
 	}
-}
-
-/** Reject malformed durable identities before they enter dispatch state. */
-function assertId(value: string, label: string): void {
-	if (typeof value !== 'string' || value.trim().length === 0 || value.length > 512) {
-		throw new TypeError(`${label} id must contain 1 to 512 characters.`);
-	}
-}
-
-/** Validate a positive bounded count. */
-function positive(value: number, label: string): number {
-	if (!Number.isSafeInteger(value) || value < 1) throw new TypeError(`${label} must be a positive safe integer.`);
-	return value;
-}
-
-/** Validate a strictly positive duration used for temporary ownership. */
-function positiveDuration(value: Temporal.Duration | Temporal.DurationLike | string, label: string): Temporal.Duration {
-	const duration = Temporal.Duration.from(value);
-	if (duration.sign <= 0) throw new TypeError(`${label} must be greater than zero.`);
-	return duration;
 }
 
 /** Validate a retry delay that may be zero. */
