@@ -1223,12 +1223,14 @@
       "npm:css-tree@^3.2.1",
       "npm:fast-check@^4.9.0",
       "npm:mitata@^1.0.34",
+      "npm:oxc-parser@0.145",
       "npm:zod@^4.5.4"
     ],
     "packageJson": {
       "dependencies": [
         "npm:@arethetypeswrong/cli@0.18.5",
         "npm:@standard-schema/spec@1.1.0",
+        "npm:@types/deno@2.7.0",
         "npm:@types/node@26.4.0",
         "npm:@varlock/bumpy@1.18.1",
         "npm:fast-check@4.9.0",

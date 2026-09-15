@@ -7,7 +7,7 @@
  *
  * @module
  */
-import { parseSync } from 'npm:oxc-parser';
+import { parseSync } from 'oxc-parser';
 
 /** One function-like declaration observed in a parsed source file. */
 export interface FunctionType {
@@ -135,7 +135,8 @@ export async function audit(root: string): Promise<AuditType> {
 			continue;
 		}
 		parsedFiles += 1;
-		const program = result.program as NodeType;
+		// Oxc's closed Program union is structurally inspectable through this read-only node adapter.
+		const program = result.program as unknown as NodeType;
 		files.push(...functions(program, source, entry.relative, packageOf(absoluteRoot, entry.relative), exportsOf(program), contextBindings(program)));
 		sources.push(Object.freeze({
 			file: entry.relative,

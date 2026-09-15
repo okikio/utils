@@ -6,7 +6,7 @@
 	"tasks": {
 		"fmt": "deno fmt --check",
 		"check": "deno task type",
-		"type": "deno run --no-check --allow-read --allow-write --allow-run tools/typecheck.ts",
+		"type": "deno run --no-lock --no-check --allow-read --allow-run tools/typecheck.ts",
 		"test": "deno test -A",
 		"lint": "deno lint",
 		"verify": "deno task fmt && deno task lint && deno task check && deno task test && deno task package:check && deno task treeshake:check && deno task freeze:check",
@@ -15,8 +15,8 @@
 		"utils:sync": "deno run -A tools/sync-utils-exports.ts",
 		"treeshake:check": "deno run -A tools/check-treeshake.ts",
 		"freeze:check": "deno run --allow-read tools/check-freeze-inference.ts",
-		"audit:duplicates": "deno run --no-check --allow-read --allow-env --allow-ffi tools/audit-duplicates.ts",
-		"audit:code": "deno run --no-check --allow-read --allow-env --allow-ffi tools/audit-duplicates.ts"
+		"audit:duplicates": "deno run --no-lock --no-check --allow-read --allow-env --allow-ffi tools/audit-duplicates.ts",
+		"audit:code": "deno run --no-lock --no-check --allow-read --allow-env --allow-ffi tools/audit-duplicates.ts"
 	},
 	"exports": {},
 	"imports": {
@@ -28,6 +28,7 @@
 		"@std/xml": "jsr:@std/xml@^0.2.0",
 		"fast-check": "npm:fast-check@^4.9.0",
 		"mitata": "npm:mitata@^1.0.34",
+		"oxc-parser": "npm:oxc-parser@^0.145.0",
 		"css-tree": "npm:css-tree@^3.2.1",
 		"zod": "npm:zod@^4.5.4"
 	},
