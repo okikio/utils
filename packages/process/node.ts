@@ -86,9 +86,10 @@ export function create(): Adapter {
 								process.kill(-pid, 0);
 								return true;
 							} catch (error) {
-								if (
-									typeof error === 'object' && error !== null && 'code' in error && error.code === 'ESRCH'
-								) return false;
+								if (typeof error === 'object' && error !== null && 'code' in error) {
+									if (error.code === 'ESRCH') return false;
+									if (error.code === 'EPERM') return true;
+								}
 								throw error;
 							}
 						},

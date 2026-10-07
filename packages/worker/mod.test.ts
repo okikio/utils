@@ -109,6 +109,23 @@ function requestId(message: unknown): string {
 }
 
 describe('Worker handle', () => {
+	it('validates shutdown policy before creating a raw Worker', async () => {
+		await using ctx = context.create({ id: 'invalid-policy' });
+		let created = 0;
+		expect(() =>
+			worker.open(ctx, {
+				module: new URL('file:///thread.ts'),
+				protocol: worker.protocol({ request: RequestSchema, response: ResponseSchema }),
+				shutdownMs: -1,
+				create: () => {
+					created++;
+					return new FakeWorker();
+				},
+			})
+		).toThrow(TypeError);
+		expect(created).toBe(0);
+	});
+
 	it('validates requests and correlated responses', async () => {
 		await using ctx = context.create({ id: 'worker-result' });
 		const fake = new FakeWorker();
@@ -523,5 +540,157 @@ describe('Worker intermediate protocol', () => {
 		scope.message({ type: 'cancel', id: 'cancelled-pause', reason: 'stop' });
 		await released;
 		expect(scope.posted).toEqual([]);
+	});
+});
+
+/** Hold the first validation until a test chooses the ordering of control frames. */
+function admission() {
+	const entered = Promise.withResolvers<void>();
+	const release = Promise.withResolvers<void>();
+	let validations = 0;
+	const contract: StandardSchemaV1<unknown, Readonly<{ value: string }>> = {
+		'~standard': {
+			version: 1,
+			vendor: 'test-admission',
+			async validate(value) {
+				if (validations++ === 0) {
+					entered.resolve();
+					await release.promise;
+				}
+				return { value: value as Readonly<{ value: string }> };
+			},
+		},
+	};
+	return { contract, entered: entered.promise, release };
+}
+
+const admissionContext = { id: 'admission', startedAt: '2026-01-01T00:00:00Z' };
+
+describe('Worker admission', () => {
+	it('reserves a parent ID while its request schema is waiting', async () => {
+		await using ctx = context.create({ id: 'worker-admission' });
+		const gate = admission();
+		const fake = new FakeWorker();
+		fake.onPost = (message) => {
+			if (typeof message === 'object' && message !== null && 'type' in message && message.type === 'request') {
+				fake.message({ type: 'result', id: requestId(message), response: { upper: 'ONE' } });
+			}
+		};
+		await using handle = worker.open(ctx, {
+			module: new URL('file:///admission.ts'),
+			create: () => fake,
+			shutdownMs: 0,
+			protocol: worker.protocol({ request: gate.contract, response: ResponseSchema }),
+		});
+		const first = handle.request(ctx, { value: 'one' }, { id: 'same' });
+		await gate.entered;
+		await expect(handle.request(ctx, { value: 'two' }, { id: 'same' })).rejects.toBeInstanceOf(TypeError);
+		gate.release.resolve();
+		expect(await first).toEqual({ upper: 'ONE' });
+		expect(fake.posted).toHaveLength(1);
+	});
+
+	it('cancels parent admission without sending an unvalidated request or cancel frame', async () => {
+		await using owner = context.create({ id: 'worker-admission' });
+		await using ctx = context.child(owner);
+		const gate = admission();
+		const fake = new FakeWorker();
+		await using handle = worker.open(owner, {
+			module: new URL('file:///admission.ts'),
+			create: () => fake,
+			shutdownMs: 0,
+			protocol: worker.protocol({ request: gate.contract, response: ResponseSchema }),
+		});
+		const pending = handle.request(ctx, { value: 'one' }, { id: 'cancelled' });
+		await gate.entered;
+		context.cancel(ctx, 'cancel during validation');
+		await expect(pending).rejects.toBeInstanceOf(context.ContextCancelledError);
+		expect(fake.posted).toEqual([]);
+		// A validator can reject after its caller stops waiting. The transport must
+		// consume that rejection and must never send its result later.
+		gate.release.reject(new Error('late validator rejection'));
+	});
+
+	it('stops parent admission even when a validator does not cooperate', async () => {
+		await using ctx = context.create({ id: 'worker-admission' });
+		const gate = admission();
+		const fake = new FakeWorker();
+		await using handle = worker.open(ctx, {
+			module: new URL('file:///admission.ts'),
+			create: () => fake,
+			shutdownMs: 0,
+			protocol: worker.protocol({ request: gate.contract, response: ResponseSchema }),
+		});
+		const pending = handle.request(ctx, { value: 'one' });
+		await gate.entered;
+		const rejection = expect(pending).rejects.toBeInstanceOf(worker.WorkerStoppedError);
+		await handle.stop();
+		await rejection;
+		expect(fake.posted).toEqual([{ message: { type: 'shutdown' } }]);
+	});
+
+	it('keeps the channel usable when cancellation arrives during server validation', async () => {
+		const gate = admission();
+		const scope = new FakeWorkerScope();
+		const ran: string[] = [];
+		await using server = worker.serve({
+			scope,
+			protocol: worker.protocol({ request: gate.contract, response: ResponseSchema }),
+			run(request) {
+				ran.push(request.value);
+				return { upper: request.value.toUpperCase() };
+			},
+		});
+		scope.message({ type: 'request', id: 'cancelled', context: admissionContext, request: { value: 'one' } });
+		await gate.entered;
+		scope.message({ type: 'cancel', id: 'cancelled', reason: 'stop' });
+		scope.message({ type: 'request', id: 'next', context: admissionContext, request: { value: 'two' } });
+		await scope.waitForPosts(1);
+		gate.release.resolve();
+		await server.stop();
+		expect(ran).toEqual(['two']);
+		expect(scope.posted).toEqual([{ message: { type: 'result', id: 'next', response: { upper: 'TWO' } } }]);
+	});
+
+	it('rejects duplicate server admission before either handler can run', async () => {
+		const gate = admission();
+		const scope = new FakeWorkerScope();
+		let runs = 0;
+		await using server = worker.serve({
+			scope,
+			protocol: worker.protocol({ request: gate.contract, response: ResponseSchema }),
+			run() {
+				runs += 1;
+				return { upper: 'INVALID' };
+			},
+		});
+		const frame = { type: 'request', id: 'duplicate', context: admissionContext, request: { value: 'one' } };
+		scope.message(frame);
+		await gate.entered;
+		scope.message(frame);
+		await server.closed;
+		expect(runs).toBe(0);
+		expect(scope.posted).toHaveLength(1);
+		expect(scope.posted[0]?.message).toMatchObject({ type: 'fault', fault: { name: 'WorkerProtocolError' } });
+	});
+
+	it('joins shutdown while server validation is pending without waiting for the external validator', async () => {
+		const gate = admission();
+		const scope = new FakeWorkerScope();
+		let runs = 0;
+		await using server = worker.serve({
+			scope,
+			protocol: worker.protocol({ request: gate.contract, response: ResponseSchema }),
+			run() {
+				runs += 1;
+				return { upper: 'INVALID' };
+			},
+		});
+		scope.message({ type: 'request', id: 'waiting', context: admissionContext, request: { value: 'one' } });
+		await gate.entered;
+		scope.message({ type: 'shutdown' });
+		await server.closed;
+		expect(runs).toBe(0);
+		expect(scope.posted).toEqual([{ message: { type: 'stopped' } }]);
 	});
 });

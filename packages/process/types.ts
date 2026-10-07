@@ -18,6 +18,7 @@ export type SignalType =
 	| 'SIGUSR1'
 	| 'SIGUSR2'
 	| 'SIGWINCH'
+	// deno-lint-ignore ban-types -- Preserve known signal suggestions while accepting platform-specific signal names.
 	| (string & {})
 	| number;
 
@@ -92,9 +93,11 @@ export interface SpawnOptionsType {
 
 /** Terminal status returned by a runtime adapter. */
 export interface StatusType {
+	/** Native exit code returned by the runtime adapter. */
 	readonly code: number;
+	/** Whether the native child exited successfully according to the runtime adapter. */
 	readonly success: boolean;
-	/** Abort signal controlling this status local lifetime. */
+	/** Native termination signal, when the runtime reports one. */
 	readonly signal?: string;
 }
 
@@ -108,6 +111,7 @@ export interface Spawned {
 	readonly stdout?: ReadableStream<Uint8Array>;
 	/** Standard-error stream reserved for bounded diagnostics outside the protocol. */
 	readonly stderr?: ReadableStream<Uint8Array>;
+	/** Native exit status promise; output pumps and public wait() retain their separate cleanup contract. */
 	readonly status: Promise<StatusType>;
 	/** Send one signal to the owned child or process group selected at spawn time. */
 	kill(signal: SignalType): void;
@@ -119,10 +123,13 @@ export interface Spawned {
 
 /** Runtime adapter that creates one process without owning its later lifecycle. */
 export interface Adapter {
+	/** Process ownership modes supported by this adapter, such as one child or a process tree. */
 	readonly trees: readonly TreeModeType[];
-	/** Abort signal controlling this adapter local lifetime. */
+	/** Native signal used for the initial graceful stop request. */
 	readonly signal: SignalType;
+	/** Native signal selected after graceful termination does not settle in time. */
 	readonly forceSignal: SignalType;
+	/** Start one native child under the adapter ownership contract. */
 	spawn(options: SpawnOptionsType): Promise<Spawned>;
 }
 
@@ -153,6 +160,7 @@ export interface ProcessExitType {
 export interface Process extends AsyncDisposable {
 	/** Operating-system process ID associated with this process. */
 	readonly pid: number;
+	/** Selected native ownership mode; tree mode includes descendants when the adapter supports it. */
 	readonly tree: TreeModeType;
 	/** Writable standard-input stream borrowed from the owned child process. */
 	readonly stdin?: WritableStream<Uint8Array>;
@@ -162,9 +170,11 @@ export interface Process extends AsyncDisposable {
 	readonly stderr?: ReadableStream<Uint8Array>;
 	/** Read-only observation stream for local process lifecycle changes. */
 	readonly events: EventBus<ProcessEventType>['events'];
+	/** Join the owned terminal result; observation alone does not prove completion. */
 	wait(): Promise<ProcessExitType>;
-	/** Abort signal controlling this process local lifetime. */
+	/** Send an explicit native signal to the child or owned process group. */
 	signal(signal: SignalType): void;
+	/** Stop owned work and join the termination contract; the reason remains available for diagnostics. */
 	stop(reason?: unknown): Promise<void>;
 }
 

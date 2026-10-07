@@ -1,9 +1,22 @@
 /**
- * Runtime-neutral child-process ownership with bounded I/O and cancellation.
+ * Own subprocess termination and bounded output with one lifecycle contract across Deno and Node. A raw spawn plus scattered listeners can leave descendants alive or report success before output collection settles.
  *
- * Runtime adapters only create a child and translate platform streams, status,
- * and signals. This module owns the lifecycle after spawn so Node, Deno, and
- * future adapters cannot silently diverge on output limits or shutdown rules.
+ * Capture bounded output for short commands, stream it for long commands, and use the process channel for correlated activity protocols. Select the Node adapter for Node hosts. Direct-child ownership and POSIX process-group ownership have different guarantees; an exited leader can leave descendants alive. wait() owns output failures while disposal joins termination without repeating a handled capture failure. Callers still own executable trust and runtime permissions.
+ *
+ * @example
+ * ```ts
+ * import '@okikio/duration/polyfill';
+ * import '@okikio/dispose/polyfill';
+ * import * as context from '@okikio/context';
+ * import * as process from '@okikio/process';
+ * import * as deno from '@okikio/process/deno';
+ * await using ctx = context.create({ id: 'tool-output' });
+ * const exit = await process.exec(ctx, deno.create(), {
+ *   command: Deno.execPath(), arguments: ['eval', 'console.log("ready")'],
+ *   stdout: { type: 'capture', maximumBytes: 1024 }, stderr: { type: 'discard' },
+ * });
+ * console.log(new TextDecoder().decode(exit.stdout).trim());
+ * ```
  *
  * @module
  */
@@ -28,8 +41,10 @@ import type {
 
 /** Requested process-tree ownership mode is not implemented by the selected adapter. */
 export class UnsupportedTreeModeError extends Error {
+	/** Requested process ownership mode that the selected adapter does not support. */
 	readonly tree: TreeModeType;
 
+	/** Create this UnsupportedTreeModeError from the explicit contract values supplied by its caller. */
 	constructor(tree: TreeModeType) {
 		super(`Process tree mode ${JSON.stringify(tree)} is not implemented by the selected runtime adapter.`);
 		this.name = 'UnsupportedTreeModeError';
@@ -39,9 +54,12 @@ export class UnsupportedTreeModeError extends Error {
 
 /** Captured child output exceeded its configured byte limit. */
 export class OutputLimitError extends Error {
+	/** Async observation or data stream owned under this contract. */
 	readonly stream: 'stdout' | 'stderr';
+	/** Maximum byte budget admitted or retained by this operation. */
 	readonly maximumBytes: number;
 
+	/** Create this OutputLimitError from the explicit contract values supplied by its caller. */
 	constructor(stream: 'stdout' | 'stderr', maximumBytes: number) {
 		super(`Child ${stream} exceeded its ${maximumBytes}-byte capture limit.`);
 		this.name = 'OutputLimitError';
@@ -52,8 +70,10 @@ export class OutputLimitError extends Error {
 
 /** Child process did not stop within the graceful and forced shutdown periods. */
 export class ProcessStopTimeoutError extends Error {
+	/** Native process identifier; it is not a durable activity identity. */
 	readonly pid: number;
 
+	/** Create this ProcessStopTimeoutError from the explicit contract values supplied by its caller. */
 	constructor(pid: number) {
 		super(`Child process ${pid} did not stop within its shutdown policy.`);
 		this.name = 'ProcessStopTimeoutError';
@@ -190,6 +210,25 @@ class Runtime {
 		return exit;
 	}
 
+	/** Join termination and owned output without repeating wait()'s capture failure during cleanup. */
+	async #settled(): Promise<void> {
+		await this.#child.status;
+		this.#terminal = true;
+		this.#ctx.signal.removeEventListener('abort', this.#abort);
+		await Promise.all(this.#outputPumps);
+	}
+
+	/** A denied signal proves nothing about liveness; only adapter status can confirm natural exit. */
+	async #sendForStop(signal: SignalType, timeoutMs: number): Promise<boolean> {
+		try {
+			return this.#send(signal);
+		} catch (error) {
+			if (this.#ownsTree || !await contextCore.settles(this.#child.status, timeoutMs)) throw error;
+			await this.#settled();
+			return false;
+		}
+	}
+
 	/** Send one signal without treating root settlement as proof that an owned process group is empty. */
 	#send(signal: SignalType): boolean {
 		if (this.#terminal && !this.#ownsTree) return false;
@@ -212,7 +251,7 @@ class Runtime {
 	/** Apply direct-child or process-group shutdown semantics after the first stop request. */
 	async #stopProcess(reason: unknown): Promise<void> {
 		if (this.#terminal && !this.#ownsTree) {
-			await this.#wait();
+			await this.#settled();
 			return;
 		}
 		this.#events.emit(Object.freeze({ type: 'stopping', ...(reason === undefined ? {} : { reason }) }));
@@ -221,7 +260,7 @@ class Runtime {
 		const forceSignal = shutdown.forceSignal ?? this.#adapter.forceSignal;
 		const graceMs = shutdown.graceMs ?? 10_000;
 		const forceMs = shutdown.forceMs ?? 5_000;
-		const graceful = this.#send(gracefulSignal);
+		const graceful = await this.#sendForStop(gracefulSignal, graceMs + forceMs);
 
 		if (!this.#ownsTree) {
 			await this.#stopDirectChild(graceful, forceSignal, graceMs, forceMs);
@@ -232,10 +271,14 @@ class Runtime {
 
 	/** Stop a direct child once the root process itself reaches terminal status. */
 	async #stopDirectChild(graceful: boolean, forceSignal: SignalType, graceMs: number, forceMs: number): Promise<void> {
-		if (!graceful || await contextCore.settles(this.#wait(), graceMs)) return;
+		if (!graceful) {
+			await this.#settled();
+			return;
+		}
+		if (await contextCore.settles(this.#settled(), graceMs)) return;
 		this.#events.emit(Object.freeze({ type: 'forced' }));
-		void this.#send(forceSignal);
-		if (!await contextCore.settles(this.#wait(), forceMs)) throw new ProcessStopTimeoutError(this.#child.pid);
+		await this.#sendForStop(forceSignal, forceMs);
+		if (!await contextCore.settles(this.#settled(), forceMs)) throw new ProcessStopTimeoutError(this.#child.pid);
 	}
 
 	/** Stop an owned process group without confusing leader exit with group exit. */
@@ -243,11 +286,11 @@ class Runtime {
 		// The group can outlive its leader. A liveness probe can end the grace
 		// period early; without one, conservatively wait the full grace interval.
 		if (!graceful && this.#child.treeAlive?.() === false) {
-			await this.#wait();
+			await this.#settled();
 			return;
 		}
 		if (this.#child.treeAlive !== undefined && await treeSettlesWithin(this.#child.treeAlive, graceMs)) {
-			await this.#wait();
+			await this.#settled();
 			return;
 		}
 		if (this.#child.treeAlive === undefined) await waitFor(graceMs);
@@ -257,7 +300,7 @@ class Runtime {
 		if (this.#child.treeAlive !== undefined && !await treeSettlesWithin(this.#child.treeAlive, forceMs)) {
 			throw new ProcessStopTimeoutError(this.#child.pid);
 		}
-		await this.#wait();
+		await this.#settled();
 	}
 
 	/** Dispose process ownership once and release parent cancellation plus local event observers. */
@@ -348,16 +391,21 @@ function spawnOptions(options: StartOptionsType, resolved: ResolvedStartOptions)
  *
  * @example
  * ```ts
+ * import '@okikio/duration/polyfill';
+ * import '@okikio/dispose/polyfill';
  * import nodeProcess from 'node:process';
- * import * as process from '@utils/process';
- * import * as node from '@utils/process/node';
+ * import * as context from '@okikio/context';
+ * import * as process from '@okikio/process';
+ * import * as node from '@okikio/process/node';
  *
- * const child = await process.start(ctx, node.create(), {
- * \tcommand: nodeProcess.execPath,
- * \targuments: ['--version'],
- * \tstdout: { type: 'capture', maximumBytes: 4096 },
+ * await using ctx = context.create({ id: 'version-check' });
+ * await using child = await process.start(ctx, node.create(), {
+ *   command: nodeProcess.execPath,
+ *   arguments: ['--version'],
+ *   stdout: { type: 'capture', maximumBytes: 4096 },
  * });
  * const exit = await child.wait();
+ * console.log(exit.success);
  * ```
  */
 export async function start(ctx: Context, adapter: Adapter, options: StartOptionsType): Promise<Process> {

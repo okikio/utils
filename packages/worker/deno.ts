@@ -5,6 +5,7 @@ import type { RawWorker, WorkerHandle, WorkerOpenOptions } from './types.ts';
 
 /** Options that add Deno Worker permissions to the standard Worker protocol. */
 export interface DenoOptions<Request, Response> extends Omit<WorkerOpenOptions<Request, Response>, 'create'> {
+	/** Explicit Deno Worker permissions for this realm; the host grants only what its work needs. */
 	readonly permissions?: Deno.PermissionOptions;
 }
 

@@ -151,6 +151,7 @@ class Channel<Request, Response, Notice, CallRequest, CallResponse> {
 	readonly #maximumFrameBytes: number;
 	readonly #writer: WritableStreamDefaultWriter<Uint8Array>;
 	readonly #pending = new Map<string, Pending<Response>>();
+	readonly #admitting = new Map<string, AbortController>();
 	readonly #cancelled = new Map<string, ReturnType<typeof setTimeout>>();
 	readonly #events = new EventBus<ProcessEventType>();
 	readonly #receiveController = new AbortController();
@@ -199,32 +200,47 @@ class Channel<Request, Response, Notice, CallRequest, CallResponse> {
 		if (this.#state !== 'open') throw new ChannelClosedError();
 		const id = requestOptions.id ?? this.#createRequestId();
 		assertId(id, 'Process channel request');
-		if (this.#pending.has(id) || this.#cancelled.has(id)) {
+		if (this.#admitting.has(id) || this.#pending.has(id) || this.#cancelled.has(id)) {
 			throw new TypeError(`Process channel request ${JSON.stringify(id)} is already active or recently cancelled.`);
 		}
-		const value = await schema.parse(this.#options.protocol.request, request);
-		const response = new Promise<Response>((resolve, reject) => {
-			const abort = () => this.#cancel(id, requestCtx, reject);
-			const unlink = () => requestCtx.signal.removeEventListener('abort', abort);
-			this.#pending.set(id, { ctx: requestCtx, resolve, reject, unlink });
-			requestCtx.signal.addEventListener('abort', abort, { once: true });
-			if (requestCtx.signal.aborted) abort();
-		});
-		if (!this.#pending.has(id)) return await response;
-
-		const frame: ProcessRequestFrame<Request> = {
-			type: 'request',
-			id,
-			context: contextCore.snapshot(requestCtx),
-			request: value,
-		};
+		// Reserve before calling an external validator. Shutdown can release this
+		// admission without waiting for the validator's independently owned work.
+		const admission = new AbortController();
+		this.#admitting.set(id, admission);
 		try {
-			await this.#send(frame);
-			this.#events.emit(Object.freeze({ type: 'request', id }));
+			const signal = AbortSignal.any([requestCtx.signal, admission.signal]);
+			const value = await during(signal, schema.parse(this.#options.protocol.request, request));
+			contextCore.check(requestCtx);
+			if (this.#state !== 'open') throw new ChannelClosedError();
+			const response = new Promise<Response>((resolve, reject) => {
+				const abort = () => this.#cancel(id, requestCtx, reject);
+				const unlink = () => requestCtx.signal.removeEventListener('abort', abort);
+				this.#pending.set(id, { ctx: requestCtx, resolve, reject, unlink });
+				requestCtx.signal.addEventListener('abort', abort, { once: true });
+				if (requestCtx.signal.aborted) abort();
+			});
+			this.#admitting.delete(id);
+			if (!this.#pending.has(id)) return await response;
+
+			const frame: ProcessRequestFrame<Request> = {
+				type: 'request',
+				id,
+				context: contextCore.snapshot(requestCtx),
+				request: value,
+			};
+			try {
+				await this.#send(frame);
+				this.#events.emit(Object.freeze({ type: 'request', id }));
+			} catch (error) {
+				this.#settle(id, (entry) => entry.reject(error));
+			}
+			return await response;
 		} catch (error) {
-			this.#settle(id, (entry) => entry.reject(error));
+			contextCore.check(requestCtx);
+			throw error;
+		} finally {
+			if (this.#admitting.get(id) === admission) this.#admitting.delete(id);
 		}
-		return await response;
 	}
 
 	/** Forward request cancellation and retain its ID long enough to discard one raced child response. */
@@ -351,10 +367,10 @@ class Channel<Request, Response, Notice, CallRequest, CallResponse> {
 		try {
 			const response = await this.#options.call(request, entry.ctx, id, callId);
 			const value = await schema.parse(contract.response, response);
-			if (this.#pending.get(id) !== entry || entry.ctx.signal.aborted) return;
+			if (this.#state !== 'open' || this.#pending.get(id) !== entry || entry.ctx.signal.aborted) return;
 			await this.#send({ type: 'call-result', id, callId, response: value });
 		} catch (error) {
-			if (this.#pending.get(id) !== entry || entry.ctx.signal.aborted) return;
+			if (this.#state !== 'open' || this.#pending.get(id) !== entry || entry.ctx.signal.aborted) return;
 			await this.#send({ type: 'call-fault', id, callId, fault: fault(error) });
 		}
 	}
@@ -374,6 +390,7 @@ class Channel<Request, Response, Notice, CallRequest, CallResponse> {
 		if (this.#state === 'closed') return;
 		if (this.#state === 'open') {
 			this.#state = 'closing';
+			for (const admission of this.#admitting.values()) admission.abort(new ChannelClosedError(reason));
 			this.#events.emit(Object.freeze({ type: 'closing', ...(reason === undefined ? {} : { reason }) }));
 			try {
 				await this.#send({ type: 'close', ...(reason === undefined ? {} : { reason }) });
@@ -398,6 +415,7 @@ class Channel<Request, Response, Notice, CallRequest, CallResponse> {
 	#finish(reason: unknown): void {
 		if (this.#state === 'closed') return;
 		this.#state = 'closed';
+		for (const admission of this.#admitting.values()) admission.abort(new ChannelClosedError(reason));
 		if (!this.#receiveController.signal.aborted) this.#receiveController.abort(reason);
 		this.#ctx.signal.removeEventListener('abort', this.#parentAbort);
 		for (const [id, entry] of this.#pending) {
@@ -516,7 +534,7 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 				});
 				return;
 			}
-			await this.#startRequest(message);
+			this.#startRequest(message);
 			return;
 		}
 		if (message.type === 'close') {
@@ -555,8 +573,8 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 		throw new ChannelProtocolError(`Unsupported parent frame type ${JSON.stringify(message.type)}.`, message);
 	}
 
-	/** Validate one request before restoring its child-local cancellation lifetime. */
-	async #startRequest(message: Record<string, unknown>): Promise<void> {
+	/** Reserve one request lifetime before asynchronous validation, keeping controls readable. */
+	#startRequest(message: Record<string, unknown>): void {
 		if (typeof message.id !== 'string') throw new ChannelProtocolError('Request frame is missing an ID.', message);
 		const id = message.id;
 		assertId(id, 'Process channel request');
@@ -567,12 +585,12 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 		if (!snapshot(message.context)) {
 			throw new ChannelProtocolError('Request context snapshot is invalid.', message.context);
 		}
-		const request = await schema.parse(this.#options.protocol.request, message.request);
 		const ctx = contextCore.restore(message.context);
 		const pause: PauseState = { paused: false, waiters: new Set() };
 		const calls = new Map<string, PendingCall<CallResponse>>();
-		const settled = this.#runRequest(id, request, ctx, pause, calls);
+		const settled = Promise.resolve().then(() => this.#runRequest(id, message.request, ctx, pause, calls));
 		this.#active.set(id, { ctx, pause, calls, settled });
+		void settled.catch((reason) => this.#closeServer(reason));
 		// Request work stays owned by `active` but is not awaited here. The frame
 		// reader must remain available for cancel, pause, and reverse-call results.
 	}
@@ -580,7 +598,7 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 	/** Execute one child request while optional notices and reverse calls remain non-terminal. */
 	async #runRequest(
 		id: string,
-		request: Request,
+		input: unknown,
 		ctx: contextCore.Owned,
 		pause: PauseState,
 		calls: Map<string, PendingCall<CallResponse>>,
@@ -608,7 +626,9 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 							'This process protocol does not declare reverse calls.',
 						);
 					}
+					contextCore.check(ctx);
 					const value = await schema.parse(contract.request, callRequest);
+					contextCore.check(ctx);
 					const callId = this.#createCallId();
 					assertId(callId, 'Process channel reverse call');
 					if (calls.has(callId)) {
@@ -616,11 +636,21 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 							`Reverse call ${JSON.stringify(callId)} is already active.`,
 						);
 					}
-					const result = new Promise<CallResponse>((resolve, reject) => calls.set(callId, { resolve, reject }));
+					let abort!: () => void;
+					const result = new Promise<CallResponse>((resolve, reject) => {
+						calls.set(callId, { resolve, reject });
+						abort = () => reject(new contextCore.ContextCancelledError(ctx.signal.reason));
+						ctx.signal.addEventListener('abort', abort, { once: true });
+					});
 					try {
-						await this.#send({ type: 'call', id, callId, request: value });
+						// Observe write failure immediately while request cancellation can settle the reverse call.
+						void this.#send({ type: 'call', id, callId, request: value }).catch((reason) =>
+							calls.get(callId)?.reject(reason)
+						);
+						if (ctx.signal.aborted) abort();
 						return await result;
 					} finally {
+						ctx.signal.removeEventListener('abort', abort);
 						calls.delete(callId);
 					}
 				},
@@ -628,9 +658,12 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 		);
 
 		try {
+			contextCore.check(ctx);
+			const request = await during(ctx.signal, schema.parse(this.#options.protocol.request, input));
+			contextCore.check(ctx);
 			const response = await this.#options.run(request, ctx, control);
 			if (ctx.signal.aborted) return;
-			const value = await schema.parse(this.#options.protocol.response, response);
+			const value = await during(ctx.signal, schema.parse(this.#options.protocol.response, response));
 			if (ctx.signal.aborted) return;
 			await this.#send({ type: 'result', id, response: value });
 		} catch (error) {
@@ -924,3 +957,17 @@ async function settles(value: Promise<unknown>): Promise<void> {
 }
 
 export type * from './types.ts';
+
+/** Observe external validation only while the request still owns its result. */
+function during<Value>(signal: AbortSignal, value: Promise<Value>): Promise<Value> {
+	return new Promise<Value>((resolve, reject) => {
+		const finish = (action: () => void) => {
+			signal.removeEventListener('abort', abort);
+			action();
+		};
+		const abort = () => finish(() => reject(signal.reason));
+		signal.addEventListener('abort', abort, { once: true });
+		value.then((result) => finish(() => resolve(result)), (error) => finish(() => reject(error)));
+		if (signal.aborted) abort();
+	});
+}

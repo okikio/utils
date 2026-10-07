@@ -63,7 +63,155 @@ function pair() {
 	return { process, input: parentToChild.readable, output: childToParent.writable };
 }
 
+/** Hold one external validator until its test explicitly releases and joins it. */
+function validationGate<Value>(base: StandardSchemaV1<unknown, Value>, signal: AbortSignal) {
+	const entered = Promise.withResolvers<void>();
+	const release = Promise.withResolvers<void>();
+	const completed = Promise.withResolvers<void>();
+	let calls = 0;
+	const abort = () => {
+		release.resolve();
+		entered.resolve();
+	};
+	signal.addEventListener('abort', abort, { once: true });
+	const contract: StandardSchemaV1<unknown, Value> = {
+		'~standard': {
+			version: 1,
+			vendor: 'gated-test',
+			async validate(value) {
+				calls += 1;
+				entered.resolve();
+				try {
+					await release.promise;
+					return await base['~standard'].validate(value);
+				} finally {
+					completed.resolve();
+				}
+			},
+		},
+	};
+	return {
+		contract,
+		entered: entered.promise,
+		completed: completed.promise,
+		release() {
+			signal.removeEventListener('abort', abort);
+			release.resolve();
+		},
+		calls: () => calls,
+	};
+}
+
+/** Observe rejection immediately so cleanup never leaves an unhandled request. */
+function outcome<Value>(value: Promise<Value>) {
+	return value.then(
+		(value) => ({ type: 'success' as const, value }),
+		(reason: unknown) => ({ type: 'rejected' as const, reason }),
+	);
+}
+
 describe('process channel', () => {
+	it('reserves duplicate parent IDs before asynchronous validation', { timeout: 10_000 }, async (test) => {
+		await using owner = context.create({ id: 'channel-admission-duplicate' });
+		const gate = validationGate(RequestSchema, test.signal);
+		const transport = pair();
+		let runs = 0;
+		await using server = channel.serve({
+			input: transport.input,
+			output: transport.output,
+			protocol: channel.protocol({ request: RequestSchema, response: ResponseSchema }),
+			run(request) {
+				runs += 1;
+				return { upper: request.value.toUpperCase() };
+			},
+		});
+		await using client = channel.open(owner, transport.process, {
+			protocol: channel.protocol({ request: gate.contract, response: ResponseSchema }),
+		});
+		const first = outcome(client.request(owner, { value: 'first' }, { id: 'reserved' }));
+		try {
+			await gate.entered;
+			test.signal.throwIfAborted();
+			await expect(client.request(owner, { value: 'second' }, { id: 'reserved' })).rejects.toBeInstanceOf(TypeError);
+			expect(gate.calls()).toBe(1);
+			gate.release();
+			expect(await first).toEqual({ type: 'success', value: { upper: 'FIRST' } });
+			expect(runs).toBe(1);
+		} finally {
+			gate.release();
+			await first;
+			if (gate.calls() > 0) await gate.completed;
+			await client.close();
+			await server.closed;
+		}
+	});
+
+	for (const side of ['parent', 'child-request', 'child-response'] as const) {
+		for (const action of ['cancel', 'close'] as const) {
+			it(
+				`${action} settles ${side} validation before the external validator completes`,
+				{ timeout: 10_000 },
+				async (test) => {
+					await using owner = context.create({ id: `channel-validation-${side}-${action}` });
+					await using requestCtx = context.child(owner, { id: 'validation-request' });
+					const requestGate = validationGate(RequestSchema, test.signal);
+					const responseGate = validationGate(ResponseSchema, test.signal);
+					const gate = side === 'child-response' ? responseGate : requestGate;
+					const transport = pair();
+					let runs = 0;
+					await using server = channel.serve({
+						input: transport.input,
+						output: transport.output,
+						protocol: channel.protocol({
+							request: side === 'child-request' ? requestGate.contract : RequestSchema,
+							response: side === 'child-response' ? responseGate.contract : ResponseSchema,
+						}),
+						run(request) {
+							runs += 1;
+							return { upper: request.value.toUpperCase() };
+						},
+					});
+					await using client = channel.open(owner, transport.process, {
+						protocol: channel.protocol({
+							request: side === 'parent' ? requestGate.contract : RequestSchema,
+							response: ResponseSchema,
+						}),
+					});
+					const pending = outcome(client.request(requestCtx, { value: 'pending' }, { id: 'validation' }));
+					try {
+						await gate.entered;
+						test.signal.throwIfAborted();
+						const reason = `exact-validation-${side}-${action}`;
+						if (action === 'cancel') context.cancel(requestCtx, reason);
+						else await client.close(reason);
+						const result = await pending;
+						expect(result.type).toBe('rejected');
+						if (result.type !== 'rejected') throw new Error('Validation returned a cancelled result.');
+						if (action === 'cancel') {
+							expect(result.reason).toBeInstanceOf(context.ContextCancelledError);
+							if (!(result.reason instanceof context.ContextCancelledError)) throw result.reason;
+							expect(result.reason.reason).toBe(reason);
+						} else {
+							expect(result.reason).toBeInstanceOf(channel.ChannelClosedError);
+							if (!(result.reason instanceof channel.ChannelClosedError)) throw result.reason;
+							if (side === 'parent') expect(result.reason.reason).toBe(reason);
+						}
+						await client.close(reason);
+						await server.closed;
+						expect(runs).toBe(side === 'child-response' ? 1 : 0);
+					} finally {
+						requestGate.release();
+						responseGate.release();
+						await pending;
+						if (gate.calls() > 0) await gate.completed;
+						await client.close();
+						await server.closed;
+					}
+				},
+			);
+		}
+	}
+
 	it('correlates validated requests and responses', async () => {
 		await using ctx = context.create({ id: 'process-channel' });
 		const transport = pair();
@@ -123,6 +271,69 @@ describe('process channel', () => {
 		expect(await client.request(ctx, { value: 'media' })).toEqual({ upper: 'MEDIA' });
 		expect(notices).toEqual(['checking']);
 	});
+
+	for (const action of ['cancel', 'close'] as const) {
+		it(`${action} settles a pending child reverse call before the parent adapter returns`, async () => {
+			await using owner = context.create({ id: `reverse-call-${action}` });
+			await using requestCtx = context.child(owner, { id: `reverse-call-${action}:request` });
+			const transport = pair();
+			const protocol = channel.protocol({
+				request: RequestSchema,
+				response: ResponseSchema,
+				call: { request: CallRequestSchema, response: CallResponseSchema },
+			});
+			let entered!: () => void;
+			const parentEntered = new Promise<void>((resolve) => entered = resolve);
+			let rejectCall!: (value: unknown) => void;
+			const childRejected = new Promise<unknown>((resolve) => rejectCall = resolve);
+			await using server = channel.serve({
+				input: transport.input,
+				output: transport.output,
+				protocol,
+				async run(request, _ctx, control) {
+					try {
+						await control.call({ permission: 'media.read' });
+					} catch (reason) {
+						rejectCall(reason);
+						throw reason;
+					}
+					return { upper: request.value.toUpperCase() };
+				},
+			});
+			await using client = channel.open(owner, transport.process, {
+				protocol,
+				async call() {
+					entered();
+					// The adapter intentionally cannot reply until the child observes cancellation.
+					await childRejected;
+					return { allowed: true };
+				},
+			});
+			const result = client.request(requestCtx, { value: 'pending' }).then(
+				(value) => ({ type: 'success' as const, value }),
+				(reason: unknown) => ({ type: 'rejected' as const, reason }),
+			);
+			await parentEntered;
+			const reason = `exact-${action}-reason`;
+			let closing: Promise<void> | undefined;
+			if (action === 'cancel') context.cancel(requestCtx, reason);
+			else closing = client.close(reason);
+			const childReason = await childRejected;
+			expect(childReason).toBeInstanceOf(context.ContextCancelledError);
+			if (!(childReason instanceof context.ContextCancelledError)) throw childReason;
+			expect(childReason.reason).toBe(reason);
+			await (closing ?? client.close(reason));
+			await server.closed;
+			const outcome = await result;
+			expect(outcome.type).toBe('rejected');
+			if (outcome.type !== 'rejected') throw new Error('Cancelled reverse call returned a value.');
+			if (action === 'cancel') {
+				expect(outcome.reason).toBeInstanceOf(context.ContextCancelledError);
+				if (!(outcome.reason instanceof context.ContextCancelledError)) throw outcome.reason;
+				expect(outcome.reason.reason).toBe(reason);
+			} else expect(outcome.reason).toBeInstanceOf(channel.ChannelClosedError);
+		});
+	}
 
 	it('pauses only at cooperative checkpoints and cancellation releases them', async () => {
 		await using owner = context.create({ id: 'process-channel-pause-owner' });

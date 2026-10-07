@@ -1,9 +1,32 @@
 /**
- * External-work definitions, workflow requests, and direct local attempts.
+ * Turn a provider operation into a named, versioned unit of work with validated inputs, results and engine placement. A plain function leaves every caller to repeat those checks and decide which runtime may run it.
  *
- * Definitions are import-safe. `request()` creates only a serializable workflow
- * instruction. `run()` performs one already-selected implementation in the
- * current host under explicit engine, requirement, resource, and effect state.
+ * Start with a direct local attempt, then register the same definition with a workflow executor. Add resource declarations when the operation needs a browser or storage client; add permission requirements and effects when it changes authoritative state. The activity owns its attempt context and borrows the collection. A Worker or process provider changes execution location; it does not move live closures, sockets or promises. Dispatch and storage adapters still own durable placement, leases and recovery.
+ *
+ * @example
+ * ```ts
+ * import '@okikio/duration/polyfill';
+ * import '@okikio/dispose/polyfill';
+ * import * as activity from '@okikio/activity';
+ * import * as engine from '@okikio/activity/engine';
+ * import * as context from '@okikio/context';
+ * import * as resource from '@okikio/resource';
+ * import { z } from 'zod';
+ *
+ * const Local = engine.define({ id: 'local' });
+ * const Upper = activity.define({
+ *   id: 'text.upper', version: '1', input: z.string(), result: z.string(),
+ *   placement: engine.require(Local),
+ * });
+ * const UpperLive = activity.implement(Upper, { run: (ctx) => ctx.input.toUpperCase() });
+ * await using ctx = context.create({ id: 'uppercase' });
+ * await using resources = resource.create(resource.implementations(), { ctx, host: {} });
+ * const value = await activity.run({
+ *   ctx, engine: Local, resources, implementation: UpperLive, input: 'hello',
+ *   jobId: 'uppercase-1', attempt: 1,
+ * });
+ * console.log(value);
+ * ```
  *
  * @module
  */
@@ -58,9 +81,12 @@ export class InvalidEngineError extends TypeError {
 
 /** Error raised when an activity throws an expected failure it did not declare. */
 export class UndeclaredFailureError extends Error {
+	/** Activity declaration or reference whose validated attempt is requested. */
 	readonly activity: ActivityDefinition;
+	/** Expected failure data retained under its declared contract. */
 	readonly failure: import('@okikio/failure').Occurrence;
 
+	/** Create this UndeclaredFailureError from the explicit contract values supplied by its caller. */
 	constructor(activity: ActivityDefinition, failure: import('@okikio/failure').Occurrence) {
 		super(
 			`Activity ${JSON.stringify(activity.id)} threw undeclared failure ${JSON.stringify(failure.definition.id)}.`,

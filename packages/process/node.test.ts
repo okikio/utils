@@ -36,10 +36,14 @@ describe('Node process adapter', { skip: !isNode }, () => {
 		});
 		const reader = child.stdout!.getReader();
 		try {
-			const first = await reader.read();
-			expect(first.done).toBe(false);
-			expect(first.value).toBeInstanceOf(Uint8Array);
-			expect([...first.value!]).toEqual([1, 2, 3, 255]);
+			const values: number[] = [];
+			for (;;) {
+				const next = await reader.read();
+				if (next.done) break;
+				expect(next.value).toBeInstanceOf(Uint8Array);
+				values.push(...next.value);
+			}
+			expect(values).toEqual([1, 2, 3, 255]);
 		} finally {
 			reader.releaseLock();
 		}
@@ -58,7 +62,7 @@ describe('Node process adapter', { skip: !isNode }, () => {
 		expect(decoder.decode(exit.stdout)).toBe('HELLO');
 	});
 
-	it('stops a real child and keeps repeated stop calls idempotent', async () => {
+	it('stops a real child and keeps repeated stop calls idempotent', async (t) => {
 		const child = await process.start(ctx(), adapter, {
 			command: nodeProcess.execPath,
 			arguments: ['-e', 'setInterval(() => {}, 1000)'],
@@ -66,12 +70,14 @@ describe('Node process adapter', { skip: !isNode }, () => {
 			stderr: { type: 'discard' },
 			shutdown: { graceMs: 100, forceMs: 1_000 },
 		});
+		t.after(() => child.stop('test cleanup'));
 		await Promise.all([child.stop('test'), child.stop('test')]);
 		expect((await child.wait()).success).toBe(false);
 	});
 
-	it('owns a detached POSIX process group instead of leaving descendants behind', async () => {
-		if (nodeProcess.platform === 'win32') return;
+	it('owns a detached POSIX process group instead of leaving descendants behind', {
+		skip: nodeProcess.platform === 'win32',
+	}, async (t) => {
 		const child = await process.start(ctx(), adapter, {
 			command: nodeProcess.execPath,
 			arguments: [
@@ -86,6 +92,7 @@ setInterval(() => {}, 1000);`,
 			stderr: { type: 'discard' },
 			shutdown: { graceMs: 500, forceMs: 1_000 },
 		});
+		t.after(() => child.stop('test cleanup'));
 		expect(child.tree).toBe('posix-process-group');
 		const descendant = Number(await firstLine(child.stdout!));
 		expect(Number.isSafeInteger(descendant)).toBe(true);
@@ -119,7 +126,8 @@ async function firstLine(stream: ReadableStream<Uint8Array>): Promise<string> {
 
 /** Wait briefly for the operating system to reap a process killed through its group. */
 async function expectGone(pid: number): Promise<void> {
-	for (let attempt = 0; attempt < 50; attempt += 1) {
+	const deadline = performance.now() + 10_000;
+	while (performance.now() < deadline) {
 		try {
 			nodeProcess.kill(pid, 0);
 		} catch (error) {

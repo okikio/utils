@@ -60,13 +60,21 @@ export type WorkerEventType =
 
 /** Minimum raw Worker surface used by the handle and test adapters. */
 export interface RawWorker {
+	/** Send one protocol value with its explicit transferable ownership list. */
 	postMessage(message: unknown, transfer?: readonly Transferable[]): void;
+	/** Terminate the raw Worker; pending correlation must be settled by its owner. */
 	terminate(): void;
+	/** Attach a protocol listener; the owner removes it when its lifetime ends. */
 	addEventListener(type: 'message', listener: (event: MessageEvent<unknown>) => void): void;
+	/** Attach a protocol listener; the owner removes it when its lifetime ends. */
 	addEventListener(type: 'error', listener: (event: ErrorEvent) => void): void;
+	/** Attach a protocol listener; the owner removes it when its lifetime ends. */
 	addEventListener(type: 'messageerror', listener: (event: MessageEvent<unknown>) => void): void;
+	/** Remove a previously attached protocol listener without settling unrelated requests. */
 	removeEventListener(type: 'message', listener: (event: MessageEvent<unknown>) => void): void;
+	/** Remove a previously attached protocol listener without settling unrelated requests. */
 	removeEventListener(type: 'error', listener: (event: ErrorEvent) => void): void;
+	/** Remove a previously attached protocol listener without settling unrelated requests. */
 	removeEventListener(type: 'messageerror', listener: (event: MessageEvent<unknown>) => void): void;
 }
 
@@ -118,15 +126,21 @@ export interface WorkerHandle<Request, Response> extends AsyncDisposable {
 	pause(id: string): void;
 	/** Release one paused request checkpoint. */
 	resume(id: string): void;
+	/** Stop owned work and join the termination contract; the reason remains available for diagnostics. */
 	stop(reason?: unknown): Promise<void>;
 }
 
 /** Worker-global message surface used by the server and test adapters. */
 export interface RawWorkerScope {
+	/** Send one protocol value with its explicit transferable ownership list. */
 	postMessage(message: unknown, transfer?: readonly Transferable[]): void;
+	/** Attach a protocol listener; the owner removes it when its lifetime ends. */
 	addEventListener(type: 'message', listener: (event: MessageEvent<unknown>) => void): void;
+	/** Attach a protocol listener; the owner removes it when its lifetime ends. */
 	addEventListener(type: 'messageerror', listener: (event: MessageEvent<unknown>) => void): void;
+	/** Remove a previously attached protocol listener without settling unrelated requests. */
 	removeEventListener(type: 'message', listener: (event: MessageEvent<unknown>) => void): void;
+	/** Remove a previously attached protocol listener without settling unrelated requests. */
 	removeEventListener(type: 'messageerror', listener: (event: MessageEvent<unknown>) => void): void;
 }
 
@@ -173,6 +187,7 @@ export interface WorkerServeOptions<Request, Response, Notice = never, CallReque
 export interface WorkerServer extends AsyncDisposable {
 	/** Terminal Promise that resolves after this worker server has stopped and cleaned up. */
 	readonly closed: Promise<void>;
+	/** Stop owned work and join the termination contract; the reason remains available for diagnostics. */
 	stop(reason?: unknown): Promise<void>;
 }
 

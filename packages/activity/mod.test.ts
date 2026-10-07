@@ -281,7 +281,7 @@ describe('activity definitions and direct attempts', () => {
 			resources: collection,
 			jobId: ' ',
 			attempt: 1,
-		})).rejects.toThrow('jobId must not be empty');
+		})).rejects.toThrow(TypeError);
 	});
 
 	it('keeps declared failures explicit and rejects undeclared expected failures', async () => {

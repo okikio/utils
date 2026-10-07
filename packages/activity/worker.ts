@@ -238,7 +238,6 @@ export async function create(options: WorkerProviderOptions): Promise<WorkerProv
 			}));
 			contexts.check(acquireCtx);
 			let closing: Promise<void> | undefined;
-			let host!: Host;
 			const close = (reason?: unknown): Promise<void> => {
 				closing ??= (async () => {
 					try {
@@ -253,7 +252,7 @@ export async function create(options: WorkerProviderOptions): Promise<WorkerProv
 				})();
 				return closing;
 			};
-			host = Object.freeze({ ctx: hostCtx, worker, active, close });
+			const host: Host = Object.freeze({ ctx: hostCtx, worker, active, close });
 			live.add(host);
 			return host;
 		} catch (error) {

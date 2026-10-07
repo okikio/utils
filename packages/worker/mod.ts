@@ -1,11 +1,22 @@
 /**
- * Validated correlated request/response protocols for standard Worker threads.
+ * Call a standard Worker with validated, correlated requests instead of a hand-built postMessage listener. Correlation, reverse calls, cancellation and shutdown need distinct authority even when messages race.
  *
- * The module owns request correlation, schema validation, cancellation,
- * cooperative pause checkpoints, optional notices, reverse request/result
- * calls, expected failure encoding, transfer lists, protocol invalidation, and
- * shutdown. It does not treat notices or reverse calls as terminal request
- * results.
+ * Save the second module beside the first. Start with request/result, then add notices for progress and reverse calls for host-owned policy. A notice is not completion. Transfer lists move ownership of transferable data; they do not move arbitrary resources. Pause is cooperative and requires handler checkpoints. Cancellation can stop waiting for a schema, but an external validator still owns its resources. The parent owns Worker shutdown; each realm needs its own optional polyfill imports.
+ *
+ * @example
+ * ```ts
+ * import '@okikio/duration/polyfill';
+ * import '@okikio/dispose/polyfill';
+ * import * as context from '@okikio/context';
+ * import * as worker from '@okikio/worker';
+ * import { z } from 'zod';
+ * await using ctx = context.create({ id: 'thread-owner' });
+ * await using thread = worker.open(ctx, {
+ *   module: new URL('./thread.ts', import.meta.url),
+ *   protocol: worker.protocol({ request: z.string(), response: z.string() }),
+ * });
+ * console.log(await thread.request(ctx, 'hello'));
+ * ```
  *
  * @module
  */
@@ -36,8 +47,10 @@ import type {
 
 /** Worker returned an expected encoded failure. */
 export class WorkerFailureError extends Error {
+	/** Expected failure data retained under its declared contract. */
 	readonly failure: EncodedFailure;
 
+	/** Create this WorkerFailureError from the explicit contract values supplied by its caller. */
 	constructor(failure: EncodedFailure) {
 		super(failure.message);
 		this.name = 'WorkerFailureError';
@@ -47,8 +60,10 @@ export class WorkerFailureError extends Error {
 
 /** Worker returned or raised an unexpected fault. */
 export class WorkerFaultError extends Error {
+	/** Unexpected diagnostic data projected for this boundary. */
 	readonly fault: unknown;
 
+	/** Create this WorkerFaultError from the explicit contract values supplied by its caller. */
 	constructor(fault: unknown) {
 		super(fault instanceof Error ? fault.message : 'Worker faulted.', { cause: fault });
 		this.name = 'WorkerFaultError';
@@ -58,8 +73,10 @@ export class WorkerFaultError extends Error {
 
 /** Worker wire protocol was violated. */
 export class WorkerProtocolError extends Error {
+	/** Original invalid protocol frame retained for diagnostics. */
 	readonly messageValue: unknown;
 
+	/** Create this WorkerProtocolError from the explicit contract values supplied by its caller. */
 	constructor(message: string, messageValue?: unknown) {
 		super(message);
 		this.name = 'WorkerProtocolError';
@@ -69,8 +86,10 @@ export class WorkerProtocolError extends Error {
 
 /** Worker stopped before a pending request completed. */
 export class WorkerStoppedError extends Error {
+	/** Caller or runtime reason retained for cancellation or failure diagnostics. */
 	readonly reason: unknown;
 
+	/** Create this WorkerStoppedError from the explicit contract values supplied by its caller. */
 	constructor(reason?: unknown) {
 		super('Worker stopped before the request completed.', reason === undefined ? undefined : { cause: reason });
 		this.name = 'WorkerStoppedError';
@@ -216,7 +235,7 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 		// invalidating an otherwise healthy Worker correlation channel.
 		if (
 			request === undefined && this.#ended.has(requestId) &&
-			(message.type === 'call-result' || message.type === 'call-fault')
+			(['call-result', 'call-fault', 'cancel', 'pause', 'resume'].includes(message.type))
 		) {
 			return;
 		}
@@ -248,7 +267,7 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 		);
 	}
 
-	/** Validate one request envelope before creating its local cancellation and cleanup lifetime. */
+	/** Reserve one request identity and cleanup lifetime before asynchronous validation. */
 	async #start(message: Record<string, unknown>): Promise<void> {
 		if (typeof message.id !== 'string') {
 			await this.#fault(new WorkerProtocolError('Request envelope is missing a request ID.', message));
@@ -273,18 +292,9 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 			return;
 		}
 
-		let request: Request;
-		try {
-			request = await schema.parse(this.#options.protocol.request, message.request);
-		} catch (error) {
-			this.#post(Object.freeze({ type: 'fault', id: requestId, fault: serializeFault(error) }));
-			return;
-		}
-
 		let requestCtx: contextCore.Owned;
 		try {
 			requestCtx = contextCore.restore(message.context);
-			contextCore.check(requestCtx);
 		} catch (error) {
 			this.#post(Object.freeze({ type: 'fault', id: requestId, fault: serializeFault(error) }));
 			return;
@@ -292,7 +302,9 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 
 		const pause: PauseState = { paused: false, waiters: new Set() };
 		const calls = new Map<string, PendingCall<CallResponse>>();
-		const settled = this.#run(requestId, request, requestCtx, pause, calls);
+		// Reserve correlation before calling user validation. Controls and shutdown
+		// must see this request even when its schema waits for external work.
+		const settled = Promise.resolve().then(() => this.#run(requestId, message.request, requestCtx, pause, calls));
 		this.#active.set(requestId, { ctx: requestCtx, pause, calls, settled });
 		await settled;
 	}
@@ -300,7 +312,7 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 	/** Execute one request while preserving terminal-result, notice, and reverse-call authority separately. */
 	async #run(
 		requestId: string,
-		request: Request,
+		input: unknown,
 		requestCtx: contextCore.Owned,
 		pause: PauseState,
 		calls: Map<string, PendingCall<CallResponse>>,
@@ -344,7 +356,7 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 							Object.freeze({ type: 'call', id: requestId, callId, request: validated }),
 							messageOptions.transfer,
 						);
-						return await result;
+						return await during(requestCtx.signal, result);
 					} finally {
 						calls.delete(callId);
 					}
@@ -353,11 +365,14 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 		);
 
 		try {
+			contextCore.check(requestCtx);
+			const request = await during(requestCtx.signal, schema.parse(this.#options.protocol.request, input));
+			contextCore.check(requestCtx);
 			const handled = await this.#options.run(request, requestCtx, control);
 			if (requestCtx.signal.aborted) return;
 			contextCore.check(requestCtx);
 			const response = isReply(handled) ? handled.response : handled;
-			const validated = await schema.parse(this.#options.protocol.response, response);
+			const validated = await during(requestCtx.signal, schema.parse(this.#options.protocol.response, response));
 			if (requestCtx.signal.aborted) return;
 			this.#post(
 				Object.freeze({ type: 'result', id: requestId, response: validated }),
@@ -384,9 +399,12 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 				entry.reject(new WorkerStoppedError('Worker request ended before the reverse call completed.'));
 			}
 			calls.clear();
-			this.#active.delete(requestId);
-			this.#remember(requestId);
-			await requestCtx[Symbol.asyncDispose]();
+			try {
+				await requestCtx[Symbol.asyncDispose]();
+			} finally {
+				this.#active.delete(requestId);
+				this.#remember(requestId);
+			}
 		}
 	}
 
@@ -505,6 +523,8 @@ class Handle<Request, Response, Notice, CallRequest, CallResponse> {
 	readonly #raw: RawWorker;
 	readonly #events = new EventBus<WorkerEventType>();
 	readonly #pending = new Map<string, Pending<Response>>();
+	/** Admission owns IDs before a validated request is sent to the Worker. */
+	readonly #admitting = new Map<string, AbortController>();
 	readonly #cancelledIds = new Map<string, ReturnType<typeof setTimeout>>();
 	readonly #createRequestId: () => string;
 	readonly #shutdownMs: number;
@@ -533,16 +553,17 @@ class Handle<Request, Response, Notice, CallRequest, CallResponse> {
 		this.#options = options;
 		this.#id = options.id ?? crypto.randomUUID();
 		assertId(this.#id, 'Worker');
+		this.#shutdownMs = options.shutdownMs ?? 1_000;
+		if (!Number.isSafeInteger(this.#shutdownMs) || this.#shutdownMs < 0) {
+			throw new TypeError('shutdownMs must be a non-negative safe integer.');
+		}
 		const createRaw = options.create ?? ((module, workerOptions) => new Worker(module, workerOptions) as RawWorker);
 		this.#raw = createRaw(options.module, {
 			type: 'module',
 			...(options.name === undefined ? {} : { name: options.name }),
 		});
 		this.#createRequestId = options.requestId ?? (() => crypto.randomUUID());
-		this.#shutdownMs = options.shutdownMs ?? 1_000;
-		if (!Number.isSafeInteger(this.#shutdownMs) || this.#shutdownMs < 0) {
-			throw new TypeError('shutdownMs must be a non-negative safe integer.');
-		}
+
 		this.#stopped = new Promise<void>((resolve) => this.#resolveStopped = resolve);
 		this.#raw.addEventListener('message', this.#message);
 		this.#raw.addEventListener('error', this.#error);
@@ -567,34 +588,46 @@ class Handle<Request, Response, Notice, CallRequest, CallResponse> {
 		if (this.#state !== 'active') throw new WorkerStoppedError();
 		const requestId = requestOptions.id ?? this.#createRequestId();
 		assertId(requestId, 'Worker request');
-		if (this.#pending.has(requestId) || this.#cancelledIds.has(requestId)) {
+		if (this.#admitting.has(requestId) || this.#pending.has(requestId) || this.#cancelledIds.has(requestId)) {
 			throw new TypeError(`Worker request ID ${JSON.stringify(requestId)} is already active or recently cancelled.`);
 		}
-		const validated = await schema.parse(this.#options.protocol.request, request);
-		contextCore.check(requestCtx);
-		const envelope = Object.freeze(
-			{
-				type: 'request',
-				id: requestId,
-				context: contextCore.snapshot(requestCtx),
-				request: validated,
-			} satisfies WorkerRequestEnvelope<Request>,
-		);
-		const response = new Promise<Response>((resolve, reject) => {
-			const abort = () => this.#cancel(requestId, requestCtx, reject);
-			const unlink = () => requestCtx.signal.removeEventListener('abort', abort);
-			this.#pending.set(requestId, { ctx: requestCtx, resolve, reject, unlink });
-			requestCtx.signal.addEventListener('abort', abort, { once: true });
-			if (requestCtx.signal.aborted) abort();
-		});
-		if (!this.#pending.has(requestId)) return await response;
+		const admission = new AbortController();
+		this.#admitting.set(requestId, admission);
 		try {
-			this.#raw.postMessage(envelope, requestOptions.transfer);
-			this.#events.emit(Object.freeze({ type: 'request', id: requestId }));
+			const signal = AbortSignal.any([requestCtx.signal, admission.signal]);
+			const validated = await during(signal, schema.parse(this.#options.protocol.request, request));
+			contextCore.check(requestCtx);
+			if (this.#state !== 'active') throw new WorkerStoppedError();
+			const envelope = Object.freeze(
+				{
+					type: 'request',
+					id: requestId,
+					context: contextCore.snapshot(requestCtx),
+					request: validated,
+				} satisfies WorkerRequestEnvelope<Request>,
+			);
+			const response = new Promise<Response>((resolve, reject) => {
+				const abort = () => this.#cancel(requestId, requestCtx, reject);
+				const unlink = () => requestCtx.signal.removeEventListener('abort', abort);
+				this.#pending.set(requestId, { ctx: requestCtx, resolve, reject, unlink });
+				requestCtx.signal.addEventListener('abort', abort, { once: true });
+				if (requestCtx.signal.aborted) abort();
+			});
+			this.#admitting.delete(requestId);
+			if (!this.#pending.has(requestId)) return await response;
+			try {
+				this.#raw.postMessage(envelope, requestOptions.transfer);
+				this.#events.emit(Object.freeze({ type: 'request', id: requestId }));
+			} catch (error) {
+				this.#settle(requestId, (entry) => entry.reject(error));
+			}
+			return await response;
 		} catch (error) {
-			this.#settle(requestId, (entry) => entry.reject(error));
+			contextCore.check(requestCtx);
+			throw error;
+		} finally {
+			if (this.#admitting.get(requestId) === admission) this.#admitting.delete(requestId);
 		}
-		return await response;
 	}
 
 	/** Cancel exactly one parent request and remember its ID long enough to ignore one raced terminal response. */
@@ -638,6 +671,7 @@ class Handle<Request, Response, Notice, CallRequest, CallResponse> {
 	async #stop(reason?: unknown): Promise<void> {
 		if (this.#state === 'stopped') return;
 		this.#state = 'stopping';
+		for (const admission of this.#admitting.values()) admission.abort(new WorkerStoppedError(reason));
 		this.#events.emit(Object.freeze({ type: 'stopping', ...(reason === undefined ? {} : { reason }) }));
 		try {
 			this.#raw.postMessage(Object.freeze({ type: 'shutdown', ...(reason === undefined ? {} : { reason }) }));
@@ -812,6 +846,7 @@ class Handle<Request, Response, Notice, CallRequest, CallResponse> {
 	#finish(reason: unknown, forced: boolean): void {
 		if (this.#state === 'stopped') return;
 		this.#state = 'stopped';
+		for (const admission of this.#admitting.values()) admission.abort(new WorkerStoppedError(reason));
 		this.#raw.terminate();
 		this.#ctx.signal.removeEventListener('abort', this.#abort);
 		this.#raw.removeEventListener('message', this.#message);
@@ -955,3 +990,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export type * from './types.ts';
+
+/**
+ * Observe schema or reverse-call settlement while its request is still owned.
+ * Cancellation removes our listener and consumes a later rejection. It cannot
+ * stop an external validator; the validator must own its own resources.
+ */
+function during<Value>(signal: AbortSignal, value: Promise<Value>): Promise<Value> {
+	return new Promise<Value>((resolve, reject) => {
+		const finish = (action: () => void) => {
+			signal.removeEventListener('abort', abort);
+			action();
+		};
+		const abort = () => finish(() => reject(signal.reason));
+		signal.addEventListener('abort', abort, { once: true });
+		value.then((result) => finish(() => resolve(result)), (error) => finish(() => reject(error)));
+		if (signal.aborted) abort();
+	});
+}

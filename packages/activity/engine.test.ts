@@ -53,6 +53,6 @@ describe('@okikio/activity/engine', () => {
 
 	it('rejects malformed definitions before they enter placement state', () => {
 		expect(() => engine.allow({ kind: 'activity-engine', id: '' } as engine.EngineDefinition)).toThrow();
-		expect(() => engine.compose([])).toThrow('Activity placement requires at least one engine.');
+		expect(() => engine.compose([])).toThrow(TypeError);
 	});
 });
