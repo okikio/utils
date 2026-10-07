@@ -1,3 +1,19 @@
+/**
+ * Parse imperfect HTML and query it through one consistent tree adapter. A selector library and a parser with incompatible trees can silently return no matches even when the element exists.
+ *
+ * Select elements for discovery, read attributes and text, then inspect source locations for evidence or rewriting. Resolve relative URLs against the fetched page URL in your application. Parsing does not run scripts or fetch subresources. The parsed tree is process-local data; share a serializable projection with a Worker rather than treating DOM identity as a wire contract.
+ *
+ * @example
+ * ```ts
+ * import * as html from '@okikio/html';
+ * const page = html.parse('<main><a href="/guide">Read the guide</a></main>');
+ * const link = html.selectOne(page.document, 'main a[href]');
+ * console.log(link === null ? 'missing' : html.attribute(link, 'href'));
+ * console.log(link === null ? 'missing' : html.text(link));
+ * ```
+ *
+ * @module
+ */
 import { is as matchesCss, selectAll as selectCssAll, selectOne as selectCssOne } from 'css-select';
 import { type AnyNode, type Document, type Element, isTag } from 'domhandler';
 import { textContent } from 'domutils';
@@ -6,18 +22,27 @@ import { adapter, type Htmlparser2TreeAdapterMap } from 'parse5-htmlparser2-tree
 
 /** One HTML parser problem with source coordinates when parse5 provides them. */
 export interface ParseProblem {
+	/** Stable machine-readable reason that callers can inspect without matching message text. */
 	readonly code: string;
+	/** Starting line in the original source. */
 	readonly startLine?: number;
+	/** Starting column in the original source. */
 	readonly startColumn?: number;
+	/** Start offset in the original source. */
 	readonly startOffset?: number;
+	/** Ending line in the original source. */
 	readonly endLine?: number;
+	/** Ending column in the original source. */
 	readonly endColumn?: number;
+	/** Exclusive end offset in the original source. */
 	readonly endOffset?: number;
 }
 
 /** WHATWG-parsed source HTML plus non-fatal parser problems. */
 export interface ParsedDocument {
+	/** Parsed htmlparser2-compatible document root; selectors inspect this same tree. */
 	readonly document: Document;
+	/** Non-fatal parse5 observations retained with their source locations. */
 	readonly problems: readonly ParseProblem[];
 }
 

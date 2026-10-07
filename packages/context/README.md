@@ -1,5 +1,88 @@
 # `@okikio/context`
 
+Give nested work one cancellation signal, deadline, clock and cleanup owner. Passing separate signals and timers through
+every call otherwise makes it easy to outlive the caller or forget a temporary resource.
+
+## Run a complete example
+
+A timeout starts the familiar clock wait, but returns the owner of a child operation rather than a timer ID or a Promise
+for work. This complete example registers cleanup and shows when it runs:
+
+```ts runnable
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as context from '@okikio/context';
+
+const cleanup: string[] = [];
+{
+	await using parent = context.create({ id: 'import' });
+	await using operation = context.timeout(parent, { seconds: 2 });
+	operation.defer(() => {
+		cleanup.push('released');
+	});
+	console.log(operation.id, operation.deadline !== undefined);
+}
+console.log(cleanup.join(','));
+```
+
+Expected output:
+
+```text output
+import true
+released
+```
+
+`create()` and `timeout()` return `Owned` immediately. `operation` contains a signal, deadline, clock, and cleanup
+registration methods. The timeout asks that signal to abort after two seconds, or at the parent's earlier deadline. It
+does not invoke a callback, run a function, return a function's value, or forcibly interrupt JavaScript.
+
+Pass `operation.signal` to work that supports cancellation. Check it between synchronous steps. Leaving the block awaits
+child cleanup and cancels the unused deadline wait; it does not cancel the parent. Expiry aborts the signal, while
+disposal releases registered resources. Those are separate actions: expiry does not automatically dispose the child. The
+caller still owns `await using` or explicit awaited disposal.
+
+A manual equivalent needs an AbortController, a parent abort listener, a deadline timer, and a cleanup stack, then must
+remove the listener and cancel the timer when work finishes. Use `context.delay()` for only a delay; `context.timeout()`
+is useful when nested work also needs one cancellation and cleanup lifetime.
+
+## Build on the example
+
+Start with create(), derive a child deadline for an expensive operation, and register cleanup on the context that owns
+it. Use view() or family scopes to attach capabilities without inventing a new lifetime. Snapshots carry identity and
+deadline across a transport; they do not carry resources or cancellation listeners. TestClock lets tests advance logical
+time without assuming a fast machine.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
+## Observe deadline time without waiting on the machine
+
+Use `TestClock` when demonstrating or testing expiry. Both the deadline and the wait use the same logical clock:
+
+```ts runnable=logical-time.ts
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as context from '@okikio/context';
+
+const clock = new context.TestClock();
+await using parent = context.create({ id: 'import', clock });
+await using child = context.timeout(parent, { seconds: 2 });
+const waiting = context.wait(child, { seconds: 1 });
+clock.advance({ seconds: 1 });
+await waiting;
+console.log(context.remaining(child)?.milliseconds);
+```
+
+```text output
+1000
+```
+
+`wait()` returns `Promise<void>` and rejects on cancellation or expiry. `remaining()` only reads deadline state and
+returns a Temporal duration or `undefined`; it starts no timer. The child still needs disposal even after the wait
+settles. For actual bounded import work, see
+[the complete composition](../../docs/composition.md#import-rows-with-bounded-work).
+
 ## Purpose
 
 `@okikio/context` carries the local execution state that many runtime operations need: identity, cancellation,
@@ -98,9 +181,9 @@ job.defer(async () => {
 
 ## Progressive usage
 
-The package participates in the complete domain-enrichment example in `../../docs/composition.md`. Read that guide when
-the individual helpers make sense in isolation but their place in a service, resource graph, runtime host, or workflow
-is not yet clear.
+Read [complete compositions](../../docs/composition.md) for a bounded CSV import, allowed-page discovery and a
+resource-backed operation. Each example names its result and owner. Use [the outcome guide](../../docs/outcomes.md) to
+choose additional mechanisms when the application needs them.
 
 ## Ownership diagram
 
@@ -126,35 +209,22 @@ serialized seam
 
 ## Convenience and the manual equivalent
 
-Concrete map
+| Convenience                                    | Manual equivalent                                                                                                                                             | Concrete value                                              |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `context.child()`                              | create an `AbortController`, link the parent signal, clamp the deadline, schedule the deadline through the inherited clock, and own an `AsyncDisposableStack` | one child lifetime with deterministic cleanup               |
+| `context.wait(ctx, duration)`                  | check cancellation/deadline, wait through `ctx.clock.sleep()`, then check again                                                                               | deterministic clocks control both observed time and wake-up |
+| `context.waitFor(ctx, listen)`                 | register one external resume callback, remove it on resume or cancellation, and retain context cancellation semantics                                         | cooperative gates do not leak callbacks                     |
+| `context.settles(value, milliseconds, clock?)` | race one value against a clock wait and cancel only the losing clock wait                                                                                     | host cleanup can keep its own shutdown policy               |
+| `snapshot()` / `restore()`                     | serialize IDs/timestamps only and create a fresh local controller on the other side                                                                           | serializable identity without serializing live resources    |
 
-```
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `context.child()` | create an `AbortController`, link the parent signal, clamp the deadline, schedule the deadline through the inherited clock, and own an `AsyncDisposableStack` | one child lifetime with deterministic cleanup |
-| `context.wait(ctx, duration)` | check cancellation/deadline, wait through `ctx.clock.sleep()`, then check again | deterministic clocks control both observed time and wake-up |
-| `context.waitFor(ctx, listen)` | register one external resume callback, remove it on resume or cancellation, and retain context cancellation semantics | cooperative gates do not leak callbacks |
-| `context.settles(value, milliseconds, clock?)` | race one value against a clock wait and cancel only the losing clock wait | host cleanup can keep its own shutdown policy |
-| `snapshot()` / `restore()` | serialize IDs/timestamps only and create a fresh local controller on the other side | serializable identity without serializing live resources |
-
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
-
-
-`@okikio/context` is a convenience layer, not a hidden runtime. You can reproduce its
-core mechanics with AbortController, AbortSignal, Temporal, AsyncDisposableStack, and @std/async/delay.
+`@okikio/context` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics with
+AbortController, AbortSignal, Temporal, AsyncDisposableStack, and @std/async/delay.
 
 The utility adds one shared identity/deadline/clock model and makes owned cleanup explicit.
 
-When debugging or extending the package, keep that manual model in mind. The
-utility should remove repetitive correctness work without making the underlying
-Web, ECMAScript, Standard Schema, or runtime primitives impossible to recognize.
+## Cancellation, clocks, and diagnostics
 
-
-Cancellation, clocks, and diagnostics
-------------------------------------
-
-The basic examples use `check()`, `wait()`, and `delay()`. These exports cover
-the rest of the local operation model:
+The basic examples use `check()`, `wait()`, and `delay()`. These exports cover the rest of the local operation model:
 
 - `cancel()` cancels an owned context explicitly.
 - `cancelled()` distinguishes context cancellation and deadline errors from ordinary failures.
@@ -164,23 +234,16 @@ the rest of the local operation model:
 - `settles()` reports whether a value settled before a clock duration without cancelling that value.
 - `combineSignals()` combines borrowed signals when an integration needs one signal.
 - `SystemClock` is the normal real-time clock; `TestClock` is deterministic test time and deterministic sleeping.
-- `ContextCancelledError` and `ContextDeadlineExceededError` distinguish explicit
-  cancellation from deadline expiry.
+- `ContextCancelledError` and `ContextDeadlineExceededError` distinguish explicit cancellation from deadline expiry.
 
+## Source guide
 
-Source guide
-------------
-
-Start with this README, then use the source in this order when you need more
-detail:
+Start with this README, then use the source in this order when you need more detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
-   behavior as executable examples.
-4. Read internal implementation files only when you need the exact state
-   transition or performance-sensitive loop.
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
+4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to
-the public source instead of maintaining a separate hand-written API reference.
-```
+The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
+separate hand-written API reference.

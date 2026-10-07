@@ -1,5 +1,34 @@
 # `@okikio/utils`
 
+Install the suite once while importing only the focused surface a consumer needs. An eager namespace import can
+otherwise pull parsers, adapters and server implementations into a small program.
+
+## Run a complete example
+
+```ts runnable
+import * as result from '@okikio/utils/result';
+import * as record from '@okikio/utils/record';
+const value = result.ok({ id: 'asset-1' });
+console.log(record.keys(result.unwrap(value)).join(','));
+```
+
+Expected output:
+
+```text output
+id
+```
+
+## Build on the example
+
+Use @okikio/utils/<package> for one-install convenience or install @okikio/<package> independently. Deep subpaths
+preserve each focused export, including explicit polyfills and runtime adapters. The root inventory is lightweight; the
+all facade is a deliberate eager choice. All packages are currently version 0.0.0 and experimental, so validate the
+exact export and contract when upgrading.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/utils` is the installation package for the complete Okikio utility suite. It does not implement a second copy
@@ -135,5 +164,5 @@ These files are generated re-export bridges. They do not contain alternate imple
 umbrella equivalents and checks that the umbrella adds no meaningful runtime weight. A namespace-import case is included
 because barrels can accidentally defeat tree-shaking even when named imports look healthy.
 
-The disposal polyfill is the explicit exception: it is intentionally marked as side-effectful and remains behind its own
-subpath.
+The disposal and Temporal polyfills are explicit exceptions: they install missing globals, are marked side-effectful,
+and stay behind their own setup subpaths.

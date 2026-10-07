@@ -1,5 +1,31 @@
 # `@okikio/email`
 
+Normalize and classify email-domain evidence without inventing application policy. Comparing raw addresses or
+maintaining ad hoc domain lists makes casing and subdomain behavior inconsistent.
+
+## Run a complete example
+
+```ts runnable
+import * as email from '@okikio/email';
+console.log(email.normalizeDomain('Example.COM'));
+```
+
+Expected output:
+
+```text output
+example.com
+```
+
+## Build on the example
+
+Normalize a domain first, then use the supplied classifier or provide your own classification rules. Use the evidence to
+route signup review or data enrichment; do not treat domain classification as identity verification or mailbox
+deliverability. Network checks, domain ownership, consent and product decisions belong to your application.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/email` normalizes email domains and returns independent evidence about public mailbox providers, privacy
@@ -10,7 +36,7 @@ relays, and disposable domains. It performs no network, DNS, filesystem, databas
 ```ts
 import * as email from '@okikio/email';
 
-const domain = email.normalizeDomain('Person@Example.COM');
+const domain = email.normalizeDomain('Example.COM');
 const evidence = domain === undefined ? undefined : email.DEFAULT_DOMAIN_CLASSIFIER.classify(domain);
 ```
 
@@ -76,36 +102,24 @@ remain plain TypeScript data so browser, Deno, Node, edge, worker, and test runt
 
 ## Progressive usage
 
-The package participates in the complete domain-enrichment example in `../../docs/composition.md`. Read that guide when
-the individual helpers make sense in isolation but their place in a service, resource graph, runtime host, or workflow
-is not yet clear.
+Read [complete compositions](../../docs/composition.md) for a bounded CSV import, allowed-page discovery and a
+resource-backed operation. Each example names its result and owner. Use [the outcome guide](../../docs/outcomes.md) to
+choose additional mechanisms when the application needs them.
 
 ## Convenience and the manual equivalent
 
-Concrete map
+| Convenience                      | Manual equivalent                                                                                        | Concrete value                                           |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `email.normalizeDomain()`        | trim, lower-case, remove surrounding syntax, validate hostname labels, and normalize the result yourself | one canonical domain form before classification          |
+| `email.createDomainClassifier()` | combine reviewed provider/disposable/privacy rule sets and apply precedence manually                     | repeatable provider classification with caller overrides |
+| `email.extractDomains()`         | parse candidate email-like text, normalize each domain, and de-duplicate the results                     | focused extraction without owning a broader NLP pipeline |
 
-```
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `email.normalizeDomain()` | trim, lower-case, remove surrounding syntax, validate hostname labels, and normalize the result yourself | one canonical domain form before classification |
-| `email.createDomainClassifier()` | combine reviewed provider/disposable/privacy rule sets and apply precedence manually | repeatable provider classification with caller overrides |
-| `email.extractDomains()` | parse candidate email-like text, normalize each domain, and de-duplicate the results | focused extraction without owning a broader NLP pipeline |
-
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
-
-
-`@okikio/email` is a convenience layer, not a hidden runtime. You can reproduce its
-core mechanics with trim and normalize strings, parse addresses, and classify known forms yourself.
+`@okikio/email` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics by trimming and
+normalizing strings, parsing addresses and classifying known forms.
 
 The utility centralizes those deterministic rules so callers do not invent incompatible email normalization.
 
-When debugging or extending the package, keep that manual model in mind. The
-utility should remove repetitive correctness work without making the underlying
-Web, ECMAScript, Standard Schema, or runtime primitives impossible to recognize.
-
-
-Classification building blocks
-------------------------------
+## Classification building blocks
 
 The convenience classifier is built from exports that remain useful independently:
 
@@ -115,20 +129,14 @@ The convenience classifier is built from exports that remain useful independentl
 - `email.extractDomains()` extracts normalized domains from email-like input.
 - `normalizeHostname()` normalizes a website hostname before organization/domain comparison.
 
+## Source guide
 
-Source guide
-------------
-
-Start with this README, then use the source in this order when you need more
-detail:
+Start with this README, then use the source in this order when you need more detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
-   behavior as executable examples.
-4. Read internal implementation files only when you need the exact state
-   transition or performance-sensitive loop.
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
+4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to
-the public source instead of maintaining a separate hand-written API reference.
-```
+The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
+separate hand-written API reference.

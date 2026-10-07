@@ -1,5 +1,51 @@
 # `@okikio/effect`
 
+Represent an externally visible fact separately from delivery. Logging that a file was saved does not prove an outbox or
+billing ledger accepted that fact.
+
+## Run a complete example
+
+The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
+implementation is preserved.
+
+```ts runnable
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as context from '@okikio/context';
+import * as effect from '@okikio/effect';
+import { z } from 'zod';
+const Saved = effect.define({ id: 'asset.saved', value: z.object({ id: z.string() }) });
+await using owner = context.create({ id: 'save' });
+const accepted: string[] = [];
+const ctx = effect.scope(owner, {
+	effects: [Saved],
+	emitter: {
+		async emit(_ctx, occurrence) {
+			accepted.push(occurrence.key);
+		},
+	},
+});
+await effect.emit(ctx, Saved, { id: 'asset-1' }, { key: 'save:asset-1' });
+console.log(accepted.join(','));
+```
+
+Expected output:
+
+```text output
+save:asset-1
+```
+
+## Build on the example
+
+Create an occurrence without delivery when staging work, then emit it through an owner that accepts or rejects it. Add a
+queue-backed emitter when the application needs delayed delivery. Stable keys let an authoritative sink deduplicate
+retries; the utility cannot make arbitrary external side effects exactly once. Declared effects restrict what a scope
+may emit, and cancellation after acceptance does not revoke the accepted fact.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 `@okikio/effect` lets code declare and announce externally observable side effects without coupling the declaration to a
 queue, database, workflow engine, or provider SDK.
 
@@ -113,8 +159,9 @@ await using runtime = service.create(compiled, {
 });
 ```
 
-If a compiled execution can emit an effect and no owner is configured, runtime creation fails. If code tries to emit an
-effect that the execution did not declare, `UndeclaredEffectError` fails that call.
+A declaration permits an announcement, so a service can start without an effect owner. An actual `emit()` call requires
+that owner and fails with `MissingEffectEmitterError` when none is bound. If code tries to emit an effect that the
+execution did not declare, `UndeclaredEffectError` fails that call.
 
 ## Atomicity is owned where the side effect occurs
 

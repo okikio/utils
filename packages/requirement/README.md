@@ -1,5 +1,52 @@
 # `@okikio/requirement`
 
+Keep declarations of required capabilities separate from the host that interprets them. Hard-coding a billing or
+permission SDK into each resource makes definitions impossible to inspect without starting that SDK.
+
+## Run a complete example
+
+The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
+implementation is preserved.
+
+```ts runnable
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as context from '@okikio/context';
+import * as requirement from '@okikio/requirement';
+const Feature = Object.freeze({ kind: 'entitlement', id: 'export.csv' });
+const NeedsExport = requirement.define({ family: 'entitlement', action: 'require', definition: Feature });
+await using owner = context.create({ id: 'export' });
+const applied: string[] = [];
+const ctx = requirement.scope(owner, {
+	interpreters: {
+		entitlement: {
+			async apply(_ctx, entries) {
+				applied.push(...entries.map((entry) => entry.definition.id));
+			},
+		},
+	},
+});
+await requirement.apply(ctx, [NeedsExport]);
+console.log(applied.join(','));
+```
+
+Expected output:
+
+```text output
+export.csv
+```
+
+## Build on the example
+
+Attach requirements to definitions, inspect the reachable graph for deployment planning, and apply only the requirements
+active on the current execution path. Each semantic family owns its interpreter and failures. The example interpreter
+records admission in memory; replace it with real policy before using it for access control. Missing interpreters reject
+by default. Scope views borrow their owner context.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 `@okikio/requirement` is the open policy-family mechanism used by the service compiler. A requirement says that one
 exact domain rule can become active. The requirement package preserves identity, family, action, reachability, and
 runtime activation without implementing the policy engine itself.

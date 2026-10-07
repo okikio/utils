@@ -1,3 +1,17 @@
+/**
+ * Read sitemap, feed and text discovery sources through one record model. Looking for every XML loc element loses source kind, alternate links and malformed-document evidence.
+ *
+ * Use locations() when only URLs matter, parse() when provenance and metadata matter, and parseStream() for bounded incremental ingestion. Choose standards or lenient policy explicitly for imperfect sources and retain problems for diagnostics. The utility does not fetch nested sitemap indexes or choose crawl priority. The acquiring application owns network, byte and source-count budgets.
+ *
+ * @example
+ * ```ts
+ * import * as sitemap from '@okikio/sitemap';
+ * const text = '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.com/guide</loc></url></urlset>';
+ * console.log(JSON.stringify(sitemap.locations({ url: 'https://example.com/sitemap.xml', contentType: 'application/xml', text })));
+ * ```
+ *
+ * @module
+ */
 import {
 	parse as parseXmlDocument,
 	parseXmlRecordsFromBytes,
@@ -12,7 +26,9 @@ export type SitemapParsePolicy = 'standards' | 'lenient';
 
 /** One localized alternate declared beside a sitemap URL. */
 export interface SitemapAlternate {
+	/** URL associated with this parsed resource reference. */
 	readonly href: string;
+	/** Language tag declared for this alternate source location. */
 	readonly hreflang: string;
 }
 
@@ -21,21 +37,33 @@ export type SitemapFormat = 'xml' | 'rss' | 'atom' | 'text';
 
 /** One page/resource URL declared by a sitemap source. */
 export interface SitemapUrlRecord {
+	/** Stable discriminant that selects the documented variant. */
 	readonly kind: 'url';
+	/** Location declared by the source document. */
 	readonly loc: string;
+	/** Selected external representation format. */
 	readonly format: SitemapFormat;
+	/** Optional source modification instant reported by the external document. */
 	readonly lastModified?: string;
+	/** Optional change-frequency hint declared by the sitemap source. */
 	readonly changeFrequency?: string;
+	/** Optional sitemap priority hint; it does not establish crawl order or source authority. */
 	readonly priority?: number;
+	/** Alternate language locations declared by the source. */
 	readonly alternates: readonly SitemapAlternate[];
 }
 
 /** One child source declared by an XML sitemap index. */
 export interface SitemapSourceRecord {
+	/** Stable discriminant that selects the documented variant. */
 	readonly kind: 'sitemap';
+	/** Location declared by the source document. */
 	readonly loc: string;
+	/** Selected external representation format. */
 	readonly format: 'xml';
+	/** Optional source modification instant reported by the external document. */
 	readonly lastModified?: string;
+	/** Alternate language locations declared by the source. */
 	readonly alternates: readonly SitemapAlternate[];
 }
 
@@ -44,15 +72,21 @@ export type SitemapRecord = SitemapUrlRecord | SitemapSourceRecord;
 
 /** Non-fatal or fatal parser evidence retained for the caller. */
 export interface SitemapProblem {
+	/** Stable machine-readable reason that callers can inspect without matching message text. */
 	readonly code: 'doctype_not_allowed' | 'malformed_xml' | 'nonstandard_text_comment' | 'unexpected_sitemap_namespace';
+	/** Human-readable explanation; use the stable code or discriminant for program decisions. */
 	readonly message: string;
 }
 
 /** Result metadata from an incrementally parsed sitemap source. */
 export interface SitemapStreamResult {
+	/** Number of encoded bytes represented by this value. */
 	readonly byteLength: number;
+	/** Whether the reported result was limited by a configured bound. */
 	readonly capped: boolean;
+	/** Selected external representation format. */
 	readonly format?: SitemapFormat;
+	/** Parser and format observations associated with the inspected sitemap. */
 	readonly problems: readonly SitemapProblem[];
 }
 

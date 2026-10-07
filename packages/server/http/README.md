@@ -1,5 +1,31 @@
 # `@okikio/server/http`
 
+Mount a portable Fetch app while keeping listener ownership with the host.
+
+## Run a complete example
+
+```ts runnable
+import * as http from '@okikio/server/http';
+const app = http.create({
+	routes: [http.route('GET', '/health', () => Response.json({ ok: true }))],
+	middleware: [http.securityHeaders()],
+});
+console.log((await app.fetch(new Request('https://service.invalid/health', { method: 'HEAD' }))).status);
+console.log((await app.fetch(new Request('https://service.invalid/missing'))).status);
+```
+
+Expected output:
+
+```text output
+200
+404
+```
+
+## Build on the example
+
+Add mounts, request correlation, CORS or safe exception responses deliberately. HEAD fallback selects GET behavior while
+the runtime suppresses its response body. A Deno or framework adapter owns the network listener.
+
 This package provides the Fetch host used by compiled services and manually authored routes. It prepares route matching,
 binds handlers, composes HTTP middleware, and mounts other Fetch handlers.
 

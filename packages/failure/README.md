@@ -1,5 +1,41 @@
 # `@okikio/failure`
 
+Give expected rejection a stable identity and validated data that can cross a process or storage boundary. Catching
+every Error by message makes a renamed sentence change application behavior.
+
+## Run a complete example
+
+```ts runnable
+import * as failure from '@okikio/failure';
+import { z } from 'zod';
+const Missing = failure.define({
+	id: 'asset.missing',
+	description: 'The requested asset does not exist.',
+	data: z.object({ id: z.string() }),
+});
+const occurrence = await failure.create(Missing, { data: { id: 'asset-1' } });
+const wire = await failure.encode(occurrence);
+const restored = await failure.decode(wire, [Missing]);
+console.log(restored.definition === Missing, restored.data.id);
+```
+
+Expected output:
+
+```text output
+true asset-1
+```
+
+## Build on the example
+
+Use failures for expected domain outcomes such as missing input or a declined request. Encode at a transport boundary
+and decode against trusted definitions on the receiving side. Unknown identities reject instead of manufacturing
+authority from input. Unexpected exceptions belong to fault diagnostics; HTTP presentation belongs to problem
+definitions. Do not put secrets in durable failure data.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/failure` defines expected reasons that an operation cannot complete as intended.
@@ -73,57 +109,41 @@ nested `data` value is then validated by the trusted failure definition's Standa
 
 ## Progressive usage
 
-The package participates in the complete domain-enrichment example in `../../docs/composition.md`. Read that guide when
-the individual helpers make sense in isolation but their place in a service, resource graph, runtime host, or workflow
-is not yet clear.
+Read [complete compositions](../../docs/composition.md) for a bounded CSV import, allowed-page discovery and a
+resource-backed operation. Each example names its result and owner. Use [the outcome guide](../../docs/outcomes.md) to
+choose additional mechanisms when the application needs them.
 
 ## Convenience and the manual equivalent
 
-Concrete map
+| Convenience                              | Manual equivalent                                                                                                                      | Concrete value                                               |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `failure.define()` + occurrence creation | freeze failure identity, validate structured data, and retain nominal package-created occurrence identity                              | declared failures stay distinguishable from arbitrary errors |
+| `encode()` / `decode()`                  | copy stable id/message/data into a cloneable envelope, validate descriptors, then resolve the current definition before reconstruction | safe durable transport without serializing Error instances   |
+| `failure.match()`                        | write repeated ID checks and casts for every declared failure branch                                                                   | exhaustive typed failure handling                            |
 
-```
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `failure.define()` + occurrence creation | freeze failure identity, validate structured data, and retain nominal package-created occurrence identity | declared failures stay distinguishable from arbitrary errors |
-| `encode()` / `decode()` | copy stable id/message/data into a cloneable envelope, validate descriptors, then resolve the current definition before reconstruction | safe durable transport without serializing Error instances |
-| `failure.match()` | write repeated ID checks and casts for every declared failure branch | exhaustive typed failure handling |
-
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
-
-
-`@okikio/failure` is a convenience layer, not a hidden runtime. You can reproduce its
-core mechanics with a tagged immutable record plus a map from IDs to definitions.
+`@okikio/failure` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics with a tagged
+immutable record plus a map from IDs to definitions.
 
 The utility adds schema validation, trusted catalog decoding, matching, and stable encoded failure transport.
 
-When debugging or extending the package, keep that manual model in mind. The
-utility should remove repetitive correctness work without making the underlying
-Web, ECMAScript, Standard Schema, or runtime primitives impossible to recognize.
-
-
-Composition and decoding helpers
---------------------------------
+## Composition and decoding helpers
 
 - `failure.catalog()`, `select()`, and `compose()` build exact imported failure universes.
-- `isOccurrence()` checks that an unknown `Error` was actually created by this module instance; a lookalike object with `definition` and `data` fields is not accepted.
-- `isEncoded()` checks the inert durable envelope shape without invoking accessor-backed fields. Use it at generic transport seams that do not yet have the trusted catalog required for `decode()`.
+- `isOccurrence()` checks that an unknown `Error` was actually created by this module instance; a lookalike object with
+  `definition` and `data` fields is not accepted.
+- `isEncoded()` checks the inert durable envelope shape without invoking accessor-backed fields. Use it at generic
+  transport seams that do not yet have the trusted catalog required for `decode()`.
 - `match()` dispatches one occurrence to handlers keyed by exact failure definitions.
 - `UnknownFailureDefinitionError` reports durable encoded failure data whose ID is not in the trusted definition set.
 
+## Source guide
 
-Source guide
-------------
-
-Start with this README, then use the source in this order when you need more
-detail:
+Start with this README, then use the source in this order when you need more detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
-   behavior as executable examples.
-4. Read internal implementation files only when you need the exact state
-   transition or performance-sensitive loop.
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
+4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to
-the public source instead of maintaining a separate hand-written API reference.
-```
+The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
+separate hand-written API reference.

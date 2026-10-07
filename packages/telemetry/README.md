@@ -1,5 +1,37 @@
 # `@okikio/telemetry`
 
+Report correlated diagnostic events without letting a broken reporter fail the operation. Console messages have no
+shared correlation contract and cannot buffer the useful history preceding a failure.
+
+## Run a complete example
+
+```ts runnable
+import * as telemetry from '@okikio/telemetry';
+const output = telemetry.memory();
+const buffered = telemetry.buffer(output, { capacity: 2 });
+const scope = telemetry.create(buffered, { fields: { request_id: 'request-1' } });
+await scope.report({ name: 'import.started', level: 'debug' });
+await scope.report({ name: 'import.failed', level: 'error' });
+console.log(output.records.map((event) => event.name).join(','));
+```
+
+Expected output:
+
+```text output
+import.started,import.failed
+```
+
+## Build on the example
+
+Start with a memory reporter to inspect behavior, then choose an explicit LogTape or OpenTelemetry adapter. Scope fields
+attach correlation, and buffering can retain a bounded recent history until failure. Applications configure logging and
+exporting. Telemetry is observation; it cannot authorize cancellation, settle a job or prove an authoritative effect was
+accepted.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/telemetry` gives reusable code one portable language for diagnostics: stable event names, severities,

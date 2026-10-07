@@ -1,5 +1,42 @@
 # `@okikio/streams`
 
+Consume asynchronous data with explicit item, byte and line budgets. A successful Array.fromAsync can still exhaust
+memory if the source never ends or one record is enormous.
+
+## Run a complete example
+
+```ts runnable
+import * as streams from '@okikio/streams';
+const batches = streams.batch(['a', 'b', 'c'], { maximumItems: 2 });
+console.log(JSON.stringify(await Array.fromAsync(batches)));
+const bytes = new Response(`first
+second
+`).body!;
+console.log(JSON.stringify(await Array.fromAsync(streams.lines(bytes, { maximumLineBytes: 64 }))));
+```
+
+Expected output:
+
+```text output
+[["a","b"],["c"]]
+["first","second"]
+```
+
+`batch()` returns an async iterable of readonly item arrays; `lines()` returns an async iterable of strings.
+`Array.fromAsync()` returns a Promise of a materialized array. The example deliberately collects small finite inputs;
+its output has two groups and two lines. Streaming adapters release owned readers when iteration completes or stops.
+
+## Build on the example
+
+Batch for database writes, fold streams without collecting, and use bounded collect() only when a finite materialized
+result is needed. Pass cancellation into the source operation as well as the adapter. Early iteration exit cancels owned
+Web streams unless preventCancel explicitly keeps borrowed ownership. Byte estimates for object batches are caller
+policy; line framing counts actual encoded bytes.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/streams` contains project-neutral adapters between Web Streams and iterables. It also owns bounded collection,
@@ -76,49 +113,31 @@ representations belong in product packages.
 
 ## Convenience and the manual equivalent
 
-Concrete map
+| Convenience                           | Manual equivalent                                                                                                       | Concrete value                                         |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `streams.lines()`                     | read chunks, incrementally decode UTF-8, carry partial lines, enforce byte/line bounds, and release the reader yourself | correct line framing across arbitrary chunk splits     |
+| `batch()` / `map()` / bounded helpers | write async-iterator loops with explicit buffers, concurrency, cancellation, and cleanup every time                     | small composable streaming mechanics with backpressure |
 
-```
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `streams.lines()` | read chunks, incrementally decode UTF-8, carry partial lines, enforce byte/line bounds, and release the reader yourself | correct line framing across arbitrary chunk splits |
-| `batch()` / `map()` / bounded helpers | write async-iterator loops with explicit buffers, concurrency, cancellation, and cleanup every time | small composable streaming mechanics with backpressure |
+`@okikio/streams` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics with ReadableStream
+readers, async iterators, TextDecoder, and explicit byte counters.
 
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
+The utility centralizes cancellation, line framing, bounded collection, batching, and conversion rules that are easy to
+get subtly wrong.
 
+## Bound failures
 
-`@okikio/streams` is a convenience layer, not a hidden runtime. You can reproduce its
-core mechanics with ReadableStream readers, async iterators, TextDecoder, and explicit byte counters.
+`StreamLimitError` reports a byte/item collection bound being exceeded. `StreamLineLimitError` reports one decoded line
+exceeding the configured line limit. Both errors carry the relevant configured limit so a caller can produce a useful
+diagnostic without inspecting stream internals.
 
-The utility centralizes cancellation, line framing, bounded collection, batching, and conversion rules that are easy to get subtly wrong.
+## Source guide
 
-When debugging or extending the package, keep that manual model in mind. The
-utility should remove repetitive correctness work without making the underlying
-Web, ECMAScript, Standard Schema, or runtime primitives impossible to recognize.
-
-
-Bound failures
---------------
-
-`StreamLimitError` reports a byte/item collection bound being exceeded.
-`StreamLineLimitError` reports one decoded line exceeding the configured line
-limit. Both errors carry the relevant configured limit so a caller can produce a
-useful diagnostic without inspecting stream internals.
-
-
-Source guide
-------------
-
-Start with this README, then use the source in this order when you need more
-detail:
+Start with this README, then use the source in this order when you need more detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
-   behavior as executable examples.
-4. Read internal implementation files only when you need the exact state
-   transition or performance-sensitive loop.
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
+4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to
-the public source instead of maintaining a separate hand-written API reference.
-```
+The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
+separate hand-written API reference.

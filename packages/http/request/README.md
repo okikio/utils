@@ -1,5 +1,28 @@
 # `@okikio/http/request`
 
+Read bounded request bytes and preserve query multiplicity before domain validation.
+
+## Run a complete example
+
+```ts runnable
+import * as request from '@okikio/http/request';
+console.log(JSON.stringify(request.parseQuery('?tag=a&tag=b')));
+const incoming = new Request('https://service.invalid/import', { method: 'POST', body: 'abc' });
+console.log(new TextDecoder().decode(await request.readBody(incoming, { maximumBodyBytes: 3 })));
+```
+
+Expected output:
+
+```text output
+{"tag":["a","b"]}
+abc
+```
+
+## Build on the example
+
+Choose the body budget before reading, then validate the decoded shape with an endpoint schema. Cancellation and
+one-byte-over-limit cases fail without returning a partial body.
+
 ## Purpose
 
 `@okikio/http/request` parses and sanitizes an untrusted Web `Request` before a service gives values to
@@ -25,6 +48,13 @@ validation instead of silently choosing one repeated value.
 
 `readBody()`, `parseJson()`, and `parseForm()` enforce independent body limits. `parseAuthorization()` parses credential
 syntax but redacts the credential when it is stringified or serialized.
+
+`readBody()` owns its reader until pending cancellation settles, then releases the lock. If cancellation succeeds, an
+abort rejects with the caller's exact signal reason, including `null`. If overflow cancellation fails, the rejection
+still contains the `body-too-large` transport issue; its `cause` retains the cleanup failure for private diagnostics.
+Other combined read or abort and cleanup failures use `AggregateError`, with the primary failure in `cause` and both
+failures in `errors`, in primary-then-cleanup order. A rejection with `undefined` still counts as a cleanup failure.
+Applications may report safe transport `issues` to clients, but should keep `cause` and aggregate `errors` private.
 
 ## Trust and correlation
 

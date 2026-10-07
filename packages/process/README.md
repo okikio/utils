@@ -1,5 +1,54 @@
 # `@okikio/process`
 
+Own subprocess termination and bounded output with one lifecycle contract across Deno and Node. A raw spawn plus
+scattered listeners can leave descendants alive or report success before output collection settles.
+
+## Run a complete example
+
+The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
+implementation is preserved.
+
+This example uses the Deno adapter and needs subprocess permission. Use the Node adapter with node:process.execPath on a
+Node host.
+
+```ts runnable
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as context from '@okikio/context';
+import * as process from '@okikio/process';
+import * as deno from '@okikio/process/deno';
+await using ctx = context.create({ id: 'tool-output' });
+const exit = await process.exec(ctx, deno.create(), {
+	command: Deno.execPath(),
+	arguments: ['eval', 'console.log("ready")'],
+	stdout: { type: 'capture', maximumBytes: 1024 },
+	stderr: { type: 'discard' },
+});
+console.log(new TextDecoder().decode(exit.stdout).trim());
+```
+
+Expected output:
+
+```text output
+ready
+```
+
+`exec()` returns `Promise<ProcessExitType>` after the child and output capture settle. Its `stdout` is a captured
+`Uint8Array`; the final string is `ready`. The operation owns and closes its child handle. Bounded capture failure
+rejects, and the context signal requests termination according to the selected adapter and ownership mode.
+
+## Build on the example
+
+Capture bounded output for short commands, stream it for long commands, and use the process channel for correlated
+activity protocols. Select the Node adapter for Node hosts. Direct-child ownership and POSIX process-group ownership
+have different guarantees; an exited leader can leave descendants alive. wait() owns output failures while disposal
+joins termination without repeating a handled capture failure. Callers still own executable trust and runtime
+permissions.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/process` owns one child-process lifecycle without choosing a runtime for the caller. The generic package
@@ -90,7 +139,8 @@ The caller owns consumption of a piped stream. `@okikio/process` still owns the 
 `@okikio/process/node` creates a Node child through `node:child_process`. `@okikio/process/deno` creates a Deno child
 through `Deno.Command`. `direct-child` is available on every supported host. On POSIX hosts, both adapters also support
 `posix-process-group`: the child starts as the leader of a detached process group and shutdown signals target that
-complete group. This prevents descendants from being orphaned when the owned child launches its own processes. Windows
+complete group. This lets shutdown target descendants even after the group leader exits. The host must still reap
+orphaned children, for example through a container init process: sending termination signals does not reap them. Windows
 remains `direct-child` only until a tested Windows process-tree or Job Object adapter can provide a stronger guarantee.
 A request for an unsupported tree mode fails with `UnsupportedTreeModeError` instead of silently degrading.
 
@@ -104,58 +154,35 @@ the generic owner stops the child before returning control.
 
 ## Convenience and the manual equivalent
 
-Concrete map
+| Convenience       | Manual equivalent                                                                                                             | Concrete value                                             |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `process.start()` | spawn the child, convert Node streams to Web streams, link cancellation, enforce output limits, and own stop/cleanup yourself | one cross-runtime child-process lifetime                   |
+| `process.exec()`  | consume configured stdout/stderr with byte bounds while awaiting exit and preserving failure information                      | finite execution with explicit capture or streaming policy |
 
-```
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `process.start()` | spawn the child, convert Node streams to Web streams, link cancellation, enforce output limits, and own stop/cleanup yourself | one cross-runtime child-process lifetime |
-| `process.capture()` | consume stdout/stderr with byte bounds while awaiting exit and preserving failure information | bounded collecting convenience over the streaming process |
-
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
-
-
-`@okikio/process` is a convenience layer, not a hidden runtime. You can reproduce its
-core mechanics with Deno.Command or node:child_process plus AbortSignal and manual stdout/stderr/process-tree cleanup.
+`@okikio/process` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics with Deno.Command
+or node:child_process plus AbortSignal and manual stdout/stderr/process-tree cleanup.
 
 The utility keeps process lifetime, cancellation, disposal, and runtime adapters under one provider-neutral contract.
 
-When debugging or extending the package, keep that manual model in mind. The
-utility should remove repetitive correctness work without making the underlying
-Web, ECMAScript, Standard Schema, or runtime primitives impossible to recognize.
+## Expected stop failure
 
+`ProcessStopTimeoutError` means a child did not reach terminal state inside the configured graceful/forced stop window.
+The owned process remains a lifecycle problem the caller must surface; the utility does not pretend the process exited.
 
-Expected stop failure
----------------------
+## Unexpected channel faults
 
-`ProcessStopTimeoutError` means a child did not reach terminal state inside the
-configured graceful/forced stop window. The owned process remains a lifecycle
-problem the caller must surface; the utility does not pretend the process exited.
+The channel subpath projects unexpected thrown values through `@okikio/fault` before JSON framing. Expected declared
+failures continue to use `@okikio/failure`. This keeps diagnostic serialization bounded and prevents arbitrary fault
+objects from controlling the framing path through getters, cycles, or custom string conversion.
 
+## Source guide
 
-
-Unexpected channel faults
--------------------------
-
-The channel subpath projects unexpected thrown values through `@okikio/fault`
-before JSON framing. Expected declared failures continue to use
-`@okikio/failure`. This keeps diagnostic serialization bounded and prevents
-arbitrary fault objects from controlling the framing path through getters,
-cycles, or custom string conversion.
-
-Source guide
-------------
-
-Start with this README, then use the source in this order when you need more
-detail:
+Start with this README, then use the source in this order when you need more detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
-   behavior as executable examples.
-4. Read internal implementation files only when you need the exact state
-   transition or performance-sensitive loop.
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
+4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to
-the public source instead of maintaining a separate hand-written API reference.
-```
+The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
+separate hand-written API reference.

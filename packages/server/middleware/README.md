@@ -1,5 +1,35 @@
 # `@okikio/server/middleware`
 
+Declare middleware ordering and context needs so startup can reject a missing producer.
+
+## Run a complete example
+
+```ts runnable
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as middleware from '@okikio/server/middleware';
+const Actor = middleware.context<{ id: string }>()({ id: 'actor', description: 'Authenticated actor.' });
+const Read = middleware.define({
+	id: 'actor.read',
+	description: 'Read actor after authentication.',
+	requires: [Actor],
+});
+console.log(middleware.validate([Read]).valid);
+console.log(middleware.validate([Read], [Actor]).valid);
+```
+
+Expected output:
+
+```text output
+false
+true
+```
+
+## Build on the example
+
+Bind runtime behavior with handler(), place it in a declared request lane, and use once() when one exact binding should
+run once per Request. These declarations validate availability and ordering; they do not authenticate an actor.
+
 Import-safe middleware contracts, typed context definitions, direct runtime handler bindings, deterministic placement
 plans, validation, and documentation.
 

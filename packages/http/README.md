@@ -1,5 +1,36 @@
 # `@okikio/http`
 
+Preserve HTTP syntax and trust decisions before application validation. Collapsing repeated query parameters or
+forwarding incoming credentials blindly changes what the caller asked for and what the next service can see.
+
+## Run a complete example
+
+```ts runnable
+import * as request from '@okikio/http/request';
+import { forward } from '@okikio/http/headers';
+console.log(JSON.stringify(request.parseQuery('?tag=one&tag=two')));
+const headers = forward(new Headers({ Connection: 'X-Internal', 'X-Internal': 'secret', Accept: 'application/json' }));
+console.log(headers.has('x-internal'), headers.get('accept'));
+```
+
+Expected output:
+
+```text output
+{"tag":["one","two"]}
+false application/json
+```
+
+## Build on the example
+
+Use request helpers to bound and parse incoming data, response and problem definitions to declare outputs, and webhook
+helpers to verify exact raw bytes. headers.forward() strips fixed connection fields and fields named by Connection while
+retaining separate Set-Cookie values. request.forwardHeaders() adds credential and host trust policy. The application
+still authenticates actors and decides what credentials may cross an origin.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/http` contains framework-neutral HTTP protocol utilities.
@@ -135,9 +166,9 @@ state.
 
 ## Progressive usage
 
-The package participates in the complete domain-enrichment example in `../../docs/composition.md`. Read that guide when
-the individual helpers make sense in isolation but their place in a service, resource graph, runtime host, or workflow
-is not yet clear.
+Read [complete compositions](../../docs/composition.md) for a bounded CSV import, allowed-page discovery and a
+resource-backed operation. Each example names its result and owner. Use [the outcome guide](../../docs/outcomes.md) to
+choose additional mechanisms when the application needs them.
 
 ## Record-shaped request options and response headers
 
@@ -150,68 +181,45 @@ that the visible configuration does not show.
 
 ## Convenience and the manual equivalent
 
-Concrete map
-
-```
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `request.*` | parse headers/query/cookies/body from Web `Request`, enforce configured bounds, and normalize cancellation yourself | one deterministic request-input contract |
+| Convenience  | Manual equivalent                                                                                                                                | Concrete value                               |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
+| `request.*`  | parse headers/query/cookies/body from Web `Request`, enforce configured bounds, and normalize cancellation yourself                              | one deterministic request-input contract     |
 | `response.*` | validate status/body/header definitions, snapshot response options, build headers, pagination, conditionals, and completion observation manually | one immutable response-construction contract |
-| `problem.*` | construct RFC problem envelopes, stable type URLs, response tuples, and matching helpers yourself | one shared problem-details vocabulary |
+| `problem.*`  | construct RFC problem envelopes, stable type URLs, response tuples, and matching helpers yourself                                                | one shared problem-details vocabulary        |
 
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
+`@okikio/http` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics with Web Request,
+Response, Headers, URL, URLSearchParams, and ReadableStream directly.
 
+The utility adds bounded parsing, declared representations, RFC 9457 contracts, cookies, forwarding rules, and
+completion observation while keeping the Web APIs visible.
 
-`@okikio/http` is a convenience layer, not a hidden runtime. You can reproduce its
-core mechanics with Web Request, Response, Headers, URL, URLSearchParams, and ReadableStream directly.
+## Source guide
 
-The utility adds bounded parsing, declared representations, RFC 9457 contracts, cookies, forwarding rules, and completion observation while keeping the Web APIs visible.
-
-When debugging or extending the package, keep that manual model in mind. The
-utility should remove repetitive correctness work without making the underlying
-Web, ECMAScript, Standard Schema, or runtime primitives impossible to recognize.
-
-
-Source guide
-------------
-
-Start with this README, then use the source in this order when you need more
-detail:
+Start with this README, then use the source in this order when you need more detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
-   behavior as executable examples.
-4. Read internal implementation files only when you need the exact state
-   transition or performance-sensitive loop.
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
+4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to
-the public source instead of maintaining a separate hand-written API reference.
+The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
+separate hand-written API reference.
 
+## Webhooks
 
-Webhooks
---------
+`@okikio/http/webhook` verifies exact request bytes without owning routes. `@okikio/http/webhook/standard` also signs
+outbound Standard Webhooks v1 messages.
 
-`@okikio/http/webhook` verifies exact request bytes without owning routes.
-`@okikio/http/webhook/standard` also signs outbound Standard Webhooks v1
-messages.
+An inbound service endpoint verifies the request before normal parsing. An outbound sender signs the serialized bytes
+that it will transmit. A service that uses both directions composes these two roles independently.
 
-An inbound service endpoint verifies the request before normal parsing. An
-outbound sender signs the serialized bytes that it will transmit. A service that
-uses both directions composes these two roles independently.
+Durable subscriptions, delivery attempts, retry schedules, replay, dead-letter records, endpoint health, and delivery
+telemetry need persistent application state. Those persistent delivery responsibilities belong to a higher-level webhook
+capability if Okikio needs a reusable implementation.
 
-Durable subscriptions, delivery attempts, retry schedules, replay, dead-letter
-records, endpoint health, and delivery telemetry need persistent application
-state. Those persistent delivery responsibilities belong to a higher-level webhook capability if Okikio
-needs a reusable implementation.
+Read [`webhook/README.md`](webhook/README.md) for signing, verification, limits, and the inbound and outbound flows.
 
-Read [`webhook/README.md`](webhook/README.md) for signing, verification, limits,
-and the inbound and outbound flows.
+## Focused imports
 
-Focused imports
----------------
-
-HTTP subpaths are public package entries. A reusable library can depend on
-`@okikio/http/request`. An application that uses the single-install suite can
-import the same implementation from `@okikio/utils/http/request`.
-```
+HTTP subpaths are public package entries. A reusable library can depend on `@okikio/http/request`. An application that
+uses the single-install suite can import the same implementation from `@okikio/utils/http/request`.

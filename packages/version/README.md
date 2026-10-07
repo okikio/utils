@@ -1,5 +1,36 @@
 # `@okikio/version`
 
+Resolve release evidence by scheme and precision instead of trusting lexical order or whichever detector has the highest
+priority. A coarse version observation should not erase a compatible exact release.
+
+## Run a complete example
+
+```ts runnable
+import { createVersionSchemeCatalog, resolveVersionCandidates, semanticVersionScheme } from '@okikio/version';
+const schemes = createVersionSchemeCatalog([semanticVersionScheme]);
+const value = resolveVersionCandidates([
+	{ value: '2', schemeId: 'semver', source: 'header', sourcePriority: 100 },
+	{ value: '2.4.6', schemeId: 'semver', source: 'asset', sourcePriority: 20 },
+], schemes);
+console.log(value.status, value.selected?.value);
+```
+
+Expected output:
+
+```text output
+refined 2.4.6
+```
+
+## Build on the example
+
+Start with SemVer evidence, add numeric dotted schemes for vendor formats, and retain conflicting exact candidates for
+review. Compatible refinement takes precedence over source priority. A scheme describes version ordering and
+compatibility; it does not discover the software or establish that an observed version is trustworthy.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/version` parses and reconciles software-version evidence without pretending that every product follows Semantic
@@ -63,7 +94,7 @@ release-line observations. The numeric scheme keeps dotted product versions sepa
 CSV evidence can stay structurally neutral until version resolution interprets one column as software-version
 observations:
 
-```ts
+```ts runnable=csv-evidence.ts
 import * as csv from '@okikio/csv';
 import * as version from '@okikio/version';
 
@@ -78,8 +109,18 @@ const candidates = document.rows.map((row, index) => ({
 }));
 
 const resolution = version.resolveVersionCandidates(candidates, schemes);
-console.log(resolution.selected?.parsed.normalizedValue); // 2.4.6
+console.log(resolution.selected?.parsed.normalizedValue);
 ```
+
+Expected output:
+
+```text output
+2.4.6
+```
+
+`resolveVersionCandidates()` returns `VersionResolution` immediately. Its selected candidate contains the parsed
+normalized value; incompatible candidates remain available as conflicts. This is pure data work with no cancellation or
+cleanup owner.
 
 `@okikio/csv` owns source structure and preserves cell strings. `@okikio/version` owns version semantics and evidence
 reconciliation.

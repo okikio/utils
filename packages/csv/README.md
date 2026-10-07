@@ -1,5 +1,75 @@
 # `@okikio/csv`
 
+Turn a messy spreadsheet export into bounded text rows with header evidence and diagnostics. Splitting on commas loses
+quoted commas, multiline cells, duplicate headers and byte-encoding errors.
+
+## Run a complete example
+
+```ts runnable
+import * as csv from '@okikio/csv';
+const document = csv.parse(
+	`Name,Note
+Ada,"hello, world"
+`,
+	{ headerRow: 1 },
+);
+console.log(document.columns.map((column) => column.key).join(','));
+console.log(JSON.stringify(document.rows[0]?.values));
+```
+
+Expected output:
+
+```text output
+name,note
+["Ada","hello, world"]
+```
+
+`parse()` returns `CsvDocument` immediately. Here its rows contain strings and its columns expose normalized keys; it
+collects the supplied text in memory and owns no reader to dispose. For streaming input, see
+[the complete bounded import](../../docs/composition.md#import-rows-with-bounded-work).
+
+## Build on the example
+
+Collect small bounded input with parseBytes(); use parseStream() and fold rows for a large import. Explicit headers
+avoid guessing when an upstream format is known. preserveBlankRows keeps empty source occurrences when reconciliation
+depends on row positions; textOnly opts into rejecting non-text input. Cells remain text, including formula-like
+content. Applications decide whether to reject formulas when exporting to a spreadsheet and whether diagnostics should
+stop an import. Disposal releases a one-shot stream reader.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
+## Before and after: reconcile source occurrences and write a valid export
+
+An importer that discarded empty records could no longer reconcile logical row positions with the source.
+`preserveBlankRows: true` retains those occurrences; `rawHeader` retains the exact decoded header beside its normalized
+lookup key. `textOnly: true` explicitly rejects binary signatures and non-text controls. The legacy permissive text
+policy stays the default, and explicit `headerRow` is independent of the automatic discovery budget.
+
+Use the writer for quoted scalar framing instead of assembling cells by hand:
+
+```ts runnable
+import * as csv from '@okikio/csv';
+import { cell, comma, recordEnd } from '@okikio/csv/write';
+const values = ['a,b', 'line\nbreak', ''];
+const text = ['first', 'second', 'third'].join(comma) + recordEnd + values.map(cell).join(comma) + recordEnd;
+const document = csv.parse(text, { headerRow: 1 });
+console.log(JSON.stringify(document.rows[0]?.values));
+```
+
+Expected output:
+
+```text output
+["a,b","line\nbreak",""]
+```
+
+One complete cell is buffered by `cell()`. The caller can stream the surrounding record using the exported framing
+strings. Cells remain text, and quoting is not spreadsheet formula protection. Applications choose whether to reject or
+escape formula-like values for their export destination. Collection and streaming now use the maintained `csv-parse`
+grammar, while the standalone header normalization and discovery contracts stay intact. Streaming rejects
+`maximumCharacters` because it is a collecting-only source limit rather than silently ignoring it.
+
 ## Purpose
 
 `@okikio/csv` parses CSV structure. It does **not** decide what a column means to a CRM import, data pipeline, or any

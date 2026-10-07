@@ -8,10 +8,12 @@ import type { EnvironmentIssue } from './types.ts';
  * to parse that message when presenting or classifying configuration errors.
  */
 export class EnvironmentError extends Error {
+	/** Stable native error name for environment-validation failures. */
 	override readonly name = 'EnvironmentError';
 	/** Normalized field and composition failures associated with this error. */
 	readonly issues: readonly EnvironmentIssue[];
 
+	/** Create this EnvironmentError from the explicit contract values supplied by its caller. */
 	constructor(message: string, issues: readonly EnvironmentIssue[]) {
 		const details = issues.map((issue) => `${issue.key}: ${issue.message}`);
 		super(details.length > 0 ? `${message}\n${details.join('\n')}` : message);

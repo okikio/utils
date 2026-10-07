@@ -1,5 +1,40 @@
 # `@okikio/concurrency`
 
+Bound active asynchronous work while choosing whether consumers need input order or completion order. Promise.all starts
+every operation immediately and gives cancellation no ownership over admitted siblings.
+
+## Run a complete example
+
+```ts runnable
+import { mapPooledOrdered } from '@okikio/concurrency';
+const values = mapPooledOrdered({
+	items: ['first', 'second', 'third'],
+	concurrency: 2,
+	async map(value, { signal }) {
+		signal.throwIfAborted();
+		return value.toUpperCase();
+	},
+});
+console.log(JSON.stringify(await Array.fromAsync(values)));
+```
+
+Expected output:
+
+```text output
+["FIRST","SECOND","THIRD"]
+```
+
+## Build on the example
+
+Start with ordered mapping for reports; use unordered mapping for results that can be consumed as soon as they finish.
+Pass cancellation into the actual fetch or provider call. Breaking iteration cancels admitted transforms and joins their
+settlement. A concurrency bound limits active work, not the size of a result array; fold or batch large outputs instead
+of materializing them all.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/concurrency` runs independent asynchronous operations with a fixed upper bound. It owns admission, sibling

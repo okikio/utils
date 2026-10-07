@@ -1,5 +1,95 @@
 # `@okikio/query`
 
+Declare an HTTP collection query once and validate its filter, sort, selection and pagination grammar before reaching a
+database. Parsing strings directly into SQL makes hidden fields, unsupported operators and ambiguous list values easy to
+accept.
+
+## Run a complete example
+
+The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
+implementation is preserved.
+
+```ts runnable
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as query from '@okikio/query';
+import { z } from 'zod';
+const Search = query.define({
+	fields: { id: query.field(z.string(), { sortable: true }), name: query.field(z.string()) },
+	filters: { name: [query.eq, query.in] },
+	order: [query.asc('id', { tiebreaker: true })],
+	pagination: query.offset({ defaultLimit: 20 }),
+});
+const value = await Search.parse(new URLSearchParams('filter[name]=Ada&limit=2'));
+console.log(value.filters[0]?.field, value.pagination.limit);
+console.log((await Search.parse(Search.encode(value))).filters[0]?.value);
+```
+
+Expected output:
+
+```text output
+name 2
+Ada
+```
+
+## Build on the example
+
+Start with flat filters, enable bounded all/any/not groups when the provider supports them, and encode values for
+lossless URL round trips. The tagged wire codec preserves commas, empty text, bigint, dates and negative zero.
+normalize() produces canonical query data; it does not run a query. Adapters must explicitly declare capabilities and
+fail closed for unsupported groups. Preserve opaque cursors with a trusted codec rather than interpreting arbitrary
+client strings.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
+## Before and after: express alternatives without losing literal values
+
+A flat filter list could only mean conjunction. Splitting list operands on commas also lost literal commas and empty
+members. Enable Boolean capabilities deliberately and use the tagged codec for values that need it:
+
+```ts runnable
+import * as query from '@okikio/query';
+import { z } from 'zod';
+const Search = query.define({
+	fields: { id: query.field(z.string(), { sortable: true }), name: query.field(z.string()) },
+	filters: { name: [query.eq, query.in] },
+	expressions: ['all', 'any', 'not'],
+	order: [query.asc('id', { tiebreaker: true })],
+	pagination: query.offset(),
+});
+const first = await Search.parse({ filter: { $any: [{ name: 'Ada' }, { name: 'Lin' }] } });
+const second = await Search.parse({ filter: { $any: [{ name: 'Lin' }, { name: 'Ada' }] } });
+console.log(Search.stringify(first) === Search.stringify(second));
+const literal = await Search.parse({ filter: { name: { in: ['a,b', '', '雪'] } } });
+console.log(JSON.stringify((await Search.parse(Search.encode(literal))).filters[0]?.value));
+```
+
+Expected output:
+
+```text output
+true
+["a,b","","雪"]
+```
+
+The provider must declare support for the same expressions; parsing ANY does not make a conjunction-only database
+adapter support it. The `.filters` compatibility view throws for ANY/NOT trees so callers cannot silently omit a
+condition. Use `filter` for the full tree, `inspect()` for authored structure, and `normalize()` or `stringify()` when
+equivalent queries should share identity. The ordinary `wireSchema()` method remains available beside Standard JSON
+Schema projection.
+
+| Input budget                      | Default |
+| --------------------------------- | ------: |
+| Filter leaves                     |      20 |
+| Client sorts                      |       5 |
+| Selected fields                   |     100 |
+| Values per filter                 |     100 |
+| String/bigint length              |    4096 |
+| Parameters including repeats      |     200 |
+| Expression depth including leaves |       8 |
+| Siblings in a Boolean group       |     100 |
+
 ## Purpose
 
 `@okikio/query` defines storage-neutral collection queries for filters, sorting, sparse fieldsets, and bounded
@@ -93,6 +183,11 @@ const compatibility = WidgetQuery.validateAdapter({
 Adapters reject unsupported operators or pagination strategies instead of silently changing their meaning. Tenant,
 authorization, and row-level-security predicates remain server-owned and are not represented by client filters.
 
+An adapter's `maximumSorts` counts the complete normalized order. The definition's limit counts client-selected sorts.
+For example, a request that selects `name:asc` may append the stable `id` field for cursor traversal, so the adapter
+must support two sorts even when the definition permits only one client-selected sort. Requirements count distinct
+eligible fields; a query with only `id` needs capacity for one sort.
+
 `WidgetQuery.encode(value)` recreates canonical bracket filters, colon sorts, sparse fieldsets, and the selected
 pagination form for link generation and round-trip tests.
 
@@ -148,40 +243,28 @@ unsupported combinations at adapter compilation.
 
 ## Progressive usage
 
-The package participates in the complete domain-enrichment example in `../../docs/composition.md`. Read that guide when
-the individual helpers make sense in isolation but their place in a service, resource graph, runtime host, or workflow
-is not yet clear.
+Read [complete compositions](../../docs/composition.md) for a bounded CSV import, allowed-page discovery and a
+resource-backed operation. Each example names its result and owner. Use [the outcome guide](../../docs/outcomes.md) to
+choose additional mechanisms when the application needs them.
 
 ## Convenience and the manual equivalent
 
-Concrete map
+| Convenience         | Manual equivalent                                                                                                               | Concrete value                                              |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `query.define()`    | snapshot field/filter/order/pagination records, validate operators, defaults, aliases, and tiebreakers yourself                 | one storage-neutral query contract                          |
+| `query.safeParse()` | descriptor-validate the raw record, parse every filter/order/page field, normalize values, and collect prefixed issues manually | untrusted query input becomes one normalized shape          |
+| `query.encode()`    | serialize only deterministic scalar wire values and preserve repeated filters/order explicitly                                  | round-trippable transport without arbitrary object coercion |
 
-```
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `query.define()` | snapshot field/filter/order/pagination records, validate operators, defaults, aliases, and tiebreakers yourself | one storage-neutral query contract |
-| `query.safeParse()` | descriptor-validate the raw record, parse every filter/order/page field, normalize values, and collect prefixed issues manually | untrusted query input becomes one normalized shape |
-| `query.encode()` | serialize only deterministic scalar wire values and preserve repeated filters/order explicitly | round-trippable transport without arbitrary object coercion |
+`@okikio/query` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics with URLSearchParams
+plus your own filter/sort AST, validator calls, pagination rules, and cursor encoding.
 
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
+The utility keeps query meaning storage-neutral so Postgres, ClickHouse, SPARQL, or another adapter can compile the same
+normalized request.
 
+## Operators, projection, and validation
 
-`@okikio/query` is a convenience layer, not a hidden runtime. You can reproduce its
-core mechanics with URLSearchParams plus your own filter/sort AST, validator calls, pagination rules, and cursor encoding.
-
-The utility keeps query meaning storage-neutral so Postgres, ClickHouse, SPARQL, or another adapter can compile the same normalized request.
-
-When debugging or extending the package, keep that manual model in mind. The
-utility should remove repetitive correctness work without making the underlying
-Web, ECMAScript, Standard Schema, or runtime primitives impossible to recognize.
-
-
-Operators, projection, and validation
-------------------------------------
-
-The query vocabulary intentionally exposes operators as small named values. In
-addition to the operators shown above, the public set includes `ne`, `gt`, `lt`,
-`lte`, `contains`, `startsWith`, `endsWith`, `inArray`, `notInArray`, and the
+The query vocabulary intentionally exposes operators as small named values. In addition to the operators shown above,
+the public set includes `ne`, `gt`, `lt`, `lte`, `contains`, `startsWith`, `endsWith`, `inArray`, `notInArray`, and the
 aliases `nin`/related selected operators supported by the definition.
 
 Tooling and adapters also use:
@@ -191,33 +274,23 @@ Tooling and adapters also use:
 - `requirements()` for backend capability requirements implied by a definition.
 - `QueryValidationError` when raw user query input cannot be normalized into the declared contract.
 
+## Source guide
 
-Source guide
-------------
-
-Start with this README, then use the source in this order when you need more
-detail:
+Start with this README, then use the source in this order when you need more detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
-   behavior as executable examples.
-4. Read internal implementation files only when you need the exact state
-   transition or performance-sensitive loop.
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
+4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to
-the public source instead of maintaining a separate hand-written API reference.
+The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
+separate hand-written API reference.
 
-Validation shape versus wire shape
-----------------------------------
+## Validation shape versus wire shape
 
-A `QueryDefinition` is a Standard Schema validator for the normalized query
-value. Its `wireSchema()` method has a different job: it describes the bracketed
-HTTP query-string representation used by endpoint/OpenAPI documentation.
+A `QueryDefinition` is a Standard Schema validator for the normalized query value. Its `wireSchema()` method has a
+different job: it describes the bracketed HTTP query-string representation used by endpoint/OpenAPI documentation.
 
-The two shapes are intentionally different. For example,
-`filter[name][contains]=kai` is an HTTP query-string representation, while a
-database adapter consumes the normalized `QueryValue`. Endpoint documentation
-uses `wireSchema()` so OpenAPI describes the HTTP input rather than the normalized
-JavaScript value.
-```
+The two shapes are intentionally different. For example, `filter[name][contains]=kai` is an HTTP query-string
+representation, while a database adapter consumes the normalized `QueryValue`. Endpoint documentation uses
+`wireSchema()` so OpenAPI describes the HTTP input rather than the normalized JavaScript value.

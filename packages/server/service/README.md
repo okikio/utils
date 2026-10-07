@@ -1,5 +1,41 @@
 # `@okikio/server/service`
 
+Compile declared endpoints and concrete handlers before serving requests.
+
+## Run a complete example
+
+```ts runnable
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as endpoint from '@okikio/server/endpoint';
+import * as response from '@okikio/http/response';
+import * as service from '@okikio/server/service';
+import { z } from 'zod';
+const Healthy = response.ok(z.object({ ok: z.boolean() }), { id: 'health.ok', description: 'Service health.' });
+const Health = endpoint.get({ id: 'health.read', path: '/health', responses: [Healthy] });
+const Api = service.define({ id: 'health-api', path: '/api', endpoints: [Health] });
+import * as resource from '@okikio/resource';
+const live = service.implement(Api, {
+	endpoints: [endpoint.handler(Health, () => response.create(Healthy, { ok: true }))],
+	resources: resource.implementations(),
+});
+await using runtime = service.create(service.compile(live), { host: {} });
+const result = await runtime.fetch(new Request('https://service.invalid/api/health'));
+console.log(result.status, (await result.json()).ok);
+```
+
+Expected output:
+
+```text output
+200 true
+```
+
+## Build on the example
+
+Add resources, middleware, requirement interpreters and observers at the host boundary. Compilation rejects missing or
+conflicting contracts. The runtime owns request contexts and borrows the host; await its disposal to join owned resource
+cleanup.
+
 `@okikio/server/service` compiles one independently deployable HTTP service and creates its framework-neutral Fetch
 runtime. The compiler resolves endpoint contracts, middleware order, resources, requirements, effects, resilience,
 observers, and route ownership before traffic starts.

@@ -1,5 +1,33 @@
 # `@okikio/server/endpoint`
 
+Describe a route from input and response contracts before a handler or provider starts.
+
+## Run a complete example
+
+```ts runnable
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as endpoint from '@okikio/server/endpoint';
+import * as response from '@okikio/http/response';
+import * as service from '@okikio/server/service';
+import { z } from 'zod';
+const Healthy = response.ok(z.object({ ok: z.boolean() }), { id: 'health.ok', description: 'Service health.' });
+const Health = endpoint.get({ id: 'health.read', path: '/health', responses: [Healthy] });
+const Api = service.define({ id: 'health-api', path: '/api', endpoints: [Health] });
+console.log(Health.path, Api.path);
+```
+
+Expected output:
+
+```text output
+/health /api
+```
+
+## Build on the example
+
+Bind the exact Health definition with endpoint.handler(), then compile its service. Domain schemas remain authoritative
+for coercion and validation; endpoint wire projections describe what clients actually send.
+
 Import-safe HTTP endpoint contracts, method operations, endpoint groups, direct runtime handler bindings, validation,
 documentation, and OpenAPI projection.
 

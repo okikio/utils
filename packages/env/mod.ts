@@ -1,17 +1,18 @@
 /**
- * Environment definitions, raw-value sources, and deterministic projections.
+ * Parse configuration once into typed values and keep secret values out of diagnostics. Reading process.env throughout an application spreads defaults, coercion and validation across unrelated code.
  *
- * Import the package as a namespace so its compact verbs remain explicit at the
- * call site:
+ * Start with a record source for reproducible tests, then merge an explicit runtime source and overrides at the executable root. Use secret() for credentials so documentation and diagnostics redact them. Zod, Valibot and Standard Schema adapters are optional imports; the generic configuration core does not choose a validator or read environment variables until a source is used.
  *
+ * @example
  * ```ts
- * import * as env from '@okikio/env';
- *
- * const values = Definition.parseSync(env.merge(env.env, overrides));
+ * import * as env from '@okikio/env/zod';
+ * import { z } from 'zod';
+ * const Service = env.define({ PORT: z.coerce.number().int().min(1).max(65535).default(8787).describe('TCP port used by the service.') });
+ * const values = Service.parseSync(env.record({ PORT: '4321' }));
+ * console.log(values.PORT + 1);
  * ```
  *
- * Use `@okikio/env/zod` or `@okikio/env/valibot` when schemas should contribute
- * their native metadata automatically.
+ * @module
  */
 export {
 	blank,

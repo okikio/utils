@@ -1,19 +1,16 @@
 # `@okikio/workflow`
 
-`@okikio/workflow` interprets deterministic generator programs. A workflow program yields serializable instructions. The
-Scheduler gives each instruction a stable path, records or replays its completion through `History`, and admits external
-activity work through `ActivityDispatch`.
+Resume a named sequence from recorded instruction completions and send activities to eligible executors. Retrying a long
+function from its first line can repeat expensive work and duplicate an external commit.
 
-Use `@okikio/task` for finite work that is local to one process. Use this package when the work needs replayable
-instruction identity, declared external activities, or an explicit stored handoff between scheduling and execution.
+## Run a complete example
 
-## Start with one local host
+The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
+implementation is preserved.
 
-This complete example runs one activity through the process-local reference stores. It is useful for tests and local
-development. It deliberately does not claim crash recovery because both `memory()` stores disappear when the process
-exits.
-
-```ts
+```ts runnable
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
 import * as activity from '@okikio/activity';
 import * as engine from '@okikio/activity/engine';
 import * as context from '@okikio/context';
@@ -85,6 +82,42 @@ console.log(
 	}),
 ); // hello
 ```
+
+Expected output:
+
+```text output
+hello
+```
+
+## Build on the example
+
+Run the complete local dispatch example first, then select Worker or process activity providers without changing the
+workflow definition. Share authoritative dispatch and history adapters before spreading execution across computers.
+Placement selects an eligible engine and host; claims fence attempts. Replay records instruction outcomes, not live
+stack frames, sockets or threads. External effects still need stable idempotency keys and an accepting sink. The
+in-memory example survives replica replacement only while its owning process retains the stores.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
+`@okikio/workflow` interprets deterministic generator programs. A workflow program yields serializable instructions. The
+Scheduler gives each instruction a stable path, records or replays its completion through `History`, and admits external
+activity work through `ActivityDispatch`.
+
+Use `@okikio/task` for finite work that is local to one process. Use this package when the work needs replayable
+instruction identity, declared external activities, or an explicit stored handoff between scheduling and execution.
+
+## Understand the local host
+
+The first example runs one activity through the process-local reference stores. `workflow.run()` resolves to the
+validated workflow result: here `Promise<string>` containing `hello`. The generator yields a declared request; it does
+not call the provider directly. The executor produces the activity result and the scheduler resumes the generator.
+
+`await using` closes the run, executor, scheduler and stores in reverse declaration order. Cancellation remains
+cooperative and the owners join cleanup. Both `memory()` stores disappear when their process exits. Read the
+[workflow recovery scenario](../../docs/scenarios.md) for failure, replacement and replay qualification; a deployed
+durable scheduler is an application responsibility.
 
 The generator never holds a queue, Worker, process, database connection, or provider callback. It only creates an
 `activity.request()` instruction. The Scheduler copies the serializable item to dispatch. The executor claims the item,

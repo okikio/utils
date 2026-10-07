@@ -1,5 +1,56 @@
 # `@okikio/pool`
 
+Reuse a bounded set of expensive resources while retaining explicit lease ownership. Opening a connection for every
+request wastes setup work; sharing one connection without leases can interleave incompatible operations.
+
+## Run a complete example
+
+The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
+implementation is preserved.
+
+```ts runnable
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as context from '@okikio/context';
+import * as pool from '@okikio/pool';
+await using ctx = context.create({ id: 'connection-owner' });
+let opened = 0;
+await using connections = await pool.create({
+	ctx,
+	maximum: 2,
+	create: () => ({ id: ++opened }),
+	close: () => {},
+});
+{
+	await using lease = await connections.acquire(ctx);
+	console.log(lease.value.id);
+}
+console.log(connections.stats().leased);
+```
+
+Expected output:
+
+```text output
+1
+0
+```
+
+`create()` returns `Promise<Pool<{ id: number }>>`; `acquire()` returns `Promise<Lease<{ id: number }>>`. The lease
+borrows the value until its block ends, so the final leased count is zero. Pool disposal closes values through
+`close()`. This example callback has no external handle to close; a real connection implementation must supply that
+cleanup.
+
+## Build on the example
+
+Replace the example value with a database connection, browser page or Worker handle, then configure validation, idle age
+and acquisition timeout. Release a lease after each use; close the pool at the owning host lifetime. The pool owns
+created values while callers borrow leased values. A limit controls resource count, not queue-job authority or
+distributed placement.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/pool` owns a bounded set of reusable values and lends them through explicit disposable leases.
@@ -35,22 +86,22 @@ without leaving waiters asleep forever.
 ```ts
 import * as pool from '@okikio/pool';
 
-await using pool = await pool.create({
+await using connections = await pool.create({
 	ctx,
 	maximum: 8,
 	create: createConnection,
 	close: closeConnection,
 });
 
-await using lease = await pool.acquire(ctx);
+await using lease = await connections.acquire(ctx);
 await useConnection(lease.value);
 ```
 
 ## Progressive usage
 
-The package participates in the complete domain-enrichment example in `../../docs/composition.md`. Read that guide when
-the individual helpers make sense in isolation but their place in a service, resource graph, runtime host, or workflow
-is not yet clear.
+Read [complete compositions](../../docs/composition.md) for a bounded CSV import, allowed-page discovery and a
+resource-backed operation. Each example names its result and owner. Use [the outcome guide](../../docs/outcomes.md) to
+choose additional mechanisms when the application needs them.
 
 ## Drain is a lifecycle barrier
 
@@ -115,29 +166,19 @@ Pool
 
 ## Convenience and the manual equivalent
 
-Concrete map
+| Convenience                   | Manual equivalent                                                                                                            | Concrete value                                             |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `pool.create()` + `acquire()` | track idle/leased/creating values, FIFO waiters, limits, abort/timeouts, provider create/health/close, and releases manually | resource reuse without losing ownership state              |
+| `pool.drain()`                | wait for leases, creations, health checks, rejection cleanup, and close operations before resolving                          | shutdown cannot finish while pool-owned transitions remain |
 
-```
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `pool.create()` + `acquire()` | track idle/leased/creating values, FIFO waiters, limits, abort/timeouts, provider create/health/close, and releases manually | resource reuse without losing ownership state |
-| `pool.drain()` | wait for leases, creations, health checks, rejection cleanup, and close operations before resolving | shutdown cannot finish while pool-owned transitions remain |
+`@okikio/pool` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics with arrays for idle
+values, a Map for leases, counters for creation, FIFO waiters, AbortSignal cleanup, health checks, and explicit close
+calls.
 
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
+The utility exists because the difficult part is not storing reusable values. It is keeping ownership correct during
+cancellation, creation, release, drain, and cleanup races.
 
-
-`@okikio/pool` is a convenience layer, not a hidden runtime. You can reproduce its
-core mechanics with arrays for idle values, a Map for leases, counters for creation, FIFO waiters, AbortSignal cleanup, health checks, and explicit close calls.
-
-The utility exists because the difficult part is not storing reusable values. It is keeping ownership correct during cancellation, creation, release, drain, and cleanup races.
-
-When debugging or extending the package, keep that manual model in mind. The
-utility should remove repetitive correctness work without making the underlying
-Web, ECMAScript, Standard Schema, or runtime primitives impossible to recognize.
-
-
-Expected acquisition failures
------------------------------
+## Expected acquisition failures
 
 Two errors are deliberately part of normal pool control flow:
 
@@ -146,20 +187,14 @@ Two errors are deliberately part of normal pool control flow:
 
 Both are preferable to silently exceeding the configured maximum.
 
+## Source guide
 
-Source guide
-------------
-
-Start with this README, then use the source in this order when you need more
-detail:
+Start with this README, then use the source in this order when you need more detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
-   behavior as executable examples.
-4. Read internal implementation files only when you need the exact state
-   transition or performance-sensitive loop.
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
+4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to
-the public source instead of maintaining a separate hand-written API reference.
-```
+The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
+separate hand-written API reference.

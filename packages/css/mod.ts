@@ -1,3 +1,19 @@
+/**
+ * Extract stylesheet dependencies and feature evidence through a CSS parser. A regular expression cannot reliably distinguish a URL token from a quoted string, a comment or a nested rule.
+ *
+ * Extract URL references first, then collect custom properties, media features and pseudo classes from the same parsed stylesheet. References retain source positions for diagnostics. Resolve relative URLs against the stylesheet URL in your application. Parsing performs no network fetch and does not tell you whether a feature is supported by a particular browser.
+ *
+ * @example
+ * ```ts
+ * import * as css from '@okikio/css';
+ * const source = '@import "theme.css"; .hero { background: url("hero.webp"); --accent: blue; }';
+ * const parsed = css.parse(source);
+ * console.log(JSON.stringify(css.resources(parsed).map((item) => item.url)));
+ * console.log(JSON.stringify(css.customProperties(parsed)));
+ * ```
+ *
+ * @module
+ */
 import {
 	type Atrule,
 	type CssLocation,
@@ -26,15 +42,21 @@ export type ParseContext =
 
 /** One recoverable CSS parser problem. */
 export interface ParseProblem {
+	/** Human-readable explanation; use the stable code or discriminant for program decisions. */
 	readonly message: string;
+	/** Position retained by the source or selected window contract. */
 	readonly offset: number;
+	/** Source line reported for this observation. */
 	readonly line: number;
+	/** Source column associated with this observation. */
 	readonly column: number;
 }
 
 /** Parsed CSS AST plus non-fatal parser problems. */
 export interface ParsedStylesheet {
+	/** Parsed syntax tree retained for source-aware interpretation. */
 	readonly ast: CssNode;
+	/** Parser observations retained alongside the CSS syntax tree. */
 	readonly problems: readonly ParseProblem[];
 }
 
@@ -43,10 +65,15 @@ export type ResourceKind = 'font' | 'image' | 'import' | 'other';
 
 /** One external URL referenced by CSS and the syntax context that owns it. */
 export interface ResourceReference {
+	/** Source or resource URL associated with this observation. */
 	readonly url: string;
+	/** Stable discriminant that selects the documented variant. */
 	readonly kind: ResourceKind;
+	/** CSS property associated with this resource reference. */
 	readonly property?: string;
+	/** CSS at-rule associated with this resource reference. */
 	readonly atRule?: string;
+	/** Source or parse-tree location associated with the observation. */
 	readonly location?: CssLocation;
 }
 

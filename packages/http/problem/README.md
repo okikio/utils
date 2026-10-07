@@ -1,5 +1,33 @@
 # `@okikio/http/problem`
 
+Give an expected HTTP rejection a stable type, status and remediation contract.
+
+## Run a complete example
+
+```ts runnable
+import * as problem from '@okikio/http/problem';
+const Missing = problem.define({
+	id: 'asset.missing',
+	type: problem.url('https://problems.invalid/v1', 'asset-missing'),
+	status: 404,
+	title: 'Asset missing',
+	description: 'The asset could not be found.',
+});
+const [body, status] = problem.create(Missing, { detail: 'No asset has that ID.' });
+console.log(status, body.type);
+```
+
+Expected output:
+
+```text output
+404 https://problems.invalid/v1/asset-missing
+```
+
+## Build on the example
+
+Declare problems on endpoints, map expected domain failures to them and keep unexpected faults in redacted diagnostics.
+A service owns which details a caller may see.
+
 ## Purpose
 
 `@okikio/http/problem` defines RFC 9457 HTTP error representations.

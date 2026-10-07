@@ -1,5 +1,50 @@
 # `@okikio/queue`
 
+Give queued work an expiring claim and fenced completion. Removing an item from an array loses it when a worker dies;
+leaving it in place without a claim permits concurrent duplicate ownership.
+
+## Run a complete example
+
+The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
+implementation is preserved.
+
+```ts runnable
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as context from '@okikio/context';
+import * as queue from '@okikio/queue';
+const clock = new context.TestClock();
+await using ctx = context.create({ id: 'queue-owner', clock });
+await using jobs = queue.memory<string, string>({ clock });
+const ref = await jobs.add(ctx, 'resize asset');
+const [claim] = await jobs.claim(ctx, { owner: 'worker-a', duration: { seconds: 30 } });
+if (claim === undefined) throw new Error('No work was available.');
+await jobs.complete(ctx, claim, claim.value.toUpperCase());
+console.log(await jobs.result(ctx, ref));
+```
+
+Expected output:
+
+```text output
+RESIZE ASSET
+```
+
+`memory<string, string>()` returns `Queue<string, string>` immediately. `add()` resolves to a `QueueRef`, `claim()`
+resolves to live `QueueClaim<string>` values, and `result()` resolves here to the output string `RESIZE ASSET`. The
+producer owns the queue lifetime; the worker must present its live claim when completing. Disposing this reference store
+loses its in-memory records and joins its local waiters.
+
+## Build on the example
+
+Start with FIFO convenience for a small local producer, then use explicit claims for multiple executors, priority or
+expiry recovery. Renewal extends an attempt; completion must present the exact live claim. Expired claims can be
+recovered and stale owners cannot replace the result. memory() loses all state when the process exits. A storage adapter
+must make admission, claiming and fenced completion atomic for durable or distributed work.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/queue` defines a claimed-work queue and provides a process-local queue for tests, simulations, and local
@@ -368,29 +413,18 @@ want short behavior stories. Read [mod.ts](./mod.ts) last when you want the step
 
 ## Convenience and the manual equivalent
 
-Concrete map
+| Convenience                         | Manual equivalent                                                                                                                   | Concrete value                                           |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `queue.memory()`                    | maintain item state, keyed admission, claim leases, expiries, waiters, results, retries, cancellation, and close semantics manually | one authoritative logical-work state machine             |
+| `renew()` / `complete()` / `fail()` | compare claim identity before every mutation and reject stale owners yourself                                                       | temporary ownership is fenced from logical item identity |
 
-```
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `queue.memory()` | maintain item state, keyed admission, claim leases, expiries, waiters, results, retries, cancellation, and close semantics manually | one authoritative logical-work state machine |
-| `claim.heartbeat()` / `complete()` / `fail()` | compare claim identity/generation before every mutation and reject stale owners yourself | temporary ownership is fenced from logical item identity |
+`@okikio/queue` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics with a Map of items,
+a ready list, claim tokens, timers, waiter promises, and stale-owner checks.
 
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
+The in-memory implementation is the reference form. Durable implementations persist the same logical states and fences
+in a provider package.
 
-
-`@okikio/queue` is a convenience layer, not a hidden runtime. You can reproduce its
-core mechanics with a Map of items, a ready list, claim tokens, timers, waiter promises, and stale-owner checks.
-
-The in-memory implementation is the reference form. Durable implementations persist the same logical states and fences in a provider package.
-
-When debugging or extending the package, keep that manual model in mind. The
-utility should remove repetitive correctness work without making the underlying
-Web, ECMAScript, Standard Schema, or runtime primitives impossible to recognize.
-
-
-Expected queue errors
----------------------
+## Expected queue errors
 
 Queue failures are explicit so callers can distinguish state from infrastructure faults:
 
@@ -400,23 +434,17 @@ Queue failures are explicit so callers can distinguish state from infrastructure
 - `QueueItemFailedError` is what `result(ref)` raises for a terminal encoded failure.
 - `QueueItemCancelledError` is what `result(ref)` raises for a cancelled logical item.
 
-`StaleClaimError`, shown in the lifecycle discussion above, protects a newer owner
-from a late mutation by an expired owner.
+`StaleClaimError`, shown in the lifecycle discussion above, protects a newer owner from a late mutation by an expired
+owner.
 
+## Source guide
 
-Source guide
-------------
-
-Start with this README, then use the source in this order when you need more
-detail:
+Start with this README, then use the source in this order when you need more detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
-   behavior as executable examples.
-4. Read internal implementation files only when you need the exact state
-   transition or performance-sensitive loop.
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
+4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to
-the public source instead of maintaining a separate hand-written API reference.
-```
+The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
+separate hand-written API reference.

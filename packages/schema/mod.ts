@@ -1,8 +1,15 @@
 /**
- * Shared Standard Schema V1 validation and issue helpers.
+ * Use one Standard Schema validation call across validator libraries. Reading a validator-specific result shape in every utility otherwise forces consumers to use the same schema engine.
  *
- * The module preserves provider issue data while giving callers one parse error
- * and one path-prefixing operation for composed structures.
+ * Start with parse() when invalid input should throw, then use result-oriented validation where a caller needs structured issues. Keep coercion in the schema that owns the meaning. JSON Schema projection is a separate capability and can fail for values that have no faithful wire representation. Import a validator adapter explicitly; the generic validation core does not silently choose one.
+ *
+ * @example
+ * ```ts
+ * import * as schema from '@okikio/schema';
+ * import { z } from 'zod';
+ * const PortSchema = z.coerce.number().int().min(1).max(65535);
+ * console.log(await schema.parse(PortSchema, '8787'));
+ * ```
  *
  * @module
  */
@@ -12,8 +19,10 @@ import type { Failure, Schema, Success, ValidationResult } from './types.ts';
 
 /** Error raised when a value does not satisfy a Standard Schema contract. */
 export class SchemaValidationError extends TypeError {
+	/** Structured rejection details; branch on their codes or paths rather than explanation wording. */
 	readonly issues: readonly StandardSchemaV1.Issue[];
 
+	/** Create this SchemaValidationError from the explicit contract values supplied by its caller. */
 	constructor(issues: readonly StandardSchemaV1.Issue[], message?: string) {
 		const details = issues.map((issue) => issue.message).filter((value) => value.length > 0).join('; ');
 		super(
@@ -77,7 +86,7 @@ export function prefixIssues(
 }
 
 /**
- * Creates the successful success shape used by the surrounding module.
+ * Freeze the validated value wrapper while leaving ownership of the value with its caller.
  *
  * @internal
  */
@@ -86,7 +95,7 @@ function success<Value>(value: Value): Success<Value> {
 }
 
 /**
- * Builds the failure used when the surrounding module cannot complete as intended.
+ * Copy and freeze the issue list so a validator cannot later rewrite the reported failure.
  *
  * @internal
  */

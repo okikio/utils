@@ -22,8 +22,10 @@ export type MergeFields<Definitions extends readonly CapacityFields[]> = Definit
 
 /** Error raised when validated values exceed one or more declared capacity constraints. */
 export class CapacityExceededError extends RangeError {
+	/** Capacity check that rejected admission, including the exceeded fields. */
 	readonly check: CheckResult;
 
+	/** Create this CapacityExceededError from the explicit contract values supplied by its caller. */
 	constructor(check: CheckResult) {
 		const exceeded = check.constraints.filter((entry) => entry.status === 'exceeded');
 		const details = exceeded.map((entry) =>

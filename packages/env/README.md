@@ -1,5 +1,41 @@
 # `@okikio/env`
 
+Parse configuration once into typed values and keep secret values out of diagnostics. Reading process.env throughout an
+application spreads defaults, coercion and validation across unrelated code.
+
+## Run a complete example
+
+```ts runnable
+import * as env from '@okikio/env/zod';
+import { z } from 'zod';
+const Service = env.define({
+	PORT: z.coerce.number().int().min(1).max(65535).default(8787).describe('TCP port used by the service.'),
+});
+const values = Service.parseSync(env.record({ PORT: '4321' }));
+console.log(values.PORT + 1);
+```
+
+Expected output:
+
+```text output
+4322
+```
+
+`parseSync()` returns the inferred configuration object immediately: here `{ PORT: number }` with PORT `4321`. Invalid
+fields throw validation diagnostics before host startup. The record source reads only supplied values, so this example
+needs no environment permission and opens no listener.
+
+## Build on the example
+
+Start with a record source for reproducible tests, then merge an explicit runtime source and overrides at the executable
+root. Use secret() for credentials so documentation and diagnostics redact them. Zod, Valibot and Standard Schema
+adapters are optional imports; the generic configuration core does not choose a validator or read environment variables
+until a source is used.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/env` separates environment definitions from environment sources. A definition owns validation, documentation,
@@ -22,7 +58,7 @@ import * as env from '@okikio/env/zod';
 import { z } from 'zod';
 
 const ServiceEnvironment = env.define({
-	PORT: z.coerce.number().int().positive().default(8787).meta({
+	PORT: z.coerce.number().int().positive().default(8787).describe('TCP port used by the service.').meta({
 		title: 'HTTP port',
 		description: 'Port used by the service listener.',
 		examples: ['8787'],
@@ -240,47 +276,32 @@ definitions composes safely.
 
 ## Progressive usage
 
-The package participates in the complete domain-enrichment example in `../../docs/composition.md`. Read that guide when
-the individual helpers make sense in isolation but their place in a service, resource graph, runtime host, or workflow
-is not yet clear.
+Read [complete compositions](../../docs/composition.md) for a bounded CSV import, allowed-page discovery and a
+resource-backed operation. Each example names its result and owner. Use [the outcome guide](../../docs/outcomes.md) to
+choose additional mechanisms when the application needs them.
 
 ## Convenience and the manual equivalent
 
-Concrete map
+| Convenience                          | Manual equivalent                                                                                                   | Concrete value                                                                  |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `env.environment()`                  | validate every field definition, snapshot the map, parse raw strings, prefix issues, and freeze the resolved output | one schema-derived environment contract                                         |
+| `env.merge()` / `env.select()`       | copy raw source records in precedence order or pick exact keys manually                                             | source acquisition stays outside the utility while composition is deterministic |
+| `definition.parse()` / `parseSync()` | resolve the definition and throw one structured report for missing/invalid fields                                   | typed startup failure instead of scattered `Deno.env.get()` checks              |
 
-```
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `env.environment()` | validate every field definition, snapshot the map, parse raw strings, prefix issues, and freeze the resolved output | one schema-derived environment contract |
-| `env.merge()` / `env.select()` | copy raw source records in precedence order or pick exact keys manually | source acquisition stays outside the utility while composition is deterministic |
-| `env.require()` | resolve the definition and throw one structured report for missing/invalid fields | typed startup failure instead of scattered `Deno.env.get()` checks |
+`@okikio/env` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics by passing a
+`Record<string, string | undefined>` into Zod, Valibot, or another Standard Schema.
 
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
+The utility adds canonical field identity, source composition, secret classification, manifests, examples, and
+requirement metadata. It deliberately does not discover files or load dotenv documents.
 
+## Source guide
 
-`@okikio/env` is a convenience layer, not a hidden runtime. You can reproduce its
-core mechanics with pass a Record<string, string | undefined> into Zod, Valibot, or another Standard Schema yourself.
-
-The utility adds canonical field identity, source composition, secret classification, manifests, examples, and requirement metadata. It deliberately does not discover files or load dotenv documents.
-
-When debugging or extending the package, keep that manual model in mind. The
-utility should remove repetitive correctness work without making the underlying
-Web, ECMAScript, Standard Schema, or runtime primitives impossible to recognize.
-
-
-Source guide
-------------
-
-Start with this README, then use the source in this order when you need more
-detail:
+Start with this README, then use the source in this order when you need more detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
-   behavior as executable examples.
-4. Read internal implementation files only when you need the exact state
-   transition or performance-sensitive loop.
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
+4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to
-the public source instead of maintaining a separate hand-written API reference.
-```
+The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
+separate hand-written API reference.

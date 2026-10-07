@@ -1,5 +1,58 @@
 # `@okikio/worker`
 
+Call a standard Worker with validated, correlated requests instead of a hand-built postMessage listener. Correlation,
+reverse calls, cancellation and shutdown need distinct authority even when messages race.
+
+## Run a complete example
+
+The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
+implementation is preserved.
+
+```ts runnable=main.ts
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as context from '@okikio/context';
+import * as worker from '@okikio/worker';
+import { z } from 'zod';
+await using ctx = context.create({ id: 'thread-owner' });
+await using thread = worker.open(ctx, {
+	module: new URL('./thread.ts', import.meta.url),
+	protocol: worker.protocol({ request: z.string(), response: z.string() }),
+});
+console.log(await thread.request(ctx, 'hello'));
+```
+
+Expected output:
+
+```text output
+HELLO
+```
+
+Worker module, saved as `thread.ts`:
+
+```ts support=thread.ts
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as worker from '@okikio/worker';
+import { z } from 'zod';
+worker.serve({
+	protocol: worker.protocol({ request: z.string(), response: z.string() }),
+	run: (request) => request.toUpperCase(),
+});
+```
+
+## Build on the example
+
+Save the second module beside the first. Start with request/result, then add notices for progress and reverse calls for
+host-owned policy. A notice is not completion. Transfer lists move ownership of transferable data; they do not move
+arbitrary resources. Pause is cooperative and requires handler checkpoints. Cancellation can stop waiting for a schema,
+but an external validator still owns its resources. The parent owns Worker shutdown; each realm needs its own optional
+polyfill imports.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/worker` provides a validated correlated protocol over standard Worker threads. The generic package owns request
@@ -90,63 +143,42 @@ and resource cleanup remain coordinated.
 
 ## Convenience and the manual equivalent
 
-Concrete map
+| Convenience         | Manual equivalent                                                                                                                                   | Concrete value                    |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| `worker.protocol()` | define request/response/notice/call schemas and message discriminants yourself                                                                      | one typed cloneable wire contract |
+| `worker.open()`     | create correlation maps, post messages, transfer values, link cancellation, validate replies, surface failures/faults, and stop the Worker manually | one owned Worker client lifetime  |
+| `worker.serve()`    | install message listeners, validate requests, execute handlers, encode expected failures/faults, and reply with correlation IDs                     | one server-side protocol loop     |
 
-```
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `worker.protocol()` | define request/response/notice/call schemas and message discriminants yourself | one typed cloneable wire contract |
-| `worker.open()` | create correlation maps, post messages, transfer values, link cancellation, validate replies, surface failures/faults, and stop the Worker manually | one owned Worker client lifetime |
-| `worker.serve()` | install message listeners, validate requests, execute handlers, encode expected failures/faults, and reply with correlation IDs | one server-side protocol loop |
+`@okikio/worker` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics with
+Worker.postMessage(), correlation IDs, a pending-request Map, and explicit termination/error cleanup.
 
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
+The utility standardizes that protocol and its cancellation/result behavior without owning scheduling or durable
+attempts.
 
+## Replies and protocol failures
 
-`@okikio/worker` is a convenience layer, not a hidden runtime. You can reproduce its
-core mechanics with Worker.postMessage(), correlation IDs, a pending-request Map, and explicit termination/error cleanup.
-
-The utility standardizes that protocol and its cancellation/result behavior without owning scheduling or durable attempts.
-
-When debugging or extending the package, keep that manual model in mind. The
-utility should remove repetitive correctness work without making the underlying
-Web, ECMAScript, Standard Schema, or runtime primitives impossible to recognize.
-
-
-Replies and protocol failures
------------------------------
-
-Worker-side implementations use `reply()` to create a correlated response for the
-current request instead of hand-assembling protocol envelopes. Expected host-side
-failures are:
+Worker-side implementations use `reply()` to create a correlated response for the current request instead of
+hand-assembling protocol envelopes. Expected host-side failures are:
 
 - `WorkerProtocolError` for malformed or mismatched protocol messages.
 - `WorkerFailureError` for a declared remote failure response.
 - `WorkerFaultError` for an unexpected remote fault.
 - `WorkerStoppedError` when the owned Worker terminates before a pending request settles.
 
+## Unexpected faults
 
+Unexpected thrown values are projected through `@okikio/fault` before they cross the Worker message seam. That
+projection is bounded, detects cycles, and does not intentionally invoke accessor-backed diagnostic fields. Expected
+declared failures still use `@okikio/failure` and remain a separate protocol branch.
 
-Unexpected faults
------------------
+## Source guide
 
-Unexpected thrown values are projected through `@okikio/fault` before they cross
-the Worker message seam. That projection is bounded, detects cycles, and does
-not intentionally invoke accessor-backed diagnostic fields. Expected declared
-failures still use `@okikio/failure` and remain a separate protocol branch.
-
-Source guide
-------------
-
-Start with this README, then use the source in this order when you need more
-detail:
+Start with this README, then use the source in this order when you need more detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
-   behavior as executable examples.
-4. Read internal implementation files only when you need the exact state
-   transition or performance-sensitive loop.
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
+4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to
-the public source instead of maintaining a separate hand-written API reference.
-```
+The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
+separate hand-written API reference.

@@ -7,8 +7,11 @@ export interface Codec<
 	ApplicationInput = Application,
 	Encoded = EncodedInput,
 > {
+	/** Stable discriminant that selects the documented variant. */
 	readonly kind: 'codec';
+	/** Decode the external representation according to this contract. */
 	readonly decode: StandardSchemaV1<EncodedInput, Application>;
+	/** Encode the contract value into its external representation. */
 	readonly encode: StandardSchemaV1<ApplicationInput, Encoded>;
 }
 

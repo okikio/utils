@@ -1,8 +1,20 @@
 /**
- * Import-safe resilience policy definitions for service and provider execution.
+ * Describe timeout, retry and admission policies as inspectable values before a host applies them. Putting retry loops around every call can repeat unsafe side effects and hide who owns the timer or storage.
  *
- * Policies describe required behavior. Concrete stores, counters, semaphores,
- * and provider adapters own the runtime mechanics.
+ * Validate a policy set first, then let the designated server or adapter enforce it. Retry safety requires idempotency for unsafe operations; a description does not itself create an idempotency store. Supply entropy explicitly for jitter and a clock for actual waits. Body limits, bulkheads and circuit breakers have different owners and lifecycle stages, which the document projection preserves.
+ *
+ * @example
+ * ```ts
+ * import '@okikio/duration/polyfill';
+ * import '@okikio/dispose/polyfill';
+ * import * as resilience from '@okikio/resilience';
+ * const retry = resilience.retry({
+ *   initialDelay: { seconds: 1 }, maximumDelay: { seconds: 5 }, multiplier: 2, jitter: false,
+ * });
+ * console.log(resilience.retryDelay(retry, 1).milliseconds);
+ * console.log(resilience.retryDelay(retry, 4).milliseconds);
+ * console.log(resilience.validate(retry, { safety: 'unsafe' }).valid);
+ * ```
  *
  * @module
  */

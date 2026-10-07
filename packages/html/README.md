@@ -1,5 +1,36 @@
 # `@okikio/html`
 
+Parse imperfect HTML and query it through one consistent tree adapter. A selector library and a parser with incompatible
+trees can silently return no matches even when the element exists.
+
+## Run a complete example
+
+```ts runnable
+import * as html from '@okikio/html';
+const page = html.parse('<main><a href="/guide">Read the guide</a></main>');
+const link = html.selectOne(page.document, 'main a[href]');
+console.log(link === null ? 'missing' : html.attribute(link, 'href'));
+console.log(link === null ? 'missing' : html.text(link));
+```
+
+Expected output:
+
+```text output
+/guide
+Read the guide
+```
+
+## Build on the example
+
+Select elements for discovery, read attributes and text, then inspect source locations for evidence or rewriting.
+Resolve relative URLs against the fetched page URL in your application. Parsing does not run scripts or fetch
+subresources. The parsed tree is process-local data; share a serializable projection with a Worker rather than treating
+DOM identity as a wire contract.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/html` parses HTML and exposes a small traversal API for selectors, attributes, text, element relationships, and
@@ -54,18 +85,28 @@ from a naive text/tree interpretation of malformed markup.
 
 Extract a stylesheet from HTML and pass its source to `@okikio/css`:
 
-```ts
+```ts runnable=stylesheet-resources.ts
 import * as css from '@okikio/css';
 import * as html from '@okikio/html';
 
-const page = html.parse(sourceHtml);
+const page = html.parse('<style>@import "theme.css"; .hero { background: url("hero.webp"); }</style>');
 const style = html.selectOne(page.document, 'style');
 
 if (style) {
 	const stylesheet = css.parse(html.text(style));
-	console.log(css.resources(stylesheet));
+	console.log(JSON.stringify(css.resources(stylesheet).map((item) => item.url)));
 }
 ```
+
+Expected output:
+
+```text output
+["theme.css","hero.webp"]
+```
+
+`html.parse()` returns a parsed document immediately; `css.parse()` returns a parsed stylesheet immediately. The final
+value is a `string[]` projection of URL references. Neither parser fetches or owns a stream. Kaiju Crawl uses this
+separation when extracting HTML and CSS resource evidence.
 
 Or feed discovered Sitemap declarations from page metadata into a discovery layer that also uses `@okikio/robots` and
 `@okikio/sitemap`. Each parser owns one syntax; the discovery package owns which sources to fetch and trust.

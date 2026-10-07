@@ -1,5 +1,47 @@
 # `@okikio/resource`
 
+Create expensive dependencies once, borrow them through declared access and close them at their owner lifetime.
+Hand-built dependency bags make missing implementations, cycles and cleanup ordering hard to detect.
+
+## Run a complete example
+
+The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
+implementation is preserved.
+
+```ts runnable
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as context from '@okikio/context';
+import * as resource from '@okikio/resource';
+const Store = resource.define<{ read(id: string): string }>()({ id: 'store', description: 'Read one stored value.' });
+const StoreLive = resource.implement(Store, { create: () => ({ read: (id) => `value:${id}` }) });
+await using ctx = context.create({ id: 'store-owner' });
+await using stores = resource.create(resource.implementations(StoreLive), { ctx, host: {} });
+const store = await stores.get(ctx, Store);
+console.log(store.read('asset-1'));
+```
+
+Expected output:
+
+```text output
+value:asset-1
+```
+
+`create()` returns a `ResourceCollection` immediately without opening the store. `get()` returns a Promise of the
+borrowed `{ read(id: string): string }` value, creating it lazily. The collection owns created values and releases them
+at disposal. The caller gets the string `value:asset-1` and must not dispose a borrowed provider independently.
+
+## Build on the example
+
+Add dependency declarations when one resource needs another, validate implementation coverage before startup, and scope
+access to the exact resources an activity may use. Collections own created values; callers borrow them and must not
+close them individually. Acquisition requirements apply at creation, while actor-specific use requirements are checked
+on public borrowing. Remote work must reconstruct its local resources rather than serialize live clients.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 `@okikio/resource` defines provider-neutral capabilities and creates lazily acquired collections of concrete
 implementations. Definitions describe the complete resource graph. They do not connect to providers or storage at import
 time.
@@ -100,58 +142,39 @@ implement definitions and hosts decide how generic requirements are interpreted.
 
 ## Convenience and the manual equivalent
 
-Concrete map
+| Convenience                         | Manual equivalent                                                                                                               | Concrete value                                         |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `resource.define()` + `implement()` | declare identity/dependencies, separately bind create/dispose behavior, and validate that implementation matches the definition | definition and live provider stay separate             |
+| `resource.create()`                 | topologically acquire dependencies, cache values, fence cycles/missing implementations, and unwind partial failures manually    | one owned resource graph                               |
+| `implementations()`                 | deduplicate implementation objects while preserving the implementation union yourself                                           | runtime set semantics no longer lie about tuple length |
 
-```
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `resource.define()` + `implement()` | declare identity/dependencies, separately bind create/dispose behavior, and validate that implementation matches the definition | definition and live provider stay separate |
-| `resource.create()` | topologically acquire dependencies, cache values, fence cycles/missing implementations, and unwind partial failures manually | one owned resource graph |
-| `implementations()` | deduplicate implementation objects while preserving the implementation union yourself | runtime set semantics no longer lie about tuple length |
+`@okikio/resource` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics with a dependency
+graph, a cache, and one AsyncDisposableStack per acquired value.
 
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
+The utility adds deterministic dependency selection, cycle checks, scoped requirements, borrowed dependencies, and
+reverse-order cleanup.
 
+## Catalogs, projections, and expected errors
 
-`@okikio/resource` is a convenience layer, not a hidden runtime. You can reproduce its
-core mechanics with a dependency graph, a cache, and one AsyncDisposableStack per acquired value.
-
-The utility adds deterministic dependency selection, cycle checks, scoped requirements, borrowed dependencies, and reverse-order cleanup.
-
-When debugging or extending the package, keep that manual model in mind. The
-utility should remove repetitive correctness work without making the underlying
-Web, ECMAScript, Standard Schema, or runtime primitives impossible to recognize.
-
-
-Catalogs, projections, and expected errors
------------------------------------------
-
-Resource definition sets use the same import-safe composition model as the other
-definition utilities:
+Resource definition sets use the same import-safe composition model as the other definition utilities:
 
 - `catalog()`, `select()`, and `compose()` build exact resource definition sets.
 - `validate()` checks a definition/implementation composition before runtime use.
 - `manifest()` projects the dependency/environment shape a host must satisfy.
 - `document()` produces deterministic JSON-safe resource metadata.
 
-The main structural errors are `DefinitionConflictError`,
-`ImplementationConflictError`, `MissingImplementationError`,
-`DependencyCycleError`, and `CollectionDisposedError`. Each identifies a
-different ownership/configuration failure; none is silently repaired.
+The main structural errors are `DefinitionConflictError`, `ImplementationConflictError`, `MissingImplementationError`,
+`DependencyCycleError`, and `CollectionDisposedError`. Each identifies a different ownership/configuration failure; none
+is silently repaired.
 
+## Source guide
 
-Source guide
-------------
-
-Start with this README, then use the source in this order when you need more
-detail:
+Start with this README, then use the source in this order when you need more detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
-   behavior as executable examples.
-4. Read internal implementation files only when you need the exact state
-   transition or performance-sensitive loop.
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
+4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to
-the public source instead of maintaining a separate hand-written API reference.
-```
+The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
+separate hand-written API reference.

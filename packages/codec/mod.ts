@@ -1,7 +1,19 @@
 /**
- * Bidirectional data conversion built from independent Standard Schema contracts.
+ * Describe both directions of a transport conversion together. Independent encoder and decoder functions easily drift when an API changes its timestamp format.
  *
- * Use this module when decoding and encoding have different validated shapes.
+ * Use a codec for an HTTP field, queue payload or stored result, then expose it through schema-compatible consumers. Both directions validate their own output. Round-trip fidelity depends on your transformations: converting an offset timestamp to Date intentionally normalizes its spelling. A codec does not serialize resources or make arbitrary objects durable.
+ *
+ * @example
+ * ```ts
+ * import * as codec from '@okikio/codec';
+ * import { z } from 'zod';
+ * const InstantCodec = codec.define({
+ *   decode: z.string().datetime().transform((value) => new Date(value)),
+ *   encode: z.date().transform((value) => value.toISOString()),
+ * });
+ * const instant = await codec.decode(InstantCodec, '2026-01-01T00:00:00.000Z');
+ * console.log(await codec.encode(InstantCodec, instant));
+ * ```
  *
  * @module
  */

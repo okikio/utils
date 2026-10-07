@@ -1,20 +1,32 @@
 /**
- * Minimal frozen success-or-failure wrappers for explicit caller branching.
+ * Represent an expected success or failure as data and force call sites to choose a branch. Throwing for every missing value makes ordinary control flow indistinguishable from an unexpected provider fault.
  *
- * This module deliberately has no schema, transport, retry, or failure-identity
- * dependency. The failure value can be any exact caller-defined reason type.
+ * Use match() at a consumer that must handle both paths, or getOr()/getOrElse() for an intentional fallback. unwrap() turns a failure back into a thrown value when exception flow is appropriate. Result does not define a durable failure identity, retry policy or HTTP status; compose it with those packages when needed.
+ *
+ * @example
+ * ```ts
+ * import * as result from '@okikio/result';
+ * const found = result.ok('asset-1');
+ * const missing = result.fail('missing');
+ * console.log(result.match(found, { ok: (id) => `loaded ${id}`, failure: (reason) => `failed ${reason}` }));
+ * console.log(result.getOr(missing as result.Result<string, string>, 'default'));
+ * ```
  *
  * @module
  */
 /** Successful result variant. */
 export interface Success<Value> {
+	/** Whether this result reached its successful protocol branch. */
 	readonly ok: true;
+	/** Value carried by this contract; its schema and owner define the accepted shape. */
 	readonly value: Value;
 }
 
 /** Failed result variant. */
 export interface Failure<Reason> {
+	/** Whether this result reached its successful protocol branch. */
 	readonly ok: false;
+	/** Expected failure data retained under its declared contract. */
 	readonly failure: Reason;
 }
 

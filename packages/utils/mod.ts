@@ -1,14 +1,18 @@
 /**
- * Installation-level entry point for the Okikio utility suite.
+ * Install the suite once while importing only the focused surface a consumer needs. An eager namespace import can otherwise pull parsers, adapters and server implementations into a small program.
  *
- * Installing `@okikio/utils` installs every focused utility package. Import a
- * focused subpath such as `@okikio/utils/queue` for ordinary use, or opt into
- * `@okikio/utils/all` when one application intentionally needs the full graph.
- * The root stays dependency-light and import-safe across runtimes.
+ * Use @okikio/utils/<package> for one-install convenience or install @okikio/<package> independently. Deep subpaths preserve each focused export, including explicit polyfills and runtime adapters. The root inventory is lightweight; the all facade is a deliberate eager choice. All packages are currently version 0.0.0 and experimental, so validate the exact export and contract when upgrading.
+ *
+ * @example
+ * ```ts
+ * import * as result from '@okikio/utils/result';
+ * import * as record from '@okikio/utils/record';
+ * const value = result.ok({ id: 'asset-1' });
+ * console.log(record.keys(result.unwrap(value)).join(','));
+ * ```
  *
  * @module
  */
-
 /** Package names included by the umbrella installation. */
 export const packages = Object.freeze(
 	[

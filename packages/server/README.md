@@ -1,5 +1,37 @@
 # `@okikio/server`
 
+Compose a portable fetch application from route and middleware values. A large if chain mixes routing, exception mapping
+and security headers, making it hard to mount the same service on another host.
+
+## Run a complete example
+
+```ts runnable
+import * as http from '@okikio/server/http';
+const app = http.create({
+	routes: [http.route('GET', '/health', () => Response.json({ ok: true }))],
+	middleware: [http.securityHeaders()],
+});
+const response = await app.fetch(new Request('https://service.invalid/health'));
+console.log(response.status, (await response.json()).ok);
+```
+
+Expected output:
+
+```text output
+200 true
+```
+
+## Build on the example
+
+Start with Web Request/Response routes, then move stable schemas into endpoint definitions and bind implementations
+through services. A gateway composes host services; an explicit Deno or framework adapter starts the listener.
+Definitions do not create connections. Middleware and response bodies have real ownership and cancellation costs, so
+choose buffering only for bounded payloads.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/server` composes HTTP application definitions into executable services and gateways.
@@ -128,9 +160,9 @@ The server package consumes those values. It does not redefine them.
 
 ## Progressive usage
 
-The package participates in the complete domain-enrichment example in `../../docs/composition.md`. Read that guide when
-the individual helpers make sense in isolation but their place in a service, resource graph, runtime host, or workflow
-is not yet clear.
+Read [complete compositions](../../docs/composition.md) for a bounded CSV import, allowed-page discovery and a
+resource-backed operation. Each example names its result and owner. Use [the outcome guide](../../docs/outcomes.md) to
+choose additional mechanisms when the application needs them.
 
 ## Security-header configuration is ordinary data
 
@@ -140,30 +172,20 @@ static security policy deterministic and visible in the object being reviewed.
 
 ## Convenience and the manual equivalent
 
-Concrete map
+| Convenience                               | Manual equivalent                                                                                                                        | Concrete value                                                        |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `endpoint.define()` + `service.compile()` | validate endpoint authoring records, compile routes, inputs, resources, problems, and handlers into one immutable runtime model yourself | definitions and runtime wiring cannot silently drift                  |
+| `server.http.*` middleware                | write request IDs, CORS, timing, security headers, access logs, completion hooks, and option snapshotting independently                  | one Web `Request`/`Response` policy layer                             |
+| `gateway.create()`                        | match routes, bound request bodies, rebuild trusted forwarding metadata, proxy, and normalize faults manually                            | one generic service gateway without product-specific headers baked in |
 
-```
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `endpoint.define()` + `service.compile()` | validate endpoint authoring records, compile routes, inputs, resources, problems, and handlers into one immutable runtime model yourself | definitions and runtime wiring cannot silently drift |
-| `server.http.*` middleware | write request IDs, CORS, timing, security headers, access logs, completion hooks, and option snapshotting independently | one Web `Request`/`Response` policy layer |
-| `gateway.create()` | match routes, bound request bodies, rebuild trusted forwarding metadata, proxy, and normalize faults manually | one generic service gateway without product-specific headers baked in |
+`@okikio/server` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics by matching routes,
+parsing Request values, validating schemas, acquiring resources, calling handlers, mapping problems and constructing
+Response values.
 
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
+The utility compiles those generic contracts into a Fetch runtime. Framework adapters remain separate, and service
+definitions remain import-safe.
 
-
-`@okikio/server` is a convenience layer, not a hidden runtime. You can reproduce its
-core mechanics with match routes, parse Request values, validate schemas, acquire resources, call handlers, map problems, and construct Response values yourself.
-
-The utility compiles those generic contracts into a Fetch runtime. Framework adapters remain separate, and service definitions remain import-safe.
-
-When debugging or extending the package, keep that manual model in mind. The
-utility should remove repetitive correctness work without making the underlying
-Web, ECMAScript, Standard Schema, or runtime primitives impossible to recognize.
-
-
-Framework problem catalogs
---------------------------
+## Framework problem catalogs
 
 The root module exports two neutral framework problem sets:
 
@@ -172,34 +194,24 @@ The root module exports two neutral framework problem sets:
 
 Product-specific problem namespaces remain application composition, not generic server defaults.
 
+## Source guide
 
-Source guide
-------------
-
-Start with this README, then use the source in this order when you need more
-detail:
+Start with this README, then use the source in this order when you need more detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
-   behavior as executable examples.
-4. Read internal implementation files only when you need the exact state
-   transition or performance-sensitive loop.
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
+4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to
-the public source instead of maintaining a separate hand-written API reference.
+The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
+separate hand-written API reference.
 
-Compiled service
-----------------
+## Compiled service
 
-`service.compile()` prepares the stable information that request handling needs:
-effective operations, a handler-free route plan, operation execution plans,
-resource and requirement information, and a JSON-safe manifest. The Fetch
-runtime reads this prepared state instead of rebuilding the same route and policy
-information for every request.
+`service.compile()` prepares the stable information that request handling needs: effective operations, a handler-free
+route plan, operation execution plans, resource and requirement information, and a JSON-safe manifest. The Fetch runtime
+reads this prepared state instead of rebuilding the same route and policy information for every request.
 
-The compiler remains independent of Hono and MCP. Request-local mutable values
-belong to `middleware.context()`. Longer-lived session and provider capabilities
-belong to explicit resources. Read [`../../docs/server.md`](../../docs/server.md)
-for the compiler and request-lifecycle model.
-```
+The compiler remains independent of Hono and MCP. Request-local mutable values belong to `middleware.context()`.
+Longer-lived session and provider capabilities belong to explicit resources. Read
+[`../../docs/server.md`](../../docs/server.md) for the compiler and request-lifecycle model.

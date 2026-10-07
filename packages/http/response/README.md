@@ -1,5 +1,31 @@
 # `@okikio/http/response`
 
+Keep a successful representation tied to one schema and attach a safe download name.
+
+## Run a complete example
+
+```ts runnable
+import * as response from '@okikio/http/response';
+import { z } from 'zod';
+const Saved = response.ok(z.object({ id: z.string() }), { id: 'asset.saved', description: 'Saved asset.' });
+const value = response.finalize(response.create(Saved, { id: 'asset-1' }));
+console.log(value.status);
+console.log(response.attachmentDisposition('reports/quarterly.csv'));
+```
+
+Expected output:
+
+```text output
+200
+attachment; filename="quarterly.csv"
+```
+
+## Build on the example
+
+Add pagination, repeated headers, conditional responses or byte ranges as the representation needs them. The server
+validates an occurrence against its endpoint declarations and materializes the native Response; a filename header does
+not authorize access to a file.
+
 ## Purpose
 
 `@okikio/http/response` defines successful HTTP representations and creates immutable logical response results.
@@ -31,6 +57,11 @@ responses. It is not the normal handler result.
 
 Header inputs preserve repeated fields. This is required for fields such as `Set-Cookie` that must not be flattened into
 one comma-joined value.
+
+Prepare reusable response headers with `headers()` when their values are fixed. The returned record owns frozen values
+and keeps an admitted occurrence projection, so repeated reads and merges avoid revalidating the same data. Mutable
+records, tuple lists and native `Headers` still receive fresh checks. This reuse preserves separate cookies and record
+ordering; freezing an arbitrary caller record does not grant it the library's admission identity.
 
 Storage adapters return transport-neutral cursor or offset page windows. They do not construct public URLs.
 `response.finalize()` can add RFC 8288 links and count metadata according to the response definition.

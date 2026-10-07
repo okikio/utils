@@ -2,8 +2,11 @@ import type { StandardJSONSchemaV1, StandardSchemaV1 } from '@standard-schema/sp
 
 /** Runtime measurement validated before it enters an effect occurrence. */
 export interface MeterReadingType {
+	/** Value carried by this contract; its schema and owner define the accepted shape. */
 	readonly value: number;
+	/** Observation instant supplied by the owning clock. */
 	readonly at: string;
+	/** Additional caller-owned metadata carried beside the primary value. */
 	readonly attributes?: Readonly<Record<string, string | number | boolean>>;
 }
 

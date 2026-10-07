@@ -1,5 +1,35 @@
 # `@okikio/record`
 
+Inspect plain data records without accidentally invoking hidden getters or trusting inherited configuration. Object.keys
+plus direct reads can execute accessors and silently ignore properties that validation never saw.
+
+## Run a complete example
+
+```ts runnable
+import * as record from '@okikio/record';
+const options = { host: 'localhost', port: 4321 } as const;
+record.assert(options, 'server options');
+console.log(record.keys(options).join(','));
+console.log(record.entries(options).map(([key, value]) => `${key}=${value}`).join(' '));
+```
+
+Expected output:
+
+```text output
+host,port
+host=localhost port=4321
+```
+
+## Build on the example
+
+Validate authored options before snapshotting them, then use typed keys and entries to retain exact key/value
+relationships. Use the ordinary Web or JavaScript API when data is already trusted and the stronger record contract adds
+no value. Record inspection does not recursively validate application values or make external objects immutable.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/record` defines the small JavaScript object shape used when a utility needs an ordinary string-keyed data map
@@ -46,33 +76,22 @@ Keys such as `__proto__` therefore remain ordinary data.
 
 ## Convenience and the manual equivalent
 
-Concrete map
-
-```
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `record.assert()` | inspect prototype, symbols, and every property descriptor before enumeration | prove `Object.keys()`/`entries()` sees the complete data shape |
+| Convenience         | Manual equivalent                                                                        | Concrete value                                                     |
+| ------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `record.assert()`   | inspect prototype, symbols, and every property descriptor before enumeration             | prove `Object.keys()`/`entries()` sees the complete data shape     |
 | `record.snapshot()` | validate, copy own enumerable data properties to a null-prototype object, then freeze it | an immutable record whose runtime keys match its TypeScript record |
 
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
+The manual implementation uses `Object.getPrototypeOf()`, `Object.getOwnPropertySymbols()`, and
+`Object.getOwnPropertyDescriptors()` to prove that enumeration sees the complete data shape. Exact `keys()`/`entries()`
+need one narrow TypeScript assertion after that runtime proof because the standard library intentionally widens object
+enumeration to `string`/`unknown`.
 
+Use this utility when **record shape itself is part of the contract**. Do not use it as a generic validator for
+arbitrary JSON objects, class instances, HTTP payloads, or fault diagnostics.
 
-The manual implementation uses `Object.getPrototypeOf()`,
-`Object.getOwnPropertySymbols()`, and `Object.getOwnPropertyDescriptors()` to
-prove that enumeration sees the complete data shape. Exact `keys()`/`entries()`
-need one narrow TypeScript assertion after that runtime proof because the
-standard library intentionally widens object enumeration to `string`/`unknown`.
-
-Use this utility when **record shape itself is part of the contract**. Do not use
-it as a generic validator for arbitrary JSON objects, class instances, HTTP
-payloads, or fault diagnostics.
-
-Source guide
-------------
+## Source guide
 
 1. `mod.ts` contains the complete runtime rules and snapshot operation.
 2. `types.ts` contains the exact entry type.
-3. `mod.test.ts` covers prototype, accessor, symbol, hidden-property, and
-   `__proto__` behavior.
+3. `mod.test.ts` covers prototype, accessor, symbol, hidden-property, and `__proto__` behavior.
 4. `types.test.ts` locks exact key/value inference.
-```

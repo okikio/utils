@@ -3,16 +3,23 @@ import type { Event, Fields, Reporter } from './types.ts';
 
 /** Minimal LogTape logger surface consumed by the telemetry reporter adapter. */
 export interface LogTapeLogger {
+	/** Emit one trace-level record through the supplied LogTape logger. */
 	trace(message: string, properties?: Readonly<Record<string, unknown>>): void;
+	/** Emit one debug-level event through the supplied LogTape logger. */
 	debug(message: string, properties?: Readonly<Record<string, unknown>>): void;
+	/** Emit one info-level record through the supplied LogTape logger. */
 	info(message: string, properties?: Readonly<Record<string, unknown>>): void;
+	/** Emit one warning-level event through the supplied LogTape logger. */
 	warn(message: string, properties?: Readonly<Record<string, unknown>>): void;
+	/** Emit one error-level record through the supplied LogTape logger. */
 	error(message: string, properties?: Readonly<Record<string, unknown>>): void;
+	/** Emit one fatal-level event through the supplied LogTape logger. */
 	fatal(message: string, properties?: Readonly<Record<string, unknown>>): void;
 }
 
 /** Minimal LogTape context bridge supplied by a host that enabled implicit context propagation. */
 export interface LogTapeContextApi {
+	/** Run this callback under the caller-supplied LogTape correlation context. */
 	withContext<Result>(properties: Readonly<Record<string, unknown>>, callback: () => Result): Result;
 }
 

@@ -1,0 +1,4530 @@
+{
+	"schemaVersion": 1,
+	"date": "2026-10-07",
+	"evidenceDirectory": ".artifacts/comparison/20261007",
+	"sourceGateDigest": "aea39b92cefe17a98845e4fdd15c2f410336b861baf0f26e1b610abf0b6643b7",
+	"runtime": {
+		"deno": "2.9.7",
+		"v8": "15.0.245.2-rusty",
+		"typescript": "6.0.3",
+		"node": "26.10.0",
+		"strictSourceCompiler": "7.0.2",
+		"declarationCompiler": "6.0.3",
+		"pnpm": "11.17.0",
+		"mise": "2026.10.3",
+		"platform": {
+			"target": "aarch64-unknown-linux-gnu",
+			"arch": "aarch64",
+			"os": "linux",
+			"vendor": "unknown",
+			"env": "gnu",
+			"standalone": false,
+			"osRelease": "7.0.14-linuxkit",
+			"cpu": "unknown",
+			"cpus": 8,
+			"memoryBytes": 8215117824
+		},
+		"resourceLimits": {
+			"memory.max": "2147483648",
+			"cpu.max": "200000 100000",
+			"cpuset.cpus.effective": "0-7"
+		}
+	},
+	"gates": [
+		{
+			"name": "final-source",
+			"command": "mise run verify",
+			"exitCode": 0,
+			"log": "verify-optimized.log",
+			"packages": 42,
+			"canonicalTests": 138,
+			"denoPassed": 172,
+			"denoSteps": 795,
+			"denoFailed": 0,
+			"denoIgnored": 1,
+			"nodeTests": 221,
+			"nodePassed": 221,
+			"nativeNodeFiles": 26
+		},
+		{
+			"name": "final-npm",
+			"command": "mise run npm-verify",
+			"exitCode": 0,
+			"log": "npm-verify-optimized.log",
+			"portablePackages": 41,
+			"publicSubpaths": 292,
+			"moduleFormats": [
+				"ESM",
+				"CommonJS"
+			],
+			"skipLibCheck": false,
+			"compiledCompositions": 6,
+			"scenarioTestsPerFormat": 19,
+			"validators": [
+				"publint --strict",
+				"attw --profile node16"
+			]
+		},
+		{
+			"name": "focused-optimization",
+			"command": "deno test --no-check -A packages/server/gateway/mod.test.ts packages/server/service/runtime.test.ts packages/server/service/compile.test.ts packages/server/service/resilience.test.ts tests/http-parity.test.ts",
+			"exitCode": 0,
+			"log": "optimization-focused-final.log",
+			"denoPassed": 9,
+			"denoSteps": 69
+		},
+		{
+			"name": "native-node-optimization",
+			"command": "node --import ./packages/duration/polyfill.ts --import ./packages/dispose/polyfill.ts --test packages/server/gateway/mod.test.ts packages/server/service/runtime.test.ts packages/server/service/compile.test.ts packages/server/service/resilience.test.ts tests/http-parity.test.ts",
+			"exitCode": 0,
+			"log": "node-optimization-focused.log",
+			"nodeTests": 69,
+			"nodePassed": 69
+		}
+	],
+	"correctness": {
+		"apiRequests": 35,
+		"gatewayRequests": 1,
+		"routingRequestsPerSize": 8,
+		"routeCounts": [
+			16,
+			256,
+			4096
+		],
+		"paritySteps": 14,
+		"routerOracleDecisions": 608,
+		"alternativeOperations": 15,
+		"alternativeSteps": 27,
+		"inferenceNegativeControls": 4,
+		"upstreamHono": {
+			"version": "4.13.5",
+			"commit": "06880c4a2b04de9dd74217f26dd831209b9c01f1"
+		}
+	},
+	"benchmarks": {
+		"command": "deno run -A bench/measure.ts <evidence> <installed-consumer>",
+		"status": "pass",
+		"programCount": 17,
+		"measuredCases": 240,
+		"color": {
+			"NODE_DISABLE_COLORS": "1",
+			"NO_COLOR": "1",
+			"FORCE_COLOR": "0"
+		},
+		"gc": "manual GC exposed; workload selects once or inner; natural GC remains in timed work",
+		"cache": "fresh program processes; dependency and OS caches may be warm",
+		"programs": [
+			{
+				"program": "../packages/env/mod.bench.ts",
+				"registeredEntries": 2,
+				"measuredCases": 2,
+				"status": "pass",
+				"elapsedMs": 5738.739336,
+				"report": "bench-all-final/0.json",
+				"sha256": "9f8e43d3189e7fb1a105521f93ada0a1c527db5326a6ee2cf78b45865a4793b7",
+				"cases": [
+					{
+						"group": "@okikio/env",
+						"alias": "parse two Zod-backed fields",
+						"args": {},
+						"averageNs": 397.53155004198305,
+						"medianNs": 388.05126953125,
+						"p99Ns": 466.8784179688664,
+						"samples": 428,
+						"heap": {
+							"_": 371,
+							"total": 429720.990234375,
+							"min": 1030.4375,
+							"max": 1901.279296875,
+							"avg": 1158.2776017099056
+						}
+					},
+					{
+						"group": "direct npm Zod: no source diagnostics or environment metadata",
+						"alias": "parse the same two fields directly",
+						"args": {},
+						"averageNs": 89.6471928815797,
+						"medianNs": 86.039306640625,
+						"p99Ns": 131.04248046875,
+						"samples": 1909,
+						"heap": {
+							"_": 1848,
+							"total": 519226.150390625,
+							"min": 114.65625,
+							"max": 604.498046875,
+							"avg": 280.96653159665857
+						}
+					}
+				]
+			},
+			{
+				"program": "../packages/csv/parse.bench.ts",
+				"registeredEntries": 7,
+				"measuredCases": 7,
+				"status": "pass",
+				"elapsedMs": 9950.521505,
+				"report": "bench-all-final/1.json",
+				"sha256": "6a4e8a90a444f750db078d2eacd9ec4c9124db87216e7aed30379841f2e089f0",
+				"cases": [
+					{
+						"group": "CSV collecting",
+						"alias": "csv.parseBytes: 2-row startup",
+						"args": {},
+						"averageNs": 47858.65912560825,
+						"medianNs": 37583.00000047684,
+						"p99Ns": 183167,
+						"samples": 14410,
+						"heap": {
+							"_": 14206,
+							"total": 598089880,
+							"min": 1392,
+							"max": 534088,
+							"avg": 42101.21638744193
+						}
+					},
+					{
+						"group": "CSV collecting",
+						"alias": "csv.parseBytes: 10k rows \u00d7 5 columns",
+						"args": {},
+						"averageNs": 29266615.722222224,
+						"medianNs": 28506250,
+						"p99Ns": 30343917,
+						"samples": 18,
+						"heap": {
+							"_": 12,
+							"total": 164235600,
+							"min": 13545272,
+							"max": 14050152,
+							"avg": 13686300
+						}
+					},
+					{
+						"group": "CSV tokenizer cost reference: no header selection, diagnostics or document metadata",
+						"alias": "@std/csv raw records: 10001 rows including header",
+						"args": {},
+						"averageNs": 17447876.194444418,
+						"medianNs": 17071959,
+						"p99Ns": 21021000,
+						"samples": 36,
+						"heap": {
+							"_": 27,
+							"total": 352639496,
+							"min": 12002392,
+							"max": 14754520,
+							"avg": 13060722.074074075
+						}
+					},
+					{
+						"group": "CSV tokenizer cost reference: npm parser without document projection",
+						"alias": "csv-parse/sync raw records: 10001 rows including header",
+						"args": {},
+						"averageNs": 19355341.931034483,
+						"medianNs": 19133417,
+						"p99Ns": 20412584,
+						"samples": 29,
+						"heap": {
+							"_": 29,
+							"total": 118057224,
+							"min": 4029472,
+							"max": 4384680,
+							"avg": 4070938.7586206896
+						}
+					},
+					{
+						"group": "CSV streaming",
+						"alias": "csv.parseStream: 10k rows \u00d7 5 columns, 64 KiB chunks",
+						"args": {},
+						"averageNs": 35851375.06666667,
+						"medianNs": 35265166,
+						"p99Ns": 38773625,
+						"samples": 15,
+						"heap": {
+							"_": 6,
+							"total": 147950728,
+							"min": 24270496,
+							"max": 26515400,
+							"avg": 24658454.666666668
+						}
+					},
+					{
+						"group": "CSV difficult decoder boundaries",
+						"alias": "256 quoted Unicode/newline rows \u00d7 1 KiB payload, collecting",
+						"args": {},
+						"averageNs": 5306867.195121975,
+						"medianNs": 5080208.000001907,
+						"p99Ns": 6914084,
+						"samples": 123,
+						"heap": {
+							"_": 122,
+							"total": 231215552,
+							"min": 1711136,
+							"max": 4317016,
+							"avg": 1895209.4426229508
+						}
+					},
+					{
+						"group": "CSV difficult decoder boundaries",
+						"alias": "256 quoted Unicode/newline rows \u00d7 1 KiB payload, 31-byte chunks",
+						"args": {},
+						"averageNs": 12651751.8,
+						"medianNs": 12058667,
+						"p99Ns": 15464125,
+						"samples": 50,
+						"heap": {
+							"_": 37,
+							"total": 458088560,
+							"min": 10440240,
+							"max": 17490576,
+							"avg": 12380771.891891891
+						}
+					}
+				]
+			},
+			{
+				"program": "../packages/queue/mod.bench.ts",
+				"registeredEntries": 2,
+				"measuredCases": 2,
+				"status": "pass",
+				"elapsedMs": 9126.662587,
+				"report": "bench-all-final/2.json",
+				"sha256": "945873dd54f426aa00c4cceb2de25265d20647049dc92822140d666996d4067d",
+				"cases": [
+					{
+						"group": "memory queue lifecycle",
+						"alias": "queue.memory: add + claim + complete 1k items",
+						"args": {},
+						"averageNs": 279045916.5,
+						"medianNs": 266944333,
+						"p99Ns": 329854333,
+						"samples": 12,
+						"heap": {
+							"_": 9,
+							"total": 90035904,
+							"min": 8937440,
+							"max": 13598960,
+							"avg": 10003989.333333334
+						}
+					},
+					{
+						"group": "FIFO primitive cost reference",
+						"alias": "array FIFO primitive: enqueue + dequeue 1k values",
+						"args": {},
+						"averageNs": 36406.71699301105,
+						"medianNs": 34500,
+						"p99Ns": 62708.999999046326,
+						"samples": 19049,
+						"heap": {
+							"_": 19027,
+							"total": 557608392,
+							"min": 28640,
+							"max": 672120,
+							"avg": 29306.16450307458
+						}
+					}
+				]
+			},
+			{
+				"program": "../packages/pool/mod.bench.ts",
+				"registeredEntries": 2,
+				"measuredCases": 2,
+				"status": "pass",
+				"elapsedMs": 5757.951252999999,
+				"report": "bench-all-final/3.json",
+				"sha256": "011e425cb8b462a43c9ef6909055b4ba085f3eff70f0a262d00654fc3d8c7116",
+				"cases": [
+					{
+						"group": "pool warm reuse",
+						"alias": "pool.acquire/release: 100 operations, maximum 8",
+						"args": {},
+						"averageNs": 1287075.76878613,
+						"medianNs": 1054625.0000009537,
+						"p99Ns": 6826875,
+						"samples": 519,
+						"heap": {
+							"_": 504,
+							"total": 503618048,
+							"min": 208816,
+							"max": 3569440,
+							"avg": 999242.1587301587
+						}
+					},
+					{
+						"group": "value-read primitive cost reference",
+						"alias": "direct reusable value read: 100 operations",
+						"args": {},
+						"averageNs": 87.12254709301503,
+						"medianNs": 84.706787109375,
+						"p99Ns": 127.756591796875,
+						"samples": 1953,
+						"heap": {
+							"_": 1953,
+							"total": 536.5859375,
+							"min": 0,
+							"max": 151.318359375,
+							"avg": 0.2747495839733743
+						}
+					}
+				]
+			},
+			{
+				"program": "../packages/workflow/dispatch.bench.ts",
+				"registeredEntries": 1,
+				"measuredCases": 1,
+				"status": "pass",
+				"elapsedMs": 8594.978421,
+				"report": "bench-all-final/4.json",
+				"sha256": "1c2b281fff2be4560affbb5871f34619edff20feedbe793f543ddeb9a9274b82",
+				"cases": [
+					{
+						"group": "memory activity dispatch lifecycle",
+						"alias": "dispatch.memory: add + place + claim + complete 1k items",
+						"args": {},
+						"averageNs": 289819746.75,
+						"medianNs": 301877292,
+						"p99Ns": 327432917,
+						"samples": 12,
+						"heap": {
+							"_": 4,
+							"total": 109370600,
+							"min": 25523736,
+							"max": 32499832,
+							"avg": 27342650
+						}
+					}
+				]
+			},
+			{
+				"program": "../packages/server/http/router.bench.ts",
+				"registeredEntries": 6,
+				"measuredCases": 6,
+				"status": "pass",
+				"elapsedMs": 20068.106134,
+				"report": "bench-all-final/5.json",
+				"sha256": "32df704e98ca395106f27dc369cbc9acd95a8b57425c1bf66904fad29ebefb89",
+				"cases": [
+					{
+						"group": "HTTP routing: 16 routes, 256 requests including HEAD and misses",
+						"alias": "prepared route plan",
+						"args": {},
+						"averageNs": 171468.27983234433,
+						"medianNs": 141709,
+						"p99Ns": 572500,
+						"samples": 4056,
+						"heap": {
+							"_": 4016,
+							"total": 360741600,
+							"min": 19064,
+							"max": 537896,
+							"avg": 89826.09561752988
+						}
+					},
+					{
+						"group": "HTTP routing: 16 routes, 256 requests including HEAD and misses",
+						"alias": "linear reference matcher",
+						"args": {},
+						"averageNs": 3569850.4611398815,
+						"medianNs": 3466458,
+						"p99Ns": 5080792,
+						"samples": 193,
+						"heap": {
+							"_": 175,
+							"total": 656803992,
+							"min": 3318456,
+							"max": 3927736,
+							"avg": 3753165.6685714284
+						}
+					},
+					{
+						"group": "HTTP routing: 256 routes, 256 requests including HEAD and misses",
+						"alias": "prepared route plan",
+						"args": {},
+						"averageNs": 156227.288249827,
+						"medianNs": 144209,
+						"p99Ns": 320167,
+						"samples": 4451,
+						"heap": {
+							"_": 4433,
+							"total": 397672096,
+							"min": 10512,
+							"max": 351016,
+							"avg": 89707.21768554026
+						}
+					},
+					{
+						"group": "HTTP routing: 256 routes, 256 requests including HEAD and misses",
+						"alias": "linear reference matcher",
+						"args": {},
+						"averageNs": 54021879.1000001,
+						"medianNs": 53786541,
+						"p99Ns": 54443500,
+						"samples": 10,
+						"heap": {
+							"_": 3,
+							"total": 81852864,
+							"min": 27284000,
+							"max": 27284512,
+							"avg": 27284288
+						}
+					},
+					{
+						"group": "HTTP routing: 4096 routes, 256 requests including HEAD and misses",
+						"alias": "prepared route plan",
+						"args": {},
+						"averageNs": 175977.99486651827,
+						"medianNs": 158375,
+						"p99Ns": 499292.0000009537,
+						"samples": 3896,
+						"heap": {
+							"_": 3883,
+							"total": 354734208,
+							"min": 15488,
+							"max": 352984,
+							"avg": 91355.7064125676
+						}
+					},
+					{
+						"group": "HTTP routing: 4096 routes, 256 requests including HEAD and misses",
+						"alias": "linear reference matcher",
+						"args": {},
+						"averageNs": 834967667.1666665,
+						"medianNs": 837175626,
+						"p99Ns": 850512833,
+						"samples": 12,
+						"heap": {
+							"_": 9,
+							"total": 99643000,
+							"min": 10985944,
+							"max": 11183416,
+							"avg": 11071444.444444444
+						}
+					}
+				]
+			},
+			{
+				"program": "./mod.ts",
+				"registeredEntries": 5,
+				"measuredCases": 5,
+				"status": "pass",
+				"elapsedMs": 8744.543837000005,
+				"report": "bench-all-final/6.json",
+				"sha256": "853467c45fcc3050ee604c6e6f6c6e5dffa02994b5949da81a4f3991936900bc",
+				"cases": [
+					{
+						"group": "discovery composition",
+						"alias": "1k CRM rows + robots + 250 sitemap URLs + HTML/CSS discovery",
+						"args": {},
+						"averageNs": 5590913.429824587,
+						"medianNs": 4538834,
+						"p99Ns": 13480250,
+						"samples": 114,
+						"heap": {
+							"_": 105,
+							"total": 403765856,
+							"min": 377032,
+							"max": 7222104,
+							"avg": 3845389.1047619046
+						}
+					},
+					{
+						"group": "bounded coordination",
+						"alias": "100 queue jobs through a four-resource pool",
+						"args": {},
+						"averageNs": 4801524.75177305,
+						"medianNs": 3104292,
+						"p99Ns": 20345041,
+						"samples": 141,
+						"heap": {
+							"_": 131,
+							"total": 386484736,
+							"min": 1351904,
+							"max": 4691008,
+							"avg": 2950265.1603053436
+						}
+					},
+					{
+						"group": "HTTP composition",
+						"alias": "100 routed headers + body cancellation through middleware",
+						"args": {},
+						"averageNs": 9081880.068493124,
+						"medianNs": 9104833,
+						"p99Ns": 12692458,
+						"samples": 73,
+						"heap": {
+							"_": 52,
+							"total": 567268112,
+							"min": 10340400,
+							"max": 12260712,
+							"avg": 10909002.153846154
+						}
+					},
+					{
+						"group": "HTTP composition",
+						"alias": "100 routed requests + JSON consumption through middleware",
+						"args": {},
+						"averageNs": 9823667.953846125,
+						"medianNs": 9288083,
+						"p99Ns": 14620500,
+						"samples": 65,
+						"heap": {
+							"_": 47,
+							"total": 501266728,
+							"min": 8965136,
+							"max": 12429200,
+							"avg": 10665249.531914894
+						}
+					},
+					{
+						"group": "durable workflow identity",
+						"alias": "identify 32 deterministic timer instructions",
+						"args": {},
+						"averageNs": 2348546.81292517,
+						"medianNs": 2299750,
+						"p99Ns": 4059250,
+						"samples": 294,
+						"heap": {
+							"_": 295,
+							"total": 57278568,
+							"min": 34664,
+							"max": 845464,
+							"avg": 194164.6372881356
+						}
+					}
+				]
+			},
+			{
+				"program": "./values.bench.ts",
+				"registeredEntries": 17,
+				"measuredCases": 17,
+				"status": "pass",
+				"elapsedMs": 17508.64175699999,
+				"report": "bench-all-final/7.json",
+				"sha256": "8fb3a851598b7e45df0cac03a47a2962b679c251a8f7fa68ce6a0867803ee2d6",
+				"cases": [
+					{
+						"group": "Validated imported records: 100 independent values",
+						"alias": "Standard Schema facade + Zod",
+						"args": {},
+						"averageNs": 37030.88591571757,
+						"medianNs": 34625,
+						"p99Ns": 78583,
+						"samples": 18723,
+						"heap": {
+							"_": 18624,
+							"total": 2422508496,
+							"min": 2160,
+							"max": 607776,
+							"avg": 130074.55412371134
+						}
+					},
+					{
+						"group": "Validated imported records: 100 independent values",
+						"alias": "Zod direct parse: same output, native errors",
+						"args": {},
+						"averageNs": 8537.80590820314,
+						"medianNs": 8511.0068359375,
+						"p99Ns": 8700.642822265625,
+						"samples": 17,
+						"heap": {
+							"_": 13,
+							"total": 46121.107421875,
+							"min": 3430.728515625,
+							"max": 4871.822265625,
+							"avg": 3547.7774939903848
+						}
+					},
+					{
+						"group": "Validated imported records: 100 independent values",
+						"alias": "owned shallow record snapshots",
+						"args": {},
+						"averageNs": 92182.23429024663,
+						"medianNs": 87667,
+						"p99Ns": 168083,
+						"samples": 7559,
+						"heap": {
+							"_": 7521,
+							"total": 1003467064,
+							"min": 9728,
+							"max": 447256,
+							"avg": 133422.02685813056
+						}
+					},
+					{
+						"group": "Validated imported records: 100 independent values",
+						"alias": "native shallow copies: no utility record guard",
+						"args": {},
+						"averageNs": 1089.9754591111998,
+						"medianNs": 1086.761474609375,
+						"p99Ns": 1161.12255859375,
+						"samples": 154,
+						"heap": {
+							"_": 81,
+							"total": 324948.462890625,
+							"min": 3689.76953125,
+							"max": 5241.80078125,
+							"avg": 4011.709418402778
+						}
+					},
+					{
+						"group": "Validated imported records: 100 independent values",
+						"alias": "frozen success wrapper and unwrap",
+						"args": {},
+						"averageNs": 2853.1078116433746,
+						"medianNs": 2843.9230957035907,
+						"p99Ns": 2972.2392578125,
+						"samples": 57,
+						"heap": {
+							"_": 32,
+							"total": 128920.060546875,
+							"min": 3999.859375,
+							"max": 4913.556640625,
+							"avg": 4028.7518920898438
+						}
+					},
+					{
+						"group": "Validated imported records: 100 independent values",
+						"alias": "frozen tagged record reference",
+						"args": {},
+						"averageNs": 2782.5463738692597,
+						"medianNs": 2777.9133300776593,
+						"p99Ns": 2921.091552734608,
+						"samples": 57,
+						"heap": {
+							"_": 32,
+							"total": 128792.142578125,
+							"min": 3999.859375,
+							"max": 4785.642578125,
+							"avg": 4024.7544555664062
+						}
+					},
+					{
+						"group": "Transport conversion and diagnostics",
+						"alias": "validated timestamp codec round trip",
+						"args": {},
+						"averageNs": 2404.015395434935,
+						"medianNs": 2332.23486328125,
+						"p99Ns": 3227.9560546875,
+						"samples": 67,
+						"heap": {
+							"_": 37,
+							"total": 151359.037109375,
+							"min": 4073.96484375,
+							"max": 4356.240234375,
+							"avg": 4090.784786739865
+						}
+					},
+					{
+						"group": "Transport conversion and diagnostics",
+						"alias": "Date reference: no schema rejection or directional contract",
+						"args": {},
+						"averageNs": 1187.8330817945005,
+						"medianNs": 905.893798828125,
+						"p99Ns": 4740.9462890625,
+						"samples": 132,
+						"heap": {
+							"_": 133,
+							"total": 18320.830078125,
+							"min": 135.73828125,
+							"max": 363.3984375,
+							"avg": 137.7506020911654
+						}
+					},
+					{
+						"group": "Transport conversion and diagnostics",
+						"alias": "expected failure creation, encoding and trusted reconstruction",
+						"args": {},
+						"averageNs": 5044.329174804688,
+						"medianNs": 4817.46435546875,
+						"p99Ns": 6499.521728515625,
+						"samples": 30,
+						"heap": {
+							"_": 31,
+							"total": 29314.427734375,
+							"min": 685.82421875,
+							"max": 1775.005859375,
+							"avg": 945.626701108871
+						}
+					},
+					{
+						"group": "Transport conversion and diagnostics",
+						"alias": "bounded native error diagnostics",
+						"args": {},
+						"averageNs": 1215.118545420852,
+						"medianNs": 1108.723876953125,
+						"p99Ns": 2060.272216796875,
+						"samples": 137,
+						"heap": {
+							"_": 110,
+							"total": 209543.416015625,
+							"min": 1715.521484375,
+							"max": 3112.7265625,
+							"avg": 1904.9401455965908
+						}
+					},
+					{
+						"group": "Transport conversion and diagnostics",
+						"alias": "lossless list query parse and URL round trip",
+						"args": {},
+						"averageNs": 21861.094866036336,
+						"medianNs": 15166,
+						"p99Ns": 108250,
+						"samples": 30717,
+						"heap": {
+							"_": 30320,
+							"total": 1160168128,
+							"min": 616,
+							"max": 621728,
+							"avg": 38264.12031662269
+						}
+					},
+					{
+						"group": "Repeated domain, version and exact contract lookup",
+						"alias": "catalog exact-ID lookup: 100 entries",
+						"args": {},
+						"averageNs": 5669.5067795973555,
+						"medianNs": 5649.12939453125,
+						"p99Ns": 5814.259765625,
+						"samples": 26,
+						"heap": {
+							"_": 29,
+							"total": 1104.658203125,
+							"min": 0.0390625,
+							"max": 1101.923828125,
+							"avg": 38.091662176724135
+						}
+					},
+					{
+						"group": "Repeated domain, version and exact contract lookup",
+						"alias": "Map exact-ID lookup: no definition conflict guard",
+						"args": {},
+						"averageNs": 626.643332168185,
+						"medianNs": 623.12841796875,
+						"p99Ns": 676.06591796875,
+						"samples": 271,
+						"heap": {
+							"_": 273,
+							"total": 1451.609375,
+							"min": 0.09375,
+							"max": 1232.34765625,
+							"avg": 5.317250457875458
+						}
+					},
+					{
+						"group": "Repeated domain, version and exact contract lookup",
+						"alias": "email hostname validation and normalization",
+						"args": {},
+						"averageNs": 4308.943284776476,
+						"medianNs": 4236.552001953125,
+						"p99Ns": 4785.969970703125,
+						"samples": 36,
+						"heap": {
+							"_": 28,
+							"total": 71251.015625,
+							"min": 2519.888671875,
+							"max": 2909.359375,
+							"avg": 2544.679129464286
+						}
+					},
+					{
+						"group": "Repeated domain, version and exact contract lookup",
+						"alias": "Temporal duration to milliseconds",
+						"args": {},
+						"averageNs": 1147.7930774549498,
+						"medianNs": 1134.765625,
+						"p99Ns": 1445.54638671875,
+						"samples": 137,
+						"heap": {
+							"_": 139,
+							"total": 12469.224609375,
+							"min": 88.09375,
+							"max": 304.474609375,
+							"avg": 89.70665186600719
+						}
+					},
+					{
+						"group": "Repeated domain, version and exact contract lookup",
+						"alias": "version evidence projection: 100 exact releases",
+						"args": {},
+						"averageNs": 58102.35134678375,
+						"medianNs": 54458,
+						"p99Ns": 118208,
+						"samples": 11843,
+						"heap": {
+							"_": 11775,
+							"total": 1665623640,
+							"min": 16360,
+							"max": 681160,
+							"avg": 141454.23694267517
+						}
+					},
+					{
+						"group": "Repeated domain, version and exact contract lookup",
+						"alias": "@std/semver parse: 100 exact releases, no evidence projection",
+						"args": {},
+						"averageNs": 18020.719746907474,
+						"medianNs": 17822.52001953125,
+						"p99Ns": 18160.379882812034,
+						"samples": 12,
+						"heap": {
+							"_": 6,
+							"total": 26712.23828125,
+							"min": 4088.955078125,
+							"max": 6266.478515625,
+							"avg": 4452.039713541667
+						}
+					}
+				]
+			},
+			{
+				"program": "./contracts.bench.ts",
+				"registeredEntries": 6,
+				"measuredCases": 6,
+				"status": "pass",
+				"elapsedMs": 9264.933962999989,
+				"report": "bench-all-final/8.json",
+				"sha256": "89ddee2a2b1a1071b5a7acacdc77ded3087d48a04e1fadd82b21e666d40958d5",
+				"cases": [
+					{
+						"group": "Per-operation service contracts: no network or external policy engine",
+						"alias": "permission target validation and accepted decision",
+						"args": {},
+						"averageNs": 1505.483826243544,
+						"medianNs": 1477.6306152341422,
+						"p99Ns": 2073.343994140625,
+						"samples": 109,
+						"heap": {
+							"_": 37,
+							"total": 205264.3984375,
+							"min": 5098.646484375,
+							"max": 6202.990234375,
+							"avg": 5547.686444256757
+						}
+					},
+					{
+						"group": "Per-operation service contracts: no network or external policy engine",
+						"alias": "permission target validation and denied decision",
+						"args": {},
+						"averageNs": 1580.2472101600447,
+						"medianNs": 1502.99072265625,
+						"p99Ns": 2295.36962890625,
+						"samples": 103,
+						"heap": {
+							"_": 35,
+							"total": 193732.33984375,
+							"min": 5129.947265625,
+							"max": 5809.572265625,
+							"avg": 5535.209709821429
+						}
+					},
+					{
+						"group": "Per-operation service contracts: no network or external policy engine",
+						"alias": "activate exact entitlement through requirement interpreter",
+						"args": {},
+						"averageNs": 835.964895779963,
+						"medianNs": 747.111083984375,
+						"p99Ns": 2007.904052734375,
+						"samples": 183,
+						"heap": {
+							"_": 114,
+							"total": 365839.732421875,
+							"min": 2906.751953125,
+							"max": 3737.3359375,
+							"avg": 3209.1204598410086
+						}
+					},
+					{
+						"group": "Per-operation service contracts: no network or external policy engine",
+						"alias": "effect acceptance plus durable envelope round trip",
+						"args": {},
+						"averageNs": 3220.7113478640294,
+						"medianNs": 3032.307861328125,
+						"p99Ns": 4385.40673828125,
+						"samples": 47,
+						"heap": {
+							"_": 49,
+							"total": 16106.4375,
+							"min": 154.017578125,
+							"max": 711.5,
+							"avg": 328.702806122449
+						}
+					},
+					{
+						"group": "Per-operation service contracts: no network or external policy engine",
+						"alias": "meter clock reading, validation and effect acceptance",
+						"args": {},
+						"averageNs": 3063.5268065153264,
+						"medianNs": 2500,
+						"p99Ns": 10083,
+						"samples": 200884,
+						"heap": {
+							"_": 200674,
+							"total": 797189496,
+							"min": 40,
+							"max": 378248,
+							"avg": 3972.5599529585297
+						}
+					},
+					{
+						"group": "Per-operation service contracts: no network or external policy engine",
+						"alias": "compile bounded idempotent retry/timeout plan",
+						"args": {},
+						"averageNs": 352.196475698922,
+						"medianNs": 342.69213867164217,
+						"p99Ns": 447.20458984375,
+						"samples": 484,
+						"heap": {
+							"_": 431,
+							"total": 414974.109375,
+							"min": 620.556640625,
+							"max": 1411.888671875,
+							"avg": 962.8169591067285
+						}
+					}
+				]
+			},
+			{
+				"program": "./lifetimes.bench.ts",
+				"registeredEntries": 12,
+				"measuredCases": 12,
+				"status": "pass",
+				"elapsedMs": 15533.369256999998,
+				"report": "bench-all-final/9.json",
+				"sha256": "cef70cfc9cc925e8fc81d36f324194f495b56d8d715d425f71e6dace9ca4fba4",
+				"cases": [
+					{
+						"group": "Joined local lifetimes",
+						"alias": "cancel 100 admitted children + join asynchronous cleanup",
+						"args": {},
+						"averageNs": 329204.8017200248,
+						"medianNs": 258500,
+						"p99Ns": 4087708,
+						"samples": 2093,
+						"heap": {
+							"_": 2057,
+							"total": 740014016,
+							"min": 11520,
+							"max": 1537568,
+							"avg": 359754.0184735051
+						}
+					},
+					{
+						"group": "Joined local lifetimes",
+						"alias": "context owner + child deadline + joined cleanup",
+						"args": {},
+						"averageNs": 27551.007588704426,
+						"medianNs": 26789.947509765625,
+						"p99Ns": 31729.095458984375,
+						"samples": 12,
+						"heap": {
+							"_": 11,
+							"total": 57916.603515625,
+							"min": 4887.134765625,
+							"max": 5744.1640625,
+							"avg": 5265.145774147727
+						}
+					},
+					{
+						"group": "Joined local lifetimes",
+						"alias": "task checkpoint + terminal result + cleanup",
+						"args": {},
+						"averageNs": 12314.777506510443,
+						"medianNs": 11743.794677734375,
+						"p99Ns": 13872.772216796875,
+						"samples": 9,
+						"heap": {
+							"_": 12,
+							"total": 37048.390625,
+							"min": 311.994140625,
+							"max": 5929.009765625,
+							"avg": 3087.3658854166665
+						}
+					},
+					{
+						"group": "Joined local lifetimes",
+						"alias": "declared resource create + borrow + dispose",
+						"args": {},
+						"averageNs": 23528.18896484379,
+						"medianNs": 21038.747314453358,
+						"p99Ns": 30120.025634765625,
+						"samples": 12,
+						"heap": {
+							"_": 10,
+							"total": 69181.828125,
+							"min": 2350.78125,
+							"max": 8783.263671875,
+							"avg": 6918.1828125
+						}
+					},
+					{
+						"group": "Joined local lifetimes",
+						"alias": "atomic two-resource capacity acquire + release",
+						"args": {},
+						"averageNs": 1602.5427174984898,
+						"medianNs": 1589.864013671875,
+						"p99Ns": 1737.528564453125,
+						"samples": 103,
+						"heap": {
+							"_": 65,
+							"total": 210319.80078125,
+							"min": 3177.24609375,
+							"max": 5751.04296875,
+							"avg": 3235.6892427884613
+						}
+					},
+					{
+						"group": "Bounded transformations and observation",
+						"alias": "ordered cancellable map: 100 records, concurrency 4",
+						"args": {},
+						"averageNs": 58543.48439597044,
+						"medianNs": 54958,
+						"p99Ns": 129792,
+						"samples": 11920,
+						"heap": {
+							"_": 11823,
+							"total": 3016853584,
+							"min": 496,
+							"max": 468280,
+							"avg": 255168.19622769178
+						}
+					},
+					{
+						"group": "Bounded transformations and observation",
+						"alias": "@std/async pooledMap: same successful output, different failure contract",
+						"args": {},
+						"averageNs": 98238.1232663448,
+						"medianNs": 87334,
+						"p99Ns": 442208,
+						"samples": 7066,
+						"heap": {
+							"_": 6983,
+							"total": 2315957784,
+							"min": 6560,
+							"max": 2077192,
+							"avg": 331656.5636545897
+						}
+					},
+					{
+						"group": "Bounded transformations and observation",
+						"alias": "chunked UTF-8 stream to 100 lines",
+						"args": {},
+						"averageNs": 111105.01146131805,
+						"medianNs": 101167,
+						"p99Ns": 257041,
+						"samples": 6282,
+						"heap": {
+							"_": 6235,
+							"total": 1029868944,
+							"min": 6752,
+							"max": 823736,
+							"avg": 165175.45212510024
+						}
+					},
+					{
+						"group": "Bounded transformations and observation",
+						"alias": "bounded 16-record batches: 100 records",
+						"args": {},
+						"averageNs": 13493.70201280382,
+						"medianNs": 13484.85302734375,
+						"p99Ns": 13558.64453125,
+						"samples": 9,
+						"heap": {
+							"_": 9,
+							"total": 25533.267578125,
+							"min": 2832.21484375,
+							"max": 2852.78515625,
+							"avg": 2837.029730902778
+						}
+					},
+					{
+						"group": "Bounded transformations and observation",
+						"alias": "bounded telemetry ring: 32 debug records, retain 16 + triggering error",
+						"args": {},
+						"averageNs": 87737.07955267506,
+						"medianNs": 80500,
+						"p99Ns": 189250,
+						"samples": 7869,
+						"heap": {
+							"_": 7810,
+							"total": 870141856,
+							"min": 6040,
+							"max": 605528,
+							"avg": 111413.8099871959
+						}
+					},
+					{
+						"group": "stream scaling without application row retention",
+						"alias": "100 UTF-8 lines, 31-byte source chunks",
+						"args": {},
+						"averageNs": 123925.86433764851,
+						"medianNs": 109000,
+						"p99Ns": 294834,
+						"samples": 5639,
+						"heap": {
+							"_": 5590,
+							"total": 909127080,
+							"min": 160,
+							"max": 596472,
+							"avg": 162634.54025044723
+						}
+					},
+					{
+						"group": "stream scaling without application row retention",
+						"alias": "102400 UTF-8 lines, 31-byte source chunks",
+						"args": {},
+						"averageNs": 129104798.75,
+						"medianNs": 127206791,
+						"p99Ns": 145112792,
+						"samples": 12,
+						"heap": {
+							"_": 5,
+							"total": 110545648,
+							"min": 21990328,
+							"max": 22519352,
+							"avg": 22109129.6
+						}
+					}
+				]
+			},
+			{
+				"program": "./hosts.bench.ts",
+				"registeredEntries": 5,
+				"measuredCases": 5,
+				"status": "pass",
+				"elapsedMs": 8757.710670999993,
+				"report": "bench-all-final/10.json",
+				"sha256": "6c04fefa5f409af2a0357c8b983c4dd5174a2423d11c3421343ab5e782c35293",
+				"cases": [
+					{
+						"group": "host boundaries: startup and ownership",
+						"alias": "Worker cold startup + validated echo + cleanup",
+						"args": {},
+						"averageNs": 36899138.86666673,
+						"medianNs": 36442917,
+						"p99Ns": 39857000,
+						"samples": 15,
+						"heap": {
+							"_": 17,
+							"total": 1008304,
+							"min": 36456,
+							"max": 199880,
+							"avg": 59312
+						}
+					},
+					{
+						"group": "host boundaries: startup and ownership",
+						"alias": "Worker warm validated echo",
+						"args": {},
+						"averageNs": 138357.38231731896,
+						"medianNs": 130250,
+						"p99Ns": 288458,
+						"samples": 4954,
+						"heap": {
+							"_": 4900,
+							"total": 82680240,
+							"min": 624,
+							"max": 1092656,
+							"avg": 16873.51836734694
+						}
+					},
+					{
+						"group": "host boundaries: startup and ownership",
+						"alias": "process owned child + bounded capture + cleanup",
+						"args": {},
+						"averageNs": 29040558.3,
+						"medianNs": 26306458,
+						"p99Ns": 40424500,
+						"samples": 20,
+						"heap": {
+							"_": 22,
+							"total": 1530832,
+							"min": 28192,
+							"max": 443232,
+							"avg": 69583.27272727272
+						}
+					},
+					{
+						"group": "host boundaries: startup and ownership",
+						"alias": "Deno.Command child + unbounded capture baseline",
+						"args": {},
+						"averageNs": 29024831.105263207,
+						"medianNs": 26285458,
+						"p99Ns": 42132541,
+						"samples": 19,
+						"heap": {
+							"_": 23,
+							"total": 314680,
+							"min": 12640,
+							"max": 20360,
+							"avg": 13681.739130434782
+						}
+					},
+					{
+						"group": "host boundaries: startup and ownership",
+						"alias": "Deno scoped permission argument encoding",
+						"args": {},
+						"averageNs": 949.8422893177471,
+						"medianNs": 931.87451171875,
+						"p99Ns": 1295.57275390625,
+						"samples": 176,
+						"heap": {
+							"_": 140,
+							"total": 258658.390625,
+							"min": 1652.048828125,
+							"max": 2239.25390625,
+							"avg": 1847.5599330357143
+						}
+					}
+				]
+			},
+			{
+				"program": "./recovery.bench.ts",
+				"registeredEntries": 1,
+				"measuredCases": 1,
+				"status": "pass",
+				"elapsedMs": 5118.740420000002,
+				"report": "bench-all-final/11.json",
+				"sha256": "7066284cbafac2b39a6fd73f2db1cb5467efb21d211e5827cdb1970cd7abcc2e",
+				"cases": [
+					{
+						"group": "workflow local recovery",
+						"alias": "execute activity + replace Scheduler + replay completion",
+						"args": {},
+						"averageNs": 519706.59939532954,
+						"medianNs": 431500,
+						"p99Ns": 1339584.0000004768,
+						"samples": 1323,
+						"heap": {
+							"_": 1275,
+							"total": 251225752,
+							"min": 18896,
+							"max": 2705560,
+							"avg": 197039.80549019607
+						}
+					}
+				]
+			},
+			{
+				"program": "../packages/hono/mod.bench.ts",
+				"registeredEntries": 2,
+				"measuredCases": 2,
+				"status": "pass",
+				"elapsedMs": 5811.34829400001,
+				"report": "bench-all-final/12.json",
+				"sha256": "0b7a5f22706830216625a393c6889578720c4b5be11420bd357880eece9d7721",
+				"cases": [
+					{
+						"group": "Hono middleware composition",
+						"alias": "Hono + utility security headers + JSON consumption",
+						"args": {},
+						"averageNs": 36833.08854222885,
+						"medianNs": 32209,
+						"p99Ns": 94583,
+						"samples": 18590,
+						"heap": {
+							"_": 18187,
+							"total": 799947208,
+							"min": 1072,
+							"max": 1846536,
+							"avg": 43984.56084016056
+						}
+					},
+					{
+						"group": "Hono middleware composition",
+						"alias": "Hono direct + JSON consumption (no security middleware)",
+						"args": {},
+						"averageNs": 6600.056466238851,
+						"medianNs": 5707.509521484375,
+						"p99Ns": 9116.80078125,
+						"samples": 21,
+						"heap": {
+							"_": 23,
+							"total": 26880.037109375,
+							"min": 995.359375,
+							"max": 1595.96875,
+							"avg": 1168.697265625
+						}
+					}
+				]
+			},
+			{
+				"program": "./imports.bench.ts",
+				"registeredEntries": 44,
+				"measuredCases": 44,
+				"status": "pass",
+				"elapsedMs": 41404.90606000001,
+				"report": "bench-all-final/13.json",
+				"sha256": "54e461cdc433348ab5a2af0fcadce28e4f9850176087cf1e798f66cbcee6f98a",
+				"cases": [
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "empty child: launch + exit baseline",
+						"args": {},
+						"averageNs": 27390578.789473735,
+						"medianNs": 24273458,
+						"p99Ns": 46005416,
+						"samples": 19,
+						"heap": {
+							"_": 23,
+							"total": 399792,
+							"min": 15688,
+							"max": 37488,
+							"avg": 17382.260869565216
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/activity",
+						"args": {},
+						"averageNs": 36324052,
+						"medianNs": 35811458,
+						"p99Ns": 39455875,
+						"samples": 16,
+						"heap": {
+							"_": 19,
+							"total": 333904,
+							"min": 16176,
+							"max": 40864,
+							"avg": 17573.894736842107
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/capacity",
+						"args": {},
+						"averageNs": 22888225.923076887,
+						"medianNs": 22366083,
+						"p99Ns": 26846042,
+						"samples": 26,
+						"heap": {
+							"_": 29,
+							"total": 558112,
+							"min": 16112,
+							"max": 102312,
+							"avg": 19245.241379310344
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/catalog",
+						"args": {},
+						"averageNs": 21496255.79310345,
+						"medianNs": 21144000,
+						"p99Ns": 24507208,
+						"samples": 29,
+						"heap": {
+							"_": 33,
+							"total": 538520,
+							"min": 16176,
+							"max": 18032,
+							"avg": 16318.787878787878
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/codec",
+						"args": {},
+						"averageNs": 20893654.26666673,
+						"medianNs": 20744041,
+						"p99Ns": 23133958,
+						"samples": 30,
+						"heap": {
+							"_": 34,
+							"total": 555872,
+							"min": 9568,
+							"max": 24384,
+							"avg": 16349.176470588236
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/concurrency",
+						"args": {},
+						"averageNs": 25676343.75,
+						"medianNs": 25312250,
+						"p99Ns": 28429250,
+						"samples": 24,
+						"heap": {
+							"_": 28,
+							"total": 466088,
+							"min": 16144,
+							"max": 28104,
+							"avg": 16646
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/context",
+						"args": {},
+						"averageNs": 22252449.32142857,
+						"medianNs": 22178750,
+						"p99Ns": 24104333,
+						"samples": 28,
+						"heap": {
+							"_": 32,
+							"total": 526480,
+							"min": 13408,
+							"max": 24360,
+							"avg": 16452.5
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/css",
+						"args": {},
+						"averageNs": 84074558.91666667,
+						"medianNs": 76005416,
+						"p99Ns": 109293792,
+						"samples": 12,
+						"heap": {
+							"_": 12,
+							"total": 195544,
+							"min": 16144,
+							"max": 17880,
+							"avg": 16295.333333333334
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/csv",
+						"args": {},
+						"averageNs": 38827187.64285714,
+						"medianNs": 38086042,
+						"p99Ns": 41960500,
+						"samples": 14,
+						"heap": {
+							"_": 18,
+							"total": 298160,
+							"min": 16144,
+							"max": 19608,
+							"avg": 16564.444444444445
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/deno",
+						"args": {},
+						"averageNs": 48084140.18181818,
+						"medianNs": 48108250,
+						"p99Ns": 49733250,
+						"samples": 11,
+						"heap": {
+							"_": 15,
+							"total": 243928,
+							"min": 16144,
+							"max": 17872,
+							"avg": 16261.866666666667
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/dispose",
+						"args": {},
+						"averageNs": 20533442.19354839,
+						"medianNs": 20434541,
+						"p99Ns": 22351500,
+						"samples": 31,
+						"heap": {
+							"_": 35,
+							"total": 555256,
+							"min": 8776,
+							"max": 24096,
+							"avg": 15864.457142857143
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/duration",
+						"args": {},
+						"averageNs": 20097494.87500006,
+						"medianNs": 20020500,
+						"p99Ns": 21635292,
+						"samples": 32,
+						"heap": {
+							"_": 36,
+							"total": 572376,
+							"min": 15840,
+							"max": 17568,
+							"avg": 15899.333333333334
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/effect",
+						"args": {},
+						"averageNs": 25811998.217391305,
+						"medianNs": 25975125,
+						"p99Ns": 27556459,
+						"samples": 23,
+						"heap": {
+							"_": 27,
+							"total": 444600,
+							"min": 15840,
+							"max": 29096,
+							"avg": 16466.666666666668
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/email",
+						"args": {},
+						"averageNs": 22625154.259259257,
+						"medianNs": 22285417.000003815,
+						"p99Ns": 26854082.999998093,
+						"samples": 27,
+						"heap": {
+							"_": 30,
+							"total": 508232,
+							"min": 15840,
+							"max": 44552,
+							"avg": 16941.066666666666
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/entitlement",
+						"args": {},
+						"averageNs": 34043499.71428531,
+						"medianNs": 28093957.999998093,
+						"p99Ns": 50338333,
+						"samples": 14,
+						"heap": {
+							"_": 18,
+							"total": 286904,
+							"min": 15840,
+							"max": 17576,
+							"avg": 15939.111111111111
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/env",
+						"args": {},
+						"averageNs": 34773400.84615385,
+						"medianNs": 30298208,
+						"p99Ns": 55731750,
+						"samples": 13,
+						"heap": {
+							"_": 17,
+							"total": 271216,
+							"min": 15840,
+							"max": 17568,
+							"avg": 15953.882352941177
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/failure",
+						"args": {},
+						"averageNs": 28957635.4,
+						"medianNs": 28437584,
+						"p99Ns": 35878500,
+						"samples": 20,
+						"heap": {
+							"_": 24,
+							"total": 384520,
+							"min": 15840,
+							"max": 18280,
+							"avg": 16021.666666666666
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/fault",
+						"args": {},
+						"averageNs": 20931744.433333334,
+						"medianNs": 20503542,
+						"p99Ns": 22780750,
+						"samples": 30,
+						"heap": {
+							"_": 32,
+							"total": 585200,
+							"min": 15776,
+							"max": 56248,
+							"avg": 18287.5
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/hono",
+						"args": {},
+						"averageNs": 46303662.90909091,
+						"medianNs": 45884125,
+						"p99Ns": 52841333,
+						"samples": 11,
+						"heap": {
+							"_": 15,
+							"total": 238712,
+							"min": 15792,
+							"max": 17520,
+							"avg": 15914.133333333333
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/html",
+						"args": {},
+						"averageNs": 42433436,
+						"medianNs": 42643625,
+						"p99Ns": 46105459,
+						"samples": 13,
+						"heap": {
+							"_": 17,
+							"total": 271432,
+							"min": 8744,
+							"max": 23992,
+							"avg": 15966.588235294117
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/http",
+						"args": {},
+						"averageNs": 34179723.875,
+						"medianNs": 33654250,
+						"p99Ns": 37433334,
+						"samples": 16,
+						"heap": {
+							"_": 20,
+							"total": 320856,
+							"min": 15792,
+							"max": 18880,
+							"avg": 16042.8
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/meter",
+						"args": {},
+						"averageNs": 24886206.76,
+						"medianNs": 24973792,
+						"p99Ns": 26377042,
+						"samples": 25,
+						"heap": {
+							"_": 29,
+							"total": 459768,
+							"min": 15792,
+							"max": 17520,
+							"avg": 15854.068965517241
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/permission",
+						"args": {},
+						"averageNs": 24592763.28,
+						"medianNs": 24442917,
+						"p99Ns": 26331917,
+						"samples": 25,
+						"heap": {
+							"_": 29,
+							"total": 459816,
+							"min": 15792,
+							"max": 17536,
+							"avg": 15855.724137931034
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/pool",
+						"args": {},
+						"averageNs": 32924721.4375,
+						"medianNs": 31341500,
+						"p99Ns": 39204375,
+						"samples": 16,
+						"heap": {
+							"_": 20,
+							"total": 317800,
+							"min": 15792,
+							"max": 17520,
+							"avg": 15890
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/process",
+						"args": {},
+						"averageNs": 36868719.72727273,
+						"medianNs": 34470334,
+						"p99Ns": 38970333,
+						"samples": 11,
+						"heap": {
+							"_": 15,
+							"total": 238616,
+							"min": 15792,
+							"max": 17520,
+							"avg": 15907.733333333334
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/query",
+						"args": {},
+						"averageNs": 24899005.25,
+						"medianNs": 25199417,
+						"p99Ns": 27196917,
+						"samples": 24,
+						"heap": {
+							"_": 28,
+							"total": 444200,
+							"min": 15792,
+							"max": 17536,
+							"avg": 15864.285714285714
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/queue",
+						"args": {},
+						"averageNs": 35525648.5,
+						"medianNs": 35313125,
+						"p99Ns": 37582875,
+						"samples": 16,
+						"heap": {
+							"_": 20,
+							"total": 317608,
+							"min": 15792,
+							"max": 17528,
+							"avg": 15880.4
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/record",
+						"args": {},
+						"averageNs": 21418492.96551724,
+						"medianNs": 21260708,
+						"p99Ns": 25078500,
+						"samples": 29,
+						"heap": {
+							"_": 33,
+							"total": 523368,
+							"min": 15792,
+							"max": 17536,
+							"avg": 15859.636363636364
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/requirement",
+						"args": {},
+						"averageNs": 24795342.041666668,
+						"medianNs": 24648417,
+						"p99Ns": 26256250,
+						"samples": 24,
+						"heap": {
+							"_": 28,
+							"total": 446344,
+							"min": 15792,
+							"max": 17920,
+							"avg": 15940.857142857143
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/resilience",
+						"args": {},
+						"averageNs": 20861127.7,
+						"medianNs": 20780417,
+						"p99Ns": 22026833,
+						"samples": 30,
+						"heap": {
+							"_": 34,
+							"total": 539184,
+							"min": 15792,
+							"max": 17520,
+							"avg": 15858.35294117647
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/resource",
+						"args": {},
+						"averageNs": 25818187.458333332,
+						"medianNs": 25252500,
+						"p99Ns": 28207250,
+						"samples": 24,
+						"heap": {
+							"_": 28,
+							"total": 443976,
+							"min": 15792,
+							"max": 17528,
+							"avg": 15856.285714285714
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/result",
+						"args": {},
+						"averageNs": 19761975.1875,
+						"medianNs": 19532500,
+						"p99Ns": 21173250,
+						"samples": 32,
+						"heap": {
+							"_": 36,
+							"total": 570768,
+							"min": 15792,
+							"max": 17520,
+							"avg": 15854.666666666666
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/robots",
+						"args": {},
+						"averageNs": 20271388.451612905,
+						"medianNs": 20133250,
+						"p99Ns": 22000959,
+						"samples": 31,
+						"heap": {
+							"_": 35,
+							"total": 554976,
+							"min": 15792,
+							"max": 17528,
+							"avg": 15856.457142857143
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/schema",
+						"args": {},
+						"averageNs": 20020754.032258064,
+						"medianNs": 19877250,
+						"p99Ns": 22168666,
+						"samples": 31,
+						"heap": {
+							"_": 35,
+							"total": 554992,
+							"min": 15792,
+							"max": 17528,
+							"avg": 15856.914285714285
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/server",
+						"args": {},
+						"averageNs": 50886187.6,
+						"medianNs": 50887167,
+						"p99Ns": 51786000,
+						"samples": 10,
+						"heap": {
+							"_": 14,
+							"total": 222848,
+							"min": 15792,
+							"max": 17528,
+							"avg": 15917.714285714286
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/sitemap",
+						"args": {},
+						"averageNs": 28517388.95238077,
+						"medianNs": 28461958,
+						"p99Ns": 29494833.999996185,
+						"samples": 21,
+						"heap": {
+							"_": 25,
+							"total": 396808,
+							"min": 15792,
+							"max": 17520,
+							"avg": 15872.32
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/streams",
+						"args": {},
+						"averageNs": 20095737.967740826,
+						"medianNs": 19920124.999996185,
+						"p99Ns": 21838624.999996185,
+						"samples": 31,
+						"heap": {
+							"_": 35,
+							"total": 554976,
+							"min": 15792,
+							"max": 17528,
+							"avg": 15856.457142857143
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/task",
+						"args": {},
+						"averageNs": 25309809.083333176,
+						"medianNs": 25229875,
+						"p99Ns": 26276625,
+						"samples": 24,
+						"heap": {
+							"_": 28,
+							"total": 444200,
+							"min": 15792,
+							"max": 17528,
+							"avg": 15864.285714285714
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/telemetry",
+						"args": {},
+						"averageNs": 21269388.8,
+						"medianNs": 21235959,
+						"p99Ns": 22376417,
+						"samples": 30,
+						"heap": {
+							"_": 34,
+							"total": 538960,
+							"min": 15792,
+							"max": 17520,
+							"avg": 15851.764705882353
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/utils",
+						"args": {},
+						"averageNs": 20196673.6,
+						"medianNs": 20025875,
+						"p99Ns": 23080291,
+						"samples": 30,
+						"heap": {
+							"_": 34,
+							"total": 539152,
+							"min": 15792,
+							"max": 17536,
+							"avg": 15857.411764705883
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/version",
+						"args": {},
+						"averageNs": 27079212.181818184,
+						"medianNs": 26841084,
+						"p99Ns": 28855541,
+						"samples": 22,
+						"heap": {
+							"_": 26,
+							"total": 412568,
+							"min": 15792,
+							"max": 17528,
+							"avg": 15868
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/worker",
+						"args": {},
+						"averageNs": 32289622.777777776,
+						"medianNs": 32154792,
+						"p99Ns": 33396542,
+						"samples": 18,
+						"heap": {
+							"_": 22,
+							"total": 349192,
+							"min": 15792,
+							"max": 17520,
+							"avg": 15872.363636363636
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/workflow",
+						"args": {},
+						"averageNs": 30809342.210526317,
+						"medianNs": 30627917,
+						"p99Ns": 31846542,
+						"samples": 19,
+						"heap": {
+							"_": 23,
+							"total": 365200,
+							"min": 15792,
+							"max": 17528,
+							"avg": 15878.260869565218
+						}
+					},
+					{
+						"group": "fresh Deno source imports: process startup included",
+						"alias": "@okikio/utils/all",
+						"args": {},
+						"averageNs": 155329312.58333334,
+						"medianNs": 152151875,
+						"p99Ns": 162869251,
+						"samples": 12,
+						"heap": {
+							"_": 12,
+							"total": 191344,
+							"min": 15792,
+							"max": 17528,
+							"avg": 15945.333333333334
+						}
+					}
+				]
+			},
+			{
+				"program": "./http-parity.bench.ts",
+				"registeredEntries": 10,
+				"measuredCases": 10,
+				"status": "pass",
+				"elapsedMs": 12486.814130999992,
+				"report": "bench-all-final/14.json",
+				"sha256": "5a6ab64aa26943f1888acada1361c6ce72c70368897532b6e2c7cb6e5aa91482",
+				"cases": [
+					{
+						"group": "complete API request corpus",
+						"alias": "Utils: api",
+						"args": {},
+						"averageNs": 1986730.7874251555,
+						"medianNs": 1579209,
+						"p99Ns": 6506333,
+						"samples": 334,
+						"heap": {
+							"_": 324,
+							"total": 323086992,
+							"min": 21912,
+							"max": 3687376,
+							"avg": 997182.074074074
+						}
+					},
+					{
+						"group": "complete API request corpus",
+						"alias": "Hono: api",
+						"args": {},
+						"averageNs": 1252152.2932604735,
+						"medianNs": 1031916,
+						"p99Ns": 4201459,
+						"samples": 549,
+						"heap": {
+							"_": 531,
+							"total": 523247064,
+							"min": 30608,
+							"max": 2354048,
+							"avg": 985399.3672316384
+						}
+					},
+					{
+						"group": "forwarded gateway policy",
+						"alias": "Utils: gateway",
+						"args": {},
+						"averageNs": 189223.39103260456,
+						"medianNs": 170541,
+						"p99Ns": 443125,
+						"samples": 3680,
+						"heap": {
+							"_": 3562,
+							"total": 588159352,
+							"min": 4416,
+							"max": 827432,
+							"avg": 165120.53677709153
+						}
+					},
+					{
+						"group": "forwarded gateway policy",
+						"alias": "Hono: gateway",
+						"args": {},
+						"averageNs": 104816.56063587988,
+						"medianNs": 92792,
+						"p99Ns": 250958,
+						"samples": 6605,
+						"heap": {
+							"_": 6476,
+							"total": 618663976,
+							"min": 248,
+							"max": 497904,
+							"avg": 95531.8060531192
+						}
+					},
+					{
+						"group": "16 routes: first/middle/late/miss",
+						"alias": "Utils: routes-16",
+						"args": {},
+						"averageNs": 130114.31319614912,
+						"medianNs": 99584,
+						"p99Ns": 535334,
+						"samples": 5297,
+						"heap": {
+							"_": 5164,
+							"total": 488262496,
+							"min": 656,
+							"max": 517600,
+							"avg": 94551.2192099148
+						}
+					},
+					{
+						"group": "16 routes: first/middle/late/miss",
+						"alias": "Hono: routes-16",
+						"args": {},
+						"averageNs": 129739.40348858986,
+						"medianNs": 94250,
+						"p99Ns": 440708,
+						"samples": 5217,
+						"heap": {
+							"_": 5085,
+							"total": 508568784,
+							"min": 832,
+							"max": 525776,
+							"avg": 100013.52684365782
+						}
+					},
+					{
+						"group": "256 routes: first/middle/late/miss",
+						"alias": "Utils: routes-256",
+						"args": {},
+						"averageNs": 127785.21157424389,
+						"medianNs": 101625,
+						"p99Ns": 318167,
+						"samples": 5374,
+						"heap": {
+							"_": 5242,
+							"total": 502659888,
+							"min": 608,
+							"max": 919488,
+							"avg": 95890.85997710798
+						}
+					},
+					{
+						"group": "256 routes: first/middle/late/miss",
+						"alias": "Hono: routes-256",
+						"args": {},
+						"averageNs": 126857.25380524377,
+						"medianNs": 97041,
+						"p99Ns": 303166,
+						"samples": 5453,
+						"heap": {
+							"_": 5320,
+							"total": 556946272,
+							"min": 1744,
+							"max": 771360,
+							"avg": 104689.14887218045
+						}
+					},
+					{
+						"group": "4096 routes: first/middle/late/miss",
+						"alias": "Utils: routes-4096",
+						"args": {},
+						"averageNs": 136442.37267080936,
+						"medianNs": 113791,
+						"p99Ns": 307000,
+						"samples": 4991,
+						"heap": {
+							"_": 4876,
+							"total": 464754960,
+							"min": 0,
+							"max": 660080,
+							"avg": 95314.79901558654
+						}
+					},
+					{
+						"group": "4096 routes: first/middle/late/miss",
+						"alias": "Hono: routes-4096",
+						"args": {},
+						"averageNs": 176984.63035714382,
+						"medianNs": 158375,
+						"p99Ns": 404458,
+						"samples": 3920,
+						"heap": {
+							"_": 3861,
+							"total": 780220648,
+							"min": 3200,
+							"max": 1089416,
+							"avg": 202077.3499093499
+						}
+					}
+				]
+			},
+			{
+				"program": "./alternatives.bench.ts",
+				"registeredEntries": 30,
+				"measuredCases": 30,
+				"status": "pass",
+				"elapsedMs": 28119.420221000008,
+				"report": "bench-all-final/15.json",
+				"sha256": "81d972ce232ddb639912216b2f3e290b284ee79a77919a97c550f649ffd7aeda",
+				"cases": [
+					{
+						"group": "schema-port: same-engine-adapter",
+						"alias": "Utils shared operation",
+						"args": {},
+						"averageNs": 492.9706611067263,
+						"medianNs": 476.4099121092586,
+						"p99Ns": 774.4345703127328,
+						"samples": 337,
+						"heap": {
+							"_": 271,
+							"total": 459329.412109375,
+							"min": 1387.6171875,
+							"max": 2071.947265625,
+							"avg": 1694.9424801083949
+						}
+					},
+					{
+						"group": "schema-port: same-engine-adapter",
+						"alias": "Established alternative shared operation",
+						"args": {},
+						"averageNs": 292.31262834104575,
+						"medianNs": 284.99365234375,
+						"p99Ns": 383.48388671875,
+						"samples": 584,
+						"heap": {
+							"_": 534,
+							"total": 402151.890625,
+							"min": 548.3125,
+							"max": 1004.5625,
+							"avg": 753.0934281367041
+						}
+					},
+					{
+						"group": "environment-record: same-engine-adapter",
+						"alias": "Utils shared operation",
+						"args": {},
+						"averageNs": 1288.5544414668084,
+						"medianNs": 1275.9604492185172,
+						"p99Ns": 1549.052001953125,
+						"samples": 129,
+						"heap": {
+							"_": 84,
+							"total": 254343.5625,
+							"min": 3008.67578125,
+							"max": 3691.744140625,
+							"avg": 3027.8995535714284
+						}
+					},
+					{
+						"group": "environment-record: same-engine-adapter",
+						"alias": "Established alternative shared operation",
+						"args": {},
+						"averageNs": 357.2320351480392,
+						"medianNs": 346.51684570289217,
+						"p99Ns": 536.29541015625,
+						"samples": 476,
+						"heap": {
+							"_": 429,
+							"total": 378578.2109375,
+							"min": 583.02734375,
+							"max": 1180.34375,
+							"avg": 882.4666921620046
+						}
+					},
+					{
+						"group": "timestamp-codec: same-engine-adapter",
+						"alias": "Utils shared operation",
+						"args": {},
+						"averageNs": 2728.5404528601694,
+						"medianNs": 2707.16357421875,
+						"p99Ns": 4653.36083984375,
+						"samples": 59,
+						"heap": {
+							"_": 29,
+							"total": 132826.1171875,
+							"min": 4552.853515625,
+							"max": 4883.759765625,
+							"avg": 4580.2109375
+						}
+					},
+					{
+						"group": "timestamp-codec: same-engine-adapter",
+						"alias": "Established alternative shared operation",
+						"args": {},
+						"averageNs": 1440.2163212217154,
+						"medianNs": 1420.684814453125,
+						"p99Ns": 1617.431640625,
+						"samples": 116,
+						"heap": {
+							"_": 102,
+							"total": 125551.755859375,
+							"min": 950.541015625,
+							"max": 1802.201171875,
+							"avg": 1230.8995672487745
+						}
+					},
+					{
+						"group": "result-branches: shared-output",
+						"alias": "Utils shared operation",
+						"args": {},
+						"averageNs": 324.98230288607675,
+						"medianNs": 316.477294921875,
+						"p99Ns": 415.7001953125,
+						"samples": 515,
+						"heap": {
+							"_": 452,
+							"total": 480912.869140625,
+							"min": 651.310546875,
+							"max": 1300.412109375,
+							"avg": 1063.9665246474005
+						}
+					},
+					{
+						"group": "result-branches: shared-output",
+						"alias": "Established alternative shared operation",
+						"args": {},
+						"averageNs": 211.42798666370462,
+						"medianNs": 204.182861328125,
+						"p99Ns": 277.069091796875,
+						"samples": 809,
+						"heap": {
+							"_": 722,
+							"total": 667817.9765625,
+							"min": 397.541015625,
+							"max": 1037.8203125,
+							"avg": 924.9556462084488
+						}
+					},
+					{
+						"group": "csv-npm: same-engine-adapter",
+						"alias": "Utils shared operation",
+						"args": {},
+						"averageNs": 37072.168135884756,
+						"medianNs": 32958,
+						"p99Ns": 92500,
+						"samples": 18604,
+						"heap": {
+							"_": 18321,
+							"total": 772498376,
+							"min": 80,
+							"max": 873872,
+							"avg": 42164.640358059056
+						}
+					},
+					{
+						"group": "csv-npm: same-engine-adapter",
+						"alias": "Established alternative shared operation",
+						"args": {},
+						"averageNs": 26120.136287878282,
+						"medianNs": 23667,
+						"p99Ns": 76500,
+						"samples": 26400,
+						"heap": {
+							"_": 26229,
+							"total": 766867144,
+							"min": 720,
+							"max": 390768,
+							"avg": 29237.37633916657
+						}
+					},
+					{
+						"group": "csv-std: shared-output",
+						"alias": "Utils shared operation",
+						"args": {},
+						"averageNs": 41009.595861738,
+						"medianNs": 35125,
+						"p99Ns": 138875,
+						"samples": 16722,
+						"heap": {
+							"_": 16545,
+							"total": 656188760,
+							"min": 152,
+							"max": 437080,
+							"avg": 39660.84980356603
+						}
+					},
+					{
+						"group": "csv-std: shared-output",
+						"alias": "Established alternative shared operation",
+						"args": {},
+						"averageNs": 3710.9441162109374,
+						"medianNs": 3270.039794921875,
+						"p99Ns": 7041.819091796875,
+						"samples": 40,
+						"heap": {
+							"_": 15,
+							"total": 82099.265625,
+							"min": 5368.677734375,
+							"max": 6905.24609375,
+							"avg": 5473.284375
+						}
+					},
+					{
+						"group": "ordered-map-p-limit: shared-output",
+						"alias": "Utils shared operation",
+						"args": {},
+						"averageNs": 20532.622436523438,
+						"medianNs": 20194.915771484375,
+						"p99Ns": 21844.706298828125,
+						"samples": 12,
+						"heap": {
+							"_": 9,
+							"total": 23280.02734375,
+							"min": 2561.1640625,
+							"max": 2769.916015625,
+							"avg": 2586.6697048611113
+						}
+					},
+					{
+						"group": "ordered-map-p-limit: shared-output",
+						"alias": "Established alternative shared operation",
+						"args": {},
+						"averageNs": 16390.797912597656,
+						"medianNs": 15439.300537109375,
+						"p99Ns": 19144.785400390625,
+						"samples": 12,
+						"heap": {
+							"_": 10,
+							"total": 31749.728515625,
+							"min": 3093.494140625,
+							"max": 3755.193359375,
+							"avg": 3174.9728515625
+						}
+					},
+					{
+						"group": "ordered-map-std: shared-output",
+						"alias": "Utils shared operation",
+						"args": {},
+						"averageNs": 20725.367228190105,
+						"medianNs": 19582.09228515625,
+						"p99Ns": 21200.917724609375,
+						"samples": 12,
+						"heap": {
+							"_": 9,
+							"total": 24095.513671875,
+							"min": 2561.306640625,
+							"max": 3597.81640625,
+							"avg": 2677.279296875
+						}
+					},
+					{
+						"group": "ordered-map-std: shared-output",
+						"alias": "Established alternative shared operation",
+						"args": {},
+						"averageNs": 42148.91628876018,
+						"medianNs": 34458,
+						"p99Ns": 110292,
+						"samples": 16318,
+						"heap": {
+							"_": 16185,
+							"total": 1905248152,
+							"min": 624,
+							"max": 1173384,
+							"avg": 117716.90775409329
+						}
+					},
+					{
+						"group": "html-anchor-targets: same-engine-adapter",
+						"alias": "Utils shared operation",
+						"args": {},
+						"averageNs": 13854.043929934349,
+						"medianNs": 11458.000001907349,
+						"p99Ns": 57958,
+						"samples": 48418,
+						"heap": {
+							"_": 47799,
+							"total": 1168861920,
+							"min": 296,
+							"max": 797128,
+							"avg": 24453.68982614699
+						}
+					},
+					{
+						"group": "html-anchor-targets: same-engine-adapter",
+						"alias": "Established alternative shared operation",
+						"args": {},
+						"averageNs": 9292.259609698403,
+						"medianNs": 7041,
+						"p99Ns": 33209,
+						"samples": 71022,
+						"heap": {
+							"_": 70520,
+							"total": 1117249552,
+							"min": 680,
+							"max": 637584,
+							"avg": 15843.016903006239
+						}
+					},
+					{
+						"group": "css-url-tokens: same-engine-adapter",
+						"alias": "Utils shared operation",
+						"args": {},
+						"averageNs": 12987.44623458105,
+						"medianNs": 10708,
+						"p99Ns": 43417,
+						"samples": 51641,
+						"heap": {
+							"_": 51176,
+							"total": 561112952,
+							"min": 248,
+							"max": 854592,
+							"avg": 10964.376895419728
+						}
+					},
+					{
+						"group": "css-url-tokens: same-engine-adapter",
+						"alias": "Established alternative shared operation",
+						"args": {},
+						"averageNs": 8151.318893432617,
+						"medianNs": 7909.31201171875,
+						"p99Ns": 9083.150390625,
+						"samples": 16,
+						"heap": {
+							"_": 5,
+							"total": 31803.87109375,
+							"min": 6145.42578125,
+							"max": 7205.67578125,
+							"avg": 6360.77421875
+						}
+					},
+					{
+						"group": "sitemap-locations: shared-output",
+						"alias": "Utils shared operation",
+						"args": {},
+						"averageNs": 9897.49795284062,
+						"medianNs": 8625,
+						"p99Ns": 33167,
+						"samples": 66922,
+						"heap": {
+							"_": 66637,
+							"total": 814688288,
+							"min": 32,
+							"max": 570744,
+							"avg": 12225.764785329471
+						}
+					},
+					{
+						"group": "sitemap-locations: shared-output",
+						"alias": "Established alternative shared operation",
+						"args": {},
+						"averageNs": 5349.03925210602,
+						"medianNs": 4750,
+						"p99Ns": 16542,
+						"samples": 121675,
+						"heap": {
+							"_": 121251,
+							"total": 1059074360,
+							"min": 312,
+							"max": 238968,
+							"avg": 8734.561859283634
+						}
+					},
+					{
+						"group": "fetch-route-hono: shared-output",
+						"alias": "Utils shared operation",
+						"args": {},
+						"averageNs": 3800.1222330729165,
+						"medianNs": 3721.23193359375,
+						"p99Ns": 4683.522705078125,
+						"samples": 42,
+						"heap": {
+							"_": 8,
+							"total": 52363.96875,
+							"min": 6484.123046875,
+							"max": 6974.755859375,
+							"avg": 6545.49609375
+						}
+					},
+					{
+						"group": "fetch-route-hono: shared-output",
+						"alias": "Established alternative shared operation",
+						"args": {},
+						"averageNs": 3670.135259719122,
+						"medianNs": 3377.5126953125,
+						"p99Ns": 6289.255859375,
+						"samples": 42,
+						"heap": {
+							"_": 8,
+							"total": 52741.59765625,
+							"min": 6536.15625,
+							"max": 6922.07421875,
+							"avg": 6592.69970703125
+						}
+					},
+					{
+						"group": "utf8-lines: shared-output",
+						"alias": "Utils shared operation",
+						"args": {},
+						"averageNs": 45097.38486795146,
+						"medianNs": 19167,
+						"p99Ns": 244291,
+						"samples": 14010,
+						"heap": {
+							"_": 13870,
+							"total": 458862072,
+							"min": 1632,
+							"max": 434368,
+							"avg": 33083.06214852199
+						}
+					},
+					{
+						"group": "utf8-lines: shared-output",
+						"alias": "Established alternative shared operation",
+						"args": {},
+						"averageNs": 543.6704865486391,
+						"medianNs": 528.4931640625,
+						"p99Ns": 852.376220703125,
+						"samples": 310,
+						"heap": {
+							"_": 223,
+							"total": 530233.994140625,
+							"min": 2082.8046875,
+							"max": 2645.1484375,
+							"avg": 2377.730915428812
+						}
+					},
+					{
+						"group": "exact-semver: same-engine-adapter",
+						"alias": "Utils shared operation",
+						"args": {},
+						"averageNs": 1412.1749340611645,
+						"medianNs": 1387.675048828125,
+						"p99Ns": 1792.399169921875,
+						"samples": 117,
+						"heap": {
+							"_": 63,
+							"total": 247943.4765625,
+							"min": 3707.853515625,
+							"max": 5392.08203125,
+							"avg": 3935.6107390873017
+						}
+					},
+					{
+						"group": "exact-semver: same-engine-adapter",
+						"alias": "Established alternative shared operation",
+						"args": {},
+						"averageNs": 491.56926648987354,
+						"medianNs": 482.1982421875,
+						"p99Ns": 661.600830078125,
+						"samples": 341,
+						"heap": {
+							"_": 274,
+							"total": 462347.927734375,
+							"min": 1358.337890625,
+							"max": 2343.669921875,
+							"avg": 1687.4011961108577
+						}
+					},
+					{
+						"group": "http-json-body: shared-output",
+						"alias": "Utils shared operation",
+						"args": {},
+						"averageNs": 22487.656563285833,
+						"medianNs": 19583,
+						"p99Ns": 52541,
+						"samples": 29825,
+						"heap": {
+							"_": 29328,
+							"total": 543590600,
+							"min": 16,
+							"max": 540720,
+							"avg": 18534.867703218766
+						}
+					},
+					{
+						"group": "http-json-body: shared-output",
+						"alias": "Established alternative shared operation",
+						"args": {},
+						"averageNs": 3418.413027556046,
+						"medianNs": 3395.15185546875,
+						"p99Ns": 4367.401123046875,
+						"samples": 46,
+						"heap": {
+							"_": 21,
+							"total": 96565.064453125,
+							"min": 4554.361328125,
+							"max": 5074.669921875,
+							"avg": 4598.3364025297615
+						}
+					}
+				]
+			},
+			{
+				"program": "./npm-imports.bench.ts",
+				"registeredEntries": 88,
+				"measuredCases": 88,
+				"status": "pass",
+				"elapsedMs": 78958.20957800001,
+				"report": "bench-all-final/16.json",
+				"sha256": "fa4e9c01c9db5e21e6164f4644a90327d2d24051fd363d5eff37a3546ea1cb33",
+				"cases": [
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "empty child: launch + exit baseline",
+						"args": {},
+						"averageNs": 19810811.83870971,
+						"medianNs": 19464333,
+						"p99Ns": 23027917,
+						"samples": 31,
+						"heap": {
+							"_": 35,
+							"total": 568448,
+							"min": 11696,
+							"max": 36968,
+							"avg": 16241.371428571429
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/activity",
+						"args": {},
+						"averageNs": 38551847.13333346,
+						"medianNs": 38878500,
+						"p99Ns": 41163083.00000191,
+						"samples": 15,
+						"heap": {
+							"_": 18,
+							"total": 311568,
+							"min": 15584,
+							"max": 43952,
+							"avg": 17309.333333333332
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/capacity",
+						"args": {},
+						"averageNs": 23764386.52,
+						"medianNs": 23696042,
+						"p99Ns": 26233833,
+						"samples": 25,
+						"heap": {
+							"_": 29,
+							"total": 459744,
+							"min": 15648,
+							"max": 19232,
+							"avg": 15853.241379310344
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/catalog",
+						"args": {},
+						"averageNs": 21515576.137931034,
+						"medianNs": 21703542,
+						"p99Ns": 23197583,
+						"samples": 29,
+						"heap": {
+							"_": 33,
+							"total": 529456,
+							"min": 15616,
+							"max": 27296,
+							"avg": 16044.121212121212
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/codec",
+						"args": {},
+						"averageNs": 21205580.48275862,
+						"medianNs": 21068208,
+						"p99Ns": 23000458,
+						"samples": 29,
+						"heap": {
+							"_": 33,
+							"total": 517176,
+							"min": 15616,
+							"max": 17344,
+							"avg": 15672
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/concurrency",
+						"args": {},
+						"averageNs": 24954366.208333332,
+						"medianNs": 24937500,
+						"p99Ns": 26289375,
+						"samples": 24,
+						"heap": {
+							"_": 27,
+							"total": 454400,
+							"min": 15616,
+							"max": 48384,
+							"avg": 16829.62962962963
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/context",
+						"args": {},
+						"averageNs": 22190066.92857143,
+						"medianNs": 21936250,
+						"p99Ns": 24392209,
+						"samples": 28,
+						"heap": {
+							"_": 32,
+							"total": 501528,
+							"min": 15616,
+							"max": 17344,
+							"avg": 15672.75
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/css",
+						"args": {},
+						"averageNs": 64855972.333333336,
+						"medianNs": 64315708,
+						"p99Ns": 71778625,
+						"samples": 12,
+						"heap": {
+							"_": 12,
+							"total": 189168,
+							"min": 15616,
+							"max": 17344,
+							"avg": 15764
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/csv",
+						"args": {},
+						"averageNs": 28910277,
+						"medianNs": 28435333,
+						"p99Ns": 31874333,
+						"samples": 20,
+						"heap": {
+							"_": 24,
+							"total": 377640,
+							"min": 15616,
+							"max": 17344,
+							"avg": 15735
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/dispose",
+						"args": {},
+						"averageNs": 21366956.96551711,
+						"medianNs": 21190667,
+						"p99Ns": 23601917,
+						"samples": 29,
+						"heap": {
+							"_": 33,
+							"total": 514424,
+							"min": 8240,
+							"max": 23816,
+							"avg": 15588.60606060606
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/duration",
+						"args": {},
+						"averageNs": 22789509.96,
+						"medianNs": 21869958,
+						"p99Ns": 27537500,
+						"samples": 25,
+						"heap": {
+							"_": 29,
+							"total": 447496,
+							"min": 15312,
+							"max": 17040,
+							"avg": 15430.896551724138
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/effect",
+						"args": {},
+						"averageNs": 88936874.99999984,
+						"medianNs": 72004708,
+						"p99Ns": 157563334,
+						"samples": 12,
+						"heap": {
+							"_": 11,
+							"total": 215504,
+							"min": 15312,
+							"max": 60560,
+							"avg": 19591.272727272728
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/email",
+						"args": {},
+						"averageNs": 73622433.99999952,
+						"medianNs": 46738915.99999809,
+						"p99Ns": 61138000.00000191,
+						"samples": 12,
+						"heap": {
+							"_": 12,
+							"total": 185520,
+							"min": 15312,
+							"max": 17040,
+							"avg": 15460
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/entitlement",
+						"args": {},
+						"averageNs": 27311784.09090909,
+						"medianNs": 26683625,
+						"p99Ns": 31657375,
+						"samples": 22,
+						"heap": {
+							"_": 26,
+							"total": 399944,
+							"min": 15312,
+							"max": 17040,
+							"avg": 15382.461538461539
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/env",
+						"args": {},
+						"averageNs": 25076699.75,
+						"medianNs": 24576125,
+						"p99Ns": 29824417,
+						"samples": 24,
+						"heap": {
+							"_": 28,
+							"total": 430568,
+							"min": 15312,
+							"max": 17040,
+							"avg": 15377.42857142857
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/failure",
+						"args": {},
+						"averageNs": 23408153.846153848,
+						"medianNs": 22978000,
+						"p99Ns": 26897958,
+						"samples": 26,
+						"heap": {
+							"_": 29,
+							"total": 493576,
+							"min": 8472,
+							"max": 49632,
+							"avg": 17019.862068965518
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/fault",
+						"args": {},
+						"averageNs": 22782196.39285714,
+						"medianNs": 22225625,
+						"p99Ns": 27177500,
+						"samples": 28,
+						"heap": {
+							"_": 32,
+							"total": 493184,
+							"min": 15264,
+							"max": 18248,
+							"avg": 15412
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/hono",
+						"args": {},
+						"averageNs": 49925909,
+						"medianNs": 49723542,
+						"p99Ns": 50901750,
+						"samples": 11,
+						"heap": {
+							"_": 15,
+							"total": 230736,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15382.4
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/html",
+						"args": {},
+						"averageNs": 46985007.45454545,
+						"medianNs": 47712250,
+						"p99Ns": 48679042,
+						"samples": 11,
+						"heap": {
+							"_": 15,
+							"total": 230688,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15379.2
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/http",
+						"args": {},
+						"averageNs": 37872263.733333334,
+						"medianNs": 38003667,
+						"p99Ns": 39414000,
+						"samples": 15,
+						"heap": {
+							"_": 19,
+							"total": 292960,
+							"min": 8136,
+							"max": 23464,
+							"avg": 15418.947368421053
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/meter",
+						"args": {},
+						"averageNs": 25054066.72,
+						"medianNs": 24762375,
+						"p99Ns": 26700083,
+						"samples": 25,
+						"heap": {
+							"_": 29,
+							"total": 444408,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15324.413793103447
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/permission",
+						"args": {},
+						"averageNs": 25289267.416666668,
+						"medianNs": 24790000,
+						"p99Ns": 28978084,
+						"samples": 24,
+						"heap": {
+							"_": 28,
+							"total": 429192,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15328.285714285714
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/pool",
+						"args": {},
+						"averageNs": 28374831.333333332,
+						"medianNs": 28734292,
+						"p99Ns": 29653959,
+						"samples": 21,
+						"heap": {
+							"_": 25,
+							"total": 383352,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15334.08
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/process",
+						"args": {},
+						"averageNs": 27864839.285714287,
+						"medianNs": 27525833,
+						"p99Ns": 30145459,
+						"samples": 21,
+						"heap": {
+							"_": 25,
+							"total": 383352,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15334.08
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/query",
+						"args": {},
+						"averageNs": 24352003.36,
+						"medianNs": 24297167,
+						"p99Ns": 25436333,
+						"samples": 25,
+						"heap": {
+							"_": 29,
+							"total": 444408,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15324.413793103447
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/queue",
+						"args": {},
+						"averageNs": 27661456.59090909,
+						"medianNs": 27409042,
+						"p99Ns": 29768375,
+						"samples": 22,
+						"heap": {
+							"_": 26,
+							"total": 398616,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15331.384615384615
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/record",
+						"args": {},
+						"averageNs": 18875553.09090909,
+						"medianNs": 18727750,
+						"p99Ns": 20375917,
+						"samples": 33,
+						"heap": {
+							"_": 37,
+							"total": 566528,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15311.567567567568
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/requirement",
+						"args": {},
+						"averageNs": 23055441.48148148,
+						"medianNs": 22886292,
+						"p99Ns": 24537791,
+						"samples": 27,
+						"heap": {
+							"_": 31,
+							"total": 474936,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15320.516129032258
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/resilience",
+						"args": {},
+						"averageNs": 19987746.1875,
+						"medianNs": 19841208,
+						"p99Ns": 21518125,
+						"samples": 32,
+						"heap": {
+							"_": 36,
+							"total": 551264,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15312.888888888889
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/resource",
+						"args": {},
+						"averageNs": 23835004.769230768,
+						"medianNs": 23732042,
+						"p99Ns": 25738250,
+						"samples": 26,
+						"heap": {
+							"_": 30,
+							"total": 459672,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15322.4
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/result",
+						"args": {},
+						"averageNs": 18769237.647058822,
+						"medianNs": 18821708,
+						"p99Ns": 19989041,
+						"samples": 34,
+						"heap": {
+							"_": 38,
+							"total": 581792,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15310.315789473685
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/robots",
+						"args": {},
+						"averageNs": 18824212.088235293,
+						"medianNs": 18507209,
+						"p99Ns": 20738750,
+						"samples": 34,
+						"heap": {
+							"_": 38,
+							"total": 581792,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15310.315789473685
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/schema",
+						"args": {},
+						"averageNs": 19204458.393939395,
+						"medianNs": 19186625,
+						"p99Ns": 20798875,
+						"samples": 33,
+						"heap": {
+							"_": 37,
+							"total": 566528,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15311.567567567568
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/server",
+						"args": {},
+						"averageNs": 56265236.11111154,
+						"medianNs": 56203458.000003815,
+						"p99Ns": 57078583.000003815,
+						"samples": 9,
+						"heap": {
+							"_": 13,
+							"total": 200208,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15400.615384615385
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/sitemap",
+						"args": {},
+						"averageNs": 25587203.16666762,
+						"medianNs": 25166125,
+						"p99Ns": 27563041.000003815,
+						"samples": 24,
+						"heap": {
+							"_": 28,
+							"total": 429144,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15326.57142857143
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/streams",
+						"args": {},
+						"averageNs": 22182918.142857414,
+						"medianNs": 21724917,
+						"p99Ns": 25203750,
+						"samples": 28,
+						"heap": {
+							"_": 32,
+							"total": 490200,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15318.75
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/task",
+						"args": {},
+						"averageNs": 27160178.045454547,
+						"medianNs": 26428625,
+						"p99Ns": 30760333,
+						"samples": 22,
+						"heap": {
+							"_": 26,
+							"total": 398664,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15333.23076923077
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/telemetry",
+						"args": {},
+						"averageNs": 20810858.266666666,
+						"medianNs": 20921375,
+						"p99Ns": 21979500,
+						"samples": 30,
+						"heap": {
+							"_": 34,
+							"total": 520736,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15315.764705882353
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/utils",
+						"args": {},
+						"averageNs": 19937957,
+						"medianNs": 19722541,
+						"p99Ns": 22682792,
+						"samples": 32,
+						"heap": {
+							"_": 36,
+							"total": 552904,
+							"min": 8640,
+							"max": 23464,
+							"avg": 15358.444444444445
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/version",
+						"args": {},
+						"averageNs": 30607184.263157893,
+						"medianNs": 29345792,
+						"p99Ns": 36553500,
+						"samples": 19,
+						"heap": {
+							"_": 23,
+							"total": 352920,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15344.347826086956
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/worker",
+						"args": {},
+						"averageNs": 30814215.05263158,
+						"medianNs": 30995084,
+						"p99Ns": 32143583,
+						"samples": 19,
+						"heap": {
+							"_": 23,
+							"total": 352824,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15340.173913043478
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/workflow",
+						"args": {},
+						"averageNs": 32784460.833333332,
+						"medianNs": 32320667,
+						"p99Ns": 34902625,
+						"samples": 18,
+						"heap": {
+							"_": 22,
+							"total": 337560,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15343.636363636364
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/utils/result",
+						"args": {},
+						"averageNs": 21539525.862068966,
+						"medianNs": 21713875,
+						"p99Ns": 23860417,
+						"samples": 29,
+						"heap": {
+							"_": 33,
+							"total": 505464,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15317.09090909091
+						}
+					},
+					{
+						"group": "fresh native Node esm exact npm artifacts: process startup included",
+						"alias": "@okikio/utils/all",
+						"args": {},
+						"averageNs": 243634177.25,
+						"medianNs": 231859167,
+						"p99Ns": 311878876,
+						"samples": 12,
+						"heap": {
+							"_": 12,
+							"total": 185040,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15420
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "empty child: launch + exit baseline",
+						"args": {},
+						"averageNs": 26908670.61904762,
+						"medianNs": 25719292,
+						"p99Ns": 33047333,
+						"samples": 21,
+						"heap": {
+							"_": 25,
+							"total": 376672,
+							"min": 14992,
+							"max": 16720,
+							"avg": 15066.88
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/activity",
+						"args": {},
+						"averageNs": 64266836.666666664,
+						"medianNs": 56713291,
+						"p99Ns": 93215500,
+						"samples": 12,
+						"heap": {
+							"_": 12,
+							"total": 185184,
+							"min": 15264,
+							"max": 17040,
+							"avg": 15432
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/capacity",
+						"args": {},
+						"averageNs": 27077187.454545453,
+						"medianNs": 26324208,
+						"p99Ns": 32393833,
+						"samples": 22,
+						"heap": {
+							"_": 26,
+							"total": 400680,
+							"min": 928,
+							"max": 31664,
+							"avg": 15410.76923076923
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/catalog",
+						"args": {},
+						"averageNs": 29266970.95,
+						"medianNs": 28009625,
+						"p99Ns": 40688000,
+						"samples": 20,
+						"heap": {
+							"_": 24,
+							"total": 368136,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15339
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/codec",
+						"args": {},
+						"averageNs": 28819005.125,
+						"medianNs": 26992416,
+						"p99Ns": 37258875,
+						"samples": 16,
+						"heap": {
+							"_": 20,
+							"total": 307080,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15354
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/concurrency",
+						"args": {},
+						"averageNs": 30615601,
+						"medianNs": 30526334,
+						"p99Ns": 34777166,
+						"samples": 19,
+						"heap": {
+							"_": 23,
+							"total": 352872,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15342.260869565218
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/context",
+						"args": {},
+						"averageNs": 25994875,
+						"medianNs": 25084666,
+						"p99Ns": 31356167,
+						"samples": 23,
+						"heap": {
+							"_": 27,
+							"total": 413880,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15328.888888888889
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/css",
+						"args": {},
+						"averageNs": 68466677.16666667,
+						"medianNs": 57905667,
+						"p99Ns": 103528042,
+						"samples": 12,
+						"heap": {
+							"_": 12,
+							"total": 184896,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15408
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/csv",
+						"args": {},
+						"averageNs": 29995041.6,
+						"medianNs": 29577750,
+						"p99Ns": 34094917,
+						"samples": 20,
+						"heap": {
+							"_": 24,
+							"total": 368088,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15337
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/dispose",
+						"args": {},
+						"averageNs": 20119472.71875,
+						"medianNs": 19866500,
+						"p99Ns": 21919209,
+						"samples": 32,
+						"heap": {
+							"_": 36,
+							"total": 551264,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15312.888888888889
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/duration",
+						"args": {},
+						"averageNs": 19997800.875,
+						"medianNs": 19775959,
+						"p99Ns": 21600750,
+						"samples": 32,
+						"heap": {
+							"_": 36,
+							"total": 551264,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15312.888888888889
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/effect",
+						"args": {},
+						"averageNs": 24200174.615384616,
+						"medianNs": 24114791,
+						"p99Ns": 25469459,
+						"samples": 26,
+						"heap": {
+							"_": 30,
+							"total": 459672,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15322.4
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/email",
+						"args": {},
+						"averageNs": 20936777.8,
+						"medianNs": 20873167,
+						"p99Ns": 23144792,
+						"samples": 30,
+						"heap": {
+							"_": 34,
+							"total": 520736,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15315.764705882353
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/entitlement",
+						"args": {},
+						"averageNs": 24286576.72,
+						"medianNs": 23881584,
+						"p99Ns": 27407375,
+						"samples": 25,
+						"heap": {
+							"_": 29,
+							"total": 444408,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15324.413793103447
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/env",
+						"args": {},
+						"averageNs": 21892466.896551725,
+						"medianNs": 21873167,
+						"p99Ns": 22994292,
+						"samples": 29,
+						"heap": {
+							"_": 33,
+							"total": 505464,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15317.09090909091
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/failure",
+						"args": {},
+						"averageNs": 21988267.85714286,
+						"medianNs": 21862042,
+						"p99Ns": 24169542,
+						"samples": 28,
+						"heap": {
+							"_": 32,
+							"total": 490200,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15318.75
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/fault",
+						"args": {},
+						"averageNs": 20543853.451612905,
+						"medianNs": 20222667,
+						"p99Ns": 22366875,
+						"samples": 31,
+						"heap": {
+							"_": 35,
+							"total": 536000,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15314.285714285714
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/hono",
+						"args": {},
+						"averageNs": 43067586.538461536,
+						"medianNs": 43097167,
+						"p99Ns": 44393750,
+						"samples": 13,
+						"heap": {
+							"_": 17,
+							"total": 261288,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15369.882352941177
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/html",
+						"args": {},
+						"averageNs": 43153573.76923077,
+						"medianNs": 43136125,
+						"p99Ns": 43791291,
+						"samples": 13,
+						"heap": {
+							"_": 17,
+							"total": 261288,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15369.882352941177
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/http",
+						"args": {},
+						"averageNs": 34574242,
+						"medianNs": 34584625,
+						"p99Ns": 36354166,
+						"samples": 16,
+						"heap": {
+							"_": 20,
+							"total": 307080,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15354
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/meter",
+						"args": {},
+						"averageNs": 27989012.29411765,
+						"medianNs": 26452000,
+						"p99Ns": 31358625,
+						"samples": 17,
+						"heap": {
+							"_": 21,
+							"total": 322296,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15347.42857142857
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/permission",
+						"args": {},
+						"averageNs": 26157708.454545453,
+						"medianNs": 25483208,
+						"p99Ns": 29104708,
+						"samples": 22,
+						"heap": {
+							"_": 26,
+							"total": 398616,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15331.384615384615
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/pool",
+						"args": {},
+						"averageNs": 27151221.59090909,
+						"medianNs": 27068417,
+						"p99Ns": 29149250,
+						"samples": 22,
+						"heap": {
+							"_": 26,
+							"total": 398616,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15331.384615384615
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/process",
+						"args": {},
+						"averageNs": 26634808,
+						"medianNs": 26805791,
+						"p99Ns": 28425292,
+						"samples": 23,
+						"heap": {
+							"_": 27,
+							"total": 413880,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15328.888888888889
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/query",
+						"args": {},
+						"averageNs": 23308674.37037037,
+						"medianNs": 23081750,
+						"p99Ns": 24722791,
+						"samples": 27,
+						"heap": {
+							"_": 31,
+							"total": 474936,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15320.516129032258
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/queue",
+						"args": {},
+						"averageNs": 27112160.954545453,
+						"medianNs": 27041208,
+						"p99Ns": 28261916,
+						"samples": 22,
+						"heap": {
+							"_": 26,
+							"total": 398616,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15331.384615384615
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/record",
+						"args": {},
+						"averageNs": 18849312.588235293,
+						"medianNs": 18753417,
+						"p99Ns": 19732334,
+						"samples": 34,
+						"heap": {
+							"_": 38,
+							"total": 581792,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15310.315789473685
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/requirement",
+						"args": {},
+						"averageNs": 23077279.333333332,
+						"medianNs": 22932125,
+						"p99Ns": 24767208,
+						"samples": 27,
+						"heap": {
+							"_": 31,
+							"total": 474936,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15320.516129032258
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/resilience",
+						"args": {},
+						"averageNs": 20345321.25806427,
+						"medianNs": 20239917,
+						"p99Ns": 22115750,
+						"samples": 31,
+						"heap": {
+							"_": 35,
+							"total": 536984,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15342.4
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/resource",
+						"args": {},
+						"averageNs": 26831990.72727342,
+						"medianNs": 26352042,
+						"p99Ns": 31626084.00000763,
+						"samples": 22,
+						"heap": {
+							"_": 26,
+							"total": 398664,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15333.23076923077
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/result",
+						"args": {},
+						"averageNs": 23460876.555553578,
+						"medianNs": 23762500,
+						"p99Ns": 26187042.00000763,
+						"samples": 27,
+						"heap": {
+							"_": 31,
+							"total": 474984,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15322.064516129032
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/robots",
+						"args": {},
+						"averageNs": 21874267.206896815,
+						"medianNs": 21254916.00000763,
+						"p99Ns": 26290540.99999237,
+						"samples": 29,
+						"heap": {
+							"_": 33,
+							"total": 505464,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15317.09090909091
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/schema",
+						"args": {},
+						"averageNs": 20434415.3225804,
+						"medianNs": 20253958,
+						"p99Ns": 23950459,
+						"samples": 31,
+						"heap": {
+							"_": 35,
+							"total": 536000,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15314.285714285714
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/server",
+						"args": {},
+						"averageNs": 52183345.9,
+						"medianNs": 52077375,
+						"p99Ns": 52858750,
+						"samples": 10,
+						"heap": {
+							"_": 14,
+							"total": 215424,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15387.42857142857
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/sitemap",
+						"args": {},
+						"averageNs": 27850331.5,
+						"medianNs": 27771291,
+						"p99Ns": 30307708,
+						"samples": 22,
+						"heap": {
+							"_": 26,
+							"total": 398664,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15333.23076923077
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/streams",
+						"args": {},
+						"averageNs": 21340013,
+						"medianNs": 21025333,
+						"p99Ns": 23711166,
+						"samples": 29,
+						"heap": {
+							"_": 33,
+							"total": 505464,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15317.09090909091
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/task",
+						"args": {},
+						"averageNs": 28413289.714285713,
+						"medianNs": 28486375,
+						"p99Ns": 30274708,
+						"samples": 21,
+						"heap": {
+							"_": 25,
+							"total": 383352,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15334.08
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/telemetry",
+						"args": {},
+						"averageNs": 22756717.703703705,
+						"medianNs": 22470667,
+						"p99Ns": 24521709,
+						"samples": 27,
+						"heap": {
+							"_": 31,
+							"total": 474984,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15322.064516129032
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/utils",
+						"args": {},
+						"averageNs": 20522366.870967742,
+						"medianNs": 20385792,
+						"p99Ns": 24407625,
+						"samples": 31,
+						"heap": {
+							"_": 35,
+							"total": 536000,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15314.285714285714
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/version",
+						"args": {},
+						"averageNs": 31179100.94736842,
+						"medianNs": 31285458,
+						"p99Ns": 34428834,
+						"samples": 19,
+						"heap": {
+							"_": 23,
+							"total": 352872,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15342.260869565218
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/worker",
+						"args": {},
+						"averageNs": 34356533.875,
+						"medianNs": 32067209,
+						"p99Ns": 43790625,
+						"samples": 16,
+						"heap": {
+							"_": 20,
+							"total": 307080,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15354
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/workflow",
+						"args": {},
+						"averageNs": 38162937.5,
+						"medianNs": 37416125,
+						"p99Ns": 41340083,
+						"samples": 14,
+						"heap": {
+							"_": 18,
+							"total": 276552,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15364
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/utils/result",
+						"args": {},
+						"averageNs": 22912094.333333332,
+						"medianNs": 22110084,
+						"p99Ns": 26838501,
+						"samples": 27,
+						"heap": {
+							"_": 31,
+							"total": 474936,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15320.516129032258
+						}
+					},
+					{
+						"group": "fresh native Node cjs exact npm artifacts: process startup included",
+						"alias": "@okikio/utils/all",
+						"args": {},
+						"averageNs": 155134593.75,
+						"medianNs": 143812958,
+						"p99Ns": 173511083,
+						"samples": 12,
+						"heap": {
+							"_": 12,
+							"total": 184896,
+							"min": 15264,
+							"max": 16992,
+							"avg": 15408
+						}
+					}
+				]
+			}
+		]
+	},
+	"httpComparison": {
+		"command": "mise run bench-compare <evidence>",
+		"method": "Six fresh processes; alternating registration order; paired log mean-time ratios with 95% t intervals, df=5.",
+		"limits": "Approximate independent log-normal trial model, shared capped host. CI containing one is inconclusive, not equivalence. No timing gate.",
+		"comparisons": [
+			{
+				"workload": "api",
+				"utilsNs": [
+					1202622.6631762718,
+					1591374.9209302082,
+					1249865.8731884153,
+					1355195.3737768987,
+					1300762.1811320728,
+					1235900.9555160159
+				],
+				"honoNs": [
+					1138567.3677204691,
+					846775.9082007309,
+					1440379.4936709022,
+					917945.5917553267,
+					1277675.5495327157,
+					937031.9661705097
+				],
+				"ratio": 1.2271343585894934,
+				"interval95": [
+					0.9124716448922173,
+					1.6503074286858768
+				],
+				"conclusion": "difference unresolved"
+			},
+			{
+				"workload": "gateway",
+				"utilsNs": [
+					179890.7208267945,
+					163368.64417896754,
+					164558.6398774434,
+					171565.84670452116,
+					172292.5930059467,
+					166186.4275845609
+				],
+				"honoNs": [
+					94531.26502583991,
+					97439.90818615202,
+					116604.80647911664,
+					102960.82866459223,
+					100179.2455003623,
+					102839.54883996159
+				],
+				"ratio": 1.6590471777282052,
+				"interval95": [
+					1.4983817244957511,
+					1.8369401421084457
+				],
+				"conclusion": "higher Utils time"
+			},
+			{
+				"workload": "routes-16",
+				"utilsNs": [
+					102787.18453087306,
+					109839.22575492496,
+					168840.19455055625,
+					122939.93416370208,
+					111295.02937399954,
+					132459.58069499026
+				],
+				"honoNs": [
+					114743.09298450226,
+					110056.75876420789,
+					373012.023372285,
+					111262.41312429086,
+					123863.72102231994,
+					114746.95664451463
+				],
+				"ratio": 0.8798070150579433,
+				"interval95": [
+					0.6146372932163091,
+					1.2593775097742943
+				],
+				"conclusion": "difference unresolved"
+			},
+			{
+				"workload": "routes-256",
+				"utilsNs": [
+					121027.04134682417,
+					120767.929424164,
+					139374.28888889088,
+					125350.11941659001,
+					130503.00150716223,
+					214242.66547150063
+				],
+				"honoNs": [
+					119230.59070334495,
+					115883.14424689798,
+					131169.85971906027,
+					126225.25242185933,
+					136258.15715995288,
+					131061.02670960517
+				],
+				"ratio": 1.0975069068043635,
+				"interval95": [
+					0.8910823379136237,
+					1.3517509653524757
+				],
+				"conclusion": "difference unresolved"
+			},
+			{
+				"workload": "routes-4096",
+				"utilsNs": [
+					119258.9421885747,
+					124190.54396100242,
+					160302.49953227225,
+					132701.23644461585,
+					128197.3861239593,
+					129465.50630291627
+				],
+				"honoNs": [
+					160116.0027764937,
+					161397.39348837474,
+					183234.26795142354,
+					168605.2888673287,
+					175380.7719607369,
+					247428.03307607566
+				],
+				"ratio": 0.7296781256144264,
+				"interval95": [
+					0.6074887359822807,
+					0.8764445091138487
+				],
+				"conclusion": "lower Utils time"
+			}
+		],
+		"inputsDigest": "6e0d0b57107df19f69bcfcb5065fff17934677fd0f2a3fffad435df5443392e4"
+	},
+	"archiveReceipt": [
+		{
+			"archive": "okikio-activity-0.0.0.tgz",
+			"sha256": "99cddec957ff9c2f52df6dd7b783c4d0ee1116cedcf72b04859b09bad7cde2c1"
+		},
+		{
+			"archive": "okikio-capacity-0.0.0.tgz",
+			"sha256": "8264f0fa55ec6130223b3ddaa71fd7dca85cb47414aedaeeea8b6597aff88fd4"
+		},
+		{
+			"archive": "okikio-catalog-0.0.0.tgz",
+			"sha256": "b3916ca93f06ab4e2537d8cd05572579e6384de72b6ec56420476f81d81727ba"
+		},
+		{
+			"archive": "okikio-codec-0.0.0.tgz",
+			"sha256": "51326ca7c22930b1ea30b4aee9fd25fbf565f2504ae8505502752919b2c5a7e3"
+		},
+		{
+			"archive": "okikio-concurrency-0.0.0.tgz",
+			"sha256": "b6da755d678e8f07147e6e135b969ce2ab431f916d6e05bc3479e49d01913652"
+		},
+		{
+			"archive": "okikio-context-0.0.0.tgz",
+			"sha256": "e8b06f1f5e9e733ad02f695430486ac6146eb4a0b52b50cceb8d161ebdae0a94"
+		},
+		{
+			"archive": "okikio-css-0.0.0.tgz",
+			"sha256": "c41c39339d5565adc0462ae09def2dc2e967f9d66bb0320cc4e0dc23254ccca6"
+		},
+		{
+			"archive": "okikio-csv-0.0.0.tgz",
+			"sha256": "0f98c716488506b90d3015f617aecc521947e3c9286d7fb94b0216b37ab376e3"
+		},
+		{
+			"archive": "okikio-dispose-0.0.0.tgz",
+			"sha256": "89f5d3505a0cee9b61f5e69ff5ed5d7c6b16ce924208620fa68e58507fac7a26"
+		},
+		{
+			"archive": "okikio-duration-0.0.0.tgz",
+			"sha256": "10dcb1432404e558d41d640fe5f6ee57f2e8b1283ceae8dacff8adac6e1699eb"
+		},
+		{
+			"archive": "okikio-effect-0.0.0.tgz",
+			"sha256": "63e94b2c7177f2a8d350f900ec477d5f87c06a8d8f80bf3fc472fc9f5f0ab922"
+		},
+		{
+			"archive": "okikio-email-0.0.0.tgz",
+			"sha256": "de6690786244c2805602f8aa14da0c030c243b5842b772a2543983738d44f27a"
+		},
+		{
+			"archive": "okikio-entitlement-0.0.0.tgz",
+			"sha256": "adf9d5643d326e2af63c8c1b61482e0e4d88e843e401993e5b5d03e5ea9b5e67"
+		},
+		{
+			"archive": "okikio-env-0.0.0.tgz",
+			"sha256": "843b5d93cf4da7251b4f6aa8c7b924475d76af77e19e16f2f7802f7e2c642893"
+		},
+		{
+			"archive": "okikio-failure-0.0.0.tgz",
+			"sha256": "68b4db0541e5ef9f894c87aad04054fac2b2b7bb99cbaba5cf395fca7391201c"
+		},
+		{
+			"archive": "okikio-fault-0.0.0.tgz",
+			"sha256": "fede24d4338dd124bf3351fcc8a79486261740a186b46fae2c09b8973105f053"
+		},
+		{
+			"archive": "okikio-hono-0.0.0.tgz",
+			"sha256": "46a88de1d58b25e367981003e0215e5217adbf4bbf359c7d5226e4cb71b95d23"
+		},
+		{
+			"archive": "okikio-html-0.0.0.tgz",
+			"sha256": "971cdfc7d8bb1e5708a798e971d06aa85e61ac9b696de0f370447cfb904ab85d"
+		},
+		{
+			"archive": "okikio-http-0.0.0.tgz",
+			"sha256": "c8aceed8eed0fdb69972ef8e2ac5b88595891f267b9f2d763192355a2d848379"
+		},
+		{
+			"archive": "okikio-meter-0.0.0.tgz",
+			"sha256": "462c81b4c93b04c3a8e52e5e1f48d8eb8a76835dcf9288f182ca1ce2162f01d4"
+		},
+		{
+			"archive": "okikio-permission-0.0.0.tgz",
+			"sha256": "67e1f45a96caded2e8c994f98251b85cc4581e0292adeeb54227ba716323754c"
+		},
+		{
+			"archive": "okikio-pool-0.0.0.tgz",
+			"sha256": "d5e8ab8fab838624714fe899f977bac47c149ab7716b5f743c58580daaa59615"
+		},
+		{
+			"archive": "okikio-process-0.0.0.tgz",
+			"sha256": "9e6edc9c080974949f220a7a2fc37b4c01c7af7178b3c330fcc45a0f272a66c5"
+		},
+		{
+			"archive": "okikio-query-0.0.0.tgz",
+			"sha256": "18c6e98074a60fb984ddb6535749c4bd9f0f42fb34f756615484e7a75852283f"
+		},
+		{
+			"archive": "okikio-queue-0.0.0.tgz",
+			"sha256": "c9aac17205253e5c38547e74cdb8e2c5341030380ea23e5b2d3bc88d9eb60302"
+		},
+		{
+			"archive": "okikio-record-0.0.0.tgz",
+			"sha256": "b65f7955aba0fc5313d3035a4741e6bb4a185255fa7c3cc6dc4a7670abe620be"
+		},
+		{
+			"archive": "okikio-requirement-0.0.0.tgz",
+			"sha256": "f5697f07920449c5be5c20f3ae3e17e9802d87040d1e729c28a5041420d985aa"
+		},
+		{
+			"archive": "okikio-resilience-0.0.0.tgz",
+			"sha256": "c19dbc4f5ad62d6a3027251672d591d4968723512129fe3ab96cc2f59718327a"
+		},
+		{
+			"archive": "okikio-resource-0.0.0.tgz",
+			"sha256": "11a21df0ba569cf213e2e0cf0193dac04f1310d1cbb69cf8e2f4320e8657a125"
+		},
+		{
+			"archive": "okikio-result-0.0.0.tgz",
+			"sha256": "78cd025f7aaf0b65bd993feb03e423523da3a5ab4ab70691435f87fc951c35c8"
+		},
+		{
+			"archive": "okikio-robots-0.0.0.tgz",
+			"sha256": "6b8fad6604e396508e9b065a77c1104ee1e539fcda50b0c177a0d1765eafec48"
+		},
+		{
+			"archive": "okikio-schema-0.0.0.tgz",
+			"sha256": "5df63a695e24faab25f5ed310f0faacca7f175b78f3d1e0890fafb3975a6008a"
+		},
+		{
+			"archive": "okikio-server-0.0.0.tgz",
+			"sha256": "4d33f3b05af359714af869fa81d62a80587a7a4752ef99a706c08bbbb9cd0269"
+		},
+		{
+			"archive": "okikio-sitemap-0.0.0.tgz",
+			"sha256": "74dbbe3baf98075b66f0f233b964040f71968e9b9f8da9940fb24cb6cb96e07d"
+		},
+		{
+			"archive": "okikio-streams-0.0.0.tgz",
+			"sha256": "f67ac99e0ef1532e3ceace29fe01f9c43021c3ba0de6afb88ea2c98cb73bdcd1"
+		},
+		{
+			"archive": "okikio-task-0.0.0.tgz",
+			"sha256": "d946eb9d4ce00ea07e33b0e1ed6adc4c0157d5646b19276b3bea256b01313aa4"
+		},
+		{
+			"archive": "okikio-telemetry-0.0.0.tgz",
+			"sha256": "6fe654c0eef299a66a1587283e5f3f08f96f00caa2bd4d66f765fc05922b6f56"
+		},
+		{
+			"archive": "okikio-utils-0.0.0.tgz",
+			"sha256": "d84a3d031b0abdd71b531755fac2ee3bbf4f444de3ef243c30913285cb4c6955"
+		},
+		{
+			"archive": "okikio-version-0.0.0.tgz",
+			"sha256": "0f0beecb11510d4b3c2ecc12434cdf72f81388c706f0fec1bbdc848426fc166e"
+		},
+		{
+			"archive": "okikio-worker-0.0.0.tgz",
+			"sha256": "353275a72e9c621579b5cfb5bf8307948633150d183479f42435db2dc723d0cb"
+		},
+		{
+			"archive": "okikio-workflow-0.0.0.tgz",
+			"sha256": "179babac566c7a4356e7b19f8d9a82e93be14f5e8afa51bd3ae40418dfbddb80"
+		}
+	],
+	"preservation": {
+		"head": "0b06c4985316b01a51e85a36b55ce84404f33262",
+		"indexUnchanged": true,
+		"refsUnchanged": true,
+		"baselineFiles": 795,
+		"sourceFiles": 815,
+		"baselineMissing": [],
+		"modifiedFromBaseline": [
+			"bench/coverage.json",
+			"bench/imports.bench.ts",
+			"bench/measure.ts",
+			"bench/npm-imports.bench.ts",
+			"bench/suite.ts",
+			"docs/outcomes.md",
+			"docs/qualification-report.md",
+			"docs/qualification.json",
+			"docs/runtime.md",
+			"tests/compatibility.test.ts",
+			"tools/check-node.ts",
+			"tools/npm-consumer.mjs",
+			"tools/npm.ts",
+			"README.md",
+			"deno.jsonc",
+			"deno.lock",
+			"docs/benchmarks.md",
+			"docs/packaging.md",
+			"docs/testing.md",
+			"package.json",
+			"packages/context/mod.test.ts",
+			"packages/context/mod.ts",
+			"packages/dispose/README.md",
+			"packages/dispose/deno.jsonc",
+			"packages/dispose/mod.ts",
+			"packages/dispose/package.json",
+			"packages/dispose/polyfill.ts",
+			"packages/process/channel/mod.test.ts",
+			"packages/process/channel/mod.ts",
+			"packages/queue/mod.test.ts",
+			"packages/queue/mod.ts",
+			"packages/server/gateway/mod.test.ts",
+			"packages/server/gateway/runtime.ts",
+			"packages/server/http/app.ts",
+			"packages/server/http/router.ts",
+			"packages/server/service/runtime.ts",
+			"packages/utils/deno.jsonc",
+			"packages/utils/package.json",
+			"packages/workflow/dispatch.test.ts",
+			"packages/workflow/dispatch.ts",
+			"pnpm-lock.yaml"
+		],
+		"addedSinceBaseline": [
+			".mise/tasks/bench-compare",
+			"bench/alternatives.bench.ts",
+			"bench/compare.test.ts",
+			"bench/compare.ts",
+			"bench/http-parity.bench.ts",
+			"bench/repeat.ts",
+			"docs/alternatives.md",
+			"docs/http-parity.md",
+			"packages/dispose/ponyfill.test.ts",
+			"packages/dispose/ponyfill.ts",
+			"packages/server/http/router.test.ts",
+			"packages/utils/dispose/ponyfill.ts",
+			"tests/alternatives.test.ts",
+			"tests/fixtures/alternatives.ts",
+			"tests/fixtures/http-parity/HONO-LICENSE",
+			"tests/fixtures/http-parity/README.md",
+			"tests/fixtures/http-parity/corpus.ts",
+			"tests/fixtures/http-parity/hono.ts",
+			"tests/fixtures/http-parity/utils.ts",
+			"tests/http-parity.test.ts"
+		],
+		"published": false,
+		"committed": false
+	},
+	"limits": [
+		"Selected literal outputs are qualified; full Hono/service/gateway lifecycle equivalence is not.",
+		"Same-engine adapters do not independently validate parser grammars.",
+		"Six trials share one capped host; CI containing one is inconclusive, not equivalence.",
+		"Warm Fetch dispatch and response consumption exclude network listeners, construction and joined per-request cleanup.",
+		"Single-run alternative/cost-reference timing summaries establish no comparative significance.",
+		"No hosted CI, registry publication, full Bun/browser qualification or cross-computer persistence is claimed."
+	],
+	"sourceGateDigestScope": "815 Git-visible files frozen for qualification and measurements; the two generated comparison receipt files are excluded.",
+	"evidenceArchive": ".artifacts/comparison/20261007/evidence.tar.gz"
+}

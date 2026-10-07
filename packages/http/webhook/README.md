@@ -1,5 +1,32 @@
 # `@okikio/http/webhook`
 
+Authenticate the exact received bytes while keeping the original request available to its parser.
+
+## Run a complete example
+
+```ts runnable
+import * as webhook from '@okikio/http/webhook';
+import * as standard from '@okikio/http/webhook/standard';
+const verifier = standard.create({ secret: 'whsec_' + btoa(String.fromCharCode(...new Uint8Array(32).fill(1))) });
+const body = '{"ok":true}';
+const headers = await verifier.sign({ id: 'event-1', timestamp: 1000, body });
+const request = new Request('https://service.invalid/webhook', { method: 'POST', headers, body });
+const verified = await webhook.verifyRequest(request, verifier, { now: new Date(1000_000) });
+console.log(verified.ok, (await request.json()).ok);
+```
+
+Expected output:
+
+```text output
+true true
+```
+
+## Build on the example
+
+The fixed test key and clock make this example reproducible. A real application supplies secrets and replay policy.
+Verify before parsing, then add key rotation and bounded raw-body admission; delivery retries and deduplication belong
+to the receiving service.
+
 This package signs and verifies HTTP webhook messages without changing the bytes covered by the signature. Route
 registration, subscriptions, retries, queues, and delivery history belong to services or to a future delivery package
 that owns those records.

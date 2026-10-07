@@ -1,8 +1,21 @@
 /**
- * Import-safe resource definitions and lazily acquired owned collections.
+ * Create expensive dependencies once, borrow them through declared access and close them at their owner lifetime. Hand-built dependency bags make missing implementations, cycles and cleanup ordering hard to detect.
  *
- * Definitions describe required capabilities and dependencies. Implementations
- * provide host-specific construction without changing definition identity.
+ * Add dependency declarations when one resource needs another, validate implementation coverage before startup, and scope access to the exact resources an activity may use. Collections own created values; callers borrow them and must not close them individually. Acquisition requirements apply at creation, while actor-specific use requirements are checked on public borrowing. Remote work must reconstruct its local resources rather than serialize live clients.
+ *
+ * @example
+ * ```ts
+ * import '@okikio/duration/polyfill';
+ * import '@okikio/dispose/polyfill';
+ * import * as context from '@okikio/context';
+ * import * as resource from '@okikio/resource';
+ * const Store = resource.define<{ read(id: string): string }>()({ id: 'store', description: 'Read one stored value.' });
+ * const StoreLive = resource.implement(Store, { create: () => ({ read: (id) => `value:${id}` }) });
+ * await using ctx = context.create({ id: 'store-owner' });
+ * await using stores = resource.create(resource.implementations(StoreLive), { ctx, host: {} });
+ * const store = await stores.get(ctx, Store);
+ * console.log(store.read('asset-1'));
+ * ```
  *
  * @module
  */
@@ -42,10 +55,14 @@ const emptyEnvironment = Object.freeze(Object.create(null)) as Readonly<Record<s
 
 /** Error raised when two distinct definitions reuse one stable resource ID. */
 export class DefinitionConflictError extends Error {
+	/** Stable identity used to correlate this contract or occurrence. */
 	readonly id: string;
+	/** First operand or observation retained in this ordered pair. */
 	readonly first: ResourceDefinition;
+	/** Second operand or observation retained in this ordered pair. */
 	readonly second: ResourceDefinition;
 
+	/** Create this DefinitionConflictError from the explicit contract values supplied by its caller. */
 	constructor(id: string, first: ResourceDefinition, second: ResourceDefinition) {
 		super(`Resource identifier ${JSON.stringify(id)} is owned by different definition objects.`);
 		this.name = 'DefinitionConflictError';
@@ -57,8 +74,10 @@ export class DefinitionConflictError extends Error {
 
 /** Error raised when a collection receives two implementations for one definition. */
 export class ImplementationConflictError extends Error {
+	/** Exact declared contract object; an independently authored same-name object is not the same declaration. */
 	readonly definition: ResourceDefinition;
 
+	/** Create this ImplementationConflictError from the explicit contract values supplied by its caller. */
 	constructor(definition: ResourceDefinition) {
 		super(`Resource ${JSON.stringify(definition.id)} has more than one implementation.`);
 		this.name = 'ImplementationConflictError';
@@ -68,9 +87,12 @@ export class ImplementationConflictError extends Error {
 
 /** Error raised when a reachable resource definition has no implementation. */
 export class MissingImplementationError extends Error {
+	/** Exact declared contract object; an independently authored same-name object is not the same declaration. */
 	readonly definition: ResourceDefinition;
+	/** Definitions that require the missing resource, used to explain the dependency path. */
 	readonly requiredBy: readonly ResourceDefinition[];
 
+	/** Create this MissingImplementationError from the explicit contract values supplied by its caller. */
 	constructor(definition: ResourceDefinition, requiredBy: readonly ResourceDefinition[] = []) {
 		const suffix = requiredBy.length === 0
 			? ''
@@ -84,8 +106,10 @@ export class MissingImplementationError extends Error {
 
 /** Error raised for a cycle in the static resource dependency graph. */
 export class DependencyCycleError extends Error {
+	/** Source, route or expression path used to locate this value. */
 	readonly path: readonly ResourceDefinition[];
 
+	/** Create this DependencyCycleError from the explicit contract values supplied by its caller. */
 	constructor(path: readonly ResourceDefinition[]) {
 		super(`Resource dependency cycle detected:\n${path.map((item) => item.id).join(' -> ')}`);
 		this.name = 'DependencyCycleError';
@@ -465,9 +489,11 @@ class LiveCollection implements ResourceCollection {
 	}
 
 	/**
-	 * Creates value while preserving the module's ownership rules.
+	 * Acquire dependencies before constructing one resource under an owned child context.
 	 *
-	 * It preserves exact resource-definition identity, lazy dependency acquisition, and reverse-order collection disposal.
+	 * The collection resolves exact definition objects and registers resources in
+	 * dependency order, so disposal can run in reverse order. Construction borrows
+	 * the context view; registered cleanup belongs to this acquisition lifetime.
 	 *
 	 * @internal
 	 */

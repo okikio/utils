@@ -1,5 +1,36 @@
 # `@okikio/sitemap`
 
+Read sitemap, feed and text discovery sources through one record model. Looking for every XML loc element loses source
+kind, alternate links and malformed-document evidence.
+
+## Run a complete example
+
+```ts runnable
+import * as sitemap from '@okikio/sitemap';
+const text =
+	'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.com/guide</loc></url></urlset>';
+console.log(
+	JSON.stringify(sitemap.locations({ url: 'https://example.com/sitemap.xml', contentType: 'application/xml', text })),
+);
+```
+
+Expected output:
+
+```text output
+["https://example.com/guide"]
+```
+
+## Build on the example
+
+Use locations() when only URLs matter, parse() when provenance and metadata matter, and parseStream() for bounded
+incremental ingestion. Choose standards or lenient policy explicitly for imperfect sources and retain problems for
+diagnostics. The utility does not fetch nested sitemap indexes or choose crawl priority. The acquiring application owns
+network, byte and source-count budgets.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/sitemap` parses Sitemap XML, RSS, Atom, and plain-text URL lists without performing network I/O. It exposes one
@@ -63,35 +94,54 @@ complete record set.
 
 ## Use with other utilities
 
-Robots parsing can discover Sitemap sources, and a `Context` can own the fetch and parse lifetime:
+Kaiju Crawl discovers Sitemap sources from robots declarations and waits for its candidate sink on each record. This
+complete local version streams supplied bytes, applies robots rules and returns only accepted page URLs.
 
-```ts
+```ts runnable=stream-discovery.ts
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as robots from '@okikio/robots';
 import * as sitemap from '@okikio/sitemap';
 
-await using ctx = context.create({ id: 'sitemap-discovery' });
-const policy = robots.parse(robotsText);
-
+const policy = robots.parse('User-agent: *\nDisallow: /private/\nSitemap: https://example.com/sitemap.xml\n');
+const text = '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' +
+	'<url><loc>https://example.com/guide</loc></url>' +
+	'<url><loc>https://example.com/private/report</loc></url></urlset>';
+const candidates: string[] = [];
+await using owner = context.create({ id: 'sitemap-discovery' });
 for (const url of robots.getSitemapUrls(policy)) {
-	context.check(ctx);
-	const response = await fetch(url, { signal: ctx.signal });
-
-	await sitemap.parseStream({
-		stream: response.body!,
+	const parsed = await sitemap.parseStream({
+		stream: new Response(text).body!,
 		url,
-		signal: ctx.signal,
+		contentType: 'application/xml',
+		maxBytes: 20_000,
+		signal: owner.signal,
 		async onRecord(record) {
-			if (robots.match(policy, { userAgent: 'KaijuBot', url: record.loc })) {
-				await addCandidate(record.loc);
+			if (record.kind === 'url' && robots.match(policy, { userAgent: 'KaijuBot', url: record.loc })) {
+				candidates.push(record.loc);
 			}
 		},
 	});
+	if (parsed.capped) throw new Error('The discovery source exceeded its byte budget.');
 }
+console.log(JSON.stringify(candidates));
 ```
 
-Each package owns one mechanism: context owns lifetime, robots owns robots syntax and matching, and sitemap owns
-Sitemap/feed/text parsing. The discovery layer owns the network and crawl policy that connects them.
+Expected output:
+
+```text output
+["https://example.com/guide"]
+```
+
+`parseStream()` returns `Promise<SitemapStreamResult>`. It awaits `onRecord()` before advancing, so an asynchronous sink
+can apply backpressure. The final application result is `string[]`; it is deliberately collected here. The parser owns
+the stream reader and releases it when parsing finishes, fails or is cancelled. The context supplies cancellation and is
+disposed when its block ends. Cancellation cannot undo an already accepted sink write.
+
+For a fetched source, pass `owner.signal` to `fetch()` too, reject unwanted HTTP status, and limit nested source counts.
+Context owns lifetime, robots owns syntax and matching, and sitemap owns XML/feed/text parsing. The acquiring
+application owns network and crawl policy.
 
 ## Parser and safety model
 

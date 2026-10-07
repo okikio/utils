@@ -1,5 +1,47 @@
 # `@okikio/meter`
 
+Record a validated usage fact through the same authoritative effect owner as the operation. Incrementing an in-memory
+counter cannot prove a billing or audit sink accepted the measurement.
+
+## Run a complete example
+
+The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
+implementation is preserved.
+
+```ts runnable
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as context from '@okikio/context';
+import * as effect from '@okikio/effect';
+import * as meter from '@okikio/meter';
+import { MeterReadingSchema } from '@okikio/meter';
+import * as schema from '@okikio/schema';
+const Bytes = meter.define({ id: 'download.bytes', unit: 'byte', aggregation: 'sum' });
+await using owner = context.create({ id: 'download' });
+const ctx = effect.scope(owner, {
+	effects: [meter.effect(Bytes)],
+	emitter: { async emit() {} },
+});
+const occurrence = await meter.record(ctx, Bytes, 2048, { key: 'download:asset-1' });
+console.log((await schema.parse(MeterReadingSchema, occurrence.value)).value);
+```
+
+Expected output:
+
+```text output
+2048
+```
+
+## Build on the example
+
+Define a measurement once, record it with a stable idempotency key, then attach attributes for later aggregation. A real
+owner may persist the occurrence to a ledger or outbox. The example owner accepts in memory only; it is not a billing
+backend. Meter definitions describe units and aggregation, while application policy decides pricing and entitlement.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/meter` gives one measurable quantity a stable, import-safe definition. Recording a measurement is modeled as a
@@ -14,6 +56,8 @@ Define a meter without performing I/O:
 
 ```ts
 import * as meter from '@okikio/meter';
+import { MeterReadingSchema } from '@okikio/meter';
+import * as schema from '@okikio/schema';
 
 const DownloadBytes = meter.define({
 	id: 'download.bytes',
@@ -52,29 +96,48 @@ The timestamp comes from `ctx.clock`, not ambient `Date.now()`. The returned Pro
 owner accepts responsibility for the measurement. It does **not** mean a downstream warehouse, billing provider, or
 telemetry service has already processed it.
 
-## Larger composition
+## Accept readings in an explicit sink
 
-A durable host can connect the same meter to a durable effect outbox without changing the code that records
-measurements:
+The recording operation returns `Promise<EffectOccurrence>`. The sink receives the validated occurrence and decides when
+to acknowledge it. Here the application keeps accepted keys and readings in a Map. Repeating a key replaces the same
+local entry; it does not add a second reading.
 
-```ts
-const RequiredEffects = effect.catalog('download', {
-	DownloadBytes: meter.effect(DownloadBytes),
+```ts runnable=accepted-readings.ts
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as context from '@okikio/context';
+import * as effect from '@okikio/effect';
+import * as meter from '@okikio/meter';
+import { MeterReadingSchema } from '@okikio/meter';
+import * as schema from '@okikio/schema';
+
+const Bytes = meter.define({ id: 'download.bytes', unit: 'byte', aggregation: 'sum' });
+const accepted = new Map<string, number>();
+await using owner = context.create({ id: 'download' });
+const ctx = effect.scope(owner, {
+	effects: [meter.effect(Bytes)],
+	emitter: {
+		async emit(_ctx, occurrence) {
+			const reading = await schema.parse(MeterReadingSchema, occurrence.value);
+			accepted.set(occurrence.key, reading.value);
+		},
+	},
 });
-
-const effectCtx = effect.scope(ctx, {
-	allowed: RequiredEffects,
-	outbox: durableEffectOutbox,
-});
-
-await meter.record(effectCtx, DownloadBytes, chunk.byteLength, {
-	key: `download:${downloadId}:chunk:${chunkIndex}`,
-	attributes: { source: 'origin' },
-});
+await meter.record(ctx, Bytes, 2048, { key: 'asset-1:bytes' });
+await meter.record(ctx, Bytes, 2048, { key: 'asset-1:bytes' });
+console.log(accepted.size, accepted.get('asset-1:bytes'));
 ```
 
-The meter still owns only identity and the reading shape. The effect owner owns acceptance and delivery. A billing
-package can consume accepted readings later without making billing a dependency of `@okikio/meter`.
+Expected output:
+
+```text output
+1 2048
+```
+
+The meter owns identity and reading validation. The emitter owns acceptance. If the emitter throws, `record()` rejects;
+the caller must decide whether to retry. A durable emitter must commit its key and reading atomically before resolving.
+The Map above loses its contents when the process exits and establishes no billing or warehouse delivery guarantee.
+Disposing the context releases its registered cleanup; it cannot roll back a fact already accepted by an external sink.
 
 ## Catalogs
 
@@ -93,48 +156,32 @@ const declared = meter.compose(NetworkMeters);
 
 ## Convenience and the manual equivalent
 
-Concrete map
-
-```
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `meter.define()` | freeze measurement identity/unit/aggregation metadata yourself | one stable measurement definition |
+| Convenience      | Manual equivalent                                                                                                            | Concrete value                                                                |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `meter.define()` | freeze measurement identity/unit/aggregation metadata yourself                                                               | one stable measurement definition                                             |
 | `meter.record()` | read the context clock, build the reading envelope, create the declared effect occurrence, and submit it to the effect owner | measurement recording reuses effect acceptance instead of inventing transport |
 
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
-
-
-The manual equivalent is an immutable measurement definition plus a timestamped
-record that you hand to your own outbox or callback. `@okikio/meter` standardizes
-that shape and deliberately reuses `@okikio/effect` for delivery instead of
+The manual equivalent is an immutable measurement definition plus a timestamped record that you hand to your own outbox
+or callback. `@okikio/meter` standardizes that shape and deliberately reuses `@okikio/effect` for delivery instead of
 inventing another transport mechanism.
 
-Reading contract
-----------------
+## Reading contract
 
-`MeterReadingSchema` is the executable schema for the value emitted by
-`record()`. It is useful at durable/storage seams that need to validate the exact
-measurement envelope without invoking the meter runtime.
+`MeterReadingSchema` is the executable schema for the value emitted by `record()`. It is useful at durable/storage seams
+that need to validate the exact measurement envelope without invoking the meter runtime.
 
+## Source guide
 
-Source guide
-------------
-
-1. `mod.ts` contains the definitions, catalog helpers, effect mapping, and
-   `record()` operation.
+1. `mod.ts` contains the definitions, catalog helpers, effect mapping, and `record()` operation.
 2. `schema.ts` contains `MeterReadingSchema` and its validated reading type.
 3. `types.ts` contains the public meter definition and catalog contracts.
 4. `mod.test.ts` shows validation and effect emission behavior.
-5. Read `@okikio/effect` when you need to understand acceptance, durability, or
-   delivery after `record()`.
+5. Read `@okikio/effect` when you need to understand acceptance, durability, or delivery after `record()`.
 
 The README is the primary user documentation.
 
-Validator independence
-----------------------
+## Validator independence
 
-`MeterReadingSchema` implements Standard Schema and Standard JSON Schema
-directly. `@okikio/meter` therefore does not require Zod to validate or document
-its stable reading record. Applications can use any Standard Schema implementation
+`MeterReadingSchema` implements Standard Schema and Standard JSON Schema directly. `@okikio/meter` therefore does not
+require Zod to validate or document its stable reading record. Applications can use any Standard Schema implementation
 for surrounding domain schemas.
-```

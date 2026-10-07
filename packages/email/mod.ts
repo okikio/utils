@@ -1,8 +1,13 @@
 /**
- * Runtime-neutral email-domain normalization, classification, and extraction.
+ * Normalize and classify email-domain evidence without inventing application policy. Comparing raw addresses or maintaining ad hoc domain lists makes casing and subdomain behavior inconsistent.
  *
- * Classification returns independent evidence rather than forcing public,
- * privacy, and disposable domains into one mutually exclusive enum.
+ * Normalize a domain first, then use the supplied classifier or provide your own classification rules. Use the evidence to route signup review or data enrichment; do not treat domain classification as identity verification or mailbox deliverability. Network checks, domain ownership, consent and product decisions belong to your application.
+ *
+ * @example
+ * ```ts
+ * import * as email from '@okikio/email';
+ * console.log(email.normalizeDomain('Example.COM'));
+ * ```
  *
  * @module
  */

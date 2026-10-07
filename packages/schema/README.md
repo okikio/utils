@@ -1,5 +1,38 @@
 # `@okikio/schema`
 
+Use one Standard Schema validation call across validator libraries. Reading a validator-specific result shape in every
+utility otherwise forces consumers to use the same schema engine.
+
+## Run a complete example
+
+```ts runnable
+import * as schema from '@okikio/schema';
+import { z } from 'zod';
+const PortSchema = z.coerce.number().int().min(1).max(65535);
+console.log(await schema.parse(PortSchema, '8787'));
+```
+
+Expected output:
+
+```text output
+8787
+```
+
+For this schema, `parse()` returns `Promise<number>` and resolves to `8787`. It rejects with `SchemaValidationError`
+when validation reports issues. It performs no I/O and creates no cleanup owner; the caller decides whether to keep that
+rejection exceptional or expose an expected branch.
+
+## Build on the example
+
+Start with parse() when invalid input should throw, then use result-oriented validation where a caller needs structured
+issues. Keep coercion in the schema that owns the meaning. JSON Schema projection is a separate capability and can fail
+for values that have no faithful wire representation. Import a validator adapter explicitly; the generic validation core
+does not silently choose one.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/schema` provides the small Standard Schema operations shared by the other generic utilities.
@@ -82,56 +115,39 @@ The package owns no business schema and performs no I/O.
 
 ## Progressive usage
 
-The package participates in the complete domain-enrichment example in `../../docs/composition.md`. Read that guide when
-the individual helpers make sense in isolation but their place in a service, resource graph, runtime host, or workflow
-is not yet clear.
+Read [complete compositions](../../docs/composition.md) for a bounded CSV import, allowed-page discovery and a
+resource-backed operation. Each example names its result and owner. Use [the outcome guide](../../docs/outcomes.md) to
+choose additional mechanisms when the application needs them.
 
 ## Convenience and the manual equivalent
 
-Concrete map
+| Convenience         | Manual equivalent                                                                                       | Concrete value                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `schema.validate()` | call `schema['~standard'].validate()`, await sync/async results, and normalize issues yourself          | one Standard Schema validation path            |
+| `schema.parse()`    | call validate, throw a consistent `SchemaValidationError`, and preserve exact output inference manually | throwing parse without schema-library coupling |
+| `prefixIssues()`    | copy every issue and prepend a path segment while preserving existing paths                             | composed validators retain precise locations   |
 
-````
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `schema.validate()` | call `schema['~standard'].validate()`, await sync/async results, and normalize issues yourself | one Standard Schema validation path |
-| `schema.parse()` | call validate, throw a consistent `SchemaValidationError`, and preserve exact output inference manually | throwing parse without schema-library coupling |
-| `prefixIssues()` | copy every issue and prepend a path segment while preserving existing paths | composed validators retain precise locations |
-
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
-
-
-`@okikio/schema` is a convenience layer, not a hidden runtime. You can reproduce its
-core mechanics with call schema["~standard"].validate(value) and inspect issues yourself.
+`@okikio/schema` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics by calling
+`schema["~standard"].validate(value)` and inspecting its issues.
 
 The utility normalizes sync/async validation, issue paths, parse/assert behavior, and Standard Schema interoperability.
 
-When debugging or extending the package, keep that manual model in mind. The
-utility should remove repetitive correctness work without making the underlying
-Web, ECMAScript, Standard Schema, or runtime primitives impossible to recognize.
+## Source guide
 
-
-Source guide
-------------
-
-Start with this README, then use the source in this order when you need more
-detail:
+Start with this README, then use the source in this order when you need more detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
-   behavior as executable examples.
-4. Read internal implementation files only when you need the exact state
-   transition or performance-sensitive loop.
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
+4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to
-the public source instead of maintaining a separate hand-written API reference.
+The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
+separate hand-written API reference.
 
-Standard JSON Schema
---------------------
+## Standard JSON Schema
 
-Standard Schema validation and Standard JSON Schema representation are related
-but separate contracts. A conforming validator can expose both under the same
-`~standard` properties:
+Standard Schema validation and Standard JSON Schema representation are related but separate contracts. A conforming
+validator can expose both under the same `~standard` properties:
 
 ```ts
 const standard = value['~standard'];
@@ -140,11 +156,9 @@ const inputSchema = standard.jsonSchema?.input({ target: 'draft-2020-12' });
 const outputSchema = standard.jsonSchema?.output({ target: 'draft-2020-12' });
 ```
 
-Do not assume that the two JSON Schemas are identical. Coercions, defaults,
-codecs, and transforms can make accepted input different from validated output.
+Do not assume that the two JSON Schemas are identical. Coercions, defaults, codecs, and transforms can make accepted
+input different from validated output.
 
-`@okikio/schema` does not require Zod to obtain this representation. Current Zod
-releases expose Standard JSON Schema through the standard protocol. A
-provider-specific adapter is only useful when the common protocol omits behavior
-or metadata that the caller actually needs.
-````
+`@okikio/schema` does not require Zod to obtain this representation. Current Zod releases expose Standard JSON Schema
+through the standard protocol. A provider-specific adapter is only useful when the common protocol omits behavior or
+metadata that the caller actually needs.

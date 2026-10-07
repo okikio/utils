@@ -1,5 +1,37 @@
 # `@okikio/http/cookie`
 
+Declare and validate a cookie once instead of repeating unsafe parsing and security attributes.
+
+## Run a complete example
+
+```ts runnable
+import * as cookie from '@okikio/http/cookie';
+import { z } from 'zod';
+const Session = cookie.define({
+	id: 'session',
+	name: '__Host-session',
+	description: 'Opaque session token.',
+	value: z.string().min(1),
+	attributes: { secure: true, httpOnly: true, path: '/', sameSite: 'lax' },
+});
+console.log(await cookie.get(new Headers({ cookie: '__Host-session=token-1' }), Session));
+const output = new Headers();
+cookie.set(output, Session, 'token-2');
+console.log(output.getSetCookie().length);
+```
+
+Expected output:
+
+```text output
+token-1
+1
+```
+
+## Build on the example
+
+Use safeGet() for ordinary invalid-input branches and keep independent Set-Cookie fields. The application must still
+authenticate the token, rotate credentials and decide session expiry.
+
 ## Purpose
 
 `@okikio/http/cookie` defines application-owned HTTP cookies and provides Fetch-native helpers to read, set, delete,
@@ -29,10 +61,9 @@ values from the same definition.
 const WorkspaceCookie = cookie.define({
 	id: 'workspace',
 	name: 'test-workspace',
-	httpOnly: true,
-	secure: true,
-	sameSite: 'Lax',
-	path: '/',
+	description: 'Selected workspace identifier.',
+	value: z.string().min(1),
+	attributes: { httpOnly: true, secure: true, sameSite: 'lax', path: '/' },
 });
 ```
 

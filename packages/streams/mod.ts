@@ -1,8 +1,18 @@
 /**
- * Small adapters between Web Streams and async iterables, plus bounded collection.
+ * Consume asynchronous data with explicit item, byte and line budgets. A successful Array.fromAsync can still exhaust memory if the source never ends or one record is enormous.
  *
- * The module preserves streaming and cancellation unless the caller explicitly
- * chooses materialization through {@link collect}.
+ * Batch for database writes, fold streams without collecting, and use bounded collect() only when a finite materialized result is needed. Pass cancellation into the source operation as well as the adapter. Early iteration exit cancels owned Web streams unless preventCancel explicitly keeps borrowed ownership. Byte estimates for object batches are caller policy; line framing counts actual encoded bytes.
+ *
+ * @example
+ * ```ts
+ * import * as streams from '@okikio/streams';
+ * const batches = streams.batch(['a', 'b', 'c'], { maximumItems: 2 });
+ * console.log(JSON.stringify(await Array.fromAsync(batches)));
+ * const bytes = new Response(`first
+ * second
+ * `).body!;
+ * console.log(JSON.stringify(await Array.fromAsync(streams.lines(bytes, { maximumLineBytes: 64 }))));
+ * ```
  *
  * @module
  */
@@ -89,6 +99,7 @@ export class StreamLineLimitError extends RangeError {
 	/** Line bytes observed when the limit was crossed. */
 	readonly actual: number;
 
+	/** Create this StreamLineLimitError from the explicit contract values supplied by its caller. */
 	constructor(maximum: number, actual: number) {
 		super(`Stream line byte limit ${maximum} was exceeded by ${actual}.`);
 		this.name = 'StreamLineLimitError';

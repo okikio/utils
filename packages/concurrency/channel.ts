@@ -17,6 +17,7 @@ import {
 export class Channel<T> implements AsyncIterable<T>, AsyncDisposable {
 	readonly #channel: StdChannel<T>;
 
+	/** Create a channel with the upstream buffer and waiter limits selected by the caller. */
 	constructor(options?: ChannelOptions) {
 		this.#channel = new StdChannel<T>(options);
 	}
@@ -42,6 +43,7 @@ export class Channel<T> implements AsyncIterable<T>, AsyncDisposable {
 		else this.#channel.close(reason);
 	}
 
+	/** Read values in channel order until closure; iteration borrows the channel lifetime. */
 	async *[Symbol.asyncIterator](): AsyncIterableIterator<T> {
 		while (true) {
 			try {
@@ -53,6 +55,7 @@ export class Channel<T> implements AsyncIterable<T>, AsyncDisposable {
 		}
 	}
 
+	/** Close the channel normally, releasing blocked senders and receivers. */
 	async [Symbol.asyncDispose](): Promise<void> {
 		this.#channel.close();
 	}

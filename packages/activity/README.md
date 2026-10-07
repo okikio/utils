@@ -1,5 +1,67 @@
 # `@okikio/activity`
 
+Turn a provider operation into a named, versioned unit of work with validated inputs, results and engine placement. A
+plain function leaves every caller to repeat those checks and decide which runtime may run it.
+
+## Run a complete example
+
+The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
+implementation is preserved.
+
+```ts runnable
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as activity from '@okikio/activity';
+import * as engine from '@okikio/activity/engine';
+import * as context from '@okikio/context';
+import * as resource from '@okikio/resource';
+import { z } from 'zod';
+
+const Local = engine.define({ id: 'local' });
+const Upper = activity.define({
+	id: 'text.upper',
+	version: '1',
+	input: z.string(),
+	result: z.string(),
+	placement: engine.require(Local),
+});
+const UpperLive = activity.implement(Upper, { run: (ctx) => ctx.input.toUpperCase() });
+await using ctx = context.create({ id: 'uppercase' });
+await using resources = resource.create(resource.implementations(), { ctx, host: {} });
+const value = await activity.run({
+	ctx,
+	engine: Local,
+	resources,
+	implementation: UpperLive,
+	input: 'hello',
+	jobId: 'uppercase-1',
+	attempt: 1,
+});
+console.log(value);
+```
+
+Expected output:
+
+```text output
+HELLO
+```
+
+`activity.run()` returns `Promise<string>` for this definition and resolves to `HELLO`. It validates input and result
+and owns a local attempt context. The caller owns the resource collection and parent context. Declared failures and
+unexpected faults have separate contracts; placement metadata alone does not launch another process.
+
+## Build on the example
+
+Start with a direct local attempt, then register the same definition with a workflow executor. Add resource declarations
+when the operation needs a browser or storage client; add permission requirements and effects when it changes
+authoritative state. The activity owns its attempt context and borrows the collection. A Worker or process provider
+changes execution location; it does not move live closures, sockets or promises. Dispatch and storage adapters still own
+durable placement, leases and recovery.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 `@okikio/activity` defines externally meaningful work. Definitions are immutable and import-safe. They describe what one
 activity accepts, returns, can fail with, can emit, requires, and where it can run. They do not open a provider or start
 work.
@@ -136,67 +198,43 @@ cancellation message. Cleanup still follows the owned activity context.
 
 ## Convenience and the manual equivalent
 
-Concrete map
+| Convenience                                  | Manual equivalent                                                                                                 | Concrete value                                                |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `activity.define()` + `activity.implement()` | freeze metadata, keep a handler map, then validate input/result/failure schemas around every call                 | one activity identity and validation contract                 |
+| `activity.request()`                         | construct a typed workflow instruction, suspend the generator, dispatch it, then validate the completion yourself | scheduler-facing request semantics without transport coupling |
+| `activity.try()`                             | catch declared failures separately from unexpected faults and rebuild the discriminated result                    | declared failure stays data instead of becoming an exception  |
 
-```
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `activity.define()` + `activity.implement()` | freeze metadata, keep a handler map, then validate input/result/failure schemas around every call | one activity identity and validation contract |
-| `activity.request()` | construct a typed workflow instruction, suspend the generator, dispatch it, then validate the completion yourself | scheduler-facing request semantics without transport coupling |
-| `activity.try()` | catch declared failures separately from unexpected faults and rebuild the discriminated result | declared failure stays data instead of becoming an exception |
-
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
-
-
-`@okikio/activity` is a convenience layer, not a hidden runtime. You can reproduce its
-core mechanics with a function call plus your own attempt IDs, permission checks, resource lookup, cancellation, and result transport.
+`@okikio/activity` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics with a function
+call plus your own attempt IDs, permission checks, resource lookup, cancellation, and result transport.
 
 Use the utility when those rules must stay identical across local, Worker, and process execution.
 
-When debugging or extending the package, keep that manual model in mind. The
-utility should remove repetitive correctness work without making the underlying
-Web, ECMAScript, Standard Schema, or runtime primitives impossible to recognize.
+## Operations and failures you will reach for next
 
-
-Operations and failures you will reach for next
------------------------------------------------
-
-After the basic definition/request/run path, these exports cover composition and
-result handling:
+After the basic definition/request/run path, these exports cover composition and result handling:
 
 - `catalog()` and `select()` build and narrow named activity definition sets.
 - `document()` produces deterministic, JSON-safe definition metadata for tooling.
-- `try()` converts one attempt into explicit success/failure/fault/cancellation data
-  instead of throwing declared activity failures.
+- `try()` converts a declared activity failure into a Result branch. Unexpected faults and cancellation still throw.
 - `isFailure()` checks whether a result contains one declared activity failure.
 - `InvalidEngineError` reports a provider that claims the wrong engine definition.
-- `UndeclaredFailureError` reports an implementation that returns a failure the
-  activity definition did not declare.
+- `UndeclaredFailureError` reports an implementation that returns a failure the activity definition did not declare.
 
+## Source guide
 
-Source guide
-------------
-
-Start with this README, then use the source in this order when you need more
-detail:
+Start with this README, then use the source in this order when you need more detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
-   behavior as executable examples.
-4. `remote.ts` owns the common activity identity, catalog checks, and protocol
-   schemas for process and Worker providers. `process.ts` and `worker.ts` retain
-   their separate host startup, transport, and shutdown behavior.
-5. Read other internal implementation files only when you need the exact state
-   transition or performance-sensitive loop.
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
+4. `remote.ts` owns the common activity identity, catalog checks, and protocol schemas for process and Worker providers.
+   `process.ts` and `worker.ts` retain their separate host startup, transport, and shutdown behavior.
+5. Read other internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to
-the public source instead of maintaining a separate hand-written API reference.
+The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
+separate hand-written API reference.
 
-Unexpected runtime diagnostics
-------------------------------
+## Unexpected runtime diagnostics
 
-Unexpected thrown values are projected through `@okikio/fault` before they cross
-runtime or durable seams. This is separate from `@okikio/failure`, which represents
-expected declared failures with stable application identity.
-```
+Unexpected thrown values are projected through `@okikio/fault` before they cross runtime or durable seams. This is
+separate from `@okikio/failure`, which represents expected declared failures with stable application identity.

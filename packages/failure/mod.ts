@@ -1,8 +1,21 @@
 /**
- * Stable expected-failure definitions and durable failure occurrences.
+ * Give expected rejection a stable identity and validated data that can cross a process or storage boundary. Catching every Error by message makes a renamed sentence change application behavior.
  *
- * Failures describe why work could not complete. They do not define HTTP
- * presentation or the success-or-failure container used by callers.
+ * Use failures for expected domain outcomes such as missing input or a declined request. Encode at a transport boundary and decode against trusted definitions on the receiving side. Unknown identities reject instead of manufacturing authority from input. Unexpected exceptions belong to fault diagnostics; HTTP presentation belongs to problem definitions. Do not put secrets in durable failure data.
+ *
+ * @example
+ * ```ts
+ * import * as failure from '@okikio/failure';
+ * import { z } from 'zod';
+ * const Missing = failure.define({
+ *   id: 'asset.missing', description: 'The requested asset does not exist.',
+ *   data: z.object({ id: z.string() }),
+ * });
+ * const occurrence = await failure.create(Missing, { data: { id: 'asset-1' } });
+ * const wire = await failure.encode(occurrence);
+ * const restored = await failure.decode(wire, [Missing]);
+ * console.log(restored.definition === Missing, restored.data.id);
+ * ```
  *
  * @module
  */
@@ -14,8 +27,10 @@ import type { Data, Definition, Encoded, FailureCatalog, FailureSelection, Occur
 
 /** Error raised when durable failure data references an unknown definition. */
 export class UnknownFailureDefinitionError extends TypeError {
+	/** Stable identity used to correlate this contract or occurrence. */
 	readonly id: string;
 
+	/** Create this UnknownFailureDefinitionError from the explicit contract values supplied by its caller. */
 	constructor(id: string) {
 		super(`Unknown failure definition ${JSON.stringify(id)}.`);
 		this.name = 'UnknownFailureDefinitionError';

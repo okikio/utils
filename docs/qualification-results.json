@@ -1,0 +1,369 @@
+{
+	"schemaVersion": 1,
+	"date": "2026-10-07",
+	"sourceGateDigest": "2743894d86cfd313e0ddfcb0ebd62b270b0466cd4198edde14f43dbbbc16cc7d",
+	"evidenceDirectory": ".artifacts/qualification/20261007",
+	"gates": [
+		{
+			"name": "final-source",
+			"command": "/opt/qualification-mise/tini -s -- mise run verify",
+			"exitCode": 0,
+			"log": "final-source-verify-stable.log",
+			"formattedFiles": 735,
+			"lintedFiles": 569,
+			"strictSourceCompiler": "7.0.2",
+			"denoTests": 165,
+			"denoSteps": 721,
+			"denoFailures": 0,
+			"denoIgnored": 1,
+			"nativeNodeFiles": 18,
+			"nativeNodeTests": 121,
+			"nativeNodeFailures": 0,
+			"nativeNodeSkipped": 0,
+			"qualificationPackages": 42,
+			"qualificationTestFiles": 133,
+			"selectiveConsumers": 8,
+			"independentSelectiveControlSteps": 8
+		},
+		{
+			"name": "final-npm",
+			"command": "/opt/qualification-mise/tini -s -- mise run npm-verify",
+			"exitCode": 0,
+			"log": "final-npm-verify.log",
+			"portablePackages": 41,
+			"supportedPublicSubpaths": 290,
+			"esmAndCjs": true,
+			"strictPublicAndCompositionTypes": true,
+			"packedValidators": [
+				"publint --strict",
+				"attw --profile node16"
+			],
+			"runtime": "Node 26.10.0"
+		},
+		{
+			"name": "critical-shuffle-repeat",
+			"command": "deno test --no-check -A --shuffle=20261007 packages/activity packages/context packages/dispose packages/duration packages/pool packages/process packages/queue packages/task packages/worker packages/workflow tests/compatibility.test.ts tests/process-orchestration.test.ts tests/restartable-worker.test.ts tests/coordination.test.ts tests/workflow.test.ts",
+			"exitCode": 0,
+			"fileCount": 29,
+			"tests": 33,
+			"steps": 173,
+			"ignored": 1,
+			"log": "final-critical-repeat.log"
+		},
+		{
+			"name": "native-source-repeat",
+			"command": "deno task test:node",
+			"exitCode": 0,
+			"fileCount": 18,
+			"tests": 121,
+			"log": "final-critical-repeat.log"
+		},
+		{
+			"name": "executable-readme-examples",
+			"command": "deno run -A tools/check-examples.ts",
+			"exitCode": 0,
+			"examples": 68,
+			"log": "final-source-repeat.log"
+		},
+		{
+			"name": "guard-controls",
+			"command": "deno test --no-check -A tools/check-qualification.test.ts tools/audit-fragile-tests.test.ts",
+			"exitCode": 0,
+			"steps": 10,
+			"log": "final-source-repeat.log"
+		},
+		{
+			"name": "final-benchmark-preflight",
+			"commands": [
+				"mise run bench-check",
+				"mise run bench-npm --check"
+			],
+			"exitCode": 0,
+			"measuredTiming": false,
+			"log": "final-source-verify-stable.log"
+		},
+		{
+			"name": "owned-realistic-release-check",
+			"command": "bumpy --cwd <owned fixture> check --strict --base main",
+			"exitCode": 0,
+			"actualGitHeadNoteBaseline": true,
+			"receipt": "bumpy-fixture-check.json"
+		},
+		{
+			"name": "owned-release-version",
+			"commands": [
+				{
+					"command": "/work/node_modules/.bin/bumpy",
+					"args": [
+						"--cwd",
+						"/tmp/okikio-bumpy-qualification-bVxsIs",
+						"version"
+					],
+					"exitCode": 0,
+					"stdout": "warn @okikio/telemetry gets a minor bump because @okikio/pool@0.1.0 is out of range for its peer dep \"workspace:^\" (resolves to ^0.0.0). npm treats ^ on 0.x as minor-breaking. Consider using >=0.x ranges for pre-1.0 peer deps.\nwarn @okikio/telemetry gets a minor bump because @okikio/process@0.1.0 is out of range for its peer dep \"workspace:^\" (resolves to ^0.0.0). npm treats ^ on 0.x as minor-breaking. Consider using >=0.x ranges for pre-1.0 peer deps.\nwarn @okikio/telemetry gets a minor bump because @okikio/queue@0.1.0 is out of range for its peer dep \"workspace:^\" (resolves to ^0.0.0). npm treats ^ on 0.x as minor-breaking. Consider using >=0.x ranges for pre-1.0 peer deps.\nwarn @okikio/telemetry gets a minor bump because @okikio/server@0.1.0 is out of range for its peer dep \"workspace:^\" (resolves to ^0.0.0). npm treats ^ on 0.x as minor-breaking. Consider using >=0.x ranges for pre-1.0 peer deps.\nwarn @okikio/telemetry gets a minor bump because @okikio/worker@0.1.0 is out of range for its peer dep \"workspace:^\" (resolves to ^0.0.0). npm treats ^ on 0.x as minor-breaking. Consider using >=0.x ranges for pre-1.0 peer deps.\nwarn @okikio/telemetry gets a minor bump because @okikio/pool@0.1.0 is out of range for its peer dep \"workspace:^\" (resolves to ^0.0.0). npm treats ^ on 0.x as minor-breaking. Consider using >=0.x ranges for pre-1.0 peer deps.\nwarn @okikio/telemetry gets a minor bump because @okikio/process@0.1.0 is out of range for its peer dep \"workspace:^\" (resolves to ^0.0.0). npm treats ^ on 0.x as minor-breaking. Consider using >=0.x ranges for pre-1.0 peer deps.\nwarn @okikio/telemetry gets a minor bump because @okikio/queue@0.1.0 is out of range for its peer dep \"workspace:^\" (resolves to ^0.0.0). npm treats ^ on 0.x as minor-breaking. Consider using >=0.x ranges for pre-1.0 peer deps.\nwarn @okikio/telemetry gets a minor bump because @okikio/server@0.1.0 is out of range for its peer dep \"workspace:^\" (resolves to ^0.0.0). npm treats ^ on 0.x as minor-breaking. Consider using >=0.x ranges for pre-1.0 peer deps.\nwarn @okikio/telemetry gets a minor bump because @okikio/worker@0.1.0 is out of range for its peer dep \"workspace:^\" (resolves to ^0.0.0). npm treats ^ on 0.x as minor-breaking. Consider using >=0.x ranges for pre-1.0 peer deps.\n\n=> Applying version bumps:\n  @okikio/activity: 0.0.0 \u2192 0.1.0\n  @okikio/capacity: 0.0.0 \u2192 0.1.0\n  @okikio/catalog: 0.0.0 \u2192 0.1.0\n  @okikio/codec: 0.0.0 \u2192 0.1.0\n  @okikio/concurrency: 0.0.0 \u2192 0.1.0\n  @okikio/context: 0.0.0 \u2192 0.1.0\n  @okikio/css: 0.0.0 \u2192 0.1.0\n  @okikio/csv: 0.0.0 \u2192 0.1.0\n  @okikio/deno: 0.0.0 \u2192 0.1.0\n  @okikio/dispose: 0.0.0 \u2192 0.1.0\n  @okikio/duration: 0.0.0 \u2192 0.1.0\n  @okikio/effect: 0.0.0 \u2192 0.1.0\n  @okikio/email: 0.0.0 \u2192 0.1.0\n  @okikio/entitlement: 0.0.0 \u2192 0.1.0\n  @okikio/env: 0.0.0 \u2192 0.1.0\n  @okikio/failure: 0.0.0 \u2192 0.1.0\n  @okikio/fault: 0.0.0 \u2192 0.1.0\n  @okikio/hono: 0.0.0 \u2192 0.1.0\n  @okikio/html: 0.0.0 \u2192 0.1.0\n  @okikio/http: 0.0.0 \u2192 0.1.0\n  @okikio/meter: 0.0.0 \u2192 0.1.0\n  @okikio/permission: 0.0.0 \u2192 0.1.0\n  @okikio/pool: 0.0.0 \u2192 0.1.0\n  @okikio/process: 0.0.0 \u2192 0.1.0\n  @okikio/query: 0.0.0 \u2192 0.1.0\n  @okikio/queue: 0.0.0 \u2192 0.1.0\n  @okikio/record: 0.0.0 \u2192 0.1.0\n  @okikio/requirement: 0.0.0 \u2192 0.1.0\n  @okikio/resilience: 0.0.0 \u2192 0.1.0\n  @okikio/resource: 0.0.0 \u2192 0.1.0\n  @okikio/result: 0.0.0 \u2192 0.1.0\n  @okikio/robots: 0.0.0 \u2192 0.1.0\n  @okikio/schema: 0.0.0 \u2192 0.1.0\n  @okikio/server: 0.0.0 \u2192 0.1.0\n  @okikio/sitemap: 0.0.0 \u2192 0.1.0\n  @okikio/streams: 0.0.0 \u2192 0.1.0\n  @okikio/task: 0.0.0 \u2192 0.1.0\n  @okikio/telemetry: 0.0.0 \u2192 0.1.0\n  @okikio/utils: 0.0.0 \u2192 0.1.0 (dep)\n  @okikio/version: 0.0.0 \u2192 0.1.0\n  @okikio/worker: 0.0.0 \u2192 0.1.0\n  @okikio/workflow: 0.0.0 \u2192 0.1.0\ndone \ud83d\udc38 Updated 42 package(s)\n  Deleted 1 bump file(s)\n=> Updating lockfile (pnpm install --lockfile-only)...\n  Lockfile updated\n",
+					"stderr": ""
+				},
+				{
+					"command": "deno",
+					"args": [
+						"run",
+						"--allow-read",
+						"--allow-write",
+						".bumpy/release.ts",
+						"sync"
+					],
+					"exitCode": 0,
+					"stdout": "Synchronized 42 source-native package versions.\n",
+					"stderr": ""
+				},
+				{
+					"command": "deno",
+					"args": [
+						"run",
+						"--allow-read",
+						".bumpy/release.ts",
+						"check"
+					],
+					"exitCode": 0,
+					"stdout": "Checked 42 source-native package versions.\n",
+					"stderr": ""
+				}
+			],
+			"exitCode": 0,
+			"packages": 42,
+			"receipt": "bumpy-version-fixture.json"
+		}
+	],
+	"benchmarks": {
+		"status": "pass",
+		"programs": 15,
+		"cases": 200,
+		"rawReports": "bench-final",
+		"summary": "bench-summary.json",
+		"measurementMilliseconds": 245129.518904,
+		"postMeasurementChanges": {
+			"timedWorkloadModulesChanged": false,
+			"qualifiedProductionAndArchivesChanged": false,
+			"changes": [
+				"Pin tested mise bootstrap manager in CI/release workflows",
+				"Run the native artifact preflight after npm qualification in CI",
+				"Set FORCE_COLOR=0 in documentation and source benchmark preflight child environments",
+				"Finalize source packaging and selective graph/behavior checkers and their independent controls"
+			],
+			"interpretation": "The final source checker phase follows completed measurements. Benchmark result metadata retains hashes of the exact inputs during those measurements; the non-timed bench/check.ts policy correction is part of the later final source gate."
+		},
+		"currentInputDifferences": [
+			"bench/check.ts"
+		]
+	},
+	"archives": [
+		{
+			"archive": "okikio-activity-0.0.0.tgz",
+			"sha256": "99cddec957ff9c2f52df6dd7b783c4d0ee1116cedcf72b04859b09bad7cde2c1"
+		},
+		{
+			"archive": "okikio-capacity-0.0.0.tgz",
+			"sha256": "8264f0fa55ec6130223b3ddaa71fd7dca85cb47414aedaeeea8b6597aff88fd4"
+		},
+		{
+			"archive": "okikio-catalog-0.0.0.tgz",
+			"sha256": "b3916ca93f06ab4e2537d8cd05572579e6384de72b6ec56420476f81d81727ba"
+		},
+		{
+			"archive": "okikio-codec-0.0.0.tgz",
+			"sha256": "51326ca7c22930b1ea30b4aee9fd25fbf565f2504ae8505502752919b2c5a7e3"
+		},
+		{
+			"archive": "okikio-concurrency-0.0.0.tgz",
+			"sha256": "b6da755d678e8f07147e6e135b969ce2ab431f916d6e05bc3479e49d01913652"
+		},
+		{
+			"archive": "okikio-context-0.0.0.tgz",
+			"sha256": "0eefade2d3047f1d165fa7d4e22906c46cb52f657b692e325cbf9c11445a20bf"
+		},
+		{
+			"archive": "okikio-css-0.0.0.tgz",
+			"sha256": "c41c39339d5565adc0462ae09def2dc2e967f9d66bb0320cc4e0dc23254ccca6"
+		},
+		{
+			"archive": "okikio-csv-0.0.0.tgz",
+			"sha256": "0f98c716488506b90d3015f617aecc521947e3c9286d7fb94b0216b37ab376e3"
+		},
+		{
+			"archive": "okikio-dispose-0.0.0.tgz",
+			"sha256": "1ff1a5ae75b721fb23e38c6af41ff197f2dec7ccef95ad8d7ebfb16b4239900a"
+		},
+		{
+			"archive": "okikio-duration-0.0.0.tgz",
+			"sha256": "10dcb1432404e558d41d640fe5f6ee57f2e8b1283ceae8dacff8adac6e1699eb"
+		},
+		{
+			"archive": "okikio-effect-0.0.0.tgz",
+			"sha256": "63e94b2c7177f2a8d350f900ec477d5f87c06a8d8f80bf3fc472fc9f5f0ab922"
+		},
+		{
+			"archive": "okikio-email-0.0.0.tgz",
+			"sha256": "de6690786244c2805602f8aa14da0c030c243b5842b772a2543983738d44f27a"
+		},
+		{
+			"archive": "okikio-entitlement-0.0.0.tgz",
+			"sha256": "adf9d5643d326e2af63c8c1b61482e0e4d88e843e401993e5b5d03e5ea9b5e67"
+		},
+		{
+			"archive": "okikio-env-0.0.0.tgz",
+			"sha256": "843b5d93cf4da7251b4f6aa8c7b924475d76af77e19e16f2f7802f7e2c642893"
+		},
+		{
+			"archive": "okikio-failure-0.0.0.tgz",
+			"sha256": "68b4db0541e5ef9f894c87aad04054fac2b2b7bb99cbaba5cf395fca7391201c"
+		},
+		{
+			"archive": "okikio-fault-0.0.0.tgz",
+			"sha256": "fede24d4338dd124bf3351fcc8a79486261740a186b46fae2c09b8973105f053"
+		},
+		{
+			"archive": "okikio-hono-0.0.0.tgz",
+			"sha256": "46a88de1d58b25e367981003e0215e5217adbf4bbf359c7d5226e4cb71b95d23"
+		},
+		{
+			"archive": "okikio-html-0.0.0.tgz",
+			"sha256": "971cdfc7d8bb1e5708a798e971d06aa85e61ac9b696de0f370447cfb904ab85d"
+		},
+		{
+			"archive": "okikio-http-0.0.0.tgz",
+			"sha256": "c8aceed8eed0fdb69972ef8e2ac5b88595891f267b9f2d763192355a2d848379"
+		},
+		{
+			"archive": "okikio-meter-0.0.0.tgz",
+			"sha256": "462c81b4c93b04c3a8e52e5e1f48d8eb8a76835dcf9288f182ca1ce2162f01d4"
+		},
+		{
+			"archive": "okikio-permission-0.0.0.tgz",
+			"sha256": "67e1f45a96caded2e8c994f98251b85cc4581e0292adeeb54227ba716323754c"
+		},
+		{
+			"archive": "okikio-pool-0.0.0.tgz",
+			"sha256": "d5e8ab8fab838624714fe899f977bac47c149ab7716b5f743c58580daaa59615"
+		},
+		{
+			"archive": "okikio-process-0.0.0.tgz",
+			"sha256": "43d14fc44e2d801bd011b4c97a89ff831ad13ddfc51ca289649169d31c155fde"
+		},
+		{
+			"archive": "okikio-query-0.0.0.tgz",
+			"sha256": "18c6e98074a60fb984ddb6535749c4bd9f0f42fb34f756615484e7a75852283f"
+		},
+		{
+			"archive": "okikio-queue-0.0.0.tgz",
+			"sha256": "562421dfad6fb4ae41b55b127ceffc799b2e1cb71c6726e32edb222a79aeefd1"
+		},
+		{
+			"archive": "okikio-record-0.0.0.tgz",
+			"sha256": "b65f7955aba0fc5313d3035a4741e6bb4a185255fa7c3cc6dc4a7670abe620be"
+		},
+		{
+			"archive": "okikio-requirement-0.0.0.tgz",
+			"sha256": "f5697f07920449c5be5c20f3ae3e17e9802d87040d1e729c28a5041420d985aa"
+		},
+		{
+			"archive": "okikio-resilience-0.0.0.tgz",
+			"sha256": "c19dbc4f5ad62d6a3027251672d591d4968723512129fe3ab96cc2f59718327a"
+		},
+		{
+			"archive": "okikio-resource-0.0.0.tgz",
+			"sha256": "11a21df0ba569cf213e2e0cf0193dac04f1310d1cbb69cf8e2f4320e8657a125"
+		},
+		{
+			"archive": "okikio-result-0.0.0.tgz",
+			"sha256": "78cd025f7aaf0b65bd993feb03e423523da3a5ab4ab70691435f87fc951c35c8"
+		},
+		{
+			"archive": "okikio-robots-0.0.0.tgz",
+			"sha256": "6b8fad6604e396508e9b065a77c1104ee1e539fcda50b0c177a0d1765eafec48"
+		},
+		{
+			"archive": "okikio-schema-0.0.0.tgz",
+			"sha256": "5df63a695e24faab25f5ed310f0faacca7f175b78f3d1e0890fafb3975a6008a"
+		},
+		{
+			"archive": "okikio-server-0.0.0.tgz",
+			"sha256": "26710a2d0d28e4aaea65ff9e3ef007b964d5c4d096a250a5d10466a5eb368534"
+		},
+		{
+			"archive": "okikio-sitemap-0.0.0.tgz",
+			"sha256": "74dbbe3baf98075b66f0f233b964040f71968e9b9f8da9940fb24cb6cb96e07d"
+		},
+		{
+			"archive": "okikio-streams-0.0.0.tgz",
+			"sha256": "f67ac99e0ef1532e3ceace29fe01f9c43021c3ba0de6afb88ea2c98cb73bdcd1"
+		},
+		{
+			"archive": "okikio-task-0.0.0.tgz",
+			"sha256": "d946eb9d4ce00ea07e33b0e1ed6adc4c0157d5646b19276b3bea256b01313aa4"
+		},
+		{
+			"archive": "okikio-telemetry-0.0.0.tgz",
+			"sha256": "6fe654c0eef299a66a1587283e5f3f08f96f00caa2bd4d66f765fc05922b6f56"
+		},
+		{
+			"archive": "okikio-utils-0.0.0.tgz",
+			"sha256": "b3dc5f50c5c3d15975e9a0454a6c78bb68840a687bf0162db373c432833f8ae5"
+		},
+		{
+			"archive": "okikio-version-0.0.0.tgz",
+			"sha256": "0f0beecb11510d4b3c2ecc12434cdf72f81388c706f0fec1bbdc848426fc166e"
+		},
+		{
+			"archive": "okikio-worker-0.0.0.tgz",
+			"sha256": "353275a72e9c621579b5cfb5bf8307948633150d183479f42435db2dc723d0cb"
+		},
+		{
+			"archive": "okikio-workflow-0.0.0.tgz",
+			"sha256": "58d956942b5e4fe793ffdb0b8e62d5a34546220a9cc9a452ebbb034b10fbd536"
+		}
+	],
+	"limits": [
+		"Node engine >=26.10; Windows, Bun and browser-wide runtime behavior not qualified",
+		"Deno-only package/subpaths remain explicit source-only exclusions",
+		"Declarations use the supported TypeScript 6 API; strict source and consumer type gates use TypeScript 7 CLI",
+		"@jsr dependencies require the documented npm.jsr.io scope registry",
+		"Declaration elapsed times are diagnostics, not an editor-latency promise",
+		"POSIX subprocess tests used verified Tini 0.19 as subreaper in the owned container; no product timeout/test skips changed"
+	],
+	"issue1": {
+		"satisfied": [
+			1,
+			2,
+			3,
+			4,
+			5,
+			6,
+			7,
+			8,
+			9,
+			10,
+			11,
+			12,
+			14,
+			15
+		],
+		"partiallySatisfied": [
+			13
+		],
+		"reason": "Real-toolchain lockfiles remain uncommitted in the preserved pre-existing dirty checkout. No PR status or publication was changed."
+	},
+	"gitMutationPerformed": false,
+	"publicationPerformed": false,
+	"hostedActionsRunPerformed": false,
+	"postSourceGate": {
+		"file": "tools/check-qualification.test.ts",
+		"sha256": "bc24ebfd594a9aa85c6315560245c752ae1fec39b9e57141a235cece8eaab25e",
+		"command": "deno test --no-check -A tools/check-qualification.test.ts",
+		"tests": 1,
+		"steps": 14,
+		"failures": 0,
+		"formatAndLintPassed": true,
+		"log": "packaging/final-qualification-controls.log",
+		"reason": "Replace diagnostic prose coupling with independent isolated fault controls. Production source unchanged; focused check follows the full source gate."
+	}
+}

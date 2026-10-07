@@ -1,5 +1,34 @@
 # `@okikio/entitlement`
 
+Declare which paid or enabled feature an operation requires without coupling its definition to a billing provider.
+Scattered plan-name comparisons otherwise make the same feature mean different things in different services.
+
+## Run a complete example
+
+```ts runnable
+import * as entitlement from '@okikio/entitlement';
+import * as requirement from '@okikio/requirement';
+const Export = entitlement.define({ id: 'export.csv', description: 'Export rows as CSV.' });
+console.log(requirement.document(entitlement.require(Export))[0]?.definition);
+```
+
+Expected output:
+
+```text output
+export.csv
+```
+
+## Build on the example
+
+Attach the requirement to a resource, activity or endpoint, then configure an entitlement interpreter at the application
+root. The definition documents a required capability; it does not itself allow access. Unknown requirement families
+reject unless the owner explicitly chooses another policy. Use exact imported definitions so billing policy and runtime
+admission describe the same feature.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/entitlement` defines provider-neutral capability-access metadata. It does not know about plans, subscriptions,
@@ -63,31 +92,20 @@ The definitions remain plain immutable metadata. Product policy can change witho
 
 ## Convenience and the manual equivalent
 
-Concrete map
+| Convenience                            | Manual equivalent                                                               | Concrete value                                                       |
+| -------------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `entitlement.define()`                 | freeze a stable capability ID/description object and validate identity yourself | provider-neutral capability identity                                 |
+| `catalog()` / `select()` / `compose()` | build and validate capability maps/subsets manually                             | the same catalog semantics as other definition utilities             |
+| `entitlement.require()`                | construct the corresponding generic requirement record by hand                  | capability metadata composes with the shared requirement interpreter |
 
-```
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `entitlement.define()` | freeze a stable capability ID/description object and validate identity yourself | provider-neutral capability identity |
-| `catalog()` / `select()` / `compose()` | build and validate capability maps/subsets manually | the same catalog semantics as other definition utilities |
-| `entitlement.require()` | construct the corresponding generic requirement record by hand | capability metadata composes with the shared requirement interpreter |
-
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
-
-
-The manual form is a frozen metadata object, a `Map` or object catalog, and a
-`@okikio/requirement` record. `@okikio/entitlement` standardizes those shapes so
-identity, selection, and composition behave like the other definition
+The manual form is a frozen metadata object, a `Map` or object catalog, and a `@okikio/requirement` record.
+`@okikio/entitlement` standardizes those shapes so identity, selection, and composition behave like the other definition
 utilities.
 
-
-Source guide
-------------
+## Source guide
 
 1. `mod.ts` contains the complete runtime API.
 2. `types.ts` defines the immutable values.
 3. `mod.test.ts`, when present, is the executable behavior reference.
 
-The README is the primary user documentation; there is intentionally no separate
-hand-written API reference.
-```
+The README is the primary user documentation; there is intentionally no separate hand-written API reference.

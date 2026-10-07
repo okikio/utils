@@ -1,5 +1,39 @@
 # `@okikio/result`
 
+Represent an expected success or failure as data and force call sites to choose a branch. Throwing for every missing
+value makes ordinary control flow indistinguishable from an unexpected provider fault.
+
+## Run a complete example
+
+```ts runnable
+import * as result from '@okikio/result';
+const found = result.ok('asset-1');
+const missing = result.fail('missing');
+console.log(result.match(found, { ok: (id) => `loaded ${id}`, failure: (reason) => `failed ${reason}` }));
+console.log(result.getOr(missing as result.Result<string, string>, 'default'));
+```
+
+Expected output:
+
+```text output
+loaded asset-1
+default
+```
+
+`ok()` and `fail()` return frozen discriminated wrappers immediately. `match()` returns the selected callback value,
+here a string; `getOr()` returns the chosen value, here `default`. Payloads are borrowed and shallowly wrapped. These
+calls perform no async work, catch no exception and create no cleanup owner.
+
+## Build on the example
+
+Use match() at a consumer that must handle both paths, or getOr()/getOrElse() for an intentional fallback. unwrap()
+turns a failure back into a thrown value when exception flow is appropriate. Result does not define a durable failure
+identity, retry policy or HTTP status; compose it with those packages when needed.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/result` provides a small frozen success-or-failure wrapper for expected caller branching.
@@ -57,88 +91,75 @@ creation is useful. The utility does not guess whether a function is data or a c
 `unwrap()` is intentionally the sharp operation: it returns the success value or throws the stored failure. Use it only
 when the surrounding control flow already treats failure as exceptional.
 
-## Larger composition
+## Keep expected validation failure in a branch
 
-A parser can keep expected invalid input in the value channel while unexpected programming or I/O faults still throw
-normally:
+Import adapters validate input before admitting provider work. A schema owns valid values; Result lets the caller choose
+an explicit rejection branch without turning every invalid value into an unexpected fault.
 
-```ts
-type ParseFailure = Readonly<{ kind: 'invalid-json'; message: string }>;
+```ts runnable=validated-port.ts
+import * as result from '@okikio/result';
+import * as schema from '@okikio/schema';
+import { z } from 'zod';
 
-function parseRecord(text: string): result.Result<unknown, ParseFailure> {
-	try {
-		return result.ok(JSON.parse(text));
-	} catch (error) {
-		return result.fail({
-			kind: 'invalid-json',
-			message: error instanceof Error ? error.message : 'Invalid JSON.',
-		});
-	}
+const PortSchema = z.coerce.number().int().min(1).max(65535);
+async function parsePort(input: unknown): Promise<result.Result<number, 'invalid-port'>> {
+	const checked = await schema.validate(PortSchema, input);
+	return checked.issues === undefined ? result.ok(checked.value) : result.fail('invalid-port');
 }
-
-const parsed = parseRecord(input);
-const message = result.match(parsed, {
-	ok: () => 'accepted',
-	failure: (reason) => reason.message,
-});
+for (const input of ['8787', 'outside-range']) {
+	console.log(result.match(await parsePort(input), {
+		ok: (port) => `listen:${port}`,
+		failure: (reason) => `reject:${reason}`,
+	}));
+}
 ```
 
-The utility does not catch exceptions for you. Choosing `Result` is the caller's explicit decision that a failure
-belongs in normal control flow.
+Expected output:
+
+```text output
+listen:8787
+reject:invalid-port
+```
+
+`parsePort()` returns `Promise<Result<number, 'invalid-port'>>`; `match()` returns the selected string immediately. Only
+the schema's reported issues become an expected rejection. An unexpected exception thrown by a validator still rejects
+the Promise. These utilities own no connection, cancellation signal or cleanup stack. A host can create its listener
+after the success branch and own that listener separately.
 
 ## Progressive usage
 
-The package participates in the complete domain-enrichment example in `../../docs/composition.md`. Read that guide when
-the individual helpers make sense in isolation but their place in a service, resource graph, runtime host, or workflow
-is not yet clear.
+Read [complete compositions](../../docs/composition.md) for a bounded CSV import, allowed-page discovery and a
+resource-backed operation. Each example names its result and owner. Use [the outcome guide](../../docs/outcomes.md) to
+choose additional mechanisms when the application needs them.
 
 ## Convenience and the manual equivalent
 
-Concrete map
+| Convenience               | Manual equivalent                                                          | Concrete value                                                     |
+| ------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `result.ok()` / `fail()`  | construct and freeze a discriminated success/failure tuple/object yourself | one tiny explicit non-throwing result vocabulary                   |
+| `match()` / `unwrap()`    | switch on the discriminant and repeat narrowing/throwing behavior manually | typed branch handling without casts                                |
+| `getOr()` / `getOrElse()` | branch explicitly between a value fallback and a lazy fallback factory     | function-valued results are never confused with fallback factories |
 
-```
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `result.ok()` / `fail()` | construct and freeze a discriminated success/failure tuple/object yourself | one tiny explicit non-throwing result vocabulary |
-| `match()` / `unwrap()` | switch on the discriminant and repeat narrowing/throwing behavior manually | typed branch handling without casts |
-| `getOr()` / `getOrElse()` | branch explicitly between a value fallback and a lazy fallback factory | function-valued results are never confused with fallback factories |
+`@okikio/result` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics with a discriminated
+union such as { ok: true, value } | { ok: false, failure }.
 
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
+The utility supplies the tiny constructors, guards, matching, unwrap, and fallback operations without adding schema or
+transport semantics.
 
+## Runtime guard
 
-`@okikio/result` is a convenience layer, not a hidden runtime. You can reproduce its
-core mechanics with a discriminated union such as { ok: true, value } | { ok: false, failure }.
+`isOk()` and `isFailure()` are lightweight discriminant guards for a typed `Result<Value, Reason>`. They make
+branch-local narrowing convenient; they are not validators for arbitrary unknown input. If an untyped transport or
+callback can produce unknown values, validate that outer contract before treating the value as a `Result`.
 
-The utility supplies the tiny constructors, guards, matching, unwrap, and fallback operations without adding schema or transport semantics.
+## Source guide
 
-When debugging or extending the package, keep that manual model in mind. The
-utility should remove repetitive correctness work without making the underlying
-Web, ECMAScript, Standard Schema, or runtime primitives impossible to recognize.
-
-
-Runtime guard
--------------
-
-`isOk()` and `isFailure()` are lightweight discriminant guards for a typed
-`Result<Value, Reason>`. They make branch-local narrowing convenient; they are not
-validators for arbitrary unknown input. If an untyped transport or callback can
-produce unknown values, validate that outer contract before treating the value as
-a `Result`.
-
-
-Source guide
-------------
-
-Start with this README, then use the source in this order when you need more
-detail:
+Start with this README, then use the source in this order when you need more detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
-   behavior as executable examples.
-4. Read internal implementation files only when you need the exact state
-   transition or performance-sensitive loop.
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
+4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to
-the public source instead of maintaining a separate hand-written API reference.
-```
+The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
+separate hand-written API reference.

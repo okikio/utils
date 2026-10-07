@@ -9,9 +9,13 @@ import type { Catalog, CatalogSelection } from '@okikio/catalog';
  * code, retry policy, or result container.
  */
 export interface Definition<Id extends string = string, Data = unknown> {
+	/** Stable discriminant that selects the documented variant. */
 	readonly kind: 'failure';
+	/** Stable identity used to correlate this contract or occurrence. */
 	readonly id: Id;
+	/** Caller-authored purpose used in documentation and diagnostics. */
 	readonly description: string;
+	/** Data payload carried by this representation. */
 	readonly data: StandardSchemaV1<unknown, Data>;
 }
 
@@ -25,8 +29,11 @@ export type Data<FailureDefinition extends Definition> = StandardSchemaV1.InferO
  * durable failure records contain only stable definition data and the message.
  */
 export interface Occurrence<FailureDefinition extends Definition = Definition> extends Error {
+	/** Exact declared contract object; an independently authored same-name object is not the same declaration. */
 	readonly definition: FailureDefinition;
+	/** Data payload carried by this representation. */
 	readonly data: Data<FailureDefinition>;
+	/** Original failure that caused this diagnostic or cancellation result. */
 	readonly cause?: unknown;
 }
 
@@ -37,8 +44,11 @@ export interface Occurrence<FailureDefinition extends Definition = Definition> e
  * revalidate `data` before it reconstructs the occurrence.
  */
 export interface Encoded {
+	/** Stable identity used to correlate this contract or occurrence. */
 	readonly id: string;
+	/** Data payload carried by this representation. */
 	readonly data: unknown;
+	/** Human-readable explanation; use the stable code or discriminant for program decisions. */
 	readonly message: string;
 }
 

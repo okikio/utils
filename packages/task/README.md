@@ -1,5 +1,49 @@
 # `@okikio/task`
 
+Control one process-local operation with cooperative pause, cancellation and joined cleanup. A Promise alone cannot
+request a pause or communicate whether cancellation and resource disposal have finished.
+
+## Run a complete example
+
+The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
+implementation is preserved.
+
+```ts runnable
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as task from '@okikio/task';
+const cleanup: string[] = [];
+await using work = task.start(async (ctx) => {
+	ctx.defer(() => {
+		cleanup.push('released');
+	});
+	await ctx.checkpoint();
+	return 42;
+}, { id: 'local-operation' });
+console.log(await work.done, work.status, cleanup.join(','));
+```
+
+Expected output:
+
+```text output
+42 completed released
+```
+
+`start()` returns `Task<number>` immediately. `work.done` is `Promise<number>` and resolves here to `42` after
+registered cleanup runs. A thrown operation or cleanup failure rejects it. The task owns its child context; the caller
+owns the task through `await using`.
+
+## Build on the example
+
+Add checkpoints between indivisible provider calls so pause requests have a place to take effect. Pass the context
+signal into I/O for cancellation. done owns the terminal value and cleanup failure; disposal joins pending cleanup. A
+task is one local lifetime, while a workflow can create many tasks during retries or replay. Do not use a task status as
+evidence of durable external acceptance.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/task` owns one finite process-local operation with a child Context, cooperative pause points, cancellation,
@@ -93,35 +137,22 @@ If work fails and cleanup also fails, standard `SuppressedError` semantics keep 
 
 ## Convenience and the manual equivalent
 
-Concrete map
+| Convenience            | Manual equivalent                                                                                                            | Concrete value                                                                              |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `task.start()`         | create a child context, abort controller, pause gate, terminal promise, status state machine, and cleanup ownership yourself | one finite process-local operation lifetime                                                 |
+| `pause()` / `resume()` | manage pause generations and acknowledgement promises around cooperative checkpoints manually                                | pause is explicit/cooperative instead of pretending JavaScript can be suspended arbitrarily |
 
-```
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `task.start()` | create a child context, abort controller, pause gate, terminal promise, status state machine, and cleanup ownership yourself | one finite process-local operation lifetime |
-| `pause()` / `resume()` | manage pause generations and acknowledgement promises around cooperative checkpoints manually | pause is explicit/cooperative instead of pretending JavaScript can be suspended arbitrarily |
-
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
-
-
-The manual equivalent is an `AbortController`, a child lifetime, a pause Promise,
-an `AsyncDisposableStack`, and one terminal result Promise. `@okikio/task`
-packages those process-local lifecycle rules so every caller does not have to
+The manual equivalent is an `AbortController`, a child lifetime, a pause Promise, an `AsyncDisposableStack`, and one
+terminal result Promise. `@okikio/task` packages those process-local lifecycle rules so every caller does not have to
 rebuild the same state machine.
 
-It deliberately does not create durable identity, retry state, queue claims, or
-workflow history.
+It deliberately does not create durable identity, retry state, queue claims, or workflow history.
 
-Source guide
-------------
+## Source guide
 
-1. `mod.ts` contains the complete Task state machine and public `start()`
-   operation.
+1. `mod.ts` contains the complete Task state machine and public `start()` operation.
 2. `types.ts` defines `Task`, `TaskContext`, `TaskOptions`, and lifecycle states.
-3. `mod.test.ts` shows cancellation, pause generations, cleanup, and resource
-   borrowing as executable examples.
-4. Read `@okikio/context` and `@okikio/resource` when you need the ownership model
-   behind the Task context.
+3. `mod.test.ts` shows cancellation, pause generations, cleanup, and resource borrowing as executable examples.
+4. Read `@okikio/context` and `@okikio/resource` when you need the ownership model behind the Task context.
 
 The README is the primary user documentation.
-```

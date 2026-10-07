@@ -1,28 +1,57 @@
-/** One parsed robots.txt directive with source line identity. */
+/**
+ * Apply user-agent-specific robots rules with overlap and wildcard semantics. Collecting every Disallow line mixes unrelated groups and cannot tell whether a more specific Allow rule wins.
+ *
+ * Parse once and check many URLs, then collect declared sitemaps for discovery. Unknown extension records remain available for higher-level policy. The parser performs no fetch and does not decide HTTP status, caching or authority rules. The application owns acquisition limits and whether a failed robots fetch should allow or deny crawling.
+ *
+ * @example
+ * ```ts
+ * import * as robots from '@okikio/robots';
+ * const policy = robots.parse(`User-agent: *
+ * Disallow: /private/
+ * Allow: /private/pricing
+ * `);
+ * console.log(robots.match(policy, { userAgent: 'ResearchBot', url: 'https://example.com/private/report' }));
+ * console.log(robots.match(policy, { userAgent: 'ResearchBot', url: 'https://example.com/private/pricing' }));
+ * ```
+ *
+ * @module
+ */
 export interface RobotsRecord {
+	/** Source field associated with this observation. */
 	readonly field: string;
+	/** Value carried by this contract; its schema and owner define the accepted shape. */
 	readonly value: string;
+	/** Source line reported for this observation. */
 	readonly line: number;
 }
 
 /** One user-agent policy group. */
 export interface RobotsGroup {
+	/** User-agent selectors belonging to this robots group. */
 	readonly userAgents: readonly string[];
+	/** Rules belonging to the selected source group or classifier. */
 	readonly rules: readonly RobotsRule[];
 }
 
 /** One Allow or Disallow rule. */
 export interface RobotsRule {
+	/** Stable discriminant that selects the documented variant. */
 	readonly kind: 'allow' | 'disallow';
+	/** Source matching pattern retained for interpretation. */
 	readonly pattern: string;
+	/** Source line reported for this observation. */
 	readonly line: number;
 }
 
 /** Parse-once robots.txt representation. */
 export interface RobotsDocument {
+	/** Independent user-agent groups retained by the robots parser. */
 	readonly groups: readonly RobotsGroup[];
+	/** Sitemap locations declared by the robots source. */
 	readonly sitemaps: readonly string[];
+	/** Protocol extension data retained outside the canonical members. */
 	readonly extensions: readonly RobotsRecord[];
+	/** Retained observations available to the caller. */
 	readonly records: readonly RobotsRecord[];
 }
 

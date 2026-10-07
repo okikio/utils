@@ -1,5 +1,39 @@
 # `@okikio/catalog`
 
+Keep one canonical set of imported definitions and select subsets without losing exact object identity. A map keyed only
+by strings can silently replace a permission or response with a different same-ID definition.
+
+## Run a complete example
+
+```ts runnable
+import * as catalog from '@okikio/catalog';
+const Read = Object.freeze({ id: 'asset.read', kind: 'permission' });
+const Write = Object.freeze({ id: 'asset.write', kind: 'permission' });
+const Assets = catalog.create('assets', { Read, Write });
+const ReadOnly = catalog.select(Assets, ['Read']);
+console.log(catalog.get(ReadOnly, 'asset.read') === Read);
+console.log(catalog.has(ReadOnly, Write));
+console.log(JSON.stringify(catalog.ids(ReadOnly)));
+```
+
+Expected output:
+
+```text output
+true
+false
+{"Read":"asset.read"}
+```
+
+## Build on the example
+
+Use a named catalog for public contracts, select a deployment subset, then compose compatible catalogs. get() resolves a
+stable ID while has() checks the exact imported object. Different objects with the same ID cause a conflict. The
+immutable catalog does not own a runtime connection or globally register its definitions.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/catalog` groups immutable definitions without creating a global registry. It is useful when a package has
@@ -70,16 +104,10 @@ internally.
 
 ## Convenience and the manual equivalent
 
-Concrete map
-
-````
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `catalog.create()` | freeze entries, build identity/key indexes, reject duplicate IDs, and retain namespace metadata | one authoritative immutable definition set |
-| `catalog.select()` / `compose()` | look up keys, preserve order, de-duplicate identities, and reject conflicts manually | safe subsets and unions without parallel registry logic |
-
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
-
+| Convenience                      | Manual equivalent                                                                               | Concrete value                                          |
+| -------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `catalog.create()`               | freeze entries, build identity/key indexes, reject duplicate IDs, and retain namespace metadata | one authoritative immutable definition set              |
+| `catalog.select()` / `compose()` | look up keys, preserve order, de-duplicate identities, and reject conflicts manually            | safe subsets and unions without parallel registry logic |
 
 The manual version is approximately:
 
@@ -89,33 +117,26 @@ const ordered = Object.freeze([NotFound, InvalidInput]);
 const byId = new Map(ordered.map((entry) => [entry.id, entry]));
 ```
 
-You would then need to add duplicate-ID detection, reverse key lookup,
-key-preserving selections, deterministic flattening, immutable metadata, and a
-JSON-safe document projection yourself. `@okikio/catalog` packages those
+You would then need to add duplicate-ID detection, reverse key lookup, key-preserving selections, deterministic
+flattening, immutable metadata, and a JSON-safe document projection yourself. `@okikio/catalog` packages those
 mechanics. It does not own the meaning or lifecycle of the definitions.
 
-Use a catalog when several reusable definitions need one named, inspectable
-universe. Do not use it as a service locator, startup mechanism, mutable
-registry, or dependency container.
+Use a catalog when several reusable definitions need one named, inspectable universe. Do not use it as a service
+locator, startup mechanism, mutable registry, or dependency container.
 
-How it fits
------------
+## How it fits
 
-Definition-oriented utilities such as `failure`, `resource`, `activity`,
-`workflow`, `http/problem`, and `http/response` can use this package to share
-one composition model. The catalog utility does not know what an entry means.
-Domain semantics stay with the package that owns the definition.
+Definition-oriented utilities such as `failure`, `resource`, `activity`, `workflow`, `http/problem`, and `http/response`
+can use this package to share one composition model. The catalog utility does not know what an entry means. Domain
+semantics stay with the package that owns the definition.
 
-Progressive usage
------------------
+## Progressive usage
 
-The package participates in the complete domain-enrichment example in
-`../../docs/composition.md`. Read that guide after the
-individual helpers make sense in isolation and you want to see them composed
-with service, resource, runtime, and workflow code.
+Read [complete compositions](../../docs/composition.md) for a bounded CSV import, allowed-page discovery and a
+resource-backed operation. Each example names its result and owner. Use [the outcome guide](../../docs/outcomes.md) to
+choose additional mechanisms when the application needs them.
 
-Validation and failure surface
-------------------------------
+## Validation and failure surface
 
 The less-common runtime operations are still part of the supported model:
 
@@ -124,15 +145,11 @@ The less-common runtime operations are still part of the supported model:
 - `CatalogConflictError` means two different definition objects claim the same stable ID.
 - `CatalogSelectionError` means a requested selection key is not present in the source catalog.
 
-
-Source guide
-------------
+## Source guide
 
 1. `mod.ts` is the public runtime API and contains the composition algorithm.
 2. `types.ts` defines catalog, selection, metadata, and document contracts.
-3. `mod.test.ts` shows identity conflicts, key preservation, immutability, and
-   deep nesting as executable cases.
+3. `mod.test.ts` shows identity conflicts, key preservation, immutability, and deep nesting as executable cases.
 
-The README is the primary user documentation. There is intentionally no second
-hand-written API reference to keep synchronized.
-````
+The README is the primary user documentation. There is intentionally no second hand-written API reference to keep
+synchronized.

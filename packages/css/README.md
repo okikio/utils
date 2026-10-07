@@ -1,5 +1,36 @@
 # `@okikio/css`
 
+Extract stylesheet dependencies and feature evidence through a CSS parser. A regular expression cannot reliably
+distinguish a URL token from a quoted string, a comment or a nested rule.
+
+## Run a complete example
+
+```ts runnable
+import * as css from '@okikio/css';
+const source = '@import "theme.css"; .hero { background: url("hero.webp"); --accent: blue; }';
+const parsed = css.parse(source);
+console.log(JSON.stringify(css.resources(parsed).map((item) => item.url)));
+console.log(JSON.stringify(css.customProperties(parsed)));
+```
+
+Expected output:
+
+```text output
+["theme.css","hero.webp"]
+["--accent"]
+```
+
+## Build on the example
+
+Extract URL references first, then collect custom properties, media features and pseudo classes from the same parsed
+stylesheet. References retain source positions for diagnostics. Resolve relative URLs against the stylesheet URL in your
+application. Parsing performs no network fetch and does not tell you whether a feature is supported by a particular
+browser.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/css` turns CSS source into inspectable structure without starting a browser. It exposes parser problems,
@@ -66,27 +97,37 @@ a base URL because URL ownership belongs to the caller that knows the stylesheet
 
 ## Use with other utilities
 
-HTML discovery can extract inline styles and stylesheet links before CSS analysis inspects each CSS source:
+Extract inline stylesheet dependencies from HTML, then resolve them against the page URL. This mirrors the source
+analysis used by Kaiju Crawl before its application decides which resource to fetch.
 
-```ts
+```ts runnable=inline-resources.ts
 import * as css from '@okikio/css';
 import * as html from '@okikio/html';
 
-const page = html.parse(sourceHtml);
-
+const base = 'https://example.com/guide/';
+const page = html.parse('<style>.hero { background: url("hero.webp"); }</style><link rel="stylesheet" href="app.css">');
+const urls = new Set<string>();
 for (const style of html.selectAll(page.document, 'style')) {
 	for (const resource of css.parseResources(html.text(style))) {
-		await recordCssResource(resource);
+		urls.add(new URL(resource.url, base).href);
 	}
 }
-
 for (const link of html.selectAll(page.document, 'link[rel~="stylesheet"][href]')) {
-	console.log(html.attribute(link, 'href'));
+	const href = html.attribute(link, 'href');
+	if (href !== null) urls.add(new URL(href, base).href);
 }
+console.log(JSON.stringify([...urls]));
 ```
 
-`@okikio/html` owns HTML structure. `@okikio/css` owns CSS syntax. Network and URL-resolution policy can then sit above
-both packages.
+Expected output:
+
+```text output
+["https://example.com/guide/hero.webp","https://example.com/guide/app.css"]
+```
+
+`css.parseResources()` returns `readonly ResourceReference[]` immediately. The final value is a deduplicated `string[]`
+of resolved URLs. Both utilities perform pure parsing and retain no timer, reader or network connection to close. The
+application still owns fetch budgets, origin policy and how to respond to parser problems.
 
 ## Convenience and the manual equivalent
 

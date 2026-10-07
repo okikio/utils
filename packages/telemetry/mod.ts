@@ -1,10 +1,18 @@
 /**
- * Runtime-neutral structured telemetry, correlation, and failure-history mechanics.
+ * Report correlated diagnostic events without letting a broken reporter fail the operation. Console messages have no shared correlation contract and cannot buffer the useful history preceding a failure.
  *
- * The package does not configure logging, tracing, exporters, environment
- * variables, or async-local storage. Hosts choose those policies and may adapt
- * these records to LogTape, OpenTelemetry, Sentry, a test recorder, or another
- * backend.
+ * Start with a memory reporter to inspect behavior, then choose an explicit LogTape or OpenTelemetry adapter. Scope fields attach correlation, and buffering can retain a bounded recent history until failure. Applications configure logging and exporting. Telemetry is observation; it cannot authorize cancellation, settle a job or prove an authoritative effect was accepted.
+ *
+ * @example
+ * ```ts
+ * import * as telemetry from '@okikio/telemetry';
+ * const output = telemetry.memory();
+ * const buffered = telemetry.buffer(output, { capacity: 2 });
+ * const scope = telemetry.create(buffered, { fields: { request_id: 'request-1' } });
+ * await scope.report({ name: 'import.started', level: 'debug' });
+ * await scope.report({ name: 'import.failed', level: 'error' });
+ * console.log(output.records.map((event) => event.name).join(','));
+ * ```
  *
  * @module
  */

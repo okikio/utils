@@ -1,5 +1,37 @@
 # `@okikio/server/gateway`
 
+Derive upstream route ownership from an imported service contract without copying route strings.
+
+## Run a complete example
+
+```ts runnable
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as endpoint from '@okikio/server/endpoint';
+import * as response from '@okikio/http/response';
+import * as service from '@okikio/server/service';
+import { z } from 'zod';
+const Healthy = response.ok(z.object({ ok: z.boolean() }), { id: 'health.ok', description: 'Service health.' });
+const Health = endpoint.get({ id: 'health.read', path: '/health', responses: [Healthy] });
+const Api = service.define({ id: 'health-api', path: '/api', endpoints: [Health] });
+import * as gateway from '@okikio/server/gateway';
+const Edge = gateway.define({ id: 'edge', services: [gateway.mount(Api, { origin: 'https://upstream.invalid' })] });
+const compiled = gateway.compile(Edge);
+console.log(compiled.routes[0]?.path, compiled.routes[0]?.credentials.requestCookies);
+```
+
+Expected output:
+
+```text output
+/api/health strip
+```
+
+## Build on the example
+
+Compilation does not start the upstream service or fetch the origin. Add credential, timeout and redirect policies
+explicitly before creating the gateway runtime. Service authorization remains with the service; an edge policy does not
+grant domain permissions.
+
 Import-driven edge routing and forwarding derived from import-safe service definitions. Compiled service manifests are
 optional drift checks, not route discovery inputs. Gateway definitions do not copy service path strings and do not own
 application requirement interpretation or domain validation. A gateway may authenticate a caller or add a signed
@@ -107,8 +139,16 @@ gateway origin, or reject cross-origin locations outside an allowlist.
 ## Streaming lifetime
 
 The gateway does not buffer a body unless a declared policy needs bounded inspection. The request body is forwarded as a
-stream, and the total timeout, abort propagation, byte accounting, and lifecycle observers remain active until the
-response body drains, cancels, aborts, or errors.
+stream. Caller cancellation remains connected to the response body until it drains, cancels, aborts, or errors. A
+configured total timeout remains active for that lifetime too. Completion tracking runs when the timeout or a terminal
+observer needs it; a gateway with neither avoids that tracking layer while preserving abort propagation.
+
+Forwarding sanitizes both fixed hop-by-hop fields and valid field names nominated by `Connection`. Other content codings
+pass through normal sanitization without compression-specific normalization. When a Fetch response has a body, its wire
+length is not `0`, and its coding is exactly `gzip` or `br`, the gateway removes the stale `Content-Encoding` and
+`Content-Length`. Null-body responses, including native HEAD responses, retain that representation metadata unless
+normal sanitization removes it. A custom fetch adapter must follow the same decoding behavior for these supported
+codings; raw compressed bytes require a different transport contract.
 
 ## Observers
 

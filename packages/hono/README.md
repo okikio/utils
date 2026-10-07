@@ -1,5 +1,38 @@
 # `@okikio/hono`
 
+Reuse framework-neutral HTTP middleware around a Hono application. Reimplementing request correlation and response
+headers inside each framework makes the host contracts drift.
+
+## Run a complete example
+
+```ts runnable
+import { Hono } from 'hono';
+import * as hono from '@okikio/hono';
+import * as http from '@okikio/server/http';
+const app = new Hono();
+app.get('/health', (ctx) => ctx.json({ status: 'ok' }));
+app.onError(hono.catchErrors());
+const fetch = hono.fetch(app, [http.securityHeaders()]);
+const response = await fetch(new Request('https://service.invalid/health'));
+console.log((await response.json()).status, response.headers.get('x-content-type-options'));
+```
+
+Expected output:
+
+```text output
+ok nosniff
+```
+
+## Build on the example
+
+Start with the adapter around an existing Hono app, then share middleware with a portable service or gateway. Hono still
+owns its route handlers; the utility adapter owns the surrounding fetch composition. Host code starts the network
+listener and configures logging. Read or cancel response bodies so tests and callers release stream ownership.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 This package adapts framework-neutral HTTP and service runtimes to Hono. The service compiler and `service.create()` do
@@ -70,52 +103,33 @@ Fetch handler without Hono.
 
 ## Convenience and the manual equivalent
 
-Concrete map
+| Convenience    | Manual equivalent                                                                                      | Concrete value                                                 |
+| -------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| `hono.mount()` | translate one service runtime into Hono routes and adapt request/response/context behavior manually    | reuse service contracts without making Hono the contract owner |
+| `hono.fetch()` | compose middleware around Hono fetch handling and preserve Web `Request`/`Response` semantics yourself | one Web-standard handler contract                              |
 
-```
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `hono.mount()` | translate one service runtime into Hono routes and adapt request/response/context behavior manually | reuse service contracts without making Hono the contract owner |
-| `hono.fetch()` | compose middleware around Hono fetch handling and preserve Web `Request`/`Response` semantics yourself | one Web-standard handler contract |
-
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
-
-
-`@okikio/hono` is a convenience layer, not a hidden runtime. You can reproduce its
-core mechanics by registering each Fetch handler on Hono and translating thrown server failures by hand.
+`@okikio/hono` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics by registering each
+Fetch handler on Hono and translating thrown server failures by hand.
 
 The adapter mounts the framework-neutral server runtime without moving service semantics into Hono.
 
-When debugging or extending the package, keep that manual model in mind. The
-utility should remove repetitive correctness work without making the underlying
-Web, ECMAScript, Standard Schema, or runtime primitives impossible to recognize.
+## Source guide
 
-
-Source guide
-------------
-
-Start with this README, then use the source in this order when you need more
-detail:
+Start with this README, then use the source in this order when you need more detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
-   behavior as executable examples.
-4. Read internal implementation files only when you need the exact state
-   transition or performance-sensitive loop.
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
+4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to
-the public source instead of maintaining a separate hand-written API reference.
+The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
+separate hand-written API reference.
 
-Hono adapter role
-----------------
+## Hono adapter role
 
-Hono is a host adapter, not the owner of endpoint, webhook, OpenAPI, or service
-compiler semantics. Keep reusable protocol behavior in `@okikio/http` and
-service behavior in `@okikio/server`. This package should translate those
+Hono is a host adapter, not the owner of endpoint, webhook, OpenAPI, or service compiler semantics. Keep reusable
+protocol behavior in `@okikio/http` and service behavior in `@okikio/server`. This package should translate those
 contracts into Hono concepts only where a Hono application needs that bridge.
 
-The same compiled service can therefore run through the framework-neutral Fetch
-host, a Hono adapter, a gateway, or an embedded protocol handler without changing
-its endpoint definitions.
-```
+The same compiled service can therefore run through the framework-neutral Fetch host, a Hono adapter, a gateway, or an
+embedded protocol handler without changing its endpoint definitions.

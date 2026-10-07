@@ -1,9 +1,15 @@
 /**
- * Provider-neutral entitlement definitions and requirement contributions.
+ * Declare which paid or enabled feature an operation requires without coupling its definition to a billing provider. Scattered plan-name comparisons otherwise make the same feature mean different things in different services.
  *
- * This package contains no persistence or enforcement implementation. A host
- * can inspect or interpret the immutable definitions using its own policy and
- * provider integrations.
+ * Attach the requirement to a resource, activity or endpoint, then configure an entitlement interpreter at the application root. The definition documents a required capability; it does not itself allow access. Unknown requirement families reject unless the owner explicitly chooses another policy. Use exact imported definitions so billing policy and runtime admission describe the same feature.
+ *
+ * @example
+ * ```ts
+ * import * as entitlement from '@okikio/entitlement';
+ * import * as requirement from '@okikio/requirement';
+ * const Export = entitlement.define({ id: 'export.csv', description: 'Export rows as CSV.' });
+ * console.log(requirement.document(entitlement.require(Export))[0]?.definition);
+ * ```
  *
  * @module
  */

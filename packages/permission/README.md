@@ -1,5 +1,53 @@
 # `@okikio/permission`
 
+Check exact capabilities and schema-validated targets through an explicit evaluator. A boolean on a context cannot
+express actor-specific checks or distinguish two independently authored same-name permissions.
+
+## Run a complete example
+
+The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
+implementation is preserved.
+
+```ts runnable
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as context from '@okikio/context';
+import * as permission from '@okikio/permission';
+import { z } from 'zod';
+const TargetSchema = z.object({ id: z.string() });
+const Read = permission.define({ id: 'asset.read', target: TargetSchema });
+await using owner = context.create({ id: 'reader' });
+const ctx = permission.scope(owner, {
+	permissions: [Read],
+	checker: {
+		maximumChecks: 10,
+		async check(_ctx, requests) {
+			return requests.map((entry) => ({ allowed: TargetSchema.safeParse(entry.target).data?.id === 'public' }));
+		},
+	},
+});
+console.log(await permission.check(ctx, Read, { id: 'public' }));
+console.log(await permission.check(ctx, Read, { id: 'private' }));
+```
+
+Expected output:
+
+```text output
+true
+false
+```
+
+## Build on the example
+
+Start with one target, combine all()/any() expressions, then provide a provider-backed checker at the application root.
+Declare reachable permissions for inspection but explicitly check the current target on each active path. Unknown or
+undeclared definitions fail closed. This example evaluator implements a tiny public-asset rule; it does not authenticate
+the caller or authorize every possible asset.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 A permission answers whether the current actor may perform one business action. A definition is import-safe metadata. It
@@ -123,30 +171,18 @@ current use and evaluate actor-specific authority again when that use requires i
 
 ## Convenience and the manual equivalent
 
-Concrete map
+| Convenience                         | Manual equivalent                                                                                                                       | Concrete value                             |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `permission.define()` + `require()` | define permission identity and separately construct the requirement/interpreter metadata yourself                                       | declaration stays separate from evaluation |
+| `permission.all()` / `any()`        | build a boolean tree, validate all target leaves, batch evaluator questions, then combine decisions and errors                          | one explicit permission-expression tree    |
+| `check()` / `assert()`              | resolve the checker from context, enforce evaluation limits, normalize provider errors, and convert deny to either boolean or exception | one evaluation contract for all callers    |
 
-```
-| Convenience | Manual equivalent | Concrete value |
-| --- | --- | --- |
-| `permission.define()` + `require()` | define permission identity and separately construct the requirement/interpreter metadata yourself | declaration stays separate from evaluation |
-| `permission.all()` / `any()` | write recursive boolean composition and short-circuit evaluation manually | one explicit permission-expression tree |
-| `check()` / `assert()` | resolve the checker from context, enforce evaluation limits, normalize provider errors, and convert deny to either boolean or exception | one evaluation contract for all callers |
-
-The table is intentionally mechanical: each row names the convenience, the lower-level work it replaces, and the invariant the utility actually owns. Use the manual column when debugging, extending the utility, or deciding whether the abstraction is buying enough to justify using it.
-
-
-`@okikio/permission` is a convenience layer, not a hidden runtime. You can reproduce its
-core mechanics with a list of permission questions plus a host callback that answers each one.
+`@okikio/permission` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics with a list of
+permission questions plus a host callback that answers each one.
 
 The utility adds definitions, composition, scoped interpretation, batching, and consistent denial/error semantics.
 
-When debugging or extending the package, keep that manual model in mind. The
-utility should remove repetitive correctness work without making the underlying
-Web, ECMAScript, Standard Schema, or runtime primitives impossible to recognize.
-
-
-Composition, interpretation, and expected errors
------------------------------------------------
+## Composition, interpretation, and expected errors
 
 - `catalog()`, `select()`, and `compose()` build imported permission definition sets.
 - `interpreter()` binds one permission family to the runtime checker that understands it.
@@ -155,20 +191,14 @@ Composition, interpretation, and expected errors
 - `PermissionDecisionError` means a checker returned an invalid or contradictory decision.
 - `PermissionDeniedError` is the explicit failure raised by `assert()` for a denied request.
 
+## Source guide
 
-Source guide
-------------
-
-Start with this README, then use the source in this order when you need more
-detail:
+Start with this README, then use the source in this order when you need more detail:
 
 1. `mod.ts` shows the supported runtime operations and the composition shape.
 2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle
-   behavior as executable examples.
-4. Read internal implementation files only when you need the exact state
-   transition or performance-sensitive loop.
+3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
+4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to
-the public source instead of maintaining a separate hand-written API reference.
-```
+The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
+separate hand-written API reference.

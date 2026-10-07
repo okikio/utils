@@ -1,5 +1,37 @@
 # `@okikio/robots`
 
+Apply user-agent-specific robots rules with overlap and wildcard semantics. Collecting every Disallow line mixes
+unrelated groups and cannot tell whether a more specific Allow rule wins.
+
+## Run a complete example
+
+```ts runnable
+import * as robots from '@okikio/robots';
+const policy = robots.parse(`User-agent: *
+Disallow: /private/
+Allow: /private/pricing
+`);
+console.log(robots.match(policy, { userAgent: 'ResearchBot', url: 'https://example.com/private/report' }));
+console.log(robots.match(policy, { userAgent: 'ResearchBot', url: 'https://example.com/private/pricing' }));
+```
+
+Expected output:
+
+```text output
+false
+true
+```
+
+## Build on the example
+
+Parse once and check many URLs, then collect declared sitemaps for discovery. Unknown extension records remain available
+for higher-level policy. The parser performs no fetch and does not decide HTTP status, caching or authority rules. The
+application owns acquisition limits and whether a failed robots fetch should allow or deny crawling.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/robots` parses one `robots.txt` document and evaluates its local Allow/Disallow rules. It also returns absolute
@@ -55,26 +87,46 @@ Patterns support `*` and a terminal `$`.
 
 ## Use with other utilities
 
-A discovery layer can combine robots policy with Sitemap parsing without making either syntax package own HTTP:
+Kaiju Crawl combines declared Sitemap sources with local robots policy. Supply the fetched bytes explicitly, parse
+records and retain allowed page candidates. This complete version uses supplied sources and performs no network I/O.
 
-```ts
+```ts runnable=discover-pages.ts
 import * as robots from '@okikio/robots';
 import * as sitemap from '@okikio/sitemap';
 
-const policy = robots.parse(robotsText);
-
-for (const sitemapUrl of robots.getSitemapUrls(policy)) {
-	const source = await fetchText(sitemapUrl);
-	for (const record of sitemap.parse({ text: source, url: sitemapUrl })) {
-		if (robots.match(policy, { userAgent: 'KaijuBot', url: record.loc })) {
-			await addCandidate(record.loc);
+const policy = robots.parse('User-agent: *\nDisallow: /private/\nSitemap: https://example.com/sitemap.xml\n');
+const sources = new Map([
+	[
+		'https://example.com/sitemap.xml',
+		'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' +
+		'<url><loc>https://example.com/guide</loc></url>' +
+		'<url><loc>https://example.com/private/report</loc></url></urlset>',
+	],
+]);
+const candidates: string[] = [];
+for (const url of robots.getSitemapUrls(policy)) {
+	const text = sources.get(url);
+	if (text === undefined) throw new Error('No source was supplied for the declared sitemap.');
+	for (const record of sitemap.parse({ url, text })) {
+		if (record.kind === 'url' && robots.match(policy, { userAgent: 'KaijuBot', url: record.loc })) {
+			candidates.push(record.loc);
 		}
 	}
 }
+console.log(JSON.stringify(candidates));
 ```
 
-The consuming discovery package still decides whether robots rules should be applied to a candidate and how fetched
-responses affect policy.
+```text output
+["https://example.com/guide"]
+```
+
+`robots.parse()` returns a `RobotsDocument`; `sitemap.parse()` returns `readonly SitemapRecord[]`; `robots.match()`
+returns a boolean. `candidates` is the application's `string[]`. These calls acquire no network resource and require no
+disposal. Parser problems belong to their returned document/record contracts; the explicit missing-source error belongs
+to this application.
+
+The application decides how HTTP status, redirect limits, nested sources and a failed robots fetch affect its policy.
+For the streaming acquisition path, see [the sitemap guide](../sitemap/README.md#use-with-other-utilities).
 
 ## Parity target
 

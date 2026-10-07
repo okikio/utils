@@ -1,5 +1,68 @@
 # `@okikio/duration`
 
+Convert human-readable Temporal durations to one deterministic numeric value. A month needs a calendar anchor; repeating
+that decision across queues, retries and timeouts produces inconsistent answers.
+
+## Run a complete example
+
+The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
+implementation is preserved.
+
+```ts runnable
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as duration from '@okikio/duration';
+console.log(duration.milliseconds('PT2.5S'));
+console.log(duration.compare({ months: 1 }, { days: 31 }));
+```
+
+Expected output:
+
+```text output
+2500
+0
+```
+
+## Temporal when the host has none
+
+The ponyfill is a local import. It does not write to globalThis:
+
+```ts runnable
+import { Temporal } from '@okikio/duration/temporal';
+const now = Temporal.Instant.from('2026-01-01T00:00:00Z');
+console.log(now.add({ minutes: 15 }).toString());
+```
+
+```text output
+2026-01-01T00:15:00Z
+```
+
+Use `import '@okikio/duration/polyfill'` first at each application, Worker or process entry point when utilities use
+global Temporal. This exposes the existing
+[`temporal-polyfill` implementation](https://github.com/fullcalendar/temporal-polyfill) through its
+`full/implementation` entry, including non-ISO calendars. Loading that implementation adds startup and bundle cost; the
+explicit installer preserves native Temporal when present. It does not install the separate
+Date.prototype.toTemporalInstant extension. Avoid mixing constructor identity checks across native and ponyfill realms;
+use strings or duration-like records at those interfaces.
+
+Duration converts time. Workflow durable values and history make outcomes serializable and replayable; a Temporal
+polyfill does not make a workflow store durable.
+
+`milliseconds()` returns a number immediately, here `2500`; `compare()` returns the ordering value `0` for these
+calendar-anchored inputs. Conversion starts no timer and owns no lifetime. Timer APIs decide independently whether a
+converted duration is allowed and who clears the timer.
+
+## Build on the example
+
+Use milliseconds() for shared conversion and compare() for shared ordering. Calendar units use 2000-01-01, so this is
+deterministic mechanics rather than a business calendar. A timer may still reject years and months; a lease may require
+positive time. On hosts without Temporal, import the explicit polyfill first. Use the temporal ponyfill export when your
+own application wants a local Temporal value without changing globals.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 ## Purpose
 
 `@okikio/duration` gives shared runtime code one deterministic way to convert and compare Temporal durations.

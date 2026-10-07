@@ -1,5 +1,16 @@
 /**
- * Ordinary string-keyed data-record validation and immutable snapshot helpers.
+ * Inspect plain data records without accidentally invoking hidden getters or trusting inherited configuration. Object.keys plus direct reads can execute accessors and silently ignore properties that validation never saw.
+ *
+ * Validate authored options before snapshotting them, then use typed keys and entries to retain exact key/value relationships. Use the ordinary Web or JavaScript API when data is already trusted and the stronger record contract adds no value. Record inspection does not recursively validate application values or make external objects immutable.
+ *
+ * @example
+ * ```ts
+ * import * as record from '@okikio/record';
+ * const options = { host: 'localhost', port: 4321 } as const;
+ * record.assert(options, 'server options');
+ * console.log(record.keys(options).join(','));
+ * console.log(record.entries(options).map(([key, value]) => `${key}=${value}`).join(' '));
+ * ```
  *
  * @module
  */

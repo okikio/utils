@@ -1,5 +1,47 @@
 # `@okikio/resilience`
 
+Describe timeout, retry and admission policies as inspectable values before a host applies them. Putting retry loops
+around every call can repeat unsafe side effects and hide who owns the timer or storage.
+
+## Run a complete example
+
+The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
+implementation is preserved.
+
+```ts runnable
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as resilience from '@okikio/resilience';
+const retry = resilience.retry({
+	initialDelay: { seconds: 1 },
+	maximumDelay: { seconds: 5 },
+	multiplier: 2,
+	jitter: false,
+});
+console.log(resilience.retryDelay(retry, 1).milliseconds);
+console.log(resilience.retryDelay(retry, 4).milliseconds);
+console.log(resilience.validate(retry, { safety: 'unsafe' }).valid);
+```
+
+Expected output:
+
+```text output
+1000
+5000
+false
+```
+
+## Build on the example
+
+Validate a policy set first, then let the designated server or adapter enforce it. Retry safety requires idempotency for
+unsafe operations; a description does not itself create an idempotency store. Supply entropy explicitly for jitter and a
+clock for actual waits. Body limits, bulkheads and circuit breakers have different owners and lifecycle stages, which
+the document projection preserves.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
+variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
+dependencies before running them.
+
 `@okikio/resilience` defines import-safe policies for request protection and failure handling. Policy definitions
 contain configuration only. They do not start timers, create distributed counters, open stores, or change circuit state
 when imported.

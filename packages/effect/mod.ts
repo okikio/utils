@@ -1,9 +1,25 @@
 /**
- * Required one-way effect definitions, occurrences, and delivery.
+ * Represent an externally visible fact separately from delivery. Logging that a file was saved does not prove an outbox or billing ledger accepted that fact.
  *
- * `create()` validates and constructs one immutable occurrence without delivering it.
- * `emit()` transfers that occurrence to the configured owner and resolves only
- * after the owner accepts responsibility for the consequence.
+ * Create an occurrence without delivery when staging work, then emit it through an owner that accepts or rejects it. Add a queue-backed emitter when the application needs delayed delivery. Stable keys let an authoritative sink deduplicate retries; the utility cannot make arbitrary external side effects exactly once. Declared effects restrict what a scope may emit, and cancellation after acceptance does not revoke the accepted fact.
+ *
+ * @example
+ * ```ts
+ * import '@okikio/duration/polyfill';
+ * import '@okikio/dispose/polyfill';
+ * import * as context from '@okikio/context';
+ * import * as effect from '@okikio/effect';
+ * import { z } from 'zod';
+ * const Saved = effect.define({ id: 'asset.saved', value: z.object({ id: z.string() }) });
+ * await using owner = context.create({ id: 'save' });
+ * const accepted: string[] = [];
+ * const ctx = effect.scope(owner, {
+ *   effects: [Saved],
+ *   emitter: { async emit(_ctx, occurrence) { accepted.push(occurrence.key); } },
+ * });
+ * await effect.emit(ctx, Saved, { id: 'asset-1' }, { key: 'save:asset-1' });
+ * console.log(accepted.join(','));
+ * ```
  *
  * @module
  */
@@ -39,8 +55,10 @@ const occurrences = new WeakSet<object>();
 
 /** Error raised when durable effect data references an unknown trusted definition. */
 export class UnknownEffectDefinitionError extends TypeError {
+	/** Stable identity used to correlate this contract or occurrence. */
 	readonly id: string;
 
+	/** Create this UnknownEffectDefinitionError from the explicit contract values supplied by its caller. */
 	constructor(id: string) {
 		super(`Unknown effect definition ${JSON.stringify(id)}.`);
 		this.name = 'UnknownEffectDefinitionError';

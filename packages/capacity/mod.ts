@@ -1,18 +1,20 @@
 /**
- * Schema-first capacity definitions and atomic named admission.
+ * Reserve several scarce resources together. Separate counters can admit half of a request and leave work holding a browser while it waits forever for an upload slot.
  *
- * Import as a namespace so compact operations remain explicit at the call site:
+ * Use admission for local concurrency, then add units and constraints to describe relationships such as threads per core. Reservations are atomic and waiting requests keep FIFO fairness. An impossible request fails before queueing. The caller must release each lease and cancel waits when it no longer needs work. These counters govern one process; a cluster needs an authoritative distributed adapter.
  *
+ * @example
  * ```ts
  * import * as capacity from '@okikio/capacity';
- *
- * const slots = capacity.create({ browserContexts: 4, uploadParts: 8 });
- * await using lease = await capacity.acquire(slots, { browserContexts: 1 }, ctx);
+ * const host = capacity.create({ browsers: 2, uploads: 4 });
+ * const lease = await capacity.acquire(host, { browsers: 1, uploads: 3 });
+ * try {
+ *   console.log(JSON.stringify(capacity.available(host)));
+ * } finally {
+ *   lease.release();
+ * }
+ * console.log(JSON.stringify(capacity.available(host)));
  * ```
- *
- * `define()` and `check()` describe what valid capacity means. `create()` and
- * `acquire()` own local runtime admission. Durable work ownership remains the
- * job of `@okikio/queue`.
  *
  * @module
  */

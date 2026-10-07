@@ -1,10 +1,25 @@
 /**
- * Meter definitions and declared measurement effects.
+ * Record a validated usage fact through the same authoritative effect owner as the operation. Incrementing an in-memory counter cannot prove a billing or audit sink accepted the measurement.
  *
- * A meter names a quantity. Recording is runtime work, so `record()` creates
- * and announces one effect. The package does not aggregate usage, reserve
- * quota, or bill a customer; the configured effect owner decides how accepted
- * measurements become durable or operational state.
+ * Define a measurement once, record it with a stable idempotency key, then attach attributes for later aggregation. A real owner may persist the occurrence to a ledger or outbox. The example owner accepts in memory only; it is not a billing backend. Meter definitions describe units and aggregation, while application policy decides pricing and entitlement.
+ *
+ * @example
+ * ```ts
+ * import '@okikio/duration/polyfill';
+ * import '@okikio/dispose/polyfill';
+ * import * as context from '@okikio/context';
+ * import * as effect from '@okikio/effect';
+ * import * as meter from '@okikio/meter';
+ * import { MeterReadingSchema } from '@okikio/meter';
+ * import * as schema from '@okikio/schema';
+ * const Bytes = meter.define({ id: 'download.bytes', unit: 'byte', aggregation: 'sum' });
+ * await using owner = context.create({ id: 'download' });
+ * const ctx = effect.scope(owner, {
+ *   effects: [meter.effect(Bytes)], emitter: { async emit() {} },
+ * });
+ * const occurrence = await meter.record(ctx, Bytes, 2048, { key: 'download:asset-1' });
+ * console.log((await schema.parse(MeterReadingSchema, occurrence.value)).value);
+ * ```
  *
  * @module
  */
