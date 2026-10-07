@@ -1,7 +1,19 @@
 /**
- * Immutable definition catalogs with stable identity and deterministic composition.
+ * Keep one canonical set of imported definitions and select subsets without losing exact object identity. A map keyed only by strings can silently replace a permission or response with a different same-ID definition.
  *
- * Catalogs group imported values without global registration or runtime lookup.
+ * Use a named catalog for public contracts, select a deployment subset, then compose compatible catalogs. get() resolves a stable ID while has() checks the exact imported object. Different objects with the same ID cause a conflict. The immutable catalog does not own a runtime connection or globally register its definitions.
+ *
+ * @example
+ * ```ts
+ * import * as catalog from '@okikio/catalog';
+ * const Read = Object.freeze({ id: 'asset.read', kind: 'permission' });
+ * const Write = Object.freeze({ id: 'asset.write', kind: 'permission' });
+ * const Assets = catalog.create('assets', { Read, Write });
+ * const ReadOnly = catalog.select(Assets, ['Read']);
+ * console.log(catalog.get(ReadOnly, 'asset.read') === Read);
+ * console.log(catalog.has(ReadOnly, Write));
+ * console.log(JSON.stringify(catalog.ids(ReadOnly)));
+ * ```
  *
  * @module
  */
@@ -12,6 +24,7 @@ import type {
 	CatalogDocument,
 	CatalogEntryDocument,
 	CatalogEntryIdentity,
+	CatalogIds,
 	CatalogLike,
 	CatalogMetadata,
 	CatalogSelection,
@@ -26,10 +39,14 @@ const selectionMetadata = new WeakMap<object, CatalogSelectionMetadata>();
 
 /** Error raised when different definitions reuse one stable catalog identifier. */
 export class CatalogConflictError extends Error {
+	/** Stable identity used to correlate this contract or occurrence. */
 	readonly id: string;
+	/** First operand or observation retained in this ordered pair. */
 	readonly first: CatalogEntryIdentity;
+	/** Second operand or observation retained in this ordered pair. */
 	readonly second: CatalogEntryIdentity;
 
+	/** Create this CatalogConflictError from the explicit contract values supplied by its caller. */
 	constructor(id: string, first: CatalogEntryIdentity, second: CatalogEntryIdentity) {
 		super(`Catalog identifier ${JSON.stringify(id)} is owned by different definition objects.`);
 		this.name = 'CatalogConflictError';
@@ -41,9 +58,12 @@ export class CatalogConflictError extends Error {
 
 /** Error raised when a selection references a key that does not exist. */
 export class CatalogSelectionError extends Error {
+	/** Catalog namespace that groups these exact entries. */
 	readonly namespace: string;
+	/** Stable lookup or correlation key within the owning contract. */
 	readonly key: PropertyKey;
 
+	/** Create this CatalogSelectionError from the explicit contract values supplied by its caller. */
 	constructor(namespace: string, key: PropertyKey) {
 		super(`Catalog ${JSON.stringify(namespace)} does not contain key ${String(key)}.`);
 		this.name = 'CatalogSelectionError';
@@ -91,15 +111,14 @@ export function create<
 		keyByEntry.set(entry, key);
 	}
 
-	const metadata = Object.freeze(
-		{
-			type: 'catalog',
-			namespace,
-			keys: Object.freeze(keys as string[]),
-			entries: Object.freeze(orderedEntries),
-			keyByEntry: immutableMap(keyByEntry),
-		} satisfies CatalogMetadata,
-	);
+	const metadata: CatalogMetadata = Object.freeze({
+		type: 'catalog',
+		namespace,
+		keys: Object.freeze(keys as string[]),
+		entries: Object.freeze(orderedEntries),
+		keyByEntry: immutableMap(keyByEntry),
+		entryById: immutableMap(idOwners),
+	});
 
 	catalogMetadata.set(target, metadata);
 	return Object.freeze(target) as Catalog<Entries[keyof Entries], Entries>;
@@ -163,6 +182,45 @@ export function values<Entry extends CatalogEntryIdentity>(
 	return Object.freeze(result);
 }
 
+/** Return whether one exact definition object belongs to a catalog or selection. */
+export function has<Entry extends CatalogEntryIdentity>(source: CatalogLike<Entry>, entry: unknown): entry is Entry {
+	return typeof entry === 'object' && entry !== null && metadata(source).keyByEntry.has(entry as Entry);
+}
+
+/** Resolve one stable identifier back to its exact trusted definition object. */
+export function get<Entry extends CatalogEntryIdentity>(
+	input: DefinitionInput<Entry>,
+	id: string,
+): Entry | undefined {
+	if (isRoot(input) || isSelection(input)) return metadata(input).entryById.get(id) as Entry | undefined;
+	return values(input).find((entry) => entry.id === id);
+}
+
+/** Project stable definition identifiers while preserving the source catalog keys. */
+export function ids<
+	const Entries extends Readonly<Record<PropertyKey, CatalogEntryIdentity>>,
+>(source: Catalog<Entries[keyof Entries], Entries>): CatalogIds<Entries>;
+/** Project stable definition identifiers from a key-preserving catalog selection. */
+export function ids<
+	Entry extends CatalogEntryIdentity,
+	const Entries extends Readonly<Record<PropertyKey, Entry>>,
+>(source: CatalogSelection<Entry, Entries>): CatalogIds<Entries>;
+/** Build the immutable identifier projection after catalog-kind narrowing. */
+export function ids(source: CatalogLike): Readonly<Record<string, string>> {
+	const sourceMetadata = metadata(source);
+	const values = source as unknown as Readonly<Record<string, CatalogEntryIdentity>>;
+	const output: Record<string, string> = {};
+	for (const key of sourceMetadata.keys) {
+		Object.defineProperty(output, key, {
+			configurable: false,
+			enumerable: true,
+			writable: false,
+			value: values[key]!.id,
+		});
+	}
+	return Object.freeze(output);
+}
+
 /** Select an immutable key-preserving subset from a source catalog. */
 export function select<
 	const Entries extends Readonly<Record<PropertyKey, CatalogEntryIdentity>>,
@@ -176,6 +234,7 @@ export function select<
 	const target = Object.create(null) as Record<PropertyKey, Entry>;
 	const selectedEntries: Entry[] = [];
 	const keyByEntry = new Map<Entry, string>();
+	const entryById = new Map<string, Entry>();
 	const seenKeys = new Set<string>();
 
 	for (const key of keys) {
@@ -187,19 +246,19 @@ export function select<
 		defineEntry(target, key, entry);
 		selectedEntries.push(entry);
 		keyByEntry.set(entry, key);
+		entryById.set(entry.id, entry);
 	}
 
 	const selectedKeys = Object.freeze([...seenKeys]);
-	const metadata = Object.freeze(
-		{
-			type: 'selection',
-			namespace: sourceMetadata.namespace,
-			source,
-			keys: selectedKeys,
-			entries: Object.freeze(selectedEntries),
-			keyByEntry: immutableMap(keyByEntry),
-		} satisfies CatalogSelectionMetadata<Entry>,
-	);
+	const metadata: CatalogSelectionMetadata<Entry> = Object.freeze({
+		type: 'selection',
+		namespace: sourceMetadata.namespace,
+		source,
+		keys: selectedKeys,
+		entries: Object.freeze(selectedEntries),
+		keyByEntry: immutableMap(keyByEntry),
+		entryById: immutableMap(entryById),
+	});
 
 	selectionMetadata.set(target, metadata);
 	return Object.freeze(target) as CatalogSelection<Entries[keyof Entries], Pick<Entries, Keys[number]>>;
@@ -559,6 +618,7 @@ export type {
 	CatalogEntryDocument,
 	CatalogEntryIdentity,
 	CatalogEntryValue,
+	CatalogIds,
 	CatalogLike,
 	CatalogMetadata,
 	CatalogSelection,

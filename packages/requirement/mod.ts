@@ -1,27 +1,37 @@
 /**
- * Provider-neutral requirement declarations and active runtime interpretation.
+ * Keep declarations of required capabilities separate from the host that interprets them. Hard-coding a billing or permission SDK into each resource makes definitions impossible to inspect without starting that SDK.
  *
- * Definitions contribute requirements without starting providers. Static graph
- * inspection can retain every reachable requirement, but runtime code applies
- * only requirements that become active on the selected execution path.
+ * Attach requirements to definitions, inspect the reachable graph for deployment planning, and apply only the requirements active on the current execution path. Each semantic family owns its interpreter and failures. The example interpreter records admission in memory; replace it with real policy before using it for access control. Missing interpreters reject by default. Scope views borrow their owner context.
+ *
+ * @example
+ * ```ts
+ * import '@okikio/duration/polyfill';
+ * import '@okikio/dispose/polyfill';
+ * import * as context from '@okikio/context';
+ * import * as requirement from '@okikio/requirement';
+ * const Feature = Object.freeze({ kind: 'entitlement', id: 'export.csv' });
+ * const NeedsExport = requirement.define({ family: 'entitlement', action: 'require', definition: Feature });
+ * await using owner = context.create({ id: 'export' });
+ * const applied: string[] = [];
+ * const ctx = requirement.scope(owner, { interpreters: {
+ *   entitlement: { async apply(_ctx, entries) { applied.push(...entries.map((entry) => entry.definition.id)); } },
+ * } });
+ * await requirement.apply(ctx, [NeedsExport]);
+ * console.log(applied.join(','));
+ * ```
  *
  * @module
  */
-import * as catalog from '@okikio/catalog';
-import type { CatalogEntryIdentity } from '@okikio/catalog';
+import { compose } from './definition.ts';
+export { catalog, compose, define, document, family, is } from './definition.ts';
 import * as context from '@okikio/context';
 import type {
 	RequirementContext,
 	RequirementDefinition,
-	RequirementDocument,
 	RequirementInput,
-	RequirementOptions,
 	RequirementRuntime,
 	RequirementScopeOptions,
 } from './types.ts';
-
-/** Exact requirement definitions memoized by domain definition, family, and action. */
-const definitions = new WeakMap<CatalogEntryIdentity, Map<string, RequirementDefinition>>();
 
 /** Error raised when active work reaches a requirement family without an interpreter. */
 export class UnsupportedRequirementError extends Error {
@@ -39,86 +49,6 @@ export class UnsupportedRequirementError extends Error {
 	}
 }
 
-/** Define one immutable requirement without implementing its domain semantics. */
-export function define<
-	const Family extends string,
-	const Action extends string,
-	Entry extends CatalogEntryIdentity,
->(input: RequirementOptions<Family, Action, Entry>): RequirementDefinition<Family, Action, Entry> {
-	assertPart(input.family, 'requirement family');
-	assertPart(input.action, 'requirement action');
-	if (!input.definition || typeof input.definition.id !== 'string' || typeof input.definition.kind !== 'string') {
-		throw new TypeError('Requirement definition must be a catalog definition.');
-	}
-
-	const key = `${input.family}:${input.action}`;
-	const owned = definitions.get(input.definition) ?? new Map<string, RequirementDefinition>();
-	const existing = owned.get(key);
-	if (existing !== undefined) {
-		if (existing.description !== input.description) {
-			throw new TypeError(`Requirement ${JSON.stringify(existing.id)} was defined with different descriptions.`);
-		}
-		return existing as RequirementDefinition<Family, Action, Entry>;
-	}
-
-	const value = Object.freeze(
-		{
-			kind: 'requirement',
-			id: `${input.family}:${input.action}:${input.definition.id}`,
-			family: input.family,
-			action: input.action,
-			definition: input.definition,
-			...(input.description === undefined ? {} : { description: input.description }),
-		} satisfies RequirementDefinition<Family, Action, Entry>,
-	);
-	owned.set(key, value);
-	definitions.set(input.definition, owned);
-	return value;
-}
-
-/** Compose direct requirements, catalogs, selections, and nested arrays. */
-export function compose<Entry extends RequirementDefinition>(
-	...input: readonly RequirementInput<Entry>[]
-): readonly Entry[] {
-	return catalog.compose(...input);
-}
-
-/** Return requirements owned by one semantic family. */
-export function family<const Family extends string, Entry extends RequirementDefinition>(
-	input: RequirementInput<Entry>,
-	familyName: Family,
-): readonly Extract<Entry, RequirementDefinition<Family, string, CatalogEntryIdentity>>[] {
-	return Object.freeze(catalog.values(input).filter((entry) => entry.family === familyName)) as readonly Extract<
-		Entry,
-		RequirementDefinition<Family, string, CatalogEntryIdentity>
-	>[];
-}
-
-/** Return whether a value has the generic requirement protocol. */
-export function is(value: unknown): value is RequirementDefinition {
-	return typeof value === 'object' && value !== null &&
-		(value as { kind?: unknown }).kind === 'requirement' &&
-		typeof (value as { id?: unknown }).id === 'string' &&
-		typeof (value as { family?: unknown }).family === 'string' &&
-		typeof (value as { action?: unknown }).action === 'string';
-}
-
-/** Create deterministic JSON-safe documentation for requirement definitions. */
-export function document(input: RequirementInput): readonly RequirementDocument[] {
-	return Object.freeze(
-		catalog.values(input).map((entry) =>
-			Object.freeze({
-				id: entry.id,
-				family: entry.family,
-				action: entry.action,
-				definition: entry.definition.id,
-				definitionKind: entry.definition.kind,
-				...(entry.description === undefined ? {} : { description: entry.description }),
-			})
-		),
-	);
-}
-
 /**
  * Create a borrowed requirement-aware view of an existing execution context.
  *
@@ -130,12 +60,10 @@ export function scope<Base extends import('@okikio/context').Context>(
 	ctx: Base,
 	options: RequirementScopeOptions = {},
 ): RequirementContext<Base> {
-	const runtime = Object.freeze(
-		{
-			interpreters: Object.freeze({ ...(options.interpreters ?? {}) }),
-			unknown: options.unknown ?? 'reject',
-		} satisfies RequirementRuntime,
-	);
+	const runtime: RequirementRuntime = Object.freeze({
+		interpreters: Object.freeze({ ...(options.interpreters ?? {}) }),
+		unknown: options.unknown ?? 'reject',
+	});
 	return context.view(ctx, { requirements: runtime });
 }
 
@@ -217,12 +145,9 @@ function group(input: readonly RequirementDefinition[]): ReadonlyMap<string, rea
 	return new Map([...grouped].map(([familyName, values]) => [familyName, Object.freeze(values)] as const));
 }
 
-/** Reject an invalid family/action part before it enters the requirement cache. */
-function assertPart(value: string, name: string): void {
-	if (!/^[a-z0-9][a-z0-9._:-]*$/i.test(value)) throw new TypeError(`Invalid ${name} ${JSON.stringify(value)}.`);
-}
-
 export type {
+	RequirementCatalog,
+	RequirementCatalogOptions,
 	RequirementContext,
 	RequirementDefinition,
 	RequirementDocument,

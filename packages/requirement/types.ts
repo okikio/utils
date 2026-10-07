@@ -1,4 +1,4 @@
-import type { CatalogEntryIdentity, DefinitionInput as CatalogDefinitionInput } from '@okikio/catalog';
+import type { Catalog, CatalogEntryIdentity, DefinitionInput as CatalogDefinitionInput } from '@okikio/catalog';
 import type { Context as BaseContext } from '@okikio/context';
 
 /** One immutable contract contribution attached to another definition. */
@@ -15,6 +15,35 @@ export interface RequirementDefinition<
 	readonly action: Action;
 	/** Exact domain definition referenced by this requirement. */
 	readonly definition: Entry;
+}
+
+/** Key-preserving requirement entries projected from one definition catalog. */
+export type RequirementCatalogEntries<
+	Family extends string,
+	Action extends string,
+	Entries extends Readonly<Record<PropertyKey, CatalogEntryIdentity>>,
+> = Readonly<
+	{
+		readonly [Key in keyof Entries]: RequirementDefinition<Family, Action, Entries[Key]>;
+	}
+>;
+
+/** Named requirement catalog projected from one canonical definition catalog. */
+export type RequirementCatalog<
+	Family extends string,
+	Action extends string,
+	Entries extends Readonly<Record<PropertyKey, CatalogEntryIdentity>>,
+> = Catalog<
+	RequirementDefinition<Family, Action, Entries[keyof Entries]>,
+	RequirementCatalogEntries<Family, Action, Entries>
+>;
+
+/** Options used to project one definition catalog into requirement declarations. */
+export interface RequirementCatalogOptions<Family extends string, Action extends string> {
+	/** Stable requirement family that owns interpretation. */
+	readonly family: Family;
+	/** Family-specific requirement action. */
+	readonly action: Action;
 }
 
 /** Recursive input accepted by requirement-consuming definitions. */

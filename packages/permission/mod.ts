@@ -1,22 +1,37 @@
 /**
- * Provider-neutral permission definitions, expressions, and runtime checks.
+ * Check exact capabilities and schema-validated targets through an explicit evaluator. A boolean on a context cannot express actor-specific checks or distinguish two independently authored same-name permissions.
  *
- * A permission definition is import-safe metadata. Runtime checks execute only
- * through an explicitly supplied evaluator attached with `scope()`. Complex
- * business policy stays inside that evaluator; `all()` and `any()` only compose
- * genuinely independent permission decisions.
+ * Start with one target, combine all()/any() expressions, then provide a provider-backed checker at the application root. Declare reachable permissions for inspection but explicitly check the current target on each active path. Unknown or undeclared definitions fail closed. This example evaluator implements a tiny public-asset rule; it does not authenticate the caller or authorize every possible asset.
+ *
+ * @example
+ * ```ts
+ * import '@okikio/duration/polyfill';
+ * import '@okikio/dispose/polyfill';
+ * import * as context from '@okikio/context';
+ * import * as permission from '@okikio/permission';
+ * import { z } from 'zod';
+ * const TargetSchema = z.object({ id: z.string() });
+ * const Read = permission.define({ id: 'asset.read', target: TargetSchema });
+ * await using owner = context.create({ id: 'reader' });
+ * const ctx = permission.scope(owner, {
+ *   permissions: [Read],
+ *   checker: { maximumChecks: 10, async check(_ctx, requests) {
+ *     return requests.map((entry) => ({ allowed: TargetSchema.safeParse(entry.target).data?.id === 'public' }));
+ *   } },
+ * });
+ * console.log(await permission.check(ctx, Read, { id: 'public' }));
+ * console.log(await permission.check(ctx, Read, { id: 'private' }));
+ * ```
  *
  * @module
  */
 import * as catalogCore from '@okikio/catalog';
-import type { DefinitionInput as CatalogDefinitionInput } from '@okikio/catalog';
 import * as contextCore from '@okikio/context';
-import * as requirement from '@okikio/requirement';
+export { catalog, compose, define, require, select } from './definition.ts';
 import * as schema from '@okikio/schema';
 import type {
 	PermissionAll,
 	PermissionAny,
-	PermissionCatalog,
 	PermissionCheck,
 	PermissionChecker,
 	PermissionContext,
@@ -24,19 +39,19 @@ import type {
 	PermissionDefinition,
 	PermissionExpression,
 	PermissionExpressionInput,
-	PermissionOptions,
 	PermissionRequest,
 	PermissionRequirement,
 	PermissionRuntime,
 	PermissionScopeOptions,
-	PermissionSelection,
 	PermissionTargetArguments,
 } from './types.ts';
 
 /** Error raised when runtime code checks a permission that was not declared by the execution scope. */
 export class UndeclaredPermissionError extends Error {
+	/** Exact declared contract object; an independently authored same-name object is not the same declaration. */
 	readonly definition: PermissionDefinition;
 
+	/** Create this UndeclaredPermissionError from the explicit contract values supplied by its caller. */
 	constructor(definition: PermissionDefinition) {
 		super(`Permission ${JSON.stringify(definition.id)} is not declared by this execution scope.`);
 		this.name = 'UndeclaredPermissionError';
@@ -54,9 +69,12 @@ export class MissingPermissionCheckerError extends Error {
 
 /** Error raised when a logical permission batch exceeds the evaluator's explicit limit. */
 export class PermissionCheckLimitError extends RangeError {
+	/** Number of observations or owned items represented by this snapshot. */
 	readonly count: number;
+	/** Upper bound enforced by this owner; provider work remains subject to that capacity. */
 	readonly maximum: number;
 
+	/** Create this PermissionCheckLimitError from the explicit contract values supplied by its caller. */
 	constructor(count: number, maximum: number) {
 		super(`Permission check batch contains ${count} atomic checks; the configured maximum is ${maximum}.`);
 		this.name = 'PermissionCheckLimitError';
@@ -67,6 +85,7 @@ export class PermissionCheckLimitError extends RangeError {
 
 /** Error raised when a permission evaluator violates the ordered batch result contract. */
 export class PermissionDecisionError extends Error {
+	/** Create this PermissionDecisionError from the explicit contract values supplied by its caller. */
 	constructor(message: string) {
 		super(message);
 		this.name = 'PermissionDecisionError';
@@ -75,8 +94,10 @@ export class PermissionDecisionError extends Error {
 
 /** Error raised when one atomic permission decision could not be evaluated. */
 export class PermissionEvaluationError extends Error {
+	/** Exact declared contract object; an independently authored same-name object is not the same declaration. */
 	readonly definition: PermissionDefinition;
 
+	/** Create this PermissionEvaluationError from the explicit contract values supplied by its caller. */
 	constructor(definition: PermissionDefinition, cause: unknown) {
 		super(`Permission ${JSON.stringify(definition.id)} could not be evaluated.`, { cause });
 		this.name = 'PermissionEvaluationError';
@@ -86,8 +107,10 @@ export class PermissionEvaluationError extends Error {
 
 /** Error raised by `assert()` only when the evaluator explicitly denies the permission expression. */
 export class PermissionDeniedError extends Error {
+	/** Exact permission definitions explicitly denied by the evaluator. */
 	readonly denied: readonly PermissionDefinition[];
 
+	/** Create this PermissionDeniedError from the explicit contract values supplied by its caller. */
 	constructor(denied: readonly PermissionDefinition[]) {
 		const ids = [...new Set(denied.map((definition) => definition.id))];
 		super(
@@ -98,55 +121,6 @@ export class PermissionDeniedError extends Error {
 		this.name = 'PermissionDeniedError';
 		this.denied = Object.freeze([...new Set(denied)]);
 	}
-}
-
-/** Define one immutable permission contract without starting a policy provider. */
-export function define<
-	const Id extends string,
-	TargetSchema extends import('./types.ts').PermissionSchema | undefined = undefined,
->(input: PermissionOptions<Id, TargetSchema>): PermissionDefinition<Id, TargetSchema> {
-	assertIdentifier(input.id);
-	if (input.target !== undefined) schema.assert(input.target, 'permission target schema');
-	return Object.freeze({
-		kind: 'permission',
-		id: input.id,
-		...(input.description === undefined ? {} : { description: input.description }),
-		...(input.target === undefined ? {} : { target: input.target }),
-	}) as PermissionDefinition<Id, TargetSchema>;
-}
-
-/** Create a named immutable permission catalog. */
-export function catalog<
-	const Namespace extends string,
-	const Entries extends Readonly<Record<PropertyKey, PermissionDefinition>>,
->(
-	namespace: Namespace,
-	entries: Entries,
-): PermissionCatalog<Entries> {
-	return catalogCore.create(namespace, entries);
-}
-
-/** Select a key-preserving permission catalog subset. */
-export function select<
-	const Entries extends Readonly<Record<PropertyKey, PermissionDefinition>>,
-	const Keys extends readonly (keyof Entries & string)[],
->(
-	source: PermissionCatalog<Entries>,
-	keys: Keys,
-): PermissionSelection<Entries[keyof Entries], Pick<Entries, Keys[number]>> {
-	return catalogCore.select(source, keys);
-}
-
-/** Compose permission definitions, catalogs, selections, and nested arrays. */
-export function compose<Entry extends PermissionDefinition>(
-	...input: readonly CatalogDefinitionInput<Entry>[]
-): readonly Entry[] {
-	return catalogCore.compose(...input);
-}
-
-/** Contribute the `require` requirement for one permission definition. */
-export function require(definition: PermissionDefinition): PermissionRequirement {
-	return requirement.define({ family: 'permission', action: 'require', definition });
 }
 
 /**
@@ -163,6 +137,18 @@ export function interpreter(
 	return Object.freeze({
 		scope(ctx: import('@okikio/context').Context, requirements: readonly PermissionRequirement[]) {
 			const definitions = definitionsOf(requirements);
+			// Resource borrowing may bind an active subset of an already-declared
+			// graph. Reuse only the exact evaluator and declaration identities;
+			// adding authority or replacing its evaluator still follows scope()'s
+			// existing replacement guard. No provider decision is reused here.
+			const existing: unknown = Object.getOwnPropertyDescriptor(ctx, 'permissions')?.value;
+			if (typeof existing === 'object' && existing !== null) {
+				const runtime = existing as Partial<PermissionRuntime>;
+				if (
+					runtime.checker === checker && Array.isArray(runtime.permissions) &&
+					definitions.every((definition) => runtime.permissions!.includes(definition))
+				) return ctx;
+			}
 			return scope(ctx, {
 				permissions: definitions,
 				...(checker === undefined ? {} : { checker }),
@@ -580,11 +566,6 @@ function assertChecker(checker: PermissionChecker): void {
 		throw new TypeError('Permission evaluator maximumChecks must be a positive safe integer.');
 	}
 	if (typeof checker.check !== 'function') throw new TypeError('Permission evaluator must provide check().');
-}
-
-/** Reject an invalid stable permission identifier before it enters authoritative state. */
-function assertIdentifier(id: string): void {
-	if (!/^[a-z0-9][a-z0-9._:-]*$/i.test(id)) throw new TypeError(`Invalid permission id ${JSON.stringify(id)}.`);
 }
 
 export type {

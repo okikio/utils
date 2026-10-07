@@ -1,6 +1,7 @@
 import { expect } from '@std/expect';
 import { describe, it } from 'node:test';
 import type { Context } from '@okikio/context';
+import { apply, bind, scope as requirementScope } from '@okikio/requirement';
 import * as permission from './mod.ts';
 function baseContext(id: string): Context {
 	return Object.freeze({
@@ -63,6 +64,65 @@ describe('@okikio/permission definitions', () => {
 });
 
 describe('@okikio/permission runtime checks', () => {
+	it('rebinds an exact declared permission subset without caching borrower decisions', async () => {
+		const observed: string[] = [];
+		const checker: permission.PermissionChecker = {
+			maximumChecks: 8,
+			async check(ctx, requests) {
+				observed.push(ctx.id);
+				return requests.map(() => ({ allowed: ctx.id === 'alice' }));
+			},
+		};
+		const full = [permission.require(WorkspaceAccess), permission.require(ReadAsset)];
+		const subset = [permission.require(WorkspaceAccess)];
+		const owner = (actor: string) =>
+			requirementScope(baseContext(actor), {
+				interpreters: { permission: permission.interpreter(checker) },
+				unknown: 'reject',
+			});
+		const alice = bind(owner('alice'), full);
+		expect(bind(alice, full)).toBe(alice);
+		expect(bind(alice, subset)).toBe(alice);
+		await apply(bind(alice, subset), subset);
+		await apply(bind(alice, full), subset);
+		// Subset binding preserves the original reachable target declaration.
+		expect(await permission.check(alice, ReadAsset, { id: 'asset' })).toBe(true);
+		const bob = bind(owner('bob'), full);
+		expect(bob).not.toBe(alice);
+		expect(bob.signal).not.toBe(alice.signal);
+		await expect(apply(bind(bob, subset), subset)).rejects.toBeInstanceOf(permission.PermissionDeniedError);
+		expect(observed).toEqual(['alice', 'alice', 'alice', 'bob']);
+	});
+
+	it('rejects permission rebinding that expands exact declarations or replaces the evaluator', () => {
+		const checker: permission.PermissionChecker = {
+			maximumChecks: 8,
+			async check(_ctx, requests) {
+				return requests.map(() => ({ allowed: true }));
+			},
+		};
+		const replacement: permission.PermissionChecker = {
+			maximumChecks: 8,
+			async check(_ctx, requests) {
+				return requests.map(() => ({ allowed: true }));
+			},
+		};
+		const family = permission.interpreter(checker);
+		const ctx = permission.scope(baseContext('rebind'), { permissions: [WorkspaceAccess], checker });
+		const Foreign = permission.define({ id: WorkspaceAccess.id, description: 'Same ID, different exact declaration.' });
+		const Additional = permission.define({ id: 'rebind.additional', description: 'Undeclared extra authority.' });
+		expect(() => family.scope!(ctx, [permission.require(Foreign)])).toThrow(TypeError);
+		expect(() => family.scope!(ctx, [permission.require(WorkspaceAccess), permission.require(Additional)])).toThrow(
+			TypeError,
+		);
+		expect(() => permission.interpreter(replacement).scope!(ctx, [permission.require(WorkspaceAccess)])).toThrow(
+			TypeError,
+		);
+		// The explicit public scope operation still forbids nesting/replacement.
+		expect(() => permission.scope(ctx, { permissions: [WorkspaceAccess], checker })).toThrow(TypeError);
+		expect(family.scope!(ctx, [permission.require(WorkspaceAccess)])).toBe(ctx);
+	});
+
 	it('validates targets and evaluates a composite expression with one provider call', async () => {
 		const base = baseContext('permission-composite');
 		let calls = 0;
