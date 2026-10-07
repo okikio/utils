@@ -92,12 +92,38 @@ describe('fault', () => {
 				return 1;
 			},
 		});
-		expect(() => fault.encode('x', options)).toThrow('enumerable data property');
+		expect(() => fault.encode('x', options)).toThrow(TypeError);
 		expect(reads).toBe(0);
 	});
 
 	it('rejects unsafe operational limits', () => {
 		expect(() => fault.encode('x', { maximumDepth: -1 })).toThrow(TypeError);
 		expect(() => fault.encode('x', { maximumEntries: Number.MAX_SAFE_INTEGER + 1 })).toThrow(TypeError);
+	});
+});
+
+describe('native error diagnostics', () => {
+	it('preserves inherited built-in error names and their message', () => {
+		for (const error of [new TypeError('type'), new RangeError('range'), new SyntaxError('syntax')]) {
+			expect(fault.encode(error)).toMatchObject({ name: error.name, message: error.message });
+		}
+	});
+
+	it('does not invoke inherited diagnostic accessors or custom stack formatters', () => {
+		let reads = 0;
+		const error = new Error('private');
+		Object.setPrototypeOf(
+			error,
+			Object.create(Error.prototype, {
+				name: {
+					get() {
+						reads += 1;
+						return 'secret';
+					},
+				},
+			}),
+		);
+		expect(fault.encode(error, { includeStack: true })).toMatchObject({ name: 'Error', message: 'private' });
+		expect(reads).toBe(0);
 	});
 });

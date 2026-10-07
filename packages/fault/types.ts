@@ -3,6 +3,7 @@ export interface FaultArray extends ReadonlyArray<FaultValue> {}
 
 /** Readonly diagnostic record produced by fault projection. */
 export interface FaultRecord {
+	/** Projected own diagnostic fields, indexed by their source keys; values remain JSON-safe. */
 	readonly [key: string]: FaultValue;
 }
 

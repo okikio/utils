@@ -1,8 +1,25 @@
 /**
- * Bounded reusable-value pooling with explicit disposable leases.
+ * Reuse a bounded set of expensive resources while retaining explicit lease ownership. Opening a connection for every request wastes setup work; sharing one connection without leases can interleave incompatible operations.
  *
- * The caller supplies value creation, health checks, and close behavior. The
- * pool owns admission, waiting, leasing, return, drain, and cleanup.
+ * Replace the example value with a database connection, browser page or Worker handle, then configure validation, idle age and acquisition timeout. Release a lease after each use; close the pool at the owning host lifetime. The pool owns created values while callers borrow leased values. A limit controls resource count, not queue-job authority or distributed placement.
+ *
+ * @example
+ * ```ts
+ * import '@okikio/duration/polyfill';
+ * import '@okikio/dispose/polyfill';
+ * import * as context from '@okikio/context';
+ * import * as pool from '@okikio/pool';
+ * await using ctx = context.create({ id: 'connection-owner' });
+ * let opened = 0;
+ * await using connections = await pool.create({
+ *   ctx, maximum: 2, create: () => ({ id: ++opened }), close: () => {},
+ * });
+ * {
+ *   await using lease = await connections.acquire(ctx);
+ *   console.log(lease.value.id);
+ * }
+ * console.log(connections.stats().leased);
+ * ```
  *
  * @module
  */
@@ -143,6 +160,8 @@ class Runtime<Value> {
 	readonly #idle: Idle<Value>[] = [];
 	/** Values temporarily borrowed by live leases. */
 	readonly #leased = new Map<Value, LeaseState>();
+	/** Values in health, creation or close transitions still reserve capacity until ownership transfers. */
+	readonly #reserved = new Set<Value>();
 	/** FIFO acquisitions blocked because the pool cannot currently make progress. */
 	readonly #waiters: Waiter[] = [];
 	/** Cleanup failures retained so drain cannot falsely report successful shutdown. */
@@ -196,6 +215,7 @@ class Runtime<Value> {
 				} catch (error) {
 					await this.#discard(value, error);
 				}
+				this.#reserved.delete(value);
 				this.#idle.push({ value, returnedAt: this.#options.ctx.clock.now() });
 			}
 		} catch (error) {
@@ -218,7 +238,15 @@ class Runtime<Value> {
 
 				await this.#expire();
 				const reused = await this.#take();
-				if (reused !== undefined) return this.#lease(reused);
+				if (reused !== undefined) {
+					try {
+						this.#check(acquisition.ctx);
+						this.#admit();
+					} catch (error) {
+						await this.#discard(reused, error);
+					}
+					return this.#lease(reused);
+				}
 				if (this.#owned() < this.#limits.maximum) {
 					const value = await this.#create(acquisition.ctx);
 					try {
@@ -352,9 +380,9 @@ class Runtime<Value> {
 		throw new PoolUnavailableError(this.#state, this.#reason);
 	}
 
-	/** Count idle, leased, and in-flight-created values against the configured capacity. */
+	/** Count every owned value, including asynchronous health, return and close transitions. */
 	#owned(): number {
-		return this.#idle.length + this.#leased.size + this.#creating;
+		return this.#idle.length + this.#leased.size + this.#creating + this.#reserved.size;
 	}
 
 	/** Create one provider value while keeping drain aware of in-flight ownership. */
@@ -363,6 +391,7 @@ class Runtime<Value> {
 		this.#events.emit(Object.freeze({ type: 'creating' }));
 		try {
 			const value = await this.#options.create(ctx);
+			this.#reserved.add(value);
 			this.#events.emit(Object.freeze({ type: 'created' }));
 			return value;
 		} finally {
@@ -371,10 +400,11 @@ class Runtime<Value> {
 		}
 	}
 
-	/** Remove idle values from shared ownership until one passes the optional health check. */
+	/** Reserve each removed idle value against capacity until health checking transfers or closes it. */
 	async #take(): Promise<Value | undefined> {
 		while (this.#idle.length > 0) {
 			const entry = this.#idle.shift()!;
+			this.#reserved.add(entry.value);
 			if (await this.#healthy(entry.value)) return entry.value;
 			await this.#close(entry.value, 'Pool health check failed.');
 		}
@@ -385,6 +415,7 @@ class Runtime<Value> {
 	#lease(value: Value): Lease<Value> {
 		const acquiredAt = this.#options.ctx.clock.now();
 		const state: LeaseState = { invalid: false, released: false };
+		this.#reserved.delete(value);
 		this.#leased.set(value, state);
 		this.#events.emit(Object.freeze({ type: 'acquired', acquiredAt: acquiredAt.toString() }));
 
@@ -412,12 +443,16 @@ class Runtime<Value> {
 		if (lease.released) return;
 		lease.released = true;
 		this.#begin();
+		this.#reserved.add(value);
 		this.#leased.delete(value);
 		let reusable = false;
 		let releaseFailed = false;
 		let releaseFailure: unknown;
 		try {
 			reusable = !lease.invalid && this.#state === 'active' && await this.#healthy(value);
+			// Drain can begin while the provider checks health. A healthy value must
+			// still be closed when its owner has stopped admitting reusable values.
+			reusable = reusable && this.#state === 'active';
 			if (reusable && this.#idle.length < this.#limits.maximumIdle) {
 				this.#idle.push({ value, returnedAt: this.#options.ctx.clock.now() });
 			} else {
@@ -429,6 +464,7 @@ class Runtime<Value> {
 			releaseFailure = error;
 			this.#failures.push(error);
 		} finally {
+			this.#reserved.delete(value);
 			this.#events.emit(Object.freeze({ type: 'released', reusable }));
 			this.#wake();
 			this.#end();
@@ -451,7 +487,9 @@ class Runtime<Value> {
 		try {
 			await this.#options.close(value, reason);
 		} finally {
+			this.#reserved.delete(value);
 			this.#events.emit(Object.freeze({ type: 'closed-value', ...(reason === undefined ? {} : { reason }) }));
+			this.#wake();
 		}
 	}
 
@@ -477,6 +515,7 @@ class Runtime<Value> {
 				duration.compare(age, this.#limits.maximumIdleAge) >= 0 &&
 				this.#idle.length - expired.length > this.#limits.minimum
 			) {
+				this.#reserved.add(entry.value);
 				expired.push(entry.value);
 			} else {
 				retained.push(entry);
@@ -489,14 +528,13 @@ class Runtime<Value> {
 	/** Block one acquisition without transferring value ownership to the waiter. */
 	#wait(ctx: Context): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
-			let waiter!: Waiter;
 			const abort = () => {
 				const index = this.#waiters.indexOf(waiter);
 				if (index >= 0) this.#waiters.splice(index, 1);
 				reject(ctx.signal.reason ?? new context.ContextCancelledError());
 			};
 			const unlink = () => ctx.signal.removeEventListener('abort', abort);
-			waiter = { resolve, reject, unlink };
+			const waiter: Waiter = { resolve, reject, unlink };
 			if (ctx.signal.aborted) {
 				reject(ctx.signal.reason ?? new context.ContextCancelledError());
 				return;

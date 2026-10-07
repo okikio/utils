@@ -1,9 +1,21 @@
 /**
- * Local operation identity, cancellation, deadlines, tracing, time, and owned cleanup.
+ * Give nested work one cancellation signal, deadline, clock and cleanup owner. Passing separate signals and timers through every call otherwise makes it easy to outlive the caller or forget a temporary resource.
  *
- * A context does not schedule work or resolve declared capability resources.
- * An owned context does provide the standard explicit-resource-management
- * operations needed by code that creates live values during its lifetime.
+ * Start with create(), derive a child deadline for an expensive operation, and register cleanup on the context that owns it. Use view() or family scopes to attach capabilities without inventing a new lifetime. Snapshots carry identity and deadline across a transport; they do not carry resources or cancellation listeners. TestClock lets tests advance logical time without assuming a fast machine.
+ *
+ * @example
+ * ```ts
+ * import '@okikio/duration/polyfill';
+ * import '@okikio/dispose/polyfill';
+ * import * as context from '@okikio/context';
+ * const clock = new context.TestClock();
+ * await using parent = context.create({ id: 'import', clock });
+ * await using child = context.timeout(parent, { seconds: 2 });
+ * const waiting = context.wait(child, { seconds: 1 });
+ * clock.advance({ seconds: 1 });
+ * await waiting;
+ * console.log(context.remaining(child)?.milliseconds);
+ * ```
  *
  * @module
  */
@@ -16,8 +28,10 @@ const views = new WeakMap<object, Context>();
 
 /** Error raised when a context has been cancelled. */
 export class ContextCancelledError extends Error {
+	/** Caller or runtime reason retained for cancellation or failure diagnostics. */
 	readonly reason: unknown;
 
+	/** Create this ContextCancelledError from the explicit contract values supplied by its caller. */
 	constructor(reason: unknown = undefined) {
 		super('Context was cancelled.', reason === undefined ? undefined : { cause: reason });
 		this.name = 'ContextCancelledError';
@@ -27,9 +41,12 @@ export class ContextCancelledError extends Error {
 
 /** Error raised when a context deadline has elapsed. */
 export class ContextDeadlineExceededError extends Error {
+	/** Latest permitted completion instant; serialized contexts use ISO timestamp text. */
 	readonly deadline: Temporal.Instant;
+	/** Instant when this observation was recorded. */
 	readonly observedAt: Temporal.Instant;
 
+	/** Create this ContextDeadlineExceededError from the explicit contract values supplied by its caller. */
 	constructor(deadline: Temporal.Instant, observedAt: Temporal.Instant) {
 		super(`Context deadline ${deadline.toString()} was exceeded at ${observedAt.toString()}.`);
 		this.name = 'ContextDeadlineExceededError';
@@ -64,6 +81,7 @@ export class TestClock implements Clock {
 	#instant: Temporal.Instant;
 	readonly #waiters = new Set<TestClockWaiter>();
 
+	/** Create this TestClock from the explicit contract values supplied by its caller. */
 	constructor(initial: Temporal.Instant | string = '2000-01-01T00:00:00Z') {
 		this.#instant = toInstant(initial);
 	}
@@ -80,7 +98,6 @@ export class TestClock implements Clock {
 		if (milliseconds === 0) return Promise.resolve();
 		const target = this.#instant.add({ milliseconds });
 		return new Promise<void>((resolve, reject) => {
-			let waiter!: TestClockWaiter;
 			const settle = (action: () => void) => {
 				if (!this.#waiters.delete(waiter)) return;
 				if (waiter.signal !== undefined && waiter.abort !== undefined) {
@@ -89,7 +106,12 @@ export class TestClock implements Clock {
 				action();
 			};
 			const abort = signal === undefined ? undefined : () => settle(() => reject(abortReason(signal)));
-			waiter = Object.freeze({ target, resolve: () => settle(resolve), reject, ...(signal ? { signal, abort } : {}) });
+			const waiter: TestClockWaiter = Object.freeze({
+				target,
+				resolve: () => settle(resolve),
+				reject,
+				...(signal ? { signal, abort } : {}),
+			});
 			this.#waiters.add(waiter);
 			if (signal !== undefined && abort !== undefined) signal.addEventListener('abort', abort, { once: true });
 		});
@@ -130,24 +152,22 @@ export function create(options: CreateOptions): Owned {
 	let resolveClosed!: () => void;
 	const closed = new Promise<void>((resolve) => resolveClosed = resolve);
 	let disposal: Promise<void> | undefined;
+	let deadlineWait: Promise<void> | undefined;
 
 	if (options.deadline !== undefined) {
-		const milliseconds = millisecondsUntil(options.deadline, clock.now());
-		if (milliseconds <= 0) controller.abort(new ContextDeadlineExceededError(options.deadline, clock.now()));
-		else {
-			void clock.sleep(milliseconds, controller.signal).then(() => {
-				if (!controller.signal.aborted) {
-					controller.abort(new ContextDeadlineExceededError(options.deadline!, clock.now()));
-				}
-			}, () => {});
-		}
+		deadlineWait = waitForDeadline(options.deadline, clock, controller);
 	}
 
 	const dispose = (): Promise<void> => {
 		if (disposal !== undefined) return disposal;
 		unlinkParent();
 		if (!controller.signal.aborted) controller.abort(new ContextCancelledError('Context was disposed.'));
-		disposal = resources.disposeAsync().finally(resolveClosed);
+		disposal = resources.disposeAsync().finally(
+			deadlineWait === undefined ? resolveClosed : async () => {
+				await deadlineWait;
+				resolveClosed();
+			},
+		);
 		return disposal;
 	};
 
@@ -204,7 +224,22 @@ export function deadline(parent: Context, value: Temporal.Instant): Owned {
 	return child(parent, { deadline: value });
 }
 
-/** Derive a child with a relative timeout that cannot exceed its parent's deadline. */
+/**
+ * Start a deadline wait and return the owner of a child operation.
+ *
+ * Like a timer, the wait becomes due after the supplied duration. Its action is
+ * to abort the child's signal; this function does not run a callback or await
+ * work. Pass the signal to cooperative I/O and check it between synchronous
+ * steps. The inherited clock controls the wait, and an earlier parent deadline
+ * still wins.
+ *
+ * The returned `Owned` context needs `await using` or explicit awaited disposal.
+ * Disposal cancels the deadline wait, removes the parent listener, and releases
+ * child-owned resources. Deadline expiry alone does not dispose those resources,
+ * and disposing this child does not cancel its parent.
+ *
+ * @returns A child context immediately, not a Promise for the operation's value.
+ */
 export function timeout(parent: Context, duration: Temporal.DurationLike | string): Owned {
 	const value = parent.clock.now().add(Temporal.Duration.from(duration));
 	return deadline(parent, value);
@@ -429,9 +464,11 @@ export function combineSignals(signals: Iterable<AbortSignal | undefined>): Abor
 }
 
 /**
- * Links signal idempotently for the operation context.
+ * Forward a parent abort exactly once and return the listener removal function.
  *
- * Context internals own cancellation links, deadlines, timers, and clock behavior for one finite operation.
+ * A parent that is already aborted must cancel the child before it is returned.
+ * The child owner calls the returned function during cleanup, so the parent
+ * never retains a completed operation through this listener.
  *
  * @internal
  */
@@ -475,9 +512,37 @@ function durationMilliseconds(value: Temporal.Duration | Temporal.DurationLike |
 	return milliseconds;
 }
 
+/**
+ * Keep the absolute deadline authoritative across bounded clock waits.
+ * A long deadline can require several timer slices. Recheck after each slice
+ * rather than treating the timer limit as the deadline. Abort stops scheduling;
+ * disposal joins this waiter before reporting the owner closed.
+ * @internal
+ */
+async function waitForDeadline(deadline: Temporal.Instant, clock: Clock, controller: AbortController): Promise<void> {
+	try {
+		while (!controller.signal.aborted) {
+			const now = clock.now();
+			const milliseconds = millisecondsUntil(deadline, now);
+			if (milliseconds === 0) {
+				controller.abort(new ContextDeadlineExceededError(deadline, now));
+				return;
+			}
+			await clock.sleep(milliseconds, controller.signal);
+		}
+	} catch (error) {
+		// Cancellation settles the wait; an independent clock failure must not
+		// silently leave deadline-bound work active without a functioning timer.
+		if (!controller.signal.aborted) controller.abort(error);
+	}
+}
+
+/** Round future nanoseconds up to a bounded timer delay so a fractional millisecond cannot expire early. @internal */
 function millisecondsUntil(deadline: Temporal.Instant, now: Temporal.Instant): number {
-	const difference = deadline.epochMilliseconds - now.epochMilliseconds;
-	return Number.isFinite(difference) ? Math.max(0, Math.min(difference, 2_147_483_647)) : 0;
+	const difference = deadline.epochNanoseconds - now.epochNanoseconds;
+	if (difference <= 0n) return 0;
+	const milliseconds = (difference + 999_999n) / 1_000_000n;
+	return Number(milliseconds > 2_147_483_647n ? 2_147_483_647n : milliseconds);
 }
 
 /**

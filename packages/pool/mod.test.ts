@@ -211,9 +211,9 @@ describe('reusable value pool', () => {
 		await expect(
 			pool.create({ ctx: owner, minimum: 1, maximum: 1, maximumIdle: 0, create: () => ({}), close: () => {} }),
 		)
-			.rejects.toThrow('maximumIdle must not be less than minimum');
+			.rejects.toThrow(TypeError);
 		await expect(pool.create({ ctx: owner, maximum: 1, acquireTimeout: {}, create: () => ({}), close: () => {} }))
-			.rejects.toThrow('acquireTimeout must be positive');
+			.rejects.toThrow(TypeError);
 	});
 
 	it('does not finish drain while an in-flight creation is being rejected and closed', async () => {
@@ -250,6 +250,7 @@ describe('reusable value pool', () => {
 		await using owner = context.create({ id: 'pool-drain-health', clock: new context.TestClock() });
 		const healthStarted = deferred<void>();
 		const allowHealth = deferred<void>();
+		let closed = 0;
 		const values = await pool.create({
 			ctx: owner,
 			maximum: 1,
@@ -259,7 +260,9 @@ describe('reusable value pool', () => {
 				await allowHealth.promise;
 				return true;
 			},
-			close: () => {},
+			close: () => {
+				closed++;
+			},
 		});
 		const lease = await values.acquire(owner);
 		const releasing = lease[Symbol.asyncDispose]();
@@ -273,6 +276,73 @@ describe('reusable value pool', () => {
 		await releasing;
 		await draining;
 		expect(drained).toBe(true);
+		expect(closed).toBe(1);
+		expect(values.stats().idle).toBe(0);
 		await values[Symbol.asyncDispose]();
+	});
+});
+
+describe('pool capacity during ownership transitions', () => {
+	it('counts idle health checks toward maximum capacity', async () => {
+		await using owner = context.create({ id: 'health-capacity' });
+		const checking = deferred();
+		const gate = deferred<boolean>();
+		let created = 0;
+		await using values = await pool.create({
+			ctx: owner,
+			minimum: 1,
+			maximum: 1,
+			create: () => ({ id: ++created }),
+			close: () => {},
+			check: () => {
+				checking.resolve();
+				return gate.promise;
+			},
+		});
+		const first = values.acquire(owner);
+		await checking.promise;
+		const second = values.acquire(owner);
+		expect(values.stats().waiting).toBe(1);
+		expect(created).toBe(1);
+		gate.resolve(true);
+		const lease = await first;
+		expect(created).toBe(1);
+		await lease[Symbol.asyncDispose]();
+		await using next = await second;
+		expect(next.value.id).toBe(1);
+		expect(created).toBe(1);
+	});
+
+	it('rechecks cancellation after an idle health check before granting its lease', async () => {
+		await using owner = context.create({ id: 'cancel-health-owner' });
+		await using caller = context.child(owner);
+		const checking = deferred();
+		const gate = deferred<boolean>();
+		let closed = 0;
+		await using values = await pool.create({
+			ctx: owner,
+			minimum: 1,
+			maximum: 1,
+			create: () => ({}),
+			close: () => {
+				closed++;
+			},
+			check: () => {
+				checking.resolve();
+				return gate.promise;
+			},
+		});
+		const pending = values.acquire(caller);
+		await checking.promise;
+		const waiting = values.acquire(owner);
+		expect(values.stats().waiting).toBe(1);
+		context.cancel(caller, 'caller stopped');
+		gate.resolve(true);
+		await expect(pending).rejects.toBe('caller stopped');
+		expect(closed).toBe(1);
+		await using replacement = await waiting;
+		expect(replacement.invalid).toBe(false);
+		expect(values.stats().leased).toBe(1);
+		expect(values.stats().waiting).toBe(0);
 	});
 });

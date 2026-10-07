@@ -1,15 +1,23 @@
 /**
- * Bounded diagnostic projection for arbitrary runtime faults.
+ * Project unexpected errors into bounded diagnostics without retaining the live object or invoking user getters. JSON.stringify(Error) usually drops the message; arbitrary coercion can execute application code.
  *
- * The utility converts unknown thrown values to cloneable JSON-safe data. It is
- * intentionally separate from `@okikio/failure`, whose definitions represent
- * expected domain failures with stable durable identity.
+ * Use encode() for Worker fault frames or structured telemetry, and message() for a bounded display string. Choose explicit depth, entry and string limits for untrusted objects. Native inherited error names survive projection; accessor-backed properties become markers. Stack inclusion defaults to true and can be disabled and custom stack formatting is excluded. Bounded output still needs application-specific redaction.
+ *
+ * @example
+ * ```ts
+ * import * as fault from '@okikio/fault';
+ * const error = new TypeError('Provider returned an invalid value.');
+ * console.log(JSON.stringify(fault.encode(error, { includeStack: false })));
+ * ```
  *
  * @module
  */
 import * as record from '@okikio/record';
 
 import type { FaultValue, Options } from './types.ts';
+
+/** Trusted engine accessor used only after excluding custom stack formatting. */
+const nativeStackGetter = Object.getOwnPropertyDescriptor(new Error(), 'stack')?.get;
 
 /** Normalized internal limits used by one fault projection. @internal */
 interface Limits {
@@ -94,10 +102,10 @@ function visit(value: unknown, depth: number, path: WeakSet<object>, limits: Lim
 function errorValue(value: Error, depth: number, path: WeakSet<object>, limits: Limits): FaultValue {
 	const descriptors = Object.getOwnPropertyDescriptors(value);
 	const output: Record<string, FaultValue> = Object.create(null);
-	output.name = stringDescriptor(descriptors.name) ?? 'Error';
+	output.name = errorName(value);
 	output.message = text(stringDescriptor(descriptors.message) ?? '', limits.maximumStringLength);
 	if (limits.includeStack) {
-		const stack = stringDescriptor(descriptors.stack);
+		const stack = stringDescriptor(descriptors.stack) ?? nativeStack(value, descriptors);
 		if (stack !== undefined) output.stack = text(stack, limits.maximumStringLength);
 	}
 	const cause = dataDescriptor(descriptors.cause);
@@ -110,6 +118,31 @@ function errorValue(value: Error, depth: number, path: WeakSet<object>, limits: 
 		output[key] = 'value' in descriptor ? visit(descriptor.value, depth + 1, path, limits) : marker('accessor');
 	}
 	return Object.freeze(output);
+}
+
+/** Preserve inherited native Error names without evaluating overridden getters. @internal */
+function errorName(value: Error): string {
+	for (let current: object | null = value; current !== null; current = Object.getPrototypeOf(current)) {
+		const descriptor = Object.getOwnPropertyDescriptor(current, 'name');
+		if (descriptor !== undefined) return stringDescriptor(descriptor) ?? 'Error';
+	}
+	return 'Error';
+}
+
+/** Read only the runtime's own lazy stack, with custom formatting hooks excluded. @internal */
+function nativeStack(value: Error, descriptors: PropertyDescriptorMap): string | undefined {
+	if (!nativeStackGetter || descriptors.stack?.get !== nativeStackGetter) return undefined;
+	// Formatting a native stack can consult name/message and Error.prepareStackTrace.
+	// Reject those customization points before asking the runtime to format it.
+	if (Object.getOwnPropertyDescriptor(Error, 'prepareStackTrace') !== undefined) return undefined;
+	for (let current: object | null = value; current !== null; current = Object.getPrototypeOf(current)) {
+		for (const name of ['name', 'message']) {
+			const descriptor = Object.getOwnPropertyDescriptor(current, name);
+			if (descriptor && (!('value' in descriptor) || typeof descriptor.value !== 'string')) return undefined;
+		}
+	}
+	const stack: unknown = Reflect.apply(nativeStackGetter, value, []);
+	return typeof stack === 'string' ? stack : undefined;
 }
 
 /** Project an array through own element descriptors so accessors are never invoked. @internal */

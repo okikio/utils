@@ -1,9 +1,21 @@
 /**
- * Process-local Task lifecycle with cancellation, cooperative pause, and cleanup.
+ * Control one process-local operation with cooperative pause, cancellation and joined cleanup. A Promise alone cannot request a pause or communicate whether cancellation and resource disposal have finished.
  *
- * A Task is not a workflow run, activity job, queue item, process, or Worker.
- * Durable systems can create several Tasks while retrying or replaying the same
- * durable identity.
+ * Add checkpoints between indivisible provider calls so pause requests have a place to take effect. Pass the context signal into I/O for cancellation. done owns the terminal value and cleanup failure; disposal joins pending cleanup. A task is one local lifetime, while a workflow can create many tasks during retries or replay. Do not use a task status as evidence of durable external acceptance.
+ *
+ * @example
+ * ```ts
+ * import '@okikio/duration/polyfill';
+ * import '@okikio/dispose/polyfill';
+ * import * as task from '@okikio/task';
+ * const cleanup: string[] = [];
+ * await using work = task.start(async (ctx) => {
+ *   ctx.defer(() => { cleanup.push('released'); });
+ *   await ctx.checkpoint();
+ *   return 42;
+ * }, { id: 'local-operation' });
+ * console.log(await work.done, work.status, cleanup.join(','));
+ * ```
  *
  * @module
  */
@@ -70,32 +82,32 @@ export function start<Value, Allowed extends ResourceDefinition = never>(
 		},
 	}) as TaskContext<Allowed>;
 
-	let primary: unknown;
 	const done = (async () => {
+		let value!: Value;
+		let workFailed = false;
+		let workError: unknown;
 		try {
 			await taskCtx.checkpoint();
-			const value = await run(taskCtx);
+			value = await run(taskCtx);
 			context.check(owner);
-			status = 'completed';
-			return value;
 		} catch (error) {
-			primary = error;
+			workFailed = true;
+			workError = error;
 			status = owner.signal.aborted ? 'cancelled' : 'failed';
-			throw error;
-		} finally {
-			terminal = true;
-			observed.resolve();
-			resumed.resolve();
-			try {
-				await owner[Symbol.asyncDispose]();
-			} catch (cleanup) {
-				status = 'failed';
-				if (primary !== undefined) {
-					throw new SuppressedError(cleanup, primary, 'Task work failed and cleanup also failed.');
-				}
-				throw cleanup;
-			}
 		}
+		terminal = true;
+		observed.resolve();
+		resumed.resolve();
+		try {
+			await owner[Symbol.asyncDispose]();
+		} catch (cleanup) {
+			status = 'failed';
+			if (workFailed) throw new SuppressedError(cleanup, workError, 'Task work failed and cleanup also failed.');
+			throw cleanup;
+		}
+		if (workFailed) throw workError;
+		status = 'completed';
+		return value;
 	})();
 
 	return Object.freeze({
@@ -121,7 +133,12 @@ export function start<Value, Allowed extends ResourceDefinition = never>(
 			status = 'running';
 		},
 		async cancel(reason?: unknown) {
-			if (terminal) return;
+			if (terminal) {
+				try {
+					await done;
+				} catch { /* done owns the result and cleanup failure. */ }
+				return;
+			}
 			status = 'cancelling';
 			pauseRequested = false;
 			resumed.resolve();

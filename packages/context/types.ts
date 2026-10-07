@@ -15,10 +15,15 @@ export interface Clock {
 export interface Snapshot {
 	/** Stable identity of the operation represented by this context. */
 	readonly id: string;
+	/** Optional trace correlation identity; it does not authorize the operation. */
 	readonly traceId?: string;
+	/** Optional host deployment identity carried with the operation. */
 	readonly deploymentId?: string;
+	/** Caller-owned identity for repeated work; a receiving provider must enforce its idempotency policy. */
 	readonly idempotencyKey?: string;
+	/** Start instant captured by the owning clock, or its serialized ISO timestamp. */
 	readonly startedAt: string;
+	/** Latest permitted completion instant; serialized contexts use ISO timestamp text. */
 	readonly deadline?: string;
 }
 
@@ -33,12 +38,19 @@ export interface Snapshot {
 export interface Context {
 	/** Stable identity of the operation represented by this context. */
 	readonly id: string;
+	/** Optional trace correlation identity; it does not authorize the operation. */
 	readonly traceId?: string;
+	/** Optional host deployment identity carried with the operation. */
 	readonly deploymentId?: string;
+	/** Caller-owned identity for repeated work; a receiving provider must enforce its idempotency policy. */
 	readonly idempotencyKey?: string;
+	/** Start instant captured by the owning clock, or its serialized ISO timestamp. */
 	readonly startedAt: Temporal.Instant;
+	/** Latest permitted completion instant; serialized contexts use ISO timestamp text. */
 	readonly deadline?: Temporal.Instant | undefined;
+	/** Cancellation signal supplied by the operation lifetime owner. */
 	readonly signal: AbortSignal;
+	/** Clock used for operation time and waits; tests can supply a logical clock. */
 	readonly clock: Clock;
 }
 
@@ -62,12 +74,19 @@ export interface Owned extends Context, Resources, AsyncDisposable {
 export interface CreateOptions {
 	/** Stable identity of the operation represented by the new context. */
 	readonly id: string;
+	/** Optional trace correlation identity; it does not authorize the operation. */
 	readonly traceId?: string;
+	/** Optional host deployment identity carried with the operation. */
 	readonly deploymentId?: string;
+	/** Caller-owned identity for repeated work; a receiving provider must enforce its idempotency policy. */
 	readonly idempotencyKey?: string;
+	/** Start instant captured by the owning clock, or its serialized ISO timestamp. */
 	readonly startedAt?: Temporal.Instant;
+	/** Latest permitted completion instant; serialized contexts use ISO timestamp text. */
 	readonly deadline?: Temporal.Instant;
+	/** Cancellation signal supplied by the operation lifetime owner. */
 	readonly signal?: AbortSignal;
+	/** Clock used for operation time and waits; tests can supply a logical clock. */
 	readonly clock?: Clock;
 }
 
@@ -79,6 +98,8 @@ export interface ChildOptions extends Partial<Omit<CreateOptions, 'startedAt'>> 
 
 /** Inputs accepted while restoring a serializable snapshot. */
 export interface RestoreOptions {
+	/** Cancellation signal supplied by the operation lifetime owner. */
 	readonly signal?: AbortSignal;
+	/** Clock used for operation time and waits; tests can supply a logical clock. */
 	readonly clock?: Clock;
 }

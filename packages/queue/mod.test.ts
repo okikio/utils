@@ -67,7 +67,7 @@ describe('memory queue', () => {
 		const second = await jobs.add(ctx, 'second');
 		const claims = await jobs.claim(ctx, { ref: second, owner: 'scheduler', limit: 1, duration: { seconds: 30 } });
 		expect(claims.map((claim) => claim.value)).toEqual(['second']);
-		await expect(jobs.claim(ctx, { ref: first, owner: 'scheduler', limit: 2 })).rejects.toThrow('limit must be 1');
+		await expect(jobs.claim(ctx, { ref: first, owner: 'scheduler', limit: 2 })).rejects.toThrow(TypeError);
 		await jobs.complete(ctx, claims[0]!, 'done');
 		expect((await jobs.claim(ctx))[0]?.value).toBe('first');
 	});
@@ -187,18 +187,59 @@ describe('memory queue', () => {
 		expect(recovered[0]?.attempt).toBe(2);
 	});
 
+	it('suspends fractional availability and expiry waits instead of spinning within one clock millisecond', async () => {
+		const logical = new context.TestClock('2026-08-05T00:00:00.000100Z');
+		const waits: number[] = [];
+		const clock: context.Clock = {
+			now: () => logical.now(),
+			sleep: (milliseconds, signal) => {
+				waits.push(milliseconds);
+				return logical.sleep(milliseconds, signal);
+			},
+		};
+		const controller = new AbortController();
+		await using ctx = context.create({ id: 'queue-fractional-wake', clock, signal: controller.signal });
+		await using jobs = queue.memory<string, string>({ clock, id: ids('item', 'first-claim', 'recovery-claim') });
+		const ref = await jobs.add(ctx, 'delayed', { availableAt: clock.now().add({ nanoseconds: 1 }) });
+		const available = jobs.wait(ctx, ref);
+		const claimed = jobs.claim(ctx, { ref, wait: true, duration: { nanoseconds: 1 } });
+		const readiness = Promise.allSettled([available, claimed]);
+		let recoveryFinished: Promise<unknown> | undefined;
+		try {
+			expect(waits.length).toBeGreaterThan(0);
+			expect(waits.every((milliseconds) => milliseconds > 0 && milliseconds <= 2_147_483_647)).toBe(true);
+			expect(await jobs.claim(ctx, { ref })).toEqual([]);
+			logical.advance({ milliseconds: 1 });
+			expect(await available).toBe('claimable');
+			const first = (await claimed)[0]!;
+			expect(first.value).toBe('delayed');
+			const recovery = jobs.claim(ctx, { ref, wait: true, owner: 'recovery' });
+			recoveryFinished = Promise.allSettled([recovery]);
+			expect(waits.every((milliseconds) => milliseconds > 0 && milliseconds <= 2_147_483_647)).toBe(true);
+			logical.advance({ milliseconds: 1 });
+			const recovered = (await recovery)[0]!;
+			expect(recovered.itemId).toBe(first.itemId);
+			expect(recovered.attempt).toBe(2);
+			await jobs.complete(ctx, recovered, 'done');
+		} finally {
+			controller.abort('fractional wait test finished');
+			await readiness;
+			await recoveryFinished;
+		}
+	});
+
 	it('rejects invalid claim and retry timing instead of creating immediately stale ownership', async () => {
 		await using ctx = context.create({ id: 'queue-invalid-duration', clock: new context.TestClock() });
 		expect(() => queue.memory<string, string>({ defaultClaimDuration: {} })).toThrow(
-			'default claim duration must be positive',
+			TypeError,
 		);
 		await using jobs = queue.memory<string, string>({ id: ids('item', 'claim') });
 		await jobs.add(ctx, 'value');
-		await expect(jobs.claim(ctx, { duration: {} })).rejects.toThrow('claim duration must be positive');
+		await expect(jobs.claim(ctx, { duration: {} })).rejects.toThrow(TypeError);
 		const claim = (await jobs.claim(ctx))[0]!;
-		await expect(jobs.renew(ctx, claim, {})).rejects.toThrow('claim renewal duration must be positive');
+		await expect(jobs.renew(ctx, claim, {})).rejects.toThrow(TypeError);
 		await expect(jobs.retry(ctx, claim, { delay: { seconds: 1 }, availableAt: ctx.clock.now() })).rejects.toThrow(
-			'either availableAt or delay',
+			TypeError,
 		);
 	});
 

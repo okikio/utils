@@ -1,21 +1,23 @@
 /**
- * Queue contracts for claimed work and a process-local queue.
+ * Give queued work an expiring claim and fenced completion. Removing an item from an array loses it when a worker dies; leaving it in place without a claim permits concurrent duplicate ownership.
  *
- * A plain queue often does two things: add work and remove work.
- * Claimed work needs more rules.
+ * Start with FIFO convenience for a small local producer, then use explicit claims for multiple executors, priority or expiry recovery. Renewal extends an attempt; completion must present the exact live claim. Expired claims can be recovered and stale owners cannot replace the result. memory() loses all state when the process exits. A storage adapter must make admission, claiming and fenced completion atomic for durable or distributed work.
  *
- * The queue keeps the item after admission.
- * A worker receives a claim with an owner and an expiry time.
- * Later calls such as `complete()`, `retry()`, `fail()`, `renew()`, and
- * `cancel()` must still present the live claim.
- *
- * The extra state blocks stale work.
- * If one worker loses a lease and another worker claims the same item, the
- * older worker cannot write a late result over the newer attempt.
- *
- * Durable adapters belong in concrete packages.
- * The process-local queue keeps the same ownership, expiry, retry, result, and
- * cancellation rules so tests and local compositions can use the same model.
+ * @example
+ * ```ts
+ * import '@okikio/duration/polyfill';
+ * import '@okikio/dispose/polyfill';
+ * import * as context from '@okikio/context';
+ * import * as queue from '@okikio/queue';
+ * const clock = new context.TestClock();
+ * await using ctx = context.create({ id: 'queue-owner', clock });
+ * await using jobs = queue.memory<string, string>({ clock });
+ * const ref = await jobs.add(ctx, 'resize asset');
+ * const [claim] = await jobs.claim(ctx, { owner: 'worker-a', duration: { seconds: 30 } });
+ * if (claim === undefined) throw new Error('No work was available.');
+ * await jobs.complete(ctx, claim, claim.value.toUpperCase());
+ * console.log(await jobs.result(ctx, ref));
+ * ```
  *
  * @module
  */
@@ -628,7 +630,6 @@ function waitForChange(
 	delayMilliseconds?: number,
 ): Promise<void> {
 	return new Promise<void>((resolve, reject) => {
-		let waiter!: Waiter;
 		const timer = delayMilliseconds === undefined ? undefined : new AbortController();
 		const unlink = () => {
 			ctx.signal.removeEventListener('abort', abort);
@@ -640,7 +641,7 @@ function waitForChange(
 			action();
 		};
 		const abort = () => settle(() => reject(ctx.signal.reason ?? new context.ContextCancelledError()));
-		waiter = { resolve, reject, unlink };
+		const waiter: Waiter = { resolve, reject, unlink };
 		if (ctx.signal.aborted) {
 			reject(ctx.signal.reason ?? new context.ContextCancelledError());
 			return;
@@ -805,11 +806,15 @@ function getDuration(value: Temporal.Duration | Temporal.DurationLike | string, 
  *
  * The upper bound matches the supported `Clock.sleep()` range.
  * Delayed work and claim expiry can then schedule safe wake-ups.
+ * Future fractional milliseconds round up so a pending item cannot spin on zero-delay waits.
  *
  * @internal
  */
 function millisecondsUntil(instant: Temporal.Instant, now: Temporal.Instant): number {
-	return Math.max(0, Math.min(instant.epochMilliseconds - now.epochMilliseconds, 2_147_483_647));
+	const difference = instant.epochNanoseconds - now.epochNanoseconds;
+	if (difference <= 0n) return 0;
+	const milliseconds = (difference + 999_999n) / 1_000_000n;
+	return Number(milliseconds > 2_147_483_647n ? 2_147_483_647n : milliseconds);
 }
 
 export type {
