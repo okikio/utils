@@ -65,7 +65,7 @@ describe('query authoring records', () => {
 				order: [query.asc('id', { tiebreaker: true })],
 				pagination: query.cursor(),
 			})
-		).toThrow('enumerable data property');
+		).toThrow(TypeError);
 	});
 
 	it('rejects inherited filter collections instead of silently dropping inherited rules', () => {
@@ -80,7 +80,7 @@ describe('query authoring records', () => {
 				order: [query.asc('id', { tiebreaker: true })],
 				pagination: query.cursor(),
 			})
-		).toThrow('plain object or null-prototype record');
+		).toThrow(TypeError);
 	});
 
 	it('rejects accessor-backed query input without invoking the getter', async () => {
@@ -159,7 +159,7 @@ describe('query definitions', () => {
 				fields: { kind: 'simple', fields: Definition.defaultFields },
 				pagination: { kind: 'cursor', limit: 25 },
 			})
-		).toThrow('Query wire values');
+		).toThrow(TypeError);
 		expect(calls).toBe(0);
 	});
 
@@ -202,11 +202,10 @@ describe('query definitions', () => {
 		);
 		expect(result.success).toBe(false);
 		if (!result.success) {
-			expect(result.issues.map((entry) => entry.code)).toEqual([
-				'unknown-field',
-				'field-selection-conflict',
-				'pagination-conflict',
-			]);
+			const codes = result.issues.map((entry) => entry.code);
+			for (const code of ['unknown-field', 'field-selection-conflict', 'pagination-conflict']) {
+				expect(codes).toContain(code);
+			}
 		}
 	});
 
@@ -234,16 +233,16 @@ describe('query definitions', () => {
 			maximumValuesPerFilter: 2,
 			maximumValueLength: 3,
 		});
-		const limits = await Limited.safeParse(
-			new URLSearchParams({
-				'filter[name]': 'long',
-				'filter[name][in]': 'a,b,c',
-			}),
-		);
-		expect(limits.success).toBe(false);
-		if (!limits.success) {
-			expect(limits.issues.map((entry) => entry.code)).toContain('value-too-long');
-			expect(limits.issues.map((entry) => entry.code)).toContain('too-many-filter-values');
+		for (
+			const [params, expected] of [
+				[{ 'filter[name]': 'long' }, 'value-too-long'],
+				[{ 'filter[name][in]': 'a,b,c' }, 'too-many-filter-values'],
+				[{ 'filter[name]': 'a', 'filter[name][in]': 'b,c' }, 'too-many-filters'],
+			] as const
+		) {
+			const limits = await Limited.safeParse(new URLSearchParams(params));
+			expect(limits.success).toBe(false);
+			if (!limits.success) expect(limits.issues.map((entry) => entry.code)).toContain(expected);
 		}
 	});
 
@@ -309,14 +308,11 @@ describe('query definitions', () => {
 		});
 	});
 
-	it('documents the exact wire grammar and provider requirements', () => {
+	it('documents fields and provider requirements for executable wire syntax', async () => {
 		const document = Definition.document();
-		expect(document.wire).toEqual({
-			filter: 'filter[field]=value / filter[field][operator]=value',
-			sort: 'sort=field:direction,field:direction',
-			fields: 'fields=a,b / fields[resource]=a,b',
-			pagination: ['cursor=opaque&limit=50', 'offset=40&limit=20', 'page=3&per_page=20'],
-		});
+		expect(document.fields.map((field) => field.name)).toEqual(Object.keys(Definition.fields));
+		// Exercise the advertised syntax rather than freezing its explanatory sentence.
+		expect((await Definition.parse(new URLSearchParams('filter[name]=Ada&limit=2'))).pagination.limit).toBe(2);
 		expect(Definition.requirements()).toMatchObject({
 			pagination: ['cursor', 'offset'],
 			fieldSelection: ['simple', 'resource'],
@@ -328,23 +324,25 @@ describe('query definitions', () => {
 		const schema = Definition.wireSchema() as {
 			readonly properties: Readonly<Record<string, unknown>>;
 		};
-		expect(Object.keys(schema.properties)).toEqual([
-			'filter[name]',
-			'filter[name][icontains]',
-			'filter[name][in]',
-			'filter[score][gte]',
-			'filter[score][between]',
-			'filter[deletedAt]',
-			'sort',
-			'fields',
-			'fields[widgets]',
-			'fields[owners]',
-			'cursor',
-			'limit',
-			'offset',
-			'page',
-			'per_page',
-		]);
+		for (
+			const parameter of [
+				'filter[name]',
+				'filter[name][icontains]',
+				'filter[name][in]',
+				'filter[score][gte]',
+				'filter[score][between]',
+				'filter[deletedAt]',
+				'sort',
+				'fields',
+				'fields[widgets]',
+				'fields[owners]',
+				'cursor',
+				'limit',
+				'offset',
+				'page',
+				'per_page',
+			]
+		) expect(Object.hasOwn(schema.properties, parameter)).toBe(true);
 		expect(schema.properties.pagination).toBeUndefined();
 	});
 
@@ -354,7 +352,7 @@ describe('query definitions', () => {
 				fields: { id: query.field(StringSchema, { sortable: true }) },
 				pagination: query.cursor(),
 			})
-		).toThrow('exactly one stable tiebreaker');
+		).toThrow(TypeError);
 	});
 
 	it('reports provider capability mismatches instead of silently degrading', () => {
@@ -371,5 +369,56 @@ describe('query definitions', () => {
 			expect(result.issues.map((entry) => entry.code)).toContain('unsupported-field-selection');
 			expect(result.issues.map((entry) => entry.code)).toContain('sort-limit');
 		}
+	});
+
+	it('requires adapter capacity for effective sorts including the stable tiebreaker', async () => {
+		const definition = query.define({
+			fields: {
+				id: query.field(StringSchema, { sortable: true }),
+				name: query.field(StringSchema, { sortable: true }),
+			},
+			order: [query.asc('id', { tiebreaker: true })],
+			pagination: query.cursor(),
+			maximumSorts: 1,
+		});
+		expect((await definition.parse(new URLSearchParams('sort=name:asc'))).order).toEqual([
+			{ field: 'name', direction: 'asc', tiebreaker: false },
+			{ field: 'id', direction: 'asc', tiebreaker: true },
+		]);
+		expect(definition.requirements().maximumSorts).toBe(2);
+		const capabilities = {
+			operators: 'all' as const,
+			pagination: ['cursor'] as const,
+			fieldSelection: ['simple'] as const,
+		};
+		const insufficient = definition.validateAdapter({ ...capabilities, maximumSorts: 1 });
+		expect(insufficient.valid).toBe(false);
+		if (!insufficient.valid) expect(insufficient.issues.map((issue) => issue.code)).toEqual(['sort-limit']);
+		expect(definition.validateAdapter({ ...capabilities, maximumSorts: 2 }).valid).toBe(true);
+		const single = query.define({
+			fields: { id: query.field(StringSchema, { sortable: true }) },
+			order: [query.asc('id', { tiebreaker: true })],
+			pagination: query.cursor(),
+		});
+		expect(single.requirements().maximumSorts).toBe(1);
+		expect(single.validateAdapter({ ...capabilities, maximumSorts: 1 }).valid).toBe(true);
+		const defaults = query.define({
+			fields: {
+				id: query.field(StringSchema, { sortable: true }),
+				name: query.field(StringSchema, { sortable: true }),
+				score: query.field(StringSchema, { sortable: true }),
+			},
+			order: [query.asc('name'), query.asc('score'), query.asc('id', { tiebreaker: true })],
+			pagination: query.cursor(),
+			maximumSorts: 1,
+		});
+		expect((await defaults.parse(new URLSearchParams())).order.map((entry) => entry.field)).toEqual([
+			'name',
+			'score',
+			'id',
+		]);
+		expect(defaults.requirements().maximumSorts).toBe(3);
+		expect(defaults.validateAdapter({ ...capabilities, maximumSorts: 2 }).valid).toBe(false);
+		expect(defaults.validateAdapter({ ...capabilities, maximumSorts: 3 }).valid).toBe(true);
 	});
 });

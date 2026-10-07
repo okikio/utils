@@ -32,7 +32,7 @@ const Definition = query.define({
 	defaultFields: ['id', 'score'],
 });
 
-if (false) {
+async function compileConsumer(): Promise<void> {
 	const value = await Definition.parse(new URLSearchParams({ 'filter[score][gte]': '10' }));
 	const field: 'id' | 'score' = value.order[0]!.field;
 	void field;
@@ -54,3 +54,5 @@ if (false) {
 		defaultFields: ['missing'],
 	});
 }
+
+void compileConsumer;
