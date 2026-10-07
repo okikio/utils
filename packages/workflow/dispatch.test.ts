@@ -4,7 +4,6 @@ import { describe, it } from 'node:test';
 import * as context from '@okikio/context';
 import * as dispatch from './dispatch.ts';
 import type {
-	ActivityDispatch,
 	ActivityJobResultType,
 	ActivityJobType,
 	EngineChoiceModeType,
@@ -55,7 +54,147 @@ function success(value: WorkflowDurableValue): ActivityJobResultType {
 	);
 }
 
+/** Track real TestClock ownership and publish registrations without polling microtasks. */
+function trackedClock() {
+	const time = new context.TestClock();
+	const active = new Set<object>();
+	const registrations: number[] = [];
+	const readers: ((milliseconds: number) => void)[] = [];
+	const clock: context.Clock = {
+		now: () => time.now(),
+		sleep(milliseconds, signal) {
+			const token = {};
+			active.add(token);
+			const reader = readers.shift();
+			if (reader === undefined) registrations.push(milliseconds);
+			else reader(milliseconds);
+			try {
+				return time.sleep(milliseconds, signal).finally(() => active.delete(token));
+			} catch (error) {
+				active.delete(token);
+				throw error;
+			}
+		},
+	};
+	return {
+		clock,
+		time,
+		active: () => active.size,
+		nextSleep: () => {
+			const registered = registrations.shift();
+			return registered === undefined
+				? new Promise<number>((resolve) => readers.push(resolve))
+				: Promise.resolve(registered);
+		},
+	};
+}
+
 describe('activity dispatch memory contract', () => {
+	for (const action of ['complete', 'cancel', 'close', 'abort'] as const) {
+		it(`releases a watched claim's timer after ${action} without canceling borrowed ownership`, async () => {
+			const tracked = trackedClock();
+			await using ctx = context.create({ id: `dispatch-wait-cleanup-${action}`, clock: tracked.clock });
+			await using store = dispatch.memory({ clock: tracked.clock });
+			const executor = await store.join(ctx, host('engine', 'host'));
+			const ref = await store.add(ctx, item(ctx, 'watched', [{ engine: 'engine', mode: 'required' }]), {
+				key: 'watched',
+			});
+			const claim = (await store.claim(ctx, executor, { duration: { seconds: 5 } }))[0]!;
+			const waiting = store.watch(ctx, claim);
+			const terminal = Promise.allSettled([waiting]);
+			try {
+				expect(await tracked.nextSleep()).toBeGreaterThan(0);
+				expect(tracked.active()).toBeGreaterThan(0);
+				if (action === 'complete') await store.complete(ctx, claim, success('finished'));
+				else if (action === 'cancel') await store.cancel(ctx, ref);
+				else if (action === 'close') await store.close('Dispatch owner finished.');
+				else context.cancel(ctx, 'Caller canceled.');
+				const result = (await terminal)[0]!;
+				if (action === 'complete' || action === 'cancel') {
+					expect(result.status).toBe('fulfilled');
+					if (result.status === 'fulfilled') expect(result.value).toBe(action === 'complete' ? 'lost' : 'cancelled');
+				} else {
+					expect(result.status).toBe('rejected');
+					if (result.status === 'rejected') {
+						if (action === 'close') expect(result.reason).toBeInstanceOf(dispatch.DispatchClosedError);
+						else expect(result.reason).toBe(ctx.signal.reason);
+					}
+				}
+				expect(tracked.active()).toBe(0);
+				expect(ctx.signal.aborted).toBe(action === 'abort');
+			} finally {
+				await store.close('Wait cleanup fixture finished.');
+				await terminal;
+			}
+		});
+	}
+
+	it('cancels a replaced claim-wait timer when an executor mutation admits work', async () => {
+		const tracked = trackedClock();
+		await using ctx = context.create({ id: 'dispatch-capacity-wake-cleanup', clock: tracked.clock });
+		await using store = dispatch.memory({ clock: tracked.clock });
+		const executor = await store.join(ctx, host('engine', 'host'));
+		await store.add(ctx, item(ctx, 'first', [{ engine: 'engine', mode: 'required' }]), { key: 'first' });
+		const first = (await store.claim(ctx, executor, { duration: { seconds: 5 } }))[0]!;
+		await store.add(ctx, item(ctx, 'second', [{ engine: 'engine', mode: 'required' }]), { key: 'second' });
+		const waiting = store.claim(ctx, executor, { duration: { seconds: 5 }, wait: true });
+		const terminal = Promise.allSettled([waiting]);
+		try {
+			expect(await tracked.nextSleep()).toBeGreaterThan(0);
+			await store.resize(ctx, executor, 2);
+			const claims = await waiting;
+			expect(claims.map((claim) => claim.value.input)).toEqual(['second']);
+			expect(tracked.active()).toBe(0);
+			expect(ctx.signal.aborted).toBe(false);
+			await store.complete(ctx, first, success('first'));
+			await store.complete(ctx, claims[0]!, success('second'));
+		} finally {
+			await store.close('Capacity wake fixture finished.');
+			await terminal;
+		}
+	});
+
+	it('waits through bounded long retry slices and rechecks actual availability', async () => {
+		const tracked = trackedClock();
+		await using ctx = context.create({ id: 'dispatch-long-retry', clock: tracked.clock });
+		await using store = dispatch.memory({ clock: tracked.clock });
+		const executor = await store.join(ctx, host('engine', 'host'));
+		await store.add(ctx, item(ctx, 'long-retry', [{ engine: 'engine', mode: 'required' }]), { key: 'long-retry' });
+		const first = (await store.claim(ctx, executor, { duration: { seconds: 5 } }))[0]!;
+		const availableAt = tracked.time.now().add({ milliseconds: 2 * 2_147_483_647 + 5 });
+		await store.retry(ctx, first, { delay: { milliseconds: 2 * 2_147_483_647 + 5 } });
+		const waiting = store.claim(ctx, executor, { duration: { seconds: 5 }, wait: true });
+		const terminal = Promise.allSettled([waiting]);
+		try {
+			let milliseconds = await tracked.nextSleep();
+			for (let slice = 0; slice < 2; slice += 1) {
+				expect(milliseconds).toBeGreaterThan(0);
+				expect(milliseconds).toBeLessThanOrEqual(2_147_483_647);
+				const next = tracked.nextSleep();
+				tracked.time.advance({ milliseconds });
+				const outcome = await Promise.race([
+					next.then((delay) => ({ kind: 'sleep' as const, delay })),
+					waiting.then(() => ({ kind: 'premature' as const })),
+				]);
+				expect(outcome.kind).toBe('sleep');
+				if (outcome.kind !== 'sleep') throw new Error('Retry was claimed before its availability boundary.');
+				milliseconds = outcome.delay;
+			}
+			expect(milliseconds).toBeGreaterThan(0);
+			expect(milliseconds).toBeLessThanOrEqual(2_147_483_647);
+			expect(tracked.active()).toBe(1);
+			tracked.time.set(availableAt);
+			const claims = await waiting;
+			expect(claims.map((claim) => [claim.value.input, claim.attempt])).toEqual([['long-retry', 2]]);
+			expect(tracked.active()).toBe(0);
+			expect(ctx.signal.aborted).toBe(false);
+			await store.complete(ctx, claims[0]!, success('finished'));
+		} finally {
+			await store.close('Long retry fixture finished.');
+			await terminal;
+		}
+	});
+
 	it('keeps compute topology optional while preserving parent metadata when supplied', async () => {
 		await using ctx = context.create({ id: 'dispatch-compute' });
 		await using store = dispatch.memory();
@@ -161,6 +300,101 @@ describe('activity dispatch memory contract', () => {
 		const claimed = await waiting;
 		expect(claimed[0]?.attempt).toBe(2);
 	});
+
+	for (const foreign of [false, true]) {
+		it(`wakes a sub-millisecond retry${foreign ? ' beside ready foreign work' : ''}`, async () => {
+			const time = new context.TestClock('2000-01-01T00:00:00.000100000Z');
+			const sleeps: number[] = [];
+			const clock: context.Clock = {
+				now: () => time.now(),
+				sleep(milliseconds, signal) {
+					sleeps.push(milliseconds);
+					return time.sleep(milliseconds, signal);
+				},
+			};
+			await using ctx = context.create({ id: 'dispatch-fractional-retry', clock });
+			await using store = dispatch.memory({ clock });
+			const executor = await store.join(ctx, host('engine', 'host'));
+			if (foreign) {
+				await store.add(ctx, item(ctx, 'foreign', [{ engine: 'other', mode: 'required' }]), { key: 'foreign' });
+			}
+			await store.add(ctx, item(ctx, 'fractional', [{ engine: 'engine', mode: 'required' }]), { key: 'fractional' });
+			const first = (await store.claim(ctx, executor, { duration: { seconds: 5 } }))[0]!;
+			await store.retry(ctx, first, { delay: { microseconds: 700 } });
+			const waiting = store.claim(ctx, executor, { duration: { seconds: 5 }, wait: true });
+			try {
+				// Eligibility uses full instants. A future retry needs a wake even when
+				// both instants have the same integer millisecond or foreign work is ready.
+				expect(sleeps.some((milliseconds) => milliseconds > 0)).toBe(true);
+				time.advance({ milliseconds: 1 });
+				const claims = await waiting;
+				expect(claims.map((claim) => [claim.value.input, claim.attempt])).toEqual([['fractional', 2]]);
+			} finally {
+				context.cancel(ctx, 'Fractional retry fixture finished.');
+				await Promise.allSettled([waiting]);
+			}
+		});
+	}
+
+	it('waits for a queued result without polling when no executor has joined', async () => {
+		const time = new context.TestClock();
+		const sleeps: number[] = [];
+		const clock: context.Clock = {
+			now: () => time.now(),
+			sleep(milliseconds, signal) {
+				sleeps.push(milliseconds);
+				return time.sleep(milliseconds, signal);
+			},
+		};
+		await using ctx = context.create({ id: 'dispatch-no-executor', clock });
+		await using store = dispatch.memory({ clock });
+		const ref = await store.add(ctx, item(ctx, 'waiting', [{ engine: 'engine', mode: 'required' }]), {
+			key: 'waiting',
+		});
+		const waiting = store.result(ctx, ref);
+		try {
+			expect(sleeps).toEqual([]);
+			const executor = await store.join(ctx, host('engine', 'host'));
+			const claim = (await store.claim(ctx, executor, { duration: { seconds: 5 } }))[0]!;
+			await store.complete(ctx, claim, success('delivered'));
+			expect(await waiting).toEqual(success('delivered'));
+		} finally {
+			context.cancel(ctx, 'Queued result fixture finished.');
+			await Promise.allSettled([waiting]);
+		}
+	});
+
+	for (const action of ['replace', 'expire'] as const) {
+		it(`finishes a drain after its executor is ${action === 'replace' ? 'replaced' : 'expired'}`, async () => {
+			const clock = new context.TestClock();
+			await using ctx = context.create({ id: `dispatch-drain-${action}`, clock });
+			await using store = dispatch.memory({ clock });
+			const first = await store.join(ctx, host('engine', 'host', { duration: { milliseconds: 1 } }));
+			const ref = await store.add(ctx, item(ctx, 'transfer', [{ engine: 'engine', mode: 'required' }]), {
+				key: 'transfer',
+			});
+			const old = (await store.claim(ctx, first, { duration: { seconds: 5 } }))[0]!;
+			const draining = store.drain(ctx, first);
+			try {
+				if (action === 'expire') {
+					clock.advance({ milliseconds: 2 });
+					await draining;
+				}
+				const replacement = await store.join(ctx, host('engine', 'host'));
+				await draining;
+				await expect(store.complete(ctx, old, success('stale'))).rejects.toBeInstanceOf(
+					dispatch.StaleActivityClaimError,
+				);
+				const next = (await store.claim(ctx, replacement, { duration: { seconds: 5 } }))[0]!;
+				expect(next.attempt).toBe(2);
+				await store.complete(ctx, next, success('transferred'));
+				expect(await store.result(ctx, ref)).toEqual(success('transferred'));
+			} finally {
+				context.cancel(ctx, 'Drain transfer fixture finished.');
+				await Promise.allSettled([draining]);
+			}
+		});
+	}
 
 	it('snapshots admitted items and terminal results at the durable boundary', async () => {
 		await using ctx = context.create({ id: 'dispatch-snapshot' });

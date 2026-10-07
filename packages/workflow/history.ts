@@ -12,7 +12,6 @@
 import * as context from '@okikio/context';
 import * as assert from './assert.ts';
 import type {
-	History,
 	HistoryCompletionType,
 	HistoryEntryType,
 	HistoryInput,

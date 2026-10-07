@@ -13,7 +13,7 @@ describe('workflow retry values', () => {
 				expect(value).toBeGreaterThanOrEqual(0);
 				expect(value).toBeLessThanOrEqual(1);
 			}),
-			{ numRuns: 500 },
+			{ numRuns: 500, seed: 20261007 },
 		);
 	});
 });

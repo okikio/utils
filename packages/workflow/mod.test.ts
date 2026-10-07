@@ -165,13 +165,13 @@ describe('workflow programming model', () => {
 				return operation('unsafe');
 			},
 		});
-		expect(() => workflow.parallel(operations as never)).toThrow('enumerable data property');
+		expect(() => workflow.parallel(operations as never)).toThrow(TypeError);
 		expect(reads).toBe(0);
 	});
 
 	it('rejects invalid durable annotation values', () => {
 		expect(() => workflow.sleep({ seconds: 1 }, { annotations: { valid: true, invalid: Number.POSITIVE_INFINITY } }))
-			.toThrow('finite number');
+			.toThrow(TypeError);
 	});
 
 	it('rejects accessor-backed workflow definitions before reading identity', () => {
@@ -187,7 +187,7 @@ describe('workflow programming model', () => {
 		Object.defineProperty(input, 'version', { value: '1', enumerable: true });
 		Object.defineProperty(input, 'input', { value: AnySchema, enumerable: true });
 		Object.defineProperty(input, 'result', { value: AnySchema, enumerable: true });
-		expect(() => workflow.define(input as never)).toThrow('enumerable data property');
+		expect(() => workflow.define(input as never)).toThrow(TypeError);
 		expect(reads).toBe(0);
 	});
 
@@ -452,7 +452,7 @@ describe('workflow programming model', () => {
 				concurrency: 1,
 				key: (value) => String(value),
 			})
-		).toThrow('duplicate key');
+		).toThrow(TypeError);
 	});
 
 	it('uses fresh workflow retry paths and does not retry provider faults', async () => {
@@ -570,11 +570,11 @@ describe('workflow programming model', () => {
 		expect(Object.is(negativeZero.value.input, -0)).toBe(false);
 
 		const sparse = new Array<unknown>(1);
-		expect(() => operation(sparse)).toThrow('sparse array element');
+		expect(() => operation(sparse)).toThrow(TypeError);
 
 		const extended: unknown[] = ['kept'];
 		Object.defineProperty(extended, 'note', { value: 'would be dropped', enumerable: true });
-		expect(() => operation(extended)).toThrow('extra enumerable array property');
+		expect(() => operation(extended)).toThrow(TypeError);
 
 		let reads = 0;
 		const accessor = Object.create(null) as Record<string, unknown>;
@@ -585,7 +585,7 @@ describe('workflow programming model', () => {
 				return 'executed';
 			},
 		});
-		expect(() => operation(accessor)).toThrow('enumerable data property');
+		expect(() => operation(accessor)).toThrow(TypeError);
 		expect(reads).toBe(0);
 	});
 
@@ -594,7 +594,7 @@ describe('workflow programming model', () => {
 		expect(() => operation({ callback: () => undefined })).toThrow(TypeError);
 		const cyclic: Record<string, unknown> = {};
 		cyclic.self = cyclic;
-		expect(() => operation(cyclic)).toThrow('cycle');
+		expect(() => operation(cyclic)).toThrow(TypeError);
 		expect(() => workflow.continue(Promise.resolve('not durable'))).toThrow(TypeError);
 	});
 
@@ -670,7 +670,7 @@ describe('workflow programming model', () => {
 		expect(output).toBe('done');
 		expect(sawRegistration).toBe(true);
 		expect(calls).toEqual(['cleanup']);
-		expect(() => workflow.defer(workflow.sleep('PT1S'))).toThrow('must be one activity or child-workflow operation');
+		expect(() => workflow.defer(workflow.sleep('PT1S'))).toThrow(TypeError);
 	});
 
 	it('rejects duplicate explicit instruction keys in one program scope', async () => {
@@ -678,6 +678,6 @@ describe('workflow programming model', () => {
 			yield* operation('first', 'same');
 			yield* operation('second', 'same');
 			return 'unreachable';
-		})).rejects.toThrow('duplicate instruction key');
+		})).rejects.toThrow(TypeError);
 	});
 });

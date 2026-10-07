@@ -332,6 +332,128 @@ describe('workflow Scheduler activity ownership', () => {
 		]);
 	});
 
+	for (const completion of ['resolve', 'reject', 'throw-undefined'] as const) {
+		it(
+			`joins a fenced attempt's ${completion} cancellation hook before provider disposal`,
+			{ timeout: 10_000 },
+			async (test) => {
+				const Engine = engine(`scheduler-cancel-hook-${completion}`);
+				const Activity = activity(`cancel-hook-${completion}`, placement({ engine: Engine, mode: 'required' }));
+				await using parent = context.create({ id: `scheduler-cancel-hook-${completion}` });
+				const setup = await program(parent, Activity, function* () {
+					return yield* workflow.activity<string, never>(Activity, 'value');
+				}, StringSchema);
+				await using workflowCtx = setup.ctx;
+				await using scheduler = workflow.scheduler();
+				const entered = Promise.withResolvers<void>();
+				const runGate = Promise.withResolvers<void>();
+				const runFinished = Promise.withResolvers<void>();
+				const cancelEntered = Promise.withResolvers<void>();
+				const cancelGate = Promise.withResolvers<void>();
+				const failure = completion === 'throw-undefined' ? undefined : new Error('cancel hook failed');
+				const order: string[] = [];
+				let cancellations = 0;
+				let runStarted = false;
+				const abort = () => {
+					entered.resolve();
+					cancelEntered.resolve();
+					runGate.resolve();
+					cancelGate.resolve();
+				};
+				test.signal.addEventListener('abort', abort, { once: true });
+				const provider: workflow.EngineProvider & AsyncDisposable = {
+					activities: [Activity],
+					async run() {
+						runStarted = true;
+						entered.resolve();
+						try {
+							await runGate.promise;
+							return workflow.success('stale');
+						} finally {
+							runFinished.resolve();
+						}
+					},
+					cancel() {
+						cancellations += 1;
+						order.push('cancel-start');
+						cancelEntered.resolve();
+						if (completion === 'throw-undefined') throw undefined;
+						return cancelGate.promise.then(() => {
+							order.push('cancel-finish');
+							if (completion === 'reject') throw failure;
+						});
+					},
+					[Symbol.asyncDispose]() {
+						order.push('dispose');
+						return Promise.resolve();
+					},
+				};
+				const first = await scheduler.register({
+					engine: Engine,
+					hostId: 'same-host',
+					disposeProvider: true,
+					provider,
+				});
+				const pending = workflow.run({ ctx: workflowCtx, implementation: setup.implementation, scheduler }).then(
+					(value) => ({ type: 'success' as const, value }),
+					(reason: unknown) => ({ type: 'rejected' as const, reason }),
+				);
+				let closing:
+					| Promise<Readonly<{ type: 'closed' }> | Readonly<{ type: 'rejected'; reason: unknown }>>
+					| undefined;
+				try {
+					await entered.promise;
+					test.signal.throwIfAborted();
+					await using replacement = await scheduler.register({
+						engine: Engine,
+						hostId: 'same-host',
+						provider: {
+							activities: [Activity],
+							async run() {
+								return workflow.success('replacement');
+							},
+						},
+					});
+					void replacement;
+					await cancelEntered.promise;
+					test.signal.throwIfAborted();
+					// The old run remains gated: fencing must free capacity independently
+					// of both that run and the owned cancellation hook.
+					expect(await pending).toEqual({ type: 'success', value: 'replacement' });
+					const shutdown = Promise.resolve(first[Symbol.asyncDispose]()).then(
+						() => ({ type: 'closed' as const }),
+						(reason: unknown) => ({ type: 'rejected' as const, reason }),
+					);
+					closing = shutdown;
+					cancelGate.resolve();
+					const result = await shutdown;
+					if (completion === 'resolve') expect(result).toEqual({ type: 'closed' });
+					else {
+						expect(result.type).toBe('rejected');
+						if (result.type !== 'rejected') throw new Error('Cancellation cleanup failure was lost.');
+						expect(result.reason).toBeInstanceOf(AggregateError);
+						if (!(result.reason instanceof AggregateError)) throw result.reason;
+						expect(result.reason.errors).toEqual([failure]);
+					}
+					expect(cancellations).toBe(1);
+					expect(order).toEqual(
+						completion === 'throw-undefined'
+							? ['cancel-start', 'dispose']
+							: ['cancel-start', 'cancel-finish', 'dispose'],
+					);
+				} finally {
+					test.signal.removeEventListener('abort', abort);
+					cancelGate.resolve();
+					runGate.resolve();
+					if (runStarted) await runFinished.promise;
+					await pending;
+					await closing;
+					await first[Symbol.asyncDispose]();
+				}
+			},
+		);
+	}
+
 	it('uses ordered placement preferences and falls back only to explicitly allowed engines', async () => {
 		const Preferred = engine('scheduler-preferred');
 		const Allowed = engine('scheduler-allowed');

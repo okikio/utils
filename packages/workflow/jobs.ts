@@ -213,6 +213,8 @@ class ExecutorRuntime {
 	readonly #control: context.Owned;
 	readonly #claimCtx: context.Owned;
 	readonly #active = new Set<Promise<void>>();
+	readonly #cancellations = new Set<Promise<void>>();
+	readonly #cancellationFailures: unknown[] = [];
 	readonly #registration: EngineRegistration;
 	#lease: ExecutorLeaseType | undefined;
 	#capacity: number;
@@ -241,6 +243,7 @@ class ExecutorRuntime {
 			? context.create({ id: `executor:${options.engine.id}:${options.hostId}` })
 			: context.child(options.ctx, { id: `executor:${options.engine.id}:${options.hostId}` });
 		this.#claimCtx = context.child(this.#control, { id: `${this.#control.id}:claims` });
+		// deno-lint-ignore no-this-alias -- Accessors expose current registration state rather than a startup snapshot.
 		const owner = this;
 		this.#registration = Object.freeze(
 			{
@@ -329,8 +332,7 @@ class ExecutorRuntime {
 					wait: true,
 				});
 				for (const claim of claims) {
-					let running!: Promise<void>;
-					running = this.#run(claim).finally(() => this.#active.delete(running));
+					const running: Promise<void> = this.#run(claim).finally(() => this.#active.delete(running));
 					this.#active.add(running);
 				}
 			}
@@ -395,11 +397,10 @@ class ExecutorRuntime {
 			} satisfies ActivityAttemptControl,
 		);
 		const cancel = (): void => {
-			try {
-				void this.#provider.cancel?.(attempt, attemptCtx.signal.reason);
-			} catch { /* The attempt lease remains authoritative. */ }
+			this.#cancelProvider(attempt, attemptCtx.signal.reason);
 		};
 		attemptCtx.signal.addEventListener('abort', cancel, { once: true });
+		if (attemptCtx.signal.aborted) cancel();
 
 		const provider = this.#provider.run(attemptCtx, attempt, control)
 			.catch((error): ActivityAttemptResultType => Object.freeze({ type: 'fault', fault: error }));
@@ -496,6 +497,28 @@ class ExecutorRuntime {
 		});
 	}
 
+	/**
+	 * Retain cancellation-hook work separately from fenced provider execution.
+	 * A stale run may stop consuming capacity before it cooperates, but executor
+	 * disposal still joins its own hook and reports any cleanup rejection.
+	 */
+	#cancelProvider(attempt: ActivityAttemptType, reason: unknown): void {
+		if (this.#provider.cancel === undefined) return;
+		try {
+			const cancellation: Promise<void> = Promise.resolve(this.#provider.cancel(attempt, reason)).then(
+				undefined,
+				(failure: unknown) => {
+					this.#cancellationFailures.push(failure);
+				},
+			).finally(() => {
+				this.#cancellations.delete(cancellation);
+			});
+			this.#cancellations.add(cancellation);
+		} catch (failure) {
+			this.#cancellationFailures.push(failure);
+		}
+	}
+
 	async #commit(claim: ActivityClaimType, result: ActivityJobResultType): Promise<void> {
 		await this.#dispatch.complete(this.#control, claim, result);
 	}
@@ -553,6 +576,8 @@ class ExecutorRuntime {
 				errors.push(error);
 			}
 		}
+		await Promise.all(this.#cancellations);
+		errors.push(...this.#cancellationFailures);
 		if (this.#disposeProvider) {
 			try {
 				await this.#provider.dispose?.();

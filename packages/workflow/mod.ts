@@ -1,8 +1,83 @@
 /**
- * Deterministic iterator workflow definitions, instructions, controls, and interpreter.
+ * Resume a named sequence from recorded instruction completions and send activities to eligible executors. Retrying a long function from its first line can repeat expensive work and duplicate an external commit.
  *
- * The generic interpreter owns orchestration semantics. Dispatch contracts keep
- * activity item and executor ownership separate from concrete storage adapters.
+ * Run the complete local dispatch example first, then select Worker or process activity providers without changing the workflow definition. Share authoritative dispatch and history adapters before spreading execution across computers. Placement selects an eligible engine and host; claims fence attempts. Replay records instruction outcomes, not live stack frames, sockets or threads. External effects still need stable idempotency keys and an accepting sink. The in-memory example survives replica replacement only while its owning process retains the stores.
+ *
+ * @example
+ * ```ts
+ * import '@okikio/duration/polyfill';
+ * import '@okikio/dispose/polyfill';
+ * import * as activity from '@okikio/activity';
+ * import * as engine from '@okikio/activity/engine';
+ * import * as context from '@okikio/context';
+ * import * as dispatch from '@okikio/workflow/dispatch';
+ * import * as history from '@okikio/workflow/history';
+ * import * as workflow from '@okikio/workflow';
+ *
+ * const TextSchema = Object.freeze({
+ *   '~standard': Object.freeze({
+ *     version: 1,
+ *     vendor: 'example',
+ *     validate(value: unknown) {
+ *       return typeof value === 'string'
+ *         ? { value }
+ *         : { issues: [{ message: 'Expected text.' }] };
+ *     },
+ *   }),
+ * });
+ *
+ * const Local = engine.define({ id: 'local' });
+ * const Echo = activity.define({
+ *   id: 'example.echo',
+ *   version: '1',
+ *   input: TextSchema,
+ *   result: TextSchema,
+ *   placement: engine.require(Local),
+ * });
+ *
+ * const EchoWorkflow = workflow.define({
+ *   id: 'example.echo-workflow',
+ *   version: '1',
+ *   input: TextSchema,
+ *   result: TextSchema,
+ *   activities: [Echo],
+ * });
+ * const EchoLive = workflow.implement(EchoWorkflow, function* (ctx) {
+ *   return yield* activity.request(Echo, ctx.input);
+ * });
+ *
+ * await using parent = context.create({ id: 'example-parent' });
+ * await using jobs = dispatch.memory();
+ * await using records = history.memory();
+ * await using scheduler = workflow.scheduler({
+ *   activityDispatch: jobs,
+ *   history: records,
+ * });
+ * await using executor = await workflow.executor({
+ *   dispatch: jobs,
+ *   engine: Local,
+ *   hostId: 'example-host',
+ *   capacity: 1,
+ *   provider: {
+ *     activities: [Echo],
+ *     async run(_ctx, attempt) {
+ *       return Object.freeze({ type: 'success', value: attempt.input });
+ *     },
+ *   },
+ * });
+ * await using run = await workflow.context({
+ *   definition: EchoWorkflow,
+ *   runId: 'example-run',
+ *   input: 'hello',
+ *   ctx: parent,
+ * });
+ *
+ * console.log(await workflow.run({
+ *   ctx: run,
+ *   implementation: EchoLive,
+ *   scheduler,
+ * })); // hello
+ * ```
  *
  * @module
  */
@@ -89,8 +164,10 @@ const operationInstructions = new WeakMap<object, WorkflowInstruction>();
 
 /** Unexpected fault reported by a workflow interpreter. */
 export class FaultError extends Error {
+	/** Unexpected diagnostic data projected for this boundary. */
 	readonly fault: unknown;
 
+	/** Create this FaultError from the explicit contract values supplied by its caller. */
 	constructor(fault: unknown) {
 		super(faultCore.message(fault), { cause: fault });
 		this.name = 'FaultError';
@@ -100,8 +177,10 @@ export class FaultError extends Error {
 
 /** Cancellation reported by a workflow interpreter. */
 export class CancelledError extends Error {
+	/** Caller or runtime reason retained for cancellation or failure diagnostics. */
 	readonly reason: unknown;
 
+	/** Create this CancelledError from the explicit contract values supplied by its caller. */
 	constructor(reason: unknown) {
 		super('Workflow instruction was cancelled.', reason === undefined ? undefined : { cause: reason });
 		this.name = 'CancelledError';
@@ -111,8 +190,10 @@ export class CancelledError extends Error {
 
 /** Terminal continue-as-new request surfaced by an interpreter. */
 export class ContinueAsNewError extends Error {
+	/** Input supplied to this validated operation or interpretation. */
 	readonly input: unknown;
 
+	/** Create this ContinueAsNewError from the explicit contract values supplied by its caller. */
 	constructor(input: unknown) {
 		super('Workflow requested continue as new.');
 		this.name = 'ContinueAsNewError';
@@ -122,9 +203,12 @@ export class ContinueAsNewError extends Error {
 
 /** Lifecycle defect containing primary work and one or more cleanup failures. */
 export class CleanupFailureError extends Error {
+	/** Primary selected interpretation or source occurrence. */
 	readonly primary: unknown;
+	/** Failures encountered while releasing owned resources; successful work does not erase them. */
 	readonly cleanupFailures: readonly unknown[];
 
+	/** Create this CleanupFailureError from the explicit contract values supplied by its caller. */
 	constructor(primary: unknown, cleanupFailures: readonly unknown[]) {
 		super('Workflow work failed and one or more required cleanups also failed.', { cause: primary });
 		this.name = 'CleanupFailureError';
@@ -135,8 +219,10 @@ export class CleanupFailureError extends Error {
 
 /** Invalid workflow program behavior discovered while closing a generator. */
 export class CleanupInstructionError extends Error {
+	/** Serializable workflow instruction whose completion is owned by history and scheduling. */
 	readonly instruction: WorkflowInstruction;
 
+	/** Create this CleanupInstructionError from the explicit contract values supplied by its caller. */
 	constructor(instruction: WorkflowInstruction) {
 		super(
 			'Workflow generator cleanup must not yield instructions. Register external cleanup with workflow.defer().',
@@ -1502,7 +1588,10 @@ function assertOperation(value: unknown): asserts value is WorkflowOperation<unk
 }
 
 /**
- * Creates d instruction while preserving the module's ownership rules.
+ * Recover the instruction associated with an operation authored by this module.
+ *
+ * The WeakMap keeps operation identity exact without exposing a mutable field.
+ * A look-alike iterable cannot supply an authoritative instruction.
  *
  * @internal
  */

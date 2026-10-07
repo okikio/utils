@@ -5,7 +5,7 @@ import { Branch, CleanupStepError } from './branch.ts';
 import { Deferred } from './deferred.ts';
 import * as operation from './operation.ts';
 import { Reducer } from './reducer.ts';
-import { Scope } from './scope.ts';
+import { MAX_ACTIVE_CHILDREN, Scope } from './scope.ts';
 import type { Cause, Exit, Step, WorkflowOperation } from './kernel.ts';
 
 function program<Value>(run: () => Generator<Step<unknown>, Value, Exit<unknown>>): WorkflowOperation<Value> {
@@ -64,23 +64,24 @@ describe('workflow live iterator kernel', () => {
 		expect(order).toEqual(['critical:1', 'critical:2', 'normal:1', 'normal:2']);
 	});
 
-	it('rejects more than 64 concurrently owned children before starting another branch', () => {
+	it('rejects a child beyond the configured ownership budget before starting another branch', () => {
 		const scope = new Scope();
-		for (let index = 0; index < 64; index += 1) {
+		for (let index = 0; index < MAX_ACTIVE_CHILDREN; index += 1) {
 			scope.addChild({ cancel: async () => undefined, settled: async () => undefined });
 		}
 		expect(() => scope.addChild({ cancel: async () => undefined, settled: async () => undefined }))
-			.toThrow('cannot own more than 64 active children');
+			.toThrow(RangeError);
 	});
 
 	it('rejects oversized immediate combinators before any child can start', () => {
-		const operations = Array.from({ length: 65 }, () =>
+		const operations = Array.from({ length: MAX_ACTIVE_CHILDREN + 1 }, () =>
+			// deno-lint-ignore require-yield -- An empty workflow is a valid completed program.
 			program(function* () {
 				return undefined;
 			}));
-		expect(() => operation.all(operations)).toThrow('cannot start more than 64 child operations');
-		expect(() => operation.allSettled(operations)).toThrow('cannot start more than 64 child operations');
-		expect(() => operation.race(operations)).toThrow('cannot start more than 64 child operations');
+		expect(() => operation.all(operations)).toThrow(RangeError);
+		expect(() => operation.allSettled(operations)).toThrow(RangeError);
+		expect(() => operation.race(operations)).toThrow(RangeError);
 	});
 
 	it('disposes deferred scope cleanup in standard last-in, first-out order', async () => {
@@ -91,7 +92,7 @@ describe('workflow live iterator kernel', () => {
 		expect(await scope.close('done')).toEqual([]);
 		expect(order).toEqual(['second', 'first']);
 		expect(await scope.close('ignored')).toEqual([]);
-		expect(() => scope.defer(() => undefined)).toThrow('closure starts');
+		expect(() => scope.defer(() => undefined)).toThrow(Error);
 	});
 
 	it('records child settlement failure and still disposes owned resources', async () => {

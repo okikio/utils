@@ -212,11 +212,15 @@ export interface ActivityCommandOptions extends WorkflowCommandOptions {
 export interface ActivityCommand<Value = unknown, Failure = unknown> extends WorkflowCommandBase {
 	/** Stable discriminant for this activity variant. */
 	readonly type: 'activity';
+	/** Activity declaration or reference whose validated attempt is requested. */
 	readonly activity: ActivityReference;
 	/** Activity input retained as serializable workflow instruction data. */
 	readonly input: unknown;
+	/** Caller-selected policy for this operation. */
 	readonly options: ActivityCommandOptions;
+	/** Compile-time result inference slot; it is not a live result promise. */
 	readonly _value?: Value;
+	/** Compile-time failure inference slot; consumers do not use it as runtime outcome authority. */
 	readonly _failure?: Failure;
 }
 
@@ -250,6 +254,7 @@ export interface WorkflowWaitCommand<Value = unknown> extends WorkflowCommandBas
 
 /** Public options accepted by child workflow operations. */
 export interface ChildOptions extends WorkflowCommandOptions {
+	/** Policy that relates child-work cancellation to the parent lifetime. */
 	readonly cancellation?: 'follow-parent' | 'request' | 'independent';
 	/** Whether the parent waits for the child result or deliberately discards it. */
 	readonly result?: 'wait' | 'discard';
@@ -259,11 +264,15 @@ export interface ChildOptions extends WorkflowCommandOptions {
 export interface ChildWorkflowCommand<Value = unknown, Failure = unknown> extends WorkflowCommandBase {
 	/** Stable discriminant for this childworkflow variant. */
 	readonly type: 'child-workflow';
+	/** Declared child-workflow reference whose input and result contracts are known. */
 	readonly workflow: WorkflowReference;
 	/** Child-workflow input retained as serializable instruction data. */
 	readonly input: unknown;
+	/** Caller-selected policy for this operation. */
 	readonly options: ChildOptions;
+	/** Compile-time result inference slot; it is not a live result promise. */
 	readonly _value?: Value;
+	/** Compile-time failure inference slot; consumers do not use it as runtime outcome authority. */
 	readonly _failure?: Failure;
 }
 

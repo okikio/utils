@@ -224,6 +224,7 @@ class Runtime {
 	async #result(ctx: context.Context, ref: ActivityRefType): Promise<ActivityJobResultType> {
 		while (true) {
 			context.check(ctx);
+			const observed = this.#clock.now();
 			this.#expire();
 			const item = this.#item(ref.id);
 			if (terminal(item)) return item.result!;
@@ -233,7 +234,10 @@ class Runtime {
 				waiters = new Set();
 				this.#resultWaiters.set(item.id, waiters);
 			}
-			await wait(ctx, waiters, this.#clock, this.#delay(this.#next(item)));
+			const next = this.#next(item);
+			// Already-ready queued work needs an executor mutation, not zero-delay polling.
+			const future = next !== undefined && Temporal.Instant.compare(next, observed) > 0 ? next : undefined;
+			await wait(ctx, waiters, this.#clock, this.#delay(future));
 		}
 	}
 
@@ -336,7 +340,10 @@ class Runtime {
 		this.#wake(this.#claimWaiters);
 		while (state.active > 0) {
 			context.check(ctx);
-			await wait(ctx, this.#stateWaiters, this.#clock, this.#delay(this.#soonest()));
+			const observed = this.#clock.now();
+			this.#expire();
+			if (state.active === 0) break;
+			await wait(ctx, this.#stateWaiters, this.#clock, this.#delay(this.#soonest(observed)));
 			this.#expire();
 		}
 	}
@@ -358,18 +365,19 @@ class Runtime {
 		while (true) {
 			context.check(ctx);
 			this.#open();
+			const observed = this.#clock.now();
 			this.#expire();
 			const executor = this.#executor(lease);
 			if (executor.draining) return Object.freeze([]);
 			const available = Math.max(0, executor.lease.capacity - executor.active);
 			const items = [...this.#items.values()]
-				.filter((item) => item.state === 'queued' && Temporal.Instant.compare(item.availableAt, this.#clock.now()) <= 0)
+				.filter((item) => item.state === 'queued' && Temporal.Instant.compare(item.availableAt, observed) <= 0)
 				.filter((item) => this.#selects(item, executor))
 				.sort((left, right) => left.order - right.order)
 				.slice(0, Math.min(limit, available));
 			if (items.length > 0) return Object.freeze(items.map((item) => this.#take(item, executor, duration)));
 			if (options.wait !== true) return Object.freeze([]);
-			await wait(ctx, this.#claimWaiters, this.#clock, this.#delay(this.#soonest()));
+			await wait(ctx, this.#claimWaiters, this.#clock, this.#delay(this.#soonest(observed)));
 		}
 	}
 
@@ -534,7 +542,6 @@ class Runtime {
 		if (executor.closed) return;
 		executor.closed = true;
 		executor.draining = true;
-		this.#executors.delete(executor.lease.id);
 		const key = executorKey(executor.lease.engineId, executor.lease.hostId);
 		if (this.#current.get(key) === executor) this.#current.delete(key);
 		for (const item of this.#items.values()) {
@@ -544,6 +551,9 @@ class Runtime {
 			item.claim = undefined;
 			item.availableAt = this.#clock.now();
 		}
+		// Release claims while their executor is still addressable. Drain retains
+		// this state object and must see its active ownership reach zero on revocation.
+		this.#executors.delete(executor.lease.id);
 		this.#wake(this.#stateWaiters);
 		this.#wake(this.#claimWaiters);
 	}
@@ -574,17 +584,24 @@ class Runtime {
 		this.#wake(this.#claimWaiters);
 	}
 
-	#soonest(): Temporal.Instant | undefined {
+	/** Find a future state boundary relative to the eligibility observation, excluding already-ready foreign work. */
+	#soonest(observed: Temporal.Instant): Temporal.Instant | undefined {
 		let next: Temporal.Instant | undefined;
 		for (const item of this.#items.values()) {
 			const candidate = this.#next(item);
-			if (candidate !== undefined && (next === undefined || Temporal.Instant.compare(candidate, next) < 0)) {
+			if (
+				candidate !== undefined && Temporal.Instant.compare(candidate, observed) > 0 &&
+				(next === undefined || Temporal.Instant.compare(candidate, next) < 0)
+			) {
 				next = candidate;
 			}
 		}
 		for (const executor of this.#executors.values()) {
 			const candidate = executor.lease.expiresAt;
-			if (candidate !== undefined && (next === undefined || Temporal.Instant.compare(candidate, next) < 0)) {
+			if (
+				candidate !== undefined && Temporal.Instant.compare(candidate, observed) > 0 &&
+				(next === undefined || Temporal.Instant.compare(candidate, next) < 0)
+			) {
 				next = candidate;
 			}
 		}
@@ -597,10 +614,13 @@ class Runtime {
 		return undefined;
 	}
 
+	/** Round future fractions up and slice long boundaries into the clock's supported timer range. */
 	#delay(instant: Temporal.Instant | undefined): number | undefined {
 		if (instant === undefined) return undefined;
-		const delay = instant.epochMilliseconds - this.#clock.now().epochMilliseconds;
-		return delay > 0 ? delay : undefined;
+		const remaining = instant.epochNanoseconds - this.#clock.now().epochNanoseconds;
+		if (remaining <= 0n) return 0;
+		const milliseconds = (remaining + 999_999n) / 1_000_000n;
+		return Number(milliseconds > 2_147_483_647n ? 2_147_483_647n : milliseconds);
 	}
 
 	#item(id: string): ItemState {
@@ -659,12 +679,20 @@ function uniqueClaim(create: () => string, items: ReadonlyMap<string, ItemState>
 	throw new Error('Activity dispatch claim ID source produced too many collisions.');
 }
 
-/** Suspend until a dispatch mutation, cancellation, or lease boundary can change state. */
+/**
+ * Suspend until a dispatch mutation, cancellation, or lease boundary can change state.
+ *
+ * Each wait owns its timer. Unlink cancels and the returned operation joins that
+ * timer on every settlement without canceling the borrowed caller context. The
+ * outer operation rechecks absolute state after each bounded timer slice.
+ */
 function wait(ctx: context.Context, waiters: Set<Waiter>, clock: context.Clock, delay?: number): Promise<void> {
-	return new Promise<void>((resolve, rejectValue) => {
-		let waiter!: Waiter;
+	let timerTask: Promise<void> | undefined;
+	const pending = new Promise<void>((resolve, rejectValue) => {
+		const timer = delay === undefined ? undefined : new AbortController();
 		const unlink = () => {
 			ctx.signal.removeEventListener('abort', abort);
+			timer?.abort();
 		};
 		const settle = (action: () => void) => {
 			if (!waiters.delete(waiter)) return;
@@ -672,20 +700,25 @@ function wait(ctx: context.Context, waiters: Set<Waiter>, clock: context.Clock, 
 			action();
 		};
 		const abort = () => settle(() => rejectValue(ctx.signal.reason ?? new context.ContextCancelledError()));
-		waiter = { resolve, reject: rejectValue, unlink };
+		const waiter: Waiter = { resolve, reject: rejectValue, unlink };
 		if (ctx.signal.aborted) {
 			rejectValue(ctx.signal.reason ?? new context.ContextCancelledError());
 			return;
 		}
 		waiters.add(waiter);
 		ctx.signal.addEventListener('abort', abort, { once: true });
-		if (delay !== undefined) {
-			void clock.sleep(delay, ctx.signal).then(
-				() => settle(resolve),
-				(reason) => settle(() => rejectValue(reason)),
-			);
+		if (timer !== undefined) {
+			try {
+				timerTask = clock.sleep(delay!, timer.signal).then(
+					() => settle(resolve),
+					(reason) => settle(() => rejectValue(reason)),
+				);
+			} catch (reason) {
+				settle(() => rejectValue(reason));
+			}
 		}
 	});
+	return timerTask === undefined ? pending : pending.finally(() => timerTask);
 }
 
 /** Reject every waiter when the dispatch owner can no longer make progress. */
