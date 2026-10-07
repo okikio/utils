@@ -1,5 +1,5 @@
 import { is as matchesCss, selectAll as selectCssAll, selectOne as selectCssOne } from 'css-select';
-import { isTag, type AnyNode, type Document, type Element } from 'domhandler';
+import { type AnyNode, type Document, type Element, isTag } from 'domhandler';
 import { textContent } from 'domutils';
 import { parse as parseHtml, type ParserError, type Token } from 'parse5';
 import { adapter, type Htmlparser2TreeAdapterMap } from 'parse5-htmlparser2-tree-adapter';

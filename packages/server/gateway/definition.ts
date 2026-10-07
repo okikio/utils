@@ -8,10 +8,10 @@ import type {
 	GatewayDefinition,
 	GatewayDefinitionInput,
 	GatewayMount,
-	GatewayOrigin,
 	GatewayObserverDefinition,
 	GatewayObserverEventKind,
 	GatewayObserverHandler,
+	GatewayOrigin,
 	GatewayPolicy,
 	GatewayPolicyInput,
 	GatewayRedirectPolicy,
@@ -38,7 +38,9 @@ export function define<const Id extends string>(input: GatewayDefinitionInput<Id
 		if (value.kind !== 'gateway-policy') throw new TypeError('Gateway policies must be created with gateway.policy().');
 	}
 	for (const value of observers) {
-		if (value.kind !== 'gateway-observer') throw new TypeError('Gateway observers must be created with gateway.observer.define().');
+		if (value.kind !== 'gateway-observer') {
+			throw new TypeError('Gateway observers must be created with gateway.observer.define().');
+		}
 	}
 	return Object.freeze({
 		kind: 'gateway',
@@ -59,7 +61,9 @@ export function policy(input: GatewayPolicyInput): GatewayPolicy {
 		throw new TypeError('Gateway bodyLimit must be a positive safe integer.');
 	}
 	const timeout = input.timeout === undefined ? undefined : Temporal.Duration.from(input.timeout);
-	if (timeout !== undefined && durationCore.milliseconds(timeout) <= 0) throw new TypeError('Gateway timeout must be positive.');
+	if (timeout !== undefined && durationCore.milliseconds(timeout) <= 0) {
+		throw new TypeError('Gateway timeout must be positive.');
+	}
 	return Object.freeze({
 		kind: 'gateway-policy',
 		id: input.id,
@@ -97,14 +101,16 @@ export function redirects(options: Readonly<{
 	});
 }
 
-const OBSERVER_KINDS = Object.freeze({
-	denied: true,
-	forwarding: true,
-	response: true,
-	completed: true,
-	failed: true,
-	aborted: true,
-} satisfies Record<GatewayObserverEventKind, true>);
+const OBSERVER_KINDS = Object.freeze(
+	{
+		denied: true,
+		forwarding: true,
+		response: true,
+		completed: true,
+		failed: true,
+		aborted: true,
+	} satisfies Record<GatewayObserverEventKind, true>,
+);
 const OBSERVER_EVENTS = Object.freeze(Object.keys(OBSERVER_KINDS) as GatewayObserverEventKind[]);
 
 /**
@@ -112,15 +118,19 @@ const OBSERVER_EVENTS = Object.freeze(Object.keys(OBSERVER_KINDS) as GatewayObse
  *
  * @internal
  */
-function defineObserver(input: Readonly<{
-	readonly id: string;
-	readonly description: string;
-	readonly events?: readonly GatewayObserverEventKind[];
-}>): GatewayObserverDefinition {
+function defineObserver(
+	input: Readonly<{
+		readonly id: string;
+		readonly description: string;
+		readonly events?: readonly GatewayObserverEventKind[];
+	}>,
+): GatewayObserverDefinition {
 	assertIdentifier(input.id, 'gateway observer');
 	if (input.description.trim().length === 0) throw new TypeError('Gateway observer description cannot be empty.');
 	const events = Object.freeze([...(input.events ?? OBSERVER_EVENTS)]);
-	if (events.length === 0 || events.some((event) => !Object.hasOwn(OBSERVER_KINDS, event))) throw new TypeError('Gateway observer events are invalid.');
+	if (events.length === 0 || events.some((event) => !Object.hasOwn(OBSERVER_KINDS, event))) {
+		throw new TypeError('Gateway observer events are invalid.');
+	}
 	return Object.freeze({ kind: 'gateway-observer', id: input.id, description: input.description, events });
 }
 
@@ -133,7 +143,9 @@ function observerHandler<Definition extends GatewayObserverDefinition>(
 	definition: Definition,
 	handle: GatewayObserverHandler<Definition>['handle'],
 ): GatewayObserverHandler<Definition> {
-	if (definition.kind !== 'gateway-observer') throw new TypeError('Gateway observer handlers require an exact observer definition.');
+	if (definition.kind !== 'gateway-observer') {
+		throw new TypeError('Gateway observer handlers require an exact observer definition.');
+	}
 	if (typeof handle !== 'function') throw new TypeError('Gateway observer handler must be a function.');
 	return Object.freeze({ kind: 'gateway-observer-handler', definition, handle });
 }
@@ -159,7 +171,11 @@ export function select<Gateway extends GatewayDefinition>(
 	assertIdentifier(input.id, 'gateway selection');
 	const selected = input.services.map((service) => {
 		const found = gateway.services.find((candidate) => candidate.target === service);
-		if (!found) throw new TypeError(`Gateway selection targets service ${JSON.stringify(service.id)} outside ${JSON.stringify(gateway.id)}.`);
+		if (!found) {
+			throw new TypeError(
+				`Gateway selection targets service ${JSON.stringify(service.id)} outside ${JSON.stringify(gateway.id)}.`,
+			);
+		}
 		return found;
 	});
 	return Object.freeze({
@@ -186,7 +202,9 @@ export function compose(
 		}
 		const entry = value as Entry;
 		const owner = ids.get(entry.id);
-		if (owner && owner !== entry) throw new TypeError(`Gateway composition ID ${JSON.stringify(entry.id)} belongs to different objects.`);
+		if (owner && owner !== entry) {
+			throw new TypeError(`Gateway composition ID ${JSON.stringify(entry.id)} belongs to different objects.`);
+		}
 		ids.set(entry.id, entry);
 		if (!seen.has(entry)) {
 			seen.add(entry);
@@ -239,7 +257,9 @@ function flattenMounts(input: GatewayDefinitionInput['services']): readonly Gate
 			for (const item of value) visit(item);
 			return;
 		}
-		if ((value as GatewayMount).kind !== 'gateway-mount') throw new TypeError('Gateway services must be created with gateway.mount().');
+		if ((value as GatewayMount).kind !== 'gateway-mount') {
+			throw new TypeError('Gateway services must be created with gateway.mount().');
+		}
 		result.push(value as GatewayMount);
 	};
 	for (const value of input) visit(value);
@@ -254,7 +274,9 @@ function flattenMounts(input: GatewayDefinitionInput['services']): readonly Gate
 function normalizeOrigin(value: GatewayOrigin): string {
 	const url = value instanceof URL ? value : new URL(value);
 	if (url.username || url.password) throw new TypeError('Gateway origins may not contain credentials.');
-	if (url.protocol !== 'https:' && !isLoopbackHttp(url)) throw new TypeError('Gateway origins must use HTTPS outside loopback development.');
+	if (url.protocol !== 'https:' && !isLoopbackHttp(url)) {
+		throw new TypeError('Gateway origins must use HTTPS outside loopback development.');
+	}
 	url.hash = '';
 	url.search = '';
 	url.pathname = url.pathname.replace(/\/$/, '');
@@ -269,7 +291,6 @@ function normalizeOrigin(value: GatewayOrigin): string {
 function isLoopbackHttp(url: URL): boolean {
 	return url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
 }
-
 
 /**
  * Rejects invalid identifier before it can enter authoritative module state.

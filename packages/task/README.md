@@ -1,19 +1,15 @@
 # `@okikio/task`
 
-Purpose
--------
+## Purpose
 
-`@okikio/task` owns one finite process-local operation with a child Context,
-cooperative pause points, cancellation, borrowed resources, and deterministic
-cleanup.
+`@okikio/task` owns one finite process-local operation with a child Context, cooperative pause points, cancellation,
+borrowed resources, and deterministic cleanup.
 
-Use a Task when the caller needs to pause, resume, cancel, or await one live
-operation. A Task is not a queue item, workflow run, subprocess, or Worker
-request. Those abstractions can create Tasks internally, but their durable or
+Use a Task when the caller needs to pause, resume, cancel, or await one live operation. A Task is not a queue item,
+workflow run, subprocess, or Worker request. Those abstractions can create Tasks internally, but their durable or
 external identity belongs to their own utility.
 
-Start here
-----------
+## Start here
 
 Create one finite operation and await its terminal `done` Promise:
 
@@ -21,28 +17,26 @@ Create one finite operation and await its terminal `done` Promise:
 import * as task from '@okikio/task';
 
 await using operation = task.start(async (ctx) => {
-  await ctx.checkpoint();
-  return await loadValue(ctx.signal);
+	await ctx.checkpoint();
+	return await loadValue(ctx.signal);
 });
 
 const value = await operation.done;
 ```
 
-The Task owns the child Context it creates for the operation. Disposing the Task
-uses the same cancellation path as `cancel()` and waits for Task-owned cleanup.
+The Task owns the child Context it creates for the operation. Disposing the Task uses the same cancellation path as
+`cancel()` and waits for Task-owned cleanup.
 
-Pause and resume
-----------------
+## Pause and resume
 
-Pausing is cooperative. `pause()` resolves when the operation reaches its next
-`ctx.checkpoint()` or becomes terminal:
+Pausing is cooperative. `pause()` resolves when the operation reaches its next `ctx.checkpoint()` or becomes terminal:
 
 ```ts
 const operation = task.start(async (ctx) => {
-  for (const item of items) {
-    await ctx.checkpoint();
-    await processItem(item, ctx.signal);
-  }
+	for (const item of items) {
+		await ctx.checkpoint();
+		await processItem(item, ctx.signal);
+	}
 });
 
 await operation.pause();
@@ -51,30 +45,27 @@ operation.resume();
 await operation.done;
 ```
 
-A Task cannot suspend an in-flight `fetch()`, codec call, database statement, or
-other indivisible provider operation. Put checkpoints between meaningful units
-of work rather than pretending arbitrary JavaScript can be frozen safely.
+A Task cannot suspend an in-flight `fetch()`, codec call, database statement, or other indivisible provider operation.
+Put checkpoints between meaningful units of work rather than pretending arbitrary JavaScript can be frozen safely.
 
-Larger composition
-------------------
+## Larger composition
 
-A Task can borrow an existing resource collection while owning only its local
-execution lifetime:
+A Task can borrow an existing resource collection while owning only its local execution lifetime:
 
 ```ts
 await using conversion = task.start(async (ctx) => {
-  const input = await ctx.get(MediaInput);
+	const input = await ctx.get(MediaInput);
 
-  for await (const segment of input.segments()) {
-    await ctx.checkpoint();
-    await convertSegment(segment, ctx.signal);
-  }
+	for await (const segment of input.segments()) {
+		await ctx.checkpoint();
+		await convertSegment(segment, ctx.signal);
+	}
 
-  return { converted: true };
+	return { converted: true };
 }, {
-  ctx: requestContext,
-  resources,
-  allowed: [MediaInput],
+	ctx: requestContext,
+	resources,
+	allowed: [MediaInput],
 });
 
 await conversion.pause();
@@ -82,15 +73,14 @@ conversion.resume();
 const result = await conversion.done;
 ```
 
-The Task borrows `resources`; it does not dispose the collection. Values acquired
-through the Task context remain subject to the collection's ownership rules.
-`done` is terminal authority. `status` is only a synchronous lifecycle snapshot.
+The Task borrows `resources`; it does not dispose the collection. Values acquired through the Task context remain
+subject to the collection's ownership rules. `done` is terminal authority. `status` is only a synchronous lifecycle
+snapshot.
 
-Cancellation
-------------
+## Cancellation
 
-`cancel(reason)` asks active work to stop and resolves after the Task reaches a
-terminal state and its owned Context has finished cleanup:
+`cancel(reason)` asks active work to stop and resolves after the Task reaches a terminal state and its owned Context has
+finished cleanup:
 
 ```ts
 const operation = task.start(run, { ctx: requestContext });
@@ -99,15 +89,13 @@ await operation.cancel(new Error('request no longer needs this work'));
 console.log(operation.status); // "cancelled" unless cleanup itself failed
 ```
 
-If work fails and cleanup also fails, standard `SuppressedError` semantics keep
-both failures visible.
+If work fails and cleanup also fails, standard `SuppressedError` semantics keep both failures visible.
 
-Convenience and the manual equivalent
--------------------------------------
+## Convenience and the manual equivalent
 
 Concrete map
-~~~~~~~~~~~~
 
+```
 | Convenience | Manual equivalent | Concrete value |
 | --- | --- | --- |
 | `task.start()` | create a child context, abort controller, pause gate, terminal promise, status state machine, and cleanup ownership yourself | one finite process-local operation lifetime |
@@ -136,3 +124,4 @@ Source guide
    behind the Task context.
 
 The README is the primary user documentation.
+```

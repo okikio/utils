@@ -18,7 +18,8 @@ export type SignalType =
 	| 'SIGUSR1'
 	| 'SIGUSR2'
 	| 'SIGWINCH'
-	| (string & {}) | number;
+	| (string & {})
+	| number;
 
 /** Explicit output ownership policy. */
 export type OutputModeType =

@@ -62,9 +62,12 @@ export class UndeclaredFailureError extends Error {
 	readonly failure: import('@okikio/failure').Occurrence;
 
 	constructor(activity: ActivityDefinition, failure: import('@okikio/failure').Occurrence) {
-		super(`Activity ${JSON.stringify(activity.id)} threw undeclared failure ${JSON.stringify(failure.definition.id)}.`, {
-			cause: failure,
-		});
+		super(
+			`Activity ${JSON.stringify(activity.id)} threw undeclared failure ${JSON.stringify(failure.definition.id)}.`,
+			{
+				cause: failure,
+			},
+		);
 		this.name = 'UndeclaredFailureError';
 		this.activity = activity;
 		this.failure = failure;
@@ -82,7 +85,9 @@ export function define<const Authoring extends ActivityOptions>(input: Authoring
 	const failures = input.failures === undefined ? Object.freeze([]) : catalogCore.compose(input.failures);
 	const effects = input.effects === undefined ? Object.freeze([]) : effectCore.compose(input.effects);
 	const resources = input.resources === undefined ? Object.freeze([]) : catalogCore.compose(input.resources);
-	const requirements = input.requirements === undefined ? Object.freeze([]) : requirementCore.compose(input.requirements);
+	const requirements = input.requirements === undefined
+		? Object.freeze([])
+		: requirementCore.compose(input.requirements);
 	const resilience = input.resilience === undefined ? Object.freeze([]) : resilienceCore.compose(input.resilience);
 
 	return Object.freeze({
@@ -152,7 +157,11 @@ function attempt<Activity extends ActivityDefinition>(
 	options: ActivityRequestOptions = {},
 ): workflow.WorkflowOperation<ActivityTryResult<Activity>, never> {
 	return Object.freeze({
-		*[Symbol.iterator](): Generator<workflow.WorkflowInstruction, ActivityTryResult<Activity>, workflow.WorkflowCompletionAny> {
+		*[Symbol.iterator](): Generator<
+			workflow.WorkflowInstruction,
+			ActivityTryResult<Activity>,
+			workflow.WorkflowCompletionAny
+		> {
 			try {
 				return resultCore.ok(yield* request(definition, input, options));
 			} catch (reason) {
@@ -229,19 +238,23 @@ export function isFailure<Activity extends ActivityDefinition>(
 
 /** Create deterministic JSON-safe activity documentation. */
 export function document(input: CatalogDefinitionInput<ActivityDefinition>): readonly ActivityDocument[] {
-	return Object.freeze(catalogCore.values(input).map((definition) => Object.freeze({
-		id: definition.id,
-		version: definition.version,
-		...(definition.description === undefined ? {} : { description: definition.description }),
-		inputVendor: definition.input['~standard'].vendor,
-		resultVendor: definition.result['~standard'].vendor,
-		failures: Object.freeze(definition.failures.map((entry) => entry.id)),
-		effects: Object.freeze(definition.effects.map((entry) => entry.id)),
-		placement: engineCore.document(definition.placement),
-		resources: Object.freeze(definition.resources.map((entry) => entry.id)),
-		requirements: requirementCore.document(definition.requirements),
-		resilience: Object.freeze(definition.resilience.map((entry) => entry.type)),
-	})));
+	return Object.freeze(
+		catalogCore.values(input).map((definition) =>
+			Object.freeze({
+				id: definition.id,
+				version: definition.version,
+				...(definition.description === undefined ? {} : { description: definition.description }),
+				inputVendor: definition.input['~standard'].vendor,
+				resultVendor: definition.result['~standard'].vendor,
+				failures: Object.freeze(definition.failures.map((entry) => entry.id)),
+				effects: Object.freeze(definition.effects.map((entry) => entry.id)),
+				placement: engineCore.document(definition.placement),
+				resources: Object.freeze(definition.resources.map((entry) => entry.id)),
+				requirements: requirementCore.document(definition.requirements),
+				resilience: Object.freeze(definition.resilience.map((entry) => entry.type)),
+			})
+		),
+	);
 }
 
 /** Build one requirement scope and make the explicit permission checker authoritative for its family. */
@@ -290,21 +303,21 @@ function assertJobId(value: string): void {
 /** Create one workflow request that converts only declared failures into an explicit result. */
 export { attempt as try };
 export type {
-	ActivitySchema,
-	ActivityOptions,
-	ActivityDefinition,
-	ActivityInput,
-	ActivityResult,
-	ActivityResources,
-	ActivityFailures,
+	ActivityCatalog,
 	ActivityContext,
+	ActivityDefinition,
+	ActivityDocument,
+	ActivityFailures,
 	ActivityImplementation,
 	ActivityImplementationOptions,
-	ActivityRequestOptions,
-	ActivityRunOptions,
-	ActivityCatalog,
-	ActivitySelection,
-	ActivityDocument,
-	ActivityTryResult,
+	ActivityInput,
 	ActivityOperation,
+	ActivityOptions,
+	ActivityRequestOptions,
+	ActivityResources,
+	ActivityResult,
+	ActivityRunOptions,
+	ActivitySchema,
+	ActivitySelection,
+	ActivityTryResult,
 } from './types.ts';

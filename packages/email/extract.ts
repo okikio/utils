@@ -1,7 +1,7 @@
-import type { CsvRow } from '@okikio/csv/types'
+import type { CsvRow } from '@okikio/csv/types';
 
-import { DEFAULT_DOMAIN_CLASSIFIER } from './classify.ts'
-import { normalizeDomain, normalizeHostname } from './normalize.ts'
+import { DEFAULT_DOMAIN_CLASSIFIER } from './classify.ts';
+import { normalizeDomain, normalizeHostname } from './normalize.ts';
 import type {
 	DomainColumnType,
 	DomainSource,
@@ -9,26 +9,28 @@ import type {
 	EmailDomainClassifier,
 	EmailRowDomain,
 	RowDomainCandidate,
-} from './types.ts'
+} from './types.ts';
 
 /** Ranking used only to choose among candidates within one source row. */
-const SOURCE_CONFIDENCE = Object.freeze({
-	domain: 100,
-	website: 80,
-	email: 60,
-} satisfies Readonly<Record<DomainSourceKind, number>>)
+const SOURCE_CONFIDENCE = Object.freeze(
+	{
+		domain: 100,
+		website: 80,
+		email: 60,
+	} satisfies Readonly<Record<DomainSourceKind, number>>,
+);
 
 /** Splits cells using rules appropriate to their semantic source. */
 function splitCell(value: string, kind: DomainSourceKind): readonly string[] {
 	if (kind === 'email') {
-		return Object.freeze(Array.from(value.matchAll(/@([^\s>,;]+)/gu), (match) => match[1] ?? ''))
+		return Object.freeze(Array.from(value.matchAll(/@([^\s>,;]+)/gu), (match) => match[1] ?? ''));
 	}
-	return Object.freeze(value.split(/[,;\n|]+/u).map((part) => part.trim()).filter(Boolean))
+	return Object.freeze(value.split(/[,;\n|]+/u).map((part) => part.trim()).filter(Boolean));
 }
 
 /** Creates a stable key for deduplicating repeated source evidence within a row. */
 function sourceKey(source: DomainSource): string {
-	return `${source.row}:${source.column}:${source.kind}:${source.candidate}:${source.value}`
+	return `${source.row}:${source.column}:${source.kind}:${source.candidate}:${source.value}`;
 }
 
 /** Product-neutral policy used by company-domain extraction. */
@@ -38,7 +40,7 @@ function excludesCompanyCandidate(
 ): boolean {
 	return classifier.classify(domain).evidence.some(({ trait }) =>
 		trait === 'public-mailbox' || trait === 'privacy-relay' || trait === 'disposable'
-	)
+	);
 }
 
 /**
@@ -54,7 +56,7 @@ function freezeCandidate(
 		domain,
 		confidence: value.confidence,
 		sources: Object.freeze([...value.sources]),
-	})
+	});
 }
 
 /**
@@ -69,20 +71,18 @@ export async function* extractDomains(
 	columns: readonly DomainColumnType[],
 	classifier: EmailDomainClassifier = DEFAULT_DOMAIN_CLASSIFIER,
 ): AsyncGenerator<EmailRowDomain> {
-	const companyColumn = columns.find((column) => column.role === 'company')
+	const companyColumn = columns.find((column) => column.role === 'company');
 
 	for await (const row of rows) {
-		const candidates = new Map<string, { confidence: number; sources: DomainSource[] }>()
+		const candidates = new Map<string, { confidence: number; sources: DomainSource[] }>();
 		for (const column of columns) {
-			if (column.role !== 'domain' && column.role !== 'website' && column.role !== 'email') continue
-			const value = row.values[column.index]?.trim()
-			if (!value) continue
+			if (column.role !== 'domain' && column.role !== 'website' && column.role !== 'email') continue;
+			const value = row.values[column.index]?.trim();
+			if (!value) continue;
 
 			for (const part of splitCell(value, column.role)) {
-				const domain = column.role === 'email'
-					? normalizeDomain(part)
-					: normalizeHostname(part)
-				if (!domain || (column.role === 'email' && excludesCompanyCandidate(classifier, domain))) continue
+				const domain = column.role === 'email' ? normalizeDomain(part) : normalizeHostname(part);
+				if (!domain || (column.role === 'email' && excludesCompanyCandidate(classifier, domain))) continue;
 
 				const source = Object.freeze({
 					row: row.row,
@@ -91,32 +91,32 @@ export async function* extractDomains(
 					value,
 					candidate: part,
 					kind: column.role,
-				}) satisfies DomainSource
+				}) satisfies DomainSource;
 				const current = candidates.get(domain) ?? {
 					confidence: SOURCE_CONFIDENCE[column.role],
 					sources: [],
-				}
-				current.confidence = Math.max(current.confidence, SOURCE_CONFIDENCE[column.role])
+				};
+				current.confidence = Math.max(current.confidence, SOURCE_CONFIDENCE[column.role]);
 				if (!current.sources.some((item) => sourceKey(item) === sourceKey(source))) {
-					current.sources.push(source)
+					current.sources.push(source);
 				}
-				candidates.set(domain, current)
+				candidates.set(domain, current);
 			}
 		}
 
-		const ranked = Object.freeze([...candidates.entries()]
-			.map(([domain, value]) => freezeCandidate(domain, value))
-			.sort((left, right) =>
-				right.confidence - left.confidence || left.domain.localeCompare(right.domain)
-			))
-		const primary = ranked[0]
-		if (!primary) continue
-		const company = companyColumn ? row.values[companyColumn.index]?.trim() || undefined : undefined
+		const ranked = Object.freeze(
+			[...candidates.entries()]
+				.map(([domain, value]) => freezeCandidate(domain, value))
+				.sort((left, right) => right.confidence - left.confidence || left.domain.localeCompare(right.domain)),
+		);
+		const primary = ranked[0];
+		if (!primary) continue;
+		const company = companyColumn ? row.values[companyColumn.index]?.trim() || undefined : undefined;
 		yield Object.freeze({
 			row: row.row,
 			...(company ? { company } : {}),
 			primary,
 			candidates: ranked,
-		})
+		});
 	}
 }

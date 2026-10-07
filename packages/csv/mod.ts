@@ -3,10 +3,10 @@
  * @module
  */
 
-export { normalizeHeader } from './headers.ts'
-export { parse, parseBytes } from './parse.ts'
-export { parseStream } from './stream.ts'
-export { CsvParseError } from './types.ts'
+export { normalizeHeader } from './headers.ts';
+export { parse, parseBytes } from './parse.ts';
+export { parseStream } from './stream.ts';
+export { CsvParseError } from './types.ts';
 export type {
 	CsvColumn,
 	CsvDelimiter,
@@ -20,4 +20,4 @@ export type {
 	CsvStreamDocument,
 	CsvStreamMetadata,
 	CsvStreamOptions,
-} from './types.ts'
+} from './types.ts';

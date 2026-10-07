@@ -8,7 +8,9 @@ import * as response from '@okikio/http/response';
 import * as server from '@okikio/server/http';
 
 /** Build the repeated-query record used as an independent oracle for URLSearchParams inputs. */
-function expectedQuery(entries: readonly (readonly [string, string])[]): Readonly<Record<string, string | readonly string[]>> {
+function expectedQuery(
+	entries: readonly (readonly [string, string])[],
+): Readonly<Record<string, string | readonly string[]>> {
 	const grouped = new Map<string, string[]>();
 	for (const [key, value] of entries) {
 		let values = grouped.get(key);
@@ -30,25 +32,34 @@ test('HTTP host composes middleware, safe errors, HEAD fallback, and body owners
 				observed.push(`route:${new URL(input.url).pathname}`);
 				return Response.json({ id: new URL(input.url).pathname.split('/').at(-1) });
 			}),
-			server.route('GET', '/stream', () => new Response(new ReadableStream<Uint8Array>({
-				cancel() {
-					cancelled = true;
-				},
-			}))),
+			server.route('GET', '/stream', () =>
+				new Response(
+					new ReadableStream<Uint8Array>({
+						cancel() {
+							cancelled = true;
+						},
+					}),
+				)),
 			server.route('GET', '/fault', () => {
 				throw new Error('database password should not cross the HTTP surface');
 			}),
 		],
 		middleware: [
-			server.catchErrors({ onError(error) { observed.push(`error:${error.message}`); } }),
-				server.requestId({ header: 'x-request-id', trustIncoming: true }),
+			server.catchErrors({
+				onError(error) {
+					observed.push(`error:${error.message}`);
+				},
+			}),
+			server.requestId({ header: 'x-request-id', trustIncoming: true }),
 			server.securityHeaders(),
 		],
 	});
 
-	const account = await app.fetch(new Request('https://service.invalid/accounts/acme', {
-		headers: { 'x-request-id': 'request-42' },
-	}));
+	const account = await app.fetch(
+		new Request('https://service.invalid/accounts/acme', {
+			headers: { 'x-request-id': 'request-42' },
+		}),
+	);
 	assert.equal(account.status, 200);
 	assert.equal(account.headers.get('x-request-id'), 'request-42');
 	assert.equal(account.headers.get('x-content-type-options'), 'nosniff');
@@ -67,29 +78,34 @@ test('HTTP host composes middleware, safe errors, HEAD fallback, and body owners
 	assert.ok(observed.includes('error:database password should not cross the HTTP surface'));
 
 	let discarded = false;
-	const abandoned = new Response(new ReadableStream<Uint8Array>({
-		cancel() {
-			discarded = true;
-		},
-	}));
+	const abandoned = new Response(
+		new ReadableStream<Uint8Array>({
+			cancel() {
+				discarded = true;
+			},
+		}),
+	);
 	await response.discard(abandoned);
 	assert.equal(discarded, true);
 });
 
 describe('HTTP request contracts', () => {
 	it('preserves generated repeated-query values', () => {
-		fc.assert(fc.property(
-			fc.array(fc.tuple(fc.string({ maxLength: 20 }), fc.string({ maxLength: 40 })), { maxLength: 30 }),
-			(entries) => {
-				const parameters = new URLSearchParams();
-				for (const [key, value] of entries) parameters.append(key, value);
-				expect(request.parseQuery(parameters, {
-					maximumQueryParameters: 30,
-					maximumParameterLength: 20,
-					maximumQueryValueLength: 40,
-				})).toEqual(expectedQuery(entries));
-			},
-		), { numRuns: 500 });
+		fc.assert(
+			fc.property(
+				fc.array(fc.tuple(fc.string({ maxLength: 20 }), fc.string({ maxLength: 40 })), { maxLength: 30 }),
+				(entries) => {
+					const parameters = new URLSearchParams();
+					for (const [key, value] of entries) parameters.append(key, value);
+					expect(request.parseQuery(parameters, {
+						maximumQueryParameters: 30,
+						maximumParameterLength: 20,
+						maximumQueryValueLength: 40,
+					})).toEqual(expectedQuery(entries));
+				},
+			),
+			{ numRuns: 500 },
+		);
 	});
 
 	it('accepts the exact body limit and rejects one byte beyond it', async () => {

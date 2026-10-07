@@ -1,12 +1,7 @@
 import * as record from '@okikio/record';
 import { freeze as freezeOpenApi } from '../openapi/value.ts';
 import * as endpoint from '@okikio/server/endpoint';
-import type {
-	EndpointDefinition,
-	EndpointOperation,
-	OpenApiDocument,
-	OpenApiOptions,
-} from '@okikio/server/endpoint';
+import type { EndpointDefinition, EndpointOperation, OpenApiDocument, OpenApiOptions } from '@okikio/server/endpoint';
 
 import type { CompiledService, EffectiveServiceOperation } from './types.ts';
 
@@ -52,11 +47,13 @@ export async function openapi(
 function effectiveEndpoint(
 	effective: EffectiveServiceOperation,
 ): EndpointDefinition {
-	const operation = Object.freeze({
-		...effective.operation,
-		problems: effective.problems,
-		responses: effective.responses,
-	} satisfies EndpointOperation);
+	const operation = Object.freeze(
+		{
+			...effective.operation,
+			problems: effective.problems,
+			responses: effective.responses,
+		} satisfies EndpointOperation,
+	);
 	return Object.freeze({
 		kind: 'endpoint',
 		id: `${effective.id}:openapi`,
@@ -90,10 +87,13 @@ function resilienceOpenApi(
 		const operation: Record<string, unknown> = { ...original };
 		const parameters = Array.isArray(operation.parameters) ? [...operation.parameters] : [];
 		const idempotency = effective.resiliency.find((policy) => policy.type === 'idempotency');
-		if (idempotency?.type === 'idempotency' && !parameters.some((entry) =>
-			isRecord(entry) && entry.in === 'header' && typeof entry.name === 'string' &&
-			entry.name.toLowerCase() === idempotency.header.toLowerCase()
-		)) {
+		if (
+			idempotency?.type === 'idempotency' &&
+			!parameters.some((entry) =>
+				isRecord(entry) && entry.in === 'header' && typeof entry.name === 'string' &&
+				entry.name.toLowerCase() === idempotency.header.toLowerCase()
+			)
+		) {
 			parameters.push({
 				in: 'header',
 				name: idempotency.header,
@@ -106,9 +106,9 @@ function resilienceOpenApi(
 		const responses = isRecord(operation.responses) ? { ...operation.responses } : {};
 		const retryableStatuses = new Set<string>();
 		if (effective.resiliency.some((policy) => policy.type === 'rate-limit')) retryableStatuses.add('429');
-		if (effective.resiliency.some((policy) =>
-			policy.type === 'circuit-breaker' || policy.type === 'bulkhead'
-		)) retryableStatuses.add('503');
+		if (effective.resiliency.some((policy) => policy.type === 'circuit-breaker' || policy.type === 'bulkhead')) {
+			retryableStatuses.add('503');
+		}
 		for (const status of retryableStatuses) {
 			const existing = responses[status];
 			if (!isRecord(existing)) continue;

@@ -46,24 +46,23 @@ export interface PermissionDefinition<
 }
 
 /** Input accepted for one permission definition's concrete runtime target. */
-export type PermissionTargetInput<Permission extends PermissionDefinition> =
-	Permission extends PermissionDefinition<string, infer TargetSchema>
-		? TargetSchema extends PermissionSchema ? StandardSchemaV1.InferInput<TargetSchema> : undefined
-		: never;
+export type PermissionTargetInput<Permission extends PermissionDefinition> = Permission extends
+	PermissionDefinition<string, infer TargetSchema>
+	? TargetSchema extends PermissionSchema ? StandardSchemaV1.InferInput<TargetSchema> : undefined
+	: never;
 
 /** Validated target supplied to a permission provider. */
-export type PermissionTarget<Permission extends PermissionDefinition> =
-	Permission extends PermissionDefinition<string, infer TargetSchema>
-		? TargetSchema extends PermissionSchema ? StandardSchemaV1.InferOutput<TargetSchema> : undefined
-		: never;
+export type PermissionTarget<Permission extends PermissionDefinition> = Permission extends
+	PermissionDefinition<string, infer TargetSchema>
+	? TargetSchema extends PermissionSchema ? StandardSchemaV1.InferOutput<TargetSchema> : undefined
+	: never;
 
 /** Target argument required by `permissions.on()`, `check()`, and `assert()`. */
-export type PermissionTargetArguments<Permission extends PermissionDefinition> =
-	Permission extends PermissionDefinition<string, infer TargetSchema>
-		? TargetSchema extends PermissionSchema
-			? readonly [target: StandardSchemaV1.InferInput<TargetSchema>]
-			: readonly []
-		: readonly [];
+export type PermissionTargetArguments<Permission extends PermissionDefinition> = Permission extends
+	PermissionDefinition<string, infer TargetSchema>
+	? TargetSchema extends PermissionSchema ? readonly [target: StandardSchemaV1.InferInput<TargetSchema>]
+	: readonly []
+	: readonly [];
 
 /** Requirement contribution that declares one permission as reachable. */
 export type PermissionRequirement = RequirementDefinition<'permission', 'require', PermissionDefinition>;
@@ -141,7 +140,8 @@ export interface PermissionRuntime {
 
 /** Execution-context view with permission checks available. */
 export type PermissionContext<Base extends BaseContext = BaseContext> =
-	Base & Readonly<{ readonly permissions: PermissionRuntime }>;
+	& Base
+	& Readonly<{ readonly permissions: PermissionRuntime }>;
 
 /** Options accepted by `permissions.scope()`. */
 export interface PermissionScopeOptions {

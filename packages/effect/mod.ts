@@ -12,26 +12,26 @@ import type { DefinitionInput as CatalogDefinitionInput } from '@okikio/catalog'
 import * as contextCore from '@okikio/context';
 import type { Context } from '@okikio/context';
 import * as schema from '@okikio/schema';
-import type { QueueClaim, Queue } from '@okikio/queue';
+import type { Queue, QueueClaim } from '@okikio/queue';
 import type {
+	EffectCatalog,
 	EffectContext,
 	EffectCreateOptions,
 	EffectDefinition,
-	EffectOptions,
-	EffectCatalog,
-	EffectSelection,
+	EffectDrainOptions,
 	EffectEmitter,
 	EffectEncoded,
-	EffectOccurrence,
-	EffectRuntime,
-	EffectScopeOptions,
-	EffectValue,
-	EffectValueInput,
 	EffectHandler,
+	EffectOccurrence,
+	EffectOptions,
 	EffectOutbox,
 	EffectOutboxOptions,
-	EffectDrainOptions,
 	EffectReceiptType,
+	EffectRuntime,
+	EffectScopeOptions,
+	EffectSelection,
+	EffectValue,
+	EffectValueInput,
 } from './types.ts';
 
 /** Process-local identity registry for occurrences created by this module instance. @internal */
@@ -174,10 +174,12 @@ export function scope<Base extends import('@okikio/context').Context>(
 	if (options.emitter !== undefined && typeof options.emitter.emit !== 'function') {
 		throw new TypeError('Effect emitter must provide emit().');
 	}
-	const runtime = Object.freeze({
-		...(options.emitter === undefined ? {} : { emitter: options.emitter }),
-		effects,
-	} satisfies EffectRuntime);
+	const runtime = Object.freeze(
+		{
+			...(options.emitter === undefined ? {} : { emitter: options.emitter }),
+			effects,
+		} satisfies EffectRuntime,
+	);
 	return contextCore.view(ctx, { effects: runtime });
 }
 
@@ -212,7 +214,10 @@ export async function emit<Effect extends EffectDefinition>(
 }
 
 /** Validate declaration membership for an already-created occurrence. */
-function declared<Effect extends EffectDefinition>(ctx: EffectContext, occurrence: EffectOccurrence<Effect>): EffectOccurrence<Effect> {
+function declared<Effect extends EffectDefinition>(
+	ctx: EffectContext,
+	occurrence: EffectOccurrence<Effect>,
+): EffectOccurrence<Effect> {
 	assertDeclared(ctx, occurrence.definition);
 	return occurrence;
 }
@@ -254,7 +259,10 @@ export function isOccurrence(value: unknown): value is EffectOccurrence {
 }
 
 /** Return whether a value is an occurrence of one exact effect definition. */
-export function is<Effect extends EffectDefinition>(value: unknown, definition: Effect): value is EffectOccurrence<Effect> {
+export function is<Effect extends EffectDefinition>(
+	value: unknown,
+	definition: Effect,
+): value is EffectOccurrence<Effect> {
 	return isOccurrence(value) && value.definition === definition;
 }
 
@@ -367,49 +375,51 @@ export function outbox(options: EffectOutboxOptions): EffectOutbox {
 	let closed = false;
 	let closePromise: Promise<void> | undefined;
 
-	const box = Object.freeze({
-		async emit(ctx: Context, occurrence: EffectOccurrence) {
-			contextCore.check(ctx);
-			if (closed) throw new Error('Effect outbox is closed.');
-			if (!handlers.has(occurrence.definition)) throw new MissingEffectHandlerError(occurrence.definition);
-			const encoded = await encode(occurrence);
-			const key = identity(ctx, occurrence);
-			assertKey(key);
-			await options.queue.add(ctx, encoded, { key });
-		},
-		async drain(ctx: Context, drainOptions: EffectDrainOptions = {}) {
-			contextCore.check(ctx);
-			if (closed) throw new Error('Effect outbox is closed.');
-			const limit = positiveInteger(drainOptions.limit ?? 1, 'effect drain limit');
-			const claims = await options.queue.claim(ctx, {
-				owner: drainOptions.owner ?? ctx.id,
-				limit,
-				...(drainOptions.duration === undefined ? {} : { duration: drainOptions.duration }),
-			});
-			let accepted = 0;
-			let retried = 0;
-			let failed = 0;
-			for (const claim of claims) {
+	const box = Object.freeze(
+		{
+			async emit(ctx: Context, occurrence: EffectOccurrence) {
 				contextCore.check(ctx);
-				const result = await dispatch(ctx, claim, options.queue, definitions, handlers, maximumAttempts, retryDelay);
-				if (result === 'accepted') accepted++;
-				else if (result === 'retried') retried++;
-				else failed++;
-			}
-			return Object.freeze({ claimed: claims.length, accepted, retried, failed });
-		},
-		close(reason?: unknown) {
-			closePromise ??= (async () => {
-				if (closed) return;
-				closed = true;
-				if (options.disposeQueue === true) await options.queue.close(reason);
-			})();
-			return closePromise;
-		},
-		async [Symbol.asyncDispose]() {
-			await box.close('Effect outbox was disposed.');
-		},
-	} satisfies EffectOutbox);
+				if (closed) throw new Error('Effect outbox is closed.');
+				if (!handlers.has(occurrence.definition)) throw new MissingEffectHandlerError(occurrence.definition);
+				const encoded = await encode(occurrence);
+				const key = identity(ctx, occurrence);
+				assertKey(key);
+				await options.queue.add(ctx, encoded, { key });
+			},
+			async drain(ctx: Context, drainOptions: EffectDrainOptions = {}) {
+				contextCore.check(ctx);
+				if (closed) throw new Error('Effect outbox is closed.');
+				const limit = positiveInteger(drainOptions.limit ?? 1, 'effect drain limit');
+				const claims = await options.queue.claim(ctx, {
+					owner: drainOptions.owner ?? ctx.id,
+					limit,
+					...(drainOptions.duration === undefined ? {} : { duration: drainOptions.duration }),
+				});
+				let accepted = 0;
+				let retried = 0;
+				let failed = 0;
+				for (const claim of claims) {
+					contextCore.check(ctx);
+					const result = await dispatch(ctx, claim, options.queue, definitions, handlers, maximumAttempts, retryDelay);
+					if (result === 'accepted') accepted++;
+					else if (result === 'retried') retried++;
+					else failed++;
+				}
+				return Object.freeze({ claimed: claims.length, accepted, retried, failed });
+			},
+			close(reason?: unknown) {
+				closePromise ??= (async () => {
+					if (closed) return;
+					closed = true;
+					if (options.disposeQueue === true) await options.queue.close(reason);
+				})();
+				return closePromise;
+			},
+			async [Symbol.asyncDispose]() {
+				await box.close('Effect outbox was disposed.');
+			},
+		} satisfies EffectOutbox,
+	);
 	return box;
 }
 
@@ -438,11 +448,15 @@ async function dispatch(
 			await queue.retry(ctx, claim, { delay: retryDelay });
 			return 'retried';
 		}
-		await queue.fail(ctx, claim, Object.freeze({
-			id: 'effect.handler-fault',
-			data: Object.freeze({ effectId: claim.value.id, effectKey: claim.value.key, attempt: claim.attempt }),
-			message: error instanceof Error ? error.message : 'Effect handler faulted.',
-		}));
+		await queue.fail(
+			ctx,
+			claim,
+			Object.freeze({
+				id: 'effect.handler-fault',
+				data: Object.freeze({ effectId: claim.value.id, effectKey: claim.value.key, attempt: claim.attempt }),
+				message: error instanceof Error ? error.message : 'Effect handler faulted.',
+			}),
+		);
 		return 'failed';
 	}
 }
@@ -477,23 +491,23 @@ function assertIdentifier(id: string): void {
 }
 
 export type {
+	EffectCatalog,
 	EffectContext,
 	EffectCreateOptions,
 	EffectDefinition,
-	EffectOptions,
-	EffectCatalog,
-	EffectSelection,
+	EffectDefinitions,
+	EffectDrainOptions,
 	EffectEmitter,
 	EffectEncoded,
-	EffectDefinitions,
-	EffectOccurrence,
-	EffectRuntime,
-	EffectScopeOptions,
-	EffectValue,
-	EffectValueInput,
 	EffectHandler,
+	EffectOccurrence,
+	EffectOptions,
 	EffectOutbox,
 	EffectOutboxOptions,
-	EffectDrainOptions,
 	EffectReceiptType,
+	EffectRuntime,
+	EffectScopeOptions,
+	EffectSelection,
+	EffectValue,
+	EffectValueInput,
 } from './types.ts';

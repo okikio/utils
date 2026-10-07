@@ -38,12 +38,12 @@ export function start<Value, Allowed extends ResourceDefinition = never>(
 		? context.create({ id: options.id ?? crypto.randomUUID() })
 		: context.child(options.ctx, options.id === undefined ? {} : { id: options.id });
 	const requirementCtx = requirements.scope(owner, {
-		...(options.requirements?.interpreters === undefined
-			? {}
-			: { interpreters: options.requirements.interpreters }),
+		...(options.requirements?.interpreters === undefined ? {} : { interpreters: options.requirements.interpreters }),
 		unknown: options.requirements?.unknown ?? 'reject',
 	});
-	const resolver = options.resources === undefined ? undefined : resource.scope(options.resources, requirementCtx, options.allowed);
+	const resolver = options.resources === undefined
+		? undefined
+		: resource.scope(options.resources, requirementCtx, options.allowed);
 
 	let status: TaskStatusType = 'running';
 	let terminal = false;
@@ -53,7 +53,9 @@ export function start<Value, Allowed extends ResourceDefinition = never>(
 
 	const taskCtx = context.view(requirementCtx, {
 		async get<Resource extends Allowed>(definition: Resource) {
-			if (resolver === undefined) throw new TypeError(`Task has no resource collection for ${JSON.stringify(definition.id)}.`);
+			if (resolver === undefined) {
+				throw new TypeError(`Task has no resource collection for ${JSON.stringify(definition.id)}.`);
+			}
 			return await resolver.get(definition);
 		},
 		checkpoint: async () => {
@@ -88,7 +90,9 @@ export function start<Value, Allowed extends ResourceDefinition = never>(
 				await owner[Symbol.asyncDispose]();
 			} catch (cleanup) {
 				status = 'failed';
-				if (primary !== undefined) throw new SuppressedError(cleanup, primary, 'Task work failed and cleanup also failed.');
+				if (primary !== undefined) {
+					throw new SuppressedError(cleanup, primary, 'Task work failed and cleanup also failed.');
+				}
 				throw cleanup;
 			}
 		}
@@ -97,7 +101,9 @@ export function start<Value, Allowed extends ResourceDefinition = never>(
 	return Object.freeze({
 		done,
 		signal: owner.signal,
-		get status() { return status; },
+		get status() {
+			return status;
+		},
 		pause() {
 			if (terminal || status === 'paused') return Promise.resolve();
 			if (status === 'pausing') return observed.promise;
@@ -121,7 +127,9 @@ export function start<Value, Allowed extends ResourceDefinition = never>(
 			resumed.resolve();
 			observed.resolve();
 			context.cancel(owner, reason ?? new Error('Task cancelled.'));
-			try { await done; } catch { /* `done` remains terminal authority. */ }
+			try {
+				await done;
+			} catch { /* `done` remains terminal authority. */ }
 		},
 		async [Symbol.asyncDispose]() {
 			await this.cancel(new Error('Task disposed.'));

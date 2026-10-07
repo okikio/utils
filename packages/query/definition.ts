@@ -41,27 +41,29 @@ const fieldsetPattern = /^fields\[([^\]]+)]$/;
 const fieldNamePattern = /^[A-Za-z_][A-Za-z0-9_.-]*$/;
 const parameterNamePattern = /^[A-Za-z_][A-Za-z0-9_.-]*$/;
 
-const operatorAliases = Object.freeze({
-	eq: 'eq',
-	ne: 'ne',
-	gt: 'gt',
-	gte: 'gte',
-	lt: 'lt',
-	lte: 'lte',
-	between: 'between',
-	in: 'in',
-	nin: 'nin',
-	contains: 'contains',
-	icontains: 'icontains',
-	startswith: 'startsWith',
-	starts_with: 'startsWith',
-	endswith: 'endsWith',
-	ends_with: 'endsWith',
-	is_null: 'isNull',
-	isnull: 'isNull',
-	is_not_null: 'isNotNull',
-	isnotnull: 'isNotNull',
-} satisfies Readonly<Record<string, QueryOperatorName>>);
+const operatorAliases = Object.freeze(
+	{
+		eq: 'eq',
+		ne: 'ne',
+		gt: 'gt',
+		gte: 'gte',
+		lt: 'lt',
+		lte: 'lte',
+		between: 'between',
+		in: 'in',
+		nin: 'nin',
+		contains: 'contains',
+		icontains: 'icontains',
+		startswith: 'startsWith',
+		starts_with: 'startsWith',
+		endswith: 'endsWith',
+		ends_with: 'endsWith',
+		is_null: 'isNull',
+		isnull: 'isNull',
+		is_not_null: 'isNotNull',
+		isnotnull: 'isNotNull',
+	} satisfies Readonly<Record<string, QueryOperatorName>>,
+);
 
 /** Define one public query field. */
 export function field<const Schema extends StandardSchemaV1>(
@@ -97,39 +99,43 @@ export function desc<const Field extends string>(
 
 /** Define opaque cursor pagination. Cursor verification belongs to a codec resource. */
 export function cursor(options: CursorPaginationOptions = {}): CursorPaginationDefinition {
-	const definition = Object.freeze({
-		kind: 'query-pagination',
-		type: 'cursor',
-		defaultLimit: options.defaultLimit ?? 50,
-		maximumLimit: options.maximumLimit ?? 200,
-		minimumLimit: options.minimumLimit ?? 1,
-		...(options.ttl !== undefined ? { ttl: options.ttl } : {}),
-		parameters: Object.freeze({
-			cursor: options.parameters?.cursor ?? 'cursor',
-			limit: options.parameters?.limit ?? 'limit',
-		}),
-	} satisfies CursorPaginationDefinition);
+	const definition = Object.freeze(
+		{
+			kind: 'query-pagination',
+			type: 'cursor',
+			defaultLimit: options.defaultLimit ?? 50,
+			maximumLimit: options.maximumLimit ?? 200,
+			minimumLimit: options.minimumLimit ?? 1,
+			...(options.ttl !== undefined ? { ttl: options.ttl } : {}),
+			parameters: Object.freeze({
+				cursor: options.parameters?.cursor ?? 'cursor',
+				limit: options.parameters?.limit ?? 'limit',
+			}),
+		} satisfies CursorPaginationDefinition,
+	);
 	assertCursorPagination(definition);
 	return definition;
 }
 
 /** Define bounded offset pagination with both offset/limit and page/per_page syntax. */
 export function offset(options: OffsetPaginationOptions = {}): OffsetPaginationDefinition {
-	const definition = Object.freeze({
-		kind: 'query-pagination',
-		type: 'offset',
-		defaultLimit: options.defaultLimit ?? 50,
-		maximumLimit: options.maximumLimit ?? 200,
-		minimumLimit: options.minimumLimit ?? 1,
-		maximumOffset: options.maximumOffset ?? 1_000_000,
-		defaultStyle: options.defaultStyle ?? 'offset',
-		parameters: Object.freeze({
-			offset: options.parameters?.offset ?? 'offset',
-			limit: options.parameters?.limit ?? 'limit',
-			page: options.parameters?.page ?? 'page',
-			perPage: options.parameters?.perPage ?? 'per_page',
-		}),
-	} satisfies OffsetPaginationDefinition);
+	const definition = Object.freeze(
+		{
+			kind: 'query-pagination',
+			type: 'offset',
+			defaultLimit: options.defaultLimit ?? 50,
+			maximumLimit: options.maximumLimit ?? 200,
+			minimumLimit: options.minimumLimit ?? 1,
+			maximumOffset: options.maximumOffset ?? 1_000_000,
+			defaultStyle: options.defaultStyle ?? 'offset',
+			parameters: Object.freeze({
+				offset: options.parameters?.offset ?? 'offset',
+				limit: options.parameters?.limit ?? 'limit',
+				page: options.parameters?.page ?? 'page',
+				perPage: options.parameters?.perPage ?? 'per_page',
+			}),
+		} satisfies OffsetPaginationDefinition,
+	);
 	assertOffsetPagination(definition);
 	return definition;
 }
@@ -177,14 +183,16 @@ export function define<const Fields extends QueryFields>(
 	const maximumValuesPerFilter = input.maximumValuesPerFilter ?? 100;
 	const maximumValueLength = input.maximumValueLength ?? 4_096;
 	const maximumParameters = input.maximumParameters ?? 200;
-	for (const [name, value] of Object.entries({
-		maximumFilters,
-		maximumSorts,
-		maximumSelectedFields,
-		maximumValuesPerFilter,
-		maximumValueLength,
-		maximumParameters,
-	})) assertPositiveInteger(value, name);
+	for (
+		const [name, value] of Object.entries({
+			maximumFilters,
+			maximumSorts,
+			maximumSelectedFields,
+			maximumValuesPerFilter,
+			maximumValueLength,
+			maximumParameters,
+		})
+	) assertPositiveInteger(value, name);
 
 	const definition: QueryDefinition<Fields> = {
 		kind: 'query-definition',
@@ -267,13 +275,17 @@ export function paginationParameters<Fields extends QueryFields>(
 export function document<Fields extends QueryFields>(definition: QueryDefinition<Fields>): QueryDocument {
 	return Object.freeze({
 		...(definition.description !== undefined ? { description: definition.description } : {}),
-		fields: Object.freeze(Object.entries(definition.fields).map(([name, value]) => Object.freeze({
-			name,
-			...(value.description !== undefined ? { description: value.description } : {}),
-			selectable: value.selectable,
-			sortable: value.sortable,
-			operators: Object.freeze((definition.filters[name] ?? []).map((operator) => operator.name)),
-		}))),
+		fields: Object.freeze(
+			Object.entries(definition.fields).map(([name, value]) =>
+				Object.freeze({
+					name,
+					...(value.description !== undefined ? { description: value.description } : {}),
+					selectable: value.selectable,
+					sortable: value.sortable,
+					operators: Object.freeze((definition.filters[name] ?? []).map((operator) => operator.name)),
+				})
+			),
+		),
 		fieldsets: definition.fieldsets,
 		defaultOrder: definition.order,
 		pagination: definition.pagination,
@@ -322,30 +334,37 @@ export function validateAdapter<Fields extends QueryFields>(
 	if (capabilities.operators !== 'all') {
 		const supported = new Set(capabilities.operators);
 		for (const operator of required.operators) {
-			if (!supported.has(operator)) issues.push(Object.freeze({
-				code: 'unsupported-operator',
-				message: `Adapter does not support query operator ${operator}.`,
-			}));
+			if (!supported.has(operator)) {
+				issues.push(Object.freeze({
+					code: 'unsupported-operator',
+					message: `Adapter does not support query operator ${operator}.`,
+				}));
+			}
 		}
 	}
 	const paginationModes = new Set(capabilities.pagination);
 	for (const mode of required.pagination) {
-		if (!paginationModes.has(mode)) issues.push(Object.freeze({
-			code: 'unsupported-pagination',
-			message: `Adapter does not support ${mode} pagination.`,
-		}));
+		if (!paginationModes.has(mode)) {
+			issues.push(Object.freeze({
+				code: 'unsupported-pagination',
+				message: `Adapter does not support ${mode} pagination.`,
+			}));
+		}
 	}
 	const selections = new Set(capabilities.fieldSelection);
 	for (const mode of required.fieldSelection) {
-		if (!selections.has(mode)) issues.push(Object.freeze({
-			code: 'unsupported-field-selection',
-			message: `Adapter does not support ${mode} field selection.`,
-		}));
+		if (!selections.has(mode)) {
+			issues.push(Object.freeze({
+				code: 'unsupported-field-selection',
+				message: `Adapter does not support ${mode} field selection.`,
+			}));
+		}
 	}
 	if (capabilities.maximumSorts !== undefined && capabilities.maximumSorts < required.maximumSorts) {
 		issues.push(Object.freeze({
 			code: 'sort-limit',
-			message: `Adapter supports at most ${capabilities.maximumSorts} sorts but the query permits ${required.maximumSorts}.`,
+			message:
+				`Adapter supports at most ${capabilities.maximumSorts} sorts but the query permits ${required.maximumSorts}.`,
 		}));
 	}
 	return issues.length === 0
@@ -420,8 +439,8 @@ async function parseFilters<Fields extends QueryFields>(
 			const operatorName = explicitOperator === undefined
 				? implicitOperator(raw)
 				: alias !== undefined && Object.hasOwn(operatorAliases, alias)
-					? operatorAliases[alias as keyof typeof operatorAliases]
-					: explicitOperator as QueryOperatorName;
+				? operatorAliases[alias as keyof typeof operatorAliases]
+				: explicitOperator as QueryOperatorName;
 			const allowed = definition.filters[fieldName] ?? Object.freeze([]);
 			const operator = allowed.find((candidate) => candidate.name === operatorName);
 			if (!operator) {
@@ -515,9 +534,7 @@ async function parseOperatorValue<Fields extends QueryFields>(
 		if (validation.issues) {
 			for (const schemaIssue of validation.issues) {
 				const issuePath = (schemaIssue.path ?? []).map((segment) =>
-					typeof segment === 'object' && segment !== null && 'key' in segment
-						? segment.key
-						: segment as PropertyKey
+					typeof segment === 'object' && segment !== null && 'key' in segment ? segment.key : segment as PropertyKey
 				);
 				issues.push(issue('invalid-value', schemaIssue.message, [...path, ...issuePath]));
 			}
@@ -570,7 +587,11 @@ function parseSorts<Fields extends QueryFields>(
 			continue;
 		}
 		seen.add(parsed.field);
-		result.push(Object.freeze({ field: parsed.field, direction: parsed.direction, tiebreaker: false }) as QuerySort<keyof Fields & string>);
+		result.push(
+			Object.freeze({ field: parsed.field, direction: parsed.direction, tiebreaker: false }) as QuerySort<
+				keyof Fields & string
+			>,
+		);
 	}
 	if (result.length > definition.maximumSorts) {
 		issues.push(issue('too-many-sorts', `At most ${definition.maximumSorts} sorts are allowed.`, ['sort']));
@@ -591,7 +612,9 @@ function parseSorts<Fields extends QueryFields>(
  *
  * @internal
  */
-function parseSortToken(token: string): Readonly<{ readonly field: string; readonly direction: QuerySortDirection }> | undefined {
+function parseSortToken(
+	token: string,
+): Readonly<{ readonly field: string; readonly direction: QuerySortDirection }> | undefined {
 	const trimmed = token.trim();
 	if (trimmed.length === 0 || trimmed.startsWith('+') || trimmed.startsWith('-')) return undefined;
 	const parts = trimmed.split(':');
@@ -648,18 +671,22 @@ function parseFields<Fields extends QueryFields>(
 		for (const [resource, raw] of resourceRaw) {
 			const fieldset = definition.fieldsets[resource];
 			if (!fieldset) {
-				issues.push(issue('unknown-fieldset', `Unknown fieldset resource ${JSON.stringify(resource)}.`, ['fields', resource]));
+				issues.push(
+					issue('unknown-fieldset', `Unknown fieldset resource ${JSON.stringify(resource)}.`, ['fields', resource]),
+				);
 				continue;
 			}
 			const selected = uniqueStrings(raw.flatMap(listValues).map(String).filter(Boolean));
 			selectedCount += selected.length;
 			const allowed = new Set(fieldset.fields);
 			for (const name of selected) {
-				if (!allowed.has(name)) issues.push(issue(
-					'unknown-field',
-					`Unknown field ${JSON.stringify(name)} for resource ${JSON.stringify(resource)}.`,
-					['fields', resource],
-				));
+				if (!allowed.has(name)) {
+					issues.push(issue(
+						'unknown-field',
+						`Unknown field ${JSON.stringify(name)} for resource ${JSON.stringify(resource)}.`,
+						['fields', resource],
+					));
+				}
 			}
 			resources[resource] = Object.freeze(selected);
 		}
@@ -724,8 +751,12 @@ function parsePagination(
 
 	const unsupportedCursor = cursorDefinition === undefined && hasAny(entries, ['cursor']);
 	const unsupportedOffset = offsetDefinition === undefined && hasAny(entries, ['offset', 'page', 'per_page']);
-	if (unsupportedCursor) issues.push(issue('unsupported-pagination', 'Cursor pagination is not supported by this endpoint.', ['cursor']));
-	if (unsupportedOffset) issues.push(issue('unsupported-pagination', 'Offset/page pagination is not supported by this endpoint.', ['page']));
+	if (unsupportedCursor) {
+		issues.push(issue('unsupported-pagination', 'Cursor pagination is not supported by this endpoint.', ['cursor']));
+	}
+	if (unsupportedOffset) {
+		issues.push(issue('unsupported-pagination', 'Offset/page pagination is not supported by this endpoint.', ['page']));
+	}
 
 	let selected = modes.default;
 	if (cursorExplicit) selected = 'cursor';
@@ -784,7 +815,13 @@ function parsePagination(
 				[offsetDefinition.parameters.page],
 			));
 		}
-		return Object.freeze({ kind: 'offset' as const, limit, offset: offsetValue, source: 'page' as const, page: page ?? 1 });
+		return Object.freeze({
+			kind: 'offset' as const,
+			limit,
+			offset: offsetValue,
+			source: 'page' as const,
+			page: page ?? 1,
+		});
 	}
 
 	if (entries.has(offsetDefinition.parameters.perPage)) {
@@ -864,7 +901,9 @@ function encode<Fields extends QueryFields>(
 		parameters.set('sort', value.order.map((entry) => `${entry.field}:${entry.direction}`).join(','));
 	}
 	if (value.fields.kind === 'simple') {
-		if (!sameStrings(value.fields.fields, definition.defaultFields)) parameters.set('fields', value.fields.fields.join(','));
+		if (!sameStrings(value.fields.fields, definition.defaultFields)) {
+			parameters.set('fields', value.fields.fields.join(','));
+		}
 	} else {
 		for (const [resource, fields] of Object.entries(value.fields.resources)) {
 			parameters.set(`fields[${resource}]`, fields.join(','));
@@ -891,7 +930,6 @@ function encode<Fields extends QueryFields>(
 	return parameters;
 }
 
-
 /**
  * Checks whether order are equivalent for the purposes of provider-neutral query definitions.
  *
@@ -900,7 +938,8 @@ function encode<Fields extends QueryFields>(
 function sameOrder(left: readonly QuerySort[], right: readonly QueryOrder[]): boolean {
 	return left.length === right.length && left.every((entry, index) => {
 		const candidate = right[index];
-		return candidate !== undefined && entry.field === candidate.field && entry.direction === candidate.direction && entry.tiebreaker === candidate.tiebreaker;
+		return candidate !== undefined && entry.field === candidate.field && entry.direction === candidate.direction &&
+			entry.tiebreaker === candidate.tiebreaker;
 	});
 }
 
@@ -947,7 +986,9 @@ function normalizeInput(input: unknown, issues: QueryIssue[]): ReadonlyMap<strin
 						add(`filter[${fieldName}][${operator}]`, nested);
 					}
 				} else if (typeof filterValue === 'object' && filterValue !== null && !Array.isArray(filterValue)) {
-					issues.push(issue('invalid-input', `filter ${fieldName} must use plain data properties.`, ['filter', fieldName]));
+					issues.push(
+						issue('invalid-input', `filter ${fieldName} must use plain data properties.`, ['filter', fieldName]),
+					);
 				} else add(`filter[${fieldName}]`, filterValue);
 			}
 			continue;
@@ -957,7 +998,9 @@ function normalizeInput(input: unknown, issues: QueryIssue[]): ReadonlyMap<strin
 				issues.push(issue('invalid-input', 'fields must be a plain data record.', ['fields']));
 				continue;
 			}
-			for (const [resource, nested] of recordCore.entries(value, 'query fields input')) add(`fields[${resource}]`, nested);
+			for (const [resource, nested] of recordCore.entries(value, 'query fields input')) {
+				add(`fields[${resource}]`, nested);
+			}
 			continue;
 		}
 		if (key === 'pagination') {
@@ -968,7 +1011,7 @@ function normalizeInput(input: unknown, issues: QueryIssue[]): ReadonlyMap<strin
 			for (const [name, nested] of recordCore.entries(value, 'query pagination input')) add(name, nested);
 			continue;
 		}
-		if (Array.isArray(value)) for (const item of value) add(key, item);
+		if (Array.isArray(value)) { for (const item of value) add(key, item); }
 		else add(key, value);
 	}
 	return result;
@@ -981,13 +1024,13 @@ function normalizeInput(input: unknown, issues: QueryIssue[]): ReadonlyMap<strin
  *
  * @internal
  */
-function jsonSchema<Fields extends QueryFields>(definition: QueryDefinition<Fields>): Readonly<Record<string, unknown>> {
+function jsonSchema<Fields extends QueryFields>(
+	definition: QueryDefinition<Fields>,
+): Readonly<Record<string, unknown>> {
 	const properties: Record<string, unknown> = Object.create(null);
 	for (const [fieldName, operators] of Object.entries(definition.filters)) {
 		const fieldDefinition = definition.fields[fieldName]!;
-		const fieldSchema = recordCore.is(fieldDefinition.jsonSchema)
-			? fieldDefinition.jsonSchema
-			: Object.freeze({});
+		const fieldSchema = recordCore.is(fieldDefinition.jsonSchema) ? fieldDefinition.jsonSchema : Object.freeze({});
 		const implicit = (operators ?? []).filter((operator) =>
 			operator.name === 'eq' || operator.name === 'isNull' || operator.name === 'isNotNull'
 		);
@@ -999,7 +1042,9 @@ function jsonSchema<Fields extends QueryFields>(definition: QueryDefinition<Fiel
 			];
 			let schema: Readonly<Record<string, unknown>>;
 			if (acceptsValue && keywords.length > 0) {
-				schema = Object.freeze({ oneOf: Object.freeze([fieldSchema, Object.freeze({ type: 'string', enum: Object.freeze(keywords) })]) });
+				schema = Object.freeze({
+					oneOf: Object.freeze([fieldSchema, Object.freeze({ type: 'string', enum: Object.freeze(keywords) })]),
+				});
 			} else if (acceptsValue) schema = fieldSchema;
 			else schema = Object.freeze({ type: 'string', enum: Object.freeze(keywords) });
 			properties[`filter[${fieldName}]`] = Object.freeze({
@@ -1011,7 +1056,9 @@ function jsonSchema<Fields extends QueryFields>(definition: QueryDefinition<Fiel
 			if (operator.name === 'eq' || operator.name === 'isNull' || operator.name === 'isNotNull') continue;
 			let description = operator.description;
 			if (operator.value === 'pair') description = `${operator.description} Supply two comma-separated values.`;
-			else if (operator.value === 'many') description = `${operator.description} Supply comma-separated or repeated values.`;
+			else if (operator.value === 'many') {
+				description = `${operator.description} Supply comma-separated or repeated values.`;
+			}
 			properties[`filter[${fieldName}][${wireOperator(operator.name)}]`] = Object.freeze({
 				...(operator.value === 'one' ? fieldSchema : { type: 'string' }),
 				description,
@@ -1021,7 +1068,8 @@ function jsonSchema<Fields extends QueryFields>(definition: QueryDefinition<Fiel
 	if (Object.values(definition.fields).some((field) => field.sortable)) {
 		properties.sort = Object.freeze({
 			type: 'string',
-			description: 'Comma-separated field:asc or field:desc entries. A unique stable tiebreaker is appended when omitted.',
+			description:
+				'Comma-separated field:asc or field:desc entries. A unique stable tiebreaker is appended when omitted.',
 			example: definition.order.map((entry) => `${entry.field}:${entry.direction}`).join(','),
 		});
 	}
@@ -1092,7 +1140,12 @@ function jsonSchema<Fields extends QueryFields>(definition: QueryDefinition<Fiel
  *
  * @internal
  */
-function integerParameter(minimum: number, maximum: number, defaultValue: number, description: string): Readonly<Record<string, unknown>> {
+function integerParameter(
+	minimum: number,
+	maximum: number,
+	defaultValue: number,
+	description: string,
+): Readonly<Record<string, unknown>> {
 	return Object.freeze({ type: 'integer', minimum, maximum, default: defaultValue, description });
 }
 
@@ -1118,7 +1171,10 @@ function freezeFields<Fields extends QueryFields>(fields: Fields): Fields {
  *
  * @internal
  */
-function freezeFilters<Fields extends QueryFields>(filters: QueryFilters<Fields>, fields: Fields): QueryFilters<Fields> {
+function freezeFilters<Fields extends QueryFields>(
+	filters: QueryFilters<Fields>,
+	fields: Fields,
+): QueryFilters<Fields> {
 	recordCore.assert(filters, 'query filters');
 	const result: Record<string, readonly QueryOperator[]> = Object.create(null);
 	for (const [fieldName, operators] of Object.entries(filters)) {
@@ -1149,7 +1205,9 @@ function freezeFieldsets(input: Readonly<Record<string, readonly string[] | Quer
 			? { fields: value }
 			: value as QueryFieldsetDefinition;
 		const fields = uniqueStrings([...definition.fields]);
-		if (fields.length === 0) throw new TypeError(`Fieldset ${JSON.stringify(resource)} must expose at least one field.`);
+		if (fields.length === 0) {
+			throw new TypeError(`Fieldset ${JSON.stringify(resource)} must expose at least one field.`);
+		}
 		for (const fieldName of fields) assertFieldName(fieldName);
 		result[resource] = Object.freeze({
 			fields: Object.freeze(fields),
@@ -1158,7 +1216,6 @@ function freezeFieldsets(input: Readonly<Record<string, readonly string[] | Quer
 	}
 	return Object.freeze(result);
 }
-
 
 /**
  * Checks order and preserves the deterministic issues needed by callers.
@@ -1191,11 +1248,16 @@ function validateOrder<Fields extends QueryFields>(
  *
  * @internal
  */
-function validateSelectedFields<Fields extends QueryFields>(selected: readonly (keyof Fields & string)[], fields: Fields): void {
+function validateSelectedFields<Fields extends QueryFields>(
+	selected: readonly (keyof Fields & string)[],
+	fields: Fields,
+): void {
 	for (const name of selected) {
 		const definition = fields[name];
 		if (!definition) throw new TypeError(`Default selected field ${JSON.stringify(name)} is not public.`);
-		if (!definition.selectable) throw new TypeError(`Default selected field ${JSON.stringify(name)} is not selectable.`);
+		if (!definition.selectable) {
+			throw new TypeError(`Default selected field ${JSON.stringify(name)} is not selectable.`);
+		}
 	}
 }
 
@@ -1204,7 +1266,11 @@ function validateSelectedFields<Fields extends QueryFields>(selected: readonly (
  *
  * @internal
  */
-function order<const Field extends string>(fieldName: Field, direction: QuerySortDirection, tiebreaker: boolean): QueryOrder<Field> {
+function order<const Field extends string>(
+	fieldName: Field,
+	direction: QuerySortDirection,
+	tiebreaker: boolean,
+): QueryOrder<Field> {
 	assertFieldName(fieldName);
 	return Object.freeze({ kind: 'query-order', field: fieldName, direction, tiebreaker });
 }
@@ -1217,7 +1283,9 @@ function order<const Field extends string>(fieldName: Field, direction: QuerySor
 function assertCursorPagination(definition: CursorPaginationDefinition): void {
 	assertLimits(definition);
 	for (const parameter of Object.values(definition.parameters)) assertParameterName(parameter);
-	if (definition.parameters.cursor === definition.parameters.limit) throw new TypeError('Cursor and limit parameter names must differ.');
+	if (definition.parameters.cursor === definition.parameters.limit) {
+		throw new TypeError('Cursor and limit parameter names must differ.');
+	}
 	if (definition.ttl !== undefined && durationCore.milliseconds(definition.ttl) <= 0) {
 		throw new TypeError('Cursor ttl must be positive.');
 	}
@@ -1435,7 +1503,6 @@ function last(values: readonly unknown[] | undefined): unknown {
 	return values?.at(-1);
 }
 
-
 /**
  * Rejects invalid positive integer before it can enter authoritative module state.
  *
@@ -1471,12 +1538,13 @@ function assertParameterName(value: string): void {
  * @internal
  */
 function assertSchema(value: unknown): asserts value is StandardSchemaV1 {
-	if (typeof value !== 'object' || value === null ||
-		typeof (value as { ['~standard']?: { validate?: unknown } })['~standard']?.validate !== 'function') {
+	if (
+		typeof value !== 'object' || value === null ||
+		typeof (value as { ['~standard']?: { validate?: unknown } })['~standard']?.validate !== 'function'
+	) {
 		throw new TypeError('Query fields must use Standard Schema-compatible validators.');
 	}
 }
-
 
 /**
  * Create one immutable query-validation issue with an optional source path.

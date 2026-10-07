@@ -47,7 +47,9 @@ describe('reusable value pool', () => {
 			ctx: owner,
 			maximum: 1,
 			create: () => ({ id: ++next }),
-			close: (value) => { closed.push(value.id); },
+			close: (value) => {
+				closed.push(value.id);
+			},
 		});
 		const first = await values.acquire(owner);
 		void first;
@@ -125,7 +127,9 @@ describe('reusable value pool', () => {
 			maximum: 2,
 			maximumIdleAge: { seconds: 5 },
 			create: () => ({ id: ++next }),
-			close: (value) => { closed.push(value.id); },
+			close: (value) => {
+				closed.push(value.id);
+			},
 		});
 		const first = await values.acquire(owner);
 		void first;
@@ -167,7 +171,9 @@ describe('reusable value pool', () => {
 			ctx: owner,
 			maximum: 1,
 			create: () => created.promise,
-			close: (value) => { closed.push(value.id); },
+			close: (value) => {
+				closed.push(value.id);
+			},
 		});
 		const acquisition = values.acquire(acquiring);
 		controller.abort('caller cancelled during creation');
@@ -202,7 +208,9 @@ describe('reusable value pool', () => {
 
 	it('rejects idle and timeout options that contradict pool ownership', async () => {
 		await using owner = context.create({ id: 'pool-invalid-options', clock: new context.TestClock() });
-		await expect(pool.create({ ctx: owner, minimum: 1, maximum: 1, maximumIdle: 0, create: () => ({}), close: () => {} }))
+		await expect(
+			pool.create({ ctx: owner, minimum: 1, maximum: 1, maximumIdle: 0, create: () => ({}), close: () => {} }),
+		)
 			.rejects.toThrow('maximumIdle must not be less than minimum');
 		await expect(pool.create({ ctx: owner, maximum: 1, acquireTimeout: {}, create: () => ({}), close: () => {} }))
 			.rejects.toThrow('acquireTimeout must be positive');
@@ -267,5 +275,4 @@ describe('reusable value pool', () => {
 		expect(drained).toBe(true);
 		await values[Symbol.asyncDispose]();
 	});
-
 });

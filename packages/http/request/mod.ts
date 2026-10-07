@@ -5,7 +5,7 @@
  */
 export { parseAuthorization } from './authorization.ts';
 export { parseForm, parseJson, readBody } from './body.ts';
-export { parseMediaType, negotiateContent, requireContentType } from './content.ts';
+export { negotiateContent, parseMediaType, requireContentType } from './content.ts';
 export { parseCookies } from './cookies.ts';
 export { forwardHeaders } from './forward.ts';
 export type { ForwardHeaderOptionsType } from './forward.ts';
@@ -16,7 +16,14 @@ export { formatPath, normalizePath, validationDetail, validationDetails } from '
 export { DefaultRequestParsingLimits, limits } from './limits.ts';
 export { dispose as disposeMemo, invalidate as invalidateMemo, memoize } from './memo.ts';
 export { parseParameters } from './parameters.ts';
-export { correlation, correlationFields, parseTraceParent, parseTraceState, propagationHeaders, requestId } from './trace.ts';
+export {
+	correlation,
+	correlationFields,
+	parseTraceParent,
+	parseTraceState,
+	propagationHeaders,
+	requestId,
+} from './trace.ts';
 export { parseQuery } from './query.ts';
 export { RequestTransportError } from './types.ts';
 export type {

@@ -9,8 +9,7 @@ import type { Context } from '@okikio/context';
 import type { EffectContext, EffectDefinitions } from '@okikio/effect';
 import type { ProblemDefinition } from '@okikio/http/problem';
 import type { ResilienceInput } from '@okikio/resilience';
-import type { RequirementInput, RequirementDocument } from '@okikio/requirement';
-
+import type { RequirementDocument, RequirementInput } from '@okikio/requirement';
 
 /** Static resource reference accepted by portable middleware contracts. */
 export type MiddlewareResourceDefinition<Value = unknown> = ValuedCatalogEntry<'resource', Value>;
@@ -33,8 +32,8 @@ export interface MiddlewareContextDefinitionInput {
 }
 
 /** Value represented by one middleware context definition. */
-export type MiddlewareContextValue<Definition extends MiddlewareContextDefinition> =
-	Definition extends MiddlewareContextDefinition<infer Value> ? Value : never;
+export type MiddlewareContextValue<Definition extends MiddlewareContextDefinition> = Definition extends
+	MiddlewareContextDefinition<infer Value> ? Value : never;
 
 /** Static import-safe middleware contract. */
 export interface MiddlewareDefinition<
@@ -76,18 +75,15 @@ export interface MiddlewareDefinitionInput<
 	readonly documentation?: Readonly<{ readonly url?: string; readonly notes?: string }>;
 }
 
-
 /** Required contexts represented by one middleware authoring input. */
-export type MiddlewareRequires<Input extends MiddlewareDefinitionInput> =
-	Input extends { readonly requires: infer Requires extends readonly MiddlewareContextDefinition[] }
-		? Requires
-		: readonly [];
+export type MiddlewareRequires<Input extends MiddlewareDefinitionInput> = Input extends
+	{ readonly requires: infer Requires extends readonly MiddlewareContextDefinition[] } ? Requires
+	: readonly [];
 
 /** Provided contexts represented by one middleware authoring input. */
-export type MiddlewareProvides<Input extends MiddlewareDefinitionInput> =
-	Input extends { readonly provides: infer Provides extends readonly MiddlewareContextDefinition[] }
-		? Provides
-		: readonly [];
+export type MiddlewareProvides<Input extends MiddlewareDefinitionInput> = Input extends
+	{ readonly provides: infer Provides extends readonly MiddlewareContextDefinition[] } ? Provides
+	: readonly [];
 
 /** Resource definitions represented by one middleware input. */
 export type MiddlewareResources<Input extends MiddlewareDefinitionInput> = Extract<
@@ -109,7 +105,9 @@ export interface MiddlewareContextStore<Allowed extends MiddlewareContextDefinit
 }
 
 /** Resource resolver constrained to the middleware declaration envelope. */
-export interface MiddlewareResourceResolver<Allowed extends MiddlewareResourceDefinition = MiddlewareResourceDefinition> {
+export interface MiddlewareResourceResolver<
+	Allowed extends MiddlewareResourceDefinition = MiddlewareResourceDefinition,
+> {
 	has<Definition extends Allowed>(definition: Definition): boolean;
 	get<Definition extends Allowed>(definition: Definition): Promise<MiddlewareResourceValue<Definition>>;
 }
@@ -122,10 +120,12 @@ export interface MiddlewareHandlerContext<
 	readonly request: Request;
 	readonly host: Host;
 	readonly values: MiddlewareContextStore<Definition['requires'][number] | Definition['provides'][number]>;
-	readonly resources: MiddlewareResourceResolver<Extract<
-		DefinitionEntry<NonNullable<Definition['resources']>>,
-		MiddlewareResourceDefinition
-	>>;
+	readonly resources: MiddlewareResourceResolver<
+		Extract<
+			DefinitionEntry<NonNullable<Definition['resources']>>,
+			MiddlewareResourceDefinition
+		>
+	>;
 	readonly ctx: EffectContext<Context>;
 }
 

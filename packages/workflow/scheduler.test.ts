@@ -16,8 +16,11 @@ function schema<Output>(validate: (value: unknown) => Output): StandardSchemaV1<
 			version: 1,
 			vendor: 'scheduler-test',
 			validate(value: unknown) {
-				try { return { value: validate(value) }; }
-				catch (error) { return { issues: [{ message: error instanceof Error ? error.message : String(error) }] }; }
+				try {
+					return { value: validate(value) };
+				} catch (error) {
+					return { issues: [{ message: error instanceof Error ? error.message : String(error) }] };
+				}
 			},
 		}),
 	});
@@ -36,15 +39,19 @@ function engine(id: string): workflow.EngineReference {
 
 /** Builds one placement from ordered engine choices without depending on @okikio/activity. */
 function placement(
-	...choices: readonly Readonly<{ readonly engine: workflow.EngineReference; readonly mode: workflow.EngineChoiceModeType }>[]
+	...choices: readonly Readonly<
+		{ readonly engine: workflow.EngineReference; readonly mode: workflow.EngineChoiceModeType }
+	>[]
 ): workflow.EnginePlacementReference {
 	return Object.freeze({
 		kind: 'activity-engine-placement',
-		choices: Object.freeze(choices.map((choice) => Object.freeze({
-			kind: 'activity-engine-choice' as const,
-			engine: choice.engine,
-			mode: choice.mode,
-		}))),
+		choices: Object.freeze(choices.map((choice) =>
+			Object.freeze({
+				kind: 'activity-engine-choice' as const,
+				engine: choice.engine,
+				mode: choice.mode,
+			})
+		)),
 	});
 }
 
@@ -93,7 +100,6 @@ function deferred<Value = void>() {
 	return Object.freeze({ promise, resolve });
 }
 
-
 /**
  * Wraps the memory queue with structured-clone checks at its persistence seam.
  *
@@ -103,15 +109,17 @@ function deferred<Value = void>() {
  */
 function cloneDispatch() {
 	const base = activityDispatch.memory();
-	return Object.freeze({
-		...base,
-		async add(ctx: context.Context, input: workflow.ActivityJobType, options: workflow.ActivityAddOptions) {
-			return await base.add(ctx, structuredClone(input), options);
-		},
-		async complete(ctx: context.Context, claim: workflow.ActivityClaimType, output: workflow.ActivityJobResultType) {
-			await base.complete(ctx, claim, structuredClone(output));
-		},
-	} satisfies workflow.ActivityDispatch);
+	return Object.freeze(
+		{
+			...base,
+			async add(ctx: context.Context, input: workflow.ActivityJobType, options: workflow.ActivityAddOptions) {
+				return await base.add(ctx, structuredClone(input), options);
+			},
+			async complete(ctx: context.Context, claim: workflow.ActivityClaimType, output: workflow.ActivityJobResultType) {
+				await base.complete(ctx, claim, structuredClone(output));
+			},
+		} satisfies workflow.ActivityDispatch,
+	);
 }
 
 describe('workflow Scheduler activity ownership', () => {
@@ -183,7 +191,12 @@ describe('workflow Scheduler activity ownership', () => {
 				return workflow.success(attempt.input);
 			},
 		};
-		await using registration = await scheduler.register({ engine: Engine, hostId: 'snapshot-host', affinity, provider });
+		await using registration = await scheduler.register({
+			engine: Engine,
+			hostId: 'snapshot-host',
+			affinity,
+			provider,
+		});
 		void registration;
 
 		affinity.region = 'west';
@@ -206,15 +219,35 @@ describe('workflow Scheduler activity ownership', () => {
 		await using scheduler = workflow.scheduler();
 		let optionReads = 0;
 		const options = Object.create(null) as Record<string, unknown>;
-		Object.defineProperty(options, 'engine', { enumerable: true, get() { optionReads += 1; return Engine; } });
-		await expect(scheduler.register(options as unknown as workflow.EngineRegistrationOptions)).rejects.toThrow(TypeError);
+		Object.defineProperty(options, 'engine', {
+			enumerable: true,
+			get() {
+				optionReads += 1;
+				return Engine;
+			},
+		});
+		await expect(scheduler.register(options as unknown as workflow.EngineRegistrationOptions)).rejects.toThrow(
+			TypeError,
+		);
 		expect(optionReads).toBe(0);
 
 		let providerReads = 0;
 		const provider = Object.create(null) as Record<string, unknown>;
-		Object.defineProperty(provider, 'activities', { enumerable: true, get() { providerReads += 1; return [Activity]; } });
+		Object.defineProperty(provider, 'activities', {
+			enumerable: true,
+			get() {
+				providerReads += 1;
+				return [Activity];
+			},
+		});
 		Object.defineProperty(provider, 'run', { enumerable: true, value: async () => workflow.success('value') });
-		await expect(scheduler.register({ engine: Engine, hostId: 'accessor-host', provider: provider as unknown as workflow.EngineProvider })).rejects.toThrow(TypeError);
+		await expect(
+			scheduler.register({
+				engine: Engine,
+				hostId: 'accessor-host',
+				provider: provider as unknown as workflow.EngineProvider,
+			}),
+		).rejects.toThrow(TypeError);
 		expect(providerReads).toBe(0);
 	});
 
@@ -248,7 +281,12 @@ describe('workflow Scheduler activity ownership', () => {
 	it('fences a late host generation and retries the logical job on the replacement generation', async () => {
 		const Engine = engine('scheduler-generation');
 		const Activity = activity('generation', placement({ engine: Engine, mode: 'required' }), [
-			resilience.retry({ maximumAttempts: 2, initialDelay: { milliseconds: 1 }, maximumDelay: { milliseconds: 1 }, jitter: false }),
+			resilience.retry({
+				maximumAttempts: 2,
+				initialDelay: { milliseconds: 1 },
+				maximumDelay: { milliseconds: 1 },
+				jitter: false,
+			}),
 		]);
 		await using parent = context.create({ id: 'scheduler-generation' });
 		const setup = await program(parent, Activity, function* () {
@@ -297,10 +335,13 @@ describe('workflow Scheduler activity ownership', () => {
 	it('uses ordered placement preferences and falls back only to explicitly allowed engines', async () => {
 		const Preferred = engine('scheduler-preferred');
 		const Allowed = engine('scheduler-allowed');
-		const Activity = activity('placement', placement(
-			{ engine: Preferred, mode: 'preferred' },
-			{ engine: Allowed, mode: 'allowed' },
-		));
+		const Activity = activity(
+			'placement',
+			placement(
+				{ engine: Preferred, mode: 'preferred' },
+				{ engine: Allowed, mode: 'allowed' },
+			),
+		);
 		await using parent = context.create({ id: 'scheduler-placement', clock: new context.TestClock() });
 		const setup = await program(parent, Activity, function* () {
 			return yield* workflow.activity<string, never>(Activity, 'value');
@@ -311,13 +352,18 @@ describe('workflow Scheduler activity ownership', () => {
 		await using fallback = await scheduler.register({
 			engine: Allowed,
 			hostId: 'allowed-host',
-			provider: { activities: [Activity], async run() { used.push('allowed'); return workflow.success('allowed'); } },
+			provider: {
+				activities: [Activity],
+				async run() {
+					used.push('allowed');
+					return workflow.success('allowed');
+				},
+			},
 		});
 		void fallback;
 		expect(await workflow.run({ ctx: workflowCtx, implementation: setup.implementation, scheduler })).toBe('allowed');
 		expect(used).toEqual(['allowed']);
 	});
-
 
 	it('persists only serializable activity job state and replays a declared failure without a live engine', async () => {
 		const Engine = engine('scheduler-durable-job');
@@ -332,7 +378,9 @@ describe('workflow Scheduler activity ownership', () => {
 			}),
 		});
 		const base = activity('durable-job', placement({ engine: Engine, mode: 'required' }));
-		const Activity = Object.freeze({ ...base, failures: Object.freeze([Blocked]) } satisfies workflow.ActivityReference);
+		const Activity = Object.freeze(
+			{ ...base, failures: Object.freeze([Blocked]) } satisfies workflow.ActivityReference,
+		);
 		const definition = workflow.define({
 			id: 'scheduler-test.durable-job',
 			version: '1',
@@ -345,7 +393,9 @@ describe('workflow Scheduler activity ownership', () => {
 				yield* workflow.activity(Activity, { source: 'durable' });
 				return 'unexpected';
 			} catch (error) {
-				if (failures.isOccurrence(error) && error.definition === Blocked) return (error.data as { readonly code: 'blocked' }).code;
+				if (failures.isOccurrence(error) && error.definition === Blocked) {
+					return (error.data as { readonly code: 'blocked' }).code;
+				}
 				throw error;
 			}
 		});

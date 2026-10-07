@@ -17,8 +17,8 @@ import type {
 	HistoryEntryType,
 	HistoryInput,
 	HistoryOptions,
-	MemoryHistory,
 	HistorySnapshotType,
+	MemoryHistory,
 	WorkflowCompletionAny,
 } from './types.ts';
 
@@ -106,67 +106,69 @@ export function memory(options: HistoryOptions = {}): MemoryHistory {
 	const entries = new Map<string, EntryState>();
 	let closed = false;
 
-	const history = Object.freeze({
-		async schedule(input: HistoryInput): Promise<WorkflowCompletionAny> {
-			if (closed) throw new Error('Workflow history is closed.');
-			context.check(input.ctx);
-			const key = entryKey(input.ctx.runId, input.path);
-			const existing = entries.get(key);
-			if (existing !== undefined) {
-				if (existing.fingerprint !== input.identity.fingerprint) {
-					throw new ReplayError(input.ctx.runId, input.path, existing.fingerprint, input.identity.fingerprint);
+	const history = Object.freeze(
+		{
+			async schedule(input: HistoryInput): Promise<WorkflowCompletionAny> {
+				if (closed) throw new Error('Workflow history is closed.');
+				context.check(input.ctx);
+				const key = entryKey(input.ctx.runId, input.path);
+				const existing = entries.get(key);
+				if (existing !== undefined) {
+					if (existing.fingerprint !== input.identity.fingerprint) {
+						throw new ReplayError(input.ctx.runId, input.path, existing.fingerprint, input.identity.fingerprint);
+					}
+					if (existing.completion !== undefined) return await input.decode(existing.completion);
+					if (existing.pending !== undefined) return await existing.pending;
 				}
-				if (existing.completion !== undefined) return await input.decode(existing.completion);
-				if (existing.pending !== undefined) return await existing.pending;
-			}
 
-			if (existing === undefined && entries.size >= maximum) throw new HistoryCapacityError(maximum);
-			const state = existing ?? {
-				runId: input.ctx.runId,
-				path: input.path,
-				fingerprint: input.identity.fingerprint,
-			};
-			if (existing === undefined) entries.set(key, state);
+				if (existing === undefined && entries.size >= maximum) throw new HistoryCapacityError(maximum);
+				const state = existing ?? {
+					runId: input.ctx.runId,
+					path: input.path,
+					fingerprint: input.identity.fingerprint,
+				};
+				if (existing === undefined) entries.set(key, state);
 
-			// Store the in-flight promise before invoking external work. Concurrent
-			// callers therefore follow the same instruction instead of dispatching a
-			// duplicate operation inside this process.
-			const pending = input.next().then(async (completion) => {
-				// Encode before publishing completion into retained history. A concrete
-				// durable provider can persist this exact data without retaining schemas,
-				// Error instances, or definition objects.
-				state.completion = await input.encode(completion);
-				delete state.pending;
-				return completion;
-			}, (error) => {
-				delete state.pending;
-				throw error;
-			});
-			state.pending = pending;
-			return await pending;
-		},
-		inspect(runId: string): HistorySnapshotType {
-			const output: HistoryEntryType[] = [];
-			for (const state of entries.values()) {
-				if (state.runId !== runId) continue;
-				output.push(Object.freeze({
-					path: state.path,
-					fingerprint: state.fingerprint,
-					...(state.completion === undefined ? {} : { completion: state.completion }),
-					pending: state.pending !== undefined,
-				}));
-			}
-			output.sort((left, right) => left.path.localeCompare(right.path));
-			return Object.freeze({ runId, entries: Object.freeze(output) });
-		},
-		async close(): Promise<void> {
-			closed = true;
-			entries.clear();
-		},
-		async [Symbol.asyncDispose](): Promise<void> {
-			await history.close();
-		},
-	} satisfies MemoryHistory);
+				// Store the in-flight promise before invoking external work. Concurrent
+				// callers therefore follow the same instruction instead of dispatching a
+				// duplicate operation inside this process.
+				const pending = input.next().then(async (completion) => {
+					// Encode before publishing completion into retained history. A concrete
+					// durable provider can persist this exact data without retaining schemas,
+					// Error instances, or definition objects.
+					state.completion = await input.encode(completion);
+					delete state.pending;
+					return completion;
+				}, (error) => {
+					delete state.pending;
+					throw error;
+				});
+				state.pending = pending;
+				return await pending;
+			},
+			inspect(runId: string): HistorySnapshotType {
+				const output: HistoryEntryType[] = [];
+				for (const state of entries.values()) {
+					if (state.runId !== runId) continue;
+					output.push(Object.freeze({
+						path: state.path,
+						fingerprint: state.fingerprint,
+						...(state.completion === undefined ? {} : { completion: state.completion }),
+						pending: state.pending !== undefined,
+					}));
+				}
+				output.sort((left, right) => left.path.localeCompare(right.path));
+				return Object.freeze({ runId, entries: Object.freeze(output) });
+			},
+			async close(): Promise<void> {
+				closed = true;
+				entries.clear();
+			},
+			async [Symbol.asyncDispose](): Promise<void> {
+				await history.close();
+			},
+		} satisfies MemoryHistory,
+	);
 	return history;
 }
 

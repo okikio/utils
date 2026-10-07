@@ -107,11 +107,13 @@ function runtimeIndex(plan: RoutePlan): RouteIndexType {
 	}
 	for (const bucket of dynamic.values()) bucket.sort((a, b) => compareRouteSpecificity(b.path, a.path));
 	mounts.sort((a, b) => b.path.length - a.path.length);
-	const value = Object.freeze({
-		static: staticRoutes,
-		dynamic: new Map([...dynamic].map(([key, value]) => [key, Object.freeze(value)] as const)),
-		mounts: Object.freeze(mounts),
-	} satisfies RouteIndexType);
+	const value = Object.freeze(
+		{
+			static: staticRoutes,
+			dynamic: new Map([...dynamic].map(([key, value]) => [key, Object.freeze(value)] as const)),
+			mounts: Object.freeze(mounts),
+		} satisfies RouteIndexType,
+	);
 	indexes.set(plan, value);
 	return value;
 }

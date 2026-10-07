@@ -57,19 +57,33 @@ describe('middleware composition', () => {
 		const context = {
 			request,
 			host: undefined,
-			values: { has: () => false, get: () => { throw new Error('missing'); }, set: () => undefined },
-			resources: { has: () => false, get: async () => { throw new Error('missing'); } },
+			values: {
+				has: () => false,
+				get: () => {
+					throw new Error('missing');
+				},
+				set: () => undefined,
+			},
+			resources: {
+				has: () => false,
+				get: async () => {
+					throw new Error('missing');
+				},
+			},
 			ctx: {} as never,
 		};
 		let continuations = 0;
-		await binding.handle(context, async () => { continuations += 1; });
-		await binding.handle(context, async () => { continuations += 1; });
+		await binding.handle(context, async () => {
+			continuations += 1;
+		});
+		await binding.handle(context, async () => {
+			continuations += 1;
+		});
 		expect(calls).toBe(1);
 		expect(continuations).toBe(2);
 		await binding.handle({ ...context, request: new Request('https://service.invalid') }, async () => undefined);
 		expect(calls).toBe(2);
 	});
-
 
 	it('rejects accessor-backed authoring records without executing getters', () => {
 		let topLevelReads = 0;
@@ -98,11 +112,13 @@ describe('middleware composition', () => {
 				return 'should not execute';
 			},
 		});
-		expect(() => middleware.define({
-			id: 'server.accessor-documentation',
-			description: 'Accessor-backed documentation.',
-			documentation,
-		})).toThrow(TypeError);
+		expect(() =>
+			middleware.define({
+				id: 'server.accessor-documentation',
+				description: 'Accessor-backed documentation.',
+				documentation,
+			})
+		).toThrow(TypeError);
 		expect(documentationReads).toBe(0);
 	});
 
@@ -116,11 +132,13 @@ describe('middleware composition', () => {
 				return Authentication;
 			},
 		});
-		expect(() => middleware.define({
-			id: 'server.accessor-authentication',
-			description: 'Accessor-backed authentication contribution.',
-			authentication,
-		})).toThrow(TypeError);
+		expect(() =>
+			middleware.define({
+				id: 'server.accessor-authentication',
+				description: 'Accessor-backed authentication contribution.',
+				authentication,
+			})
+		).toThrow(TypeError);
 		expect(reads).toBe(0);
 	});
 

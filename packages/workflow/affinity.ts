@@ -14,7 +14,9 @@ import type { EngineAffinityType } from './types.ts';
 export function freeze(value: EngineAffinityType, name = 'activity affinity'): EngineAffinityType {
 	const snapshot = record.snapshot(value, name);
 	for (const [key, field] of record.entries(snapshot, name)) {
-		if (typeof field !== 'string' && typeof field !== 'boolean' && (typeof field !== 'number' || !Number.isFinite(field))) {
+		if (
+			typeof field !== 'string' && typeof field !== 'boolean' && (typeof field !== 'number' || !Number.isFinite(field))
+		) {
 			throw new TypeError(`${name} ${JSON.stringify(key)} must be a string, boolean, or finite number.`);
 		}
 	}

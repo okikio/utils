@@ -15,27 +15,51 @@ import type {
 	GatewayObserverEvent,
 	GatewayObserverEventKind,
 	GatewayObserverHandler,
-	PreparedGatewayRequest,
-	PrepareGatewayRequestOptions,
 	GatewayRequestPatch,
 	GatewayRequestState,
 	GatewayRuntime,
+	PreparedGatewayRequest,
+	PrepareGatewayRequestOptions,
 } from './types.ts';
 
-const removedRequestHeaders = Object.freeze(new Set([
-	'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer',
-	'transfer-encoding', 'upgrade', 'host', 'x-real-ip', 'x-request-id', 'traceparent', 'tracestate',
-]));
+const removedRequestHeaders = Object.freeze(
+	new Set([
+		'connection',
+		'keep-alive',
+		'proxy-authenticate',
+		'proxy-authorization',
+		'te',
+		'trailer',
+		'transfer-encoding',
+		'upgrade',
+		'host',
+		'x-real-ip',
+		'x-request-id',
+		'traceparent',
+		'tracestate',
+	]),
+);
 
-const removedResponseHeaders = Object.freeze(new Set([
-	'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer',
-	'transfer-encoding', 'upgrade',
-]));
+const removedResponseHeaders = Object.freeze(
+	new Set([
+		'connection',
+		'keep-alive',
+		'proxy-authenticate',
+		'proxy-authorization',
+		'te',
+		'trailer',
+		'transfer-encoding',
+		'upgrade',
+	]),
+);
 
 const routeIndexCache = new WeakMap<CompiledGateway, ReadonlyMap<string, CompiledGatewayRoute>>();
 
 /** Match one request against the compiler-prepared public route table. */
-export function match(compiled: CompiledGateway, request: Pick<Request, 'method' | 'url'>): CompiledGatewayRoute | undefined {
+export function match(
+	compiled: CompiledGateway,
+	request: Pick<Request, 'method' | 'url'>,
+): CompiledGatewayRoute | undefined {
 	const pathname = new URL(request.url).pathname;
 	const key = http.matchRoute(compiled.routePlan, request.method, pathname);
 	return key === undefined ? undefined : routeIndex(compiled).get(key);
@@ -62,7 +86,9 @@ export async function prepare(
 	const headers = sanitizedForwardHeaders(request.headers, options);
 	for (const [name, value] of requestWire.propagationHeaders(correlation)) headers.set(name, value);
 	applyForwardingHeaders(headers, request, options.clientIp?.(request));
-	if (options.metadataHeaders?.requestId !== undefined) headers.set(options.metadataHeaders.requestId, correlation.requestId);
+	if (options.metadataHeaders?.requestId !== undefined) {
+		headers.set(options.metadataHeaders.requestId, correlation.requestId);
+	}
 	return Object.freeze({
 		request: new Request(request, { headers }),
 		requestId: correlation.requestId,
@@ -77,11 +103,22 @@ export function create(compiled: CompiledGateway, options: CreateGatewayOptions 
 	const observers = observerIndex(options.observers ?? []);
 	return Object.freeze({
 		fetch: async (request: Request) => {
-			const correlation = await requestWire.correlation(request, options.requestId === undefined ? {} : { requestId: options.requestId });
+			const correlation = await requestWire.correlation(
+				request,
+				options.requestId === undefined ? {} : { requestId: options.requestId },
+			);
 			const route = match(compiled, request);
 			if (!route) {
-				await emit(compiled.definition.observers, observers, event('denied', compiled.definition.id, correlation, request));
-				return correlated(problemResponse(problem.create(GatewayProblems.NotFound, { instance: new URL(request.url).pathname })), correlation.requestId, options);
+				await emit(
+					compiled.definition.observers,
+					observers,
+					event('denied', compiled.definition.id, correlation, request),
+				);
+				return correlated(
+					problemResponse(problem.create(GatewayProblems.NotFound, { instance: new URL(request.url).pathname })),
+					correlation.requestId,
+					options,
+				);
 			}
 			return await forward(compiled, route, request, correlation, fetcher, options, observers);
 		},
@@ -115,7 +152,8 @@ async function forward(
 	}
 	const requestId = correlation.requestId;
 	const state = Object.freeze({ request, route, requestId, correlation, signal } satisfies GatewayRequestState);
-	const base = (kind: GatewayObserverEventKind): GatewayObserverEvent => event(kind, compiled.definition.id, correlation, request, route);
+	const base = (kind: GatewayObserverEventKind): GatewayObserverEvent =>
+		event(kind, compiled.definition.id, correlation, request, route);
 	const finish = (httpResponse: Response): Response => {
 		const abortable = abortableResponse(httpResponse, signal);
 		return response.onComplete(correlated(abortable, requestId, options), async (completion) => {
@@ -123,12 +161,16 @@ async function forward(
 			let kind: GatewayObserverEventKind = 'failed';
 			if (completion.outcome === 'completed') kind = 'completed';
 			else if (signal.aborted) kind = 'aborted';
-			await emit(route.observers, observers, Object.freeze({
-				...base(kind),
-				status: httpResponse.status,
-				responseBytes: completion.bytes,
-				completion: Object.freeze({ outcome: completion.outcome, bytes: completion.bytes }),
-			}));
+			await emit(
+				route.observers,
+				observers,
+				Object.freeze({
+					...base(kind),
+					status: httpResponse.status,
+					responseBytes: completion.bytes,
+					completion: Object.freeze({ outcome: completion.outcome, bytes: completion.bytes }),
+				}),
+			);
 		});
 	};
 	const finishProblem = (value: problem.ProblemResult): Response => finish(problemResponse(value));
@@ -145,14 +187,18 @@ async function forward(
 		applyMetadataHeaders(headers, route, requestId, options.metadataHeaders);
 
 		const body = await boundedBody(request, route.bodyLimit);
-		if (body === tooLarge) return finishProblem(problem.create(GatewayProblems.BodyTooLarge, {
-			detail: `The request body exceeds ${route.bodyLimit} bytes.`,
-			instance: new URL(request.url).pathname,
-		}));
-		if (body === invalidBody) return finishProblem(problem.create(GatewayProblems.InvalidRequest, {
-			detail: 'The Content-Length header is invalid.',
-			instance: new URL(request.url).pathname,
-		}));
+		if (body === tooLarge) {
+			return finishProblem(problem.create(GatewayProblems.BodyTooLarge, {
+				detail: `The request body exceeds ${route.bodyLimit} bytes.`,
+				instance: new URL(request.url).pathname,
+			}));
+		}
+		if (body === invalidBody) {
+			return finishProblem(problem.create(GatewayProblems.InvalidRequest, {
+				detail: 'The Content-Length header is invalid.',
+				instance: new URL(request.url).pathname,
+			}));
+		}
 
 		const source = new URL(request.url);
 		const target = new URL(route.origin);
@@ -167,10 +213,14 @@ async function forward(
 			signal,
 		};
 		const upstream = new Request(target, upstreamInit);
-		await emit(route.observers, observers, Object.freeze({
-			...base('forwarding'),
-			...(body instanceof Uint8Array ? { requestBytes: body.byteLength } : contentLength(request)),
-		}));
+		await emit(
+			route.observers,
+			observers,
+			Object.freeze({
+				...base('forwarding'),
+				...(body instanceof Uint8Array ? { requestBytes: body.byteLength } : contentLength(request)),
+			}),
+		);
 		const upstreamResponse = await fetcher(upstream);
 		await emit(route.observers, observers, Object.freeze({ ...base('response'), status: upstreamResponse.status }));
 		const redirected = applyRedirectPolicy(upstreamResponse, route, source);
@@ -180,22 +230,32 @@ async function forward(
 	} catch (error) {
 		if (request.signal.aborted) {
 			if (timer !== undefined) clearTimeout(timer);
-			await emit(route.observers, observers, Object.freeze({
-				...base('aborted'),
-				error: safeError(error),
-			}));
+			await emit(
+				route.observers,
+				observers,
+				Object.freeze({
+					...base('aborted'),
+					error: safeError(error),
+				}),
+			);
 			throw request.signal.reason ?? new DOMException('Request aborted.', 'AbortError');
 		}
 		await safeOnError(options, error, state);
 		const aborted = signal.aborted;
-		await emit(route.observers, observers, Object.freeze({
-			...base(aborted ? 'aborted' : 'failed'),
-			error: safeError(error),
-		}));
-		if (aborted) return finishProblem(problem.create(GatewayProblems.DeadlineExceeded, {
-			instance: new URL(request.url).pathname,
-			cause: error,
-		}));
+		await emit(
+			route.observers,
+			observers,
+			Object.freeze({
+				...base(aborted ? 'aborted' : 'failed'),
+				error: safeError(error),
+			}),
+		);
+		if (aborted) {
+			return finishProblem(problem.create(GatewayProblems.DeadlineExceeded, {
+				instance: new URL(request.url).pathname,
+				cause: error,
+			}));
+		}
 		return finishProblem(problem.create(GatewayProblems.Unavailable, {
 			instance: new URL(request.url).pathname,
 			cause: error,
@@ -209,7 +269,16 @@ async function forward(
  * @internal
  */
 async function runAdapter(
-	runtime: ((requirements: readonly CatalogEntryIdentity[], state: GatewayRequestState) => GatewayRequestPatch | problem.ProblemResult | void | Promise<GatewayRequestPatch | problem.ProblemResult | void>) | undefined,
+	runtime:
+		| ((
+			requirements: readonly CatalogEntryIdentity[],
+			state: GatewayRequestState,
+		) =>
+			| GatewayRequestPatch
+			| problem.ProblemResult
+			| void
+			| Promise<GatewayRequestPatch | problem.ProblemResult | void>)
+		| undefined,
 	requirements: readonly CatalogEntryIdentity[],
 	state: GatewayRequestState,
 ): Promise<GatewayRequestPatch | problem.ProblemResult | void> {
@@ -224,14 +293,24 @@ async function runAdapter(
  * @internal
  */
 function validateRuntimeAdapters(compiled: CompiledGateway, options: CreateGatewayOptions): void {
-	if (compiled.routes.some((route) => route.authenticate.length > 0) && !options.adapters?.authenticate) throw new TypeError('Compiled gateway requires an authentication runtime.');
-	if (compiled.routes.some((route) => route.assertions.length > 0) && !options.adapters?.assert) throw new TypeError('Compiled gateway requires an assertion runtime.');
+	if (compiled.routes.some((route) => route.authenticate.length > 0) && !options.adapters?.authenticate) {
+		throw new TypeError('Compiled gateway requires an authentication runtime.');
+	}
+	if (compiled.routes.some((route) => route.assertions.length > 0) && !options.adapters?.assert) {
+		throw new TypeError('Compiled gateway requires an assertion runtime.');
+	}
 	const handlers = new Map((options.observers ?? []).map((handler) => [handler.definition, handler] as const));
 	for (const definition of compiled.definition.observers) {
-		if (!handlers.has(definition)) throw new TypeError(`Gateway observer ${JSON.stringify(definition.id)} has no runtime handler.`);
+		if (!handlers.has(definition)) {
+			throw new TypeError(`Gateway observer ${JSON.stringify(definition.id)} has no runtime handler.`);
+		}
 	}
 	for (const handler of options.observers ?? []) {
-		if (!compiled.definition.observers.includes(handler.definition)) throw new TypeError(`Gateway observer handler ${JSON.stringify(handler.definition.id)} is outside the compiled gateway.`);
+		if (!compiled.definition.observers.includes(handler.definition)) {
+			throw new TypeError(
+				`Gateway observer handler ${JSON.stringify(handler.definition.id)} is outside the compiled gateway.`,
+			);
+		}
 	}
 }
 
@@ -258,7 +337,9 @@ async function emit(
 ): Promise<void> {
 	for (const definition of definitions) {
 		if (!definition.events.includes(value.kind)) continue;
-		try { await handlers.get(definition)?.handle(value); } catch { /* observational handlers cannot alter routing */ }
+		try {
+			await handlers.get(definition)?.handle(value);
+		} catch { /* observational handlers cannot alter routing */ }
 	}
 }
 
@@ -351,8 +432,10 @@ async function boundedBody(
 	try {
 		requestWire.parseContentLength(request.headers.get('content-length'));
 	} catch (error) {
-		if (error instanceof requestWire.RequestTransportError &&
-			error.issues.some((issue) => issue.code === 'invalid-content-length')) return invalidBody;
+		if (
+			error instanceof requestWire.RequestTransportError &&
+			error.issues.some((issue) => issue.code === 'invalid-content-length')
+		) return invalidBody;
 		throw error;
 	}
 	if (request.body === null || request.method === 'GET' || request.method === 'HEAD') return undefined;
@@ -414,7 +497,9 @@ function applyHeaders(headers: Headers, patch: Readonly<Record<string, string>> 
 	if (!patch) return;
 	for (const [key, value] of response.headerEntries(patch)) {
 		const lower = key.toLowerCase();
-		if (removedRequestHeaders.has(lower) || lower === 'forwarded' || lower.startsWith('x-forwarded-')) throw new TypeError(`Trusted gateway patch cannot set ${JSON.stringify(key)}.`);
+		if (removedRequestHeaders.has(lower) || lower === 'forwarded' || lower.startsWith('x-forwarded-')) {
+			throw new TypeError(`Trusted gateway patch cannot set ${JSON.stringify(key)}.`);
+		}
 		headers.set(key, value);
 	}
 }
@@ -446,8 +531,14 @@ function applyRedirectPolicy(
 	if (location === null || value.status < 300 || value.status > 399) return value;
 	const resolved = new URL(location, route.origin);
 	const allowed = new Set(route.redirects.allowedOrigins);
-	if (route.redirects.mode === 'reject-cross-origin' && resolved.origin !== incoming.origin && !allowed.has(resolved.origin)) {
-		return problem.create(GatewayProblems.InvalidRedirect, { detail: 'The upstream redirect targets an unapproved origin.', instance: incoming.pathname });
+	if (
+		route.redirects.mode === 'reject-cross-origin' && resolved.origin !== incoming.origin &&
+		!allowed.has(resolved.origin)
+	) {
+		return problem.create(GatewayProblems.InvalidRedirect, {
+			detail: 'The upstream redirect targets an unapproved origin.',
+			instance: incoming.pathname,
+		});
 	}
 	if (route.redirects.mode !== 'rewrite-origin' || resolved.origin !== new URL(route.origin).origin) return value;
 	const rewritten = new URL(resolved.pathname + resolved.search + resolved.hash, incoming.origin);
@@ -529,11 +620,12 @@ function abortableResponse(value: Response, signal: AbortSignal): Response {
 		 *
 		 * @internal
 		 */
-		async cancel(reason) { await reader.cancel(reason); },
+		async cancel(reason) {
+			await reader.cancel(reason);
+		},
 	});
 	return new Response(body, { status: value.status, statusText: value.statusText, headers: value.headers });
 }
-
 
 /**
  * Reads with abort under the module's cancellation and ownership rules.
@@ -571,7 +663,9 @@ async function readWithAbort(
  */
 function problemResponse(result: problem.ProblemResult): Response {
 	const [body, status, headers] = result;
-	const normalized = response.toHeaders(response.mergeHeaders(headers, { 'Content-Type': 'application/problem+json; charset=utf-8' }));
+	const normalized = response.toHeaders(
+		response.mergeHeaders(headers, { 'Content-Type': 'application/problem+json; charset=utf-8' }),
+	);
 	return new Response(JSON.stringify(body), { status, headers: normalized });
 }
 
@@ -581,7 +675,9 @@ function problemResponse(result: problem.ProblemResult): Response {
  * @internal
  */
 async function safeOnError(options: CreateGatewayOptions, error: unknown, state: GatewayRequestState): Promise<void> {
-	try { await options.onError?.(normalizeError(error), state); } catch { /* observers cannot replace original failure */ }
+	try {
+		await options.onError?.(normalizeError(error), state);
+	} catch { /* observers cannot replace original failure */ }
 }
 
 /**
@@ -590,10 +686,13 @@ async function safeOnError(options: CreateGatewayOptions, error: unknown, state:
  * @internal
  */
 function safeError(value: unknown): Readonly<{ readonly name: string; readonly message: string }> {
-	const diagnostic = fault.encode(value, { maximumDepth: 2, maximumEntries: 8, maximumStringLength: 1_024, includeStack: false });
-	const name = fault.isRecord(diagnostic) && typeof diagnostic.name === 'string'
-		? diagnostic.name
-		: 'UnknownError';
+	const diagnostic = fault.encode(value, {
+		maximumDepth: 2,
+		maximumEntries: 8,
+		maximumStringLength: 1_024,
+		includeStack: false,
+	});
+	const name = fault.isRecord(diagnostic) && typeof diagnostic.name === 'string' ? diagnostic.name : 'UnknownError';
 	const raw = fault.message(value, { maximumDepth: 2, maximumEntries: 8, maximumStringLength: 1_024 });
 	const message = raw
 		.replace(/(bearer|basic)\s+[^\s,;]+/gi, '$1 [REDACTED]')
@@ -620,7 +719,6 @@ function contentLength(request: Request): Readonly<{ readonly requestBytes: numb
 function timerMilliseconds(value: Temporal.Duration): number {
 	return Math.max(1, Math.min(2_147_483_647, durationCore.milliseconds(value)));
 }
-
 
 /** Normalize JavaScript's unrestricted thrown values before exposing them to host callbacks. */
 function normalizeError(reason: unknown): Error {

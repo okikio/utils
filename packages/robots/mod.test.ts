@@ -5,7 +5,9 @@ import { getSitemapUrls, match, parse } from '#/mod.ts';
 
 describe('@okikio/robots parsing', () => {
 	it('parses sitemap directives and preserves extension records', () => {
-		const document = parse('User-agent: *\nDisallow: /private\nSitemap: https://example.com/sitemap.xml\nCrawl-delay: 2');
+		const document = parse(
+			'User-agent: *\nDisallow: /private\nSitemap: https://example.com/sitemap.xml\nCrawl-delay: 2',
+		);
 		expect(getSitemapUrls(document)).toEqual(['https://example.com/sitemap.xml']);
 		expect(document.extensions).toEqual([{ field: 'crawl-delay', value: '2', line: 4 }]);
 	});

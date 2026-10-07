@@ -2,14 +2,24 @@ import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { Catalog, CatalogSelection, DefinitionInput as CatalogDefinitionInput } from '@okikio/catalog';
 import type { Context as BaseContext, Resources as OwnedResources } from '@okikio/context';
 import type { EffectDefinition, EffectDefinitions, EffectEmitter, EffectRuntime } from '@okikio/effect';
-import type { Occurrence as FailureOccurrence, Definition as FailureDefinition } from '@okikio/failure';
+import type { Definition as FailureDefinition, Occurrence as FailureOccurrence } from '@okikio/failure';
 import type { PermissionChecker, PermissionRuntime } from '@okikio/permission';
 import type { ResourceCollection, ResourceDefinition, ResourceValue } from '@okikio/resource';
-import type { RequirementDefinition, RequirementInput, RequirementDocument, RequirementRuntime } from '@okikio/requirement';
+import type {
+	RequirementDefinition,
+	RequirementDocument,
+	RequirementInput,
+	RequirementRuntime,
+} from '@okikio/requirement';
 import type { ResilienceInput, ResiliencePolicy } from '@okikio/resilience';
 import type { Result as ExplicitResult } from '@okikio/result';
 import type { ActivityCommandOptions, ActivityReference, WorkflowOperation } from '@okikio/workflow';
-import type { EngineDefinition, EnginePlacementDocumentType, EnginePlacementType, EnginePlacementInputType } from './engine.ts';
+import type {
+	EngineDefinition,
+	EnginePlacementDocumentType,
+	EnginePlacementInputType,
+	EnginePlacementType,
+} from './engine.ts';
 
 /** Standard Schema contract accepted by activity inputs and results. */
 export type ActivitySchema<Input = unknown, Output = Input> = StandardSchemaV1<Input, Output>;
@@ -76,11 +86,12 @@ export type ActivityResult<Activity extends ActivityDefinition> = StandardSchema
 export type ActivityResources<Activity extends ActivityDefinition> = Activity['resources'][number];
 
 /** Declared failure occurrence union inferred from an activity. */
-export type ActivityFailures<Activity extends ActivityDefinition> =
-	Activity['failures'][number] extends infer Failure extends FailureDefinition ? FailureOccurrence<Failure> : never;
+export type ActivityFailures<Activity extends ActivityDefinition> = Activity['failures'][number] extends
+	infer Failure extends FailureDefinition ? FailureOccurrence<Failure> : never;
 
 /** One concrete local activity-attempt context. */
-export interface ActivityContext<Activity extends ActivityDefinition = ActivityDefinition> extends BaseContext, OwnedResources {
+export interface ActivityContext<Activity extends ActivityDefinition = ActivityDefinition>
+	extends BaseContext, OwnedResources {
 	/** Permission state for dynamic checks declared by this activity attempt. */
 	readonly permissions: PermissionRuntime;
 	/** Effect state that limits announcements to effects declared by this activity. */
@@ -191,9 +202,13 @@ export interface ActivityDocument {
 }
 
 /** Explicit result returned by `activities.try()`. */
-export type ActivityTryResult<Activity extends ActivityDefinition> =
-	ExplicitResult<ActivityResult<Activity>, ActivityFailures<Activity>>;
+export type ActivityTryResult<Activity extends ActivityDefinition> = ExplicitResult<
+	ActivityResult<Activity>,
+	ActivityFailures<Activity>
+>;
 
 /** Yieldable workflow request for one activity. */
-export type ActivityOperation<Activity extends ActivityDefinition> =
-	WorkflowOperation<ActivityResult<Activity>, ActivityFailures<Activity>>;
+export type ActivityOperation<Activity extends ActivityDefinition> = WorkflowOperation<
+	ActivityResult<Activity>,
+	ActivityFailures<Activity>
+>;

@@ -50,7 +50,9 @@ function host(engineId: string, hostId: string, input: Partial<ExecutorJoinOptio
 
 /** Return one successful stored terminal value. */
 function success(value: WorkflowDurableValue): ActivityJobResultType {
-	return Object.freeze({ type: 'success', value: Object.freeze({ kind: 'value', value }) } satisfies ActivityJobResultType);
+	return Object.freeze(
+		{ type: 'success', value: Object.freeze({ kind: 'value', value }) } satisfies ActivityJobResultType,
+	);
 }
 
 describe('activity dispatch memory contract', () => {
@@ -58,9 +60,12 @@ describe('activity dispatch memory contract', () => {
 		await using ctx = context.create({ id: 'dispatch-compute' });
 		await using store = dispatch.memory();
 		const flat = await store.join(ctx, host('flat', 'flat-1'));
-		const nested = await store.join(ctx, host('threaded', 'thread-1', {
-			compute: { id: 'thread-1', kind: 'thread', parent: 'process-7', attributes: { pool: 'analysis' } },
-		}));
+		const nested = await store.join(
+			ctx,
+			host('threaded', 'thread-1', {
+				compute: { id: 'thread-1', kind: 'thread', parent: 'process-7', attributes: { pool: 'analysis' } },
+			}),
+		);
 
 		expect(flat.compute).toBeUndefined();
 		expect(nested.compute).toEqual({
@@ -97,7 +102,9 @@ describe('activity dispatch memory contract', () => {
 		await using store = dispatch.memory();
 		const west = await store.join(ctx, host('browser', 'west', { affinity: { region: 'west', browser: 'chromium' } }));
 		const east = await store.join(ctx, host('browser', 'east', { affinity: { region: 'east', browser: 'chromium' } }));
-		await store.add(ctx, item(ctx, 'east-only', [{ engine: 'browser', mode: 'required' }], { region: 'east' }), { key: 'east-only' });
+		await store.add(ctx, item(ctx, 'east-only', [{ engine: 'browser', mode: 'required' }], { region: 'east' }), {
+			key: 'east-only',
+		});
 
 		expect(await store.claim(ctx, west, { duration: { seconds: 5 } })).toHaveLength(0);
 		const claimed = await store.claim(ctx, east, { duration: { seconds: 5 } });
@@ -108,12 +115,16 @@ describe('activity dispatch memory contract', () => {
 		await using ctx = context.create({ id: 'dispatch-generation' });
 		await using store = dispatch.memory();
 		const first = await store.join(ctx, host('engine', 'same-host'));
-		const ref = await store.add(ctx, item(ctx, 'replace', [{ engine: 'engine', mode: 'required' }]), { key: 'replace' });
+		const ref = await store.add(ctx, item(ctx, 'replace', [{ engine: 'engine', mode: 'required' }]), {
+			key: 'replace',
+		});
 		const firstClaim = (await store.claim(ctx, first, { duration: { seconds: 5 } }))[0]!;
 		const second = await store.join(ctx, host('engine', 'same-host'));
 
 		expect(second.generation).toBe(first.generation + 1);
-		await expect(store.complete(ctx, firstClaim, success('stale'))).rejects.toBeInstanceOf(dispatch.StaleActivityClaimError);
+		await expect(store.complete(ctx, firstClaim, success('stale'))).rejects.toBeInstanceOf(
+			dispatch.StaleActivityClaimError,
+		);
 		const secondClaim = (await store.claim(ctx, second, { duration: { seconds: 5 } }))[0]!;
 		expect(secondClaim.attempt).toBe(2);
 		await store.complete(ctx, secondClaim, success('current'));
@@ -139,7 +150,9 @@ describe('activity dispatch memory contract', () => {
 		await using ctx = context.create({ id: 'dispatch-virtual-retry', clock });
 		await using store = dispatch.memory({ clock });
 		const executor = await store.join(ctx, host('engine', 'host'));
-		await store.add(ctx, item(ctx, 'virtual-retry', [{ engine: 'engine', mode: 'required' }]), { key: 'virtual-retry' });
+		await store.add(ctx, item(ctx, 'virtual-retry', [{ engine: 'engine', mode: 'required' }]), {
+			key: 'virtual-retry',
+		});
 		const first = (await store.claim(ctx, executor, { duration: { seconds: 5 } }))[0]!;
 		await store.retry(ctx, first, { delay: { seconds: 5 } });
 		const waiting = store.claim(ctx, executor, { duration: { seconds: 5 }, wait: true });
@@ -172,11 +185,16 @@ describe('activity dispatch memory contract', () => {
 	it('snapshots producer cancellation data before it becomes a terminal result', async () => {
 		await using ctx = context.create({ id: 'dispatch-cancellation-snapshot' });
 		await using store = dispatch.memory();
-		const ref = await store.add(ctx, item(ctx, 'cancel-snapshot', [{ engine: 'engine', mode: 'required' }]), { key: 'cancel-snapshot' });
+		const ref = await store.add(ctx, item(ctx, 'cancel-snapshot', [{ engine: 'engine', mode: 'required' }]), {
+			key: 'cancel-snapshot',
+		});
 		const reason = { value: 'stored' };
 		await store.cancel(ctx, ref, { kind: 'value', value: reason });
 		reason.value = 'changed';
-		expect(await store.result(ctx, ref)).toEqual({ type: 'cancelled', reason: { kind: 'value', value: { value: 'stored' } } });
+		expect(await store.result(ctx, ref)).toEqual({
+			type: 'cancelled',
+			reason: { kind: 'value', value: { value: 'stored' } },
+		});
 	});
 
 	it('rejects accessor-backed compute metadata without invoking the getter', async () => {
@@ -184,8 +202,16 @@ describe('activity dispatch memory contract', () => {
 		await using store = dispatch.memory();
 		let reads = 0;
 		const compute = Object.create(null) as Record<string, unknown>;
-		Object.defineProperty(compute, 'id', { enumerable: true, get() { reads += 1; return 'unsafe'; } });
-		await expect(store.join(ctx, host('engine', 'host', { compute: compute as never }))).rejects.toBeInstanceOf(TypeError);
+		Object.defineProperty(compute, 'id', {
+			enumerable: true,
+			get() {
+				reads += 1;
+				return 'unsafe';
+			},
+		});
+		await expect(store.join(ctx, host('engine', 'host', { compute: compute as never }))).rejects.toBeInstanceOf(
+			TypeError,
+		);
 		expect(reads).toBe(0);
 	});
 });

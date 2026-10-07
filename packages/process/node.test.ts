@@ -95,10 +95,10 @@ setInterval(() => {}, 1000);`,
 	});
 
 	it('reports spawn failure without returning a partially owned handle', async () => {
-		await expect(process.start(ctx(), adapter, { command: '__utility_command_that_does_not_exist__' })).rejects.toThrow();
+		await expect(process.start(ctx(), adapter, { command: '__utility_command_that_does_not_exist__' })).rejects
+			.toThrow();
 	});
 });
-
 
 /** Read one UTF-8 line from a process stream without collecting later output. */
 async function firstLine(stream: ReadableStream<Uint8Array>): Promise<string> {

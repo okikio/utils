@@ -2,7 +2,7 @@ import * as problem from '@okikio/http/problem';
 
 /** Framework-level public and internal problems contributed by the service compiler. */
 export const ServerProblems = problem.catalog('server', {
-		NotFound: problem.define({
+	NotFound: problem.define({
 		id: 'server:not-found',
 		type: 'urn:utils:server:not-found',
 		status: 404,

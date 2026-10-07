@@ -137,55 +137,73 @@ export async function create(options: WorkerProviderOptions): Promise<WorkerProv
 		close: (host, reason) => host.close(reason),
 	});
 
-	const provider = Object.freeze({
-		activities: Object.freeze([...activities.values()]),
-		async run(ctx: Context, attempt: ActivityAttemptType, control: ActivityAttemptControl): Promise<ActivityAttemptResultType> {
-			const definition = remote.definition(
-				activities,
-				options.engine,
-				attempt,
-				(id, version) => new MissingWorkerActivityError(id, version),
-			);
-			await using lease = await hosts.acquire(ctx);
-			const host = lease.value;
-			if (host.active.has(attempt.claimId)) {
-				lease.invalidate(new TypeError(`Worker request ${JSON.stringify(attempt.claimId)} is already active.`));
-				return Object.freeze({ type: 'fault', fault: new TypeError('Duplicate Worker activity claim.') }) as ActivityAttemptResultType;
-			}
-			host.active.set(attempt.claimId, { activity: definition, attempt, control });
-			try {
-				const value = await host.worker.request(ctx, attempt, { id: attempt.claimId });
-				return await transport.result(definition, value);
-			} catch (error) {
-				if (workerFault(error)) lease.invalidate(error);
-				if (ctx.signal.aborted) return Object.freeze({ type: 'cancelled', reason: ctx.signal.reason }) as ActivityAttemptResultType;
-				return Object.freeze({ type: 'lost', reason: error }) as ActivityAttemptResultType;
-			} finally {
-				host.active.delete(attempt.claimId);
-			}
-		},
-		async cancel() {
-			// Request cancellation is driven by the attempt Context passed to `run()`.
-			// The Worker utility sends the matching cancel frame when that Context aborts.
-		},
-		stats() { return hosts.stats(); },
-		drain(reason?: unknown) { return hosts.drain(reason); },
-		async [Symbol.asyncDispose]() {
-			const reason = new workers.WorkerStoppedError('Activity Worker provider was disposed.');
-			const stopped = await Promise.allSettled([...live].map((host) => host.close(reason)));
-			let disposal: unknown;
-			try {
-				await hosts[Symbol.asyncDispose]();
-			} catch (error) {
-				disposal = error;
-			}
-			const failures = stopped
-				.filter((result): result is PromiseRejectedResult => result.status === 'rejected')
-				.map((result) => result.reason);
-			if (disposal !== undefined) failures.push(disposal);
-			if (failures.length > 0) throw new AggregateError(failures, 'Activity Worker provider disposal failed.');
-		},
-	} satisfies WorkerProvider);
+	const provider = Object.freeze(
+		{
+			activities: Object.freeze([...activities.values()]),
+			async run(
+				ctx: Context,
+				attempt: ActivityAttemptType,
+				control: ActivityAttemptControl,
+			): Promise<ActivityAttemptResultType> {
+				const definition = remote.definition(
+					activities,
+					options.engine,
+					attempt,
+					(id, version) => new MissingWorkerActivityError(id, version),
+				);
+				await using lease = await hosts.acquire(ctx);
+				const host = lease.value;
+				if (host.active.has(attempt.claimId)) {
+					lease.invalidate(new TypeError(`Worker request ${JSON.stringify(attempt.claimId)} is already active.`));
+					return Object.freeze({
+						type: 'fault',
+						fault: new TypeError('Duplicate Worker activity claim.'),
+					}) as ActivityAttemptResultType;
+				}
+				host.active.set(attempt.claimId, { activity: definition, attempt, control });
+				try {
+					const value = await host.worker.request(ctx, attempt, { id: attempt.claimId });
+					return await transport.result(definition, value);
+				} catch (error) {
+					if (workerFault(error)) lease.invalidate(error);
+					if (ctx.signal.aborted) {
+						return Object.freeze({
+							type: 'cancelled',
+							reason: ctx.signal.reason,
+						}) as ActivityAttemptResultType;
+					}
+					return Object.freeze({ type: 'lost', reason: error }) as ActivityAttemptResultType;
+				} finally {
+					host.active.delete(attempt.claimId);
+				}
+			},
+			async cancel() {
+				// Request cancellation is driven by the attempt Context passed to `run()`.
+				// The Worker utility sends the matching cancel frame when that Context aborts.
+			},
+			stats() {
+				return hosts.stats();
+			},
+			drain(reason?: unknown) {
+				return hosts.drain(reason);
+			},
+			async [Symbol.asyncDispose]() {
+				const reason = new workers.WorkerStoppedError('Activity Worker provider was disposed.');
+				const stopped = await Promise.allSettled([...live].map((host) => host.close(reason)));
+				let disposal: unknown;
+				try {
+					await hosts[Symbol.asyncDispose]();
+				} catch (error) {
+					disposal = error;
+				}
+				const failures = stopped
+					.filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+					.map((result) => result.reason);
+				if (disposal !== undefined) failures.push(disposal);
+				if (failures.length > 0) throw new AggregateError(failures, 'Activity Worker provider disposal failed.');
+			},
+		} satisfies WorkerProvider,
+	);
 	return provider;
 
 	/** Open one Worker under a stable pool-owned lifetime rather than the short acquisition context. */
@@ -195,26 +213,28 @@ export async function create(options: WorkerProviderOptions): Promise<WorkerProv
 		const active = new Map<string, Active>();
 		try {
 			const worker = hostCtx.use(workers.open<
-			ActivityAttemptType,
-			transport.WireResultType,
-			transport.NoticeType,
-			transport.HostCallType,
-			transport.HostReplyType
+				ActivityAttemptType,
+				transport.WireResultType,
+				transport.NoticeType,
+				transport.HostCallType,
+				transport.HostReplyType
 			>(hostCtx, {
 				module: options.module,
-			protocol: workers.protocol(remote.protocol()),
-			...(options.name === undefined ? {} : { name: options.name }),
-			...(options.shutdownMs === undefined ? {} : { shutdownMs: options.shutdownMs }),
-			...(options.create === undefined ? {} : { create: options.create }),
-			async notice(notice, _requestCtx, requestId) {
-				const current = active.get(requestId);
-				if (current !== undefined) await options.observe?.(notice.value, current.attempt);
-			},
-			async call(call, requestCtx, requestId) {
-				const current = active.get(requestId);
-				if (current === undefined) throw new TypeError(`Worker reverse call used inactive request ${JSON.stringify(requestId)}.`);
-				return await transport.answer(requestCtx, current.activity, current.control, options, call);
-			},
+				protocol: workers.protocol(remote.protocol()),
+				...(options.name === undefined ? {} : { name: options.name }),
+				...(options.shutdownMs === undefined ? {} : { shutdownMs: options.shutdownMs }),
+				...(options.create === undefined ? {} : { create: options.create }),
+				async notice(notice, _requestCtx, requestId) {
+					const current = active.get(requestId);
+					if (current !== undefined) await options.observe?.(notice.value, current.attempt);
+				},
+				async call(call, requestCtx, requestId) {
+					const current = active.get(requestId);
+					if (current === undefined) {
+						throw new TypeError(`Worker reverse call used inactive request ${JSON.stringify(requestId)}.`);
+					}
+					return await transport.answer(requestCtx, current.activity, current.control, options, call);
+				},
 			}));
 			contexts.check(acquireCtx);
 			let closing: Promise<void> | undefined;
@@ -224,7 +244,11 @@ export async function create(options: WorkerProviderOptions): Promise<WorkerProv
 					try {
 						await worker.stop(reason);
 					} finally {
-						try { await hostCtx[Symbol.asyncDispose](); } finally { live.delete(host); }
+						try {
+							await hostCtx[Symbol.asyncDispose]();
+						} finally {
+							live.delete(host);
+						}
 					}
 				})();
 				return closing;
@@ -233,7 +257,9 @@ export async function create(options: WorkerProviderOptions): Promise<WorkerProv
 			live.add(host);
 			return host;
 		} catch (error) {
-			try { await hostCtx[Symbol.asyncDispose](); } catch { /* Preserve the creation failure. */ }
+			try {
+				await hostCtx[Symbol.asyncDispose]();
+			} catch { /* Preserve the creation failure. */ }
 			throw error;
 		}
 	}
@@ -257,10 +283,16 @@ export function serve(options: WorkerServeOptions): WorkerServer {
 		async run(attempt, ctx, control) {
 			const implementation = implementations.get(remote.identity(attempt.activityId, attempt.activityVersion));
 			if (implementation === undefined) {
-				return Object.freeze({ type: 'fault', fault: remote.fault(new MissingWorkerActivityError(attempt.activityId, attempt.activityVersion)) });
+				return Object.freeze({
+					type: 'fault',
+					fault: remote.fault(new MissingWorkerActivityError(attempt.activityId, attempt.activityVersion)),
+				});
 			}
 			if (attempt.engineId !== options.engine.id) {
-				return Object.freeze({ type: 'fault', fault: remote.fault(new activity.InvalidEngineError(attempt.activityId, attempt.engineId)) });
+				return Object.freeze({
+					type: 'fault',
+					fault: remote.fault(new activity.InvalidEngineError(attempt.activityId, attempt.engineId)),
+				});
 			}
 			const call = (request: transport.HostCallType) => control.call(request);
 			try {
@@ -300,7 +332,9 @@ export class MissingWorkerActivityError extends Error {
 
 	/** Create one configuration error when the Worker lacks the requested activity implementation. */
 	constructor(activityId: string, version: string) {
-		super(`Worker activity provider has no implementation for ${JSON.stringify(remote.identity(activityId, version))}.`);
+		super(
+			`Worker activity provider has no implementation for ${JSON.stringify(remote.identity(activityId, version))}.`,
+		);
 		this.name = 'MissingWorkerActivityError';
 		this.activityId = activityId;
 		this.version = version;

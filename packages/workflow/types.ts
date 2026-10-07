@@ -8,7 +8,12 @@ import type {
 import type { Context as BaseContext, Snapshot as ContextSnapshot } from '@okikio/context';
 import type { EffectDefinition, EffectDefinitions, EffectEmitter } from '@okikio/effect';
 import type { Definition as FailureDefinition, Occurrence as FailureOccurrence } from '@okikio/failure';
-import type { RequirementDefinition, RequirementInput, RequirementDocument, RequirementScopeOptions } from '@okikio/requirement';
+import type {
+	RequirementDefinition,
+	RequirementDocument,
+	RequirementInput,
+	RequirementScopeOptions,
+} from '@okikio/requirement';
 import type { Result as ExplicitResult } from '@okikio/result';
 import type { ResiliencePolicy } from '@okikio/resilience';
 
@@ -139,9 +144,9 @@ export type WorkflowResult<WorkflowDefinition extends WorkflowReference> = Stand
 >;
 
 /** Declared failure occurrence union inferred from a workflow definition. */
-export type WorkflowFailures<WorkflowDefinition extends WorkflowReference> = WorkflowDefinition['failures'][number] extends
-	infer Failure_ extends FailureDefinition ? FailureOccurrence<Failure_>
-	: never;
+export type WorkflowFailures<WorkflowDefinition extends WorkflowReference> =
+	WorkflowDefinition['failures'][number] extends infer Failure_ extends FailureDefinition ? FailureOccurrence<Failure_>
+		: never;
 
 /** Runtime workflow context. It deliberately has no resource resolver. */
 export interface WorkflowContext<Workflow extends WorkflowDefinition = WorkflowDefinition> extends BaseContext {
@@ -297,7 +302,8 @@ export interface WorkflowParallelOptions extends WorkflowCommandOptions {
 }
 
 /** Keyed parallel child-operation coordination. */
-export interface WorkflowParallelInstruction<Operations_ extends WorkflowOperations = WorkflowOperations> extends WorkflowControlBase {
+export interface WorkflowParallelInstruction<Operations_ extends WorkflowOperations = WorkflowOperations>
+	extends WorkflowControlBase {
 	/** Stable discriminant for this workflow parallel variant. */
 	readonly type: 'parallel';
 	/** Keyed child operations coordinated by this workflow parallel. */
@@ -312,7 +318,8 @@ export interface WorkflowParallelInstruction<Operations_ extends WorkflowOperati
 export type WorkflowRaceOptions = WorkflowCommandOptions;
 
 /** First-terminal child-operation coordination. */
-export interface WorkflowRaceInstruction<Operations_ extends WorkflowOperations = WorkflowOperations> extends WorkflowControlBase {
+export interface WorkflowRaceInstruction<Operations_ extends WorkflowOperations = WorkflowOperations>
+	extends WorkflowControlBase {
 	/** Stable discriminant for this workflow race variant. */
 	readonly type: 'race';
 	/** Keyed child operations coordinated by this workflow race. */
@@ -431,7 +438,11 @@ export type WorkflowCommand =
 	| WorkflowContinueCommand;
 
 /** Instructions coordinating nested operations. */
-export type WorkflowControlInstruction = WorkflowParallelInstruction | WorkflowRaceInstruction | WorkflowMapInstruction | WorkflowRetryInstruction;
+export type WorkflowControlInstruction =
+	| WorkflowParallelInstruction
+	| WorkflowRaceInstruction
+	| WorkflowMapInstruction
+	| WorkflowRetryInstruction;
 
 /** Any instruction understood by a workflow interpreter. */
 export type WorkflowInstruction = WorkflowCommand | WorkflowControlInstruction;
@@ -506,11 +517,16 @@ export type WorkflowOperationValues<Values extends WorkflowOperations> = {
 
 /** Key-preserving settled operation values. */
 export type WorkflowSettledValues<Values extends WorkflowOperations> = {
-	readonly [Key in keyof Values]: ExplicitResult<WorkflowOperationValue<Values[Key]>, WorkflowOperationFailure<Values[Key]>>;
+	readonly [Key in keyof Values]: ExplicitResult<
+		WorkflowOperationValue<Values[Key]>,
+		WorkflowOperationFailure<Values[Key]>
+	>;
 };
 
 /** Union of failures represented by a keyed operation record. */
-export type WorkflowOperationFailures<Values extends WorkflowOperations> = WorkflowOperationFailure<Values[keyof Values]>;
+export type WorkflowOperationFailures<Values extends WorkflowOperations> = WorkflowOperationFailure<
+	Values[keyof Values]
+>;
 
 /** WorkflowResult returned by a race. */
 export type WorkflowRaceResult<Values extends WorkflowOperations> = {
@@ -821,7 +837,11 @@ export interface ActivityDispatch extends AsyncDisposable {
 	/** Register a new executor generation and fence an older generation of the same host. */
 	join(ctx: BaseContext, options: ExecutorJoinOptions): Promise<ExecutorLeaseType>;
 	/** Extend one exact executor registration lease. */
-	renewExecutor(ctx: BaseContext, lease: ExecutorLeaseType, duration: Temporal.Duration | Temporal.DurationLike | string): Promise<ExecutorLeaseType>;
+	renewExecutor(
+		ctx: BaseContext,
+		lease: ExecutorLeaseType,
+		duration: Temporal.Duration | Temporal.DurationLike | string,
+	): Promise<ExecutorLeaseType>;
 	/** Change future claim capacity for one exact executor generation. */
 	resize(ctx: BaseContext, lease: ExecutorLeaseType, capacity: number): Promise<ExecutorLeaseType>;
 	/** Stop new claims and wait until the executor has no active attempts. */
@@ -829,11 +849,19 @@ export interface ActivityDispatch extends AsyncDisposable {
 	/** Remove a drained executor generation from placement. */
 	leave(ctx: BaseContext, lease: ExecutorLeaseType): Promise<void>;
 	/** Claim matching items without exceeding registered executor capacity. */
-	claim(ctx: BaseContext, lease: ExecutorLeaseType, options: ActivityClaimOptions): Promise<readonly ActivityClaimType[]>;
+	claim(
+		ctx: BaseContext,
+		lease: ExecutorLeaseType,
+		options: ActivityClaimOptions,
+	): Promise<readonly ActivityClaimType[]>;
 	/** Wait until a claimed item is cancelled or this exact attempt loses ownership. */
 	watch(ctx: BaseContext, claim: ActivityClaimType): Promise<'cancelled' | 'lost'>;
 	/** Extend one exact activity attempt claim. */
-	renew(ctx: BaseContext, claim: ActivityClaimType, duration: Temporal.Duration | Temporal.DurationLike | string): Promise<ActivityClaimType>;
+	renew(
+		ctx: BaseContext,
+		claim: ActivityClaimType,
+		duration: Temporal.Duration | Temporal.DurationLike | string,
+	): Promise<ActivityClaimType>;
 	/** Conditionally store a terminal result for the current claim owner. */
 	complete(ctx: BaseContext, claim: ActivityClaimType, result: ActivityJobResultType): Promise<void>;
 	/** Return the current claim to queued state with optional backoff. */
@@ -903,7 +931,11 @@ export interface EngineProvider {
 	/** Exact activity definitions this provider can run. */
 	readonly activities: readonly ActivityReference[];
 	/** Fulfill one fenced attempt without creating another logical retry. */
-	run(ctx: BaseContext, attempt: ActivityAttemptType, control: ActivityAttemptControl): Promise<ActivityAttemptResultType>;
+	run(
+		ctx: BaseContext,
+		attempt: ActivityAttemptType,
+		control: ActivityAttemptControl,
+	): Promise<ActivityAttemptResultType>;
 	/** Best-effort cooperative cancellation for an attempt already dispatched. */
 	cancel?(attempt: ActivityAttemptType, reason?: unknown): void | Promise<void>;
 }

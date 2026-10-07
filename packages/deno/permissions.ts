@@ -5,27 +5,31 @@
  */
 import type { PermissionGrant, PermissionGrants, PermissionName } from './types.ts';
 
-const order = Object.freeze([
-	'read',
-	'write',
-	'net',
-	'env',
-	'sys',
-	'run',
-	'ffi',
-	'import',
-] as const satisfies readonly PermissionName[]);
+const order = Object.freeze(
+	[
+		'read',
+		'write',
+		'net',
+		'env',
+		'sys',
+		'run',
+		'ffi',
+		'import',
+	] as const satisfies readonly PermissionName[],
+);
 
-const names = Object.freeze({
-	read: true,
-	write: true,
-	net: true,
-	env: true,
-	sys: true,
-	run: true,
-	ffi: true,
-	import: true,
-} satisfies Record<PermissionName, true>);
+const names = Object.freeze(
+	{
+		read: true,
+		write: true,
+		net: true,
+		env: true,
+		sys: true,
+		run: true,
+		ffi: true,
+		import: true,
+	} satisfies Record<PermissionName, true>,
+);
 
 /**
  * Build canonical `--allow-*` arguments for one Deno subprocess.
@@ -85,10 +89,12 @@ export function parse(input: Iterable<string>): PermissionGrants {
 		if (current === true) continue;
 		result[rawName] = dedupe([...(current ?? []), ...decoded]);
 	}
-	return Object.freeze(Object.fromEntries(Object.entries(result).map(([name, grant]) => [
-		name,
-		Array.isArray(grant) ? Object.freeze([...grant]) : grant,
-	])) as PermissionGrants);
+	return Object.freeze(Object.fromEntries(
+		Object.entries(result).map(([name, grant]) => [
+			name,
+			Array.isArray(grant) ? Object.freeze([...grant]) : grant,
+		]),
+	) as PermissionGrants);
 }
 
 /** Encode one scoped Deno permission list. */
@@ -145,4 +151,4 @@ function isName(value: string): value is PermissionName {
 	return Object.hasOwn(names, value);
 }
 
-export type { PermissionName, PermissionGrant, PermissionGrants } from './types.ts';
+export type { PermissionGrant, PermissionGrants, PermissionName } from './types.ts';

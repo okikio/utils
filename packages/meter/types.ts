@@ -1,4 +1,9 @@
-import type { Catalog, CatalogEntryIdentity, CatalogSelection, DefinitionInput as CatalogDefinitionInput } from '@okikio/catalog';
+import type {
+	Catalog,
+	CatalogEntryIdentity,
+	CatalogSelection,
+	DefinitionInput as CatalogDefinitionInput,
+} from '@okikio/catalog';
 import type { EffectDefinition } from '@okikio/effect';
 
 /** Options accepted by `meters.define()`. */
@@ -36,7 +41,10 @@ export interface MeterRecordOptions {
 }
 
 /** Named meter catalog. */
-export type MeterCatalog<Entries extends Readonly<Record<PropertyKey, MeterDefinition>>> = Catalog<Entries[keyof Entries], Entries>;
+export type MeterCatalog<Entries extends Readonly<Record<PropertyKey, MeterDefinition>>> = Catalog<
+	Entries[keyof Entries],
+	Entries
+>;
 
 /** Key-preserving meter catalog selection. */
 export type MeterSelection<

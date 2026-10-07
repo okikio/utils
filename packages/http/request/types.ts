@@ -58,10 +58,12 @@ export interface RequestParsingLimits {
 export type BareQueryParameterPolicy = 'flag' | 'empty' | 'reject';
 
 /** Parsing policy and bounded limit overrides accepted by generic request readers. */
-export type RequestParsingOptions = Partial<RequestParsingLimits> & Readonly<{
-	/** Treat `?flag` as `true`, an empty string, or invalid input. Explicit `?flag=` always stays empty. */
-	readonly bareQueryParameters?: BareQueryParameterPolicy;
-}>;
+export type RequestParsingOptions =
+	& Partial<RequestParsingLimits>
+	& Readonly<{
+		/** Treat `?flag` as `true`, an empty string, or invalid input. Explicit `?flag=` always stays empty. */
+		readonly bareQueryParameters?: BareQueryParameterPolicy;
+	}>;
 
 /** One normalized wire value, preserving repeated occurrences when present. */
 export type WireValue = string | readonly string[];

@@ -1,8 +1,8 @@
 /**
-  * Import-safe endpoint definitions, request contracts, matching, and endpoint composition.
-	*
-	* Runtime server resources are created by higher-level service/gateway composition, not by importing this namespace.
-	*/
+ * Import-safe endpoint definitions, request contracts, matching, and endpoint composition.
+ *
+ * Runtime server resources are created by higher-level service/gateway composition, not by importing this namespace.
+ */
 export {
 	compose,
 	define,
@@ -28,7 +28,9 @@ export { joinPath, normalizePathTemplate, pathParameters } from './path.ts';
 export type {
 	AnyEndpointHandler,
 	AnyEndpointHandlerBinding,
+	EmptyEndpointHost,
 	EndpointCompositionInput,
+	EndpointContext,
 	EndpointContributions,
 	EndpointDefinition,
 	EndpointDefinitionInput,
@@ -36,11 +38,6 @@ export type {
 	EndpointDocumentation,
 	EndpointEntry,
 	EndpointExample,
-	EndpointContext,
-	EndpointRuntimeInputValues,
-	ErasedEndpointHandlerContext,
-	EndpointRequestValues,
-	EmptyEndpointHost,
 	EndpointGroup,
 	EndpointGroupInput,
 	EndpointGroupMembers,
@@ -59,13 +56,16 @@ export type {
 	EndpointOperation,
 	EndpointOperationDocument,
 	EndpointOperationInput,
+	EndpointRequestValues,
 	EndpointResourceDefinition,
 	EndpointResourceResolver,
-	EndpointResourceValue,
 	EndpointResources,
+	EndpointResourceValue,
+	EndpointRuntimeInputValues,
 	EndpointSchema,
 	EndpointValidationIssue,
 	EndpointValidationResult,
+	ErasedEndpointHandlerContext,
 	InferEndpointInputs,
 	InferEndpointWireInputs,
 	MergeEndpointInputs,

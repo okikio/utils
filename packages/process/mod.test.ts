@@ -26,7 +26,10 @@ describe('Deno process adapter', () => {
 		await using ctx = context.create({ id: 'process-input' });
 		const exit = await process.exec(ctx, adapter, {
 			command: Deno.execPath(),
-			arguments: ['eval', 'const text = await new Response(Deno.stdin.readable).text(); console.log(text.toUpperCase());'],
+			arguments: [
+				'eval',
+				'const text = await new Response(Deno.stdin.readable).text(); console.log(text.toUpperCase());',
+			],
 			stdin: 'piped',
 			input: 'hello',
 			stdout: { type: 'capture', maximumBytes: 1024 },

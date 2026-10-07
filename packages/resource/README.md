@@ -1,10 +1,10 @@
-`@okikio/resource`
-=================
+# `@okikio/resource`
 
-`@okikio/resource` defines provider-neutral capabilities and creates lazily acquired collections of concrete implementations. Definitions describe the complete resource graph. They do not connect to providers or storage at import time.
+`@okikio/resource` defines provider-neutral capabilities and creates lazily acquired collections of concrete
+implementations. Definitions describe the complete resource graph. They do not connect to providers or storage at import
+time.
 
-Start here
-----------
+## Start here
 
 A resource can declare dependencies, environment requirements, failures, health metadata, and generic requirements.
 
@@ -22,14 +22,17 @@ const Media = resource.define<MediaClient>()({
 });
 ```
 
-`resource.reachable(Media)` returns the statically reachable requirement set from the full dependency graph. Reachable metadata is descriptive and can bind runtime views; it is not automatically active admission work.
+`resource.reachable(Media)` returns the statically reachable requirement set from the full dependency graph. Reachable
+metadata is descriptive and can bind runtime views; it is not automatically active admission work.
 
-Definition requirements are checked on every public borrow. A concrete implementation can declare separate `requirements` that are checked once while that implementation is acquired. This prevents a shared cached resource from reusing one actor's authorization result for another actor.
+Definition requirements are checked on every public borrow. A concrete implementation can declare separate
+`requirements` that are checked once while that implementation is acquired. This prevents a shared cached resource from
+reusing one actor's authorization result for another actor.
 
-Acquisition
------------
+## Acquisition
 
-A resource implementation receives only its declared dependencies, selected environment values, the host value, and an owned creation context.
+A resource implementation receives only its declared dependencies, selected environment values, the host value, and an
+owned creation context.
 
 ```ts
 const StorageLive = resource.implement(Storage, {
@@ -48,7 +51,8 @@ The creation context uses standard explicit-resource-management semantics:
 - `ctx.adopt(value, dispose)` owns an arbitrary value through explicit cleanup.
 - `ctx.defer(dispose)` registers cleanup without an associated value.
 
-Each acquisition has its own `AsyncDisposableStack`. If creation fails, that stack is disposed immediately. If creation succeeds, the collection owns the completed resource scope.
+Each acquisition has its own `AsyncDisposableStack`. If creation fails, that stack is disposed immediately. If creation
+succeeds, the collection owns the completed resource scope.
 
 ```text
 ResourceCollection
@@ -62,14 +66,17 @@ ResourceCollection
         `-- owns Media-only helpers
 ```
 
-Dependencies are borrowed. A dependent resource never adopts a dependency that is already owned by the collection. This prevents double disposal.
+Dependencies are borrowed. A dependent resource never adopts a dependency that is already owned by the collection. This
+prevents double disposal.
 
-A returned disposable value is automatically owned by its resource scope when the implementation has not already registered that exact value. `return ctx.use(client)` and `return client` are therefore both safe: an exact `use()` or `adopt()` registration is not duplicated by return-value ownership.
+A returned disposable value is automatically owned by its resource scope when the implementation has not already
+registered that exact value. `return ctx.use(client)` and `return client` are therefore both safe: an exact `use()` or
+`adopt()` registration is not duplicated by return-value ownership.
 
-ResourceCollection lifetime
--------------------
+## ResourceCollection lifetime
 
-Acquisition is lazy and memoized. Concurrent `get()` calls for one exact definition share one in-flight creation. Missing implementations, duplicate implementations, stable-ID conflicts, and dependency cycles fail explicitly.
+Acquisition is lazy and memoized. Concurrent `get()` calls for one exact definition share one in-flight creation.
+Missing implementations, duplicate implementations, stable-ID conflicts, and dependency cycles fail explicitly.
 
 ```ts
 await using resources = resource.create(
@@ -80,23 +87,22 @@ await using resources = resource.create(
 const media = await resources.get(ctx, Media);
 ```
 
-`resource.implementations()` deduplicates the same implementation object. Its
-result therefore preserves the implementation **types** but does not promise
-that its `implementations` array has the same tuple length as the arguments.
-Manually, this is the same rule as pushing each implementation into an array
-only the first time its object identity is seen.
+`resource.implementations()` deduplicates the same implementation object. Its result therefore preserves the
+implementation **types** but does not promise that its `implementations` array has the same tuple length as the
+arguments. Manually, this is the same rule as pushing each implementation into an array only the first time its object
+identity is seen.
 
+The collection disposes acquired resource scopes in reverse acquisition order. Cancelling/disposal also waits for
+in-flight acquisitions so a value that finishes creation late cannot escape ownership.
 
-The collection disposes acquired resource scopes in reverse acquisition order. Cancelling/disposal also waits for in-flight acquisitions so a value that finishes creation late cannot escape ownership.
+`@okikio/resource` does not implement databases, browsers, payment systems, or permission engines. Concrete packages
+implement definitions and hosts decide how generic requirements are interpreted.
 
-`@okikio/resource` does not implement databases, browsers, payment systems, or permission engines. Concrete packages implement definitions and hosts decide how generic requirements are interpreted.
-
-Convenience and the manual equivalent
--------------------------------------
+## Convenience and the manual equivalent
 
 Concrete map
-~~~~~~~~~~~~
 
+```
 | Convenience | Manual equivalent | Concrete value |
 | --- | --- | --- |
 | `resource.define()` + `implement()` | declare identity/dependencies, separately bind create/dispose behavior, and validate that implementation matches the definition | definition and live provider stay separate |
@@ -148,3 +154,4 @@ detail:
 
 The README is the primary user documentation. It intentionally stays close to
 the public source instead of maintaining a separate hand-written API reference.
+```

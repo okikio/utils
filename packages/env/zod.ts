@@ -51,11 +51,9 @@ export type ZodEnvironmentFieldInputs = Readonly<Record<string, ZodEnvironmentFi
 
 /** Canonical fields inferred from Zod authoring inputs. */
 export type InferZodEnvironmentFields<Inputs extends ZodEnvironmentFieldInputs> = {
-	readonly [Key in keyof Inputs]: Inputs[Key] extends EnvironmentField<infer Schema>
-		? EnvironmentField<Schema>
-		: Inputs[Key] extends ZodEnvironmentSchema
-			? EnvironmentField<Inputs[Key], 'variable'>
-			: never;
+	readonly [Key in keyof Inputs]: Inputs[Key] extends EnvironmentField<infer Schema> ? EnvironmentField<Schema>
+		: Inputs[Key] extends ZodEnvironmentSchema ? EnvironmentField<Inputs[Key], 'variable'>
+		: never;
 };
 
 const bareVariables = new WeakMap<object, EnvironmentField<ZodEnvironmentSchema, 'variable'>>();
@@ -188,8 +186,9 @@ export function secret<const Schema extends ZodEnvironmentSchema>(
 export const compose = composeStandard;
 
 export {
-	EnvironmentError,
+	blank,
 	env,
+	EnvironmentError,
 	example,
 	isSource,
 	manifest,
@@ -198,7 +197,6 @@ export {
 	requirement,
 	requirementReport,
 	select,
-	blank,
 };
 export type { ComposeEnvironmentFields } from './definition.ts';
 export type {

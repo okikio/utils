@@ -21,7 +21,9 @@ export function prettyJson(options: PrettyJsonOptionsType = {}): Middleware {
 	}
 	const query = normalized.query ?? 'pretty';
 	if (typeof query !== 'string') throw new TypeError('Pretty JSON query must be a string.');
-	if (normalized.force !== undefined && typeof normalized.force !== 'boolean') throw new TypeError('Pretty JSON force must be a boolean when provided.');
+	if (normalized.force !== undefined && typeof normalized.force !== 'boolean') {
+		throw new TypeError('Pretty JSON force must be a boolean when provided.');
+	}
 	const force = normalized.force ?? false;
 	return async (request, next) => {
 		const response = await next(request);

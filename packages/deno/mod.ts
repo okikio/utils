@@ -13,4 +13,4 @@ export * as file from './file.ts';
 export * as permissions from './permissions.ts';
 export * as port from './port.ts';
 export * as signals from './signals.ts';
-export type { PermissionName, PermissionGrant, PermissionGrants } from './types.ts';
+export type { PermissionGrant, PermissionGrants, PermissionName } from './types.ts';

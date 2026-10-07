@@ -13,14 +13,14 @@ import type { Context } from '@okikio/context';
 
 import type {
 	Adapter,
-	ProcessEventType,
 	ExecOptionsType,
-	ProcessExitType,
 	OutputModeType,
 	Process,
+	ProcessEventType,
+	ProcessExitType,
 	SignalType,
-	SpawnOptionsType,
 	Spawned,
+	SpawnOptionsType,
 	StartOptionsType,
 	StdioType,
 	TreeModeType,
@@ -172,13 +172,15 @@ class Runtime {
 		this.#ctx.signal.removeEventListener('abort', this.#abort);
 		await Promise.all(this.#outputPumps);
 		if (this.#hasOutputFailure) throw this.#outputFailure;
-		const exit = Object.freeze({
-			code: status.code,
-			success: status.success,
-			...(status.signal === undefined ? {} : { signal: status.signal }),
-			...(this.#captured.stdout === undefined ? {} : { stdout: this.#captured.stdout }),
-			...(this.#captured.stderr === undefined ? {} : { stderr: this.#captured.stderr }),
-		} satisfies ProcessExitType);
+		const exit = Object.freeze(
+			{
+				code: status.code,
+				success: status.success,
+				...(status.signal === undefined ? {} : { signal: status.signal }),
+				...(this.#captured.stdout === undefined ? {} : { stdout: this.#captured.stdout }),
+				...(this.#captured.stderr === undefined ? {} : { stderr: this.#captured.stderr }),
+			} satisfies ProcessExitType,
+		);
 		this.#events.emit(Object.freeze({
 			type: 'exited',
 			code: status.code,
@@ -365,7 +367,6 @@ export async function start(ctx: Context, adapter: Adapter, options: StartOption
 	return new Runtime(ctx, adapter, options, resolved, child).process;
 }
 
-
 /** Runs one finite process and returns its terminal status and captured output. */
 export async function exec(ctx: Context, adapter: Adapter, options: ExecOptionsType): Promise<ProcessExitType> {
 	await using child = await start(ctx, adapter, options);
@@ -449,18 +450,18 @@ function concat(chunks: readonly Uint8Array[], total: number): Uint8Array {
 }
 
 export type {
-	TreeModeType,
-	SignalType,
-	OutputModeType,
-	ShutdownPolicyType,
-	StartOptionsType,
-	StdioType,
-	SpawnOptionsType,
-	StatusType,
-	Spawned,
 	Adapter,
+	ExecOptionsType,
+	OutputModeType,
+	Process,
 	ProcessEventType,
 	ProcessExitType,
-	Process,
-	ExecOptionsType,
+	ShutdownPolicyType,
+	SignalType,
+	Spawned,
+	SpawnOptionsType,
+	StartOptionsType,
+	StatusType,
+	StdioType,
+	TreeModeType,
 } from './types.ts';

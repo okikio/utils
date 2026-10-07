@@ -1,11 +1,7 @@
 import * as endpoint from '@okikio/server/endpoint';
 import * as resource from '@okikio/resource';
 
-import type {
-	ServiceDefinition,
-	ServiceImplementation,
-	ServiceImplementationInput,
-} from './types.ts';
+import type { ServiceDefinition, ServiceImplementation, ServiceImplementationInput } from './types.ts';
 
 /** Bind an exact service definition to its HTTP endpoint, middleware, and resource implementations. */
 export function implement<

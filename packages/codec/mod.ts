@@ -9,14 +9,7 @@ import type { StandardSchemaV1 } from '@standard-schema/spec';
 import * as recordCore from '@okikio/record';
 import * as schema from '@okikio/schema';
 
-import type {
-	Codec,
-	CodecShape,
-	ObjectDecoded,
-	ObjectDecodeInput,
-	ObjectEncoded,
-	ObjectEncodeInput,
-} from './types.ts';
+import type { Codec, CodecShape, ObjectDecoded, ObjectDecodeInput, ObjectEncoded, ObjectEncodeInput } from './types.ts';
 
 /** Define a codec from explicit decode and encode Standard Schemas. */
 export function define<
@@ -24,10 +17,12 @@ export function define<
 	Application,
 	EncodeInput = Application,
 	EncodedValue = DecodeInput,
->(input: Readonly<{
-	readonly decode: StandardSchemaV1<DecodeInput, Application>;
-	readonly encode: StandardSchemaV1<EncodeInput, EncodedValue>;
-}>): Codec<DecodeInput, Application, EncodeInput, EncodedValue> {
+>(
+	input: Readonly<{
+		readonly decode: StandardSchemaV1<DecodeInput, Application>;
+		readonly encode: StandardSchemaV1<EncodeInput, EncodedValue>;
+	}>,
+): Codec<DecodeInput, Application, EncodeInput, EncodedValue> {
 	schema.assert(input.decode, 'codec decode schema');
 	schema.assert(input.encode, 'codec encode schema');
 	return Object.freeze({ kind: 'codec', decode: input.decode, encode: input.encode });
@@ -163,9 +158,7 @@ function objectSchema<Shape extends CodecShape>(
 					if (child.issues !== undefined) issues.push(...schema.prefixIssues(child.issues, key));
 					else output[key] = child.value;
 				}
-				return issues.length > 0
-					? { issues: Object.freeze(issues) }
-					: { value: Object.freeze(output) };
+				return issues.length > 0 ? { issues: Object.freeze(issues) } : { value: Object.freeze(output) };
 			},
 		},
 	};
@@ -178,7 +171,9 @@ function objectSchema<Shape extends CodecShape>(
  *
  * @internal
  */
-function optionalSchema<Input, Output>(definition: StandardSchemaV1<Input, Output>): StandardSchemaV1<Input | undefined, Output | undefined> {
+function optionalSchema<Input, Output>(
+	definition: StandardSchemaV1<Input, Output>,
+): StandardSchemaV1<Input | undefined, Output | undefined> {
 	return {
 		'~standard': {
 			version: 1,
@@ -202,7 +197,9 @@ function optionalSchema<Input, Output>(definition: StandardSchemaV1<Input, Outpu
  *
  * @internal
  */
-function nullableSchema<Input, Output>(definition: StandardSchemaV1<Input, Output>): StandardSchemaV1<Input | null, Output | null> {
+function nullableSchema<Input, Output>(
+	definition: StandardSchemaV1<Input, Output>,
+): StandardSchemaV1<Input | null, Output | null> {
 	return {
 		'~standard': {
 			version: 1,
@@ -226,7 +223,9 @@ function nullableSchema<Input, Output>(definition: StandardSchemaV1<Input, Outpu
  *
  * @internal
  */
-function arraySchema<Input, Output>(definition: StandardSchemaV1<Input, Output>): StandardSchemaV1<readonly Input[], readonly Output[]> {
+function arraySchema<Input, Output>(
+	definition: StandardSchemaV1<Input, Output>,
+): StandardSchemaV1<readonly Input[], readonly Output[]> {
 	return {
 		'~standard': {
 			version: 1,
@@ -247,9 +246,7 @@ function arraySchema<Input, Output>(definition: StandardSchemaV1<Input, Output>)
 					if (child.issues !== undefined) issues.push(...schema.prefixIssues(child.issues, index));
 					else output.push(child.value);
 				}
-				return issues.length > 0
-					? { issues: Object.freeze(issues) }
-					: { value: Object.freeze(output) };
+				return issues.length > 0 ? { issues: Object.freeze(issues) } : { value: Object.freeze(output) };
 			},
 		},
 	};
@@ -262,13 +259,13 @@ function freezeRecord<Value extends Readonly<Record<string, unknown>>>(value: Va
 
 export type {
 	Codec,
-	DecodeInput,
-	Decoded,
-	EncodeInput,
-	Encoded,
 	CodecShape,
-	ObjectDecodeInput,
+	Decoded,
+	DecodeInput,
+	Encoded,
+	EncodeInput,
 	ObjectDecoded,
-	ObjectEncodeInput,
+	ObjectDecodeInput,
 	ObjectEncoded,
+	ObjectEncodeInput,
 } from './types.ts';

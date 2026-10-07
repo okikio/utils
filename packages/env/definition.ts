@@ -21,13 +21,12 @@ import type {
 } from './types.ts';
 
 /** Fields carried by a tuple of composed environment definitions. */
-export type ComposeEnvironmentFields<Definitions extends readonly EnvironmentDefinition[]> =
-	Definitions extends readonly [
+export type ComposeEnvironmentFields<Definitions extends readonly EnvironmentDefinition[]> = Definitions extends
+	readonly [
 		infer Head extends EnvironmentDefinition,
 		...infer Tail extends readonly EnvironmentDefinition[],
-	]
-		? Head['fields'] & ComposeEnvironmentFields<Tail>
-		: Record<never, never>;
+	] ? Head['fields'] & ComposeEnvironmentFields<Tail>
+	: Record<never, never>;
 
 /**
  * Builds the source adapter consumed by environment definition and resolution.
@@ -152,11 +151,13 @@ async function parseFields<Fields extends EnvironmentFields>(
 		} catch (cause) {
 			entries.push({
 				key,
-				issues: [{
-					key,
-					message: fault.message(cause),
-					source: rawValue === undefined ? 'missing' : 'invalid',
-				} satisfies EnvironmentIssue],
+				issues: [
+					{
+						key,
+						message: fault.message(cause),
+						source: rawValue === undefined ? 'missing' : 'invalid',
+					} satisfies EnvironmentIssue,
+				],
 			});
 		}
 	}
@@ -222,7 +223,6 @@ function parseFieldsSync<Fields extends EnvironmentFields>(
 		? { success: false, issues }
 		: { success: true, value: Object.fromEntries(parsed) as InferEnvironmentFields<Fields> };
 }
-
 
 /** Snapshot environment fields without dropping any type-visible key. @internal */
 function snapshotEnvironmentFields<const Fields extends EnvironmentFields>(fields: Fields): Fields {

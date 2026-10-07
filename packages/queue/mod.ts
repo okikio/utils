@@ -26,12 +26,12 @@ import type { Context } from '@okikio/context';
 import type { Encoded as EncodedFailure } from '@okikio/failure';
 
 import type {
+	MemoryQueueOptions,
+	Queue,
 	QueueAddOptions,
 	QueueClaim,
 	QueueClaimOptions,
 	QueueEventType,
-	MemoryQueueOptions,
-	Queue,
 	QueueRef,
 	QueueRetryOptions,
 	QueueStats,
@@ -268,7 +268,8 @@ class Runtime<Input, Output> {
 			wait: (ctx: Context, ref: QueueRef) => this.#wait(ctx, ref),
 			complete: (ctx: Context, claim: QueueClaim<Input>, output: Output) => this.#complete(ctx, claim, output),
 			fail: (ctx: Context, claim: QueueClaim<Input>, failure: EncodedFailure) => this.#fail(ctx, claim, failure),
-			retry: (ctx: Context, claim: QueueClaim<Input>, retryOptions?: QueueRetryOptions) => this.#retry(ctx, claim, retryOptions),
+			retry: (ctx: Context, claim: QueueClaim<Input>, retryOptions?: QueueRetryOptions) =>
+				this.#retry(ctx, claim, retryOptions),
 			cancel: (ctx: Context, owner: QueueRef | QueueClaim<Input>, reason?: unknown) => this.#cancel(ctx, owner, reason),
 			result: (ctx: Context, ref: QueueRef) => this.#result(ctx, ref),
 			renew: (ctx: Context, claim: QueueClaim<Input>, duration: Temporal.Duration | Temporal.DurationLike | string) =>
@@ -307,7 +308,9 @@ class Runtime<Input, Output> {
 		};
 		this.#items.set(id, item);
 		if (item.key !== undefined) this.#keys.set(item.key, id);
-		this.#events.emit(Object.freeze({ type: 'added', itemId: id, ...(item.key === undefined ? {} : { key: item.key }) }));
+		this.#events.emit(
+			Object.freeze({ type: 'added', itemId: id, ...(item.key === undefined ? {} : { key: item.key }) }),
+		);
 		this.#wake();
 		return Object.freeze({ id });
 	}
@@ -341,7 +344,12 @@ class Runtime<Input, Output> {
 			}
 			if (options.wait !== true) return Object.freeze([]);
 			const wakeAt = options.ref === undefined ? this.#soonest() : this.#next(this.#item(options.ref.id));
-			await waitForChange(ctx, this.#clock, this.#claimWaiters, wakeAt === undefined ? undefined : millisecondsUntil(wakeAt, this.#clock.now()));
+			await waitForChange(
+				ctx,
+				this.#clock,
+				this.#claimWaiters,
+				wakeAt === undefined ? undefined : millisecondsUntil(wakeAt, this.#clock.now()),
+			);
 		}
 	}
 
@@ -356,7 +364,12 @@ class Runtime<Input, Output> {
 			const now = this.#clock.now();
 			if (item.state === 'queued' && Temporal.Instant.compare(item.availableAt, now) <= 0) return 'claimable';
 			const wakeAt = this.#next(item);
-			await waitForChange(ctx, this.#clock, this.#claimWaiters, wakeAt === undefined ? undefined : millisecondsUntil(wakeAt, this.#clock.now()));
+			await waitForChange(
+				ctx,
+				this.#clock,
+				this.#claimWaiters,
+				wakeAt === undefined ? undefined : millisecondsUntil(wakeAt, this.#clock.now()),
+			);
 		}
 	}
 
@@ -397,7 +410,9 @@ class Runtime<Input, Output> {
 		item.claim = undefined;
 		item.availableAt = options.availableAt ?? now.add(delay);
 		if (options.priority !== undefined) item.priority = integer(options.priority, 'queue priority');
-		this.#events.emit(Object.freeze({ type: 'retried', itemId: item.id, claimId: claim.id, availableAt: item.availableAt.toString() }));
+		this.#events.emit(
+			Object.freeze({ type: 'retried', itemId: item.id, claimId: claim.id, availableAt: item.availableAt.toString() }),
+		);
 		this.#wake();
 	}
 
@@ -440,9 +455,14 @@ class Runtime<Input, Output> {
 	): Promise<QueueClaim<Input>> {
 		context.check(ctx);
 		const item = this.#claimed(claim);
-		const renewed = Object.freeze({ ...claim, expiresAt: this.#clock.now().add(positiveDuration(duration, 'claim renewal duration')) });
+		const renewed = Object.freeze({
+			...claim,
+			expiresAt: this.#clock.now().add(positiveDuration(duration, 'claim renewal duration')),
+		});
 		item.claim = renewed;
-		this.#events.emit(Object.freeze({ type: 'renewed', itemId: item.id, claimId: claim.id, expiresAt: renewed.expiresAt.toString() }));
+		this.#events.emit(
+			Object.freeze({ type: 'renewed', itemId: item.id, claimId: claim.id, expiresAt: renewed.expiresAt.toString() }),
+		);
 		return renewed;
 	}
 
@@ -522,7 +542,9 @@ class Runtime<Input, Output> {
 		item.state = 'claimed';
 		item.attempt = claim.attempt;
 		item.claim = claim;
-		this.#events.emit(Object.freeze({ type: 'claimed', itemId: item.id, claimId: claim.id, owner, attempt: claim.attempt }));
+		this.#events.emit(
+			Object.freeze({ type: 'claimed', itemId: item.id, claimId: claim.id, owner, attempt: claim.attempt }),
+		);
 		return claim;
 	}
 
@@ -552,7 +574,9 @@ class Runtime<Input, Output> {
 		let next: Temporal.Instant | undefined;
 		for (const item of this.#items.values()) {
 			const candidate = this.#next(item);
-			if (candidate !== undefined && (next === undefined || Temporal.Instant.compare(candidate, next) < 0)) next = candidate;
+			if (candidate !== undefined && (next === undefined || Temporal.Instant.compare(candidate, next) < 0)) {
+				next = candidate;
+			}
 		}
 		return next;
 	}
@@ -751,7 +775,10 @@ function positiveDuration(value: Temporal.Duration | Temporal.DurationLike | str
  *
  * @internal
  */
-function nonNegativeDuration(value: Temporal.Duration | Temporal.DurationLike | string, label: string): Temporal.Duration {
+function nonNegativeDuration(
+	value: Temporal.Duration | Temporal.DurationLike | string,
+	label: string,
+): Temporal.Duration {
 	const parsed = getDuration(value, label);
 	if (duration.milliseconds(parsed) < 0) throw new TypeError(`${label} must not be negative.`);
 	return parsed;
@@ -788,18 +815,18 @@ function millisecondsUntil(instant: Temporal.Instant, now: Temporal.Instant): nu
 export type {
 	Context,
 	EncodedFailure,
-	QueueRef,
-	QueueClaim,
-	QueueAddOptions,
-	QueueClaimOptions,
-	QueueTakeOptions,
-	FifoQueueOptions,
-	QueueRetryOptions,
-	QueueEventType,
-	QueueStats,
-	QueueWaitStateType,
-	Queue,
-	QueueClaimHandle,
 	FifoQueue,
+	FifoQueueOptions,
 	MemoryQueueOptions,
+	Queue,
+	QueueAddOptions,
+	QueueClaim,
+	QueueClaimHandle,
+	QueueClaimOptions,
+	QueueEventType,
+	QueueRef,
+	QueueRetryOptions,
+	QueueStats,
+	QueueTakeOptions,
+	QueueWaitStateType,
 } from './types.ts';

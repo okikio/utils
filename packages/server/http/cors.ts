@@ -60,9 +60,17 @@ function normalizeCorsOptions(options: CorsOptionsType): NormalizedCorsOptions {
 		throw new TypeError('CORS maxAge must be a non-negative safe integer.');
 	}
 	const origin = normalizeOriginPolicy(options.origin ?? '*');
-	const allowMethods = stringList(options.allowMethods ?? ['GET', 'HEAD', 'PUT', 'POST', 'DELETE', 'PATCH', 'OPTIONS'], 'CORS allowMethods', methodPattern);
-	const allowHeaders = options.allowHeaders === undefined ? undefined : stringList(options.allowHeaders, 'CORS allowHeaders', fieldNamePattern);
-	const exposeHeaders = options.exposeHeaders === undefined ? undefined : stringList(options.exposeHeaders, 'CORS exposeHeaders', fieldNamePattern);
+	const allowMethods = stringList(
+		options.allowMethods ?? ['GET', 'HEAD', 'PUT', 'POST', 'DELETE', 'PATCH', 'OPTIONS'],
+		'CORS allowMethods',
+		methodPattern,
+	);
+	const allowHeaders = options.allowHeaders === undefined
+		? undefined
+		: stringList(options.allowHeaders, 'CORS allowHeaders', fieldNamePattern);
+	const exposeHeaders = options.exposeHeaders === undefined
+		? undefined
+		: stringList(options.exposeHeaders, 'CORS exposeHeaders', fieldNamePattern);
 	return Object.freeze({
 		origin,
 		allowMethods,
@@ -85,7 +93,9 @@ function stringList(values: readonly string[], name: string, pattern?: RegExp): 
 		if (descriptor === undefined || !('value' in descriptor) || typeof descriptor.value !== 'string') {
 			throw new TypeError(`${name} must contain dense string data elements.`);
 		}
-		if (pattern !== undefined && !pattern.test(descriptor.value)) throw new TypeError(`${name} contains an invalid HTTP token.`);
+		if (pattern !== undefined && !pattern.test(descriptor.value)) {
+			throw new TypeError(`${name} contains an invalid HTTP token.`);
+		}
 		result.push(descriptor.value);
 	}
 	return Object.freeze(result);
@@ -98,15 +108,19 @@ function normalizeOriginPolicy(value: NonNullable<CorsOptionsType['origin']>): N
 		validateOriginValue(value, 'CORS origin');
 		return value;
 	}
-	return Object.freeze(stringList(value, 'CORS origin list').map((origin) => {
-		validateOriginValue(origin, 'CORS origin');
-		return origin;
-	}));
+	return Object.freeze(
+		stringList(value, 'CORS origin list').map((origin) => {
+			validateOriginValue(origin, 'CORS origin');
+			return origin;
+		}),
+	);
 }
 
 /** Reject control characters and empty origin values before they become response fields. @internal */
 function validateOriginValue(value: string, name: string): void {
-	if (value.length === 0 || /[\0\r\n]/.test(value)) throw new TypeError(`${name} must be a non-empty value without control characters.`);
+	if (value.length === 0 || /[\0\r\n]/.test(value)) {
+		throw new TypeError(`${name} must be a non-empty value without control characters.`);
+	}
 }
 
 /** Resolve one incoming origin against static or dynamic policy. */

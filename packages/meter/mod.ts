@@ -34,7 +34,10 @@ export function define(input: MeterOptions): MeterDefinition {
 }
 
 /** Create a named immutable meter catalog. */
-export function catalog<const Namespace extends string, const Entries extends Readonly<Record<PropertyKey, MeterDefinition>>>(
+export function catalog<
+	const Namespace extends string,
+	const Entries extends Readonly<Record<PropertyKey, MeterDefinition>>,
+>(
 	namespace: Namespace,
 	entries: Entries,
 ): MeterCatalog<Entries> {

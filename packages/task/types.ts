@@ -6,7 +6,8 @@ import type { ResourceCollection, ResourceDefinition, ResourceValue } from '@oki
 export type TaskStatusType = 'running' | 'pausing' | 'paused' | 'cancelling' | 'completed' | 'failed' | 'cancelled';
 
 /** Context supplied to one process-local Task operation. */
-export interface TaskContext<Allowed extends ResourceDefinition = never> extends RequirementContext<BaseContext>, OwnedResources {
+export interface TaskContext<Allowed extends ResourceDefinition = never>
+	extends RequirementContext<BaseContext>, OwnedResources {
 	/** Borrow one allowed resource under the current Task's active requirements. */
 	get<Resource extends Allowed>(definition: Resource): Promise<ResourceValue<Resource>>;
 	/** Wait at one cooperative pause point and always recheck cancellation before returning. */

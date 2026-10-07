@@ -8,7 +8,6 @@ export interface CatalogEntryIdentity {
 	readonly description?: string;
 }
 
-
 /** Phantom symbol used to retain the value represented by a static definition. */
 export declare const catalogEntryValue: unique symbol;
 
@@ -28,8 +27,9 @@ export interface ValuedCatalogEntry<
 }
 
 /** Concrete runtime value represented by a valued catalog entry. */
-export type CatalogEntryValue<Entry extends ValuedCatalogEntry> =
-	Entry extends ValuedCatalogEntry<string, infer Value> ? Value : never;
+export type CatalogEntryValue<Entry extends ValuedCatalogEntry> = Entry extends ValuedCatalogEntry<string, infer Value>
+	? Value
+	: never;
 
 /** Metadata retained for an immutable named catalog. */
 export interface CatalogMetadata<Entry extends CatalogEntryIdentity = CatalogEntryIdentity> {
@@ -75,7 +75,6 @@ export type DefinitionInput<Entry extends CatalogEntryIdentity> =
 	| Entry
 	| CatalogLike<Entry>
 	| readonly DefinitionInput<Entry>[];
-
 
 /** Entry union represented by one direct, nested, catalog, or selection input. */
 export type DefinitionEntry<

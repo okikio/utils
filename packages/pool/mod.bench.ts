@@ -25,7 +25,9 @@ async function cycle(): Promise<pool.Stats> {
 }
 
 const initial = await cycle();
-if (initial.leased !== 0 || initial.idle !== 8) throw new Error('Warm pool benchmark did not return every leased value.');
+if (initial.leased !== 0 || initial.idle !== 8) {
+	throw new Error('Warm pool benchmark did not return every leased value.');
+}
 
 group('pool warm reuse', () => {
 	bench('pool.acquire/release: 100 operations, maximum 8', async () => {

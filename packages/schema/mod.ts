@@ -16,9 +16,12 @@ export class SchemaValidationError extends TypeError {
 
 	constructor(issues: readonly StandardSchemaV1.Issue[], message?: string) {
 		const details = issues.map((issue) => issue.message).filter((value) => value.length > 0).join('; ');
-		super(message ?? (details.length === 0
-			? 'Value does not satisfy the required schema.'
-			: `Value does not satisfy the required schema: ${details}`));
+		super(
+			message ??
+				(details.length === 0
+					? 'Value does not satisfy the required schema.'
+					: `Value does not satisfy the required schema: ${details}`),
+		);
 		this.name = 'SchemaValidationError';
 		this.issues = Object.freeze([...issues]);
 	}
@@ -65,10 +68,12 @@ export function prefixIssues(
 	issues: readonly StandardSchemaV1.Issue[],
 	...path: readonly PropertyKey[]
 ): readonly StandardSchemaV1.Issue[] {
-	return Object.freeze(issues.map((issue) => Object.freeze({
-		...issue,
-		path: [...path, ...(issue.path ?? [])],
-	})));
+	return Object.freeze(issues.map((issue) =>
+		Object.freeze({
+			...issue,
+			path: [...path, ...(issue.path ?? [])],
+		})
+	));
 }
 
 /**
@@ -89,4 +94,4 @@ function failure(issues: readonly StandardSchemaV1.Issue[]): Failure {
 	return Object.freeze({ issues: Object.freeze([...issues]) });
 }
 
-export type { Schema, Input, Output, Success, Failure, ValidationResult } from './types.ts';
+export type { Failure, Input, Output, Schema, Success, ValidationResult } from './types.ts';

@@ -6,7 +6,24 @@ import type { HeaderInput, ResponseHeaders } from './headers.ts';
 export type ResponseSchema<Input = unknown, Output = Input> = StandardSchemaV1<Input, Output>;
 
 /** HTTP success and redirect status codes supported by response definitions. */
-export type ResponseStatus = 200 | 201 | 202 | 203 | 204 | 205 | 206 | 207 | 208 | 226 | 300 | 301 | 302 | 303 | 304 | 307 | 308;
+export type ResponseStatus =
+	| 200
+	| 201
+	| 202
+	| 203
+	| 204
+	| 205
+	| 206
+	| 207
+	| 208
+	| 226
+	| 300
+	| 301
+	| 302
+	| 303
+	| 304
+	| 307
+	| 308;
 
 /** Concrete request or response example retained for generated documentation. */
 export interface ResponseExample<Value = unknown> {
@@ -32,7 +49,10 @@ export interface PaginationResponsePolicy {
 }
 
 /** Static successful response contract. */
-export interface ResponseDefinition<Schema extends ResponseSchema | undefined = ResponseSchema | undefined, Status extends ResponseStatus = ResponseStatus> extends CatalogEntryIdentity {
+export interface ResponseDefinition<
+	Schema extends ResponseSchema | undefined = ResponseSchema | undefined,
+	Status extends ResponseStatus = ResponseStatus,
+> extends CatalogEntryIdentity {
 	readonly kind: 'response';
 	readonly status: Status;
 	readonly description: string;
@@ -97,17 +117,15 @@ export interface OffsetPageWindow<Item> {
 /** Transport-neutral page window supplied to a paginated response definition. */
 export type PageWindow<Item> = CursorPageWindow<Item> | OffsetPageWindow<Item>;
 
-
 /** Logical body accepted when instantiating one response definition. */
-export type ResponseBody<Definition extends ResponseDefinition> =
-	Definition['mode'] extends 'empty' | 'redirect' ? undefined
+export type ResponseBody<Definition extends ResponseDefinition> = Definition['mode'] extends 'empty' | 'redirect'
+	? undefined
 	: Definition extends ResponseDefinition<infer Schema>
 		? Schema extends ResponseSchema
-			? Definition['mode'] extends 'page'
-				? PageWindow<StandardSchemaV1.InferOutput<Schema>>
-				: StandardSchemaV1.InferOutput<Schema>
-			: unknown
-		: unknown;
+			? Definition['mode'] extends 'page' ? PageWindow<StandardSchemaV1.InferOutput<Schema>>
+			: StandardSchemaV1.InferOutput<Schema>
+		: unknown
+	: unknown;
 
 /** Standard pagination URL parameter names used during materialization. */
 export interface PaginationParameters {
@@ -128,8 +146,8 @@ export interface PaginationLinks {
 }
 
 /** Normalized page-window variant retained after runtime validation. */
-export type NormalizedPageWindow<Page extends PageWindow<unknown>> =
-	Page extends OffsetPageWindow<infer Item> ? OffsetPageWindow<Item>
+export type NormalizedPageWindow<Page extends PageWindow<unknown>> = Page extends OffsetPageWindow<infer Item>
+	? OffsetPageWindow<Item>
 	: Page extends CursorPageWindow<infer Item> ? CursorPageWindow<Item>
 	: never;
 
@@ -212,7 +230,10 @@ export interface ResponseResultMetadata<Definition extends ResponseDefinition = 
 }
 
 /** Logical tuple returned by endpoint handlers before request-aware materialization. */
-export type ResponseResult<Definition extends ResponseDefinition = ResponseDefinition, Body = unknown, Headers extends ResponseHeaders = ResponseHeaders> =
-	readonly [body: Body, status: Definition['status'], headers: Headers];
+export type ResponseResult<
+	Definition extends ResponseDefinition = ResponseDefinition,
+	Body = unknown,
+	Headers extends ResponseHeaders = ResponseHeaders,
+> = readonly [body: Body, status: Definition['status'], headers: Headers];
 
 export type { HeaderField, HeaderInput, HeaderValue, ResponseHeaders } from './headers.ts';

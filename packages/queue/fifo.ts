@@ -3,15 +3,15 @@ import type { Context } from '@okikio/context';
 import type { Encoded as EncodedFailure } from '@okikio/failure';
 
 import type {
-	QueueAddOptions,
-	QueueClaim,
-	QueueClaimOptions,
 	FifoQueue,
 	FifoQueueOptions,
 	Queue,
+	QueueAddOptions,
+	QueueClaim,
+	QueueClaimHandle,
+	QueueClaimOptions,
 	QueueRef,
 	QueueRetryOptions,
-	QueueClaimHandle,
 	QueueTakeOptions,
 } from './types.ts';
 
@@ -28,7 +28,10 @@ import type {
  * step. Recovery, expiry, stale-claim rejection, and result waiting still come
  * from the underlying claimed-work queue.
  */
-export function fifo<Input, Output>(queue: Queue<Input, Output>, options: FifoQueueOptions = {}): FifoQueue<Input, Output> {
+export function fifo<Input, Output>(
+	queue: Queue<Input, Output>,
+	options: FifoQueueOptions = {},
+): FifoQueue<Input, Output> {
 	const owner = contextCore.create({
 		id: options.id ?? 'fifo',
 		...(options.signal === undefined ? {} : { signal: options.signal }),
@@ -50,7 +53,10 @@ export function fifo<Input, Output>(queue: Queue<Input, Output>, options: FifoQu
 		 * directly.
 		 */
 		async take(takeOptions: QueueTakeOptions = {}) {
-			const [claim] = await queue.claim(owner, Object.freeze({ ...takeOptions, owner: claimOwner, limit: 1 }) satisfies QueueClaimOptions);
+			const [claim] = await queue.claim(
+				owner,
+				Object.freeze({ ...takeOptions, owner: claimOwner, limit: 1 }) satisfies QueueClaimOptions,
+			);
 			return claim === undefined ? undefined : taken(queue, owner, claim);
 		},
 		/** Cancel one item through the adapter-owned context. */
@@ -87,34 +93,40 @@ export function fifo<Input, Output>(queue: Queue<Input, Output>, options: FifoQu
  * later queue calls into item-local methods. `renew()` returns a fresh handle
  * because the renewed claim carries a new expiry time.
  */
-function taken<Input, Output>(queue: Queue<Input, Output>, owner: Context, claim: QueueClaim<Input>): QueueClaimHandle<Input, Output> {
-	const handle = Object.freeze({
-		id: claim.id,
-		itemId: claim.itemId,
-		owner: claim.owner,
-		value: claim.value,
-		attempt: claim.attempt,
-		claimedAt: claim.claimedAt,
-		expiresAt: claim.expiresAt,
-		/** Complete the wrapped claim through the adapter-owned context. */
-		complete(output: Output) {
-			return queue.complete(owner, claim, output);
-		},
-		/** Fail the wrapped claim through the adapter-owned context. */
-		fail(value: EncodedFailure) {
-			return queue.fail(owner, claim, value);
-		},
-		/** Return the wrapped claim to the queue for another attempt. */
-		retry(options?: QueueRetryOptions) {
-			return queue.retry(owner, claim, options);
-		},
-		/** Renew the wrapped claim and return a new taken-item handle. */
-		async renew(duration: Temporal.Duration | Temporal.DurationLike | string) {
-			return taken(queue, owner, await queue.renew(owner, claim, duration));
-		},
-		async [Symbol.asyncDispose]() {
-			// The FIFO adapter does not choose a terminal action implicitly.
-		},
-	} satisfies QueueClaimHandle<Input, Output>);
+function taken<Input, Output>(
+	queue: Queue<Input, Output>,
+	owner: Context,
+	claim: QueueClaim<Input>,
+): QueueClaimHandle<Input, Output> {
+	const handle = Object.freeze(
+		{
+			id: claim.id,
+			itemId: claim.itemId,
+			owner: claim.owner,
+			value: claim.value,
+			attempt: claim.attempt,
+			claimedAt: claim.claimedAt,
+			expiresAt: claim.expiresAt,
+			/** Complete the wrapped claim through the adapter-owned context. */
+			complete(output: Output) {
+				return queue.complete(owner, claim, output);
+			},
+			/** Fail the wrapped claim through the adapter-owned context. */
+			fail(value: EncodedFailure) {
+				return queue.fail(owner, claim, value);
+			},
+			/** Return the wrapped claim to the queue for another attempt. */
+			retry(options?: QueueRetryOptions) {
+				return queue.retry(owner, claim, options);
+			},
+			/** Renew the wrapped claim and return a new taken-item handle. */
+			async renew(duration: Temporal.Duration | Temporal.DurationLike | string) {
+				return taken(queue, owner, await queue.renew(owner, claim, duration));
+			},
+			async [Symbol.asyncDispose]() {
+				// The FIFO adapter does not choose a terminal action implicitly.
+			},
+		} satisfies QueueClaimHandle<Input, Output>,
+	);
 	return handle;
 }

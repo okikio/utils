@@ -2,7 +2,7 @@ import { Reducer } from './reducer.ts';
 import { Scope } from './scope.ts';
 import { Pause } from './pause.ts';
 import { causeFromError } from './operation.ts';
-import type { BranchView, Cause, ChildHandle, Exit, WorkflowOperation, Step, StepExit, Supervision } from './kernel.ts';
+import type { BranchView, Cause, ChildHandle, Exit, Step, StepExit, Supervision, WorkflowOperation } from './kernel.ts';
 
 /** Error used when ordinary generator finally code yields a Step during unwind. */
 export class CleanupStepError extends Error {

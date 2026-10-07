@@ -1,19 +1,14 @@
-`@okikio/env`
-============
+# `@okikio/env`
 
-Purpose
--------
+## Purpose
 
-`@okikio/env` separates environment definitions from environment sources. A
-definition owns validation, documentation, and secret classification. A source
-owns the raw strings available to one host.
+`@okikio/env` separates environment definitions from environment sources. A definition owns validation, documentation,
+and secret classification. A source owns the raw strings available to one host.
 
-How it fits
------------
+## How it fits
 
-Concrete packages define the environment fields they need. An executable host
-selects raw sources and parses those definitions during startup. Importing a
-definition never reads ambient process state.
+Concrete packages define the environment fields they need. An executable host selects raw sources and parses those
+definitions during startup. Importing a definition never reads ambient process state.
 
 `@okikio/env` keeps two related responsibilities separate:
 
@@ -42,19 +37,15 @@ const values = ServiceEnvironment.parseSync(
 );
 ```
 
-The definition is import-safe. Creating it does not read ambient state, connect to a
-provider, or configure a process. The service entrypoint owns the source and decides
-when startup validation occurs.
+The definition is import-safe. Creating it does not read ambient state, connect to a provider, or configure a process.
+The service entrypoint owns the source and decides when startup validation occurs.
 
-Field collections are ordinary records. Use an object literal or a null-prototype
-record with own enumerable string properties. `env.environment()` snapshots that
-record into a frozen null-prototype object so keys such as `__proto__` and
-`constructor` stay ordinary environment keys. It rejects class instances, hidden
-properties, accessors, and symbol keys rather than silently dropping data that the
-TypeScript field type claimed was present.
+Field collections are ordinary records. Use an object literal or a null-prototype record with own enumerable string
+properties. `env.environment()` snapshots that record into a frozen null-prototype object so keys such as `__proto__`
+and `constructor` stay ordinary environment keys. It rejects class instances, hidden properties, accessors, and symbol
+keys rather than silently dropping data that the TypeScript field type claimed was present.
 
-Public vocabulary
------------------
+## Public vocabulary
 
 Import the package as a namespace so the verbs stay short without becoming ambiguous:
 
@@ -78,16 +69,14 @@ env.requirement(...)  explain why a resource selects canonical fields
 env.requirementReport(...) project selected requirements without exposing secret values
 ```
 
-`compose` combines definitions. `merge` combines sources. The different verbs make
-the two halves visible at the call site.
+`compose` combines definitions. `merge` combines sources. The different verbs make the two halves visible at the call
+site.
 
-`isSource()` is mainly for adapters that accept either an existing source or a
-raw record. `requirementReport()` is useful at deployment and startup checks
-when an operator needs to see which canonical keys are required and why without
+`isSource()` is mainly for adapters that accept either an existing source or a raw record. `requirementReport()` is
+useful at deployment and startup checks when an operator needs to see which canonical keys are required and why without
 printing the corresponding secret values.
 
-Start here
-----------
+## Start here
 
 ### Zod
 
@@ -95,8 +84,8 @@ Start here
 import * as env from '@okikio/env/zod';
 ```
 
-Bare Zod schemas become ordinary variables. The adapter reads metadata through Zod
-4's public `.meta()` and `.describe()` APIs:
+Bare Zod schemas become ordinary variables. The adapter reads metadata through Zod 4's public `.meta()` and
+`.describe()` APIs:
 
 ```ts
 const ServiceEnvironment = env.define({
@@ -134,9 +123,8 @@ const Port = v.pipe(
 const ServiceEnvironment = env.define({ PORT: Port });
 ```
 
-The adapter uses Valibot's public `getTitle`, `getDescription`, `getMetadata`, and
-`getExamples` functions. The original Valibot schema remains the runtime validator and
-the source of inferred output types.
+The adapter uses Valibot's public `getTitle`, `getDescription`, `getMetadata`, and `getExamples` functions. The original
+Valibot schema remains the runtime validator and the source of inferred output types.
 
 ### Generic Standard Schema
 
@@ -144,8 +132,8 @@ the source of inferred output types.
 import * as env from '@okikio/env/standard';
 ```
 
-Standard Schema defines validation interoperability but does not define a shared
-metadata protocol. Generic callers therefore provide environment metadata explicitly:
+Standard Schema defines validation interoperability but does not define a shared metadata protocol. Generic callers
+therefore provide environment metadata explicitly:
 
 ```ts
 const ServiceEnvironment = env.define({
@@ -158,8 +146,7 @@ const ServiceEnvironment = env.define({
 
 The generic entrypoint never inspects private Zod or Valibot properties.
 
-Metadata ownership and precedence
----------------------------------
+## Metadata ownership and precedence
 
 Schema metadata should describe the value itself:
 
@@ -179,18 +166,15 @@ deployment availability
 replacement key
 ```
 
-Explicit metadata passed to `env.variable()` or `env.secret()` overrides schema
-metadata. This lets one reusable schema carry a general description while a service
-gives the binding a more specific operational meaning.
+Explicit metadata passed to `env.variable()` or `env.secret()` overrides schema metadata. This lets one reusable schema
+carry a general description while a service gives the binding a more specific operational meaning.
 
 Secrets never project examples, including examples attached to the schema.
 
-Raw-source ownership
---------------------
+## Raw-source ownership
 
-`@okikio/env` consumes raw environment records. It does not discover `.env`
-files, read a filesystem, or choose which runtime source has precedence. That
-decision belongs to the executable host.
+`@okikio/env` consumes raw environment records. It does not discover `.env` files, read a filesystem, or choose which
+runtime source has precedence. That decision belongs to the executable host.
 
 ```ts
 // Node host
@@ -203,12 +187,10 @@ const values = ServiceEnvironment.parseSync(raw);
 const values = ServiceEnvironment.parseSync(Deno.env.toObject());
 ```
 
-A browser-like host can pass deployment bindings. A test can pass a literal
-record. If a CLI chooses to parse dotenv syntax, the parser remains CLI/runtime
-composition and its result is still just `Record<string, string | undefined>`.
+A browser-like host can pass deployment bindings. A test can pass a literal record. If a CLI chooses to parse dotenv
+syntax, the parser remains CLI/runtime composition and its result is still just `Record<string, string | undefined>`.
 
-Source-only usage
------------------
+## Source-only usage
 
 Not every value needs an environment definition. A deployment adapter may need only a few opaque strings:
 
@@ -223,8 +205,7 @@ const values = env.select(
 
 This path has no Zod or Valibot dependency.
 
-Canonical field identity
-------------------------
+## Canonical field identity
 
 Composition permits the same field object to arrive through several imported definitions:
 
@@ -239,38 +220,35 @@ export const WorkerEnvironment = env.define({ DATABASE_URL: DatabaseUrl });
 const HostEnvironment = env.compose(DatabaseEnvironment, WorkerEnvironment);
 ```
 
-Independently declaring another field under `DATABASE_URL` is rejected. Silently
-choosing one declaration would lose validation or deployment metadata.
+Independently declaring another field under `DATABASE_URL` is rejected. Silently choosing one declaration would lose
+validation or deployment metadata.
 
-Bare Zod and Valibot schemas are canonicalized by schema-object identity, so reusing
-the same schema object in several definitions composes safely.
+Bare Zod and Valibot schemas are canonicalized by schema-object identity, so reusing the same schema object in several
+definitions composes safely.
 
-Runtime behavior
-----------------
+## Runtime behavior
 
 - `env.env` is lazy and performs no read during import.
 - Deno reads remain per-key so hosts can grant narrow environment permissions.
-- Node access uses `process.getBuiltinModule('node:process')`, avoiding static
-  `node:` imports in browser-compatible graphs.
+- Node access uses `process.getBuiltinModule('node:process')`, avoiding static `node:` imports in browser-compatible
+  graphs.
 - `env.record()` snapshots values through `Map`, so prototype-shaped external keys remain ordinary data.
 - `env.merge()` is sparse: `undefined` falls through to a lower-precedence source.
-- Definitions collect all schema issues before throwing `EnvironmentError`; its message lists each field while `.issues` preserves structured failures.
+- Definitions collect all schema issues before throwing `EnvironmentError`; its message lists each field while `.issues`
+  preserves structured failures.
 - `parseSync()` rejects schemas that validate asynchronously and directs callers to `parse()`.
 
-Progressive usage
------------------
+## Progressive usage
 
-The package participates in the complete domain-enrichment example in
-`../../docs/composition.md`.  Read that guide when the
-individual helpers make sense in isolation but their place in a service,
-resource graph, runtime host, or workflow is not yet clear.
+The package participates in the complete domain-enrichment example in `../../docs/composition.md`. Read that guide when
+the individual helpers make sense in isolation but their place in a service, resource graph, runtime host, or workflow
+is not yet clear.
 
-Convenience and the manual equivalent
--------------------------------------
+## Convenience and the manual equivalent
 
 Concrete map
-~~~~~~~~~~~~
 
+```
 | Convenience | Manual equivalent | Concrete value |
 | --- | --- | --- |
 | `env.environment()` | validate every field definition, snapshot the map, parse raw strings, prefix issues, and freeze the resolved output | one schema-derived environment contract |
@@ -305,3 +283,4 @@ detail:
 
 The README is the primary user documentation. It intentionally stays close to
 the public source instead of maintaining a separate hand-written API reference.
+```

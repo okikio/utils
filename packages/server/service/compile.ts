@@ -6,14 +6,14 @@ import * as env from '@okikio/env';
 import * as effect from '@okikio/effect';
 import type { EffectDefinition } from '@okikio/effect';
 import type {
+	AnyEndpointHandlerBinding,
+	EmptyEndpointHost,
 	EndpointContributions,
 	EndpointDefinition,
 	EndpointEntry,
 	EndpointGroup,
-	AnyEndpointHandlerBinding,
 	EndpointMethod,
 	EndpointOperation,
-	EmptyEndpointHost,
 } from '@okikio/server/endpoint';
 import * as middleware from '@okikio/server/middleware';
 import type { MiddlewareDefinition, MiddlewareHandler, MiddlewareInput } from '@okikio/server/middleware';
@@ -24,7 +24,7 @@ import type { ResponseDefinition } from '@okikio/http/response';
 import * as requirement from '@okikio/requirement';
 import type { RequirementDefinition } from '@okikio/requirement';
 import * as resource from '@okikio/resource';
-import type { ResourceImplementationAny, ResourceDefinition } from '@okikio/resource';
+import type { ResourceDefinition, ResourceImplementationAny } from '@okikio/resource';
 import { ServerProblems } from '../problems.ts';
 import { prepareRoutes } from '../http/mod.ts';
 
@@ -50,7 +50,11 @@ export class ServiceCompilationError extends Error {
 	readonly issues: readonly ServiceValidationIssue[];
 
 	constructor(issues: readonly ServiceValidationIssue[]) {
-		super(`Service compilation failed with ${issues.length} issue${issues.length === 1 ? '' : 's'}:\n${issues.map((issue) => `- ${issue.message}`).join('\n')}`);
+		super(
+			`Service compilation failed with ${issues.length} issue${issues.length === 1 ? '' : 's'}:\n${
+				issues.map((issue) => `- ${issue.message}`).join('\n')
+			}`,
+		);
 		this.name = 'ServiceCompilationError';
 		this.issues = Object.freeze([...issues]);
 	}
@@ -133,7 +137,9 @@ function compileImplementation<
 	const handlerByEndpoint = indexEndpointHandlers(implementation.endpoints, routes, issues);
 	const middlewareByDefinition = indexMiddlewareHandlers(implementation.middleware, issues);
 	const resourceByDefinition = indexResourceImplementations(implementation.resources.implementations, issues);
-	const policyTargets = new Map(definition.policies.map((policy) => [policy, new Set(leafEndpoints(policy.endpoints))] as const));
+	const policyTargets = new Map(
+		definition.policies.map((policy) => [policy, new Set(leafEndpoints(policy.endpoints))] as const),
+	);
 	const effective: EffectiveServiceOperation[] = [];
 	const usedMiddleware = new Set<MiddlewareDefinition>();
 	const usedResources = new Set<ResourceDefinition>();
@@ -144,7 +150,13 @@ function compileImplementation<
 	for (const route of routes) {
 		const handler = handlerByEndpoint.get(route.endpoint)?.get(route.operation);
 		if (!handler) {
-			issues.push(issue('missing-endpoint-handler', `Operation ${JSON.stringify(route.operation.id)} has no endpoint handler.`, route.operation));
+			issues.push(
+				issue(
+					'missing-endpoint-handler',
+					`Operation ${JSON.stringify(route.operation.id)} has no endpoint handler.`,
+					route.operation,
+				),
+			);
 			continue;
 		}
 		const sources = contributionSources(definition, route, policyTargets);
@@ -153,13 +165,21 @@ function compileImplementation<
 		);
 		const middlewareValidation = middleware.validate(middlewareInput);
 		if (!middlewareValidation.valid) {
-			for (const item of middlewareValidation.issues) issues.push(issue('invalid-definition', item.message, item.definition));
+			for (const item of middlewareValidation.issues) {
+				issues.push(issue('invalid-definition', item.message, item.definition));
+			}
 			continue;
 		}
 		for (const candidate of middlewareDefinitions(middlewareValidation.plan)) {
 			usedMiddleware.add(candidate);
 			if (!middlewareByDefinition.has(candidate)) {
-				issues.push(issue('missing-middleware-handler', `Middleware ${JSON.stringify(candidate.id)} has no runtime handler.`, candidate));
+				issues.push(
+					issue(
+						'missing-middleware-handler',
+						`Middleware ${JSON.stringify(candidate.id)} has no runtime handler.`,
+						candidate,
+					),
+				);
 			}
 		}
 
@@ -173,20 +193,30 @@ function compileImplementation<
 		for (const resourceDefinition of resources) {
 			usedResources.add(resourceDefinition);
 			if (!resourceByDefinition.has(resourceDefinition)) {
-				issues.push(issue('missing-resource-implementation', `Resource ${JSON.stringify(resourceDefinition.id)} has no runtime implementation.`, resourceDefinition));
+				issues.push(
+					issue(
+						'missing-resource-implementation',
+						`Resource ${JSON.stringify(resourceDefinition.id)} has no runtime implementation.`,
+						resourceDefinition,
+					),
+				);
 			}
 		}
 
 		const resiliencyInput = [
 			...sources.flatMap((source) => source.resiliency === undefined ? [] : [source.resiliency]),
-			...middlewareDefinitions(middlewareValidation.plan).flatMap((candidate) => candidate.resiliency === undefined ? [] : [candidate.resiliency]),
+			...middlewareDefinitions(middlewareValidation.plan).flatMap((candidate) =>
+				candidate.resiliency === undefined ? [] : [candidate.resiliency]
+			),
 		] as readonly ResilienceInput[];
 		const resiliencyValidation = resilience.validate(
 			resiliencyInput,
 			{ safety: operationSafety(route.method) },
 		);
 		if (!resiliencyValidation.valid) {
-			for (const item of resiliencyValidation.issues) issues.push(issue('invalid-resiliency', `${route.id}: ${item.message}`, item.policy));
+			for (const item of resiliencyValidation.issues) {
+				issues.push(issue('invalid-resiliency', `${route.id}: ${item.message}`, item.policy));
+			}
 			continue;
 		}
 
@@ -238,17 +268,41 @@ function compileImplementation<
 
 	for (const binding of implementation.endpoints) {
 		if (!routes.some((route) => route.operation === binding.operation)) {
-			issues.push(issue('extraneous-endpoint-handler', `Endpoint handler for ${JSON.stringify(binding.operation.id)} is outside service ${JSON.stringify(definition.id)}.`, binding));
+			issues.push(
+				issue(
+					'extraneous-endpoint-handler',
+					`Endpoint handler for ${JSON.stringify(binding.operation.id)} is outside service ${
+						JSON.stringify(definition.id)
+					}.`,
+					binding,
+				),
+			);
 		}
 	}
 	for (const handler of implementation.middleware) {
 		if (!usedMiddleware.has(handler.definition)) {
-			issues.push(issue('extraneous-middleware-handler', `Middleware handler ${JSON.stringify(handler.definition.id)} is not referenced by service ${JSON.stringify(definition.id)}.`, handler));
+			issues.push(
+				issue(
+					'extraneous-middleware-handler',
+					`Middleware handler ${JSON.stringify(handler.definition.id)} is not referenced by service ${
+						JSON.stringify(definition.id)
+					}.`,
+					handler,
+				),
+			);
 		}
 	}
 	for (const resourceImplementation of implementation.resources.implementations) {
 		if (!usedResources.has(resourceImplementation.definition)) {
-			issues.push(issue('resource-conflict', `Resource implementation ${JSON.stringify(resourceImplementation.definition.id)} is not reachable from service ${JSON.stringify(definition.id)}.`, resourceImplementation));
+			issues.push(
+				issue(
+					'resource-conflict',
+					`Resource implementation ${
+						JSON.stringify(resourceImplementation.definition.id)
+					} is not reachable from service ${JSON.stringify(definition.id)}.`,
+					resourceImplementation,
+				),
+			);
 		}
 	}
 
@@ -262,7 +316,11 @@ function compileImplementation<
 		definition,
 		implementation,
 		operations,
-		routePlan: prepareRoutes(operations.map((operation) => Object.freeze({ kind: 'route' as const, method: operation.method, path: operation.path }))),
+		routePlan: prepareRoutes(
+			operations.map((operation) =>
+				Object.freeze({ kind: 'route' as const, method: operation.method, path: operation.path })
+			),
+		),
 		manifest: manifest(definition, operations, implementation.resources),
 	});
 }
@@ -323,7 +381,15 @@ function validatePolicies(definition: ServiceDefinition, issues: ServiceValidati
 	for (const policy of definition.policies) {
 		for (const target of leafEndpoints(policy.endpoints)) {
 			if (!available.has(target)) {
-				issues.push(issue('policy-target-outside-service', `Policy ${JSON.stringify(policy.id)} targets endpoint ${JSON.stringify(target.id)} outside service ${JSON.stringify(definition.id)}.`, policy));
+				issues.push(
+					issue(
+						'policy-target-outside-service',
+						`Policy ${JSON.stringify(policy.id)} targets endpoint ${JSON.stringify(target.id)} outside service ${
+							JSON.stringify(definition.id)
+						}.`,
+						policy,
+					),
+				);
 			}
 		}
 	}
@@ -343,12 +409,20 @@ function validateRouteIdentity(routes: readonly ServiceRoute[], issues: ServiceV
 		const key = `${route.method} ${normalizeRouteShape(route.path)}`;
 		const existing = routeOwners.get(key);
 		if (existing && existing.operation !== route.operation) {
-			issues.push(issue('route-conflict', `${route.method.toUpperCase()} ${route.path} conflicts with ${existing.path}.`, route));
+			issues.push(
+				issue('route-conflict', `${route.method.toUpperCase()} ${route.path} conflicts with ${existing.path}.`, route),
+			);
 		}
 		routeOwners.set(key, route);
 		const operationOwner = operationOwners.get(route.operation.operationId);
 		if (operationOwner && operationOwner !== route.operation) {
-			issues.push(issue('operation-id-conflict', `Operation ID ${JSON.stringify(route.operation.operationId)} is duplicated.`, route.operation));
+			issues.push(
+				issue(
+					'operation-id-conflict',
+					`Operation ID ${JSON.stringify(route.operation.operationId)} is duplicated.`,
+					route.operation,
+				),
+			);
 		}
 		operationOwners.set(route.operation.operationId, route.operation);
 	}
@@ -438,7 +512,9 @@ function indexEndpointHandlers(
 		if (existing && existing !== binding) {
 			issues.push(issue(
 				'invalid-definition',
-				`Operation ${JSON.stringify(binding.operation.id)} has duplicate handlers for endpoint ${JSON.stringify(binding.endpoint.id)}.`,
+				`Operation ${JSON.stringify(binding.operation.id)} has duplicate handlers for endpoint ${
+					JSON.stringify(binding.endpoint.id)
+				}.`,
 				binding,
 			));
 		}
@@ -461,7 +537,15 @@ function indexMiddlewareHandlers(
 	const result = new Map<MiddlewareDefinition, MiddlewareHandler>();
 	for (const handler of handlers) {
 		const existing = result.get(handler.definition);
-		if (existing && existing !== handler) issues.push(issue('invalid-definition', `Middleware ${JSON.stringify(handler.definition.id)} has duplicate handlers.`, handler));
+		if (existing && existing !== handler) {
+			issues.push(
+				issue(
+					'invalid-definition',
+					`Middleware ${JSON.stringify(handler.definition.id)} has duplicate handlers.`,
+					handler,
+				),
+			);
+		}
 		result.set(handler.definition, handler);
 	}
 	return result;
@@ -482,10 +566,26 @@ function indexResourceImplementations(
 	const ids = new Map<string, ResourceDefinition>();
 	for (const implementation of implementations) {
 		const owner = ids.get(implementation.definition.id);
-		if (owner && owner !== implementation.definition) issues.push(issue('resource-conflict', `Resource ID ${JSON.stringify(implementation.definition.id)} belongs to different definitions.`, implementation));
+		if (owner && owner !== implementation.definition) {
+			issues.push(
+				issue(
+					'resource-conflict',
+					`Resource ID ${JSON.stringify(implementation.definition.id)} belongs to different definitions.`,
+					implementation,
+				),
+			);
+		}
 		ids.set(implementation.definition.id, implementation.definition);
 		const existing = result.get(implementation.definition);
-		if (existing && existing !== implementation) issues.push(issue('resource-conflict', `Resource ${JSON.stringify(implementation.definition.id)} has duplicate implementations.`, implementation));
+		if (existing && existing !== implementation) {
+			issues.push(
+				issue(
+					'resource-conflict',
+					`Resource ${JSON.stringify(implementation.definition.id)} has duplicate implementations.`,
+					implementation,
+				),
+			);
+		}
 		result.set(implementation.definition, implementation);
 	}
 	return result;
@@ -544,10 +644,16 @@ function collectResourceClosure(roots: readonly ResourceDefinition[]): ResourceD
 	const ids = new Map<string, ResourceDefinition>();
 	const visit = (definition: ResourceDefinition): void => {
 		const owner = ids.get(definition.id);
-		if (owner && owner !== definition) throw new TypeError(`Resource ID ${JSON.stringify(definition.id)} belongs to different definitions.`);
+		if (owner && owner !== definition) {
+			throw new TypeError(`Resource ID ${JSON.stringify(definition.id)} belongs to different definitions.`);
+		}
 		ids.set(definition.id, definition);
 		const cycle = visiting.indexOf(definition);
-		if (cycle >= 0) throw new TypeError(`Resource dependency cycle: ${[...visiting.slice(cycle), definition].map((item) => item.id).join(' -> ')}`);
+		if (cycle >= 0) {
+			throw new TypeError(
+				`Resource dependency cycle: ${[...visiting.slice(cycle), definition].map((item) => item.id).join(' -> ')}`,
+			);
+		}
 		if (visited.has(definition)) return;
 		visiting.push(definition);
 		for (const dependency of Object.values(definition.dependencies)) visit(dependency);
@@ -572,7 +678,9 @@ function uniqueByIdentity<Entry extends CatalogEntryIdentity>(input: readonly En
 	const ids = new Map<string, Entry>();
 	for (const entry of input) {
 		const owner = ids.get(entry.id);
-		if (owner && owner !== entry) throw new TypeError(`Definition ID ${JSON.stringify(entry.id)} belongs to different objects.`);
+		if (owner && owner !== entry) {
+			throw new TypeError(`Definition ID ${JSON.stringify(entry.id)} belongs to different objects.`);
+		}
 		ids.set(entry.id, entry);
 		if (!seen.has(entry)) {
 			seen.add(entry);
@@ -581,8 +689,6 @@ function uniqueByIdentity<Entry extends CatalogEntryIdentity>(input: readonly En
 	}
 	return result;
 }
-
-
 
 /**
  * Returns the definition values consumed by the compiled service runtime.
@@ -611,13 +717,29 @@ function validateEnvironment(
 		const requirement = selected.environment;
 		if (requirement === undefined) continue;
 		if (definition.environment === undefined) {
-			issues.push(issue('missing-environment', `Resource ${JSON.stringify(selected.id)} requires environment values, but service ${JSON.stringify(definition.id)} has no environment definition.`, selected));
+			issues.push(
+				issue(
+					'missing-environment',
+					`Resource ${JSON.stringify(selected.id)} requires environment values, but service ${
+						JSON.stringify(definition.id)
+					} has no environment definition.`,
+					selected,
+				),
+			);
 			continue;
 		}
 		for (const field of requirement.fields) {
 			const supplied = definition.environment.fields[field.key];
 			if (supplied !== field.field) {
-				issues.push(issue('environment-conflict', `Resource ${JSON.stringify(selected.id)} requires canonical environment field ${JSON.stringify(field.key)} that is not imported by service ${JSON.stringify(definition.id)}.`, selected));
+				issues.push(
+					issue(
+						'environment-conflict',
+						`Resource ${JSON.stringify(selected.id)} requires canonical environment field ${
+							JSON.stringify(field.key)
+						} that is not imported by service ${JSON.stringify(definition.id)}.`,
+						selected,
+					),
+				);
 			}
 		}
 	}
@@ -644,12 +766,18 @@ function generatedServerProblems(
 	const hasBodyInput = route.endpoint.inputs.json !== undefined || route.endpoint.inputs.form !== undefined ||
 		route.operation.inputs.json !== undefined || route.operation.inputs.form !== undefined;
 	if (hasBodyInput) definitions.unshift(ServerProblems.UnsupportedMediaType);
-	if (catalog.values<ResponseDefinition>(route.operation.responses ?? []).some((definition) => definition.mode !== 'empty' && definition.mode !== 'redirect')) {
+	if (
+		catalog.values<ResponseDefinition>(route.operation.responses ?? []).some((definition) =>
+			definition.mode !== 'empty' && definition.mode !== 'redirect'
+		)
+	) {
 		definitions.unshift(ServerProblems.NotAcceptable);
 	}
 	if (policies.some((policy) => policy.type === 'idempotency')) definitions.unshift(ServerProblems.IdempotencyConflict);
 	if (policies.some((policy) => policy.type === 'rate-limit')) definitions.unshift(ServerProblems.RateLimited);
-	if (policies.some((policy) => policy.type === 'bulkhead' || policy.type === 'circuit-breaker')) definitions.unshift(ServerProblems.CapacityUnavailable);
+	if (policies.some((policy) => policy.type === 'bulkhead' || policy.type === 'circuit-breaker')) {
+		definitions.unshift(ServerProblems.CapacityUnavailable);
+	}
 	if (policies.some((policy) => policy.type === 'body-limit')) definitions.unshift(ServerProblems.BodyTooLarge);
 	if (policies.some((policy) => policy.type === 'timeout')) definitions.unshift(ServerProblems.DeadlineExceeded);
 	return definitions;
@@ -701,13 +829,15 @@ function executionPlan(
 		else operation.push(policy);
 	}
 
-	return Object.freeze({
-		inputs: Object.freeze(inputs),
-		...(bodyLimit === undefined ? {} : { bodyLimit }),
-		...(timeout === undefined ? {} : { timeout }),
-		admission: Object.freeze(admission),
-		operation: Object.freeze(operation),
-	} satisfies ServiceExecutionPlan);
+	return Object.freeze(
+		{
+			inputs: Object.freeze(inputs),
+			...(bodyLimit === undefined ? {} : { bodyLimit }),
+			...(timeout === undefined ? {} : { timeout }),
+			admission: Object.freeze(admission),
+			operation: Object.freeze(operation),
+		} satisfies ServiceExecutionPlan,
+	);
 }
 
 /**
@@ -742,12 +872,24 @@ function manifest(
 		resources: Object.freeze(resources.map((entry) => entry.id)),
 		resourceGraph: resource.document(resources, implementations),
 		requirements: requirement.document(requirement.compose(operations.map((operation) => operation.requirements))),
-		reachableRequirements: requirement.document(requirement.compose(operations.map((operation) => operation.reachableRequirements))),
+		reachableRequirements: requirement.document(
+			requirement.compose(operations.map((operation) => operation.reachableRequirements)),
+		),
 		effects: Object.freeze(effects.map((entry) => entry.id)),
-		problems: Object.freeze(uniqueByIdentity(operations.flatMap((operation) => operation.problems)).map((entry) => entry.id)),
-		responses: Object.freeze(uniqueByIdentity(operations.flatMap((operation) => operation.responses)).map((entry) => entry.id)),
-		middleware: Object.freeze(uniqueByIdentity(operations.flatMap((operation) => middlewareDefinitions(operation.middleware))).map((entry) => entry.id)),
-		resiliency: Object.freeze([...new Set(operations.flatMap((operation) => operation.resiliency.map((policy) => policy.type)))]),
+		problems: Object.freeze(
+			uniqueByIdentity(operations.flatMap((operation) => operation.problems)).map((entry) => entry.id),
+		),
+		responses: Object.freeze(
+			uniqueByIdentity(operations.flatMap((operation) => operation.responses)).map((entry) => entry.id),
+		),
+		middleware: Object.freeze(
+			uniqueByIdentity(operations.flatMap((operation) => middlewareDefinitions(operation.middleware))).map((entry) =>
+				entry.id
+			),
+		),
+		resiliency: Object.freeze([
+			...new Set(operations.flatMap((operation) => operation.resiliency.map((policy) => policy.type))),
+		]),
 		workflows: Object.freeze(definition.workflows.map((workflow) => workflow.id)),
 		observers: Object.freeze(definition.observers.map((observer) => observer.id)),
 	});
@@ -810,7 +952,5 @@ function issue(
 	message: string,
 	definition?: ServiceValidationSubject,
 ): ServiceValidationIssue {
-	return definition === undefined
-		? Object.freeze({ code, message })
-		: Object.freeze({ code, message, definition });
+	return definition === undefined ? Object.freeze({ code, message }) : Object.freeze({ code, message, definition });
 }

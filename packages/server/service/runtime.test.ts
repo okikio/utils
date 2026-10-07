@@ -56,19 +56,23 @@ describe('service runtime', () => {
 		const ReadRuntime = permissions.define({ id: 'runtime:read' });
 		const ReadRuntimeRequirement = permissions.require(ReadRuntime);
 		const authentication = Object.freeze({ id: 'runtime:session', kind: 'authentication' });
-		const WholeRequest = middleware.define({ id: 'runtime.wholeRequest', description: 'Surround the complete application request pipeline.' });
+		const WholeRequest = middleware.define({
+			id: 'runtime.wholeRequest',
+			description: 'Surround the complete application request pipeline.',
+		});
 		const BeforeValidation = middleware.define({ id: 'runtime.before-validation', description: 'Before validation.' });
 		const AfterValidation = middleware.define({ id: 'runtime.after-validation', description: 'After validation.' });
 		const AroundOperation = middleware.define({ id: 'runtime.around-handler', description: 'Around handler.' });
-		const trace = (name: string, definition: middleware.MiddlewareDefinition) => middleware.handler(
-			definition,
-			async (_context, next) => {
-				events.push(`${name}:before`);
-				const result = await next();
-				events.push(`${name}:after`);
-				return result;
-			},
-		);
+		const trace = (name: string, definition: middleware.MiddlewareDefinition) =>
+			middleware.handler(
+				definition,
+				async (_context, next) => {
+					events.push(`${name}:before`);
+					const result = await next();
+					events.push(`${name}:after`);
+					return result;
+				},
+			);
 		const Read = endpoint.get({
 			id: 'runtime.read',
 			path: '/runtime',
@@ -214,10 +218,11 @@ describe('service runtime', () => {
 		await using runtime = service.create<endpoint.EmptyEndpointHost, IdentityValues>(service.compile(implementation), {
 			host: Object.freeze({}),
 			adapters: {
-				authenticate: async () => Object.freeze({
-					session: Object.freeze({ id: 'session-1' }),
-					membership: Object.freeze({ id: 'membership-1' }),
-				}),
+				authenticate: async () =>
+					Object.freeze({
+						session: Object.freeze({ id: 'session-1' }),
+						membership: Object.freeze({ id: 'membership-1' }),
+					}),
 			},
 		});
 
@@ -237,13 +242,15 @@ describe('service runtime', () => {
 		});
 		const definition = service.define({ id: 'runtime-optional', path: '/', endpoints: [Read] });
 		const compiled = service.compile(service.implement(definition, {
-		endpoints: [endpoint.handler(Read, async () => {
+			endpoints: [endpoint.handler(Read, async () => {
 				return response.create(Message, { message: 'ok' });
 			})],
 			resources: resource.implementations(),
 		}));
 		expect(compiled.operations[0]?.requirements).toEqual([OptionalRequirement]);
-		expect(() => service.create(compiled, { host: Object.freeze({}) })).toThrow(service.ServiceRuntimeConfigurationError);
+		expect(() => service.create(compiled, { host: Object.freeze({}) })).toThrow(
+			service.ServiceRuntimeConfigurationError,
+		);
 
 		await using runtime = service.create(compiled, {
 			host: Object.freeze({}),
@@ -308,13 +315,16 @@ describe('service runtime', () => {
 			responses: [Message],
 		});
 		const definition = service.define({ id: 'slow', path: '/', endpoints: [Slow] });
-		await using runtime = service.create(service.compile(service.implement(definition, {
-			endpoints: [endpoint.handler(Slow, async () => {
-				await new Promise<never>(() => {});
-				return response.create(Message, { message: 'late' });
-			})],
-			resources: resource.implementations(),
-		})), { host: Object.freeze({}) });
+		await using runtime = service.create(
+			service.compile(service.implement(definition, {
+				endpoints: [endpoint.handler(Slow, async () => {
+					await new Promise<never>(() => {});
+					return response.create(Message, { message: 'late' });
+				})],
+				resources: resource.implementations(),
+			})),
+			{ host: Object.freeze({}) },
+		);
 		const result = await runtime.fetch(new Request('http://localhost/slow'));
 		expect(result.status).toBe(504);
 		expect((await result.json() as { type: string }).type).toBe('urn:utils:server:deadline-exceeded');
@@ -333,12 +343,16 @@ describe('service runtime', () => {
 			responses: [Message],
 		});
 		const definition = service.define({ id: 'echo', path: '/', endpoints: [Echo] });
-		await using runtime = service.create(service.compile(service.implement(definition, {
-			endpoints: [endpoint.handler(Echo, async ({ input }) => response.create(Message, {
-				message: await input.raw.text(),
-			}))],
-			resources: resource.implementations(),
-		})), { host: Object.freeze({}) });
+		await using runtime = service.create(
+			service.compile(service.implement(definition, {
+				endpoints: [endpoint.handler(Echo, async ({ input }) =>
+					response.create(Message, {
+						message: await input.raw.text(),
+					}))],
+				resources: resource.implementations(),
+			})),
+			{ host: Object.freeze({}) },
+		);
 
 		const allowed = await runtime.fetch(new Request('http://localhost/echo', { method: 'POST', body: '1234' }));
 		expect(allowed.status).toBe(200);
@@ -360,15 +374,20 @@ describe('service runtime', () => {
 			responses: [Message],
 		});
 		const definition = service.define({ id: 'invalid-content-length', path: '/', endpoints: [Echo] });
-		await using runtime = service.create(service.compile(service.implement(definition, {
-			endpoints: [endpoint.handler(Echo, () => response.create(Message, { message: 'unexpected' }))],
-			resources: resource.implementations(),
-		})), { host: Object.freeze({}) });
-		const result = await runtime.fetch(new Request('http://localhost/invalid-content-length', {
-			method: 'POST',
-			headers: { 'content-length': 'not-a-number' },
-			body: '1234',
-		}));
+		await using runtime = service.create(
+			service.compile(service.implement(definition, {
+				endpoints: [endpoint.handler(Echo, () => response.create(Message, { message: 'unexpected' }))],
+				resources: resource.implementations(),
+			})),
+			{ host: Object.freeze({}) },
+		);
+		const result = await runtime.fetch(
+			new Request('http://localhost/invalid-content-length', {
+				method: 'POST',
+				headers: { 'content-length': 'not-a-number' },
+				body: '1234',
+			}),
+		);
 		expect(result.status).toBe(400);
 		expect((await result.json() as { type: string }).type).toBe('urn:utils:server:invalid-request');
 	});
@@ -387,24 +406,32 @@ describe('service runtime', () => {
 		});
 		let handlerCalls = 0;
 		const definition = service.define({ id: 'cancelled-body', path: '/', endpoints: [Echo] });
-		await using runtime = service.create(service.compile(service.implement(definition, {
-			endpoints: [endpoint.handler(Echo, () => {
-				handlerCalls += 1;
-				return response.create(Message, { message: 'unexpected' });
-			})],
-			resources: resource.implementations(),
-		})), { host: Object.freeze({}) });
+		await using runtime = service.create(
+			service.compile(service.implement(definition, {
+				endpoints: [endpoint.handler(Echo, () => {
+					handlerCalls += 1;
+					return response.create(Message, { message: 'unexpected' });
+				})],
+				resources: resource.implementations(),
+			})),
+			{ host: Object.freeze({}) },
+		);
 
 		const controller = new AbortController();
 		const body = new ReadableStream<Uint8Array>({
-			start(stream) { stream.enqueue(new TextEncoder().encode('12')); },
+			start(stream) {
+				stream.enqueue(new TextEncoder().encode('12'));
+			},
 		});
-		const request = new Request('http://localhost/cancelled-body', {
-			method: 'POST',
-			body,
-			signal: controller.signal,
-			duplex: 'half',
-		} as RequestInit & { duplex: 'half' });
+		const request = new Request(
+			'http://localhost/cancelled-body',
+			{
+				method: 'POST',
+				body,
+				signal: controller.signal,
+				duplex: 'half',
+			} as RequestInit & { duplex: 'half' },
+		);
 		const pending = runtime.fetch(request);
 		await Promise.resolve();
 		const reason = new DOMException('Caller cancelled the request.', 'AbortError');
@@ -431,22 +458,23 @@ describe('service runtime', () => {
 			responses: [Page],
 		});
 		const definition = service.define({ id: 'pages', path: '/', endpoints: [List] });
-		await using runtime = service.create(service.compile(service.implement(definition, {
-			endpoints: [endpoint.handler(List, async ({ input }) => {
-				if (input.query.pagination.kind !== 'cursor') throw new TypeError('Expected cursor pagination.');
-				return response.create(Page, {
-				kind: 'cursor',
-				items: [{ message: 'first' }],
-				...(input.query.pagination.cursor !== undefined
-					? { cursor: input.query.pagination.cursor }
-					: {}),
-				limit: input.query.pagination.limit,
-				hasMore: true,
-				nextCursor: 'next-page',
-				});
-			})],
-			resources: resource.implementations(),
-		})), { host: Object.freeze({}) });
+		await using runtime = service.create(
+			service.compile(service.implement(definition, {
+				endpoints: [endpoint.handler(List, async ({ input }) => {
+					if (input.query.pagination.kind !== 'cursor') throw new TypeError('Expected cursor pagination.');
+					return response.create(Page, {
+						kind: 'cursor',
+						items: [{ message: 'first' }],
+						...(input.query.pagination.cursor !== undefined ? { cursor: input.query.pagination.cursor } : {}),
+						limit: input.query.pagination.limit,
+						hasMore: true,
+						nextCursor: 'next-page',
+					});
+				})],
+				resources: resource.implementations(),
+			})),
+			{ host: Object.freeze({}) },
+		);
 
 		const result = await runtime.fetch(new Request('http://localhost/pages?after=current&size=2'));
 		expect(result.status).toBe(200);
@@ -464,15 +492,19 @@ describe('service runtime', () => {
 	it('preserves repeated response fields through native Response materialization', async () => {
 		const Cookies = endpoint.get({ id: 'runtime.cookies', path: '/cookies', responses: [Message] });
 		const definition = service.define({ id: 'cookies', path: '/', endpoints: [Cookies] });
-		await using runtime = service.create(service.compile(service.implement(definition, {
-			endpoints: [endpoint.handler(Cookies, async () => response.create(Message, { message: 'ok' }, {
-				headers: [
-					['Set-Cookie', 'access=one; Path=/; HttpOnly'],
-					['Set-Cookie', 'refresh=two; Path=/; HttpOnly'],
-				],
-			}))],
-			resources: resource.implementations(),
-		})), { host: Object.freeze({}) });
+		await using runtime = service.create(
+			service.compile(service.implement(definition, {
+				endpoints: [endpoint.handler(Cookies, async () =>
+					response.create(Message, { message: 'ok' }, {
+						headers: [
+							['Set-Cookie', 'access=one; Path=/; HttpOnly'],
+							['Set-Cookie', 'refresh=two; Path=/; HttpOnly'],
+						],
+					}))],
+				resources: resource.implementations(),
+			})),
+			{ host: Object.freeze({}) },
+		);
 
 		const result = await runtime.fetch(new Request('http://localhost/cookies'));
 		const cookies = (result.headers as Headers & { getSetCookie?: () => string[] }).getSetCookie?.() ?? [];
@@ -482,71 +514,117 @@ describe('service runtime', () => {
 		]);
 	});
 
-
 	it('honors declared conditional responses without hiding an undeclared 304', async () => {
 		const Cached = response.ok(MessageSchema, { id: 'runtime.cached', description: 'Cached message.' });
 		const NotModified = response.notModified({ id: 'runtime.not-modified' });
 		const Read = endpoint.get({ id: 'runtime.read-cached', path: '/cached', responses: [Cached, NotModified] });
 		const definition = service.define({ id: 'cached', path: '/', endpoints: [Read] });
-		await using runtime = service.create(service.compile(service.implement(definition, {
-			endpoints: [endpoint.handler(Read, async () => response.create(Cached, { message: 'cached' }, {
-				headers: { ETag: '"version-1"', 'Cache-Control': 'private, max-age=0' },
-			}))],
-			resources: resource.implementations(),
-		})), { host: Object.freeze({}) });
-		const result = await runtime.fetch(new Request('http://localhost/cached', {
-			headers: { 'If-None-Match': 'W/"version-1"' },
-		}));
+		await using runtime = service.create(
+			service.compile(service.implement(definition, {
+				endpoints: [endpoint.handler(Read, async () =>
+					response.create(Cached, { message: 'cached' }, {
+						headers: { ETag: '"version-1"', 'Cache-Control': 'private, max-age=0' },
+					}))],
+				resources: resource.implementations(),
+			})),
+			{ host: Object.freeze({}) },
+		);
+		const result = await runtime.fetch(
+			new Request('http://localhost/cached', {
+				headers: { 'If-None-Match': 'W/"version-1"' },
+			}),
+		);
 		expect(result.status).toBe(304);
 		expect(result.headers.get('etag')).toBe('"version-1"');
 		expect(await result.text()).toBe('');
 	});
 
 	it('returns declared 406 and 415 problems for representation negotiation failures', async () => {
-		const Create = endpoint.post({ id: 'runtime.create-json', path: '/json', json: MessageSchema, responses: [Message] });
+		const Create = endpoint.post({
+			id: 'runtime.create-json',
+			path: '/json',
+			json: MessageSchema,
+			responses: [Message],
+		});
 		const definition = service.define({ id: 'formats', path: '/', endpoints: [Create] });
-		await using runtime = service.create(service.compile(service.implement(definition, {
-			endpoints: [endpoint.handler(Create, async ({ input }) => response.create(Message, input.json))],
-			resources: resource.implementations(),
-		})), { host: Object.freeze({}) });
-		const unsupported = await runtime.fetch(new Request('http://localhost/json', {
-			method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: 'hello',
-		}));
+		await using runtime = service.create(
+			service.compile(service.implement(definition, {
+				endpoints: [endpoint.handler(Create, async ({ input }) => response.create(Message, input.json))],
+				resources: resource.implementations(),
+			})),
+			{ host: Object.freeze({}) },
+		);
+		const unsupported = await runtime.fetch(
+			new Request('http://localhost/json', {
+				method: 'POST',
+				headers: { 'Content-Type': 'text/plain' },
+				body: 'hello',
+			}),
+		);
 		expect(unsupported.status).toBe(415);
-		const missing = await runtime.fetch(new Request('http://localhost/json', {
-			method: 'POST', body: new Uint8Array(new TextEncoder().encode('{\"message\":\"hello\"}')),
-		}));
+		const missing = await runtime.fetch(
+			new Request('http://localhost/json', {
+				method: 'POST',
+				body: new Uint8Array(new TextEncoder().encode('{"message":"hello"}')),
+			}),
+		);
 		expect(missing.status).toBe(415);
-		const structured = await runtime.fetch(new Request('http://localhost/json', {
-			method: 'POST', headers: { 'Content-Type': 'application/vnd.kaiju+json', Accept: 'application/json' }, body: '{\"message\":\"hello\"}',
-		}));
+		const structured = await runtime.fetch(
+			new Request('http://localhost/json', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/vnd.kaiju+json', Accept: 'application/json' },
+				body: '{"message":"hello"}',
+			}),
+		);
 		expect(structured.status).toBe(200);
 		expect(structured.headers.get('vary')).toBe('Accept');
-		const unacceptable = await runtime.fetch(new Request('http://localhost/json', {
-			method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/xml' }, body: '{"message":"hello"}',
-		}));
+		const unacceptable = await runtime.fetch(
+			new Request('http://localhost/json', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', Accept: 'application/xml' },
+				body: '{"message":"hello"}',
+			}),
+		);
 		expect(unacceptable.status).toBe(406);
 		expect(unacceptable.headers.get('content-type')).toContain('application/problem+json');
 		expect(unacceptable.headers.get('vary')).toBe('Accept');
 	});
 
 	it('authenticates exact webhook bytes before ordinary JSON parsing and validation', async () => {
-		const VerifyWebhook = middleware.define({ id: 'runtime.verify-webhook', description: 'Verify exact webhook bytes.' });
+		const VerifyWebhook = middleware.define({
+			id: 'runtime.verify-webhook',
+			description: 'Verify exact webhook bytes.',
+		});
 		const protocol = standardWebhook.create({ secret: 'whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw' });
-		const Receive = endpoint.post({ id: 'runtime.webhook', path: '/webhook', json: MessageSchema, responses: [Message], middleware: [middleware.beforeValidation(VerifyWebhook)] });
+		const Receive = endpoint.post({
+			id: 'runtime.webhook',
+			path: '/webhook',
+			json: MessageSchema,
+			responses: [Message],
+			middleware: [middleware.beforeValidation(VerifyWebhook)],
+		});
 		const definition = service.define({ id: 'webhook-runtime', path: '/', endpoints: [Receive] });
-		await using runtime = service.create(service.compile(service.implement(definition, {
-			endpoints: [endpoint.handler(Receive, async ({ input }) => response.create(Message, input.json))],
-			middleware: [middleware.handler(VerifyWebhook, async ({ request }, next) => {
-				const verified = await webhook.verifyRequest(request, protocol, { now: new Date(1_000_000) });
-				if (!verified.ok) throw new Error(`webhook rejected: ${verified.code}`);
-				return await next();
-			})],
-			resources: resource.implementations(),
-		})), { host: Object.freeze({}) });
-		const body = '{\"message\":\"signed\"}';
+		await using runtime = service.create(
+			service.compile(service.implement(definition, {
+				endpoints: [endpoint.handler(Receive, async ({ input }) => response.create(Message, input.json))],
+				middleware: [middleware.handler(VerifyWebhook, async ({ request }, next) => {
+					const verified = await webhook.verifyRequest(request, protocol, { now: new Date(1_000_000) });
+					if (!verified.ok) throw new Error(`webhook rejected: ${verified.code}`);
+					return await next();
+				})],
+				resources: resource.implementations(),
+			})),
+			{ host: Object.freeze({}) },
+		);
+		const body = '{"message":"signed"}';
 		const headers = await protocol.sign({ id: 'evt_signed', timestamp: 1000, body });
-		const result = await runtime.fetch(new Request('http://localhost/webhook', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body }));
+		const result = await runtime.fetch(
+			new Request('http://localhost/webhook', {
+				method: 'POST',
+				headers: { ...headers, 'Content-Type': 'application/json' },
+				body,
+			}),
+		);
 		expect(result.status).toBe(200);
 		expect(await result.json()).toEqual({ message: 'signed' });
 	});
@@ -554,25 +632,39 @@ describe('service runtime', () => {
 	it('encodes consecutive async-iterable text chunks as Web Response bytes without dropping yields', async () => {
 		const Html = response.html({ id: 'runtime:stream-html', description: 'Streaming HTML.' });
 		const Stream = endpoint.get({ id: 'runtime.stream-html', path: '/stream-html', responses: [Html] });
-		async function* content() { yield 'one'; yield 'two'; yield 'three'; }
+		async function* content() {
+			yield 'one';
+			yield 'two';
+			yield 'three';
+		}
 		const definition = service.define({ id: 'stream-html-runtime', path: '/', endpoints: [Stream] });
-		await using runtime = service.create(service.compile(service.implement(definition, {
-			endpoints: [endpoint.handler(Stream, async () => response.create(Html, content()))],
-			resources: resource.implementations(),
-		})), { host: Object.freeze({}) });
+		await using runtime = service.create(
+			service.compile(service.implement(definition, {
+				endpoints: [endpoint.handler(Stream, async () => response.create(Html, content()))],
+				resources: resource.implementations(),
+			})),
+			{ host: Object.freeze({}) },
+		);
 		const result = await runtime.fetch(new Request('http://localhost/stream-html'));
 		expect(result.status).toBe(200);
 		expect(await result.text()).toBe('onetwothree');
 	});
 
 	it('does not let an arbitrary Error.code become a public protocol problem identity', async () => {
-		class CodedError extends Error { readonly code = 'USER_CONTROLLED'; }
+		class CodedError extends Error {
+			readonly code = 'USER_CONTROLLED';
+		}
 		const Fail = endpoint.get({ id: 'runtime.coded-error', path: '/coded-error', responses: [Message] });
 		const definition = service.define({ id: 'coded-error-runtime', path: '/', endpoints: [Fail] });
-		await using runtime = service.create(service.compile(service.implement(definition, {
-			endpoints: [endpoint.handler(Fail, async () => { throw new CodedError('private implementation message'); })],
-			resources: resource.implementations(),
-		})), { host: Object.freeze({}) });
+		await using runtime = service.create(
+			service.compile(service.implement(definition, {
+				endpoints: [endpoint.handler(Fail, async () => {
+					throw new CodedError('private implementation message');
+				})],
+				resources: resource.implementations(),
+			})),
+			{ host: Object.freeze({}) },
+		);
 		const result = await runtime.fetch(new Request('http://localhost/coded-error'));
 		expect(result.status).toBe(500);
 		const text = await result.text();
@@ -597,7 +689,9 @@ describe('service runtime', () => {
 			endpoints: [endpoint.handler(Reliable, async ({ input }) => response.create(Message, input.json))],
 			resources: resource.implementations(),
 		}));
-		expect(() => service.create(compiled, { host: Object.freeze({}) })).toThrow(service.ServiceRuntimeConfigurationError);
+		expect(() => service.create(compiled, { host: Object.freeze({}) })).toThrow(
+			service.ServiceRuntimeConfigurationError,
+		);
 
 		const observed: string[] = [];
 		await using runtime = service.create(compiled, {
@@ -613,11 +707,13 @@ describe('service runtime', () => {
 				},
 			},
 		});
-		const result = await runtime.fetch(new Request('http://localhost/reliable', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json', 'Idempotency-Key': 'operation-1' },
-			body: '{"message":"safe retry"}',
-		}));
+		const result = await runtime.fetch(
+			new Request('http://localhost/reliable', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', 'Idempotency-Key': 'operation-1' },
+				body: '{"message":"safe retry"}',
+			}),
+		);
 		expect(result.status).toBe(200);
 		expect(observed).toEqual(['idempotency', 'retry']);
 	});
@@ -633,7 +729,9 @@ describe('service runtime', () => {
 			endpoints: [endpoint.handler(Read, async () => response.create(Message, { message: 'observed' }))],
 			resources: resource.implementations(),
 		}));
-		expect(() => service.create(compiled, { host: Object.freeze({}) })).toThrow(service.ServiceRuntimeConfigurationError);
+		expect(() => service.create(compiled, { host: Object.freeze({}) })).toThrow(
+			service.ServiceRuntimeConfigurationError,
+		);
 
 		const events: service.ServiceObserverEvent[] = [];
 		let complete!: () => void;
@@ -661,7 +759,11 @@ describe('service runtime', () => {
 			endpointId: Read.id,
 			operationId: Read.operations[0]!.operationId,
 		});
-		expect(events[2]).toMatchObject({ status: 200, responseBytes: 22, completion: { outcome: 'completed', bytes: 22 } });
+		expect(events[2]).toMatchObject({
+			status: 200,
+			responseBytes: 22,
+			completion: { outcome: 'completed', bytes: 22 },
+		});
 	});
 
 	it('converts request setup failures to the safe internal problem and reports them observationally', async () => {
@@ -671,18 +773,28 @@ describe('service runtime', () => {
 			description: 'Observe setup failures.',
 			events: ['failed'],
 		});
-		const definition = service.define({ id: 'setup-failure', path: '/api', endpoints: [Ping], observers: [Diagnostics] });
-		const observed: service.ServiceObserverEvent[] = [];
-		await using runtime = service.create(service.compile(service.implement(definition, {
-			endpoints: [endpoint.handler(Ping, async () => response.create(Message, { message: 'pong' }))],
-			resources: resource.implementations(),
-		})), {
-			host: Object.freeze({}),
-			requestId() {
-				throw new Error('request id failed');
-			},
-			observers: [service.observer.handler(Diagnostics, (event) => { observed.push(event); })],
+		const definition = service.define({
+			id: 'setup-failure',
+			path: '/api',
+			endpoints: [Ping],
+			observers: [Diagnostics],
 		});
+		const observed: service.ServiceObserverEvent[] = [];
+		await using runtime = service.create(
+			service.compile(service.implement(definition, {
+				endpoints: [endpoint.handler(Ping, async () => response.create(Message, { message: 'pong' }))],
+				resources: resource.implementations(),
+			})),
+			{
+				host: Object.freeze({}),
+				requestId() {
+					throw new Error('request id failed');
+				},
+				observers: [service.observer.handler(Diagnostics, (event) => {
+					observed.push(event);
+				})],
+			},
+		);
 
 		const result = await runtime.fetch(new Request('http://localhost/api/ping'));
 		expect(result.status).toBe(500);
@@ -704,19 +816,29 @@ describe('service runtime', () => {
 			description: 'Observe trace setup failures.',
 			events: ['failed'],
 		});
-		const definition = service.define({ id: 'trace-failure', path: '/api', endpoints: [Ping], observers: [Diagnostics] });
-		const observed: service.ServiceObserverEvent[] = [];
-		await using runtime = service.create(service.compile(service.implement(definition, {
-			endpoints: [endpoint.handler(Ping, async () => response.create(Message, { message: 'pong' }))],
-			resources: resource.implementations(),
-		})), {
-			host: Object.freeze({}),
-			requestId: () => 'request_setup_123',
-			traceId() {
-				throw new Error('trace id failed');
-			},
-			observers: [service.observer.handler(Diagnostics, (event) => { observed.push(event); })],
+		const definition = service.define({
+			id: 'trace-failure',
+			path: '/api',
+			endpoints: [Ping],
+			observers: [Diagnostics],
 		});
+		const observed: service.ServiceObserverEvent[] = [];
+		await using runtime = service.create(
+			service.compile(service.implement(definition, {
+				endpoints: [endpoint.handler(Ping, async () => response.create(Message, { message: 'pong' }))],
+				resources: resource.implementations(),
+			})),
+			{
+				host: Object.freeze({}),
+				requestId: () => 'request_setup_123',
+				traceId() {
+					throw new Error('trace id failed');
+				},
+				observers: [service.observer.handler(Diagnostics, (event) => {
+					observed.push(event);
+				})],
+			},
+		);
 
 		const result = await runtime.fetch(new Request('http://localhost/api/ping'));
 		expect(result.status).toBe(500);
@@ -731,12 +853,18 @@ describe('service runtime', () => {
 	it('exposes exact routes and returns the framework not-found problem outside them', async () => {
 		const Ping = endpoint.get({ id: 'runtime.route', path: '/ping', responses: [Message] });
 		const definition = service.define({ id: 'route', path: '/api', endpoints: [Ping] });
-		await using runtime = service.create(service.compile(service.implement(definition, {
-			endpoints: [endpoint.handler(Ping, async () => response.create(Message, { message: 'pong' }))],
-			resources: resource.implementations(),
-		})), { host: Object.freeze({}) });
+		await using runtime = service.create(
+			service.compile(service.implement(definition, {
+				endpoints: [endpoint.handler(Ping, async () => response.create(Message, { message: 'pong' }))],
+				resources: resource.implementations(),
+			})),
+			{ host: Object.freeze({}) },
+		);
 
-		expect(runtime.routes.map(({ method, path }) => ({ method, path }))).toEqual([{ method: 'GET', path: '/api/ping' }]);
+		expect(runtime.routes.map(({ method, path }) => ({ method, path }))).toEqual([{
+			method: 'GET',
+			path: '/api/ping',
+		}]);
 		const ping = await runtime.fetch(new Request('http://localhost/api/ping'));
 		const missing = await runtime.fetch(new Request('http://localhost/health'));
 		expect(ping.status).toBe(200);
@@ -760,13 +888,16 @@ describe('service runtime', () => {
 		const Item = endpoint.get({ id: 'runtime.item', path: '/items/:id', param: Params, responses: [Message] });
 		const Current = endpoint.get({ id: 'runtime.current', path: '/items/me', responses: [Message] });
 		const definition = service.define({ id: 'ordered', path: '/api', endpoints: [Item, Current] });
-		await using runtime = service.create(service.compile(service.implement(definition, {
-			endpoints: [
-				endpoint.handler(Item, async () => response.create(Message, { message: 'dynamic' })),
-				endpoint.handler(Current, async () => response.create(Message, { message: 'static' })),
-			],
-			resources: resource.implementations(),
-		})), { host: Object.freeze({}) });
+		await using runtime = service.create(
+			service.compile(service.implement(definition, {
+				endpoints: [
+					endpoint.handler(Item, async () => response.create(Message, { message: 'dynamic' })),
+					endpoint.handler(Current, async () => response.create(Message, { message: 'static' })),
+				],
+				resources: resource.implementations(),
+			})),
+			{ host: Object.freeze({}) },
+		);
 
 		expect(runtime.routes.map(({ method, path }) => `${method} ${path}`)).toEqual([
 			'GET /api/items/me',
@@ -778,14 +909,16 @@ describe('service runtime', () => {
 		const Html = response.html({ id: 'runtime:html', description: 'One-off HTML response.' });
 		const Callback = endpoint.get({ id: 'runtime.callback', path: '/callback', responses: [Html] });
 		const definition = service.define({ id: 'callback', path: '/', endpoints: [Callback] });
-		await using runtime = service.create(service.compile(service.implement(definition, {
-			endpoints: [endpoint.handler(Callback, async () => response.create(Html, '<!doctype html><p>Complete</p>'))],
-			resources: resource.implementations(),
-		})), { host: Object.freeze({}) });
+		await using runtime = service.create(
+			service.compile(service.implement(definition, {
+				endpoints: [endpoint.handler(Callback, async () => response.create(Html, '<!doctype html><p>Complete</p>'))],
+				resources: resource.implementations(),
+			})),
+			{ host: Object.freeze({}) },
+		);
 
 		const result = await runtime.fetch(new Request('http://localhost/callback'));
 		expect(result.headers.get('content-type')).toContain('text/html');
 		expect(await result.text()).toContain('<p>Complete</p>');
 	});
-
 });

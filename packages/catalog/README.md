@@ -1,15 +1,11 @@
-`@okikio/catalog`
-================
+# `@okikio/catalog`
 
-Purpose
--------
+## Purpose
 
-`@okikio/catalog` groups immutable definitions without creating a global
-registry. It is useful when a package has several named definitions and needs a
-stable way to compose, select, inspect, or document them.
+`@okikio/catalog` groups immutable definitions without creating a global registry. It is useful when a package has
+several named definitions and needs a stable way to compose, select, inspect, or document them.
 
-Start here
-----------
+## Start here
 
 Create a catalog from definitions you already own:
 
@@ -20,19 +16,18 @@ const NotFound = Object.freeze({ id: 'problem:not-found', kind: 'problem' });
 const InvalidInput = Object.freeze({ id: 'problem:invalid-input', kind: 'problem' });
 
 const Problems = catalog.create('problems', {
-  NotFound,
-  InvalidInput,
+	NotFound,
+	InvalidInput,
 });
 
 console.log(catalog.values(Problems));
 // [NotFound, InvalidInput]
 ```
 
-Nothing is registered globally. `Problems` is only a frozen object plus the
-metadata needed to preserve identity and deterministic order.
+Nothing is registered globally. `Problems` is only a frozen object plus the metadata needed to preserve identity and
+deterministic order.
 
-Select and compose definitions
-------------------------------
+## Select and compose definitions
 
 Selections preserve the original objects and their source keys:
 
@@ -44,26 +39,23 @@ console.log(EffectiveProblems[0] === NotFound); // true
 console.log(EffectiveProblems[1] === InvalidInput); // true
 ```
 
-`compose()` accepts entries, catalogs, selections, and nested arrays. Repeating
-the same object is harmless. A different object that claims the same stable
-`id` is rejected because the identity would be ambiguous.
+`compose()` accepts entries, catalogs, selections, and nested arrays. Repeating the same object is harmless. A different
+object that claims the same stable `id` is rejected because the identity would be ambiguous.
 
 A larger composition can therefore remain declarative:
 
 ```ts
 const ServiceProblems = catalog.compose(
-  PublicProblems,
-  featureEnabled ? FeatureProblems : [],
-  pluginProblems,
-  [InvalidInput, optionalProblems],
+	PublicProblems,
+	featureEnabled ? FeatureProblems : [],
+	pluginProblems,
+	[InvalidInput, optionalProblems],
 );
 ```
 
-Nested input is walked iteratively, so very deep generated composition does not
-consume the JavaScript call stack.
+Nested input is walked iteratively, so very deep generated composition does not consume the JavaScript call stack.
 
-Inspect without exposing internal indexes
------------------------------------------
+## Inspect without exposing internal indexes
 
 Use `document()` when tooling needs a deterministic JSON-safe view:
 
@@ -73,15 +65,14 @@ const value = catalog.document(PublicProblems);
 console.log(JSON.stringify(value, null, 2));
 ```
 
-The document contains public keys, stable IDs, kinds, and descriptions. It does
-not expose the reverse-lookup maps used internally.
+The document contains public keys, stable IDs, kinds, and descriptions. It does not expose the reverse-lookup maps used
+internally.
 
-Convenience and the manual equivalent
--------------------------------------
+## Convenience and the manual equivalent
 
 Concrete map
-~~~~~~~~~~~~
 
+````
 | Convenience | Manual equivalent | Concrete value |
 | --- | --- | --- |
 | `catalog.create()` | freeze entries, build identity/key indexes, reject duplicate IDs, and retain namespace metadata | one authoritative immutable definition set |
@@ -144,3 +135,4 @@ Source guide
 
 The README is the primary user documentation. There is intentionally no second
 hand-written API reference to keep synchronized.
+````

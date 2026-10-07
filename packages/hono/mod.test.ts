@@ -39,14 +39,17 @@ function createRuntime(): service.ServiceRuntime {
 	const Item = endpoint.get({ id: 'hono.item', path: '/items/:id', param: ItemParams, responses: [Message] });
 	const Current = endpoint.get({ id: 'hono.current', path: '/items/me', responses: [Message] });
 	const definition = service.define({ id: 'hono', path: '/api', endpoints: [Ping, Item, Current] });
-	return service.create(service.compile(service.implement(definition, {
-		endpoints: [
-			endpoint.handler(Ping, async () => response.create(Message, { message: 'pong' })),
-			endpoint.handler(Item, async () => response.create(Message, { message: 'dynamic' })),
-			endpoint.handler(Current, async () => response.create(Message, { message: 'static' })),
-		],
-		resources: resource.implementations(),
-	})), { host: Object.freeze({}) });
+	return service.create(
+		service.compile(service.implement(definition, {
+			endpoints: [
+				endpoint.handler(Ping, async () => response.create(Message, { message: 'pong' })),
+				endpoint.handler(Item, async () => response.create(Message, { message: 'dynamic' })),
+				endpoint.handler(Current, async () => response.create(Message, { message: 'static' })),
+			],
+			resources: resource.implementations(),
+		})),
+		{ host: Object.freeze({}) },
+	);
 }
 
 describe('Hono server adapter', () => {

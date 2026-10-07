@@ -74,9 +74,11 @@ describe('@okikio/permission runtime checks', () => {
 				async check(_ctx, requests) {
 					calls++;
 					received = requests;
-					return requests.map((request) => Object.freeze({
-						allowed: request.definition !== WriteAsset,
-					}));
+					return requests.map((request) =>
+						Object.freeze({
+							allowed: request.definition !== WriteAsset,
+						})
+					);
 				},
 			},
 		});
@@ -216,9 +218,7 @@ describe('@okikio/permission runtime checks', () => {
 				},
 			},
 		});
-		const checks = Array.from({ length: 1_000 }, (_, index) =>
-			permission.on(ReadAsset, { id: `asset-${index}` })
-		);
+		const checks = Array.from({ length: 1_000 }, (_, index) => permission.on(ReadAsset, { id: `asset-${index}` }));
 
 		const decisions = await permission.batch(ctx, checks);
 		expect(calls).toBe(1);
@@ -271,36 +271,57 @@ describe('@okikio/permission runtime checks', () => {
 			checker: {
 				maximumChecks: 4,
 				async check(_ctx, requests) {
-					return requests.map((request) => request.definition === WorkspaceAccess
-						? { error: providerError }
-						: { allowed: (request.target as { id: string }).id !== 'deny' });
+					return requests.map((request) =>
+						request.definition === WorkspaceAccess
+							? { error: providerError }
+							: { allowed: (request.target as { id: string }).id !== 'deny' }
+					);
 				},
 			},
 		});
 
-		expect(await permission.check(ctx, permission.any(
-			WorkspaceAccess,
-			permission.on(ReadAsset, { id: 'allow' }),
-		))).toBe(true);
-		expect(await permission.check(ctx, permission.all(
-			WorkspaceAccess,
-			permission.on(ReadAsset, { id: 'deny' }),
-		))).toBe(false);
-		await expect(permission.assert(ctx, permission.any(
-			WorkspaceAccess,
-			permission.on(ReadAsset, { id: 'allow' }),
-		))).resolves.toBeUndefined();
-		await expect(permission.assert(ctx, permission.all(
-			WorkspaceAccess,
-			permission.on(ReadAsset, { id: 'deny' }),
-		))).rejects.toMatchObject({
+		expect(
+			await permission.check(
+				ctx,
+				permission.any(
+					WorkspaceAccess,
+					permission.on(ReadAsset, { id: 'allow' }),
+				),
+			),
+		).toBe(true);
+		expect(
+			await permission.check(
+				ctx,
+				permission.all(
+					WorkspaceAccess,
+					permission.on(ReadAsset, { id: 'deny' }),
+				),
+			),
+		).toBe(false);
+		await expect(permission.assert(
+			ctx,
+			permission.any(
+				WorkspaceAccess,
+				permission.on(ReadAsset, { id: 'allow' }),
+			),
+		)).resolves.toBeUndefined();
+		await expect(permission.assert(
+			ctx,
+			permission.all(
+				WorkspaceAccess,
+				permission.on(ReadAsset, { id: 'deny' }),
+			),
+		)).rejects.toMatchObject({
 			name: 'PermissionDeniedError',
 			denied: [ReadAsset],
 		});
-		await expect(permission.check(ctx, permission.any(
-			WorkspaceAccess,
-			permission.on(ReadAsset, { id: 'deny' }),
-		))).rejects.toMatchObject({
+		await expect(permission.check(
+			ctx,
+			permission.any(
+				WorkspaceAccess,
+				permission.on(ReadAsset, { id: 'deny' }),
+			),
+		)).rejects.toMatchObject({
 			name: 'PermissionEvaluationError',
 			definition: WorkspaceAccess,
 			cause: providerError,
@@ -330,7 +351,9 @@ describe('@okikio/permission runtime checks', () => {
 				},
 			},
 		});
-		await expect(permission.check(malformed, WorkspaceAccess)).rejects.toBeInstanceOf(permission.PermissionDecisionError);
+		await expect(permission.check(malformed, WorkspaceAccess)).rejects.toBeInstanceOf(
+			permission.PermissionDecisionError,
+		);
 	});
 
 	it('does not call the evaluator after execution cancellation', async () => {
@@ -356,6 +379,8 @@ describe('@okikio/permission runtime checks', () => {
 	it('fails closed when no evaluator is configured', async () => {
 		const base = baseContext('permission-unconfigured');
 		const ctx = permission.scope(base, { permissions: [WorkspaceAccess] });
-		await expect(permission.check(ctx, WorkspaceAccess)).rejects.toBeInstanceOf(permission.MissingPermissionCheckerError);
+		await expect(permission.check(ctx, WorkspaceAccess)).rejects.toBeInstanceOf(
+			permission.MissingPermissionCheckerError,
+		);
 	});
 });

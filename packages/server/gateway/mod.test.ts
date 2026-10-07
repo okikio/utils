@@ -59,22 +59,25 @@ function adapters() {
 
 describe('gateway request preparation', () => {
 	it('rebuilds transport trust metadata for host-owned continuation routes', async () => {
-		const prepared = await gateway.prepare(new Request('https://app.example.invalid/start', {
-			headers: {
-				authorization: 'Bearer session',
-				cookie: 'session=1',
-				'clerk-secret-key': 'spoofed',
-				'x-forwarded-for': '198.51.100.8',
-				'x-real-ip': '203.0.113.9',
-				'x-product-assertion': 'spoofed',
+		const prepared = await gateway.prepare(
+			new Request('https://app.example.invalid/start', {
+				headers: {
+					authorization: 'Bearer session',
+					cookie: 'session=1',
+					'clerk-secret-key': 'spoofed',
+					'x-forwarded-for': '198.51.100.8',
+					'x-real-ip': '203.0.113.9',
+					'x-product-assertion': 'spoofed',
+				},
+			}),
+			{
+				requestId: () => 'request-1',
+				clientIp: (request) => request.headers.get('x-real-ip') ?? undefined,
+				metadataHeaders: { requestId: 'x-product-request-id' },
+				trustedRequestHeaders: ['clerk-secret-key'],
+				trustedRequestHeaderPrefixes: ['x-product-'],
 			},
-		}), {
-			requestId: () => 'request-1',
-			clientIp: (request) => request.headers.get('x-real-ip') ?? undefined,
-			metadataHeaders: { requestId: 'x-product-request-id' },
-			trustedRequestHeaders: ['clerk-secret-key'],
-			trustedRequestHeaderPrefixes: ['x-product-'],
-		});
+		);
 
 		expect(prepared.requestId).toBe('request-1');
 		expect(prepared.request.headers.get('authorization')).toBe('Bearer session');
@@ -110,14 +113,20 @@ describe('gateway compiler', () => {
 	});
 
 	it('uses optional compiled service manifests only to detect definition drift', () => {
-		const manifest = Object.freeze({
-			...compiledService.manifest,
-			routes: Object.freeze(compiledService.manifest.routes.map((route) => Object.freeze({
-				...route,
-				operationId: `${route.operationId}.stale`,
-			}))),
-		} satisfies service.ServiceManifest);
-		expect(() => gateway.compile(gatewayDefinition(), { services: [manifest] })).toThrow(gateway.GatewayCompilationError);
+		const manifest = Object.freeze(
+			{
+				...compiledService.manifest,
+				routes: Object.freeze(compiledService.manifest.routes.map((route) =>
+					Object.freeze({
+						...route,
+						operationId: `${route.operationId}.stale`,
+					})
+				)),
+			} satisfies service.ServiceManifest,
+		);
+		expect(() => gateway.compile(gatewayDefinition(), { services: [manifest] })).toThrow(
+			gateway.GatewayCompilationError,
+		);
 	});
 
 	it('rejects conflicting credential policies for one route', () => {
@@ -126,7 +135,11 @@ describe('gateway compiler', () => {
 			services: [gateway.mount(serviceDefinition, { origin: 'http://127.0.0.1:8787' })],
 			policies: [
 				gateway.policy({ id: 'strip', endpoints: [Public], credentials: gateway.credentials() }),
-				gateway.policy({ id: 'preserve', endpoints: [Public], credentials: gateway.credentials({ requestCookies: 'preserve' }) }),
+				gateway.policy({
+					id: 'preserve',
+					endpoints: [Public],
+					credentials: gateway.credentials({ requestCookies: 'preserve' }),
+				}),
 			],
 		});
 		expect(() => gateway.compile(definition, { services: [compiledService] })).toThrow(gateway.GatewayCompilationError);
@@ -135,13 +148,16 @@ describe('gateway compiler', () => {
 
 describe('gateway request and response policy', () => {
 	it('strips caller credentials, spoofable trust fields, and replaces trace context', async () => {
-		const compiled = gateway.compile(gatewayDefinition({
-			credentials: gateway.credentials({
-				requestCookies: 'strip',
-				requestAuthorization: 'strip-after-authentication',
-				responseCookies: 'preserve',
+		const compiled = gateway.compile(
+			gatewayDefinition({
+				credentials: gateway.credentials({
+					requestCookies: 'strip',
+					requestAuthorization: 'strip-after-authentication',
+					responseCookies: 'preserve',
+				}),
 			}),
-		}), { services: [compiledService] });
+			{ services: [compiledService] },
+		);
 		let forwarded: Request | undefined;
 		const runtime = gateway.create(compiled, {
 			requestId: () => 'request_1',
@@ -157,18 +173,20 @@ describe('gateway request and response policy', () => {
 			},
 		});
 		const body = new Uint8Array([0, 1, 2, 3]);
-		const result = await runtime.fetch(new Request('http://localhost/api/v1/items', {
-			method: 'POST',
-			headers: {
-				'x-trusted-actor': 'spoofed',
-				'x-forwarded-for': 'spoofed',
-				'x-real-ip': 'spoofed-real-ip',
-				Authorization: 'Bearer caller-secret',
-				Cookie: 'session=caller-secret',
-				traceparent: '00-00000000000000000000000000000000-0000000000000000-01',
-			},
-			body,
-		}));
+		const result = await runtime.fetch(
+			new Request('http://localhost/api/v1/items', {
+				method: 'POST',
+				headers: {
+					'x-trusted-actor': 'spoofed',
+					'x-forwarded-for': 'spoofed',
+					'x-real-ip': 'spoofed-real-ip',
+					Authorization: 'Bearer caller-secret',
+					Cookie: 'session=caller-secret',
+					traceparent: '00-00000000000000000000000000000000-0000000000000000-01',
+				},
+				body,
+			}),
+		);
 		expect(forwarded?.headers.get('x-trusted-actor')).toBe('actor_1');
 		expect(forwarded?.headers.get('x-forwarded-for')).toBe('203.0.113.9');
 		expect(forwarded?.headers.get('x-forwarded-host')).toBe('localhost');
@@ -206,10 +224,12 @@ describe('gateway request and response policy', () => {
 				return new Response('ok');
 			},
 		});
-		const result = await runtime.fetch(new Request('https://gateway.example.invalid/api/v1/items', {
-			method: 'POST',
-			headers: { 'x-product-service-id': 'spoofed' },
-		}));
+		const result = await runtime.fetch(
+			new Request('https://gateway.example.invalid/api/v1/items', {
+				method: 'POST',
+				headers: { 'x-product-service-id': 'spoofed' },
+			}),
+		);
 		expect(forwarded?.headers.get('x-product-request-id')).toBe('request-1');
 		expect(forwarded?.headers.get('x-product-service-id')).toBe('test-service');
 		expect(forwarded?.headers.get('x-product-route-id')).toBe(compiled.routes[0]?.id);
@@ -230,22 +250,33 @@ describe('gateway request and response policy', () => {
 		const rewrite = gateway.compile(gatewayDefinition(), { services: [compiledService] });
 		const rewriteRuntime = gateway.create(rewrite, {
 			adapters: adapters(),
-			fetch: () => Promise.resolve(new Response(null, {
-				status: 302,
-				headers: { Location: 'http://127.0.0.1:8787/next?ok=1' },
-			})),
+			fetch: () =>
+				Promise.resolve(
+					new Response(null, {
+						status: 302,
+						headers: { Location: 'http://127.0.0.1:8787/next?ok=1' },
+					}),
+				),
 		});
-		const rewritten = await rewriteRuntime.fetch(new Request('https://api.example.invalid/api/v1/items', { method: 'POST' }));
+		const rewritten = await rewriteRuntime.fetch(
+			new Request('https://api.example.invalid/api/v1/items', { method: 'POST' }),
+		);
 		expect(rewritten.headers.get('location')).toBe('https://api.example.invalid/next?ok=1');
 
-		const reject = gateway.compile(gatewayDefinition({
-			redirects: gateway.redirects({ mode: 'reject-cross-origin' }),
-		}), { services: [compiledService] });
+		const reject = gateway.compile(
+			gatewayDefinition({
+				redirects: gateway.redirects({ mode: 'reject-cross-origin' }),
+			}),
+			{ services: [compiledService] },
+		);
 		const rejectRuntime = gateway.create(reject, {
 			adapters: adapters(),
-			fetch: () => Promise.resolve(new Response(null, { status: 302, headers: { Location: 'https://evil.example/path' } })),
+			fetch: () =>
+				Promise.resolve(new Response(null, { status: 302, headers: { Location: 'https://evil.example/path' } })),
 		});
-		const rejected = await rejectRuntime.fetch(new Request('https://api.example.invalid/api/v1/items', { method: 'POST' }));
+		const rejected = await rejectRuntime.fetch(
+			new Request('https://api.example.invalid/api/v1/items', { method: 'POST' }),
+		);
 		expect(rejected.status).toBe(502);
 		expect((await rejected.json() as { type: string }).type).toContain('invalid-redirect');
 	});
@@ -260,11 +291,13 @@ describe('gateway request and response policy', () => {
 				return Promise.resolve(new Response('unexpected'));
 			},
 		});
-		const result = await runtime.fetch(new Request('http://localhost/api/v1/items', {
-			method: 'POST',
-			headers: { 'content-length': '4.5' },
-			body: '1234',
-		}));
+		const result = await runtime.fetch(
+			new Request('http://localhost/api/v1/items', {
+				method: 'POST',
+				headers: { 'content-length': '4.5' },
+				body: '1234',
+			}),
+		);
 		expect(result.status).toBe(400);
 		expect((await result.json() as { type: string }).type).toBe('urn:utils:gateway:invalid-request');
 		expect(upstreamCalls).toBe(0);
@@ -276,10 +309,12 @@ describe('gateway request and response policy', () => {
 			adapters: adapters(),
 			fetch: () => Promise.resolve(new Response('unexpected')),
 		});
-		const result = await runtime.fetch(new Request('http://localhost/api/v1/items', {
-			method: 'POST',
-			body: 'this body exceeds sixteen bytes',
-		}));
+		const result = await runtime.fetch(
+			new Request('http://localhost/api/v1/items', {
+				method: 'POST',
+				body: 'this body exceeds sixteen bytes',
+			}),
+		);
 		expect(result.status).toBe(413);
 	});
 });
@@ -312,14 +347,19 @@ describe('gateway lifecycle', () => {
 		});
 		const controller = new AbortController();
 		const body = new ReadableStream<Uint8Array>({
-			start(stream) { stream.enqueue(new TextEncoder().encode('partial')); },
+			start(stream) {
+				stream.enqueue(new TextEncoder().encode('partial'));
+			},
 		});
-		const request = new Request('http://localhost/api/v1/items', {
-			method: 'POST',
-			body,
-			signal: controller.signal,
-			duplex: 'half',
-		} as RequestInit & { duplex: 'half' });
+		const request = new Request(
+			'http://localhost/api/v1/items',
+			{
+				method: 'POST',
+				body,
+				signal: controller.signal,
+				duplex: 'half',
+			} as RequestInit & { duplex: 'half' },
+		);
 		const pending = runtime.fetch(request);
 		await Promise.resolve();
 		const reason = new DOMException('Caller cancelled the request.', 'AbortError');
@@ -330,18 +370,25 @@ describe('gateway lifecycle', () => {
 	});
 
 	it('emits redacted events and waits for response-body completion', async () => {
-		const definition = gatewayDefinition({ observers: true, credentials: gateway.credentials({ responseCookies: 'preserve' }) });
+		const definition = gatewayDefinition({
+			observers: true,
+			credentials: gateway.credentials({ responseCookies: 'preserve' }),
+		});
 		const compiled = gateway.compile(definition, { services: [compiledService] });
 		const events: gateway.GatewayObserverEvent[] = [];
 		const runtime = gateway.create(compiled, {
 			adapters: adapters(),
-			observers: [gateway.observer.handler(Observer, (event) => { events.push(event); })],
+			observers: [gateway.observer.handler(Observer, (event) => {
+				events.push(event);
+			})],
 			fetch: () => Promise.resolve(new Response('streamed')),
 		});
-		const result = await runtime.fetch(new Request('http://localhost/api/v1/items?token=secret', {
-			method: 'POST',
-			headers: { Authorization: 'Bearer secret' },
-		}));
+		const result = await runtime.fetch(
+			new Request('http://localhost/api/v1/items?token=secret', {
+				method: 'POST',
+				headers: { Authorization: 'Bearer secret' },
+			}),
+		);
 		expect(events.map((event) => event.kind)).toEqual(['forwarding', 'response']);
 		expect(await result.text()).toBe('streamed');
 		await Promise.resolve();
@@ -356,17 +403,29 @@ describe('gateway lifecycle', () => {
 	});
 
 	it('keeps the total timeout active until the upstream body completes', async () => {
-		const compiled = gateway.compile(gatewayDefinition({
-			timeout: Temporal.Duration.from({ milliseconds: 10 }),
-			observers: true,
-		}), { services: [compiledService] });
+		const compiled = gateway.compile(
+			gatewayDefinition({
+				timeout: Temporal.Duration.from({ milliseconds: 10 }),
+				observers: true,
+			}),
+			{ services: [compiledService] },
+		);
 		const events: gateway.GatewayObserverEvent[] = [];
 		const runtime = gateway.create(compiled, {
 			adapters: adapters(),
-			observers: [gateway.observer.handler(Observer, (event) => { events.push(event); })],
-			fetch: () => Promise.resolve(new Response(new ReadableStream<Uint8Array>({
-				pull() { return new Promise<void>(() => undefined); },
-			}))),
+			observers: [gateway.observer.handler(Observer, (event) => {
+				events.push(event);
+			})],
+			fetch: () =>
+				Promise.resolve(
+					new Response(
+						new ReadableStream<Uint8Array>({
+							pull() {
+								return new Promise<void>(() => undefined);
+							},
+						}),
+					),
+				),
 		});
 		const result = await runtime.fetch(new Request('http://localhost/api/v1/items', { method: 'POST' }));
 		await expect(result.arrayBuffer()).rejects.toBeDefined();
@@ -380,7 +439,9 @@ describe('gateway lifecycle', () => {
 		const events: gateway.GatewayObserverEvent[] = [];
 		const runtime = gateway.create(compiled, {
 			adapters: adapters(),
-			observers: [gateway.observer.handler(Observer, (event) => { events.push(event); })],
+			observers: [gateway.observer.handler(Observer, (event) => {
+				events.push(event);
+			})],
 		});
 		const result = await runtime.fetch(new Request('https://api.example.invalid/not-mounted?api_key=secret'));
 		expect(result.status).toBe(404);

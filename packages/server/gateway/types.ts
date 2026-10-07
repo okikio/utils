@@ -3,7 +3,14 @@ import type { RoutePlan } from '../http/types.ts';
 import type { EndpointCompositionInput, EndpointDefinition, EndpointMethod } from '@okikio/server/endpoint/types';
 import type { ProblemResult } from '@okikio/http/problem';
 import type { RequestCorrelation } from '@okikio/http/request';
-import type { CompiledService, ServiceDefinition, ServiceManifest, ServiceRoute, ServiceRouteManifestEntry, ServiceSelection } from '../service/types.ts';
+import type {
+	CompiledService,
+	ServiceDefinition,
+	ServiceManifest,
+	ServiceRoute,
+	ServiceRouteManifestEntry,
+	ServiceSelection,
+} from '../service/types.ts';
 
 /** Host-resolved origin for one independently deployed service. */
 export type GatewayOrigin = string | URL;
@@ -187,7 +194,13 @@ export interface GatewayRouteManifestEntry {
 	readonly timeout?: string;
 	readonly bodyLimit?: number;
 	readonly cache: GatewayCachePolicy['mode'];
-	readonly credentials: Readonly<{ readonly requestCookies: GatewayCredentialPolicy['requestCookies']; readonly requestAuthorization: GatewayCredentialPolicy['requestAuthorization']; readonly responseCookies: GatewayCredentialPolicy['responseCookies'] }>;
+	readonly credentials: Readonly<
+		{
+			readonly requestCookies: GatewayCredentialPolicy['requestCookies'];
+			readonly requestAuthorization: GatewayCredentialPolicy['requestAuthorization'];
+			readonly responseCookies: GatewayCredentialPolicy['responseCookies'];
+		}
+	>;
 	readonly redirects: GatewayRedirectPolicy['mode'];
 	readonly observers: readonly string[];
 }
@@ -207,7 +220,6 @@ export interface CompiledGateway<Definition extends GatewayDefinition = GatewayD
 	readonly routePlan: RoutePlan;
 	readonly manifest: GatewayManifest;
 }
-
 
 /** Definition value that may be attached to one gateway compiler issue. */
 export type GatewayValidationSubject =

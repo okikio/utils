@@ -1,91 +1,83 @@
-`@okikio/server/middleware`
-==========================
+# `@okikio/server/middleware`
 
-Import-safe middleware contracts, typed context definitions, direct runtime
-handler bindings, deterministic placement plans, validation, and documentation.
+Import-safe middleware contracts, typed context definitions, direct runtime handler bindings, deterministic placement
+plans, validation, and documentation.
 
-The package does not own authentication providers, organization repositories,
-framework applications, request validation, requirement-family policy, or
-resource construction. Those concepts contribute their own definitions and are
+The package does not own authentication providers, organization repositories, framework applications, request
+validation, requirement-family policy, or resource construction. Those concepts contribute their own definitions and are
 composed by the server compiler.
 
-Definitions and context
------------------------
+## Definitions and context
 
-~~~~ts
+```ts
 import * as middleware from '@okikio/server/middleware';
 
 export const Authentication = middleware.context<{
-  readonly actorId: string;
+	readonly actorId: string;
 }>()({
-  id: 'identity.authentication',
-  description: 'Verified application authentication.',
+	id: 'identity.authentication',
+	description: 'Verified application authentication.',
 });
 
 export const Organization = middleware.context<{
-  readonly organizationId: string;
+	readonly organizationId: string;
 }>()({
-  id: 'identity.organization',
-  description: 'Active organization.',
+	id: 'identity.organization',
+	description: 'Active organization.',
 });
 
 export const ResolveOrganization = middleware.define({
-  id: 'identity.resolve-organization',
-  description: 'Resolve the active organization.',
-  requires: [Authentication],
-  provides: [Organization],
-  resources: [OrganizationRepository],
-  problems: [OrganizationRequired],
+	id: 'identity.resolve-organization',
+	description: 'Resolve the active organization.',
+	requires: [Authentication],
+	provides: [Organization],
+	resources: [OrganizationRepository],
+	problems: [OrganizationRequired],
 });
-~~~~
+```
 
-Definitions are static data. A middleware definition may also declare `effects`
-when its runtime handler can announce an externally visible side effect. The
-service compiler carries those effect definitions into every operation where the
-middleware is active, so `effect.emit()` remains checked against the compiled
-execution contract.
+Definitions are static data. A middleware definition may also declare `effects` when its runtime handler can announce an
+externally visible side effect. The service compiler carries those effect definitions into every operation where the
+middleware is active, so `effect.emit()` remains checked against the compiled execution contract.
 
 Runtime behavior is supplied separately and bound by direct identity:
 
-~~~~ts
+```ts
 export const ResolveOrganizationHandler = middleware.handler(
-  ResolveOrganization,
-  async (context, next) => {
-    // Resolve and set the declared context value.
-    return await next();
-  },
+	ResolveOrganization,
+	async (context, next) => {
+		// Resolve and set the declared context value.
+		return await next();
+	},
 );
-~~~~
+```
 
-Placement and ordering
-----------------------
+## Placement and ordering
 
-A plain middleware definition uses the normal `afterValidation` lane. Special
-placement is explicit at the composition site:
+A plain middleware definition uses the normal `afterValidation` lane. Special placement is explicit at the composition
+site:
 
-~~~~ts
+```ts
 middleware: [
-  middleware.wholeRequest(RequestDiagnostics),
-  middleware.beforeValidation(VerifyWebhookSignature),
-  ResolveOrganization,
-  middleware.aroundOperation(TransactionScope),
-]
-~~~~
+	middleware.wholeRequest(RequestDiagnostics),
+	middleware.beforeValidation(VerifyWebhookSignature),
+	ResolveOrganization,
+	middleware.aroundOperation(TransactionScope),
+];
+```
 
 The lane names describe **what they surround**, not what the middleware itself does:
 
-1. `wholeRequest`: surrounds every application stage from raw request guards
-   through the declared handler result. It does not imply that a streamed body
-   has finished reaching the client.
-2. `beforeValidation`: runs after whole-request setup and before endpoint input
-   parsing/Standard Schema validation. Use it for exact raw webhook signatures
-   and other pre-parsing guards.
-3. `afterValidation`: the default lane. It receives validated inputs and runs
-   before generic requirement interpretation and the operation.
-4. `aroundOperation`: the innermost lane immediately around the endpoint
-   handler. Use it for transactions and units of work.
+1. `wholeRequest`: surrounds every application stage from raw request guards through the declared handler result. It
+   does not imply that a streamed body has finished reaching the client.
+2. `beforeValidation`: runs after whole-request setup and before endpoint input parsing/Standard Schema validation. Use
+   it for exact raw webhook signatures and other pre-parsing guards.
+3. `afterValidation`: the default lane. It receives validated inputs and runs before generic requirement interpretation
+   and the operation.
+4. `aroundOperation`: the innermost lane immediately around the endpoint handler. Use it for transactions and units of
+   work.
 
-~~~~text
+```text
 incoming Request
 │
 ├─ wholeRequest.before
@@ -110,43 +102,36 @@ incoming Request
 ├─ materialize with the service request state
 └─ response-completion observer
    body drained, cancelled, aborted, or errored
-~~~~
+```
 
-Authored order is preserved within each lane. Each lane uses normal onion
-semantics, so post-`next()` work unwinds in reverse order. Response completion
-is deliberately a separate host lifecycle because returning a streaming
-response is not the same as finishing delivery.
+Authored order is preserved within each lane. Each lane uses normal onion semantics, so post-`next()` work unwinds in
+reverse order. Response completion is deliberately a separate host lifecycle because returning a streaming response is
+not the same as finishing delivery.
 
-Once-per-request handlers
--------------------------
+## Once-per-request handlers
 
-When the same imported middleware definition is intentionally contributed at
-several composition layers, wrap its runtime binding rather than storing state
-in a framework context or module-global sets:
+When the same imported middleware definition is intentionally contributed at several composition layers, wrap its
+runtime binding rather than storing state in a framework context or module-global sets:
 
-~~~~ts
+```ts
 export const RequestMetricsHandler = middleware.once(
-  middleware.handler(RequestMetrics, async (context, next) => {
-    return await recordRequest(context, next);
-  }),
+	middleware.handler(RequestMetrics, async (context, next) => {
+		return await recordRequest(context, next);
+	}),
 );
-~~~~
+```
 
-The wrapper is keyed by the actual `Request` object and exact middleware
-definition. Duplicate occurrences still call `next()`, while the wrapped inner
-work runs once. A different request is never suppressed.
+The wrapper is keyed by the actual `Request` object and exact middleware definition. Duplicate occurrences still call
+`next()`, while the wrapped inner work runs once. A different request is never suppressed.
 
-Validation and documentation
-----------------------------
+## Validation and documentation
 
-- `middleware.plan()` normalizes nested middleware input into deterministic
-  lanes.
-- `middleware.validate()` detects duplicate IDs, unavailable required context,
-  and conflicting context providers before runtime creation.
-- `middleware.middlewareCatalog()`, `select()`, and `compose()` provide reusable
-  immutable collections without global registration.
-- `middleware.document()` produces JSON-safe context, resource, problem,
-  requirement, effect, and resiliency inventories.
+- `middleware.plan()` normalizes nested middleware input into deterministic lanes.
+- `middleware.validate()` detects duplicate IDs, unavailable required context, and conflicting context providers before
+  runtime creation.
+- `middleware.middlewareCatalog()`, `select()`, and `compose()` provide reusable immutable collections without global
+  registration.
+- `middleware.document()` produces JSON-safe context, resource, problem, requirement, effect, and resiliency
+  inventories.
 
-Definitions snapshot nested contribution arrays, so later mutation of authoring
-inputs cannot change a compiled graph.
+Definitions snapshot nested contribution arrays, so later mutation of authoring inputs cannot change a compiled graph.

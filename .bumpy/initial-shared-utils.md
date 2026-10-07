@@ -42,4 +42,5 @@
 '@okikio/workflow': minor
 ---
 
-Introduced the first shared Okikio utility release, reconciling duplicate implementations and regression fixes from the existing Platform, Crawl, and MediaD utility trees into one maintained source.
+Introduced the first shared Okikio utility release, reconciling duplicate implementations and regression fixes from the
+existing Platform, Crawl, and MediaD utility trees into one maintained source.

@@ -4,12 +4,12 @@ import type {
 	Cause,
 	ChildHandle,
 	Exit,
-	WorkflowOperation,
 	PullSource,
 	Resolve,
 	Step,
 	StepExit,
 	Supervision,
+	WorkflowOperation,
 } from './kernel.ts';
 
 /**
@@ -137,8 +137,9 @@ export function fromCallback<Value>(
 			return (done) => {
 				if (discard === undefined) return done(Object.freeze({ type: 'success', value: undefined }));
 				let released: void | Promise<void>;
-				try { released = discard(); }
-				catch (failure) {
+				try {
+					released = discard();
+				} catch (failure) {
 					const cause = Object.freeze({ type: 'failure', failure } satisfies Cause);
 					done(Object.freeze({ type: 'failure', cause }));
 					return;
@@ -172,7 +173,10 @@ export function defer(dispose: () => void | PromiseLike<void>): WorkflowOperatio
 }
 
 /** Spawn one owned child branch without exposing it outside the local kernel. */
-export function spawn<Value>(child: WorkflowOperation<Value>, supervision: Supervision): WorkflowOperation<ChildHandle<Value>> {
+export function spawn<Value>(
+	child: WorkflowOperation<Value>,
+	supervision: Supervision,
+): WorkflowOperation<ChildHandle<Value>> {
 	return stepOperation(Object.freeze({
 		name: 'spawn child branch',
 		/**
@@ -387,7 +391,9 @@ export function fromAsyncIterator<Value, Return = unknown>(
  * completion releases the reader lock. Branch cancellation cancels the reader
  * and waits for `releaseLock()` before unwind.
  */
-export function fromReadableStream<Value>(stream: ReadableStream<Value>): WorkflowOperation<PullSource<Value, undefined>> {
+export function fromReadableStream<Value>(
+	stream: ReadableStream<Value>,
+): WorkflowOperation<PullSource<Value, undefined>> {
 	return Object.freeze({
 		/**
 		 * Returns the native iterator view used by synchronous iteration protocols.
@@ -514,39 +520,41 @@ function iteratorSource<Value, Return>(
 		);
 		return closing;
 	};
-	const source = Object.freeze({
-		/**
-		 * Advances to the next value without crossing ownership between independent consumers of the live structured-concurrency kernel.
-		 *
-		 * The kernel gives every branch one active Step and child Scope while the Reducer serializes generator advancement, cancellation, and cleanup.
-		 *
-		 * @internal
-		 */
-		next(): WorkflowOperation<IteratorResult<Value, Return>> {
-			return fromCallback(`${name} next`, (resolve, reject, signal) => {
-				if (done) {
-					resolve(Object.freeze({ done: true, value: undefined as Return }));
-					return;
-				}
-				void Promise.resolve(iterator.next()).then((result) => {
-					if (result.done) done = true;
-					resolve(result);
-				}, reject);
-				return () => close(signal.reason);
-			});
-		},
-		close,
-		/**
-		 * Releases owned state and waits for cleanup completion when used with `await using`.
-		 *
-		 * It implements live structured concurrency: a Branch owns one active Step and child Scope, while the Reducer serializes state transitions.
-		 *
-		 * @internal
-		 */
-		async [Symbol.asyncDispose](): Promise<void> {
-			await close();
-		},
-	} satisfies PullSource<Value, Return>);
+	const source = Object.freeze(
+		{
+			/**
+			 * Advances to the next value without crossing ownership between independent consumers of the live structured-concurrency kernel.
+			 *
+			 * The kernel gives every branch one active Step and child Scope while the Reducer serializes generator advancement, cancellation, and cleanup.
+			 *
+			 * @internal
+			 */
+			next(): WorkflowOperation<IteratorResult<Value, Return>> {
+				return fromCallback(`${name} next`, (resolve, reject, signal) => {
+					if (done) {
+						resolve(Object.freeze({ done: true, value: undefined as Return }));
+						return;
+					}
+					void Promise.resolve(iterator.next()).then((result) => {
+						if (result.done) done = true;
+						resolve(result);
+					}, reject);
+					return () => close(signal.reason);
+				});
+			},
+			close,
+			/**
+			 * Releases owned state and waits for cleanup completion when used with `await using`.
+			 *
+			 * It implements live structured concurrency: a Branch owns one active Step and child Scope, while the Reducer serializes state transitions.
+			 *
+			 * @internal
+			 */
+			async [Symbol.asyncDispose](): Promise<void> {
+				await close();
+			},
+		} satisfies PullSource<Value, Return>,
+	);
 	return source;
 }
 

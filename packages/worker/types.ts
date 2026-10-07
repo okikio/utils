@@ -193,7 +193,9 @@ export type WorkerControlEnvelope<CallResponse = unknown> =
 	| Readonly<{ readonly type: 'cancel'; readonly id: string; readonly reason?: unknown }>
 	| Readonly<{ readonly type: 'pause'; readonly id: string }>
 	| Readonly<{ readonly type: 'resume'; readonly id: string }>
-	| Readonly<{ readonly type: 'call-result'; readonly id: string; readonly callId: string; readonly response: CallResponse }>
+	| Readonly<
+		{ readonly type: 'call-result'; readonly id: string; readonly callId: string; readonly response: CallResponse }
+	>
 	| Readonly<{ readonly type: 'call-fault'; readonly id: string; readonly callId: string; readonly fault: unknown }>
 	| Readonly<{ readonly type: 'shutdown'; readonly reason?: unknown }>;
 

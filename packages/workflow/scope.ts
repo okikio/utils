@@ -37,19 +37,25 @@ export class Scope {
 
 	/** Register asynchronous cleanup in this scope. */
 	defer(dispose: () => void | PromiseLike<void>): void {
-		if (this.#closed || this.#closing !== undefined) throw new Error('Cannot defer cleanup after scope closure starts.');
+		if (this.#closed || this.#closing !== undefined) {
+			throw new Error('Cannot defer cleanup after scope closure starts.');
+		}
 		this.#resources.defer(dispose);
 	}
 
 	/** Transfer ownership of one disposable value into this scope. */
 	use<Value extends Disposable | AsyncDisposable | null | undefined>(value: Value): Value {
-		if (this.#closed || this.#closing !== undefined) throw new Error('Cannot add a resource after scope closure starts.');
+		if (this.#closed || this.#closing !== undefined) {
+			throw new Error('Cannot add a resource after scope closure starts.');
+		}
 		return this.#resources.use(value);
 	}
 
 	/** Transfer ownership of an arbitrary value with explicit cleanup. */
 	adopt<Value>(value: Value, dispose: (value: Value) => void | PromiseLike<void>): Value {
-		if (this.#closed || this.#closing !== undefined) throw new Error('Cannot adopt a resource after scope closure starts.');
+		if (this.#closed || this.#closing !== undefined) {
+			throw new Error('Cannot adopt a resource after scope closure starts.');
+		}
 		return this.#resources.adopt(value, dispose);
 	}
 
@@ -64,8 +70,11 @@ export class Scope {
 		const causes: Cause[] = [];
 		const children = [...this.#children];
 		await Promise.all(children.map(async (child) => {
-			try { await child.cancel(reason); }
-			catch (failure) { causes.push(Object.freeze({ type: 'failure', failure })); }
+			try {
+				await child.cancel(reason);
+			} catch (failure) {
+				causes.push(Object.freeze({ type: 'failure', failure }));
+			}
 		}));
 		const settled = await Promise.allSettled(children.map((child) => child.settled()));
 		for (const result of settled) {

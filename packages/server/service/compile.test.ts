@@ -12,9 +12,16 @@ import * as resource from '@okikio/resource';
 import * as permissions from '@okikio/permission';
 import * as service from './mod.ts';
 
-function schema<Output>(jsonSchema: Readonly<Record<string, unknown>>): StandardSchemaV1<unknown, Output> & StandardJSONSchemaV1<unknown, Output> {
+function schema<Output>(
+	jsonSchema: Readonly<Record<string, unknown>>,
+): StandardSchemaV1<unknown, Output> & StandardJSONSchemaV1<unknown, Output> {
 	return {
-		'~standard': { version: 1, vendor: 'test', validate: (value) => ({ value: value as Output }), jsonSchema: { input: () => jsonSchema, output: () => jsonSchema } },
+		'~standard': {
+			version: 1,
+			vendor: 'test',
+			validate: (value) => ({ value: value as Output }),
+			jsonSchema: { input: () => jsonSchema, output: () => jsonSchema },
+		},
 	};
 }
 
@@ -66,7 +73,11 @@ const GetWidget = endpoint.get({
 });
 const ReadWidgets = permissions.define({ id: 'widgets:read', description: 'Read widgets.' });
 const ReadWidgetsRequirement = permissions.require(ReadWidgets);
-const policy = service.policy({ id: 'widgets.dashboard', endpoints: [GetWidget], requirements: [ReadWidgetsRequirement] });
+const policy = service.policy({
+	id: 'widgets.dashboard',
+	endpoints: [GetWidget],
+	requirements: [ReadWidgetsRequirement],
+});
 const Diagnostics = service.observer.define({ id: 'widgets.diagnostics', description: 'Observe widget requests.' });
 const definition = service.define({
 	id: 'widgets',
@@ -81,13 +92,19 @@ const handler = endpoint.handler(GetWidget, async ({ resources }) => {
 	return response.create(WidgetResponse, repository.read());
 });
 const repository = resource.implement(WidgetRepository, {
-	create() { return { read: () => ({ id: 'widget_1' }) }; },
+	create() {
+		return { read: () => ({ id: 'widget_1' }) };
+	},
 });
 
 describe('service compiler', () => {
 	it('requires canonical service paths at definition time', () => {
-		expect(() => service.define({ id: 'widgets-double-slash', path: '//api', endpoints: [GetWidget] })).toThrow('empty path segments');
-		expect(() => service.define({ id: 'widgets-trailing-slash', path: '/api/', endpoints: [GetWidget] })).toThrow('must not end with /');
+		expect(() => service.define({ id: 'widgets-double-slash', path: '//api', endpoints: [GetWidget] })).toThrow(
+			'empty path segments',
+		);
+		expect(() => service.define({ id: 'widgets-trailing-slash', path: '/api/', endpoints: [GetWidget] })).toThrow(
+			'must not end with /',
+		);
 	});
 
 	it('resolves one authoritative effective operation and manifest', () => {
@@ -124,12 +141,16 @@ describe('service compiler', () => {
 	});
 
 	it('fails compilation when exact handler or resource coverage is missing', () => {
-		expect(() => service.compile(service.implement(definition, {
-			resources: resource.implementations(repository),
-		}))).toThrow(service.ServiceCompilationError);
-		expect(() => service.compile(service.implement(definition, {
-			endpoints: [handler],
-		}))).toThrow(service.ServiceCompilationError);
+		expect(() =>
+			service.compile(service.implement(definition, {
+				resources: resource.implementations(repository),
+			}))
+		).toThrow(service.ServiceCompilationError);
+		expect(() =>
+			service.compile(service.implement(definition, {
+				endpoints: [handler],
+			}))
+		).toThrow(service.ServiceCompilationError);
 	});
 
 	it('projects the compiler-resolved route and inherited problem envelope to OpenAPI', async () => {
@@ -143,7 +164,9 @@ describe('service compiler', () => {
 		expect(Object.keys(operation.responses as Record<string, unknown>)).toContain('503');
 		expect(Object.keys(operation.responses as Record<string, unknown>)).toContain('406');
 		const responses = operation.responses as Readonly<Record<string, Readonly<Record<string, unknown>>>>;
-		expect('Retry-After' in ((responses['503']?.headers as Readonly<Record<string, unknown>> | undefined) ?? {})).toBe(false);
+		expect('Retry-After' in ((responses['503']?.headers as Readonly<Record<string, unknown>> | undefined) ?? {})).toBe(
+			false,
+		);
 	});
 
 	it('derives content negotiation problems from the effective request and response contract', async () => {
@@ -162,8 +185,7 @@ describe('service compiler', () => {
 			path: '/api/v1',
 			endpoints: [CreateWidget],
 		});
-		const CreateHandler = endpoint.handler(CreateWidget, async ({ input }) =>
-			response.create(Accepted, input.json));
+		const CreateHandler = endpoint.handler(CreateWidget, async ({ input }) => response.create(Accepted, input.json));
 		const compiled = service.compile(service.implement(CreateWidgets, { endpoints: [CreateHandler] }));
 		const statuses = compiled.operations[0]?.problems.map((entry) => entry.status) ?? [];
 		expect(statuses).toContain(406);
@@ -199,7 +221,7 @@ describe('service compiler', () => {
 				type: 'idempotency',
 				owner: 'adapter',
 				stage: 'admission',
-					configuration: { header: 'Idempotency-Key', required: true },
+				configuration: { header: 'Idempotency-Key', required: true },
 			},
 			{
 				type: 'rate-limit',

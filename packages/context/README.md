@@ -1,34 +1,29 @@
-`@okikio/context`
-================
+# `@okikio/context`
 
-Purpose
--------
+## Purpose
 
-`@okikio/context` carries the local execution state that many runtime operations
-need: identity, cancellation, deadlines, trace identity, idempotency identity,
-and a clock.
+`@okikio/context` carries the local execution state that many runtime operations need: identity, cancellation,
+deadlines, trace identity, idempotency identity, and a clock.
 
-The package is intentionally small. It does not schedule work, own a queue, resolve declared capability resources, or provide parallel execution. An owned context does contain one `AsyncDisposableStack` so code running inside an already established execution scope can attach values whose lifetime belongs to that scope.
+The package is intentionally small. It does not schedule work, own a queue, resolve declared capability resources, or
+provide parallel execution. An owned context does contain one `AsyncDisposableStack` so code running inside an already
+established execution scope can attach values whose lifetime belongs to that scope.
 
+## How it fits
 
-How it fits
------------
+A service request, queue operation, activity job, workflow run, process action, or Worker request can all receive a
+context.
 
-A service request, queue operation, activity job, workflow run, process action,
-or Worker request can all receive a context.
+The generic identity is `ctx.id`. The caller decides what the ID represents. For example, an HTTP service copies its
+request ID into the request context. An activity creates a child context whose ID is the activity job ID.
 
-The generic identity is `ctx.id`.  The caller decides what the ID represents.
-For example, an HTTP service copies its request ID into the request context.  An
-activity creates a child context whose ID is the activity job ID.
+A serializable snapshot can cross a queue, process, or Worker message. The receiving runtime restores a new local
+`AbortController`. Cancellation and live owned resources are never serialized.
 
-A serializable snapshot can cross a queue, process, or Worker message. The receiving runtime restores a new local `AbortController`. Cancellation and live owned resources are never serialized.
+## Runtime views
 
-
-
-Runtime views
--------------
-
-`context.view()` adds typed runtime-local fields without creating a new execution lifetime. The returned object retains the source context's cancellation and ownership identity, so focused utilities can compose typed runtime views safely:
+`context.view()` adds typed runtime-local fields without creating a new execution lifetime. The returned object retains
+the source context's cancellation and ownership identity, so focused utilities can compose typed runtime views safely:
 
 ```ts
 import * as context from '@okikio/context';
@@ -37,27 +32,34 @@ const permissionCtx = permission.scope(ctx, permissionOptions);
 const operationCtx = effect.scope(permissionCtx, effectOptions);
 ```
 
-The second view still contains the permission runtime. Cancelling a view of an owned context cancels the same underlying owner. A view cannot replace an existing property. Use `context.child()` when work needs a new independently owned cancellation and cleanup lifetime.
+The second view still contains the permission runtime. Cancelling a view of an owned context cancels the same underlying
+owner. A view cannot replace an existing property. Use `context.child()` when work needs a new independently owned
+cancellation and cleanup lifetime.
 
-Ownership
----------
+## Ownership
 
-`context.create()` and `context.child()` return owned contexts.  The caller must
-dispose the returned value.
+`context.create()` and `context.child()` return owned contexts. The caller must dispose the returned value.
 
 Asynchronous disposal:
 
- - cancels the clock-owned deadline wait;
- - removes the parent abort listener;
- - aborts unfinished local work;
- - disposes values registered through `use()`, `adopt()`, and `defer()` in standard LIFO order;
- - resolves `closed` after cleanup finishes.
+- cancels the clock-owned deadline wait;
+- removes the parent abort listener;
+- aborts unfinished local work;
+- disposes values registered through `use()`, `adopt()`, and `defer()` in standard LIFO order;
+- resolves `closed` after cleanup finishes.
 
-Because owned cleanup can be asynchronous, an owned context implements `AsyncDisposable`, not synchronous `Disposable`. Use `await using` or await `Symbol.asyncDispose` when the caller owns the context.
+Because owned cleanup can be asynchronous, an owned context implements `AsyncDisposable`, not synchronous `Disposable`.
+Use `await using` or await `Symbol.asyncDispose` when the caller owns the context.
 
-A child can shorten a deadline. It cannot extend its parent deadline. A child links cancellation to its parent, but it is still an independently owned scope unless another owner explicitly adopts it.
+A child can shorten a deadline. It cannot extend its parent deadline. A child links cancellation to its parent, but it
+is still an independently owned scope unless another owner explicitly adopts it.
 
-Timing has three levels. `context.delay(milliseconds, signalOrController?)` is a thin convenience over `@std/async/delay`. `context.wait(ctx, duration)` uses `ctx.clock.sleep()` so the same clock controls both observed time and waiting, then adds context cancellation/deadline checks around that wait. `context.settles(value, milliseconds, clock?)` reports whether a value settles before a clock duration without cancelling the value. `SystemClock` uses the runtime timer queue; `TestClock` resolves sleepers only when `advance()` or `set()` reaches their target.
+Timing has three levels. `context.delay(milliseconds, signalOrController?)` is a thin convenience over
+`@std/async/delay`. `context.wait(ctx, duration)` uses `ctx.clock.sleep()` so the same clock controls both observed time
+and waiting, then adds context cancellation/deadline checks around that wait.
+`context.settles(value, milliseconds, clock?)` reports whether a value settles before a clock duration without
+cancelling the value. `SystemClock` uses the runtime timer queue; `TestClock` resolves sleepers only when `advance()` or
+`set()` reaches their target.
 
 ```ts
 await context.delay(250);
@@ -66,50 +68,43 @@ await context.wait(ctx, { seconds: 2 });
 const stopped = await context.settles(child.closed, 5_000);
 ```
 
-The manual equivalent of `context.delay(250, signal)` is `delay(250, { signal })` from `@std/async/delay`. Use the context form only when the wait belongs to an operation context.
+The manual equivalent of `context.delay(250, signal)` is `delay(250, { signal })` from `@std/async/delay`. Use the
+context form only when the wait belongs to an operation context.
 
-External gates
---------------
+## External gates
 
-`context.waitFor(ctx, listen)` waits for a cooperative in-memory gate. The
-`listen` callback receives `resume()` and returns cleanup that removes it. The
-context owns cancellation and listener cleanup. The gate owner still decides
-what resumes work.
+`context.waitFor(ctx, listen)` waits for a cooperative in-memory gate. The `listen` callback receives `resume()` and
+returns cleanup that removes it. The context owns cancellation and listener cleanup. The gate owner still decides what
+resumes work.
 
-Use this for a local queue, protocol pause, or resource availability gate. Do
-not use it for elapsed time. Use `context.wait()` when a duration is the reason
-to wait, and use a workflow instruction when a wait must survive a restart.
+Use this for a local queue, protocol pause, or resource availability gate. Do not use it for elapsed time. Use
+`context.wait()` when a duration is the reason to wait, and use a workflow instruction when a wait must survive a
+restart.
 
+## Start here
 
-Start here
-----------
+The following code gives one activity job its own local identity while it keeps the parent deadline and cancellation
+signal.
 
-The following code gives one activity job its own local identity while it keeps
-the parent deadline and cancellation signal.
-
-~~~~ typescript
+```typescript
 await using job = context.child(parent, { id: jobId });
 context.check(job);
 await context.wait(job, { milliseconds: 100 });
 
 job.defer(async () => {
-  await flushAttemptLog();
+	await flushAttemptLog();
 });
-~~~~
+```
 
-Progressive usage
------------------
+## Progressive usage
 
-The package participates in the complete domain-enrichment example in
-`../../docs/composition.md`.  Read that guide when the
-individual helpers make sense in isolation but their place in a service,
-resource graph, runtime host, or workflow is not yet clear.
+The package participates in the complete domain-enrichment example in `../../docs/composition.md`. Read that guide when
+the individual helpers make sense in isolation but their place in a service, resource graph, runtime host, or workflow
+is not yet clear.
 
+## Ownership diagram
 
-Ownership diagram
------------------
-
-~~~~ text
+```text
 parent Context
     |
     +-- context.child() / timeout()
@@ -127,14 +122,13 @@ Snapshot
 serialized seam
     |
     `--> restore() -> new local AbortController
-~~~~
+```
 
-Convenience and the manual equivalent
--------------------------------------
+## Convenience and the manual equivalent
 
 Concrete map
-~~~~~~~~~~~~
 
+```
 | Convenience | Manual equivalent | Concrete value |
 | --- | --- | --- |
 | `context.child()` | create an `AbortController`, link the parent signal, clamp the deadline, schedule the deadline through the inherited clock, and own an `AsyncDisposableStack` | one child lifetime with deterministic cleanup |
@@ -189,3 +183,4 @@ detail:
 
 The README is the primary user documentation. It intentionally stays close to
 the public source instead of maintaining a separate hand-written API reference.
+```

@@ -2,7 +2,7 @@
 import { spawn } from 'node:child_process';
 import process from 'node:process';
 import { Readable, Writable } from 'node:stream';
-import type { Adapter, SignalType, SpawnOptionsType, Spawned, StdioType } from './types.ts';
+import type { Adapter, SignalType, Spawned, SpawnOptionsType, StdioType } from './types.ts';
 
 /**
  * Creates the Node.js subprocess adapter.
@@ -86,7 +86,9 @@ export function create(): Adapter {
 								process.kill(-pid, 0);
 								return true;
 							} catch (error) {
-								if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ESRCH') return false;
+								if (
+									typeof error === 'object' && error !== null && 'code' in error && error.code === 'ESRCH'
+								) return false;
 								throw error;
 							}
 						},

@@ -117,7 +117,9 @@ if (global.DisposableStack === undefined) {
 				try {
 					dispose();
 				} catch (next) {
-					error = error === undefined ? next : new global.SuppressedError!(next, error, 'An error was suppressed during disposal.');
+					error = error === undefined
+						? next
+						: new global.SuppressedError!(next, error, 'An error was suppressed during disposal.');
 				}
 			}
 			if (error !== undefined) throw error;
@@ -143,7 +145,6 @@ if (global.AsyncDisposableStack === undefined) {
 			return this.#disposed;
 		}
 
-
 		get [Symbol.toStringTag](): string {
 			return 'AsyncDisposableStack';
 		}
@@ -165,14 +166,18 @@ if (global.AsyncDisposableStack === undefined) {
 
 		adopt<Value>(value: Value, onDispose: (value: Value) => void | PromiseLike<void>): Value {
 			this.#assertOpen();
-			if (typeof onDispose !== 'function') throw new TypeError('AsyncDisposableStack.adopt() requires a disposer function.');
+			if (typeof onDispose !== 'function') {
+				throw new TypeError('AsyncDisposableStack.adopt() requires a disposer function.');
+			}
 			this.#entries.push(() => onDispose(value));
 			return value;
 		}
 
 		defer(onDispose: () => void | PromiseLike<void>): void {
 			this.#assertOpen();
-			if (typeof onDispose !== 'function') throw new TypeError('AsyncDisposableStack.defer() requires a disposer function.');
+			if (typeof onDispose !== 'function') {
+				throw new TypeError('AsyncDisposableStack.defer() requires a disposer function.');
+			}
 			this.#entries.push(onDispose);
 		}
 
@@ -194,7 +199,9 @@ if (global.AsyncDisposableStack === undefined) {
 				try {
 					await dispose();
 				} catch (next) {
-					error = error === undefined ? next : new global.SuppressedError!(next, error, 'An error was suppressed during disposal.');
+					error = error === undefined
+						? next
+						: new global.SuppressedError!(next, error, 'An error was suppressed during disposal.');
 				}
 			}
 			if (error !== undefined) throw error;

@@ -76,7 +76,9 @@ export async function* iterable<Value>(
 		}
 	} finally {
 		if (completed || options.preventCancel === true) reader.releaseLock();
-		else void reader.cancel('ReadableStream iteration ended early.').catch(() => {}).finally(() => reader.releaseLock());
+		else {void reader.cancel('ReadableStream iteration ended early.').catch(() => {}).finally(() =>
+				reader.releaseLock()
+			);}
 	}
 }
 
@@ -348,4 +350,4 @@ function throwIfAborted(signal?: AbortSignal): void {
 	throw signal.reason ?? new DOMException('The stream operation was cancelled.', 'AbortError');
 }
 
-export type { LimitOptions, BatchOptions, IterableOptions, LineOptions } from './types.ts';
+export type { BatchOptions, IterableOptions, LimitOptions, LineOptions } from './types.ts';

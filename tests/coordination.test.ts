@@ -115,9 +115,12 @@ describe('coordination pressure', () => {
 		await using jobs = queue.memory<number, number>();
 		for (let value = 0; value < 100; value += 1) await jobs.add(ctx, value);
 
-		const groups = await Promise.all(Array.from({ length: 20 }, (_, index) =>
-			jobs.claim(ctx, { owner: `consumer-${index}`, limit: 5, duration: { minutes: 1 } })
-		));
+		const groups = await Promise.all(
+			Array.from(
+				{ length: 20 },
+				(_, index) => jobs.claim(ctx, { owner: `consumer-${index}`, limit: 5, duration: { minutes: 1 } }),
+			),
+		);
 		const claims = groups.flat();
 		const itemIds = claims.map((claim) => claim.itemId);
 		expect(new Set(itemIds).size).toBe(itemIds.length);

@@ -30,15 +30,32 @@ import type {
 } from './types.ts';
 
 const defaultCache = Object.freeze({ kind: 'gateway-cache', mode: 'no-store' } satisfies GatewayCachePolicy);
-const defaultCredentials = Object.freeze({ kind: 'gateway-credentials', requestCookies: 'strip', requestAuthorization: 'strip', responseCookies: 'strip' } satisfies GatewayCredentialPolicy);
-const defaultRedirects = Object.freeze({ kind: 'gateway-redirects', mode: 'rewrite-origin', allowedOrigins: Object.freeze([]) } satisfies GatewayRedirectPolicy);
+const defaultCredentials = Object.freeze(
+	{
+		kind: 'gateway-credentials',
+		requestCookies: 'strip',
+		requestAuthorization: 'strip',
+		responseCookies: 'strip',
+	} satisfies GatewayCredentialPolicy,
+);
+const defaultRedirects = Object.freeze(
+	{
+		kind: 'gateway-redirects',
+		mode: 'rewrite-origin',
+		allowedOrigins: Object.freeze([]),
+	} satisfies GatewayRedirectPolicy,
+);
 
 /** Error raised when a gateway cannot be compiled safely. */
 export class GatewayCompilationError extends Error {
 	readonly issues: readonly GatewayValidationIssue[];
 
 	constructor(issues: readonly GatewayValidationIssue[]) {
-		super(`Gateway compilation failed with ${issues.length} issue${issues.length === 1 ? '' : 's'}:\n${issues.map((issue) => `- ${issue.message}`).join('\n')}`);
+		super(
+			`Gateway compilation failed with ${issues.length} issue${issues.length === 1 ? '' : 's'}:\n${
+				issues.map((issue) => `- ${issue.message}`).join('\n')
+			}`,
+		);
 		this.name = 'GatewayCompilationError';
 		this.issues = Object.freeze([...issues]);
 	}
@@ -53,10 +70,14 @@ export function validate(definition: GatewayDefinition): GatewayValidationResult
 		const service = serviceOf(mounted.target);
 		const existing = mountedServices.get(service.id);
 		if (existing && existing !== service) {
-			issues.push(issue('duplicate-mount', `Service ID ${JSON.stringify(service.id)} belongs to different definitions.`, mounted));
+			issues.push(
+				issue('duplicate-mount', `Service ID ${JSON.stringify(service.id)} belongs to different definitions.`, mounted),
+			);
 		}
 		if (existing === service) {
-			issues.push(issue('duplicate-mount', `Service ${JSON.stringify(service.id)} is mounted more than once.`, mounted));
+			issues.push(
+				issue('duplicate-mount', `Service ${JSON.stringify(service.id)} is mounted more than once.`, mounted),
+			);
 		}
 		mountedServices.set(service.id, service);
 		for (const endpoint of selectedEndpoints(mounted.target)) availableEndpoints.add(endpoint);
@@ -64,7 +85,15 @@ export function validate(definition: GatewayDefinition): GatewayValidationResult
 	for (const policy of definition.policies) {
 		for (const target of policy.endpoints) {
 			if (!availableEndpoints.has(target)) {
-				issues.push(issue('policy-target-outside-gateway', `Policy ${JSON.stringify(policy.id)} targets endpoint ${JSON.stringify(target.id)} outside gateway ${JSON.stringify(definition.id)}.`, policy));
+				issues.push(
+					issue(
+						'policy-target-outside-gateway',
+						`Policy ${JSON.stringify(policy.id)} targets endpoint ${JSON.stringify(target.id)} outside gateway ${
+							JSON.stringify(definition.id)
+						}.`,
+						policy,
+					),
+				);
 			}
 		}
 	}
@@ -90,7 +119,13 @@ export function compile<Definition extends GatewayDefinition>(
 		const serviceValidation = validateService(service);
 		if (!serviceValidation.valid) {
 			for (const serviceIssue of serviceValidation.issues) {
-				issues.push(issue('invalid-definition', `Mounted service ${JSON.stringify(service.id)} is invalid: ${serviceIssue.message}`, service));
+				issues.push(
+					issue(
+						'invalid-definition',
+						`Mounted service ${JSON.stringify(service.id)} is invalid: ${serviceIssue.message}`,
+						service,
+					),
+				);
 			}
 			continue;
 		}
@@ -101,38 +136,58 @@ export function compile<Definition extends GatewayDefinition>(
 			if (!selected.has(route.endpoint) || isInternal(route)) continue;
 			const artifactRoute = artifact?.manifest.routes.find((candidate) => candidate.id === route.id);
 			if (artifact !== undefined && artifactRoute === undefined) {
-				issues.push(issue('invalid-definition', `Service artifact ${JSON.stringify(service.id)} is missing public route ${JSON.stringify(route.id)}.`, artifact.manifest));
+				issues.push(
+					issue(
+						'invalid-definition',
+						`Service artifact ${JSON.stringify(service.id)} is missing public route ${JSON.stringify(route.id)}.`,
+						artifact.manifest,
+					),
+				);
 				continue;
 			}
 			if (artifactRoute !== undefined && !sameServiceRoute(route, artifactRoute)) {
-				issues.push(issue('invalid-definition', `Service artifact route ${JSON.stringify(route.id)} does not match its imported definition.`, artifactRoute));
+				issues.push(
+					issue(
+						'invalid-definition',
+						`Service artifact route ${JSON.stringify(route.id)} does not match its imported definition.`,
+						artifactRoute,
+					),
+				);
 				continue;
 			}
 			const policies = definition.policies.filter((policy) => policyTargets.get(policy)?.has(route.endpoint));
 			const effective = effectivePolicy(policies, issues, route);
-			const compiledRoute = Object.freeze({
-				id: `${definition.id}:${route.id}`,
-				gateway: definition,
-				serviceId: service.id,
-				serviceRouteId: route.id,
-				endpointId: route.endpoint.id,
-				operationId: route.operation.operationId,
-				method: route.method.toUpperCase() as Uppercase<typeof route.method>,
-				path: route.path,
-				origin: mounted.origin.toString(),
-				authenticate: effective.authenticate,
-				assertions: effective.assertions,
-				...(effective.timeout !== undefined ? { timeout: effective.timeout } : {}),
-				...(effective.bodyLimit !== undefined ? { bodyLimit: effective.bodyLimit } : {}),
-				cache: effective.cache,
-				credentials: effective.credentials,
-				redirects: effective.redirects,
-				observers: definition.observers,
-			} satisfies CompiledGatewayRoute);
+			const compiledRoute = Object.freeze(
+				{
+					id: `${definition.id}:${route.id}`,
+					gateway: definition,
+					serviceId: service.id,
+					serviceRouteId: route.id,
+					endpointId: route.endpoint.id,
+					operationId: route.operation.operationId,
+					method: route.method.toUpperCase() as Uppercase<typeof route.method>,
+					path: route.path,
+					origin: mounted.origin.toString(),
+					authenticate: effective.authenticate,
+					assertions: effective.assertions,
+					...(effective.timeout !== undefined ? { timeout: effective.timeout } : {}),
+					...(effective.bodyLimit !== undefined ? { bodyLimit: effective.bodyLimit } : {}),
+					cache: effective.cache,
+					credentials: effective.credentials,
+					redirects: effective.redirects,
+					observers: definition.observers,
+				} satisfies CompiledGatewayRoute,
+			);
 			const key = `${compiledRoute.method} ${normalizeRouteShape(compiledRoute.path)}`;
 			const owner = routeOwners.get(key);
 			if (owner && owner.serviceId !== compiledRoute.serviceId) {
-				issues.push(issue('route-conflict', `${compiledRoute.method} ${compiledRoute.path} is owned by both ${owner.serviceId} and ${compiledRoute.serviceId}.`, compiledRoute));
+				issues.push(
+					issue(
+						'route-conflict',
+						`${compiledRoute.method} ${compiledRoute.path} is owned by both ${owner.serviceId} and ${compiledRoute.serviceId}.`,
+						compiledRoute,
+					),
+				);
 				continue;
 			}
 			routeOwners.set(key, compiledRoute);
@@ -145,7 +200,9 @@ export function compile<Definition extends GatewayDefinition>(
 		kind: 'compiled-gateway',
 		definition,
 		routes: frozenRoutes,
-		routePlan: prepareRoutes(frozenRoutes.map((route) => Object.freeze({ kind: 'route' as const, method: route.method, path: route.path }))),
+		routePlan: prepareRoutes(
+			frozenRoutes.map((route) => Object.freeze({ kind: 'route' as const, method: route.method, path: route.path })),
+		),
 		manifest: manifest(definition, frozenRoutes),
 	});
 }
@@ -171,7 +228,9 @@ function indexArtifacts(
 		const manifest = isCompiledService(artifact) ? artifact.manifest : artifact;
 		const existing = result.get(manifest.id);
 		if (existing && existing.manifest !== manifest) {
-			issues.push(issue('invalid-definition', `More than one service artifact uses ID ${JSON.stringify(manifest.id)}.`, artifact));
+			issues.push(
+				issue('invalid-definition', `More than one service artifact uses ID ${JSON.stringify(manifest.id)}.`, artifact),
+			);
 			continue;
 		}
 		result.set(manifest.id, Object.freeze({ manifest }));
@@ -201,11 +260,40 @@ function effectivePolicy(
 }> {
 	const authenticate = Object.freeze(policies.flatMap((policy) => definitionValues(policy.authenticate)));
 	const assertions = Object.freeze(policies.flatMap((policy) => definitionValues(policy.assertion)));
-	const timeout = singleValue(policies.flatMap((policy) => policy.timeout === undefined ? [] : [policy.timeout]), 'timeout', route, issues, sameDuration);
-	const bodyLimit = singleValue(policies.flatMap((policy) => policy.bodyLimit === undefined ? [] : [policy.bodyLimit]), 'body limit', route, issues);
-	const cache = singleValue(policies.flatMap((policy) => policy.cache === undefined ? [] : [policy.cache]), 'cache policy', route, issues, sameCache) ?? defaultCache;
-	const credentials = singleValue(policies.flatMap((policy) => policy.credentials === undefined ? [] : [policy.credentials]), 'credential policy', route, issues, sameCredentials) ?? defaultCredentials;
-	const redirects = singleValue(policies.flatMap((policy) => policy.redirects === undefined ? [] : [policy.redirects]), 'redirect policy', route, issues, sameRedirects) ?? defaultRedirects;
+	const timeout = singleValue(
+		policies.flatMap((policy) => policy.timeout === undefined ? [] : [policy.timeout]),
+		'timeout',
+		route,
+		issues,
+		sameDuration,
+	);
+	const bodyLimit = singleValue(
+		policies.flatMap((policy) => policy.bodyLimit === undefined ? [] : [policy.bodyLimit]),
+		'body limit',
+		route,
+		issues,
+	);
+	const cache = singleValue(
+		policies.flatMap((policy) => policy.cache === undefined ? [] : [policy.cache]),
+		'cache policy',
+		route,
+		issues,
+		sameCache,
+	) ?? defaultCache;
+	const credentials = singleValue(
+		policies.flatMap((policy) => policy.credentials === undefined ? [] : [policy.credentials]),
+		'credential policy',
+		route,
+		issues,
+		sameCredentials,
+	) ?? defaultCredentials;
+	const redirects = singleValue(
+		policies.flatMap((policy) => policy.redirects === undefined ? [] : [policy.redirects]),
+		'redirect policy',
+		route,
+		issues,
+		sameRedirects,
+	) ?? defaultRedirects;
 	return Object.freeze({
 		authenticate,
 		assertions,
@@ -235,7 +323,9 @@ function singleValue<Value>(
 	if (first === undefined) return undefined;
 	for (const value of values.slice(1)) {
 		if (!equal(first, value)) {
-			issues.push(issue('conflicting-policy', `Route ${JSON.stringify(route.id)} receives conflicting ${label} values.`, route));
+			issues.push(
+				issue('conflicting-policy', `Route ${JSON.stringify(route.id)} receives conflicting ${label} values.`, route),
+			);
 			break;
 		}
 	}
@@ -332,7 +422,6 @@ function definitionId(value: unknown, index: number): string {
 		: `anonymous:${index}`;
 }
 
-
 /**
  * Returns the definition values consumed by compiled gateway routing.
  *
@@ -397,7 +486,8 @@ function normalizeRouteShape(path: string): string {
  * @internal
  */
 function compareRoutes(left: CompiledGatewayRoute, right: CompiledGatewayRoute): number {
-	return left.path.localeCompare(right.path) || left.method.localeCompare(right.method) || left.id.localeCompare(right.id);
+	return left.path.localeCompare(right.path) || left.method.localeCompare(right.method) ||
+		left.id.localeCompare(right.id);
 }
 
 /**
@@ -419,7 +509,5 @@ function issue(
 	message: string,
 	definition?: GatewayValidationSubject,
 ): GatewayValidationIssue {
-	return definition === undefined
-		? Object.freeze({ code, message })
-		: Object.freeze({ code, message, definition });
+	return definition === undefined ? Object.freeze({ code, message }) : Object.freeze({ code, message, definition });
 }

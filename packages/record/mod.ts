@@ -17,7 +17,10 @@ export function is(value: unknown): value is Readonly<Record<string, unknown>> {
 }
 
 /** Reject values whose type-visible properties cannot be preserved by ordinary record enumeration. */
-export function assert<Value>(value: Value, name = 'record'): asserts value is Value & Readonly<Record<string, unknown>> {
+export function assert<Value>(
+	value: Value,
+	name = 'record',
+): asserts value is Value & Readonly<Record<string, unknown>> {
 	if (typeof value !== 'object' || value === null || Array.isArray(value)) {
 		throw new TypeError(`${name} must be a plain object or null-prototype record.`);
 	}

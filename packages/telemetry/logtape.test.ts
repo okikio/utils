@@ -30,12 +30,16 @@ describe('@okikio/telemetry/logtape', () => {
 
 	it('uses implicit context only when the host explicitly supplies a context bridge', () => {
 		const observed: unknown[] = [];
-		const result = logtape.run({
-			withContext(fields, callback) {
-				observed.push(fields);
-				return callback();
+		const result = logtape.run(
+			{
+				withContext(fields, callback) {
+					observed.push(fields);
+					return callback();
+				},
 			},
-		}, { trace_id: 'trace-1' }, () => 42);
+			{ trace_id: 'trace-1' },
+			() => 42,
+		);
 		expect(result).toBe(42);
 		expect(observed).toEqual([{ trace_id: 'trace-1' }]);
 	});

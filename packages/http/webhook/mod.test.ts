@@ -32,11 +32,16 @@ describe('Standard Webhooks', () => {
 	});
 
 	it('supports verification and signing during symmetric key rotation', async () => {
-		const current = secret(1); const previous = secret(2);
+		const current = secret(1);
+		const previous = secret(2);
 		const signer = standard.create({ secret: previous });
 		const rotated = standard.create({ secrets: [current, previous] });
 		const headers = await signer.sign({ id: 'evt_rotation', timestamp: 1000, body: '{}' });
-		const verified = await rotated.verify({ body: new TextEncoder().encode('{}'), headers: new Headers(headers), now: new Date(1000_000) });
+		const verified = await rotated.verify({
+			body: new TextEncoder().encode('{}'),
+			headers: new Headers(headers),
+			now: new Date(1000_000),
+		});
 		expect(verified).toMatchObject({ ok: true, keyIndex: 1 });
 		const outbound = await rotated.sign({ id: 'evt_rotation', timestamp: 1000, body: '{}' });
 		expect(outbound['webhook-signature'].split(' ')).toHaveLength(2);
@@ -45,9 +50,16 @@ describe('Standard Webhooks', () => {
 	it('enforces timestamp, signature, key, header, body, and identifier bounds', async () => {
 		const protocol = standard.create({ secret: vectorSecret, toleranceSeconds: 300 });
 		const signed = await protocol.sign({ id: vectorId, timestamp: 1000, body: '{}' });
-		for (const [value, code] of [['1000x', 'malformed-timestamp'], ['699', 'timestamp-too-old'], ['1301', 'timestamp-too-new']] as const) {
-			const headers = new Headers(signed); headers.set('webhook-timestamp', value);
-			expect((await protocol.verify({ body: new TextEncoder().encode('{}'), headers, now: new Date(1000_000) })).ok).toBe(false);
+		for (
+			const [value, code] of [['1000x', 'malformed-timestamp'], ['699', 'timestamp-too-old'], [
+				'1301',
+				'timestamp-too-new',
+			]] as const
+		) {
+			const headers = new Headers(signed);
+			headers.set('webhook-timestamp', value);
+			expect((await protocol.verify({ body: new TextEncoder().encode('{}'), headers, now: new Date(1000_000) })).ok)
+				.toBe(false);
 			const result = await protocol.verify({ body: new TextEncoder().encode('{}'), headers, now: new Date(1000_000) });
 			if (!result.ok) expect(result.code).toBe(code);
 		}
@@ -55,20 +67,37 @@ describe('Standard Webhooks', () => {
 		expect(() => standard.create({ secret: `whsec_${encodeBase64(new Uint8Array(8))}` })).toThrow('24-64');
 		await expect(protocol.sign({ id: 'bad.id', body: '{}' })).rejects.toThrow('Webhook id');
 
-		const tooMany = new Headers(signed); tooMany.set('webhook-signature', Array(11).fill(vectorSignature).join(' '));
-		const countResult = await protocol.verify({ body: new TextEncoder().encode('{}'), headers: tooMany, now: new Date(1000_000) });
+		const tooMany = new Headers(signed);
+		tooMany.set('webhook-signature', Array(11).fill(vectorSignature).join(' '));
+		const countResult = await protocol.verify({
+			body: new TextEncoder().encode('{}'),
+			headers: tooMany,
+			now: new Date(1000_000),
+		});
 		expect(countResult).toEqual({ ok: false, code: 'too-many-signatures' });
 
-		const huge = new Headers(signed); huge.set('webhook-signature', `v1,${'A'.repeat(9000)}`);
-		const hugeResult = await protocol.verify({ body: new TextEncoder().encode('{}'), headers: huge, now: new Date(1000_000) });
+		const huge = new Headers(signed);
+		huge.set('webhook-signature', `v1,${'A'.repeat(9000)}`);
+		const hugeResult = await protocol.verify({
+			body: new TextEncoder().encode('{}'),
+			headers: huge,
+			now: new Date(1000_000),
+		});
 		expect(hugeResult).toEqual({ ok: false, code: 'signature-header-too-large' });
 
 		const request = new Request('https://example.invalid', { method: 'POST', headers: signed, body: '12345' });
-		expect(await verifyRequest(request, protocol, { maximumBodyBytes: 4, now: new Date(1000_000) })).toEqual({ ok: false, code: 'body-too-large' });
+		expect(await verifyRequest(request, protocol, { maximumBodyBytes: 4, now: new Date(1000_000) })).toEqual({
+			ok: false,
+			code: 'body-too-large',
+		});
 	});
 
 	it('does not convert verifier implementation exceptions into authentication failures', async () => {
 		const request = new Request('https://example.invalid', { method: 'POST', body: '{}' });
-		await expect(verifyRequest(request, { verify() { throw new Error('verifier bug'); } })).rejects.toThrow('verifier bug');
+		await expect(verifyRequest(request, {
+			verify() {
+				throw new Error('verifier bug');
+			},
+		})).rejects.toThrow('verifier bug');
 	});
 });

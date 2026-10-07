@@ -30,17 +30,22 @@ for await (const entry of Deno.readDir(packages)) {
 		await Deno.mkdir(new URL('./', output), { recursive: true });
 		const source = `${manifest.name}${suffix}`;
 		const sideEffect = Array.isArray(manifest.sideEffects) && manifest.sideEffects.includes(target);
-		await Deno.writeTextFile(output, sideEffect
-			? `/** Explicit side-effect bridge to the module owned by \`${source}\`. @module */\nimport '${source}';\nexport {};\n`
-			: `/** Focused single-install re-export of \`${source}\`. @module */\nexport * from '${source}';\n`);
+		await Deno.writeTextFile(
+			output,
+			sideEffect
+				? `/** Explicit side-effect bridge to the module owned by \`${source}\`. @module */\nimport '${source}';\nexport {};\n`
+				: `/** Focused single-install re-export of \`${source}\`. @module */\nexport * from '${source}';\n`,
+		);
 		exports[umbrella] = `./${relative}`;
 		if (sideEffect) sideEffects.push(`./${relative}`);
 	}
 }
-const ordered = Object.fromEntries(Object.entries(exports).sort(([left], [right]) => {
-	const rank = (value: string) => value === '.' ? 0 : value === './all' ? 1 : 2;
-	return rank(left) - rank(right) || left.localeCompare(right);
-}));
+const ordered = Object.fromEntries(
+	Object.entries(exports).sort(([left], [right]) => {
+		const rank = (value: string) => value === '.' ? 0 : value === './all' ? 1 : 2;
+		return rank(left) - rank(right) || left.localeCompare(right);
+	}),
+);
 packageManifest.exports = ordered;
 packageManifest.sideEffects = sideEffects.length === 0 ? false : sideEffects;
 denoManifest.exports = ordered;

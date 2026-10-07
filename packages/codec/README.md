@@ -1,93 +1,78 @@
-`@okikio/codec`
-==============
+# `@okikio/codec`
 
-Purpose
--------
+## Purpose
 
-`@okikio/codec` defines explicit two-way data conversion with one Standard
-Schema for each direction.
+`@okikio/codec` defines explicit two-way data conversion with one Standard Schema for each direction.
 
-A codec is useful when the runtime value and serialized value are different.
-Examples include dates, identifiers, provider records, persistence formats, and
-wire representations.
+A codec is useful when the runtime value and serialized value are different. Examples include dates, identifiers,
+provider records, persistence formats, and wire representations.
 
-The package deliberately uses separate decode and encode schemas.  A single
-invertible schema is not assumed to describe both directions safely.
+The package deliberately uses separate decode and encode schemas. A single invertible schema is not assumed to describe
+both directions safely.
 
+## How it fits
 
-How it fits
------------
+`@okikio/schema` supplies the common Standard Schema validation operations. `@okikio/codec` adds bidirectional
+composition on top of those operations.
 
-`@okikio/schema` supplies the common Standard Schema validation operations.
-`@okikio/codec` adds bidirectional composition on top of those operations.
+Use `schema` when a value only needs validation or normalization. Use `codec` when callers must also convert the
+validated value back to a different external form.
 
-Use `schema` when a value only needs validation or normalization.  Use `codec`
-when callers must also convert the validated value back to a different external
-form.
+The codec utility does not own transport, persistence, HTTP, or provider behavior.
 
-The codec utility does not own transport, persistence, HTTP, or provider
-behavior.
+## Start here
 
-
-Start here
-----------
-
-A codec has one validator for decoding external data and another validator for
-encoding the application value back out. Zod is convenient for authoring, but
-any Standard Schema V1 implementation can be used.
+A codec has one validator for decoding external data and another validator for encoding the application value back out.
+Zod is convenient for authoring, but any Standard Schema V1 implementation can be used.
 
 ```ts
 import * as codec from '@okikio/codec';
 import { z } from 'zod';
 
 const InstantCodec = codec.define({
-  decode: z.string().datetime().transform((value) => new Date(value)),
-  encode: z.date().transform((value) => value.toISOString()),
+	decode: z.string().datetime().transform((value) => new Date(value)),
+	encode: z.date().transform((value) => value.toISOString()),
 });
 
 const instant = await codec.decode(InstantCodec, '2026-08-21T03:00:00.000Z');
 const wire = await codec.encode(InstantCodec, instant);
 ```
 
-The decode schema owns the external-to-application conversion. The encode
-schema independently owns the application-to-external conversion.
+The decode schema owns the external-to-application conversion. The encode schema independently owns the
+application-to-external conversion.
 
-Larger composition
-------------------
+## Larger composition
 
 Object, optional, nullable, and array codecs preserve the same rule recursively:
 
 ```ts
 const UserCodec = codec.object({
-  createdAt: InstantCodec,
-  deletedAt: codec.optional(codec.nullable(InstantCodec)),
-  visits: codec.array(InstantCodec),
+	createdAt: InstantCodec,
+	deletedAt: codec.optional(codec.nullable(InstantCodec)),
+	visits: codec.array(InstantCodec),
 });
 
 const user = await codec.decode(UserCodec, stored);
 const encoded = await codec.encode(UserCodec, user);
 ```
 
-Invalid nested input reports its complete property/index path. The utility does
-not mutate the external input or application value.
+Invalid nested input reports its complete property/index path. The utility does not mutate the external input or
+application value.
 
-Invalid nested data reports the complete path to the failing property.  The
-conversion remains deterministic and does not mutate caller values.
+Invalid nested data reports the complete path to the failing property. The conversion remains deterministic and does not
+mutate caller values.
 
-Progressive usage
------------------
+## Progressive usage
 
-The package participates in the complete domain-enrichment example in
-`../../docs/composition.md`.  Read that guide when the
-individual helpers make sense in isolation but their place in a service,
-resource graph, runtime host, or workflow is not yet clear.
+The package participates in the complete domain-enrichment example in `../../docs/composition.md`. Read that guide when
+the individual helpers make sense in isolation but their place in a service, resource graph, runtime host, or workflow
+is not yet clear.
 
-Convenience and the manual equivalent
--------------------------------------
+## Convenience and the manual equivalent
 
 Concrete map
-~~~~~~~~~~~~
 
+```
 | Convenience | Manual equivalent | Concrete value |
 | --- | --- | --- |
 | `codec.object()` | validate every property with its decode schema, prefix issue paths, build the application object, then reverse the process on encode | one bidirectional object contract |
@@ -129,3 +114,4 @@ detail:
 
 The README is the primary user documentation. It intentionally stays close to
 the public source instead of maintaining a separate hand-written API reference.
+```

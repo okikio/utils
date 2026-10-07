@@ -40,7 +40,6 @@ describe('catalog', () => {
 		});
 	});
 
-
 	it('rejects assigning one definition object to multiple source keys', () => {
 		expect(() => catalog.create('test', { First, Alias: First })).toThrow(TypeError);
 	});

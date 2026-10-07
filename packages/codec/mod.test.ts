@@ -21,8 +21,14 @@ function transform<Input, Output>(
 }
 
 const DateCodec = codec.define({
-	decode: transform<string, Date>('date-decode', (value) => typeof value === 'string' && !Number.isNaN(Date.parse(value)) ? new Date(value) : undefined),
-	encode: transform<Date, string>('date-encode', (value) => value instanceof Date && !Number.isNaN(value.valueOf()) ? value.toISOString() : undefined),
+	decode: transform<string, Date>(
+		'date-decode',
+		(value) => typeof value === 'string' && !Number.isNaN(Date.parse(value)) ? new Date(value) : undefined,
+	),
+	encode: transform<Date, string>(
+		'date-encode',
+		(value) => value instanceof Date && !Number.isNaN(value.valueOf()) ? value.toISOString() : undefined,
+	),
 });
 
 const StringCodec = codec.define({

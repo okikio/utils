@@ -7,10 +7,16 @@ const fixed = () => '2026-09-09T00:00:00.000Z';
 describe('@okikio/telemetry', () => {
 	it('merges explicit scope fields and projects faults without throwing through reporter failures', async () => {
 		const failures: unknown[] = [];
-		const scope = telemetry.create({ report() { throw new Error('sink failed'); } }, {
+		const scope = telemetry.create({
+			report() {
+				throw new Error('sink failed');
+			},
+		}, {
 			fields: { request_id: 'request-1' },
 			now: fixed,
-			onReporterError: (error) => { failures.push(error); },
+			onReporterError: (error) => {
+				failures.push(error);
+			},
 		});
 		const error = new Error('boom');
 		const value = await scope.child({ operation_id: 'users.read' }).report({
@@ -56,15 +62,27 @@ describe('@okikio/telemetry', () => {
 
 	it('fans out to every reporter before surfacing aggregate delivery failure', async () => {
 		const memory = telemetry.memory();
-		const output = telemetry.fanout(memory, { report() { throw new Error('expected'); } });
-		await expect(output.report(telemetry.event({ name: 'test.event' }, {}, fixed))).rejects.toBeInstanceOf(AggregateError);
+		const output = telemetry.fanout(memory, {
+			report() {
+				throw new Error('expected');
+			},
+		});
+		await expect(output.report(telemetry.event({ name: 'test.event' }, {}, fixed))).rejects.toBeInstanceOf(
+			AggregateError,
+		);
 		expect(memory.records).toHaveLength(1);
 	});
 
 	it('rejects unsafe structured fields without invoking accessors', () => {
 		let reads = 0;
 		const fields = Object.create(null) as Record<string, telemetry.Value>;
-		Object.defineProperty(fields, 'secret', { enumerable: true, get() { reads += 1; return 'secret'; } });
+		Object.defineProperty(fields, 'secret', {
+			enumerable: true,
+			get() {
+				reads += 1;
+				return 'secret';
+			},
+		});
 		expect(() => telemetry.event({ name: 'test.event', fields }, {}, fixed)).toThrow('cannot be an accessor');
 		expect(reads).toBe(0);
 	});

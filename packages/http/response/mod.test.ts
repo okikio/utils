@@ -20,9 +20,7 @@ const BytesSchema: StandardSchemaV1<unknown, Uint8Array> = {
 	'~standard': {
 		version: 1,
 		vendor: 'test',
-		validate: (value) => value instanceof Uint8Array
-			? { value }
-			: { issues: [{ message: 'Expected bytes.' }] },
+		validate: (value) => value instanceof Uint8Array ? { value } : { issues: [{ message: 'Expected bytes.' }] },
 	},
 };
 
@@ -42,7 +40,7 @@ describe('HTTP status contracts', () => {
 		expect(response.isContentlessStatus(304)).toBe(true);
 		expect(response.informationalStatus.is(104)).toBe(true);
 		expect(response.isContentlessStatus(200)).toBe(false);
-		expect((await response.status.problem['~standard'].validate(503))).toEqual({ value: 503 });
+		expect(await response.status.problem['~standard'].validate(503)).toEqual({ value: 503 });
 		expect('issues' in await response.status.problem['~standard'].validate(200)).toBe(true);
 		expect(response.status.problem['~standard'].jsonSchema.output({ target: 'draft-2020-12' })).toMatchObject({
 			type: 'integer',
@@ -88,13 +86,25 @@ describe('response definitions and logical results', () => {
 		const Detail = response.ok(ItemSchema, { id: 'widgets:normalized-options', description: 'Normalized options.' });
 		let reads = 0;
 		const options = Object.create(null) as Record<string, unknown>;
-		Object.defineProperty(options, 'headers', { enumerable: true, get() { reads += 1; return { 'X-Test': 'unsafe' }; } });
-		expect(() => Reflect.apply(response.create, undefined, [Detail, { id: 'widget_1' }, options])).toThrow('data property');
+		Object.defineProperty(options, 'headers', {
+			enumerable: true,
+			get() {
+				reads += 1;
+				return { 'X-Test': 'unsafe' };
+			},
+		});
+		expect(() => Reflect.apply(response.create, undefined, [Detail, { id: 'widget_1' }, options])).toThrow(
+			'data property',
+		);
 		expect(reads).toBe(0);
 
 		const location = new URL('https://service.invalid/original');
 		const base = new URL('https://service.invalid/items');
-		const created = response.create(Detail, { id: 'widget_1' }, { location, url: base, headers: new Headers({ 'X-Mode': 'one' }) });
+		const created = response.create(Detail, { id: 'widget_1' }, {
+			location,
+			url: base,
+			headers: new Headers({ 'X-Mode': 'one' }),
+		});
 		location.pathname = '/mutated';
 		base.pathname = '/mutated';
 		expect(created[2].Location).toBe('https://service.invalid/original');
@@ -124,7 +134,10 @@ describe('response definitions and logical results', () => {
 		const headers = Object.create(null) as response.ResponseHeaders;
 		Object.defineProperty(headers, 'X-Test', {
 			enumerable: true,
-			get() { reads += 1; return 'unsafe'; },
+			get() {
+				reads += 1;
+				return 'unsafe';
+			},
 		});
 		expect(() => response.headers(headers)).toThrow('enumerable data property');
 		expect(reads).toBe(0);
@@ -182,10 +195,16 @@ describe('response pagination', () => {
 
 	it('uses an explicit URL override when a handler must generate links for another public URL', () => {
 		const logical = response.create(Page, {
-			kind: 'cursor', items: [], limit: 10, hasMore: true, nextCursor: 'next',
+			kind: 'cursor',
+			items: [],
+			limit: 10,
+			hasMore: true,
+			nextCursor: 'next',
 		}, { url: '/public/widgets?view=compact' });
 		const resolved = response.finalize(logical, { url: 'https://internal.invalid/widgets' });
-		expect((resolved.body as { links: response.PaginationLinks }).links.next).toBe('/public/widgets?view=compact&cursor=next&limit=10');
+		expect((resolved.body as { links: response.PaginationLinks }).links.next).toBe(
+			'/public/widgets?view=compact&cursor=next&limit=10',
+		);
 	});
 
 	it('generates first, previous, next, and last links for exact offset pages', () => {
@@ -218,12 +237,17 @@ describe('response pagination', () => {
 
 	it('supports custom link projection without making handlers build ordinary URLs', () => {
 		const logical = response.create(Page, {
-			kind: 'cursor', items: [], limit: 10, hasMore: true, nextCursor: 'next',
+			kind: 'cursor',
+			items: [],
+			limit: 10,
+			hasMore: true,
+			nextCursor: 'next',
 		}, {
 			url: '/widgets',
-			link: ({ relation, generated }) => relation === 'next' && generated
-				? `/signed?target=${encodeURIComponent(generated.pathname + generated.search)}`
-				: undefined,
+			link: ({ relation, generated }) =>
+				relation === 'next' && generated
+					? `/signed?target=${encodeURIComponent(generated.pathname + generated.search)}`
+					: undefined,
 		});
 		const links = (response.finalize(logical).body as { links: response.PaginationLinks }).links;
 		expect(links.next).toContain('/signed?target=');
@@ -231,43 +255,62 @@ describe('response pagination', () => {
 	});
 });
 
-
-	it('honors independent body/header pagination presentation policies', () => {
-		const HeaderTotalsOnly = response.paginated(ItemSchema, {
-			id: 'items:header-totals',
-			description: 'Totals only in HTTP fields.',
-			pagination: { links: 'header', totals: 'headers' },
-		});
-		const resolved = response.finalize(response.create(HeaderTotalsOnly, {
-			kind: 'offset', items: [{ id: 'one' }], offset: 0, limit: 10, hasMore: false, total: 1,
-		}), { url: 'https://api.example.invalid/items?offset=0&limit=10' });
-		expect(resolved.headers['X-Total-Count']).toBe('1');
-		expect(resolved.body).toMatchObject({
-			data: [{ id: 'one' }],
-			meta: { pagination: { kind: 'offset', limit: 10, hasMore: false, offset: 0, page: 1, perPage: 10 } },
-		});
-		expect((resolved.body as { meta: { pagination: Record<string, unknown> } }).meta.pagination.total).toBeUndefined();
-		expect((resolved.body as Record<string, unknown>).links).toBeUndefined();
+it('honors independent body/header pagination presentation policies', () => {
+	const HeaderTotalsOnly = response.paginated(ItemSchema, {
+		id: 'items:header-totals',
+		description: 'Totals only in HTTP fields.',
+		pagination: { links: 'header', totals: 'headers' },
 	});
+	const resolved = response.finalize(
+		response.create(HeaderTotalsOnly, {
+			kind: 'offset',
+			items: [{ id: 'one' }],
+			offset: 0,
+			limit: 10,
+			hasMore: false,
+			total: 1,
+		}),
+		{ url: 'https://api.example.invalid/items?offset=0&limit=10' },
+	);
+	expect(resolved.headers['X-Total-Count']).toBe('1');
+	expect(resolved.body).toMatchObject({
+		data: [{ id: 'one' }],
+		meta: { pagination: { kind: 'offset', limit: 10, hasMore: false, offset: 0, page: 1, perPage: 10 } },
+	});
+	expect((resolved.body as { meta: { pagination: Record<string, unknown> } }).meta.pagination.total).toBeUndefined();
+	expect((resolved.body as Record<string, unknown>).links).toBeUndefined();
+});
 
 describe('response transport helpers', () => {
 	it('evaluates conditional requests with ETag precedence', () => {
 		const headers = { ETag: 'W/"abc"', 'Last-Modified': 'Wed, 21 Oct 2015 07:28:00 GMT' };
-		expect(response.isNotModified(new Request('https://service.invalid', {
-			headers: { 'If-None-Match': '"abc"' },
-		}), headers)).toBe(true);
-		expect(response.isNotModified(new Request('https://service.invalid', {
-			headers: { 'If-None-Match': '"different"', 'If-Modified-Since': 'Wed, 21 Oct 2030 07:28:00 GMT' },
-		}), headers)).toBe(false);
+		expect(response.isNotModified(
+			new Request('https://service.invalid', {
+				headers: { 'If-None-Match': '"abc"' },
+			}),
+			headers,
+		)).toBe(true);
+		expect(response.isNotModified(
+			new Request('https://service.invalid', {
+				headers: { 'If-None-Match': '"different"', 'If-Modified-Since': 'Wed, 21 Oct 2030 07:28:00 GMT' },
+			}),
+			headers,
+		)).toBe(false);
 	});
 
 	it('treats If-None-Match wildcard as an existing selected representation even without an ETag', () => {
-		expect(response.isNotModified(new Request('https://service.invalid', {
-			headers: { 'If-None-Match': '*' },
-		}), {})).toBe(true);
-		expect(response.isNotModified(new Request('https://service.invalid', {
-			headers: { 'If-None-Match': '"unknown"' },
-		}), {})).toBe(false);
+		expect(response.isNotModified(
+			new Request('https://service.invalid', {
+				headers: { 'If-None-Match': '*' },
+			}),
+			{},
+		)).toBe(true);
+		expect(response.isNotModified(
+			new Request('https://service.invalid', {
+				headers: { 'If-None-Match': '"unknown"' },
+			}),
+			{},
+		)).toBe(false);
 	});
 
 	it('snapshots page windows before custom link callbacks can mutate them', () => {
@@ -297,16 +340,34 @@ describe('response transport helpers', () => {
 			items: { enumerable: true, value: ['a'] },
 			offset: { enumerable: true, value: 0 },
 			limit: { enumerable: true, value: 1 },
-			hasMore: { enumerable: true, get() { reads += 1; return false; } },
+			hasMore: {
+				enumerable: true,
+				get() {
+					reads += 1;
+					return false;
+				},
+			},
 		});
 		expect(() => Reflect.apply(response.pageLinks, undefined, [page, '/items'])).toThrow('enumerable data property');
 		expect(reads).toBe(0);
-		expect(() => response.pageLinks({
-			kind: 'offset', items: ['a'], offset: 0, limit: 1, hasMore: false, page: 2,
-		}, '/items')).toThrow('does not match offset');
-		expect(() => response.pageLinks({
-			kind: 'cursor', items: ['a', 'b'], limit: 1, hasMore: true,
-		}, '/items')).toThrow('items length');
+		expect(() =>
+			response.pageLinks({
+				kind: 'offset',
+				items: ['a'],
+				offset: 0,
+				limit: 1,
+				hasMore: false,
+				page: 2,
+			}, '/items')
+		).toThrow('does not match offset');
+		expect(() =>
+			response.pageLinks({
+				kind: 'cursor',
+				items: ['a', 'b'],
+				limit: 1,
+				hasMore: true,
+			}, '/items')
+		).toThrow('items length');
 	});
 
 	it('validates pagination parameter aliases and snapshots URL options', () => {
@@ -315,20 +376,28 @@ describe('response transport helpers', () => {
 			description: 'Widget page URL snapshot.',
 		});
 
-		expect(() => response.pageLinks(
-			{ kind: 'offset', items: [], offset: 0, limit: 10, hasMore: false },
-			'/items',
-			{ cursor: 'page', page: 'page' },
-		)).toThrow('must be distinct');
-		expect(() => Reflect.apply(response.pageLinks, undefined, [
-			{ kind: 'offset', items: [], offset: 0, limit: 10, hasMore: false },
-			'/items',
-			{ typo: 'value' },
-		])).toThrow('Unknown pagination parameter');
+		expect(() =>
+			response.pageLinks(
+				{ kind: 'offset', items: [], offset: 0, limit: 10, hasMore: false },
+				'/items',
+				{ cursor: 'page', page: 'page' },
+			)
+		).toThrow('must be distinct');
+		expect(() =>
+			Reflect.apply(response.pageLinks, undefined, [
+				{ kind: 'offset', items: [], offset: 0, limit: 10, hasMore: false },
+				'/items',
+				{ typo: 'value' },
+			])
+		).toThrow('Unknown pagination parameter');
 
 		const base = new URL('https://service.invalid/items?filter=active');
 		const result = response.create(PageResponse, {
-			kind: 'offset', items: [], offset: 0, limit: 10, hasMore: false,
+			kind: 'offset',
+			items: [],
+			offset: 0,
+			limit: 10,
+			hasMore: false,
 		}, { url: base });
 		base.pathname = '/mutated';
 		const finalized = response.finalize(result);
@@ -337,17 +406,28 @@ describe('response transport helpers', () => {
 
 	it('rejects pagination and timestamp object coercion', () => {
 		let coerces = 0;
-		const hostile = { toString() { coerces += 1; return '/items'; } };
-		expect(() => Reflect.apply(response.pageLinks, undefined, [
-			{ kind: 'offset', items: [], offset: 0, limit: 10, hasMore: false },
-			hostile,
-		])).toThrow('string or URL');
+		const hostile = {
+			toString() {
+				coerces += 1;
+				return '/items';
+			},
+		};
+		expect(() =>
+			Reflect.apply(response.pageLinks, undefined, [
+				{ kind: 'offset', items: [], offset: 0, limit: 10, hasMore: false },
+				hostile,
+			])
+		).toThrow('string or URL');
 		expect(coerces).toBe(0);
 	});
 
 	it('parses open, suffix, bounded, and unsatisfiable byte ranges', () => {
 		expect(response.byteRange('bytes=10-19', 100)).toEqual({
-			kind: 'satisfiable', start: 10, end: 19, length: 10, contentRange: 'bytes 10-19/100',
+			kind: 'satisfiable',
+			start: 10,
+			end: 19,
+			length: 10,
+			contentRange: 'bytes 10-19/100',
 		});
 		expect(response.byteRange('bytes=90-', 100)).toMatchObject({ kind: 'satisfiable', start: 90, end: 99 });
 		expect(response.byteRange('bytes=-5', 100)).toMatchObject({ kind: 'satisfiable', start: 95, end: 99 });
@@ -357,7 +437,9 @@ describe('response transport helpers', () => {
 
 	it('observes complete body delivery and byte count', async () => {
 		let observed: response.ResponseCompletion | undefined;
-		const wrapped = response.onComplete(new Response('example'), (value) => { observed = value; });
+		const wrapped = response.onComplete(new Response('example'), (value) => {
+			observed = value;
+		});
 		expect(await wrapped.text()).toBe('example');
 		await Promise.resolve();
 		expect(observed).toEqual({ outcome: 'completed', bytes: 7 });
@@ -382,8 +464,15 @@ describe('response transport helpers', () => {
 	it('observes cancellation exactly once', async () => {
 		let calls = 0;
 		let observed: response.ResponseCompletion | undefined;
-		const source = new ReadableStream<Uint8Array>({ pull(controller) { controller.enqueue(new Uint8Array([1])); } });
-		const wrapped = response.onComplete(new Response(source), (value) => { calls += 1; observed = value; });
+		const source = new ReadableStream<Uint8Array>({
+			pull(controller) {
+				controller.enqueue(new Uint8Array([1]));
+			},
+		});
+		const wrapped = response.onComplete(new Response(source), (value) => {
+			calls += 1;
+			observed = value;
+		});
 		const reader = wrapped.body!.getReader();
 		await reader.read();
 		await reader.cancel('stop');
@@ -393,13 +482,16 @@ describe('response transport helpers', () => {
 	});
 });
 
-
 describe('response body disposal', () => {
 	it('cancels an unread body with the caller reason', async () => {
 		let cancelled: unknown;
-		const value = new Response(new ReadableStream({
-			cancel(reason) { cancelled = reason; },
-		}));
+		const value = new Response(
+			new ReadableStream({
+				cancel(reason) {
+					cancelled = reason;
+				},
+			}),
+		);
 		const reason = new Error('not needed');
 
 		await response.discard(value, reason);
@@ -408,18 +500,26 @@ describe('response body disposal', () => {
 	});
 
 	it('keeps discard cleanup failure secondary to the caller result', async () => {
-		const value = new Response(new ReadableStream({
-			cancel() { throw new Error('cleanup failed'); },
-		}));
+		const value = new Response(
+			new ReadableStream({
+				cancel() {
+					throw new Error('cleanup failed');
+				},
+			}),
+		);
 
 		await expect(response.discard(value)).resolves.toBeUndefined();
 	});
 
 	it('does not steal a body from an active reader', async () => {
 		let cancelled = false;
-		const value = new Response(new ReadableStream({
-			cancel() { cancelled = true; },
-		}));
+		const value = new Response(
+			new ReadableStream({
+				cancel() {
+					cancelled = true;
+				},
+			}),
+		);
 		const reader = value.body!.getReader();
 		try {
 			await response.discard(value);

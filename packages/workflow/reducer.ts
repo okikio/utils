@@ -27,7 +27,9 @@ export class Reducer {
 	#draining = false;
 
 	constructor(stepBudget = 256) {
-		if (!Number.isSafeInteger(stepBudget) || stepBudget < 1) throw new TypeError('Reducer stepBudget must be a positive safe integer.');
+		if (!Number.isSafeInteger(stepBudget) || stepBudget < 1) {
+			throw new TypeError('Reducer stepBudget must be a positive safe integer.');
+		}
 		this.stepBudget = stepBudget;
 	}
 

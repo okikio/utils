@@ -8,38 +8,65 @@ describe('@okikio/sitemap', () => {
 		expect(parse({
 			url: 'https://example.com/sitemap.xml',
 			contentType: 'application/xml',
-			text: `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml"><url><loc>https://example.com/en</loc><lastmod>2026-08-12</lastmod><changefreq>weekly</changefreq><priority>0.8</priority><xhtml:link rel="alternate" hreflang="fr" href="https://example.com/fr"/></url></urlset>`,
+			text:
+				`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml"><url><loc>https://example.com/en</loc><lastmod>2026-08-12</lastmod><changefreq>weekly</changefreq><priority>0.8</priority><xhtml:link rel="alternate" hreflang="fr" href="https://example.com/fr"/></url></urlset>`,
 		})).toEqual([{
-			kind: 'url', loc: 'https://example.com/en', format: 'xml', lastModified: '2026-08-12',
-			changeFrequency: 'weekly', priority: 0.8, alternates: [{ href: 'https://example.com/fr', hreflang: 'fr' }],
+			kind: 'url',
+			loc: 'https://example.com/en',
+			format: 'xml',
+			lastModified: '2026-08-12',
+			changeFrequency: 'weekly',
+			priority: 0.8,
+			alternates: [{ href: 'https://example.com/fr', hreflang: 'fr' }],
 		}]);
 	});
 
 	it('only sitemap-index positions create child sitemap records', () => {
-		expect(parse({ url: 'https://example.com/index.xml', text: '<sitemapindex><sitemap><loc>https://example.com/a.xml</loc></sitemap></sitemapindex>' })[0]?.kind).toBe('sitemap');
-		expect(parse({ url: 'https://example.com/routes.xml', text: '<urlset><url><loc>https://example.com/a.xml</loc></url></urlset>' })[0]?.kind).toBe('url');
+		expect(
+			parse({
+				url: 'https://example.com/index.xml',
+				text: '<sitemapindex><sitemap><loc>https://example.com/a.xml</loc></sitemap></sitemapindex>',
+			})[0]?.kind,
+		).toBe('sitemap');
+		expect(
+			parse({
+				url: 'https://example.com/routes.xml',
+				text: '<urlset><url><loc>https://example.com/a.xml</loc></url></urlset>',
+			})[0]?.kind,
+		).toBe('url');
 	});
 
 	it('excludes image/video extension locations from page routes', () => {
 		expect(locations({
 			url: 'https://example.com/routes.xml',
-			text: '<urlset xmlns:image="urn:image"><url><loc>https://example.com/page</loc><image:image><image:loc>https://example.com/image.jpg</image:loc></image:image></url></urlset>',
+			text:
+				'<urlset xmlns:image="urn:image"><url><loc>https://example.com/page</loc><image:image><image:loc>https://example.com/image.jpg</image:loc></image:image></url></urlset>',
 		})).toEqual(['https://example.com/page']);
 	});
 
 	it('streams large sources one record at a time', async () => {
-		const text = `<urlset>${Array.from({ length: 1000 }, (_, index) => `<url><loc>https://example.com/${index}</loc></url>`).join('')}</urlset>`;
+		const text = `<urlset>${
+			Array.from({ length: 1000 }, (_, index) => `<url><loc>https://example.com/${index}</loc></url>`).join('')
+		}</urlset>`;
 		const bytes = new TextEncoder().encode(text);
 		const records: string[] = [];
 		const result = await parseStream({
-			stream: new ReadableStream({ start(controller) { for (let offset = 0; offset < bytes.length; offset += 127) controller.enqueue(bytes.slice(offset, offset + 127)); controller.close(); } }),
+			stream: new ReadableStream({
+				start(controller) {
+					for (let offset = 0; offset < bytes.length; offset += 127) {
+						controller.enqueue(bytes.slice(offset, offset + 127));
+					}
+					controller.close();
+				},
+			}),
 			url: 'https://example.com/routes.xml',
-			onRecord: (record: SitemapRecord) => { records.push(record.loc); },
+			onRecord: (record: SitemapRecord) => {
+				records.push(record.loc);
+			},
 		});
 		expect(result.capped).toBe(false);
 		expect(records).toHaveLength(1000);
 	});
-
 
 	it('streams the protocol maximum entry count without retaining an entry inventory', async () => {
 		const encoder = new TextEncoder();
@@ -65,12 +92,13 @@ describe('@okikio/sitemap', () => {
 		const result = await parseStream({
 			stream,
 			url: 'https://example.com/sitemap.xml',
-			onRecord: () => { seen += 1; },
+			onRecord: () => {
+				seen += 1;
+			},
 		});
 		expect(result.capped).toBe(false);
 		expect(seen).toBe(total);
 	});
-
 
 	it('does not skip source chunks after the format prefix is consumed', async () => {
 		const chunks = [
@@ -91,7 +119,9 @@ describe('@okikio/sitemap', () => {
 			}),
 			url: 'https://example.com/sitemap.xml',
 			policy: 'standards',
-			onRecord: (record: SitemapRecord) => { records.push(record); },
+			onRecord: (record: SitemapRecord) => {
+				records.push(record);
+			},
 		});
 		expect(records.map((record) => record.loc)).toEqual([
 			'https://example.com/one',
@@ -109,7 +139,9 @@ describe('@okikio/sitemap', () => {
 			stream,
 			url: 'https://example.com/sitemap.xml',
 			policy: 'standards',
-			onRecord: () => { throw error; },
+			onRecord: () => {
+				throw error;
+			},
 		})).rejects.toBe(error);
 	});
 
@@ -142,7 +174,9 @@ describe('@okikio/sitemap', () => {
 		await parseStream({
 			stream: new Blob([feed]).stream(),
 			url: 'https://example.com/feed.atom',
-			onRecord: (record: SitemapRecord) => { records.push(record); },
+			onRecord: (record: SitemapRecord) => {
+				records.push(record);
+			},
 		});
 		expect(records.map((record) => record.loc)).toEqual(['https://example.com/article']);
 	});
@@ -150,10 +184,13 @@ describe('@okikio/sitemap', () => {
 	it('reports a standards-mode Sitemap namespace mismatch explicitly', async () => {
 		const records: SitemapRecord[] = [];
 		const result = await parseStream({
-			stream: new Blob(['<urlset xmlns="urn:not-sitemaps"><url><loc>https://example.com/ignored</loc></url></urlset>']).stream(),
+			stream: new Blob(['<urlset xmlns="urn:not-sitemaps"><url><loc>https://example.com/ignored</loc></url></urlset>'])
+				.stream(),
 			url: 'https://example.com/sitemap.xml',
 			policy: 'standards',
-			onRecord: (record: SitemapRecord) => { records.push(record); },
+			onRecord: (record: SitemapRecord) => {
+				records.push(record);
+			},
 		});
 		expect(records).toEqual([]);
 		expect(result.problems).toEqual([{
@@ -163,10 +200,22 @@ describe('@okikio/sitemap', () => {
 	});
 
 	it('rejects DOCTYPE input as a problem and does not emit attacker-defined entity URLs', async () => {
-		const text = '<!DOCTYPE urlset [<!ENTITY xxe "https://attacker.example/">]><urlset><url><loc>&xxe;</loc></url></urlset>';
+		const text =
+			'<!DOCTYPE urlset [<!ENTITY xxe "https://attacker.example/">]><urlset><url><loc>&xxe;</loc></url></urlset>';
 		const bytes = new TextEncoder().encode(text);
 		const records: string[] = [];
-		const result = await parseStream({ stream: new ReadableStream({ start(controller) { controller.enqueue(bytes); controller.close(); } }), url: 'https://example.com/sitemap.xml', onRecord: (record) => { records.push(record.loc); } });
+		const result = await parseStream({
+			stream: new ReadableStream({
+				start(controller) {
+					controller.enqueue(bytes);
+					controller.close();
+				},
+			}),
+			url: 'https://example.com/sitemap.xml',
+			onRecord: (record) => {
+				records.push(record.loc);
+			},
+		});
 		expect(records).toEqual([]);
 		expect(result.problems.some((problem) => problem.code === 'doctype_not_allowed')).toBe(true);
 	});
@@ -179,7 +228,9 @@ describe('streaming sitemap conformance regressions', () => {
 		await parseStream({
 			stream: new Blob([bytes]).stream(),
 			url: 'https://example.com/sitemap.txt',
-			onRecord: (record: SitemapRecord) => { records.push(record); },
+			onRecord: (record: SitemapRecord) => {
+				records.push(record);
+			},
 		});
 		expect(records.map((record) => record.loc)).toEqual([
 			'https://example.com/one',
@@ -187,10 +238,9 @@ describe('streaming sitemap conformance regressions', () => {
 		]);
 	});
 
-
-
 	it('streams an ordinary default namespace correctly when every UTF-8 byte is split', async () => {
-		const text = '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.com/café</loc></url></urlset>';
+		const text =
+			'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.com/café</loc></url></urlset>';
 		const bytes = new TextEncoder().encode(text);
 		const records: SitemapRecord[] = [];
 		const result = await parseStream({
@@ -202,12 +252,13 @@ describe('streaming sitemap conformance regressions', () => {
 			}),
 			url: 'https://example.com/sitemap.xml',
 			policy: 'standards',
-			onRecord: (record: SitemapRecord) => { records.push(record); },
+			onRecord: (record: SitemapRecord) => {
+				records.push(record);
+			},
 		});
 		expect(result.problems).toEqual([]);
 		expect(records.map((record) => record.loc)).toEqual(['https://example.com/café']);
 	});
-
 
 	it('applies @std/xml depth and attribute limits to hostile XML', async () => {
 		const deep = `${'<x>'.repeat(260)}${'</x>'.repeat(260)}`;
@@ -228,26 +279,32 @@ describe('streaming sitemap conformance regressions', () => {
 	});
 
 	it('selects XML 1.1 parsing from the document declaration before streaming', async () => {
-		const text = '<?xml version="1.1"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><note>&#x1;</note><url><loc>https://example.com/xml11</loc></url></urlset>';
+		const text =
+			'<?xml version="1.1"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><note>&#x1;</note><url><loc>https://example.com/xml11</loc></url></urlset>';
 		const records: SitemapRecord[] = [];
 		const result = await parseStream({
 			stream: new Blob([text]).stream(),
 			url: 'https://example.com/sitemap.xml',
 			policy: 'standards',
-			onRecord: (record: SitemapRecord) => { records.push(record); },
+			onRecord: (record: SitemapRecord) => {
+				records.push(record);
+			},
 		});
 		expect(result.problems).toEqual([]);
 		expect(records.map((record) => record.loc)).toEqual(['https://example.com/xml11']);
 	});
 
 	it('reports a byte cap without converting the deliberate truncation into malformed XML', async () => {
-		const text = '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.com/one</loc></url><url><loc>https://example.com/two</loc></url></urlset>';
+		const text =
+			'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.com/one</loc></url><url><loc>https://example.com/two</loc></url></urlset>';
 		const records: SitemapRecord[] = [];
 		const result = await parseStream({
 			stream: new Blob([text]).stream(),
 			url: 'https://example.com/sitemap.xml',
 			maxBytes: 115,
-			onRecord: (record: SitemapRecord) => { records.push(record); },
+			onRecord: (record: SitemapRecord) => {
+				records.push(record);
+			},
 		});
 		expect(result.capped).toBe(true);
 		expect(result.problems).toEqual([]);

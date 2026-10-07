@@ -44,10 +44,12 @@ export function cancelled(value: unknown): boolean {
 }
 
 /** Clock backed by the runtime's native Temporal implementation and timer queue. */
-export const SystemClock = Object.freeze({
-	now: () => Temporal.Now.instant(),
-	sleep: (milliseconds, signal) => delay(milliseconds, signal),
-} satisfies Clock);
+export const SystemClock = Object.freeze(
+	{
+		now: () => Temporal.Now.instant(),
+		sleep: (milliseconds, signal) => delay(milliseconds, signal),
+	} satisfies Clock,
+);
 
 type TestClockWaiter = Readonly<{
 	target: Temporal.Instant;
@@ -134,7 +136,9 @@ export function create(options: CreateOptions): Owned {
 		if (milliseconds <= 0) controller.abort(new ContextDeadlineExceededError(options.deadline, clock.now()));
 		else {
 			void clock.sleep(milliseconds, controller.signal).then(() => {
-				if (!controller.signal.aborted) controller.abort(new ContextDeadlineExceededError(options.deadline!, clock.now()));
+				if (!controller.signal.aborted) {
+					controller.abort(new ContextDeadlineExceededError(options.deadline!, clock.now()));
+				}
 			}, () => {});
 		}
 	}
@@ -147,29 +151,31 @@ export function create(options: CreateOptions): Owned {
 		return disposal;
 	};
 
-	const owned = Object.freeze({
-		id: options.id,
-		...(options.traceId !== undefined ? { traceId: options.traceId } : {}),
-		...(options.deploymentId !== undefined ? { deploymentId: options.deploymentId } : {}),
-		...(options.idempotencyKey !== undefined ? { idempotencyKey: options.idempotencyKey } : {}),
-		startedAt,
-		...(options.deadline !== undefined ? { deadline: options.deadline } : {}),
-		signal: controller.signal,
-		clock,
-		closed,
-		use<Value extends Disposable | AsyncDisposable | null | undefined>(value: Value): Value {
-			return resources.use(value);
-		},
-		adopt<Value>(value: Value, disposer: (value: Value) => void | PromiseLike<void>): Value {
-			return resources.adopt(value, disposer);
-		},
-		defer(disposer: () => void | PromiseLike<void>): void {
-			resources.defer(disposer);
-		},
-		[Symbol.asyncDispose]() {
-			return dispose();
-		},
-	} satisfies Owned);
+	const owned = Object.freeze(
+		{
+			id: options.id,
+			...(options.traceId !== undefined ? { traceId: options.traceId } : {}),
+			...(options.deploymentId !== undefined ? { deploymentId: options.deploymentId } : {}),
+			...(options.idempotencyKey !== undefined ? { idempotencyKey: options.idempotencyKey } : {}),
+			startedAt,
+			...(options.deadline !== undefined ? { deadline: options.deadline } : {}),
+			signal: controller.signal,
+			clock,
+			closed,
+			use<Value extends Disposable | AsyncDisposable | null | undefined>(value: Value): Value {
+				return resources.use(value);
+			},
+			adopt<Value>(value: Value, disposer: (value: Value) => void | PromiseLike<void>): Value {
+				return resources.adopt(value, disposer);
+			},
+			defer(disposer: () => void | PromiseLike<void>): void {
+				resources.defer(disposer);
+			},
+			[Symbol.asyncDispose]() {
+				return dispose();
+			},
+		} satisfies Owned,
+	);
 	owners.set(owned, Object.freeze({ controller, dispose }));
 	return owned;
 }
@@ -180,8 +186,12 @@ export function child(parent: Context, options: ChildOptions = {}): Owned {
 	return create({
 		id: options.id ?? parent.id,
 		...(options.traceId ?? parent.traceId ? { traceId: options.traceId ?? parent.traceId } : {}),
-		...(options.deploymentId ?? parent.deploymentId ? { deploymentId: options.deploymentId ?? parent.deploymentId } : {}),
-		...(options.idempotencyKey ?? parent.idempotencyKey ? { idempotencyKey: options.idempotencyKey ?? parent.idempotencyKey } : {}),
+		...(options.deploymentId ?? parent.deploymentId
+			? { deploymentId: options.deploymentId ?? parent.deploymentId }
+			: {}),
+		...(options.idempotencyKey ?? parent.idempotencyKey
+			? { idempotencyKey: options.idempotencyKey ?? parent.idempotencyKey }
+			: {}),
 		startedAt: parent.startedAt,
 		...(resolvedDeadline ? { deadline: resolvedDeadline } : {}),
 		signal: options.signal === undefined ? parent.signal : combineSignals([parent.signal, options.signal]),
@@ -205,7 +215,7 @@ export function timeout(parent: Context, duration: Temporal.DurationLike | strin
  *
  * The view retains the source context's cancellation and ownership identity. It is
  * useful when a focused utility adds one execution capability, such as permissions
-	 * or declared effects, while another utility adds a different typed view to the
+ * or declared effects, while another utility adds a different typed view to the
  * same operation. Views can be nested safely.
  *
  * Stable Context properties cannot be replaced at compile time, and no property
@@ -395,7 +405,6 @@ export function restore(value: Snapshot, options: RestoreOptions = {}): Owned {
 	});
 }
 
-
 /** Resolve the owner behind zero or more runtime-local context views. */
 function findOwner(
 	value: Context,
@@ -444,7 +453,10 @@ function linkSignal(parent: AbortSignal | undefined, childController: AbortContr
  *
  * @internal
  */
-function earlier(left: Temporal.Instant | undefined, right: Temporal.Instant | undefined): Temporal.Instant | undefined {
+function earlier(
+	left: Temporal.Instant | undefined,
+	right: Temporal.Instant | undefined,
+): Temporal.Instant | undefined {
 	if (left === undefined) return right;
 	if (right === undefined) return left;
 	return Temporal.Instant.compare(right, left) < 0 ? right : left;
@@ -487,4 +499,13 @@ function assertIdentifier(value: string, name: string): void {
 	if (value.length > 512) throw new TypeError(`${name} must not exceed 512 characters.`);
 }
 
-export type { Clock, Snapshot, Context, Resources, Owned, CreateOptions, ChildOptions, RestoreOptions } from './types.ts';
+export type {
+	ChildOptions,
+	Clock,
+	Context,
+	CreateOptions,
+	Owned,
+	Resources,
+	RestoreOptions,
+	Snapshot,
+} from './types.ts';

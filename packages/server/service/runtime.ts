@@ -27,24 +27,26 @@ import type {
 	CompiledService,
 	CreateServiceOptions,
 	EffectiveServiceOperation,
-	ServiceRuntimeAdapters,
 	ServiceContextStore,
-	ServiceRequestState,
-	ServiceRequestStatePatch,
+	ServiceExecutionContext,
 	ServiceInputValues,
-	ServiceRuntime,
-	ServiceRuntimeRoute,
-	ServiceStageResult,
-	ServiceRequestValues,
 	ServiceObserverDefinition,
 	ServiceObserverEvent,
 	ServiceObserverEventKind,
 	ServiceObserverHandler,
-	ServiceExecutionContext,
+	ServiceRequestState,
+	ServiceRequestStatePatch,
+	ServiceRequestValues,
+	ServiceRuntime,
+	ServiceRuntimeAdapters,
+	ServiceRuntimeRoute,
+	ServiceStageResult,
 } from './types.ts';
 
 /** Framework-owned problems that a service runtime may produce independently of endpoint declarations. */
-const FrameworkProblemDefinitions = Object.freeze(Object.values(ServerProblems) satisfies readonly problem.ProblemDefinition[]);
+const FrameworkProblemDefinitions = Object.freeze(
+	Object.values(ServerProblems) satisfies readonly problem.ProblemDefinition[],
+);
 
 /** Error raised when a compiled service is missing a required runtime adapter. */
 export class ServiceRuntimeConfigurationError extends Error {
@@ -78,19 +80,32 @@ export function create<Host extends object, Values extends ServiceRequestValues 
 		compiled.implementation.middleware.map((handler) => [handler.definition, handler] as const),
 	);
 	let disposed = false;
-	const routes = Object.freeze(compiled.operations.map((operation) => Object.freeze({
-		method: operation.method.toUpperCase(),
-		path: operation.path,
-		handler(request: Request) {
-			if (disposed) return new Response('Service runtime is disposed.', { status: 503 });
-			return runOperation(operation, request, resources, serviceContext, middlewareByDefinition, observers, options);
-		},
-	})).sort(compareServiceRoutes));
+	const routes = Object.freeze(
+		compiled.operations.map((operation) =>
+			Object.freeze({
+				method: operation.method.toUpperCase(),
+				path: operation.path,
+				handler(request: Request) {
+					if (disposed) return new Response('Service runtime is disposed.', { status: 503 });
+					return runOperation(
+						operation,
+						request,
+						resources,
+						serviceContext,
+						middlewareByDefinition,
+						observers,
+						options,
+					);
+				},
+			})
+		).sort(compareServiceRoutes),
+	);
 	const app = http.create({
 		routes: routes.map((route) => http.route(route.method, route.path, route.handler)),
-		notFound: (request) => http.problemResponse(problem.create(ServerProblems.NotFound, {
-			instance: new URL(request.url).pathname,
-		})),
+		notFound: (request) =>
+			http.problemResponse(problem.create(ServerProblems.NotFound, {
+				instance: new URL(request.url).pathname,
+			})),
 	});
 
 	return Object.freeze({
@@ -171,13 +186,17 @@ async function runOperation<Host extends object, Values extends ServiceRequestVa
 			? error
 			: new ServiceRequestSetupError(normalizeError(error));
 		const cause = setupError.cause instanceof Error ? setupError.cause : setupError;
-		await emitObservers(operation.service.observers, observers, serviceEvent(
-			'failed',
-			operation,
-			request,
-			setupError.correlation,
-			{ error: cause },
-		));
+		await emitObservers(
+			operation.service.observers,
+			observers,
+			serviceEvent(
+				'failed',
+				operation,
+				request,
+				setupError.correlation,
+				{ error: cause },
+			),
+		);
 		const result = http.problemResponse(problem.create(ServerProblems.Internal, {
 			instance: new URL(request.url).pathname,
 			cause,
@@ -204,37 +223,51 @@ async function runOperation<Host extends object, Values extends ServiceRequestVa
 		if (disposed) return;
 		disposed = true;
 		await requestContext[Symbol.asyncDispose]();
-		try { await requestWire.disposeMemo(activeRequest); } catch { /* cleanup remains best effort */ }
+		try {
+			await requestWire.disposeMemo(activeRequest);
+		} catch { /* cleanup remains best effort */ }
 		if (activeRequest !== request) {
-			try { await requestWire.disposeMemo(request); } catch { /* cleanup remains best effort */ }
+			try {
+				await requestWire.disposeMemo(request);
+			} catch { /* cleanup remains best effort */ }
 		}
 	};
 	const finish = async (httpResponse: Response): Promise<Response> => {
 		const completedResponse = http.withHeaders(httpResponse, { 'X-Request-ID': requestId });
-		await emitObservers(operation.service.observers, observers, serviceEvent(
-			'response',
-			operation,
-			activeRequest,
-			prepared,
-			{ status: completedResponse.status },
-		));
+		await emitObservers(
+			operation.service.observers,
+			observers,
+			serviceEvent(
+				'response',
+				operation,
+				activeRequest,
+				prepared,
+				{ status: completedResponse.status },
+			),
+		);
 		return response.onComplete(completedResponse, async (completion) => {
 			await disposeRequest();
 			const kind: ServiceObserverEventKind = completion.outcome === 'completed'
 				? 'completed'
-				: completion.outcome === 'cancelled' ? 'aborted' : 'failed';
-			await emitObservers(operation.service.observers, observers, serviceEvent(
-				kind,
-				operation,
-				activeRequest,
-				prepared,
-				{
-					status: completedResponse.status,
-					responseBytes: completion.bytes,
-					completion: Object.freeze({ outcome: completion.outcome, bytes: completion.bytes }),
-					...(completion.reason === undefined ? {} : { error: completion.reason }),
-				},
-			));
+				: completion.outcome === 'cancelled'
+				? 'aborted'
+				: 'failed';
+			await emitObservers(
+				operation.service.observers,
+				observers,
+				serviceEvent(
+					kind,
+					operation,
+					activeRequest,
+					prepared,
+					{
+						status: completedResponse.status,
+						responseBytes: completion.bytes,
+						completion: Object.freeze({ outcome: completion.outcome, bytes: completion.bytes }),
+						...(completion.reason === undefined ? {} : { error: completion.reason }),
+					},
+				),
+			);
 		});
 	};
 
@@ -243,16 +276,26 @@ async function runOperation<Host extends object, Values extends ServiceRequestVa
 		if (bodyLimit !== undefined && request.body !== null) {
 			const bounded = await boundedRequest(request, bodyLimit);
 			if (bounded === bodyTooLarge) {
-				return await finish(await toResponse(problem.create(ServerProblems.BodyTooLarge, {
-					detail: `The request body exceeds ${bodyLimit} bytes.`,
-					instance: new URL(request.url).pathname,
-				}), activeRequest));
+				return await finish(
+					await toResponse(
+						problem.create(ServerProblems.BodyTooLarge, {
+							detail: `The request body exceeds ${bodyLimit} bytes.`,
+							instance: new URL(request.url).pathname,
+						}),
+						activeRequest,
+					),
+				);
 			}
 			if (bounded === invalidBody) {
-				return await finish(await toResponse(problem.create(ServerProblems.InvalidRequest, {
-					detail: 'The Content-Length header is invalid.',
-					instance: new URL(request.url).pathname,
-				}), activeRequest));
+				return await finish(
+					await toResponse(
+						problem.create(ServerProblems.InvalidRequest, {
+							detail: 'The Content-Length header is invalid.',
+							instance: new URL(request.url).pathname,
+						}),
+						activeRequest,
+					),
+				);
 			}
 			activeRequest = bounded;
 			mutableState = { ...mutableState, request: activeRequest };
@@ -262,44 +305,63 @@ async function runOperation<Host extends object, Values extends ServiceRequestVa
 			operation.middleware.wholeRequest,
 			mutableState,
 			middlewareByDefinition,
-			async () => await runMiddleware(
-				operation.middleware.beforeValidation,
-				mutableState,
-				middlewareByDefinition,
-				async () => await authenticateAndValidate(),
-			),
+			async () =>
+				await runMiddleware(
+					operation.middleware.beforeValidation,
+					mutableState,
+					middlewareByDefinition,
+					async () => await authenticateAndValidate(),
+				),
 		);
 		const result = await raceWithSignal(pipeline, requestContext.signal);
 		return await finish(await finalizeResult(operation, result, activeRequest));
 	} catch (error) {
 		if (request.signal.aborted) {
-			await emitObservers(operation.service.observers, observers, serviceEvent(
-				'aborted',
-				operation,
-				activeRequest,
-				prepared,
-				{ error: request.signal.reason ?? error },
-			));
+			await emitObservers(
+				operation.service.observers,
+				observers,
+				serviceEvent(
+					'aborted',
+					operation,
+					activeRequest,
+					prepared,
+					{ error: request.signal.reason ?? error },
+				),
+			);
 			await disposeRequest();
 			throw request.signal.reason ?? new DOMException('Request aborted.', 'AbortError');
 		}
-		await emitObservers(operation.service.observers, observers, serviceEvent(
-			'failed',
-			operation,
-			activeRequest,
-			prepared,
-			{ error },
-		));
+		await emitObservers(
+			operation.service.observers,
+			observers,
+			serviceEvent(
+				'failed',
+				operation,
+				activeRequest,
+				prepared,
+				{ error },
+			),
+		);
 		if (error instanceof context.ContextDeadlineExceededError) {
-			return await finish(await toResponse(problem.create(ServerProblems.DeadlineExceeded, {
-				instance: new URL(request.url).pathname,
-				cause: error,
-			}), activeRequest));
+			return await finish(
+				await toResponse(
+					problem.create(ServerProblems.DeadlineExceeded, {
+						instance: new URL(request.url).pathname,
+						cause: error,
+					}),
+					activeRequest,
+				),
+			);
 		}
-		return await finish(await toResponse(problem.create(ServerProblems.Internal, {
-			instance: new URL(request.url).pathname,
-			cause: error,
-		}), activeRequest));
+		return await finish(
+			await toResponse(
+				problem.create(ServerProblems.Internal, {
+					instance: new URL(request.url).pathname,
+					cause: error,
+				}),
+				activeRequest,
+			),
+		);
 	}
 
 	/**
@@ -340,32 +402,39 @@ async function runOperation<Host extends object, Values extends ServiceRequestVa
 					let executionContext = mutableState.ctx;
 					// Expose validated request state as one service-specific view. Permission
 					// providers can inspect it without making @okikio/permission depend on HTTP.
-					executionContext = context.view(executionContext, { service: freezeState(mutableState) }) as typeof executionContext;
+					executionContext = context.view(executionContext, {
+						service: freezeState(mutableState),
+					}) as typeof executionContext;
 					executionContext = requirements.bind(executionContext, operation.reachableRequirements);
-					executionContext = options.requirementContext?.(executionContext, freezeState(mutableState), operation.reachableRequirements) ?? executionContext;
+					executionContext = options.requirementContext?.(
+						executionContext,
+						freezeState(mutableState),
+						operation.reachableRequirements,
+					) ?? executionContext;
 					await requirements.apply(executionContext, operation.requirements);
 					mutableState = { ...mutableState, ctx: executionContext };
 
-					const runAttempt = async (): Promise<ServiceStageResult> => await runMiddleware(
-						operation.middleware.aroundOperation,
-						mutableState,
-						middlewareByDefinition,
-						async () => await operation.handler.handle({
-							request: activeRequest,
-							host: options.host,
-							input: mutableState.input,
-							resources: createResourceResolver(resources, new Set(operation.resources), executionContext),
-							ctx: executionContext,
-							...mutableState.requestValues,
-						}),
-					);
+					const runAttempt = async (): Promise<ServiceStageResult> =>
+						await runMiddleware(
+							operation.middleware.aroundOperation,
+							mutableState,
+							middlewareByDefinition,
+							async () =>
+								await operation.handler.handle({
+									request: activeRequest,
+									host: options.host,
+									input: mutableState.input,
+									resources: createResourceResolver(resources, new Set(operation.resources), executionContext),
+									ctx: executionContext,
+									...mutableState.requestValues,
+								}),
+						);
 					return await runResilienceStage(operation, 'operation', mutableState, options, runAttempt);
 				};
 
 				return await runResilienceStage(operation, 'admission', mutableState, options, enterOperation);
 			},
 		);
-
 	}
 }
 
@@ -387,8 +456,6 @@ async function runResilienceStage<Host extends object, Values extends ServiceReq
 	if (policies.length === 0) return await next();
 	return await options.adapters!.resilience!.run(policies, freezeState(state), next);
 }
-
-
 
 /**
  * Races request work with cancellation without detaching the losing operation from service-owned cleanup.
@@ -443,7 +510,8 @@ class ServiceRequestSetupError extends Error {
 
 	constructor(
 		cause: Error,
-		correlation: Readonly<{ readonly requestId?: string; readonly traceId?: string; readonly spanId?: string }> = Object.freeze({}),
+		correlation: Readonly<{ readonly requestId?: string; readonly traceId?: string; readonly spanId?: string }> = Object
+			.freeze({}),
 	) {
 		super('Service request setup failed.', { cause });
 		this.name = 'ServiceRequestSetupError';
@@ -498,9 +566,13 @@ async function prepareRequest<Host extends object, Values extends ServiceRequest
 		return Object.freeze({ requestId, traceId, spanId, requestContext, requestRequirements, values });
 	} catch (error) {
 		if (requestContext !== undefined) {
-			try { await requestContext[Symbol.asyncDispose](); } catch { /* preserve the setup failure */ }
+			try {
+				await requestContext[Symbol.asyncDispose]();
+			} catch { /* preserve the setup failure */ }
 		}
-		try { await requestWire.disposeMemo(request); } catch { /* cleanup remains best effort */ }
+		try {
+			await requestWire.disposeMemo(request);
+		} catch { /* cleanup remains best effort */ }
 		throw new ServiceRequestSetupError(normalizeError(error), { requestId, traceId, spanId });
 	}
 }
@@ -559,7 +631,9 @@ function serviceEvent(
 	kind: ServiceObserverEventKind,
 	operation: EffectiveServiceOperation,
 	request: Request,
-	correlation: Readonly<{ readonly requestId?: string; readonly traceId?: string; readonly spanId?: string }> | undefined,
+	correlation:
+		| Readonly<{ readonly requestId?: string; readonly traceId?: string; readonly spanId?: string }>
+		| undefined,
 	details: Readonly<{
 		readonly status?: number;
 		readonly responseBytes?: number;
@@ -581,7 +655,9 @@ function serviceEvent(
 		...(details.status === undefined ? {} : { status: details.status }),
 		...(details.responseBytes === undefined ? {} : { responseBytes: details.responseBytes }),
 		...(details.completion === undefined ? {} : { completion: details.completion }),
-		...(normalized === undefined ? {} : { error: Object.freeze({ name: normalized.name, message: normalized.message }) }),
+		...(normalized === undefined
+			? {}
+			: { error: Object.freeze({ name: normalized.name, message: normalized.message }) }),
 	});
 }
 
@@ -623,7 +699,12 @@ async function runMiddleware<Host extends object, Values extends ServiceRequestV
  * @internal
  */
 async function runAdapter<Host extends object, Values extends ServiceRequestValues, Definition>(
-	runtime: ((definitions: readonly Definition[], state: ServiceRequestState<Host, Values>) => Promise<ServiceRequestStatePatch<Values> | problem.ProblemResult | void>) | undefined,
+	runtime:
+		| ((
+			definitions: readonly Definition[],
+			state: ServiceRequestState<Host, Values>,
+		) => Promise<ServiceRequestStatePatch<Values> | problem.ProblemResult | void>)
+		| undefined,
 	definitions: readonly Definition[],
 	state: MutableServiceRequestState<Host, Values>,
 	required = true,
@@ -701,13 +782,20 @@ async function rawInput(
 ): Promise<unknown> {
 	const url = new URL(request.url);
 	switch (source) {
-		case 'param': return requestWire.parseParameters(routePath, url.pathname, options);
-		case 'query': return requestWire.parseQuery(url.search, options);
-		case 'header': return requestWire.parseHeaders(request.headers, options);
-		case 'cookie': return requestWire.parseCookies(request.headers.get('cookie'), options);
-		case 'json': return await requestWire.parseJson(request.clone(), options);
-		case 'form': return await requestWire.parseForm(request.clone(), options);
-		case 'raw': return request;
+		case 'param':
+			return requestWire.parseParameters(routePath, url.pathname, options);
+		case 'query':
+			return requestWire.parseQuery(url.search, options);
+		case 'header':
+			return requestWire.parseHeaders(request.headers, options);
+		case 'cookie':
+			return requestWire.parseCookies(request.headers.get('cookie'), options);
+		case 'json':
+			return await requestWire.parseJson(request.clone(), options);
+		case 'form':
+			return await requestWire.parseForm(request.clone(), options);
+		case 'raw':
+			return request;
 	}
 }
 
@@ -725,46 +813,71 @@ async function finalizeResult(
 ): Promise<Response> {
 	if (result instanceof Response) {
 		if (operation.operation.rawResponse) return result;
-		return await toResponse(problem.create(ServerProblems.UndeclaredResult, {
-			instance: new URL(request.url).pathname,
-			cause: new TypeError('Raw Response values require rawResponse: true on the operation.'),
-		}), request);
+		return await toResponse(
+			problem.create(ServerProblems.UndeclaredResult, {
+				instance: new URL(request.url).pathname,
+				cause: new TypeError('Raw Response values require rawResponse: true on the operation.'),
+			}),
+			request,
+		);
 	}
 	if (response.is(result)) {
 		const definition = response.definitionOf(result);
 		if (!operation.responses.includes(definition)) {
-			return await toResponse(problem.create(ServerProblems.UndeclaredResult, {
-				instance: new URL(request.url).pathname,
-				cause: new TypeError(`Undeclared response ${definition.id}.`),
-			}), request);
+			return await toResponse(
+				problem.create(ServerProblems.UndeclaredResult, {
+					instance: new URL(request.url).pathname,
+					cause: new TypeError(`Undeclared response ${definition.id}.`),
+				}),
+				request,
+			);
 		}
 		const validationIssues = await validateResponseBody(definition, result[0]);
-		if (validationIssues.length > 0) return await toResponse(problem.create(ServerProblems.UndeclaredResult, {
-			instance: new URL(request.url).pathname,
-			cause: new TypeError(`Response ${definition.id} does not satisfy its schema: ${validationIssues.map((issue) => issue.message).join('; ')}`),
-		}), request);
+		if (validationIssues.length > 0) {
+			return await toResponse(
+				problem.create(ServerProblems.UndeclaredResult, {
+					instance: new URL(request.url).pathname,
+					cause: new TypeError(
+						`Response ${definition.id} does not satisfy its schema: ${
+							validationIssues.map((issue) => issue.message).join('; ')
+						}`,
+					),
+				}),
+				request,
+			);
+		}
 		const notModified = operation.responses.find((candidate) => candidate.status === 304 && candidate.mode === 'empty');
 		if (notModified !== undefined && response.isNotModified(request, result[2])) {
-			return await toResponse(response.create(notModified, undefined, {
-				headers: response.conditionalHeaders(result[2]),
-			}), request, operation);
+			return await toResponse(
+				response.create(notModified, undefined, {
+					headers: response.conditionalHeaders(result[2]),
+				}),
+				request,
+				operation,
+			);
 		}
 		return await toResponse(result, request, operation);
 	}
 	if (problem.is(result)) {
 		const definition = problem.definitionOf(result);
 		if (!operation.problems.includes(definition) && !FrameworkProblemDefinitions.includes(definition)) {
-			return await toResponse(problem.create(ServerProblems.UndeclaredResult, {
-				instance: new URL(request.url).pathname,
-				cause: new TypeError(`Undeclared problem ${definition.id}.`),
-			}), request);
+			return await toResponse(
+				problem.create(ServerProblems.UndeclaredResult, {
+					instance: new URL(request.url).pathname,
+					cause: new TypeError(`Undeclared problem ${definition.id}.`),
+				}),
+				request,
+			);
 		}
 		return await toResponse(result, request);
 	}
-	return await toResponse(problem.create(ServerProblems.UndeclaredResult, {
-		instance: new URL(request.url).pathname,
-		cause: new TypeError('Endpoint handler returned neither a declared tuple nor a Response.'),
-	}), request);
+	return await toResponse(
+		problem.create(ServerProblems.UndeclaredResult, {
+			instance: new URL(request.url).pathname,
+			cause: new TypeError('Endpoint handler returned neither a declared tuple nor a Response.'),
+		}),
+		request,
+	);
 }
 
 /**
@@ -794,24 +907,37 @@ async function toResponse(
 		headers = response.mergeHeaders(headers, { 'Content-Type': contentType });
 	}
 	if (negotiate && response.is(result) && contentType !== undefined && body !== null && body !== undefined) {
-		headers = response.mergeHeaders(headers, { Vary: response.mergeVary(response.headerValues(headers, 'Vary')[0], 'Accept') });
+		headers = response.mergeHeaders(headers, {
+			Vary: response.mergeVary(response.headerValues(headers, 'Vary')[0], 'Accept'),
+		});
 		try {
 			requestWire.negotiateContent(request.headers.get('accept'), [contentType.split(';', 1)[0]!]);
 		} catch (error) {
-			if (error instanceof requestWire.RequestTransportError && error.issues.some((issue) => issue.code === 'not-acceptable')) {
-				return await toResponse(problem.create(ServerProblems.NotAcceptable, {
-					detail: `This operation produces ${contentType.split(';', 1)[0]}.`,
-					instance: new URL(request.url).pathname,
-					extensions: { supported: [contentType.split(';', 1)[0]] },
-					headers: { Vary: 'Accept' },
-				}), request, undefined, false);
+			if (
+				error instanceof requestWire.RequestTransportError &&
+				error.issues.some((issue) => issue.code === 'not-acceptable')
+			) {
+				return await toResponse(
+					problem.create(ServerProblems.NotAcceptable, {
+						detail: `This operation produces ${contentType.split(';', 1)[0]}.`,
+						instance: new URL(request.url).pathname,
+						extensions: { supported: [contentType.split(';', 1)[0]] },
+						headers: { Vary: 'Accept' },
+					}),
+					request,
+					undefined,
+					false,
+				);
 			}
 			throw error;
 		}
 	}
 	let bodyInit: BodyInit | null;
 	if (body === null || body === undefined) bodyInit = null;
-	else if (typeof body === 'string' || body instanceof Blob || body instanceof ArrayBuffer || ArrayBuffer.isView(body) || body instanceof ReadableStream) {
+	else if (
+		typeof body === 'string' || body instanceof Blob || body instanceof ArrayBuffer || ArrayBuffer.isView(body) ||
+		body instanceof ReadableStream
+	) {
 		bodyInit = body as BodyInit;
 	} else {
 		bodyInit = JSON.stringify(body);
@@ -843,7 +969,10 @@ function responseContentType(
 	if (definition.mode === 'html') return 'text/html; charset=utf-8';
 	if (typeof body === 'string') return 'text/plain; charset=utf-8';
 	if (body instanceof Blob && body.type.length > 0) return body.type;
-	if (body instanceof ArrayBuffer || ArrayBuffer.isView(body) || body instanceof ReadableStream || definition.mode === 'stream' || definition.mode === 'download') {
+	if (
+		body instanceof ArrayBuffer || ArrayBuffer.isView(body) || body instanceof ReadableStream ||
+		definition.mode === 'stream' || definition.mode === 'download'
+	) {
 		return 'application/octet-stream';
 	}
 	return 'application/json; charset=utf-8';
@@ -906,7 +1035,9 @@ function streamFromAsync(iterable: AsyncIterable<string | Uint8Array>): Readable
 		 *
 		 * @internal
 		 */
-		async cancel(reason) { await iterator.return?.(reason); },
+		async cancel(reason) {
+			await iterator.return?.(reason);
+		},
 	});
 }
 
@@ -962,7 +1093,6 @@ function createContextStore(): ServiceContextStore {
 		},
 	});
 }
-
 
 /**
  * Requires concrete resource definition before the compiled service runtime continues.
@@ -1059,7 +1189,9 @@ function resourceClosure(input: MiddlewareDefinition['resources']): ResourceDefi
  *
  * @internal
  */
-function freezeState<Host extends object, Values extends ServiceRequestValues>(state: MutableServiceRequestState<Host, Values>): ServiceRequestState<Host, Values> {
+function freezeState<Host extends object, Values extends ServiceRequestValues>(
+	state: MutableServiceRequestState<Host, Values>,
+): ServiceRequestState<Host, Values> {
 	const { requestValues, resources, ...base } = state;
 	return Object.freeze({
 		...requestValues,
@@ -1099,32 +1231,50 @@ function validateRuntimeAdapters<Host extends object, Values extends ServiceRequ
 	adapters: ServiceRuntimeAdapters<Host, Values> | undefined,
 ): void {
 	const required = [
-		['authentication', compiled.operations.some((operation) => operation.authentication.length > 0), adapters?.authenticate],
+		[
+			'authentication',
+			compiled.operations.some((operation) => operation.authentication.length > 0),
+			adapters?.authenticate,
+		],
 	] as const;
 	for (const [name, needed, runtime] of required) {
-		if (needed && runtime === undefined) throw new ServiceRuntimeConfigurationError(`Service requires a ${name} runtime.`);
+		if (needed && runtime === undefined) {
+			throw new ServiceRuntimeConfigurationError(`Service requires a ${name} runtime.`);
+		}
 	}
 
-	const activeFamilies = [...new Set(compiled.operations.flatMap((operation) => operation.requirements.map((entry) => entry.family)))];
+	const activeFamilies = [
+		...new Set(compiled.operations.flatMap((operation) => operation.requirements.map((entry) => entry.family))),
+	];
 	const requirementRuntime = adapters?.requirements;
 	if (activeFamilies.length > 0 && requirementRuntime === undefined) {
-		throw new ServiceRuntimeConfigurationError(`Service requires requirement interpreters for: ${activeFamilies.join(', ')}.`);
+		throw new ServiceRuntimeConfigurationError(
+			`Service requires requirement interpreters for: ${activeFamilies.join(', ')}.`,
+		);
 	}
 	if (requirementRuntime?.unknown !== 'ignore') {
 		for (const family of activeFamilies) {
 			if (requirementRuntime?.interpreters[family] === undefined) {
-				throw new ServiceRuntimeConfigurationError(`Service has no interpreter for active requirement family ${JSON.stringify(family)}.`);
+				throw new ServiceRuntimeConfigurationError(
+					`Service has no interpreter for active requirement family ${JSON.stringify(family)}.`,
+				);
 			}
 		}
 	}
-	const adapterPolicies = [...new Set(compiled.operations.flatMap((operation) =>
-		operation.resiliency.filter((policy) => policy.type !== 'timeout' && policy.type !== 'body-limit')
-	))];
+	const adapterPolicies = [
+		...new Set(
+			compiled.operations.flatMap((operation) =>
+				operation.resiliency.filter((policy) => policy.type !== 'timeout' && policy.type !== 'body-limit')
+			),
+		),
+	];
 	if (adapterPolicies.length === 0) return;
 	const runtime = adapters?.resilience;
 	if (runtime === undefined) {
 		throw new ServiceRuntimeConfigurationError(
-			`Service requires a resilience adapter for: ${[...new Set(adapterPolicies.map((policy) => policy.type))].join(', ')}.`,
+			`Service requires a resilience adapter for: ${
+				[...new Set(adapterPolicies.map((policy) => policy.type))].join(', ')
+			}.`,
 		);
 	}
 	for (const policy of adapterPolicies) {
@@ -1180,7 +1330,9 @@ async function validateResponseBody(
 	definition: response.ResponseDefinition,
 	body: unknown,
 ): Promise<readonly StandardSchemaV1.Issue[]> {
-	if (definition.schema === undefined || definition.mode === 'empty' || definition.mode === 'redirect') return Object.freeze([]);
+	if (definition.schema === undefined || definition.mode === 'empty' || definition.mode === 'redirect') {
+		return Object.freeze([]);
+	}
 	if (definition.mode !== 'page') {
 		const result = await definition.schema['~standard'].validate(body);
 		return Object.freeze(result.issues ? [...result.issues] : []);
@@ -1192,15 +1344,15 @@ async function validateResponseBody(
 	const items = (body as { readonly items: readonly unknown[] }).items;
 	for (let index = 0; index < items.length; index += 1) {
 		const result = await definition.schema['~standard'].validate(items[index]);
-		for (const issue of result.issues ?? []) issues.push({
-			...issue,
-			path: ['items', index, ...(issue.path ?? [])],
-		});
+		for (const issue of result.issues ?? []) {
+			issues.push({
+				...issue,
+				path: ['items', index, ...(issue.path ?? [])],
+			});
+		}
 	}
 	return Object.freeze(issues);
 }
-
-
 
 /**
  * Creates the empty request-value patch used before an adapter contributes values.

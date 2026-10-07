@@ -31,10 +31,13 @@ describe('Standard Schema environment definitions', () => {
 			}),
 		});
 
-		const values = definition.parseSync(env.merge(env.record({
-			DATABASE_URL: 'postgres://localhost/example',
-			PORT: '8787',
-		}), { PORT: '4321' }));
+		const values = definition.parseSync(env.merge(
+			env.record({
+				DATABASE_URL: 'postgres://localhost/example',
+				PORT: '8787',
+			}),
+			{ PORT: '4321' },
+		));
 
 		expect(values).toEqual({
 			DATABASE_URL: 'postgres://localhost/example',

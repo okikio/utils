@@ -5,6 +5,7 @@
  */
 export {
 	accepted,
+	compose,
 	created,
 	define,
 	document,
@@ -12,13 +13,12 @@ export {
 	html,
 	noContent,
 	notModified,
-	partialContent,
 	ok,
 	paginated,
+	partialContent,
 	redirect,
 	responseCatalog as catalog,
 	select,
-	compose,
 	stream,
 } from './definition.ts';
 export { onComplete } from './completion.ts';
@@ -27,15 +27,7 @@ export { readText } from './body.ts';
 export { byteRange, byteRangeHeaders, conditionalHeaders, notModified as isNotModified } from './http.ts';
 export type { ByteRange } from './http.ts';
 export type { ResponseCompletion } from './completion.ts';
-export {
-	appendHeaders,
-	headerEntries,
-	headers,
-	headerValues,
-	mergeHeaders,
-	mergeVary,
-	toHeaders,
-} from './headers.ts';
+export { appendHeaders, headerEntries, headers, headerValues, mergeHeaders, mergeVary, toHeaders } from './headers.ts';
 export {
 	any as statusAny,
 	clientError as clientErrorStatus,
@@ -63,34 +55,25 @@ export type {
 	ServerErrorStatus,
 	SuccessStatus,
 } from './status.ts';
-export {
-	create,
-	definitionOf,
-	is,
-	pageHeaders,
-	pageLinks,
-	finalize,
-	withHeaders,
-	withMeta,
-} from './result.ts';
+export { create, definitionOf, finalize, is, pageHeaders, pageLinks, withHeaders, withMeta } from './result.ts';
 export type {
 	CreateResponseOptions,
 	CursorPageWindow,
+	FinalizedResponseResult,
+	FinalizeResponseOptions,
 	HeaderField,
 	HeaderInput,
 	HeaderValue,
 	HtmlBody,
 	HtmlChunk,
-	OffsetPageWindow,
 	NormalizedPageWindow,
+	OffsetPageWindow,
 	PageWindow,
 	PaginationLinkContext,
 	PaginationLinks,
 	PaginationMetadata,
 	PaginationParameters,
 	PaginationResponsePolicy,
-	FinalizedResponseResult,
-	FinalizeResponseOptions,
 	ResponseBody,
 	ResponseDefinition,
 	ResponseDefinitionInput,

@@ -15,8 +15,11 @@ function schema<Output>(validate: (value: unknown) => Output): StandardSchemaV1<
 			version: 1,
 			vendor: 'test',
 			validate(value: unknown) {
-				try { return { value: validate(value) }; }
-				catch (error) { return { issues: [{ message: error instanceof Error ? error.message : String(error) }] }; }
+				try {
+					return { value: validate(value) };
+				} catch (error) {
+					return { issues: [{ message: error instanceof Error ? error.message : String(error) }] };
+				}
 			},
 		}),
 	});
@@ -38,24 +41,31 @@ const StringSchema = schema((value) => {
 	return value;
 });
 const TestEngine = Object.freeze({ kind: 'activity-engine', id: 'test' } satisfies workflow.EngineReference);
-const TestPlacement = Object.freeze({
-	kind: 'activity-engine-placement',
-	choices: Object.freeze([Object.freeze({ kind: 'activity-engine-choice', mode: 'required', engine: TestEngine })]),
-} satisfies workflow.EnginePlacementReference);
-const TestActivity = Object.freeze({
-	kind: 'activity',
-	id: 'test.operation',
-	version: '1',
-	input: AnySchema,
-	result: AnySchema,
-	failures: Object.freeze([TestFailure]),
-	requirements: Object.freeze([]),
-	placement: TestPlacement,
-	resilience: Object.freeze([]),
-} satisfies workflow.ActivityReference);
+const TestPlacement = Object.freeze(
+	{
+		kind: 'activity-engine-placement',
+		choices: Object.freeze([Object.freeze({ kind: 'activity-engine-choice', mode: 'required', engine: TestEngine })]),
+	} satisfies workflow.EnginePlacementReference,
+);
+const TestActivity = Object.freeze(
+	{
+		kind: 'activity',
+		id: 'test.operation',
+		version: '1',
+		input: AnySchema,
+		result: AnySchema,
+		failures: Object.freeze([TestFailure]),
+		requirements: Object.freeze([]),
+		placement: TestPlacement,
+		resilience: Object.freeze([]),
+	} satisfies workflow.ActivityReference,
+);
 
 /** One test activity request. */
-function operation<Value = unknown, Failure = unknown>(input: unknown, key?: string): workflow.WorkflowOperation<Value, Failure> {
+function operation<Value = unknown, Failure = unknown>(
+	input: unknown,
+	key?: string,
+): workflow.WorkflowOperation<Value, Failure> {
 	return workflow.activity<Value, Failure>(TestActivity, input, key === undefined ? {} : { key });
 }
 
@@ -86,11 +96,13 @@ interface ExecuteOptions {
 function history(
 	schedule: workflow.History['schedule'],
 ): workflow.History {
-	const value = Object.freeze({
-		schedule,
-		async close() {},
-		async [Symbol.asyncDispose]() {},
-	} satisfies workflow.History);
+	const value = Object.freeze(
+		{
+			schedule,
+			async close() {},
+			async [Symbol.asyncDispose]() {},
+		} satisfies workflow.History,
+	);
 	return value;
 }
 
@@ -103,7 +115,9 @@ async function runProgram(
 	const contract = definition(options.result);
 	const implementation = workflow.implement(
 		contract,
-		program as (ctx: workflow.WorkflowContext<typeof contract>) => workflow.WorkflowProgram<workflow.WorkflowResult<typeof contract>>,
+		program as (
+			ctx: workflow.WorkflowContext<typeof contract>,
+		) => workflow.WorkflowProgram<workflow.WorkflowResult<typeof contract>>,
 	);
 	await using ctx = await workflow.context({ definition: contract, runId: 'test-run', input: {}, ctx: parent });
 	await using scheduler = workflow.scheduler({
@@ -126,7 +140,7 @@ async function runProgram(
 			},
 		},
 	});
-		void registration;
+	void registration;
 	return await workflow.run({ ctx, implementation, scheduler });
 }
 
@@ -144,19 +158,32 @@ describe('workflow programming model', () => {
 	it('rejects accessor-backed durable operation maps without invoking getters', () => {
 		let reads = 0;
 		const operations = Object.create(null) as Record<string, unknown>;
-		Object.defineProperty(operations, 'unsafe', { enumerable: true, get() { reads++; return operation('unsafe'); } });
+		Object.defineProperty(operations, 'unsafe', {
+			enumerable: true,
+			get() {
+				reads++;
+				return operation('unsafe');
+			},
+		});
 		expect(() => workflow.parallel(operations as never)).toThrow('enumerable data property');
 		expect(reads).toBe(0);
 	});
 
 	it('rejects invalid durable annotation values', () => {
-		expect(() => workflow.sleep({ seconds: 1 }, { annotations: { valid: true, invalid: Number.POSITIVE_INFINITY } })).toThrow('finite number');
+		expect(() => workflow.sleep({ seconds: 1 }, { annotations: { valid: true, invalid: Number.POSITIVE_INFINITY } }))
+			.toThrow('finite number');
 	});
 
 	it('rejects accessor-backed workflow definitions before reading identity', () => {
 		let reads = 0;
 		const input = Object.create(null) as Record<string, unknown>;
-		Object.defineProperty(input, 'id', { enumerable: true, get() { reads++; return 'unsafe'; } });
+		Object.defineProperty(input, 'id', {
+			enumerable: true,
+			get() {
+				reads++;
+				return 'unsafe';
+			},
+		});
 		Object.defineProperty(input, 'version', { value: '1', enumerable: true });
 		Object.defineProperty(input, 'input', { value: AnySchema, enumerable: true });
 		Object.defineProperty(input, 'result', { value: AnySchema, enumerable: true });
@@ -167,20 +194,48 @@ describe('workflow programming model', () => {
 	it('applies active activity requirements before engine placement', async () => {
 		const policy = Object.freeze({ kind: 'test-policy', id: 'test.admit' });
 		const gate = requirement.define({ family: 'test', action: 'require', definition: policy });
-		const gated = Object.freeze({ ...TestActivity, id: 'test.gated', requirements: Object.freeze([gate]) } satisfies workflow.ActivityReference);
-		const contract = workflow.define({ id: 'test.gated-workflow', version: '1', input: AnySchema, result: AnySchema, activities: [gated] });
-		const implementation = workflow.implement(contract, function* () { return yield* workflow.activity(gated, 'value'); });
+		const gated = Object.freeze(
+			{ ...TestActivity, id: 'test.gated', requirements: Object.freeze([gate]) } satisfies workflow.ActivityReference,
+		);
+		const contract = workflow.define({
+			id: 'test.gated-workflow',
+			version: '1',
+			input: AnySchema,
+			result: AnySchema,
+			activities: [gated],
+		});
+		const implementation = workflow.implement(contract, function* () {
+			return yield* workflow.activity(gated, 'value');
+		});
 		await using parent = context.create({ id: 'test-admission', clock: new context.TestClock() });
-		await using ctx = await workflow.context({ definition: contract, runId: 'test-admission-run', input: {}, ctx: parent });
+		await using ctx = await workflow.context({
+			definition: contract,
+			runId: 'test-admission-run',
+			input: {},
+			ctx: parent,
+		});
 		let placed = 0;
 		await using scheduler = workflow.scheduler({
 			requirements: {
-				interpreters: { test: { async apply() { throw new Error('denied before placement'); } } },
+				interpreters: {
+					test: {
+						async apply() {
+							throw new Error('denied before placement');
+						},
+					},
+				},
 			},
 		});
 		await using registration = await scheduler.register({
-			engine: TestEngine, hostId: 'test-host',
-			provider: { activities: [gated], async run() { placed += 1; return workflow.success('unexpected'); } },
+			engine: TestEngine,
+			hostId: 'test-host',
+			provider: {
+				activities: [gated],
+				async run() {
+					placed += 1;
+					return workflow.success('unexpected');
+				},
+			},
 		});
 		void registration;
 		await expect(workflow.run({ ctx, implementation, scheduler })).rejects.toThrow('denied before placement');
@@ -191,7 +246,11 @@ describe('workflow programming model', () => {
 		const events: string[] = [];
 		await using work = task.start(async (ctx) => {
 			ctx.defer(() => void events.push('deferred'));
-			ctx.use({ async [Symbol.asyncDispose]() { events.push('resource'); } });
+			ctx.use({
+				async [Symbol.asyncDispose]() {
+					events.push('resource');
+				},
+			});
 			return 7;
 		}, { id: 'workflow-test-task' });
 		expect(await work.done).toBe(7);
@@ -213,16 +272,23 @@ describe('workflow programming model', () => {
 	});
 
 	it('rejects non-scalar activity affinity values', () => {
-		expect(() => workflow.activity(TestActivity, 'input', { affinity: { region: Number.POSITIVE_INFINITY } })).toThrow('finite number');
+		expect(() => workflow.activity(TestActivity, 'input', { affinity: { region: Number.POSITIVE_INFINITY } })).toThrow(
+			'finite number',
+		);
 	});
 
 	it('creates lazy activity instructions without starting external work', () => {
 		const value = operation({ value: 1 }, 'operation:one');
 		const step = value[Symbol.iterator]().next();
 		expect(step.done).toBe(false);
-		if (!step.done) expect(step.value).toMatchObject({
-			category: 'command', type: 'activity', key: 'operation:one', input: { value: 1 },
-		});
+		if (!step.done) {
+			expect(step.value).toMatchObject({
+				category: 'command',
+				type: 'activity',
+				key: 'operation:one',
+				input: { value: 1 },
+			});
+		}
 	});
 
 	it('uses deterministic sequential paths and lets programs catch declared failures', async () => {
@@ -230,8 +296,9 @@ describe('workflow programming model', () => {
 		const expectedFailure = await expected({ operation: 'fail' }, 'expected failure');
 		const output = await runProgram(function* () {
 			const first = yield* operation<string>('first');
-			try { yield* operation('fail'); }
-			catch (error) {
+			try {
+				yield* operation('fail');
+			} catch (error) {
 				expect(failures.isOccurrence(error)).toBe(true);
 				if (failures.isOccurrence(error)) {
 					expect(error.definition).toBe(TestFailure);
@@ -243,9 +310,7 @@ describe('workflow programming model', () => {
 		}, {
 			activity: async (_ctx, attempt) => {
 				paths.push(attempt.origin.instructionPath);
-				return attempt.input === 'fail'
-					? workflow.failed(expectedFailure)
-					: workflow.success(attempt.input);
+				return attempt.input === 'fail' ? workflow.failed(expectedFailure) : workflow.success(attempt.input);
 			},
 		});
 		expect(output).toBe('first:third');
@@ -261,11 +326,16 @@ describe('workflow programming model', () => {
 		const output = await runProgram(function* () {
 			const values = yield* workflow.parallel({
 				first: operation<string>('first'),
-				second: workflow.retry(operation<string, failures.Occurrence<typeof TestFailure>>('second'), { maximumAttempts: 1 }),
+				second: workflow.retry(operation<string, failures.Occurrence<typeof TestFailure>>('second'), {
+					maximumAttempts: 1,
+				}),
 			});
 			return `${values.first}:${values.second}`;
 		}, {
-			history: history(async ({ path, next }) => { paths.push(path); return await next(); }),
+			history: history(async ({ path, next }) => {
+				paths.push(path);
+				return await next();
+			}),
 		});
 		expect(output).toBe('first:second');
 		expect([...paths].sort()).toEqual([
@@ -301,9 +371,8 @@ describe('workflow programming model', () => {
 				? `${values.first.value}:${values.second.failure.message}`
 				: 'invalid';
 		}, {
-			activity: async (_ctx, attempt) => attempt.input === 'fail'
-				? workflow.failed(branchFailure)
-				: workflow.success(attempt.input),
+			activity: async (_ctx, attempt) =>
+				attempt.input === 'fail' ? workflow.failed(branchFailure) : workflow.success(attempt.input),
 		});
 		expect(output).toBe('first:branch failed');
 	});
@@ -315,10 +384,10 @@ describe('workflow programming model', () => {
 		const output = await runProgram(function* () {
 			try {
 				yield* workflow.parallel({ blocker: operation('block'), failure: operation('fail') });
-				} catch (error) {
-					expect(failures.isOccurrence(error)).toBe(true);
-					if (failures.isOccurrence(error)) expect(error.definition).toBe(TestFailure);
-				}
+			} catch (error) {
+				expect(failures.isOccurrence(error)).toBe(true);
+				if (failures.isOccurrence(error)) expect(error.definition).toBe(TestFailure);
+			}
 			expect(blockerStopped).toBe(true);
 			return 'cancelled and awaited';
 		}, {
@@ -370,21 +439,32 @@ describe('workflow programming model', () => {
 				key: (value) => String(value),
 			});
 			return values.join(',');
-		}, { activity: async (_ctx, attempt) => { attempts++; return workflow.success(attempt.input); } });
+		}, {
+			activity: async (_ctx, attempt) => {
+				attempts++;
+				return workflow.success(attempt.input);
+			},
+		});
 		expect(output).toBe('3,1,2');
 		expect(attempts).toBe(3);
-		expect(() => workflow.map([1, 1], (value) => operation(value), {
-			concurrency: 1, key: (value) => String(value),
-		})).toThrow('duplicate key');
+		expect(() =>
+			workflow.map([1, 1], (value) => operation(value), {
+				concurrency: 1,
+				key: (value) => String(value),
+			})
+		).toThrow('duplicate key');
 	});
 
 	it('uses fresh workflow retry paths and does not retry provider faults', async () => {
 		const paths: string[] = [];
 		let attempt = 0;
 		const output = await runProgram(function* () {
-			return String(yield* workflow.retry(operation<string, failures.Occurrence<typeof TestFailure>>('retry'), {
-				maximumAttempts: 3, key: 'verification',
-			}));
+			return String(
+				yield* workflow.retry(operation<string, failures.Occurrence<typeof TestFailure>>('retry'), {
+					maximumAttempts: 3,
+					key: 'verification',
+				}),
+			);
 		}, {
 			activity: async (_ctx, activityAttempt) => {
 				paths.push(activityAttempt.origin.instructionPath);
@@ -405,7 +485,12 @@ describe('workflow programming model', () => {
 		await expect(runProgram(function* () {
 			yield* workflow.retry(operation('fault'), { maximumAttempts: 3 });
 			return 'unreachable';
-		}, { activity: async () => { faults++; return workflow.fault(new Error('fault')); } })).rejects.toThrow(workflow.FaultError);
+		}, {
+			activity: async () => {
+				faults++;
+				return workflow.fault(new Error('fault'));
+			},
+		})).rejects.toThrow(workflow.FaultError);
 		expect(faults).toBe(1);
 	});
 
@@ -435,21 +520,20 @@ describe('workflow programming model', () => {
 				yield* operation('primary');
 				return 'unreachable';
 			}, {
-				activity: async (_ctx, attempt) => attempt.input === 'primary'
-					? workflow.failed(primary)
-					: workflow.failed(cleanup),
+				activity: async (_ctx, attempt) =>
+					attempt.input === 'primary' ? workflow.failed(primary) : workflow.failed(cleanup),
 			});
 			throw new Error('Expected workflow execution to fail.');
 		} catch (error) {
-				expect(error).toBeInstanceOf(workflow.CleanupFailureError);
-				if (error instanceof workflow.CleanupFailureError) {
-					expect(failures.isOccurrence(error.primary)).toBe(true);
-					if (failures.isOccurrence(error.primary)) expect(error.primary.data).toEqual({ phase: 'primary' });
-					expect(error.cleanupFailures).toHaveLength(1);
-					const cleanupFailure = error.cleanupFailures[0];
-					expect(failures.isOccurrence(cleanupFailure)).toBe(true);
-					if (failures.isOccurrence(cleanupFailure)) expect(cleanupFailure.data).toEqual({ phase: 'cleanup' });
-				}
+			expect(error).toBeInstanceOf(workflow.CleanupFailureError);
+			if (error instanceof workflow.CleanupFailureError) {
+				expect(failures.isOccurrence(error.primary)).toBe(true);
+				if (failures.isOccurrence(error.primary)) expect(error.primary.data).toEqual({ phase: 'primary' });
+				expect(error.cleanupFailures).toHaveLength(1);
+				const cleanupFailure = error.cleanupFailures[0];
+				expect(failures.isOccurrence(cleanupFailure)).toBe(true);
+				if (failures.isOccurrence(cleanupFailure)) expect(cleanupFailure.data).toEqual({ phase: 'cleanup' });
+			}
 		}
 	});
 
@@ -468,9 +552,7 @@ describe('workflow programming model', () => {
 				}
 				return 'unreachable';
 			}, {
-				activity: async () => mode === 'fault'
-					? workflow.fault(new Error('fault'))
-					: workflow.cancelled('cancelled'),
+				activity: async () => mode === 'fault' ? workflow.fault(new Error('fault')) : workflow.cancelled('cancelled'),
 			});
 			if (mode === 'fault') await expect(execution).rejects.toThrow(workflow.FaultError);
 			else if (mode === 'cancel') await expect(execution).rejects.toThrow(workflow.CancelledError);
@@ -526,8 +608,13 @@ describe('workflow programming model', () => {
 		expect(first.description.payload).toMatchObject({ activity: { id: 'test.operation', version: '1' } });
 
 		let origin: workflow.ActivityOriginType | undefined;
-		const output = await runProgram(function* () { return yield* operation<string>('value', 'stable'); }, {
-			activity: async (_ctx, attempt) => { origin = attempt.origin; return workflow.success(attempt.input); },
+		const output = await runProgram(function* () {
+			return yield* operation<string>('value', 'stable');
+		}, {
+			activity: async (_ctx, attempt) => {
+				origin = attempt.origin;
+				return workflow.success(attempt.input);
+			},
 		});
 		expect(output).toBe('value');
 		expect(origin?.instructionPath).toBe('test.workflow@1/stable:activity');
@@ -575,7 +662,10 @@ describe('workflow programming model', () => {
 				if (instruction.type === 'defer') sawRegistration = !bodyAdvanced;
 				return await next();
 			}),
-			activity: async (_ctx, attempt) => { calls.push(String(attempt.input)); return workflow.success(undefined); },
+			activity: async (_ctx, attempt) => {
+				calls.push(String(attempt.input));
+				return workflow.success(undefined);
+			},
 		});
 		expect(output).toBe('done');
 		expect(sawRegistration).toBe(true);

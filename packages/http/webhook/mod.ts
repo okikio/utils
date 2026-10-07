@@ -33,7 +33,9 @@ export async function verifyRequest(
 		throw new TypeError('maximumBodyBytes must be a positive safe integer.');
 	}
 	const now = options.now ?? new Date();
-	if (!(now instanceof Date) || !Number.isFinite(now.getTime())) throw new TypeError('Webhook verification now must be a valid Date.');
+	if (!(now instanceof Date) || !Number.isFinite(now.getTime())) {
+		throw new TypeError('Webhook verification now must be a valid Date.');
+	}
 	let body: Uint8Array;
 	try {
 		body = await readBody(request.clone(), { maximumBodyBytes });

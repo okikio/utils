@@ -6,7 +6,7 @@ import { Deferred } from './deferred.ts';
 import * as operation from './operation.ts';
 import { Reducer } from './reducer.ts';
 import { Scope } from './scope.ts';
-import type { Cause, Exit, WorkflowOperation, Step } from './kernel.ts';
+import type { Cause, Exit, Step, WorkflowOperation } from './kernel.ts';
 
 function program<Value>(run: () => Generator<Step<unknown>, Value, Exit<unknown>>): WorkflowOperation<Value> {
 	return Object.freeze({ [Symbol.iterator]: run });
@@ -74,7 +74,10 @@ describe('workflow live iterator kernel', () => {
 	});
 
 	it('rejects oversized immediate combinators before any child can start', () => {
-		const operations = Array.from({ length: 65 }, () => program(function* () { return undefined; }));
+		const operations = Array.from({ length: 65 }, () =>
+			program(function* () {
+				return undefined;
+			}));
 		expect(() => operation.all(operations)).toThrow('cannot start more than 64 child operations');
 		expect(() => operation.allSettled(operations)).toThrow('cannot start more than 64 child operations');
 		expect(() => operation.race(operations)).toThrow('cannot start more than 64 child operations');

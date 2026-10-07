@@ -71,7 +71,6 @@ export interface CreateOptions {
 	readonly clock?: Clock;
 }
 
-
 /** Inputs accepted while deriving a child context. */
 export interface ChildOptions extends Partial<Omit<CreateOptions, 'startedAt'>> {
 	/** Override the inherited operation identity for a new nested operation. */

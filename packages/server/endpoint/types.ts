@@ -15,7 +15,6 @@ import type { MiddlewareInput } from '@okikio/server/middleware';
 import type { ResilienceInput } from '@okikio/resilience';
 import type { RequirementInput } from '@okikio/requirement';
 
-
 /** Static resource reference accepted by portable endpoint contracts. */
 export type EndpointResourceDefinition<Value = unknown> = ValuedCatalogEntry<'resource', Value>;
 
@@ -67,21 +66,22 @@ export interface EndpointInputSlots {
 }
 
 /** Extract the schema carried by one endpoint input slot. */
-export type EndpointInputSchema<Slot> = Slot extends EndpointInput<infer Schema>
-	? Schema
+export type EndpointInputSchema<Slot> = Slot extends EndpointInput<infer Schema> ? Schema
 	: Slot extends EndpointSchema ? Slot
 	: never;
 
 /** Wire/authored input values callers must provide before schema transforms. */
 export type InferEndpointWireInputs<Inputs extends EndpointInputSlots> = {
-	readonly [Source in keyof Inputs as Inputs[Source] extends undefined ? never : Source]:
-		StandardSchemaV1.InferInput<EndpointInputSchema<NonNullable<Inputs[Source]>>>;
+	readonly [Source in keyof Inputs as Inputs[Source] extends undefined ? never : Source]: StandardSchemaV1.InferInput<
+		EndpointInputSchema<NonNullable<Inputs[Source]>>
+	>;
 };
 
 /** Parsed and validated output values exposed to an endpoint handler. */
 export type InferEndpointInputs<Inputs extends EndpointInputSlots> = {
-	readonly [Source in keyof Inputs as Inputs[Source] extends undefined ? never : Source]:
-		StandardSchemaV1.InferOutput<EndpointInputSchema<NonNullable<Inputs[Source]>>>;
+	readonly [Source in keyof Inputs as Inputs[Source] extends undefined ? never : Source]: StandardSchemaV1.InferOutput<
+		EndpointInputSchema<NonNullable<Inputs[Source]>>
+	>;
 };
 
 /** Merge path-level inputs with operation-level inputs. */
@@ -114,17 +114,23 @@ export interface EndpointDocumentation {
 }
 
 /** Input accepted by a method-operation definition. */
-export type EndpointOperationInput = Readonly<{
-	readonly id: string;
-	readonly method?: EndpointMethod;
-	readonly rawResponse?: boolean;
-}> & EndpointDocumentation & EndpointInputSlots & EndpointContributions;
+export type EndpointOperationInput =
+	& Readonly<{
+		readonly id: string;
+		readonly method?: EndpointMethod;
+		readonly rawResponse?: boolean;
+	}>
+	& EndpointDocumentation
+	& EndpointInputSlots
+	& EndpointContributions;
 
 /** Pick only explicitly authored request-location fields from a flat endpoint input. */
 type ExplicitEndpointInputSlots<Input> = {
-	readonly [Source in EndpointInputSource as Input extends Readonly<Record<Source, infer Slot>>
-		? Exclude<Slot, undefined> extends EndpointInputSlot ? Source : never
-		: never]: Input extends Readonly<Record<Source, infer Slot>> ? Exclude<Slot, undefined> : never;
+	readonly [
+		Source in EndpointInputSource as Input extends Readonly<Record<Source, infer Slot>>
+			? Exclude<Slot, undefined> extends EndpointInputSlot ? Source : never
+			: never
+	]: Input extends Readonly<Record<Source, infer Slot>> ? Exclude<Slot, undefined> : never;
 };
 
 /** Preserve exact authored schemas while retaining a broad shape for heterogeneous operations. */
@@ -139,7 +145,10 @@ export interface EndpointOperation<
 	Responses extends ResponseDefinition = ResponseDefinition,
 	Problems extends ProblemDefinition = ProblemDefinition,
 	Resources extends EndpointResourceDefinition = EndpointResourceDefinition,
-> extends CatalogEntryIdentity, EndpointDocumentation, Omit<EndpointContributions, 'responses' | 'problems' | 'resources'> {
+> extends
+	CatalogEntryIdentity,
+	EndpointDocumentation,
+	Omit<EndpointContributions, 'responses' | 'problems' | 'resources'> {
 	readonly kind: 'endpoint-operation';
 	readonly method: Method;
 	readonly operationId: string;
@@ -180,16 +189,19 @@ export type DefinedEndpointOperation<
 	EndpointOperationResources<Input>
 >;
 
-
 /** Input accepted by a multi-method endpoint path. */
 export type EndpointDefinitionInput<
 	Path extends string = string,
 	Operations extends readonly EndpointOperation[] = readonly EndpointOperation[],
-> = Readonly<{
-	readonly id: string;
-	readonly path: Path;
-	readonly operations: Operations;
-}> & Omit<EndpointDocumentation, 'operationId'> & EndpointInputSlots & Omit<EndpointContributions, 'responses'>;
+> =
+	& Readonly<{
+		readonly id: string;
+		readonly path: Path;
+		readonly operations: Operations;
+	}>
+	& Omit<EndpointDocumentation, 'operationId'>
+	& EndpointInputSlots
+	& Omit<EndpointContributions, 'responses'>;
 
 /** Immutable path contract containing one or more method operations. */
 export interface EndpointDefinition<
@@ -198,7 +210,9 @@ export interface EndpointDefinition<
 	Operations extends readonly EndpointOperation[] = readonly EndpointOperation[],
 	Resources extends EndpointResourceDefinition = EndpointResourceDefinition,
 	Problems extends ProblemDefinition = ProblemDefinition,
-> extends CatalogEntryIdentity, Omit<EndpointDocumentation, 'operationId'>,
+> extends
+	CatalogEntryIdentity,
+	Omit<EndpointDocumentation, 'operationId'>,
 	Omit<EndpointContributions, 'responses' | 'resources' | 'problems'> {
 	readonly kind: 'endpoint';
 	readonly path: Path;
@@ -223,8 +237,11 @@ export type EndpointDefinitionProblems<Input extends EndpointContributions> = Ex
 /** Complete single-method endpoint authoring input. */
 export type SingleMethodEndpointInput<
 	Path extends string = string,
-> = Readonly<{ readonly id: string; readonly path: Path; readonly rawResponse?: boolean }> &
-	EndpointDocumentation & EndpointInputSlots & EndpointContributions;
+> =
+	& Readonly<{ readonly id: string; readonly path: Path; readonly rawResponse?: boolean }>
+	& EndpointDocumentation
+	& EndpointInputSlots
+	& EndpointContributions;
 
 /** One concrete endpoint, group, or group selection accepted by composition. */
 export type EndpointEntry = EndpointDefinition | EndpointGroup | EndpointGroupSelection;
@@ -241,16 +258,21 @@ export type EndpointGroupMembers =
 export type EndpointGroupInput<
 	Path extends string = string,
 	Members extends EndpointGroupMembers = EndpointGroupMembers,
-> = Readonly<{
-	readonly id: string;
-	readonly path: Path;
-	readonly endpoints: Members;
-}> & Omit<EndpointDocumentation, 'operationId'> & Omit<EndpointContributions, 'responses'>;
+> =
+	& Readonly<{
+		readonly id: string;
+		readonly path: Path;
+		readonly endpoints: Members;
+	}>
+	& Omit<EndpointDocumentation, 'operationId'>
+	& Omit<EndpointContributions, 'responses'>;
 
 /** Static endpoint group with a shared path prefix and contributions. */
 export interface EndpointGroup<
 	Path extends string = string,
-	Entries extends Readonly<Record<string, EndpointEntry>> | undefined = Readonly<Record<string, EndpointEntry>> | undefined,
+	Entries extends Readonly<Record<string, EndpointEntry>> | undefined =
+		| Readonly<Record<string, EndpointEntry>>
+		| undefined,
 > extends CatalogEntryIdentity, Omit<EndpointDocumentation, 'operationId'>, Omit<EndpointContributions, 'responses'> {
 	readonly kind: 'endpoint-group';
 	readonly path: Path;
@@ -319,16 +341,16 @@ export interface EndpointDocument {
 }
 
 /** Resource definition union retained by an operation. */
-export type OperationResource<Operation extends EndpointOperation> =
-	Operation extends EndpointOperation<EndpointMethod, EndpointInputSlots, ResponseDefinition, ProblemDefinition, infer Resource>
-		? Resource
-		: never;
+export type OperationResource<Operation extends EndpointOperation> = Operation extends
+	EndpointOperation<EndpointMethod, EndpointInputSlots, ResponseDefinition, ProblemDefinition, infer Resource>
+	? Resource
+	: never;
 
 /** Resource definition union retained by an endpoint path. */
-export type PathResource<Endpoint extends EndpointDefinition> =
-	Endpoint extends EndpointDefinition<string, EndpointInputSlots, readonly EndpointOperation[], infer Resource, ProblemDefinition>
-		? Resource
-		: never;
+export type PathResource<Endpoint extends EndpointDefinition> = Endpoint extends
+	EndpointDefinition<string, EndpointInputSlots, readonly EndpointOperation[], infer Resource, ProblemDefinition>
+	? Resource
+	: never;
 
 /** Effective resource definitions available to an endpoint handler. */
 export type EndpointResources<
@@ -344,7 +366,6 @@ export interface EndpointResourceResolver<Allowed extends EndpointResourceDefini
 
 /** Request execution context propagated by the owning host. */
 export type EndpointContext = EffectContext<Context>;
-
 
 /**
  * Empty base contract for application-owned values added during request execution.
@@ -371,25 +392,35 @@ export type EndpointHandlerContext<
 	Operation extends EndpointOperation = EndpointOperation,
 	Host extends object = EmptyEndpointHost,
 	Values extends EndpointRequestValues = EndpointRequestValues,
-> = Readonly<{
-	readonly request: Request;
-	readonly host: Host;
-	readonly input: InferEndpointInputs<MergeEndpointInputs<Endpoint['inputs'], Operation['inputs']>>;
-	readonly resources: EndpointResourceResolver<EndpointResources<Endpoint, Operation>>;
-	readonly ctx: EndpointContext;
-} & Values>;
+> = Readonly<
+	{
+		readonly request: Request;
+		readonly host: Host;
+		readonly input: InferEndpointInputs<MergeEndpointInputs<Endpoint['inputs'], Operation['inputs']>>;
+		readonly resources: EndpointResourceResolver<EndpointResources<Endpoint, Operation>>;
+		readonly ctx: EndpointContext;
+	} & Values
+>;
 
 /** Response definition union retained by an operation. */
-export type OperationResponse<Operation extends EndpointOperation> =
-	Operation extends EndpointOperation<EndpointMethod, EndpointInputSlots, infer ResponseDefinition_, ProblemDefinition, EndpointResourceDefinition>
-		? ResponseDefinition_
-		: never;
+export type OperationResponse<Operation extends EndpointOperation> = Operation extends EndpointOperation<
+	EndpointMethod,
+	EndpointInputSlots,
+	infer ResponseDefinition_,
+	ProblemDefinition,
+	EndpointResourceDefinition
+> ? ResponseDefinition_
+	: never;
 
 /** Problem definition union retained by an operation. */
-export type OperationProblem<Operation extends EndpointOperation> =
-	Operation extends EndpointOperation<EndpointMethod, EndpointInputSlots, ResponseDefinition, infer ProblemDefinition_, EndpointResourceDefinition>
-		? ProblemDefinition_
-		: never;
+export type OperationProblem<Operation extends EndpointOperation> = Operation extends EndpointOperation<
+	EndpointMethod,
+	EndpointInputSlots,
+	ResponseDefinition,
+	infer ProblemDefinition_,
+	EndpointResourceDefinition
+> ? ProblemDefinition_
+	: never;
 
 /** Declared result union for one endpoint operation. */
 export type EndpointHandlerResult<Operation extends EndpointOperation> =
@@ -420,12 +451,15 @@ export interface EndpointHandlerBinding<
 	readonly handle: EndpointHandler<Endpoint, Operation, Host, Values>;
 }
 
-
 /** Values retained after request-location parsing but before handler specialization. */
-export type EndpointRuntimeInputValues = Readonly<Partial<Record<
-	EndpointInputSource,
-	unknown
->>>;
+export type EndpointRuntimeInputValues = Readonly<
+	Partial<
+		Record<
+			EndpointInputSource,
+			unknown
+		>
+	>
+>;
 
 /** Runtime context shape shared by heterogeneous compiled handler collections. */
 export interface ErasedEndpointHandlerContext {

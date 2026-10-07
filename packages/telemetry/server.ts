@@ -21,22 +21,26 @@ import type {
 } from '@okikio/server/service/types';
 import type { EventInput, Fields, Level, Scope } from './types.ts';
 
-const SERVICE_LEVEL = Object.freeze({
-	started: 'debug',
-	response: 'debug',
-	completed: 'info',
-	failed: 'error',
-	aborted: 'warning',
-} satisfies Record<ServiceObserverEventKind, Level>);
+const SERVICE_LEVEL = Object.freeze(
+	{
+		started: 'debug',
+		response: 'debug',
+		completed: 'info',
+		failed: 'error',
+		aborted: 'warning',
+	} satisfies Record<ServiceObserverEventKind, Level>,
+);
 
-const GATEWAY_LEVEL = Object.freeze({
-	denied: 'info',
-	forwarding: 'debug',
-	response: 'debug',
-	completed: 'info',
-	failed: 'error',
-	aborted: 'warning',
-} satisfies Record<GatewayObserverEventKind, Level>);
+const GATEWAY_LEVEL = Object.freeze(
+	{
+		denied: 'info',
+		forwarding: 'debug',
+		response: 'debug',
+		completed: 'info',
+		failed: 'error',
+		aborted: 'warning',
+	} satisfies Record<GatewayObserverEventKind, Level>,
+);
 
 /** Bind an exact service observer definition to one portable telemetry scope. */
 export function service<Definition extends ServiceObserverDefinition>(
@@ -129,23 +133,34 @@ function compact(fields: Readonly<Record<string, FaultValue | undefined>>): Fiel
 /** Human-readable service lifecycle descriptions remain separate from stable event names. @internal */
 function serviceMessage(kind: ServiceObserverEventKind): string {
 	switch (kind) {
-		case 'started': return 'Service request started.';
-		case 'response': return 'Service response headers are ready.';
-		case 'completed': return 'Service response completed.';
-		case 'failed': return 'Service request failed.';
-		case 'aborted': return 'Service request was aborted.';
+		case 'started':
+			return 'Service request started.';
+		case 'response':
+			return 'Service response headers are ready.';
+		case 'completed':
+			return 'Service response completed.';
+		case 'failed':
+			return 'Service request failed.';
+		case 'aborted':
+			return 'Service request was aborted.';
 	}
 }
 
 /** Human-readable gateway lifecycle descriptions remain separate from stable event names. @internal */
 function gatewayMessage(kind: GatewayObserverEventKind): string {
 	switch (kind) {
-		case 'denied': return 'Gateway request was denied.';
-		case 'forwarding': return 'Gateway request is forwarding upstream.';
-		case 'response': return 'Gateway upstream response headers arrived.';
-		case 'completed': return 'Gateway response completed.';
-		case 'failed': return 'Gateway request failed.';
-		case 'aborted': return 'Gateway request was aborted.';
+		case 'denied':
+			return 'Gateway request was denied.';
+		case 'forwarding':
+			return 'Gateway request is forwarding upstream.';
+		case 'response':
+			return 'Gateway upstream response headers arrived.';
+		case 'completed':
+			return 'Gateway response completed.';
+		case 'failed':
+			return 'Gateway request failed.';
+		case 'aborted':
+			return 'Gateway request was aborted.';
 	}
 }
 

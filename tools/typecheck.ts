@@ -10,9 +10,7 @@
 export {};
 
 const root = await Deno.realPath(Deno.args[0] ?? Deno.cwd());
-const compiler = Deno.build.os === 'windows'
-	? `${root}/node_modules/.bin/tsc.cmd`
-	: `${root}/node_modules/.bin/tsc`;
+const compiler = Deno.build.os === 'windows' ? `${root}/node_modules/.bin/tsc.cmd` : `${root}/node_modules/.bin/tsc`;
 const result = await new Deno.Command(compiler, {
 	args: ['--pretty', 'false', '--project', `${root}/tsconfig.json`],
 	cwd: root,

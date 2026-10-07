@@ -17,7 +17,10 @@ describe('request wire parsing', () => {
 		const options = Object.create(null) as request.RequestParsingOptions;
 		Object.defineProperty(options, 'maximumHeaders', {
 			enumerable: true,
-			get() { reads += 1; return 1; },
+			get() {
+				reads += 1;
+				return 1;
+			},
 		});
 		expect(() => request.parseHeaders(new Headers(), options)).toThrow('enumerable data property');
 		expect(reads).toBe(0);
@@ -63,7 +66,9 @@ describe('request wire parsing', () => {
 		expect(unusual['']).toBe('value');
 		expect(unusual.__proto__).toBe('safe');
 		expect(unusual.constructor).toBe('safe');
-		expect(request.parseQuery('?flag&flag=&flag=true', { bareQueryParameters: 'flag' })).toEqual({ flag: ['true', '', 'true'] });
+		expect(request.parseQuery('?flag&flag=&flag=true', { bareQueryParameters: 'flag' })).toEqual({
+			flag: ['true', '', 'true'],
+		});
 		expect(() => request.parseQuery(`?${'n'.repeat(5)}=value`, { maximumParameterLength: 4 }))
 			.toThrow('name exceeds 4 characters');
 	});
@@ -83,16 +88,24 @@ describe('request wire parsing', () => {
 		const authorization = Object.create(null) as { allowedSchemes?: readonly string[] };
 		Object.defineProperty(authorization, 'allowedSchemes', {
 			enumerable: true,
-			get() { reads += 1; return ['Bearer']; },
+			get() {
+				reads += 1;
+				return ['Bearer'];
+			},
 		});
 		expect(() => request.parseAuthorization('Bearer secret', authorization)).toThrow('enumerable data property');
 
 		const forwarded = Object.create(null) as request.ForwardedHeaderPolicy;
 		Object.defineProperty(forwarded, 'trust', {
 			enumerable: true,
-			get() { reads += 1; return true; },
+			get() {
+				reads += 1;
+				return true;
+			},
 		});
-		expect(() => request.externalUrl(new Request('https://service.invalid'), forwarded)).toThrow('enumerable data property');
+		expect(() => request.externalUrl(new Request('https://service.invalid'), forwarded)).toThrow(
+			'enumerable data property',
+		);
 		expect(reads).toBe(0);
 
 		const inherited = Object.create({ trust: true }) as request.ForwardedHeaderPolicy;
@@ -106,7 +119,10 @@ describe('request wire parsing', () => {
 		Object.defineProperty(schemes, '0', {
 			configurable: true,
 			enumerable: true,
-			get() { reads += 1; return 'Bearer'; },
+			get() {
+				reads += 1;
+				return 'Bearer';
+			},
 		});
 		schemes.length = 1;
 		expect(() => request.parseAuthorization('Bearer secret', { allowedSchemes: schemes }))
@@ -116,7 +132,10 @@ describe('request wire parsing', () => {
 		Object.defineProperty(hosts, '0', {
 			configurable: true,
 			enumerable: true,
-			get() { reads += 1; return 'service.invalid'; },
+			get() {
+				reads += 1;
+				return 'service.invalid';
+			},
 		});
 		hosts.length = 1;
 		expect(() => request.externalUrl(new Request('https://service.invalid'), { trust: true, allowedHosts: hosts }))
@@ -134,8 +153,12 @@ describe('request wire parsing', () => {
 			session: ['opaque', 'rotated'],
 			preference: 'compact',
 		});
-		expect(request.parseCookies('name=example%20service', { percentDecode: true })).toEqual({ name: 'example service' });
-		expect(() => request.parseCookies('session=one; session=two', { duplicates: 'reject' })).toThrow('occurs more than once');
+		expect(request.parseCookies('name=example%20service', { percentDecode: true })).toEqual({
+			name: 'example service',
+		});
+		expect(() => request.parseCookies('session=one; session=two', { duplicates: 'reject' })).toThrow(
+			'occurs more than once',
+		);
 	});
 
 	it('parses authorization syntax without exposing the credential through logging or JSON', () => {
@@ -149,23 +172,30 @@ describe('request wire parsing', () => {
 	});
 
 	it('reads and parses bounded JSON and repeated form values', async () => {
-		const json = await request.parseJson(new Request('https://service.invalid', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/problem+json' },
-			body: JSON.stringify({ ok: true }),
-		}));
+		const json = await request.parseJson(
+			new Request('https://service.invalid', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/problem+json' },
+				body: JSON.stringify({ ok: true }),
+			}),
+		);
 		expect(json).toEqual({ ok: true });
-		await expect(request.parseJson(new Request('https://service.invalid', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: '12345',
-		}), { maximumBodyBytes: 4 })).rejects.toThrow('exceeds 4 bytes');
+		await expect(request.parseJson(
+			new Request('https://service.invalid', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: '12345',
+			}),
+			{ maximumBodyBytes: 4 },
+		)).rejects.toThrow('exceeds 4 bytes');
 
-		const form = await request.parseForm(new Request('https://service.invalid', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-			body: 'tag=one&tag=two&name=example',
-		}));
+		const form = await request.parseForm(
+			new Request('https://service.invalid', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+				body: 'tag=one&tag=two&name=example',
+			}),
+		);
 		expect(form).toEqual({ tag: ['one', 'two'], name: 'example' });
 	});
 
@@ -186,20 +216,24 @@ describe('request wire parsing', () => {
 		});
 
 		const jsonBody = JSON.stringify({ payload: 'b'.repeat(2 * 1024 * 1024) });
-		const parsedJson = await request.parseJson(new Request('https://service.invalid', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: jsonBody,
-		}));
+		const parsedJson = await request.parseJson(
+			new Request('https://service.invalid', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: jsonBody,
+			}),
+		);
 		expect(parsedJson).toEqual({ payload: 'b'.repeat(2 * 1024 * 1024) });
 
 		const manyFields = new URLSearchParams();
 		for (let index = 0; index < 300; index += 1) manyFields.append(`field${index}`, `${index}`);
-		const parsedForm = await request.parseForm(new Request('https://service.invalid', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-			body: manyFields,
-		}));
+		const parsedForm = await request.parseForm(
+			new Request('https://service.invalid', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+				body: manyFields,
+			}),
+		);
 		expect(parsedForm.field0).toBe('0');
 		expect(parsedForm.field299).toBe('299');
 	});
@@ -209,7 +243,9 @@ describe('request wire parsing', () => {
 			.toBe('application/json');
 		expect(request.negotiateContent('application/*;q=0.5, text/html;q=0.5', ['application/json', 'text/html']))
 			.toBe('text/html');
-		expect(() => request.negotiateContent('application/xml', ['application/json'])).toThrow('None of the requested media types');
+		expect(() => request.negotiateContent('application/xml', ['application/json'])).toThrow(
+			'None of the requested media types',
+		);
 	});
 
 	it('uses forwarded origin data only under an explicit trust policy', () => {
@@ -217,12 +253,16 @@ describe('request wire parsing', () => {
 			headers: { 'X-Forwarded-Proto': 'https', 'X-Forwarded-Host': 'api.example.invalid' },
 		});
 		expect(request.externalUrl(incoming, { trust: false }).href).toBe('http://internal:8000/widgets');
-		expect(request.externalUrl(incoming, {
-			trust: true,
-			allowedProtocols: ['https:'],
-			allowedHosts: ['api.example.invalid'],
-		}).href).toBe('https://api.example.invalid/widgets');
-		expect(() => request.externalUrl(incoming, { trust: true, allowedHosts: ['other.example'] })).toThrow('not allowed');
+		expect(
+			request.externalUrl(incoming, {
+				trust: true,
+				allowedProtocols: ['https:'],
+				allowedHosts: ['api.example.invalid'],
+			}).href,
+		).toBe('https://api.example.invalid/widgets');
+		expect(() => request.externalUrl(incoming, { trust: true, allowedHosts: ['other.example'] })).toThrow(
+			'not allowed',
+		);
 	});
 });
 
@@ -257,24 +297,38 @@ describe('request validation diagnostics', () => {
 describe('request body framing and native form parsing', () => {
 	it('does not trust Content-Length when Transfer-Encoding defines framing', async () => {
 		const requestValue = new Request('https://service.invalid', { method: 'POST', body: '12345' });
-		Object.defineProperty(requestValue, 'headers', { value: new Headers({ 'Content-Length': '999', 'Transfer-Encoding': 'chunked' }) });
+		Object.defineProperty(requestValue, 'headers', {
+			value: new Headers({ 'Content-Length': '999', 'Transfer-Encoding': 'chunked' }),
+		});
 		expect(await request.readBody(requestValue, { maximumBodyBytes: 8 })).toEqual(new TextEncoder().encode('12345'));
 	});
 
 	it('enforces the actual streamed byte count when Transfer-Encoding is present', async () => {
-		const value = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode('12345')); controller.close(); } });
-		const requestValue = new Request('https://service.invalid', { method: 'POST', body: value, duplex: 'half' } as RequestInit);
-		Object.defineProperty(requestValue, 'headers', { value: new Headers({ 'Content-Length': '1', 'Transfer-Encoding': 'chunked' }) });
+		const value = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode('12345'));
+				controller.close();
+			},
+		});
+		const requestValue = new Request(
+			'https://service.invalid',
+			{ method: 'POST', body: value, duplex: 'half' } as RequestInit,
+		);
+		Object.defineProperty(requestValue, 'headers', {
+			value: new Headers({ 'Content-Length': '1', 'Transfer-Encoding': 'chunked' }),
+		});
 		await expect(request.readBody(requestValue, { maximumBodyBytes: 4 })).rejects.toThrow('exceeds 4 bytes');
 	});
 
 	it('delegates URL-encoded decoding to the platform parser for opaque token values', async () => {
 		const token = 'eyJhbGciOiJIUzI1NiJ9.a%2Bb%2Fc%3D%3D.signature';
-		const parsed = await request.parseForm(new Request('https://service.invalid', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-			body: `assertion=${token}&state=a%3Db%26c`,
-		}));
+		const parsed = await request.parseForm(
+			new Request('https://service.invalid', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+				body: `assertion=${token}&state=a%3Db%26c`,
+			}),
+		);
 		expect(parsed.assertion).toBe('eyJhbGciOiJIUzI1NiJ9.a+b/c==.signature');
 		expect(parsed.state).toBe('a=b&c');
 	});
@@ -335,9 +389,11 @@ describe('request correlation and memo ownership', () => {
 	});
 
 	it('replaces malformed parent context rather than forwarding it', async () => {
-		const value = await request.correlation(new Request('https://service.invalid', {
-			headers: { traceparent: '00-not-a-trace', 'x-request-id': 'bad\trequest' },
-		}));
+		const value = await request.correlation(
+			new Request('https://service.invalid', {
+				headers: { traceparent: '00-not-a-trace', 'x-request-id': 'bad\trequest' },
+			}),
+		);
 		expect(value.source).toBe('replaced-invalid-parent');
 		expect(value.traceId).toMatch(/^[0-9a-f]{32}$/);
 		expect(value.requestId).not.toBe('bad\trequest');
@@ -356,7 +412,10 @@ describe('request correlation and memo ownership', () => {
 		const owner = {};
 		const options = { cacheRejected: false };
 		let reject!: (reason: Error) => void;
-		const pending = request.memoize(owner, 'mutable-policy', () => new Promise<never>((_, fail) => { reject = fail; }), options);
+		const pending = request.memoize(owner, 'mutable-policy', () =>
+			new Promise<never>((_, fail) => {
+				reject = fail;
+			}), options);
 		await Promise.resolve();
 		options.cacheRejected = true;
 		reject(new Error('first failure'));
@@ -370,7 +429,11 @@ describe('request correlation and memo ownership', () => {
 		const owner = {};
 		const key = {};
 		let calls = 0;
-		const load = async () => { calls += 1; await Promise.resolve(); return { value: calls }; };
+		const load = async () => {
+			calls += 1;
+			await Promise.resolve();
+			return { value: calls };
+		};
 		const [left, right] = await Promise.all([
 			request.memoize(owner, key, load),
 			request.memoize(owner, key, load),
@@ -379,12 +442,22 @@ describe('request correlation and memo ownership', () => {
 		expect(calls).toBe(1);
 
 		let failures = 0;
-		await expect(request.memoize(owner, 'failure', () => { failures += 1; throw new Error('failed'); })).rejects.toThrow('failed');
-		await expect(request.memoize(owner, 'failure', () => { failures += 1; throw new Error('failed again'); })).rejects.toThrow('failed again');
+		await expect(request.memoize(owner, 'failure', () => {
+			failures += 1;
+			throw new Error('failed');
+		})).rejects.toThrow('failed');
+		await expect(request.memoize(owner, 'failure', () => {
+			failures += 1;
+			throw new Error('failed again');
+		})).rejects.toThrow('failed again');
 		expect(failures).toBe(2);
 
 		let disposed = false;
-		await request.memoize(owner, 'disposable', () => ({ [Symbol.dispose]() { disposed = true; } }));
+		await request.memoize(owner, 'disposable', () => ({
+			[Symbol.dispose]() {
+				disposed = true;
+			},
+		}));
 		await request.disposeMemo(owner);
 		expect(disposed).toBe(true);
 	});
@@ -392,20 +465,23 @@ describe('request correlation and memo ownership', () => {
 
 describe('forwardHeaders', () => {
 	it('removes caller-owned trust metadata and reconstructs the public origin', () => {
-		const headers = request.forwardHeaders(new Request('https://app.example.test/path', {
-			headers: {
-				authorization: 'Bearer keep-me',
-				cookie: 'session=keep-me',
-				'x-forwarded-for': '198.51.100.10',
-				'x-real-ip': '198.51.100.11',
-				'x-request-id': 'caller-id',
-				'x-owned-value': 'spoofed',
+		const headers = request.forwardHeaders(
+			new Request('https://app.example.test/path', {
+				headers: {
+					authorization: 'Bearer keep-me',
+					cookie: 'session=keep-me',
+					'x-forwarded-for': '198.51.100.10',
+					'x-real-ip': '198.51.100.11',
+					'x-request-id': 'caller-id',
+					'x-owned-value': 'spoofed',
+				},
+			}),
+			{
+				requestCookies: 'preserve',
+				requestAuthorization: 'preserve',
+				removePrefixes: ['x-owned-'],
 			},
-		}), {
-			requestCookies: 'preserve',
-			requestAuthorization: 'preserve',
-			removePrefixes: ['x-owned-'],
-		});
+		);
 
 		expect(headers.get('authorization')).toBe('Bearer keep-me');
 		expect(headers.get('cookie')).toBe('session=keep-me');
@@ -418,9 +494,11 @@ describe('forwardHeaders', () => {
 	});
 
 	it('strips credentials unless forwarding is explicitly selected', () => {
-		const headers = request.forwardHeaders(new Request('http://localhost:8780/', {
-			headers: { authorization: 'Bearer secret', cookie: 'session=secret' },
-		}));
+		const headers = request.forwardHeaders(
+			new Request('http://localhost:8780/', {
+				headers: { authorization: 'Bearer secret', cookie: 'session=secret' },
+			}),
+		);
 		expect(headers.get('authorization')).toBeNull();
 		expect(headers.get('cookie')).toBeNull();
 	});

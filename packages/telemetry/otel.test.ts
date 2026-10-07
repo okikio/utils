@@ -2,12 +2,14 @@ import { expect } from '@std/expect';
 import { describe, it } from 'node:test';
 import { active, type OpenTelemetryApi } from './otel.ts';
 
-function api(spanContext?: Readonly<{
-	traceId: string;
-	spanId: string;
-	traceFlags: number;
-	traceState?: Readonly<{ serialize(): string }>;
-}>): OpenTelemetryApi {
+function api(
+	spanContext?: Readonly<{
+		traceId: string;
+		spanId: string;
+		traceFlags: number;
+		traceState?: Readonly<{ serialize(): string }>;
+	}>,
+): OpenTelemetryApi {
 	return {
 		context: { active: () => ({}) },
 		trace: {

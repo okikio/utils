@@ -13,25 +13,34 @@ const schemePattern = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
  */
 class Credential implements SensitiveCredential {
 	readonly #value: string;
-	constructor(value: string) { this.#value = value; Object.freeze(this); }
+	constructor(value: string) {
+		this.#value = value;
+		Object.freeze(this);
+	}
 	/**
 	 * Reveals a secret authorization credential only inside the parser operation that has explicit authority to inspect it.
 	 *
 	 * @internal
 	 */
-	reveal(): string { return this.#value; }
+	reveal(): string {
+		return this.#value;
+	}
 	/**
 	 * Converts the source value to string expected by HTTP request normalization.
 	 *
 	 * @internal
 	 */
-	toString(): '[REDACTED]' { return '[REDACTED]'; }
+	toString(): '[REDACTED]' {
+		return '[REDACTED]';
+	}
 	/**
 	 * Converts the source value to json expected by HTTP request normalization.
 	 *
 	 * @internal
 	 */
-	toJSON(): '[REDACTED]' { return '[REDACTED]'; }
+	toJSON(): '[REDACTED]' {
+		return '[REDACTED]';
+	}
 }
 
 /** Parse Authorization syntax without verifying the credential or establishing identity. */
@@ -43,19 +52,40 @@ export function parseAuthorization(
 	const allowedSchemes = options.allowedSchemes;
 	if (allowedSchemes !== undefined) assertStringList(allowedSchemes, 'allowed authorization schemes');
 	if (value === null || value.trim() === '') return undefined;
-	if (/\0|\r|\n/.test(value)) throw new RequestTransportError({ code: 'invalid-authorization', message: 'Authorization contains a forbidden control character.', path: ['header', 'authorization'] });
+	if (/\0|\r|\n/.test(value)) {
+		throw new RequestTransportError({
+			code: 'invalid-authorization',
+			message: 'Authorization contains a forbidden control character.',
+			path: ['header', 'authorization'],
+		});
+	}
 	const match = /^([^\s]+)[ \t]+([^\s].*)$/.exec(value);
-	if (!match || !schemePattern.test(match[1]!)) throw new RequestTransportError({ code: 'invalid-authorization', message: 'Authorization must contain a valid scheme and credential.', path: ['header', 'authorization'] });
+	if (!match || !schemePattern.test(match[1]!)) {
+		throw new RequestTransportError({
+			code: 'invalid-authorization',
+			message: 'Authorization must contain a valid scheme and credential.',
+			path: ['header', 'authorization'],
+		});
+	}
 	const scheme = match[1]!;
 	const credential = match[2]!.trim();
-	if (credential.length === 0 || /[\r\n]/.test(credential)) throw new RequestTransportError({ code: 'invalid-authorization', message: 'Authorization credential is empty or malformed.', path: ['header', 'authorization'] });
+	if (credential.length === 0 || /[\r\n]/.test(credential)) {
+		throw new RequestTransportError({
+			code: 'invalid-authorization',
+			message: 'Authorization credential is empty or malformed.',
+			path: ['header', 'authorization'],
+		});
+	}
 	const normalizedScheme = scheme.toLowerCase();
 	if (allowedSchemes && !allowedSchemes.some((candidate) => candidate.toLowerCase() === normalizedScheme)) {
-		throw new RequestTransportError({ code: 'unsupported-authorization', message: `Authorization scheme ${JSON.stringify(scheme)} is not supported.`, path: ['header', 'authorization'] });
+		throw new RequestTransportError({
+			code: 'unsupported-authorization',
+			message: `Authorization scheme ${JSON.stringify(scheme)} is not supported.`,
+			path: ['header', 'authorization'],
+		});
 	}
 	return Object.freeze({ scheme, normalizedScheme, credential: new Credential(credential) });
 }
-
 
 /** Validate a dense string list without invoking accessor-backed array elements. @internal */
 function assertStringList(value: unknown, name: string): asserts value is readonly string[] {

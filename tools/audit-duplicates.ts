@@ -131,33 +131,50 @@ export async function audit(root: string): Promise<AuditType> {
 		const source = await Deno.readTextFile(entry.absolute);
 		const result = parseSync(entry.absolute, source);
 		if (result.errors.length > 0) {
-			errors.push(Object.freeze({ file: entry.relative, message: result.errors.map((error) => error.message).join('\n') }));
+			errors.push(
+				Object.freeze({ file: entry.relative, message: result.errors.map((error) => error.message).join('\n') }),
+			);
 			continue;
 		}
 		parsedFiles += 1;
 		// Oxc's closed Program union is structurally inspectable through this read-only node adapter.
 		const program = result.program as unknown as NodeType;
-		files.push(...functions(program, source, entry.relative, packageOf(absoluteRoot, entry.relative), exportsOf(program), contextBindings(program)));
-		sources.push(Object.freeze({
-			file: entry.relative,
-			imports: importsOf(program),
-			issues: issuesOf(program, source, entry.relative),
-		} satisfies SourceType));
+		files.push(
+			...functions(
+				program,
+				source,
+				entry.relative,
+				packageOf(absoluteRoot, entry.relative),
+				exportsOf(program),
+				contextBindings(program),
+			),
+		);
+		sources.push(Object.freeze(
+			{
+				file: entry.relative,
+				imports: importsOf(program),
+				issues: issuesOf(program, source, entry.relative),
+			} satisfies SourceType,
+		));
 	}
 
-	return Object.freeze({
-		root: absoluteRoot,
-		files: parsedFiles,
-		functions: files.length,
-		errors: Object.freeze(errors),
-		shapes: groups(files, (value) => value.size >= 80 ? value.shape : undefined, 'shape'),
-		names: groups(files, (value) => value.name, 'name'),
-		findings: findings(files),
-		issues: Object.freeze([
-			...sources.flatMap((value) => value.issues),
-			...importCycles(sources),
-		].sort((left, right) => left.file.localeCompare(right.file) || left.line - right.line || left.kind.localeCompare(right.kind))),
-	} satisfies AuditType);
+	return Object.freeze(
+		{
+			root: absoluteRoot,
+			files: parsedFiles,
+			functions: files.length,
+			errors: Object.freeze(errors),
+			shapes: groups(files, (value) => value.size >= 80 ? value.shape : undefined, 'shape'),
+			names: groups(files, (value) => value.name, 'name'),
+			findings: findings(files),
+			issues: Object.freeze([
+				...sources.flatMap((value) => value.issues),
+				...importCycles(sources),
+			].sort((left, right) =>
+				left.file.localeCompare(right.file) || left.line - right.line || left.kind.localeCompare(right.kind)
+			)),
+		} satisfies AuditType,
+	);
 }
 
 /** Run the audit from a CLI only after preserving imports as a testable library surface. */
@@ -167,7 +184,10 @@ if (import.meta.main) {
 }
 
 /** Walk production TypeScript source while excluding generated and test-only paths. */
-async function* walk(root: string, base: string = root): AsyncGenerator<Readonly<{ readonly absolute: string; readonly relative: string }>> {
+async function* walk(
+	root: string,
+	base: string = root,
+): AsyncGenerator<Readonly<{ readonly absolute: string; readonly relative: string }>> {
 	const entries = [];
 	for await (const entry of Deno.readDir(root)) entries.push(entry);
 	for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
@@ -212,22 +232,27 @@ function functions(
 ): readonly FunctionType[] {
 	const values: FunctionType[] = [];
 	visit(program, undefined, (node, parent) => {
-		if (node.type !== 'FunctionDeclaration' && node.type !== 'FunctionExpression' && node.type !== 'ArrowFunctionExpression') return;
+		if (
+			node.type !== 'FunctionDeclaration' && node.type !== 'FunctionExpression' &&
+			node.type !== 'ArrowFunctionExpression'
+		) return;
 		const body = node.type === 'ArrowFunctionExpression' && node.expression === true ? node : node.body;
 		if (!nodeType(body)) return;
 		const name = nameOf(node, parent);
 		const names = identifiers(node);
-		values.push(Object.freeze({
-			file,
-			package: packageName,
-			...(name === undefined ? {} : { name }),
-			exported: name !== undefined && exportedNames.has(name),
-			line: line(source, node.start),
-			size: body.end - body.start,
-			shape: hash(shape(body)),
-			markers: Object.freeze([...markers(body)].sort()),
-			usesContext: [...contextNames].some((value) => names.has(value)),
-		} satisfies FunctionType));
+		values.push(Object.freeze(
+			{
+				file,
+				package: packageName,
+				...(name === undefined ? {} : { name }),
+				exported: name !== undefined && exportedNames.has(name),
+				line: line(source, node.start),
+				size: body.end - body.start,
+				shape: hash(shape(body)),
+				markers: Object.freeze([...markers(body)].sort()),
+				usesContext: [...contextNames].some((value) => names.has(value)),
+			} satisfies FunctionType,
+		));
 	});
 	return Object.freeze(values);
 }
@@ -282,7 +307,10 @@ function contextBindings(program: NodeType): ReadonlySet<string> {
 	const body = program.body;
 	if (!Array.isArray(body)) return names;
 	for (const statement of body) {
-		if (!nodeType(statement) || statement.type !== 'ImportDeclaration' || stringValue(statement.source) !== '@okikio/context') continue;
+		if (
+			!nodeType(statement) || statement.type !== 'ImportDeclaration' ||
+			stringValue(statement.source) !== '@okikio/context'
+		) continue;
 		const specifiers = statement.specifiers;
 		if (!Array.isArray(specifiers)) continue;
 		for (const specifier of specifiers) {
@@ -312,10 +340,28 @@ function issuesOf(program: NodeType, source: string, file: string): readonly Iss
 	const values: IssueType[] = [];
 	visit(program, undefined, (node, parent) => {
 		if (node.type === 'TSAnyKeyword') {
-			values.push(issue('any', 'review', 'Explicit any bypasses TypeScript narrowing and should use a narrower boundary type.', file, source, node));
+			values.push(
+				issue(
+					'any',
+					'review',
+					'Explicit any bypasses TypeScript narrowing and should use a narrower boundary type.',
+					file,
+					source,
+					node,
+				),
+			);
 		}
 		if (node.type === 'CatchClause' && emptyCatch(node) && !commentedCatch(node, source)) {
-			values.push(issue('empty-catch', 'review', 'An empty catch discards a failure without recording why that is safe.', file, source, node));
+			values.push(
+				issue(
+					'empty-catch',
+					'review',
+					'An empty catch discards a failure without recording why that is safe.',
+					file,
+					source,
+					node,
+				),
+			);
 		}
 		if (!functionNode(node)) return;
 		const name = nameOf(node, parent);
@@ -344,20 +390,23 @@ function issue(
 	name?: string,
 	related?: readonly string[],
 ): IssueType {
-	return Object.freeze({
-		kind,
-		confidence,
-		reason,
-		file,
-		line: line(source, node.start),
-		...(name === undefined ? {} : { name }),
-		...(related === undefined ? {} : { related: Object.freeze([...related]) }),
-	} satisfies IssueType);
+	return Object.freeze(
+		{
+			kind,
+			confidence,
+			reason,
+			file,
+			line: line(source, node.start),
+			...(name === undefined ? {} : { name }),
+			...(related === undefined ? {} : { related: Object.freeze([...related]) }),
+		} satisfies IssueType,
+	);
 }
 
 /** Return whether one parsed node represents a named or anonymous function expression. */
 function functionNode(node: NodeType): boolean {
-	return node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression';
+	return node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression' ||
+		node.type === 'ArrowFunctionExpression';
 }
 
 /** Return whether a catch clause has no body statements. */
@@ -393,15 +442,21 @@ function identifiers(root: NodeType): ReadonlySet<string> {
 function markers(root: NodeType): ReadonlySet<MarkerType> {
 	const values = new Set<MarkerType>();
 	visit(root, undefined, (node) => {
-		if (node.type === 'NewExpression' && identifierName(node.callee) === 'AbortController') values.add('abort-controller');
+		if (node.type === 'NewExpression' && identifierName(node.callee) === 'AbortController') {
+			values.add('abort-controller');
+		}
 		if (node.type !== 'CallExpression') return;
 		if (identifierName(node.callee) === 'setTimeout') values.add('timer');
 		if (memberCall(node.callee, 'Promise', 'race')) values.add('promise-race');
 		if (memberCall(node.callee, 'AbortSignal', 'any')) values.add('signal-any');
 		if (memberProperty(node.callee) === 'sleep') values.add('clock-wait');
 		if (memberProperty(node.callee) === 'throwIfAborted') values.add('signal-check');
-		if (memberProperty(node.callee) === 'addEventListener' && firstString(node.arguments) === 'abort') values.add('abort-listener');
-		if (memberProperty(node.callee) === 'removeEventListener' && firstString(node.arguments) === 'abort') values.add('abort-cleanup');
+		if (memberProperty(node.callee) === 'addEventListener' && firstString(node.arguments) === 'abort') {
+			values.add('abort-listener');
+		}
+		if (memberProperty(node.callee) === 'removeEventListener' && firstString(node.arguments) === 'abort') {
+			values.add('abort-cleanup');
+		}
 	});
 	return values;
 }
@@ -435,11 +490,15 @@ function firstString(value: unknown): string | undefined {
 }
 
 /** Visit child AST nodes without depending on an unstable generated node union. */
-function visit(node: NodeType, parent: NodeType | undefined, accept: (node: NodeType, parent: NodeType | undefined) => void): void {
+function visit(
+	node: NodeType,
+	parent: NodeType | undefined,
+	accept: (node: NodeType, parent: NodeType | undefined) => void,
+): void {
 	accept(node, parent);
 	for (const value of Object.values(node)) {
 		if (nodeType(value)) visit(value, node, accept);
-		else if (Array.isArray(value)) for (const entry of value) if (nodeType(entry)) visit(entry, node, accept);
+		else if (Array.isArray(value)) { for (const entry of value) if (nodeType(entry)) visit(entry, node, accept); }
 	}
 }
 
@@ -479,10 +538,12 @@ function groups(
 		group.push(value);
 		values.set(key, group);
 	}
-	return Object.freeze([...values.entries()]
-		.filter(([, value]) => value.length > 1)
-		.map(([key, value]) => Object.freeze({ kind, key, functions: Object.freeze(value) } satisfies DuplicateType))
-		.sort((left, right) => right.functions.length - left.functions.length || left.key.localeCompare(right.key)));
+	return Object.freeze(
+		[...values.entries()]
+			.filter(([, value]) => value.length > 1)
+			.map(([key, value]) => Object.freeze({ kind, key, functions: Object.freeze(value) } satisfies DuplicateType))
+			.sort((left, right) => right.functions.length - left.functions.length || left.key.localeCompare(right.key)),
+	);
 }
 
 /** Find cycles made only from source-local relative imports. */
@@ -517,14 +578,16 @@ function visitImports(
 		const key = canonicalCycle(cycle);
 		if (reported.has(key)) continue;
 		reported.add(key);
-		values.push(Object.freeze({
-			kind: 'import-cycle',
-			confidence: 'review',
-			reason: 'Relative imports form a module cycle that can expose partially initialized exports.',
-			file,
-			line: 1,
-			related: Object.freeze(cycle),
-		} satisfies IssueType));
+		values.push(Object.freeze(
+			{
+				kind: 'import-cycle',
+				confidence: 'review',
+				reason: 'Relative imports form a module cycle that can expose partially initialized exports.',
+				file,
+				line: 1,
+				related: Object.freeze(cycle),
+			} satisfies IssueType,
+		));
 	}
 }
 
@@ -550,29 +613,43 @@ function findings(functions: readonly FunctionType[]): readonly FindingType[] {
 	const values: FindingType[] = [];
 	for (const value of functions) {
 		if (value.exported || !value.usesContext || !value.markers.includes('timer')) continue;
-		values.push(Object.freeze({
-			kind: 'owner-bypass',
-			confidence: 'high',
-			reason: 'A private context-aware function starts a wall-clock timer instead of using an injected clock.',
-			functions: Object.freeze([value]),
-		} satisfies FindingType));
+		values.push(Object.freeze(
+			{
+				kind: 'owner-bypass',
+				confidence: 'high',
+				reason: 'A private context-aware function starts a wall-clock timer instead of using an injected clock.',
+				functions: Object.freeze([value]),
+			} satisfies FindingType,
+		));
 	}
-	for (const duplicate of groups(functions.filter((value) => !value.exported && value.name !== undefined), (value) => value.size >= 80 ? value.shape : undefined, 'shape')) {
+	for (
+		const duplicate of groups(
+			functions.filter((value) => !value.exported && value.name !== undefined),
+			(value) => value.size >= 80 ? value.shape : undefined,
+			'shape',
+		)
+	) {
 		if (!duplicate.functions.some((value) => lifecycle(value))) continue;
 		if (new Set(duplicate.functions.map((value) => value.package)).size < 2) continue;
-		values.push(Object.freeze({
-			kind: 'private-lifecycle',
-			confidence: 'review',
-			reason: 'Private functions in separate packages have matching lifecycle control flow; confirm one owner before extracting code.',
-			functions: duplicate.functions,
-		} satisfies FindingType));
+		values.push(Object.freeze(
+			{
+				kind: 'private-lifecycle',
+				confidence: 'review',
+				reason:
+					'Private functions in separate packages have matching lifecycle control flow; confirm one owner before extracting code.',
+				functions: duplicate.functions,
+			} satisfies FindingType,
+		));
 	}
-	return Object.freeze(values.sort((left, right) => left.kind.localeCompare(right.kind) || left.reason.localeCompare(right.reason)));
+	return Object.freeze(
+		values.sort((left, right) => left.kind.localeCompare(right.kind) || left.reason.localeCompare(right.reason)),
+	);
 }
 
 /** Return whether a private helper contains lifecycle control flow worth reviewing across package boundaries. */
 function lifecycle(value: FunctionType): boolean {
-	return value.markers.includes('abort-listener') || value.markers.includes('clock-wait') || value.markers.includes('promise-race') ||
+	return value.markers.includes('abort-listener') || value.markers.includes('clock-wait') ||
+		value.markers.includes('promise-race') ||
 		value.markers.includes('timer');
 }
 

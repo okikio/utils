@@ -41,8 +41,18 @@ describe('resource definitions and collections', () => {
 	it('rejects dependency cycles and missing implementations before runtime creation', () => {
 		const dependenciesA: Record<string, resource.ResourceDefinition> = Object.create(null);
 		const dependenciesB: Record<string, resource.ResourceDefinition> = Object.create(null);
-		const A = Object.freeze({ kind: 'resource', id: 'test.a', description: 'A.', dependencies: dependenciesA }) as resource.ResourceDefinition;
-		const B = Object.freeze({ kind: 'resource', id: 'test.b', description: 'B.', dependencies: dependenciesB }) as resource.ResourceDefinition;
+		const A = Object.freeze({
+			kind: 'resource',
+			id: 'test.a',
+			description: 'A.',
+			dependencies: dependenciesA,
+		}) as resource.ResourceDefinition;
+		const B = Object.freeze({
+			kind: 'resource',
+			id: 'test.b',
+			description: 'B.',
+			dependencies: dependenciesB,
+		}) as resource.ResourceDefinition;
 		dependenciesA.b = B;
 		dependenciesB.a = A;
 
@@ -57,7 +67,9 @@ describe('resource definitions and collections', () => {
 			dependencies: { database: Database },
 		});
 		const RepositoryLive = resource.implement(Repository, {
-			create({ dependencies }) { return { database: dependencies.database }; },
+			create({ dependencies }) {
+				return { database: dependencies.database };
+			},
 		});
 		const coverage = resource.validate(resource.implementations(RepositoryLive));
 		expect(coverage.valid).toBe(false);
@@ -125,7 +137,10 @@ describe('resource definitions and collections', () => {
 	it('applies implementation acquisition requirements once for one cached value', async () => {
 		await using owner = createTestContext('resource-acquisition-owner');
 		const Connect = permissions.define({ id: 'test.store-connect', description: 'Open the store provider.' });
-		const Store = resource.define<{ readonly ready: true }>()({ id: 'test.acquired-store', description: 'Acquired store.' });
+		const Store = resource.define<{ readonly ready: true }>()({
+			id: 'test.acquired-store',
+			description: 'Acquired store.',
+		});
 		let checks = 0;
 		let creates = 0;
 		const checker: permissions.PermissionChecker = {
@@ -137,7 +152,10 @@ describe('resource definitions and collections', () => {
 		};
 		const StoreLive = resource.implement(Store, {
 			requirements: [permissions.require(Connect)],
-			create() { creates++; return { ready: true as const }; },
+			create() {
+				creates++;
+				return { ready: true as const };
+			},
 		});
 		await using resources = resource.create(resource.implementations(StoreLive), {
 			host: {},
@@ -154,11 +172,18 @@ describe('resource definitions and collections', () => {
 	it('owns resource-local helpers and disposes failed acquisitions immediately', async () => {
 		await using ctx = createTestContext();
 		const events: string[] = [];
-		const Broken = resource.define<Readonly<Record<string, never>>>()({ id: 'test.broken-scope', description: 'Broken resource.' });
+		const Broken = resource.define<Readonly<Record<string, never>>>()({
+			id: 'test.broken-scope',
+			description: 'Broken resource.',
+		});
 		const implementation = resource.implement(Broken, {
 			create({ ctx }) {
 				ctx.defer(() => void events.push('deferred'));
-				ctx.use({ [Symbol.dispose]() { events.push('helper'); } });
+				ctx.use({
+					[Symbol.dispose]() {
+						events.push('helper');
+					},
+				});
 				throw new Error('creation failed');
 			},
 		});
@@ -177,14 +202,19 @@ describe('resource definitions and collections', () => {
 		});
 		const implementation = resource.implement(Broken, {
 			create({ ctx }) {
-				ctx.defer(() => { throw cleanup; });
+				ctx.defer(() => {
+					throw cleanup;
+				});
 				throw primary;
 			},
 		});
 		await using collection = resource.create(resource.implementations(implementation), { host: {}, ctx });
 		let thrown: unknown;
-		try { await collection.get(ctx, Broken); }
-		catch (error) { thrown = error; }
+		try {
+			await collection.get(ctx, Broken);
+		} catch (error) {
+			thrown = error;
+		}
 		expect(thrown).toBeInstanceOf(SuppressedError);
 		if (thrown instanceof SuppressedError) {
 			expect(thrown.error).toBe(cleanup);
@@ -197,7 +227,11 @@ describe('resource definitions and collections', () => {
 		const Owned = resource.define<AsyncDisposable>()({ id: 'owned-return', description: 'Owned return value.' });
 		const OwnedLive = resource.implement(Owned, {
 			create({ ctx }) {
-				return ctx.use({ async [Symbol.asyncDispose]() { events.push('disposed'); } });
+				return ctx.use({
+					async [Symbol.asyncDispose]() {
+						events.push('disposed');
+					},
+				});
 			},
 		});
 		await using parent = createTestContext('owned-return-parent');
@@ -209,7 +243,10 @@ describe('resource definitions and collections', () => {
 
 	it('deduplicates concurrent lazy acquisition and retries after failure', async () => {
 		await using ctx = createTestContext();
-		const ResourceValue = resource.define<{ readonly sequence: number }>()({ id: 'test.value', description: 'Retryable value.' });
+		const ResourceValue = resource.define<{ readonly sequence: number }>()({
+			id: 'test.value',
+			description: 'Retryable value.',
+		});
 		let sequences = 0;
 		const implementation = resource.implement(ResourceValue, {
 			async create() {
@@ -229,37 +266,48 @@ describe('resource definitions and collections', () => {
 
 	it('projects environment fields and passes the exact host and collection context', async () => {
 		await using ctx = createTestContext();
-		const StringSchema = Object.freeze({
-			'~standard': Object.freeze({
-				version: 1 as const,
-				vendor: 'test',
-				validate(value: unknown) { return typeof value === 'string' ? { value } : { issues: [{ message: 'Expected a string.' }] }; },
-			}),
-		} satisfies StandardSchemaV1<unknown, string>);
+		const StringSchema = Object.freeze(
+			{
+				'~standard': Object.freeze({
+					version: 1 as const,
+					vendor: 'test',
+					validate(value: unknown) {
+						return typeof value === 'string' ? { value } : { issues: [{ message: 'Expected a string.' }] };
+					},
+				}),
+			} satisfies StandardSchemaV1<unknown, string>,
+		);
 		const environment = env.define({ DATABASE_URL: env.variable(StringSchema, { description: 'Database URL.' }) });
 		const requirementDefinition = env.requirement('test.resource-environment', environment, {
 			DATABASE_URL: 'Connect to the test database.',
 		});
-		const Database = resource.define<Readonly<{ readonly url: string; readonly hostName: string; readonly requestId: string }>>()({
+		const Database = resource.define<
+			Readonly<{ readonly url: string; readonly hostName: string; readonly requestId: string }>
+		>()({
 			id: 'test.projected-database',
 			description: 'Database with projected environment.',
 			environment: requirementDefinition,
 		});
 		const host = Object.freeze({ name: 'test-host' });
-		const implementation = resource.implement<typeof Database, resource.ResourceValue<typeof Database>, typeof host>(Database, {
-			create({ environment, host: receivedHost, ctx: receivedContext }) {
-				const url = environment.DATABASE_URL;
-				if (typeof url !== 'string') throw new TypeError('DATABASE_URL must be a string.');
-				return { url, hostName: receivedHost.name, requestId: receivedContext.id };
+		const implementation = resource.implement<typeof Database, resource.ResourceValue<typeof Database>, typeof host>(
+			Database,
+			{
+				create({ environment, host: receivedHost, ctx: receivedContext }) {
+					const url = environment.DATABASE_URL;
+					if (typeof url !== 'string') throw new TypeError('DATABASE_URL must be a string.');
+					return { url, hostName: receivedHost.name, requestId: receivedContext.id };
+				},
 			},
-		});
+		);
 		await using collection = resource.create(resource.implementations(implementation), {
 			environment: { DATABASE_URL: 'postgres://example', UNUSED: 'not projected' },
 			host,
 			ctx,
 		});
 		expect(await collection.get(ctx, Database)).toEqual({
-			url: 'postgres://example', hostName: 'test-host', requestId: ctx.id,
+			url: 'postgres://example',
+			hostName: 'test-host',
+			requestId: ctx.id,
 		});
 	});
 
@@ -268,13 +316,27 @@ describe('resource definitions and collections', () => {
 		const events: string[] = [];
 		const Database = resource.define<AsyncDisposable>()({ id: 'test.database-disposal', description: 'Database.' });
 		const Repository = resource.define<AsyncDisposable>()({
-			id: 'test.repository-disposal', description: 'Repository.', dependencies: { database: Database },
+			id: 'test.repository-disposal',
+			description: 'Repository.',
+			dependencies: { database: Database },
 		});
 		const database = resource.implement(Database, {
-			create() { return { async [Symbol.asyncDispose]() { events.push('database'); } }; },
+			create() {
+				return {
+					async [Symbol.asyncDispose]() {
+						events.push('database');
+					},
+				};
+			},
 		});
 		const repository = resource.implement(Repository, {
-			create() { return { async [Symbol.asyncDispose]() { events.push('repository'); } }; },
+			create() {
+				return {
+					async [Symbol.asyncDispose]() {
+						events.push('repository');
+					},
+				};
+			},
 		});
 		const collection = resource.create(resource.implementations(database, repository), { host: {}, ctx });
 		await collection.get(ctx, Repository);
@@ -310,7 +372,11 @@ describe('resource definitions and collections', () => {
 		const implementation = resource.implement(Late, {
 			async create() {
 				await gate;
-				return { async [Symbol.asyncDispose]() { events.push('late-disposed'); } };
+				return {
+					async [Symbol.asyncDispose]() {
+						events.push('late-disposed');
+					},
+				};
 			},
 		});
 		const collection = resource.create(resource.implementations(implementation), { host: {}, ctx });

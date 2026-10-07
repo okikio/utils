@@ -4,7 +4,9 @@ import type { Middleware } from './types.ts';
 /** Canonicalize one HTTP route path without applying filesystem semantics. */
 export function normalizePath(path: string): string {
 	if (typeof path !== 'string') throw new TypeError('HTTP path must be a string.');
-	if (/[?#\\\0\r\n]/.test(path)) throw new TypeError('HTTP route paths must not contain a query, fragment, backslash, or control character.');
+	if (/[?#\\\0\r\n]/.test(path)) {
+		throw new TypeError('HTTP route paths must not contain a query, fragment, backslash, or control character.');
+	}
 	if (path.length === 0 || path === '/') return '/';
 	const trailingSlash = path.endsWith('/');
 	const parts = path.split('/').filter(Boolean);
@@ -17,7 +19,9 @@ export function normalizePath(path: string): string {
 /** Reject authored route segments that URL parsing would rewrite before matching. @internal */
 function validateRoutePart(part: string): void {
 	const dotNormalized = part.replaceAll(/%2e/gi, '.');
-	if (dotNormalized === '.' || dotNormalized === '..') throw new TypeError('HTTP route paths must not contain dot segments.');
+	if (dotNormalized === '.' || dotNormalized === '..') {
+		throw new TypeError('HTTP route paths must not contain dot segments.');
+	}
 	if (part.startsWith(':') && !/^:[A-Za-z_][A-Za-z0-9_]*$/.test(part)) {
 		throw new TypeError(`Invalid HTTP route parameter segment ${JSON.stringify(part)}.`);
 	}
@@ -78,10 +82,16 @@ export function trailingSlash(
 	if (mode !== 'trim' && mode !== 'append') throw new TypeError('Trailing-slash mode must be trim or append.');
 	recordCore.assert(options, 'trailing-slash options');
 	const normalized = recordCore.snapshot(options, 'trailing-slash options');
-	if (normalized.alwaysRedirect !== undefined && typeof normalized.alwaysRedirect !== 'boolean') throw new TypeError('alwaysRedirect must be a boolean when provided.');
-	if (normalized.skip !== undefined && typeof normalized.skip !== 'function') throw new TypeError('trailing-slash skip must be a function when provided.');
+	if (normalized.alwaysRedirect !== undefined && typeof normalized.alwaysRedirect !== 'boolean') {
+		throw new TypeError('alwaysRedirect must be a boolean when provided.');
+	}
+	if (normalized.skip !== undefined && typeof normalized.skip !== 'function') {
+		throw new TypeError('trailing-slash skip must be a function when provided.');
+	}
 	const status = normalized.status ?? 301;
-	if (status !== 301 && status !== 302 && status !== 307 && status !== 308) throw new TypeError('Trailing-slash status must be 301, 302, 307, or 308.');
+	if (status !== 301 && status !== 302 && status !== 307 && status !== 308) {
+		throw new TypeError('Trailing-slash status must be 301, 302, 307, or 308.');
+	}
 	const alwaysRedirect = normalized.alwaysRedirect ?? false;
 	const skip = normalized.skip;
 	return async (request, next) => {

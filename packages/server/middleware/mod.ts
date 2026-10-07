@@ -1,6 +1,6 @@
 /**
  * Import-safe server middleware definitions and composition operations.
- * 
+ *
  * Middleware policy remains descriptive until a service or gateway runtime compiles and invokes it.
  */
 import * as catalogProtocol from '@okikio/catalog';
@@ -8,12 +8,7 @@ import * as effect from '@okikio/effect';
 import * as recordCore from '@okikio/record';
 import * as resilience from '@okikio/resilience';
 import * as requirement from '@okikio/requirement';
-import type {
-	Catalog,
-	CatalogEntryIdentity,
-	CatalogSelection,
-	DefinitionInput,
-} from '@okikio/catalog';
+import type { Catalog, CatalogEntryIdentity, CatalogSelection, DefinitionInput } from '@okikio/catalog';
 
 import type {
 	MiddlewareContextDefinition,
@@ -35,12 +30,14 @@ import type {
 	MiddlewareValidationResult,
 } from './types.ts';
 
-const lanes = Object.freeze([
-	'wholeRequest',
-	'beforeValidation',
-	'afterValidation',
-	'aroundOperation',
-] as const satisfies readonly MiddlewareLane[]);
+const lanes = Object.freeze(
+	[
+		'wholeRequest',
+		'beforeValidation',
+		'afterValidation',
+		'aroundOperation',
+	] as const satisfies readonly MiddlewareLane[],
+);
 
 /** Define a typed request-context value. */
 export function context<Value>(): (
@@ -131,9 +128,15 @@ function snapshotDocumentation(
 ): Readonly<{ readonly url?: string; readonly notes?: string }> {
 	recordCore.assert(value, 'Middleware documentation');
 	const unknown = recordCore.keys(value).filter((key) => key !== 'url' && key !== 'notes');
-	if (unknown.length > 0) throw new TypeError(`Middleware documentation contains unknown field ${JSON.stringify(unknown[0])}.`);
-	if (value.url !== undefined && typeof value.url !== 'string') throw new TypeError('Middleware documentation url must be a string.');
-	if (value.notes !== undefined && typeof value.notes !== 'string') throw new TypeError('Middleware documentation notes must be a string.');
+	if (unknown.length > 0) {
+		throw new TypeError(`Middleware documentation contains unknown field ${JSON.stringify(unknown[0])}.`);
+	}
+	if (value.url !== undefined && typeof value.url !== 'string') {
+		throw new TypeError('Middleware documentation url must be a string.');
+	}
+	if (value.notes !== undefined && typeof value.notes !== 'string') {
+		throw new TypeError('Middleware documentation notes must be a string.');
+	}
 	return Object.freeze({
 		...(value.url === undefined ? {} : { url: value.url }),
 		...(value.notes === undefined ? {} : { notes: value.notes }),
@@ -209,17 +212,21 @@ export function compose<Entry extends MiddlewareDefinition>(
 }
 
 /** Surround the complete application request pipeline before transport materialization. */
-export const wholeRequest = <Definition extends MiddlewareDefinition>(definition: Definition): MiddlewareUse<Definition, 'wholeRequest'> =>
-	use(definition, 'wholeRequest');
+export const wholeRequest = <Definition extends MiddlewareDefinition>(
+	definition: Definition,
+): MiddlewareUse<Definition, 'wholeRequest'> => use(definition, 'wholeRequest');
 /** Place middleware immediately before request validation. */
-export const beforeValidation = <Definition extends MiddlewareDefinition>(definition: Definition): MiddlewareUse<Definition, 'beforeValidation'> =>
-	use(definition, 'beforeValidation');
+export const beforeValidation = <Definition extends MiddlewareDefinition>(
+	definition: Definition,
+): MiddlewareUse<Definition, 'beforeValidation'> => use(definition, 'beforeValidation');
 /** Place middleware in the normal post-validation lane. */
-export const afterValidation = <Definition extends MiddlewareDefinition>(definition: Definition): MiddlewareUse<Definition, 'afterValidation'> =>
-	use(definition, 'afterValidation');
+export const afterValidation = <Definition extends MiddlewareDefinition>(
+	definition: Definition,
+): MiddlewareUse<Definition, 'afterValidation'> => use(definition, 'afterValidation');
 /** Place middleware immediately around endpoint handler invocation. */
-export const aroundOperation = <Definition extends MiddlewareDefinition>(definition: Definition): MiddlewareUse<Definition, 'aroundOperation'> =>
-	use(definition, 'aroundOperation');
+export const aroundOperation = <Definition extends MiddlewareDefinition>(
+	definition: Definition,
+): MiddlewareUse<Definition, 'aroundOperation'> => use(definition, 'aroundOperation');
 
 /** Normalize middleware input while preserving authored order within each lane. */
 export function plan(input: MiddlewareInput | undefined): MiddlewarePlan {
@@ -253,13 +260,27 @@ export function validate(
 			idOwners.set(definition.id, definition);
 			for (const required of definition.requires) {
 				if (!available.has(required)) {
-					issues.push(issue('missing-required-context', `${definition.id} requires unavailable context ${required.id}.`, definition, required));
+					issues.push(
+						issue(
+							'missing-required-context',
+							`${definition.id} requires unavailable context ${required.id}.`,
+							definition,
+							required,
+						),
+					);
 				}
 			}
 			for (const provided of definition.provides) {
 				const existing = providers.get(provided);
 				if (existing && existing !== definition) {
-					issues.push(issue('duplicate-context-provider', `${provided.id} is provided by both ${existing.id} and ${definition.id}.`, definition, provided));
+					issues.push(
+						issue(
+							'duplicate-context-provider',
+							`${provided.id} is provided by both ${existing.id} and ${definition.id}.`,
+							definition,
+							provided,
+						),
+					);
 				}
 				providers.set(provided, definition);
 				available.add(provided);
@@ -274,18 +295,26 @@ export function validate(
 
 /** Create deterministic JSON-safe middleware documentation. */
 export function document(input: DefinitionInput<MiddlewareDefinition>): readonly MiddlewareDocument[] {
-	return Object.freeze(catalogProtocol.values(input).map((definition): MiddlewareDocument => Object.freeze({
-		id: definition.id,
-		description: definition.description,
-		requires: Object.freeze(definition.requires.map((item) => item.id)),
-		provides: Object.freeze(definition.provides.map((item) => item.id)),
-		resources: ids(definition.resources),
-		problems: ids(definition.problems),
-		requirements: requirement.document(definition.requirements ?? []),
-		effects: definition.effects === undefined ? Object.freeze([]) : Object.freeze(effect.compose(definition.effects).map((entry) => entry.id)),
-		resiliency: definition.resiliency === undefined ? Object.freeze([]) : Object.freeze(resilience.compose(definition.resiliency).map((policy) => policy.type)),
-		...(definition.documentation !== undefined ? { documentation: definition.documentation } : {}),
-	})));
+	return Object.freeze(
+		catalogProtocol.values(input).map((definition): MiddlewareDocument =>
+			Object.freeze({
+				id: definition.id,
+				description: definition.description,
+				requires: Object.freeze(definition.requires.map((item) => item.id)),
+				provides: Object.freeze(definition.provides.map((item) => item.id)),
+				resources: ids(definition.resources),
+				problems: ids(definition.problems),
+				requirements: requirement.document(definition.requirements ?? []),
+				effects: definition.effects === undefined
+					? Object.freeze([])
+					: Object.freeze(effect.compose(definition.effects).map((entry) => entry.id)),
+				resiliency: definition.resiliency === undefined
+					? Object.freeze([])
+					: Object.freeze(resilience.compose(definition.resiliency).map((policy) => policy.type)),
+				...(definition.documentation !== undefined ? { documentation: definition.documentation } : {}),
+			})
+		),
+	);
 }
 
 /**
@@ -365,7 +394,9 @@ function ids(input: DefinitionInput<CatalogEntryIdentity> | undefined): readonly
 function assertContextList(values: readonly MiddlewareContextDefinition[], field: string): void {
 	const seen = new Set<MiddlewareContextDefinition>();
 	for (const value of values) {
-		if (value.kind !== 'middleware-context') throw new TypeError(`Middleware ${field} entries must be context definitions.`);
+		if (value.kind !== 'middleware-context') {
+			throw new TypeError(`Middleware ${field} entries must be context definitions.`);
+		}
 		if (seen.has(value)) throw new TypeError(`Middleware ${field} repeats context ${JSON.stringify(value.id)}.`);
 		seen.add(value);
 	}
@@ -422,8 +453,8 @@ export type {
 	MiddlewareRequires,
 	MiddlewareResourceDefinition,
 	MiddlewareResourceResolver,
-	MiddlewareResourceValue,
 	MiddlewareResources,
+	MiddlewareResourceValue,
 	MiddlewareUse,
 	MiddlewareValidationIssue,
 	MiddlewareValidationResult,

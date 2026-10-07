@@ -108,12 +108,13 @@ describe('context', () => {
 		const controller = new AbortController();
 		await using ctx = context.create({ id: 'external-gate', signal: controller.signal });
 		const waiters = new Set<() => void>();
-		const wait = () => context.waitFor(ctx, (resume) => {
-			waiters.add(resume);
-			return () => {
-				waiters.delete(resume);
-			};
-		});
+		const wait = () =>
+			context.waitFor(ctx, (resume) => {
+				waiters.add(resume);
+				return () => {
+					waiters.delete(resume);
+				};
+			});
 
 		const resumed = wait();
 		expect(waiters.size).toBe(1);

@@ -116,9 +116,10 @@ function errorValue(value: Error, depth: number, path: WeakSet<object>, limits: 
 function arrayValue(value: readonly unknown[], depth: number, path: WeakSet<object>, limits: Limits): FaultValue {
 	const descriptors = Object.getOwnPropertyDescriptors(value);
 	const lengthDescriptor = Object.getOwnPropertyDescriptor(value, 'length');
-	const rawLength = lengthDescriptor !== undefined && 'value' in lengthDescriptor && typeof lengthDescriptor.value === 'number'
-		? lengthDescriptor.value
-		: 0;
+	const rawLength =
+		lengthDescriptor !== undefined && 'value' in lengthDescriptor && typeof lengthDescriptor.value === 'number'
+			? lengthDescriptor.value
+			: 0;
 	const length = Number.isSafeInteger(rawLength) && rawLength > 0 ? rawLength : 0;
 	const count = Math.min(length, limits.maximumEntries);
 	const output: FaultValue[] = [];
@@ -151,7 +152,9 @@ function recordValue(value: object, depth: number, path: WeakSet<object>, limits
 
 /** Return an own string data descriptor without invoking property access. @internal */
 function stringDescriptor(descriptor: PropertyDescriptor | undefined): string | undefined {
-	return descriptor !== undefined && 'value' in descriptor && typeof descriptor.value === 'string' ? descriptor.value : undefined;
+	return descriptor !== undefined && 'value' in descriptor && typeof descriptor.value === 'string'
+		? descriptor.value
+		: undefined;
 }
 
 /** Return one own data descriptor as an explicit found/value pair. @internal */

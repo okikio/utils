@@ -12,7 +12,9 @@ function schema(): StandardSchemaV1<unknown, unknown> {
 		'~standard': Object.freeze({
 			version: 1,
 			vendor: 'test',
-			validate(value: unknown) { return { value }; },
+			validate(value: unknown) {
+				return { value };
+			},
 		}),
 	});
 }
@@ -36,7 +38,9 @@ function codec<Input extends Omit<workflow.HistoryInput, 'encode' | 'decode'>>(i
 		...input,
 		async encode(completion: workflow.WorkflowCompletionAny) {
 			if (completion.type !== 'success') throw new TypeError('History unit fixture expects a success completion.');
-			if (completion.value === undefined) return Object.freeze({ type: 'success', value: Object.freeze({ kind: 'undefined' }) });
+			if (completion.value === undefined) {
+				return Object.freeze({ type: 'success', value: Object.freeze({ kind: 'undefined' }) });
+			}
 			if (typeof completion.value !== 'string') throw new TypeError('History unit fixture expects a string result.');
 			return Object.freeze({ type: 'success', value: Object.freeze({ kind: 'value', value: completion.value }) });
 		},
@@ -67,7 +71,10 @@ describe('@okikio/workflow/history', () => {
 				instruction: entry.value,
 				path: 'history.test@1/0:sleep',
 				identity: entry.identity,
-				next: async () => { calls += 1; return workflow.success('done'); },
+				next: async () => {
+					calls += 1;
+					return workflow.success('done');
+				},
 			};
 
 			expect(await records.schedule(codec(input))).toEqual(workflow.success('done'));
@@ -93,7 +100,11 @@ describe('@okikio/workflow/history', () => {
 				instruction: entry.value,
 				path: 'history.test@1/0:sleep',
 				identity: entry.identity,
-				next: async () => { calls += 1; await gate; return workflow.success('done'); },
+				next: async () => {
+					calls += 1;
+					await gate;
+					return workflow.success('done');
+				},
 			};
 			const first = records.schedule(codec(input));
 			const second = records.schedule(codec(input));

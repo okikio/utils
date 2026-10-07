@@ -58,11 +58,9 @@ export type ValibotEnvironmentFieldInputs = Readonly<Record<string, ValibotEnvir
 
 /** Canonical fields inferred from Valibot authoring inputs. */
 export type InferValibotEnvironmentFields<Inputs extends ValibotEnvironmentFieldInputs> = {
-	readonly [Key in keyof Inputs]: Inputs[Key] extends EnvironmentField<infer Schema>
-		? EnvironmentField<Schema>
-		: Inputs[Key] extends ValibotEnvironmentSchema
-			? EnvironmentField<Inputs[Key], 'variable'>
-			: never;
+	readonly [Key in keyof Inputs]: Inputs[Key] extends EnvironmentField<infer Schema> ? EnvironmentField<Schema>
+		: Inputs[Key] extends ValibotEnvironmentSchema ? EnvironmentField<Inputs[Key], 'variable'>
+		: never;
 };
 
 const bareVariables = new WeakMap<object, EnvironmentField<ValibotEnvironmentSchema, 'variable'>>();
@@ -203,8 +201,9 @@ export function secret<const Schema extends ValibotEnvironmentSchema>(
 export const compose = composeStandard;
 
 export {
-	EnvironmentError,
+	blank,
 	env,
+	EnvironmentError,
 	example,
 	isSource,
 	manifest,
@@ -213,7 +212,6 @@ export {
 	requirement,
 	requirementReport,
 	select,
-	blank,
 };
 export type { ComposeEnvironmentFields } from './definition.ts';
 export type {

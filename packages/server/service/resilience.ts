@@ -1,12 +1,12 @@
 import { retry as retryAsync, RetryError } from '@std/async/retry';
 import * as durationCore from '@okikio/duration';
 import type { EmptyEndpointHost } from '@okikio/server/endpoint/types';
-import type { RetryPolicy, ResiliencePolicy } from '@okikio/resilience';
+import type { ResiliencePolicy, RetryPolicy } from '@okikio/resilience';
 import * as fault from '@okikio/fault';
 
 import type {
-	ServiceRequestValues,
 	ServiceRequestState,
+	ServiceRequestValues,
 	ServiceResilienceAdapter,
 	ServiceStageResult,
 } from './types.ts';
@@ -130,10 +130,12 @@ export function resilience<
 			state: ServiceRequestState<Host, Values>,
 			next: () => Promise<ServiceStageResult>,
 		): Promise<ServiceStageResult> {
-			const plans: Array<Readonly<{
-				readonly adapter: ServiceResilienceAdapter<Host, Values>;
-				readonly policies: ResiliencePolicy[];
-			}>> = [];
+			const plans: Array<
+				Readonly<{
+					readonly adapter: ServiceResilienceAdapter<Host, Values>;
+					readonly policies: ResiliencePolicy[];
+				}>
+			> = [];
 			const byAdapter = new Map<ServiceResilienceAdapter<Host, Values>, ResiliencePolicy[]>();
 
 			for (const policy of policies) {
@@ -199,7 +201,6 @@ function defaultRetryDecision(error: Error, policy: RetryPolicy): boolean {
 	if (!(error instanceof RetryableOperationError)) return false;
 	return policy.retryOn === undefined || (error.code !== undefined && policy.retryOn.includes(error.code));
 }
-
 
 /**
  * Normalizes error into the canonical internal form used by later phases.

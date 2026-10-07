@@ -1,17 +1,11 @@
-`@okikio/dispose`
-================
+# `@okikio/dispose`
 
-Purpose
--------
+## Purpose
 
-This package does not invent a disposal framework. Runtime code uses the
-ECMAScript explicit-resource-management model directly: `DisposableStack`,
-`AsyncDisposableStack`, `Symbol.dispose`, `Symbol.asyncDispose`, and
-`SuppressedError`.
+This package does not invent a disposal framework. Runtime code uses the ECMAScript explicit-resource-management model
+directly: `DisposableStack`, `AsyncDisposableStack`, `Symbol.dispose`, `Symbol.asyncDispose`, and `SuppressedError`.
 
-
-Start here
-----------
+## Start here
 
 When the runtime already provides the standard globals, no import is needed:
 
@@ -29,37 +23,30 @@ await using session = await openSession();
 await session.write(value);
 ```
 
+## Larger composition
 
-
-Larger composition
-------------------
-
-Use one stack when several resources share one owner and must unwind in reverse
-acquisition order:
+Use one stack when several resources share one owner and must unwind in reverse acquisition order:
 
 ```ts
 async function copyAsset() {
-  await using resources = new AsyncDisposableStack();
+	await using resources = new AsyncDisposableStack();
 
-  const source = resources.use(await openSource());
-  const target = resources.use(await openTarget());
-  resources.defer(() => recordCopyFinished());
+	const source = resources.use(await openSource());
+	const target = resources.use(await openTarget());
+	resources.defer(() => recordCopyFinished());
 
-  await source.pipeTo(target.writable);
+	await source.pipeTo(target.writable);
 }
 ```
 
-If acquisition or work throws, the stack still disposes everything it already
-owns. If cleanup also throws, standard `SuppressedError` semantics preserve both
-failures instead of silently replacing the original one.
+If acquisition or work throws, the stack still disposes everything it already owns. If cleanup also throws, standard
+`SuppressedError` semantics preserve both failures instead of silently replacing the original one.
 
-
-Convenience and the manual equivalent
--------------------------------------
+## Convenience and the manual equivalent
 
 Concrete map
-~~~~~~~~~~~~
 
+````
 | Convenience | Manual equivalent | Concrete value |
 | --- | --- | --- |
 | `@okikio/dispose/polyfill` | install only the missing explicit-resource-management globals before application startup | compatibility only; native `using` semantics stay authoritative |
@@ -97,3 +84,4 @@ Source guide
 - `polyfill.test.ts` verifies compatibility behavior.
 
 The README is the primary user documentation.
+````

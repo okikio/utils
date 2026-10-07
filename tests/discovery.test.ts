@@ -53,23 +53,34 @@ test('CRM import discovery preserves explicit CSV structure while composing web 
 		'Allow: /private/pricing',
 		'Sitemap: https://example.com/sitemap.xml',
 	].join('\n'));
-	assert.equal(robots.match(policy, { userAgent: 'KaijuResearchBot', url: 'https://example.com/private/internal' }), false);
-	assert.equal(robots.match(policy, { userAgent: 'KaijuResearchBot', url: 'https://example.com/private/pricing' }), true);
+	assert.equal(
+		robots.match(policy, { userAgent: 'KaijuResearchBot', url: 'https://example.com/private/internal' }),
+		false,
+	);
+	assert.equal(
+		robots.match(policy, { userAgent: 'KaijuResearchBot', url: 'https://example.com/private/pricing' }),
+		true,
+	);
 	assert.deepEqual(robots.getSitemapUrls(policy), ['https://example.com/sitemap.xml']);
 
 	const locations = sitemap.locations({
 		url: 'https://example.com/sitemap.xml',
 		contentType: 'application/xml',
-		text: `<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.com/</loc></url><url><loc>https://example.com/pricing</loc></url></urlset>`,
+		text:
+			`<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.com/</loc></url><url><loc>https://example.com/pricing</loc></url></urlset>`,
 	});
 	assert.deepEqual(locations, ['https://example.com/', 'https://example.com/pricing']);
 
-	const page = html.parse(`<!doctype html><html><head><link rel="stylesheet" href="/app.css"></head><body><main><a href="/pricing">Pricing</a></main></body></html>`);
+	const page = html.parse(
+		`<!doctype html><html><head><link rel="stylesheet" href="/app.css"></head><body><main><a href="/pricing">Pricing</a></main></body></html>`,
+	);
 	const link = html.selectOne(page.document, 'main a[href]');
 	assert.ok(link);
 	assert.equal(html.attribute(link, 'href'), '/pricing');
 
-	const references = css.parseResources(`@font-face { src: url('/brand.woff2') } .hero { background-image: url('/hero.webp') }`);
+	const references = css.parseResources(
+		`@font-face { src: url('/brand.woff2') } .hero { background-image: url('/hero.webp') }`,
+	);
 	assert.deepEqual(references.map((reference) => [reference.kind, reference.url]), [
 		['font', '/brand.woff2'],
 		['image', '/hero.webp'],

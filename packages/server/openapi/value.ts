@@ -25,7 +25,9 @@ function freezeValue<Value>(value: Value, name: string, path: WeakSet<object>): 
 
 /** Validate dense array storage through property descriptors before recursing. @internal */
 function freezeArray(value: unknown[], name: string, path: WeakSet<object>): void {
-	if (Object.getOwnPropertySymbols(value).length > 0) throw new TypeError(`${name} arrays must not use symbol properties.`);
+	if (Object.getOwnPropertySymbols(value).length > 0) {
+		throw new TypeError(`${name} arrays must not use symbol properties.`);
+	}
 	const descriptors = Object.getOwnPropertyDescriptors(value);
 	for (const key of Object.keys(descriptors)) {
 		if (key === 'length') continue;

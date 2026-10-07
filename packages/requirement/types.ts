@@ -18,7 +18,9 @@ export interface RequirementDefinition<
 }
 
 /** Recursive input accepted by requirement-consuming definitions. */
-export type RequirementInput<Entry extends RequirementDefinition = RequirementDefinition> = CatalogDefinitionInput<Entry>;
+export type RequirementInput<Entry extends RequirementDefinition = RequirementDefinition> = CatalogDefinitionInput<
+	Entry
+>;
 
 /** Options accepted by `requirements.define()`. */
 export interface RequirementOptions<
@@ -88,7 +90,8 @@ export interface RequirementRuntime {
 
 /** Execution context view that can apply active requirements. */
 export type RequirementContext<Base extends BaseContext = BaseContext> =
-	Base & Readonly<{ readonly requirements: RequirementRuntime }>;
+	& Base
+	& Readonly<{ readonly requirements: RequirementRuntime }>;
 
 /** Options accepted by `requirements.scope()`. */
 export interface RequirementScopeOptions {

@@ -90,7 +90,9 @@ export type ProblemBody<Definition extends ProblemDefinition = ProblemDefinition
 export type ProblemHeaders = ResponseHeaders;
 
 /** Options supplied while creating one problem occurrence. */
-export interface CreateProblemOptions<Extensions extends Readonly<Record<string, unknown>> = Readonly<Record<string, unknown>>> {
+export interface CreateProblemOptions<
+	Extensions extends Readonly<Record<string, unknown>> = Readonly<Record<string, unknown>>,
+> {
 	readonly detail?: string;
 	readonly instance?: string;
 	readonly extensions?: Extensions;

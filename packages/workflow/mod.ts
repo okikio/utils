@@ -34,30 +34,29 @@ import type {
 	ActivityCommand,
 	ActivityCommandOptions,
 	ActivityReference,
-	WorkflowCommandOptions,
-	WorkflowAnnotations,
-	WorkflowCompletionAny,
-	WorkflowCancelled,
 	ChildOptions,
 	ChildWorkflowCommand,
+	Scheduler,
+	SchedulerOptions,
+	WorkflowAnnotations,
+	WorkflowCancelled,
+	WorkflowCatalog,
+	WorkflowCommandOptions,
+	WorkflowCompletionAny,
 	WorkflowContext,
-	WorkflowControlInstruction,
 	WorkflowContextOptions,
+	WorkflowControlInstruction,
+	WorkflowDeferCommand,
 	WorkflowDefinition,
-	WorkflowOptions,
 	WorkflowDocument,
 	WorkflowDurableValue,
 	WorkflowEffectCommand,
-	Scheduler,
-	WorkflowDeferCommand,
-	WorkflowRunOptions,
 	WorkflowFailure,
 	WorkflowFault,
 	WorkflowImplementation,
 	WorkflowInstruction,
 	WorkflowInstructionDescription,
 	WorkflowInstructionIdentity,
-	SchedulerOptions,
 	WorkflowMapEntry,
 	WorkflowMapInstruction,
 	WorkflowMapOptions,
@@ -65,21 +64,22 @@ import type {
 	WorkflowOperationFailures,
 	WorkflowOperations,
 	WorkflowOperationValues,
+	WorkflowOptions,
 	WorkflowParallelInstruction,
 	WorkflowParallelOptions,
 	WorkflowRaceInstruction,
 	WorkflowRaceOptions,
 	WorkflowRaceResult,
+	WorkflowReference,
 	WorkflowRetryInstruction,
 	WorkflowRetryOptions,
+	WorkflowRunOptions,
+	WorkflowSelection,
 	WorkflowSettledValues,
 	WorkflowSignal,
 	WorkflowSleepCommand,
 	WorkflowSuccess,
 	WorkflowWaitCommand,
-	WorkflowCatalog,
-	WorkflowReference,
-	WorkflowSelection,
 } from './types.ts';
 
 /** Version shared by the built-in workflow instruction envelopes in this source revision. */
@@ -263,15 +263,17 @@ export function activity<Value, Failure>(
 	options: ActivityCommandOptions = {},
 ): WorkflowOperation<Value, Failure> {
 	const normalizedOptions = normalizeActivityOptions(options);
-	const command = Object.freeze({
-		category: 'command',
-		type: 'activity',
-		version: builtInInstructionVersion,
-		activity: definition,
-		input: durable.snapshot(input, 'activity input'),
-		options: normalizedOptions,
-		...instructionMetadata(normalizedOptions),
-	} satisfies ActivityCommand<Value, Failure>);
+	const command = Object.freeze(
+		{
+			category: 'command',
+			type: 'activity',
+			version: builtInInstructionVersion,
+			activity: definition,
+			input: durable.snapshot(input, 'activity input'),
+			options: normalizedOptions,
+			...instructionMetadata(normalizedOptions),
+		} satisfies ActivityCommand<Value, Failure>,
+	);
 	return operation(command);
 }
 
@@ -280,13 +282,15 @@ export function sleep(
 	duration: Temporal.DurationLike | string,
 	options: WorkflowCommandOptions = {},
 ): WorkflowOperation<Temporal.Instant> {
-	const command = Object.freeze({
-		category: 'command',
-		type: 'sleep',
-		version: builtInInstructionVersion,
-		duration: Temporal.Duration.from(duration),
-		...instructionMetadata(options),
-	} satisfies WorkflowSleepCommand);
+	const command = Object.freeze(
+		{
+			category: 'command',
+			type: 'sleep',
+			version: builtInInstructionVersion,
+			duration: Temporal.Duration.from(duration),
+			...instructionMetadata(options),
+		} satisfies WorkflowSleepCommand,
+	);
 	return operation(command);
 }
 
@@ -296,14 +300,16 @@ export function wait<Value>(
 	input: unknown,
 	options: WorkflowCommandOptions = {},
 ): WorkflowOperation<Value> {
-	const command = Object.freeze({
-		category: 'command',
-		type: 'wait',
-		version: builtInInstructionVersion,
-		signal: definition,
-		input: durable.snapshot(input, 'wait input'),
-		...instructionMetadata(options),
-	} satisfies WorkflowWaitCommand<Value>);
+	const command = Object.freeze(
+		{
+			category: 'command',
+			type: 'wait',
+			version: builtInInstructionVersion,
+			signal: definition,
+			input: durable.snapshot(input, 'wait input'),
+			...instructionMetadata(options),
+		} satisfies WorkflowWaitCommand<Value>,
+	);
 	return operation(command);
 }
 
@@ -312,17 +318,22 @@ export function child<WorkflowDefinition extends WorkflowReference>(
 	definition: WorkflowDefinition,
 	input: import('./types.ts').WorkflowInput<WorkflowDefinition>,
 	options: ChildOptions = {},
-): WorkflowOperation<import('./types.ts').WorkflowResult<WorkflowDefinition>, import('./types.ts').WorkflowFailures<WorkflowDefinition>> {
+): WorkflowOperation<
+	import('./types.ts').WorkflowResult<WorkflowDefinition>,
+	import('./types.ts').WorkflowFailures<WorkflowDefinition>
+> {
 	const normalizedOptions = normalizeChildOptions(options);
-	const command = Object.freeze({
-		category: 'command',
-		type: 'child-workflow',
-		version: builtInInstructionVersion,
-		workflow: definition,
-		input: durable.snapshot(input, 'child workflow input'),
-		options: normalizedOptions,
-		...instructionMetadata(normalizedOptions),
-	} satisfies ChildWorkflowCommand);
+	const command = Object.freeze(
+		{
+			category: 'command',
+			type: 'child-workflow',
+			version: builtInInstructionVersion,
+			workflow: definition,
+			input: durable.snapshot(input, 'child workflow input'),
+			options: normalizedOptions,
+			...instructionMetadata(normalizedOptions),
+		} satisfies ChildWorkflowCommand,
+	);
 	return operation(command);
 }
 
@@ -338,19 +349,24 @@ export function effect<Effect_ extends effects.EffectDefinition>(
 	value: effects.EffectValueInput<Effect_>,
 	options: WorkflowCommandOptions = {},
 ): WorkflowOperation<void> {
-	const command = Object.freeze({
-		category: 'command',
-		type: 'effect',
-		version: builtInInstructionVersion,
-		effect: definition,
-		value: durable.snapshot(value, 'effect value'),
-		...instructionMetadata(options),
-	} satisfies WorkflowEffectCommand);
+	const command = Object.freeze(
+		{
+			category: 'command',
+			type: 'effect',
+			version: builtInInstructionVersion,
+			effect: definition,
+			value: durable.snapshot(value, 'effect value'),
+			...instructionMetadata(options),
+		} satisfies WorkflowEffectCommand,
+	);
 	return operation(command);
 }
 
 /** Register a cleanup operation that executes when the workflow scope closes. */
-export function defer(cleanup: WorkflowOperation<unknown, unknown>, options: WorkflowCommandOptions = {}): WorkflowOperation<void> {
+export function defer(
+	cleanup: WorkflowOperation<unknown, unknown>,
+	options: WorkflowCommandOptions = {},
+): WorkflowOperation<void> {
 	const cleanupInstruction = createdInstruction(cleanup, 'workflow.defer cleanup');
 	if (
 		cleanupInstruction.category !== 'command' ||
@@ -358,25 +374,32 @@ export function defer(cleanup: WorkflowOperation<unknown, unknown>, options: Wor
 	) {
 		throw new TypeError('workflow.defer cleanup must be one activity or child-workflow operation.');
 	}
-	const command = Object.freeze({
-		category: 'command',
-		type: 'defer',
-		version: builtInInstructionVersion,
-		cleanup: cleanupInstruction,
-		...instructionMetadata(options),
-	} satisfies WorkflowDeferCommand);
+	const command = Object.freeze(
+		{
+			category: 'command',
+			type: 'defer',
+			version: builtInInstructionVersion,
+			cleanup: cleanupInstruction,
+			...instructionMetadata(options),
+		} satisfies WorkflowDeferCommand,
+	);
 	return operation(command);
 }
 
 /** End the current run and request an atomic continuation with new input. */
-function continueRun<WorkflowInput>(input: WorkflowInput, options: WorkflowCommandOptions = {}): WorkflowOperation<never> {
-	const command = Object.freeze({
-		category: 'command',
-		type: 'continue',
-		version: builtInInstructionVersion,
-		input: durable.snapshot(input, 'continue-as-new input'),
-		...instructionMetadata(options),
-	} satisfies import('./types.ts').WorkflowContinueCommand);
+function continueRun<WorkflowInput>(
+	input: WorkflowInput,
+	options: WorkflowCommandOptions = {},
+): WorkflowOperation<never> {
+	const command = Object.freeze(
+		{
+			category: 'command',
+			type: 'continue',
+			version: builtInInstructionVersion,
+			input: durable.snapshot(input, 'continue-as-new input'),
+			...instructionMetadata(options),
+		} satisfies import('./types.ts').WorkflowContinueCommand,
+	);
 	return operation(command);
 }
 
@@ -397,17 +420,19 @@ export function parallel<Values extends WorkflowOperations>(
 ): WorkflowOperation<unknown, unknown> {
 	recordCore.assert(options, 'workflow parallel options');
 	assertOperations(operations);
-	const instruction = Object.freeze({
-		category: 'control',
-		type: 'parallel',
-		version: builtInInstructionVersion,
-		operations: freezeRecord(operations),
-		failure: options.failure ?? 'fail-fast',
-		...(options.concurrency === undefined
-			? {}
-			: { concurrency: boundedConcurrency(options.concurrency, 'parallel concurrency') }),
-		...instructionMetadata(options),
-	} satisfies WorkflowParallelInstruction<Values>);
+	const instruction = Object.freeze(
+		{
+			category: 'control',
+			type: 'parallel',
+			version: builtInInstructionVersion,
+			operations: freezeRecord(operations),
+			failure: options.failure ?? 'fail-fast',
+			...(options.concurrency === undefined
+				? {}
+				: { concurrency: boundedConcurrency(options.concurrency, 'parallel concurrency') }),
+			...instructionMetadata(options),
+		} satisfies WorkflowParallelInstruction<Values>,
+	);
 	return operation(instruction);
 }
 
@@ -421,13 +446,15 @@ export function race<Values extends WorkflowOperations>(
 	if (Object.keys(operations).length > MAX_ACTIVE_CHILDREN) {
 		throw new RangeError(`Workflow race cannot start more than ${MAX_ACTIVE_CHILDREN} child operations.`);
 	}
-	const instruction = Object.freeze({
-		category: 'control',
-		type: 'race',
-		version: builtInInstructionVersion,
-		operations: freezeRecord(operations),
-		...instructionMetadata(options),
-	} satisfies WorkflowRaceInstruction<Values>);
+	const instruction = Object.freeze(
+		{
+			category: 'control',
+			type: 'race',
+			version: builtInInstructionVersion,
+			operations: freezeRecord(operations),
+			...instructionMetadata(options),
+		} satisfies WorkflowRaceInstruction<Values>,
+	);
 	return operation(instruction);
 }
 
@@ -461,16 +488,18 @@ export function map<Item, Value, Failure>(
 		assertOperation(childOperation);
 		return Object.freeze({ key, operation: childOperation });
 	}));
-	const instruction = Object.freeze({
-		category: 'control',
-		type: 'map',
-		version: builtInInstructionVersion,
-		entries,
-		concurrency: boundedConcurrency(options.concurrency, 'map concurrency'),
-		failure: options.failure ?? 'fail-fast',
-		...(options.instructionKey === undefined ? {} : { key: options.instructionKey }),
-		...(options.annotations === undefined ? {} : { annotations: freezeAnnotations(options.annotations) }),
-	} satisfies WorkflowMapInstruction<Value, Failure>);
+	const instruction = Object.freeze(
+		{
+			category: 'control',
+			type: 'map',
+			version: builtInInstructionVersion,
+			entries,
+			concurrency: boundedConcurrency(options.concurrency, 'map concurrency'),
+			failure: options.failure ?? 'fail-fast',
+			...(options.instructionKey === undefined ? {} : { key: options.instructionKey }),
+			...(options.annotations === undefined ? {} : { annotations: freezeAnnotations(options.annotations) }),
+		} satisfies WorkflowMapInstruction<Value, Failure>,
+	);
 	return operation(instruction);
 }
 
@@ -494,18 +523,20 @@ export function retry<Value, Failure>(
 	if (delay === undefined && (maximumDelay !== undefined || backoff !== 1 || jitter !== 0)) {
 		throw new TypeError('retry maximumDelay, backoff, and jitter require retry delay.');
 	}
-	const instruction = Object.freeze({
-		category: 'control',
-		type: 'retry',
-		version: builtInInstructionVersion,
-		operation: childOperation,
-		maximumAttempts: assert.positive(options.maximumAttempts, 'retry maximumAttempts'),
-		...(delay === undefined ? {} : { delay }),
-		backoff,
-		...(maximumDelay === undefined ? {} : { maximumDelay }),
-		jitter,
-		...instructionMetadata(options),
-	} satisfies WorkflowRetryInstruction<Value, Failure>);
+	const instruction = Object.freeze(
+		{
+			category: 'control',
+			type: 'retry',
+			version: builtInInstructionVersion,
+			operation: childOperation,
+			maximumAttempts: assert.positive(options.maximumAttempts, 'retry maximumAttempts'),
+			...(delay === undefined ? {} : { delay }),
+			backoff,
+			...(maximumDelay === undefined ? {} : { maximumDelay }),
+			jitter,
+			...instructionMetadata(options),
+		} satisfies WorkflowRetryInstruction<Value, Failure>,
+	);
 	return operation(instruction);
 }
 
@@ -516,7 +547,9 @@ export async function context<Workflow extends WorkflowDefinition>(
 	recordCore.assert(options, 'workflow context options');
 	const normalized = Object.freeze({ ...options } satisfies WorkflowContextOptions<Workflow>);
 	assertIdentifier(normalized.runId, 'workflow run');
-	const input = await schema.parse(normalized.definition.input, normalized.input) as import('./types.ts').WorkflowInput<Workflow>;
+	const input = await schema.parse(normalized.definition.input, normalized.input) as import('./types.ts').WorkflowInput<
+		Workflow
+	>;
 	const owned = contextCore.child(normalized.ctx, { id: normalized.runId });
 	const checkpoint = inheritedCheckpoint(normalized.ctx, owned);
 	return Object.freeze({
@@ -565,7 +598,9 @@ export async function run<Workflow extends WorkflowDefinition>(
 			`${normalized.ctx.workflow.id}@${normalized.ctx.version}`,
 			cleanups,
 		);
-		value = await schema.parse(normalized.ctx.workflow.result, unvalidated) as import('./types.ts').WorkflowResult<Workflow>;
+		value = await schema.parse(normalized.ctx.workflow.result, unvalidated) as import('./types.ts').WorkflowResult<
+			Workflow
+		>;
 	} catch (error) {
 		primaryFailure = error;
 		hasPrimaryFailure = true;
@@ -607,67 +642,79 @@ export function scheduler(input: SchedulerOptions = {}): Scheduler {
 	let closed = false;
 	let closePromise: Promise<void> | undefined;
 
-	const scheduler = Object.freeze({
-		async schedule(ctx: WorkflowContext, instruction: WorkflowInstruction, path: string) {
-			if (closed) return fault(new SchedulerClosedError());
-			const identity = await identify(instruction, path);
-			const next = async (): Promise<WorkflowCompletionAny> => {
-				if (instruction.category === 'control') return await runControl(ctx, instruction, path, scheduler);
-				if (instruction.type === 'defer') return success(undefined);
-				if (instruction.type === 'continue') throw new ContinueAsNewError(instruction.input);
-				try {
-					if (instruction.type === 'activity') {
-						// Admission requirements run before provider placement. This prevents an
-						// unauthorized request from consuming engine capacity. Target-bearing
-						// permissions remain declarations only until activity code checks a target.
-						const admission = requirement.scope(ctx, options.requirements);
-						const active = requirement.bind(admission, instruction.activity.requirements);
-						await requirement.apply(active, instruction.activity.requirements);
-						return activityCompletion(await jobs.run(ctx, instruction, path, identity.fingerprint));
-					}
-					if (instruction.type === 'effect') {
-						if (!ctx.workflow.effects.includes(instruction.effect)) {
-							return fault(new TypeError(`Workflow ${JSON.stringify(ctx.workflow.id)} emitted undeclared effect ${JSON.stringify(instruction.effect.id)}.`));
+	const scheduler = Object.freeze(
+		{
+			async schedule(ctx: WorkflowContext, instruction: WorkflowInstruction, path: string) {
+				if (closed) return fault(new SchedulerClosedError());
+				const identity = await identify(instruction, path);
+				const next = async (): Promise<WorkflowCompletionAny> => {
+					if (instruction.category === 'control') return await runControl(ctx, instruction, path, scheduler);
+					if (instruction.type === 'defer') return success(undefined);
+					if (instruction.type === 'continue') throw new ContinueAsNewError(instruction.input);
+					try {
+						if (instruction.type === 'activity') {
+							// Admission requirements run before provider placement. This prevents an
+							// unauthorized request from consuming engine capacity. Target-bearing
+							// permissions remain declarations only until activity code checks a target.
+							const admission = requirement.scope(ctx, options.requirements);
+							const active = requirement.bind(admission, instruction.activity.requirements);
+							await requirement.apply(active, instruction.activity.requirements);
+							return activityCompletion(await jobs.run(ctx, instruction, path, identity.fingerprint));
 						}
-						if (options.effect === undefined) return fault(new effects.MissingEffectEmitterError());
-						const occurrence = await effects.create(instruction.effect, instruction.value, { key: identity.fingerprint });
-						await options.effect.emit(ctx, occurrence);
-						return success(undefined);
+						if (instruction.type === 'effect') {
+							if (!ctx.workflow.effects.includes(instruction.effect)) {
+								return fault(
+									new TypeError(
+										`Workflow ${JSON.stringify(ctx.workflow.id)} emitted undeclared effect ${
+											JSON.stringify(instruction.effect.id)
+										}.`,
+									),
+								);
+							}
+							if (options.effect === undefined) return fault(new effects.MissingEffectEmitterError());
+							const occurrence = await effects.create(instruction.effect, instruction.value, {
+								key: identity.fingerprint,
+							});
+							await options.effect.emit(ctx, occurrence);
+							return success(undefined);
+						}
+						if (options.command === undefined) {
+							return fault(
+								new TypeError(`Workflow command ${JSON.stringify(instruction.type)} has no configured host.`),
+							);
+						}
+						return await options.command(ctx, instruction, path);
+					} catch (error) {
+						return isCancellation(error) ? cancelled(cancellationReason(error)) : fault(error);
 					}
-					if (options.command === undefined) {
-						return fault(new TypeError(`Workflow command ${JSON.stringify(instruction.type)} has no configured host.`));
-					}
-					return await options.command(ctx, instruction, path);
-				} catch (error) {
-					return isCancellation(error) ? cancelled(cancellationReason(error)) : fault(error);
-				}
-			};
-			if (options.history === undefined) return await next();
-			return await options.history.schedule({
-				ctx,
-				instruction,
-				path,
-				identity,
-				next,
-				encode: (completion) => encodeCompletion(completion),
-				decode: (completion) => decodeCompletion(ctx.workflow, completion),
-			});
-		},
-		async register(options: import('./types.ts').EngineRegistrationOptions) {
-			if (closed) throw new SchedulerClosedError();
-			return await jobs.register(options);
-		},
-		close(reason?: unknown) {
-			if (closePromise !== undefined) return closePromise;
-			closed = true;
-			closePromise = (async () => {
-				await jobs.close(reason);
-				if (options.disposeHistory === true && options.history !== undefined) await options.history.close(reason);
-			})();
-			return closePromise;
-		},
-		[Symbol.asyncDispose]: async (): Promise<void> => await scheduler.close(),
-	} satisfies Scheduler);
+				};
+				if (options.history === undefined) return await next();
+				return await options.history.schedule({
+					ctx,
+					instruction,
+					path,
+					identity,
+					next,
+					encode: (completion) => encodeCompletion(completion),
+					decode: (completion) => decodeCompletion(ctx.workflow, completion),
+				});
+			},
+			async register(options: import('./types.ts').EngineRegistrationOptions) {
+				if (closed) throw new SchedulerClosedError();
+				return await jobs.register(options);
+			},
+			close(reason?: unknown) {
+				if (closePromise !== undefined) return closePromise;
+				closed = true;
+				closePromise = (async () => {
+					await jobs.close(reason);
+					if (options.disposeHistory === true && options.history !== undefined) await options.history.close(reason);
+				})();
+				return closePromise;
+			},
+			[Symbol.asyncDispose]: async (): Promise<void> => await scheduler.close(),
+		} satisfies Scheduler,
+	);
 	return scheduler;
 }
 
@@ -799,7 +846,9 @@ function describeInstructionPayload(instruction: WorkflowInstruction): WorkflowD
 			input: instruction.input,
 		}, 'activity command');
 	}
-	if (instruction.type === 'sleep') return durable.snapshot({ duration: instruction.duration.toString() }, 'sleep command');
+	if (instruction.type === 'sleep') {
+		return durable.snapshot({ duration: instruction.duration.toString() }, 'sleep command');
+	}
 	if (instruction.type === 'wait') {
 		return durable.snapshot({ signal: instruction.signal.id, input: instruction.input }, 'wait command');
 	}
@@ -1362,7 +1411,9 @@ function normalizeActivityOptions(options: ActivityCommandOptions): ActivityComm
 /** Normalize child-workflow options so nested metadata cannot change after operation creation. @internal */
 function normalizeChildOptions(options: ChildOptions): ChildOptions {
 	recordCore.assert(options, 'workflow child options');
-	if (options.cancellation !== undefined && !['follow-parent', 'request', 'independent'].includes(options.cancellation)) {
+	if (
+		options.cancellation !== undefined && !['follow-parent', 'request', 'independent'].includes(options.cancellation)
+	) {
 		throw new TypeError('workflow child cancellation must be follow-parent, request, or independent.');
 	}
 	if (options.result !== undefined && options.result !== 'wait' && options.result !== 'discard') {
@@ -1376,7 +1427,6 @@ function normalizeChildOptions(options: ChildOptions): ChildOptions {
 		...(options.result === undefined ? {} : { result: options.result }),
 	});
 }
-
 
 /**
  * Extracts stable instruction metadata used by diagnostics and the durable instruction description.
@@ -1402,8 +1452,10 @@ function instructionMetadata(
 function freezeAnnotations(value: WorkflowAnnotations): WorkflowAnnotations {
 	const snapshot = recordCore.snapshot(value, 'workflow annotations');
 	for (const [key, annotation] of recordCore.entries(snapshot, 'workflow annotations')) {
-		if (typeof annotation !== 'string' && typeof annotation !== 'boolean' &&
-			(typeof annotation !== 'number' || !Number.isFinite(annotation))) {
+		if (
+			typeof annotation !== 'string' && typeof annotation !== 'boolean' &&
+			(typeof annotation !== 'number' || !Number.isFinite(annotation))
+		) {
 			throw new TypeError(`workflow annotation ${JSON.stringify(key)} must be a string, boolean, or finite number.`);
 		}
 	}
@@ -1505,10 +1557,16 @@ async function encodeCompletion(
 				}),
 			});
 		}
-		return Object.freeze({ type: 'failure', failure: Object.freeze({ kind: 'value', value: durable.value(completion.failure, 'workflow failure') }) });
+		return Object.freeze({
+			type: 'failure',
+			failure: Object.freeze({ kind: 'value', value: durable.value(completion.failure, 'workflow failure') }),
+		});
 	}
 	if (completion.type === 'cancelled') {
-		return Object.freeze({ type: 'cancelled', reason: durable.value(faultCore.encode(completion.reason), 'workflow cancellation') });
+		return Object.freeze({
+			type: 'cancelled',
+			reason: durable.value(faultCore.encode(completion.reason), 'workflow cancellation'),
+		});
 	}
 	return Object.freeze({ type: 'fault', fault: durable.value(faultCore.encode(completion.fault), 'workflow fault') });
 }
@@ -1629,108 +1687,108 @@ function isSiblingCancellation(error: unknown): boolean {
 export { continueRun as continue };
 export { SchedulerClosedError } from './jobs.ts';
 export type {
-	WorkflowSchema,
-	EngineReference,
+	ActivityAddOptions,
+	ActivityAttemptControl,
+	ActivityAttemptResultType,
+	ActivityAttemptType,
+	ActivityClaimOptions,
+	ActivityClaimType,
+	ActivityCommand,
+	ActivityCommandOptions,
+	ActivityDispatch,
+	ActivityDispatchStatsType,
+	ActivityJobResultType,
+	ActivityJobType,
+	ActivityOriginType,
+	ActivityReference,
+	ActivityRefType,
+	ActivityRetryOptions,
+	ChildOptions,
+	ChildWorkflowCommand,
+	ComputeType,
+	EngineAffinityType,
+	EngineCapacityType,
 	EngineChoiceModeType,
 	EngineChoiceReference,
 	EnginePlacementReference,
 	EnginePlacementType,
-	ActivityReference,
-	WorkflowReference,
-	WorkflowOptions,
-	WorkflowDefinition,
-	WorkflowInput,
-	WorkflowResult,
-	WorkflowFailures,
-	WorkflowContext,
-	WorkflowAnnotations,
-	WorkflowInstructionBase,
-	WorkflowCommandBase,
-	WorkflowControlBase,
-	WorkflowCommandOptions,
-	EngineAffinityType,
-	ActivityCommandOptions,
-	ActivityCommand,
-	WorkflowSleepCommand,
-	WorkflowSignal,
-	WorkflowWaitCommand,
-	ChildOptions,
-	ChildWorkflowCommand,
-	WorkflowEffectCommand,
-	WorkflowDeferCommand,
-	WorkflowContinueCommand,
-	WorkflowParallelOptions,
-	WorkflowParallelInstruction,
-	WorkflowRaceOptions,
-	WorkflowRaceInstruction,
-	WorkflowMapEntry,
-	WorkflowMapOptions,
-	WorkflowMapInstruction,
-	WorkflowRetryOptions,
-	WorkflowRetryInstruction,
-	WorkflowDurableValue,
-	WorkflowInstructionDescription,
-	WorkflowInstructionIdentity,
-	WorkflowCommand,
-	WorkflowControlInstruction,
-	WorkflowInstruction,
-	WorkflowSuccess,
-	WorkflowFailure,
-	WorkflowFault,
-	WorkflowCancelled,
-	WorkflowCompletion,
-	WorkflowCompletionAny,
-	WorkflowOperation,
-	WorkflowOperationValue,
-	WorkflowOperationFailure,
-	WorkflowOperations,
-	WorkflowOperationValues,
-	WorkflowSettledValues,
-	WorkflowOperationFailures,
-	WorkflowRaceResult,
-	WorkflowProgram,
-	WorkflowImplementation,
-	WorkflowCommandHandler,
-	HistoryValueType,
+	EngineProvider,
+	EngineReference,
+	EngineRegistration,
+	EngineRegistrationOptions,
+	ExecutorActivityType,
+	ExecutorJoinOptions,
+	ExecutorLeaseType,
+	ExecutorOptions,
+	History,
+	HistoryCompletionType,
+	HistoryEntryType,
 	HistoryFailureOccurrenceType,
 	HistoryFailureType,
-	HistoryCompletionType,
 	HistoryInput,
-	History,
-		MemoryHistory,
 	HistoryOptions,
-	HistoryEntryType,
 	HistorySnapshotType,
-	EngineCapacityType,
-	ActivityOriginType,
-		ActivityJobType,
-		ActivityJobResultType,
-		ActivityRefType,
-		ActivityAddOptions,
-		ActivityClaimOptions,
-		ActivityClaimType,
-		ActivityRetryOptions,
-		ActivityDispatch,
-		ActivityDispatchStatsType,
-		MemoryDispatchOptions,
-		ComputeType,
-		ExecutorActivityType,
-		ExecutorJoinOptions,
-		ExecutorLeaseType,
-		ActivityAttemptType,
-	ActivityAttemptResultType,
-	ActivityAttemptControl,
-	EngineProvider,
-	EngineRegistrationOptions,
-		EngineRegistration,
-		ExecutorOptions,
-	SchedulerOptions,
+	HistoryValueType,
+	MemoryDispatchOptions,
+	MemoryHistory,
 	Scheduler,
-	WorkflowContextOptions,
-	WorkflowRunOptions,
+	SchedulerOptions,
+	WorkflowAnnotations,
+	WorkflowCancelled,
 	WorkflowCatalog,
-	WorkflowSelection,
+	WorkflowCommand,
+	WorkflowCommandBase,
+	WorkflowCommandHandler,
+	WorkflowCommandOptions,
+	WorkflowCompletion,
+	WorkflowCompletionAny,
+	WorkflowContext,
+	WorkflowContextOptions,
+	WorkflowContinueCommand,
+	WorkflowControlBase,
+	WorkflowControlInstruction,
+	WorkflowDeferCommand,
+	WorkflowDefinition,
 	WorkflowDocument,
+	WorkflowDurableValue,
+	WorkflowEffectCommand,
+	WorkflowFailure,
+	WorkflowFailures,
+	WorkflowFault,
+	WorkflowImplementation,
+	WorkflowInput,
+	WorkflowInstruction,
+	WorkflowInstructionBase,
+	WorkflowInstructionDescription,
+	WorkflowInstructionIdentity,
+	WorkflowMapEntry,
+	WorkflowMapInstruction,
+	WorkflowMapOptions,
+	WorkflowOperation,
+	WorkflowOperationFailure,
+	WorkflowOperationFailures,
+	WorkflowOperations,
+	WorkflowOperationValue,
+	WorkflowOperationValues,
+	WorkflowOptions,
+	WorkflowParallelInstruction,
+	WorkflowParallelOptions,
+	WorkflowProgram,
+	WorkflowRaceInstruction,
+	WorkflowRaceOptions,
+	WorkflowRaceResult,
+	WorkflowReference,
+	WorkflowResult,
+	WorkflowRetryInstruction,
+	WorkflowRetryOptions,
+	WorkflowRunOptions,
+	WorkflowSchema,
+	WorkflowSelection,
+	WorkflowSettledValues,
+	WorkflowSignal,
+	WorkflowSleepCommand,
+	WorkflowSuccess,
+	WorkflowWaitCommand,
 } from './types.ts';
 
 export { executor } from './jobs.ts';

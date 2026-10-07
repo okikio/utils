@@ -3,15 +3,15 @@ import { headers as normalizeHeaders, mergeHeaders } from './headers.ts';
 import type {
 	CreateResponseOptions,
 	CursorPageWindow,
+	FinalizedResponseResult,
+	FinalizeResponseOptions,
+	NormalizedPageWindow,
 	OffsetPageWindow,
 	PageWindow,
-	NormalizedPageWindow,
 	PaginationLinkContext,
 	PaginationLinks,
 	PaginationMetadata,
 	PaginationParameters,
-	FinalizedResponseResult,
-	FinalizeResponseOptions,
 	ResponseBody,
 	ResponseDefinition,
 	ResponseHeaders,
@@ -21,21 +21,25 @@ import type {
 } from './types.ts';
 
 const responseResultMetadata = new WeakMap<ReadonlyArray<unknown>, ResponseResultMetadata>();
-type NormalizedCreateOptions = Readonly<Omit<CreateResponseOptions, 'headers' | 'location' | 'url'> & {
-	readonly headers?: ResponseHeaders;
-	readonly location?: string;
-	readonly url?: string;
-}>;
-type CreatedResponseBody<Definition extends ResponseDefinition> =
-	Definition['mode'] extends 'empty' | 'redirect' ? null : Exclude<ResponseBody<Definition>, undefined>;
+type NormalizedCreateOptions = Readonly<
+	Omit<CreateResponseOptions, 'headers' | 'location' | 'url'> & {
+		readonly headers?: ResponseHeaders;
+		readonly location?: string;
+		readonly url?: string;
+	}
+>;
+type CreatedResponseBody<Definition extends ResponseDefinition> = Definition['mode'] extends 'empty' | 'redirect' ? null
+	: Exclude<ResponseBody<Definition>, undefined>;
 
-const defaultParameters = Object.freeze({
-	cursor: 'cursor',
-	limit: 'limit',
-	offset: 'offset',
-	page: 'page',
-	perPage: 'per_page',
-} satisfies PaginationParameters);
+const defaultParameters = Object.freeze(
+	{
+		cursor: 'cursor',
+		limit: 'limit',
+		offset: 'offset',
+		page: 'page',
+		perPage: 'per_page',
+	} satisfies PaginationParameters,
+);
 
 /** Instantiate a definition-associated logical result. Request-dependent work happens in {@link finalize}. */
 export function create<Definition extends ResponseDefinition>(
@@ -50,7 +54,9 @@ export function create<Definition extends ResponseDefinition>(
 	if (definition.mode === 'redirect' && additional.Location === undefined && !hasHeader(baseHeaders, 'Location')) {
 		throw new TypeError(`Redirect response ${JSON.stringify(definition.id)} requires a Location header.`);
 	}
-	if (definition.contentType !== undefined && !hasHeader(baseHeaders, 'Content-Type')) additional['Content-Type'] = definition.contentType;
+	if (definition.contentType !== undefined && !hasHeader(baseHeaders, 'Content-Type')) {
+		additional['Content-Type'] = definition.contentType;
+	}
 	const filename = normalizedOptions.filename ?? definition.filename;
 	if (filename !== undefined && !hasHeader(baseHeaders, 'Content-Disposition')) {
 		additional['Content-Disposition'] = `attachment; filename="${escapeFilename(filename)}"`;
@@ -58,7 +64,8 @@ export function create<Definition extends ResponseDefinition>(
 	// `ResponseDefinition` is not a discriminated union over `mode`, so TypeScript
 	// cannot derive the conditional body type from this runtime check. Keep the
 	// assertion at this one construction seam rather than widening every caller.
-	const resolvedBody = (definition.mode === 'empty' || definition.mode === 'redirect' ? null : body) as CreatedResponseBody<Definition>;
+	const resolvedBody =
+		(definition.mode === 'empty' || definition.mode === 'redirect' ? null : body) as CreatedResponseBody<Definition>;
 	const tuple = responseTuple<Definition, CreatedResponseBody<Definition>>(
 		resolvedBody,
 		definition.status,
@@ -115,15 +122,17 @@ export function finalize<Definition extends ResponseDefinition>(
 	const generatedMeta = buildMeta(definition.timestamp, metadata.options.meta, pagination, normalizedOptions.now);
 	const shouldEnvelope = definition.envelope === 'data' || generatedMeta !== undefined || definition.mode === 'page';
 	if (shouldEnvelope && definition.mode !== 'empty' && definition.mode !== 'redirect') {
-		const envelope = Object.freeze({
-			data: body,
-			...(generatedMeta !== undefined ? { meta: generatedMeta } : {}),
-			...(definition.mode === 'page' &&
-				(definition.pagination!.links === 'body' || definition.pagination!.links === 'both') &&
-				links !== undefined && Object.keys(links).length > 0
-				? { links }
-				: {}),
-		} satisfies SuccessEnvelope);
+		const envelope = Object.freeze(
+			{
+				data: body,
+				...(generatedMeta !== undefined ? { meta: generatedMeta } : {}),
+				...(definition.mode === 'page' &&
+						(definition.pagination!.links === 'body' || definition.pagination!.links === 'both') &&
+						links !== undefined && Object.keys(links).length > 0
+					? { links }
+					: {}),
+			} satisfies SuccessEnvelope,
+		);
 		body = envelope;
 	}
 	return Object.freeze({ definition, body, status: result[1], headers: resolvedHeaders });
@@ -146,10 +155,15 @@ export function withMeta<Definition extends ResponseDefinition>(
 	if (!is(result)) throw new TypeError('Value is not a response result.');
 	recordCore.assert(meta, 'response metadata');
 	const current = metadataOf(result);
-	return clone(result, result[0], result[2], Object.freeze({
-		...current.options,
-		meta: mergeMeta(current.options.meta, meta),
-	}));
+	return clone(
+		result,
+		result[0],
+		result[2],
+		Object.freeze({
+			...current.options,
+			meta: mergeMeta(current.options.meta, meta),
+		}),
+	);
 }
 
 /** Return whether a value is a response tuple created by this package. */
@@ -169,7 +183,9 @@ export function pageLinks<const Page extends PageWindow<unknown>>(
 	parameters: Partial<PaginationParameters> = {},
 	custom?: (context: PaginationLinkContext<NormalizedPageWindow<Page>>) => string | URL | undefined,
 ): PaginationLinks {
-	if (custom !== undefined && typeof custom !== 'function') throw new TypeError('Pagination link builder must be a function when provided.');
+	if (custom !== undefined && typeof custom !== 'function') {
+		throw new TypeError('Pagination link builder must be a function when provided.');
+	}
 	const normalizedPage = asPageWindow(page) as NormalizedPageWindow<Page>;
 	const names = paginationParameters(parameters);
 	const parsed = parseBaseUrl(baseUrl);
@@ -211,12 +227,18 @@ export function pageHeaders<Item>(
  *
  * @internal
  */
-function cursorLinks(page: CursorPageWindow<unknown>, base: URL, names: PaginationParameters): Partial<Record<keyof PaginationLinks, string>> {
+function cursorLinks(
+	page: CursorPageWindow<unknown>,
+	base: URL,
+	names: PaginationParameters,
+): Partial<Record<keyof PaginationLinks, string>> {
 	const self = cursorUrl(base, page.cursor, page.limit, names);
 	return {
 		self: self.href,
 		first: cursorUrl(base, undefined, page.limit, names).href,
-		...(page.previousCursor !== undefined ? { previous: cursorUrl(base, page.previousCursor, page.limit, names).href } : {}),
+		...(page.previousCursor !== undefined
+			? { previous: cursorUrl(base, page.previousCursor, page.limit, names).href }
+			: {}),
 		...(page.nextCursor !== undefined ? { next: cursorUrl(base, page.nextCursor, page.limit, names).href } : {}),
 	};
 }
@@ -228,7 +250,11 @@ function cursorLinks(page: CursorPageWindow<unknown>, base: URL, names: Paginati
  *
  * @internal
  */
-function offsetLinks(page: OffsetPageWindow<unknown>, base: URL, names: PaginationParameters): Partial<Record<keyof PaginationLinks, string>> {
+function offsetLinks(
+	page: OffsetPageWindow<unknown>,
+	base: URL,
+	names: PaginationParameters,
+): Partial<Record<keyof PaginationLinks, string>> {
 	const usePage = page.source === 'page' || page.page !== undefined;
 	const currentPage = page.page ?? Math.floor(page.offset / page.limit) + 1;
 	const totalPages = page.total === undefined ? undefined : Math.max(1, Math.ceil(page.total / page.limit));
@@ -246,7 +272,9 @@ function offsetLinks(page: OffsetPageWindow<unknown>, base: URL, names: Paginati
 	return {
 		self: create(page.offset, currentPage),
 		first: create(0, 1),
-		...(page.offset > 0 ? { previous: create(Math.max(0, page.offset - page.limit), Math.max(1, currentPage - 1)) } : {}),
+		...(page.offset > 0
+			? { previous: create(Math.max(0, page.offset - page.limit), Math.max(1, currentPage - 1)) }
+			: {}),
 		...(page.hasMore ? { next: create(page.offset + page.limit, currentPage + 1) } : {}),
 		...(totalPages !== undefined ? { last: create(Math.max(0, (totalPages - 1) * page.limit), totalPages) } : {}),
 	};
@@ -283,15 +311,17 @@ function cleanPagination(base: URL, names: PaginationParameters): URL {
  * @internal
  */
 function pageMetadata(page: PageWindow<unknown>, includeTotals: boolean): PaginationMetadata {
-	if (page.kind === 'cursor') return Object.freeze({
-		kind: 'cursor',
-		limit: page.limit,
-		hasMore: page.hasMore,
-		...(page.cursor !== undefined ? { cursor: page.cursor } : {}),
-		...(includeTotals && page.total !== undefined ? { total: page.total } : {}),
-		...(includeTotals && page.approximateTotal !== undefined ? { approximateTotal: page.approximateTotal } : {}),
-		...(page.expiresAt !== undefined ? { expiresAt: String(page.expiresAt) } : {}),
-	});
+	if (page.kind === 'cursor') {
+		return Object.freeze({
+			kind: 'cursor',
+			limit: page.limit,
+			hasMore: page.hasMore,
+			...(page.cursor !== undefined ? { cursor: page.cursor } : {}),
+			...(includeTotals && page.total !== undefined ? { total: page.total } : {}),
+			...(includeTotals && page.approximateTotal !== undefined ? { approximateTotal: page.approximateTotal } : {}),
+			...(page.expiresAt !== undefined ? { expiresAt: String(page.expiresAt) } : {}),
+		});
+	}
 	const currentPage = page.page ?? Math.floor(page.offset / page.limit) + 1;
 	return Object.freeze({
 		kind: 'offset',
@@ -300,7 +330,9 @@ function pageMetadata(page: PageWindow<unknown>, includeTotals: boolean): Pagina
 		offset: page.offset,
 		page: currentPage,
 		perPage: page.limit,
-		...(includeTotals && page.total !== undefined ? { total: page.total, totalPages: Math.ceil(page.total / page.limit) } : {}),
+		...(includeTotals && page.total !== undefined
+			? { total: page.total, totalPages: Math.ceil(page.total / page.limit) }
+			: {}),
 		...(includeTotals && page.approximateTotal !== undefined ? { approximateTotal: page.approximateTotal } : {}),
 	});
 }
@@ -340,7 +372,11 @@ function paginationHeaders(page: PageWindow<unknown>, metadata: PaginationMetada
  */
 function linkHeader(links: PaginationLinks): string {
 	return (['self', 'first', 'previous', 'next', 'last'] as const)
-		.flatMap((relation) => links[relation] === undefined ? [] : [`<${links[relation]}>; rel="${relation === 'previous' ? 'prev' : relation}"`])
+		.flatMap((relation) =>
+			links[relation] === undefined
+				? []
+				: [`<${links[relation]}>; rel="${relation === 'previous' ? 'prev' : relation}"`]
+		)
 		.join(', ');
 }
 
@@ -380,7 +416,9 @@ function asPageWindow<Item = unknown>(value: unknown): PageWindow<Item> {
 	if (!Number.isSafeInteger(limit) || (limit as number) < 1) {
 		throw new TypeError('Paginated response bodies require a positive safe-integer limit.');
 	}
-	if (typeof value.hasMore !== 'boolean') throw new TypeError('Paginated response bodies require a boolean hasMore value.');
+	if (typeof value.hasMore !== 'boolean') {
+		throw new TypeError('Paginated response bodies require a boolean hasMore value.');
+	}
 	const items = pageItems<Item>(value.items, limit as number);
 	const total = optionalCount(value.total, 'total');
 	const approximateTotal = optionalCount(value.approximateTotal, 'approximateTotal');
@@ -405,9 +443,13 @@ function asPageWindow<Item = unknown>(value: unknown): PageWindow<Item> {
 	}
 
 	const offset = value.offset;
-	if (!Number.isSafeInteger(offset) || (offset as number) < 0) throw new TypeError('Offset pages require a non-negative safe-integer offset.');
+	if (!Number.isSafeInteger(offset) || (offset as number) < 0) {
+		throw new TypeError('Offset pages require a non-negative safe-integer offset.');
+	}
 	const source = value.source;
-	if (source !== undefined && source !== 'offset' && source !== 'page') throw new TypeError('Offset page source must be offset or page when provided.');
+	if (source !== undefined && source !== 'offset' && source !== 'page') {
+		throw new TypeError('Offset page source must be offset or page when provided.');
+	}
 	const authoredPage = value.page;
 	if (authoredPage !== undefined && (!Number.isSafeInteger(authoredPage) || (authoredPage as number) < 1)) {
 		throw new TypeError('Offset page number must be a positive safe integer when provided.');
@@ -432,8 +474,12 @@ function asPageWindow<Item = unknown>(value: unknown): PageWindow<Item> {
 /** Snapshot page-item membership without invoking accessor-backed or sparse array elements. @internal */
 function pageItems<Item>(value: unknown, limit: number): readonly Item[] {
 	if (!Array.isArray(value)) throw new TypeError('Paginated response bodies require an items array.');
-	if (value.length > limit) throw new TypeError(`Paginated response items length ${value.length} exceeds limit ${limit}.`);
-	if (Object.getOwnPropertySymbols(value).length > 0) throw new TypeError('Paginated response items must not contain symbol properties.');
+	if (value.length > limit) {
+		throw new TypeError(`Paginated response items length ${value.length} exceeds limit ${limit}.`);
+	}
+	if (Object.getOwnPropertySymbols(value).length > 0) {
+		throw new TypeError('Paginated response items must not contain symbol properties.');
+	}
 	const descriptors = Object.getOwnPropertyDescriptors(value);
 	const keys = Object.keys(descriptors).filter((key) => key !== 'length');
 	if (keys.length !== value.length) throw new TypeError('Paginated response items must be a dense data array.');
@@ -451,14 +497,18 @@ function pageItems<Item>(value: unknown, limit: number): readonly Item[] {
 /** Validate one optional exact pagination count. @internal */
 function optionalCount(value: unknown, name: string): number | undefined {
 	if (value === undefined) return undefined;
-	if (!Number.isSafeInteger(value) || (value as number) < 0) throw new TypeError(`Pagination ${name} must be a non-negative safe integer.`);
+	if (!Number.isSafeInteger(value) || (value as number) < 0) {
+		throw new TypeError(`Pagination ${name} must be a non-negative safe integer.`);
+	}
 	return value as number;
 }
 
 /** Validate one opaque cursor without interpreting its contents. @internal */
 function optionalCursor(value: unknown, name: string): string | undefined {
 	if (value === undefined) return undefined;
-	if (typeof value !== 'string' || value.length === 0) throw new TypeError(`Pagination ${name} must be a non-empty string when provided.`);
+	if (typeof value !== 'string' || value.length === 0) {
+		throw new TypeError(`Pagination ${name} must be a non-empty string when provided.`);
+	}
 	return value;
 }
 
@@ -542,10 +592,18 @@ function escapeFilename(value: string): string {
 function normalizeCreateOptions(options: CreateResponseOptions): NormalizedCreateOptions {
 	recordCore.assert(options, 'response create options');
 	assertKnownKeys(options, ['headers', 'location', 'filename', 'url', 'link', 'meta'], 'response create options');
-	if (options.link !== undefined && typeof options.link !== 'function') throw new TypeError('Response link builder must be a function when provided.');
-	if (options.url !== undefined && typeof options.url !== 'string' && !(options.url instanceof URL)) throw new TypeError('Response url must be a string or URL when provided.');
-	if (options.location !== undefined && typeof options.location !== 'string' && !(options.location instanceof URL)) throw new TypeError('Response location must be a string or URL when provided.');
-	if (options.filename !== undefined && typeof options.filename !== 'string') throw new TypeError('Response filename must be a string when provided.');
+	if (options.link !== undefined && typeof options.link !== 'function') {
+		throw new TypeError('Response link builder must be a function when provided.');
+	}
+	if (options.url !== undefined && typeof options.url !== 'string' && !(options.url instanceof URL)) {
+		throw new TypeError('Response url must be a string or URL when provided.');
+	}
+	if (options.location !== undefined && typeof options.location !== 'string' && !(options.location instanceof URL)) {
+		throw new TypeError('Response location must be a string or URL when provided.');
+	}
+	if (options.filename !== undefined && typeof options.filename !== 'string') {
+		throw new TypeError('Response filename must be a string when provided.');
+	}
 	const headers = options.headers === undefined ? undefined : normalizeHeaders(options.headers);
 	const location = options.location === undefined
 		? undefined
@@ -569,8 +627,12 @@ function normalizeCreateOptions(options: CreateResponseOptions): NormalizedCreat
 function finalizeOptions(options: FinalizeResponseOptions): FinalizeResponseOptions {
 	recordCore.assert(options, 'response finalize options');
 	assertKnownKeys(options, ['url', 'pagination', 'now'], 'response finalize options');
-	if (options.url !== undefined && typeof options.url !== 'string' && !(options.url instanceof URL)) throw new TypeError('Finalize url must be a string or URL when provided.');
-	if (options.now !== undefined && typeof options.now !== 'function') throw new TypeError('Finalize now must be a function when provided.');
+	if (options.url !== undefined && typeof options.url !== 'string' && !(options.url instanceof URL)) {
+		throw new TypeError('Finalize url must be a string or URL when provided.');
+	}
+	if (options.now !== undefined && typeof options.now !== 'function') {
+		throw new TypeError('Finalize now must be a function when provided.');
+	}
 	const pagination = options.pagination === undefined ? undefined : paginationParameters(options.pagination);
 	return Object.freeze({
 		...(options.url === undefined ? {} : { url: options.url instanceof URL ? options.url.href : options.url }),
@@ -584,15 +646,19 @@ function paginationParameters(parameters: Partial<PaginationParameters>): Pagina
 	recordCore.assert(parameters, 'pagination parameters');
 	const allowed = new Set<keyof PaginationParameters>(['cursor', 'limit', 'offset', 'page', 'perPage']);
 	for (const key of Object.keys(parameters)) {
-		if (!allowed.has(key as keyof PaginationParameters)) throw new TypeError(`Unknown pagination parameter ${JSON.stringify(key)}.`);
+		if (!allowed.has(key as keyof PaginationParameters)) {
+			throw new TypeError(`Unknown pagination parameter ${JSON.stringify(key)}.`);
+		}
 	}
-	const result = Object.freeze({
-		cursor: parameterName(parameters.cursor ?? defaultParameters.cursor, 'cursor'),
-		limit: parameterName(parameters.limit ?? defaultParameters.limit, 'limit'),
-		offset: parameterName(parameters.offset ?? defaultParameters.offset, 'offset'),
-		page: parameterName(parameters.page ?? defaultParameters.page, 'page'),
-		perPage: parameterName(parameters.perPage ?? defaultParameters.perPage, 'perPage'),
-	} satisfies PaginationParameters);
+	const result = Object.freeze(
+		{
+			cursor: parameterName(parameters.cursor ?? defaultParameters.cursor, 'cursor'),
+			limit: parameterName(parameters.limit ?? defaultParameters.limit, 'limit'),
+			offset: parameterName(parameters.offset ?? defaultParameters.offset, 'offset'),
+			page: parameterName(parameters.page ?? defaultParameters.page, 'page'),
+			perPage: parameterName(parameters.perPage ?? defaultParameters.perPage, 'perPage'),
+		} satisfies PaginationParameters,
+	);
 	const names = Object.values(result);
 	if (new Set(names).size !== names.length) throw new TypeError('Pagination parameter names must be distinct.');
 	return result;
@@ -600,7 +666,9 @@ function paginationParameters(parameters: Partial<PaginationParameters>): Pagina
 
 /** Validate one query parameter name used for generated pagination links. @internal */
 function parameterName(value: unknown, name: string): string {
-	if (typeof value !== 'string' || value.length === 0) throw new TypeError(`Pagination parameter ${name} must be a non-empty string.`);
+	if (typeof value !== 'string' || value.length === 0) {
+		throw new TypeError(`Pagination parameter ${name} must be a non-empty string.`);
+	}
 	return value;
 }
 
@@ -635,7 +703,9 @@ function assertKnownKeys(
  *
  * @internal
  */
-function metadataOf<Definition extends ResponseDefinition>(value: ResponseResult<Definition>): ResponseResultMetadata<Definition> {
+function metadataOf<Definition extends ResponseDefinition>(
+	value: ResponseResult<Definition>,
+): ResponseResultMetadata<Definition> {
 	if (!is(value)) throw new TypeError('Value is not a response result.');
 	const metadata = responseResultMetadata.get(value);
 	if (metadata === undefined) throw new TypeError('Response result metadata is unavailable.');
@@ -657,7 +727,10 @@ function clone<Definition extends ResponseDefinition>(
 ): ResponseResult<Definition> {
 	const metadata = metadataOf(original);
 	const tuple = responseTuple<Definition, unknown>(body, original[1], headers);
-	responseResultMetadata.set(tuple, Object.freeze({ definition: metadata.definition, options: normalizeCreateOptions(options) }));
+	responseResultMetadata.set(
+		tuple,
+		Object.freeze({ definition: metadata.definition, options: normalizeCreateOptions(options) }),
+	);
 	return tuple;
 }
 

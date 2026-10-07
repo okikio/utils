@@ -7,9 +7,18 @@ describe('duplicate audit', () => {
 	it('reports structural duplicates and repeated helper names without reading test fixtures', async () => {
 		const root = await Deno.makeTempDir({ prefix: 'okikio-audit-' });
 		try {
-			await Deno.writeTextFile(`${root}/first.ts`, 'function first(value: string) { return value.trim().toLowerCase().replaceAll("first", "other").slice(0, 80); }');
-			await Deno.writeTextFile(`${root}/second.ts`, 'function second(input: string) { return input.trim().toLowerCase().replaceAll("alpha", "other").slice(0, 80); }');
-			await Deno.writeTextFile(`${root}/ignored.test.ts`, 'function first(value: string) { return value.trim().toLowerCase().replaceAll("first", "other").slice(0, 80); }');
+			await Deno.writeTextFile(
+				`${root}/first.ts`,
+				'function first(value: string) { return value.trim().toLowerCase().replaceAll("first", "other").slice(0, 80); }',
+			);
+			await Deno.writeTextFile(
+				`${root}/second.ts`,
+				'function second(input: string) { return input.trim().toLowerCase().replaceAll("alpha", "other").slice(0, 80); }',
+			);
+			await Deno.writeTextFile(
+				`${root}/ignored.test.ts`,
+				'function first(value: string) { return value.trim().toLowerCase().replaceAll("first", "other").slice(0, 80); }',
+			);
 			const result = await audit(root);
 			expect(result.files).toBe(2);
 			expect(result.functions).toBe(2);
@@ -50,10 +59,11 @@ describe('duplicate audit', () => {
 			expect(queue).toMatchObject({ package: 'queue', exported: false, usesContext: true });
 			expect(queue?.markers).toContain('timer');
 			expect(bypass?.functions).toEqual([queue]);
-			expect(result.findings.find((value) => value.kind === 'private-lifecycle')?.functions.map((value) => value.name)).toEqual([
-				'settlesWithin',
-				'settlesWithin',
-			]);
+			expect(result.findings.find((value) => value.kind === 'private-lifecycle')?.functions.map((value) => value.name))
+				.toEqual([
+					'settlesWithin',
+					'settlesWithin',
+				]);
 		} finally {
 			await Deno.remove(root, { recursive: true });
 		}

@@ -69,7 +69,9 @@ export function toHeaders(input: HeaderInput): Headers {
 /** Read every value for a field without comma-splitting values such as Set-Cookie. */
 export function headerValues(input: HeaderInput, name: string): readonly string[] {
 	const lower = name.toLowerCase();
-	return Object.freeze(normalizeSource(input).filter(([candidate]) => candidate.toLowerCase() === lower).map(([, value]) => value));
+	return Object.freeze(
+		normalizeSource(input).filter(([candidate]) => candidate.toLowerCase() === lower).map(([, value]) => value),
+	);
 }
 
 /** Return whether header input uses the explicit readonly tuple-list form. @internal */
@@ -143,9 +145,13 @@ function normalizeSource(input: HeaderInput): HeaderField[] {
  * @internal
  */
 function normalizeField(name: unknown, value: unknown): HeaderField {
-	if (typeof name !== 'string' || !fieldNamePattern.test(name)) throw new TypeError(`Invalid HTTP header name ${JSON.stringify(name)}.`);
+	if (typeof name !== 'string' || !fieldNamePattern.test(name)) {
+		throw new TypeError(`Invalid HTTP header name ${JSON.stringify(name)}.`);
+	}
 	if (typeof value !== 'string') throw new TypeError(`HTTP header ${JSON.stringify(name)} must contain string values.`);
-	if (/\0|\r|\n/.test(value)) throw new TypeError(`HTTP header ${JSON.stringify(name)} contains a forbidden control character.`);
+	if (/\0|\r|\n/.test(value)) {
+		throw new TypeError(`HTTP header ${JSON.stringify(name)} contains a forbidden control character.`);
+	}
 	return Object.freeze([canonicalHeaderName(name), value.trim()]);
 }
 
@@ -156,15 +162,20 @@ function normalizeField(name: unknown, value: unknown): HeaderField {
  *
  * @internal
  */
-function group(fields: readonly HeaderField[]): Map<string, { readonly name: string; readonly values: readonly string[] }> {
+function group(
+	fields: readonly HeaderField[],
+): Map<string, { readonly name: string; readonly values: readonly string[] }> {
 	const result = new Map<string, { readonly name: string; readonly values: readonly string[] }>();
 	for (const [name, value] of fields) {
 		const lower = name.toLowerCase();
 		const current = result.get(lower);
-		result.set(lower, Object.freeze({
-			name: current?.name ?? name,
-			values: Object.freeze([...(current?.values ?? []), value]),
-		}));
+		result.set(
+			lower,
+			Object.freeze({
+				name: current?.name ?? name,
+				values: Object.freeze([...(current?.values ?? []), value]),
+			}),
+		);
 	}
 	return result;
 }
@@ -187,5 +198,7 @@ function fieldsToRecord(fields: readonly HeaderField[]): ResponseHeaders {
  * @internal
  */
 function canonicalHeaderName(name: string): string {
-	return name.toLowerCase().split('-').map((part) => part.length === 0 ? part : `${part[0]!.toUpperCase()}${part.slice(1)}`).join('-');
+	return name.toLowerCase().split('-').map((part) =>
+		part.length === 0 ? part : `${part[0]!.toUpperCase()}${part.slice(1)}`
+	).join('-');
 }

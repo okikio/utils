@@ -1,12 +1,12 @@
 import { joinPath, pathParameters } from './path.ts';
-import * as catalog from '@okikio/catalog'
-import * as record from '@okikio/record'
-import { freeze as freezeOpenApi } from '../openapi/value.ts'
-import type { StandardJSONSchemaV1, StandardSchemaV1 } from '@standard-schema/spec'
-import type { ProblemDefinition } from '@okikio/http/problem'
-import type { ResponseDefinition, ResponseExample } from '@okikio/http/response'
+import * as catalog from '@okikio/catalog';
+import * as record from '@okikio/record';
+import { freeze as freezeOpenApi } from '../openapi/value.ts';
+import type { StandardJSONSchemaV1, StandardSchemaV1 } from '@standard-schema/spec';
+import type { ProblemDefinition } from '@okikio/http/problem';
+import type { ResponseDefinition, ResponseExample } from '@okikio/http/response';
 
-import { schemaOf, validate } from './definition.ts'
+import { schemaOf, validate } from './definition.ts';
 import type {
 	EndpointCompositionInput,
 	EndpointDefinition,
@@ -16,67 +16,69 @@ import type {
 	EndpointInputSlot,
 	EndpointInputSource,
 	EndpointOperation,
-} from './types.ts'
+} from './types.ts';
 
 /** OpenAPI document versions that this projector can emit. */
-export type OpenApiSpecVersion = '3.1.0' | '3.1.1' | '3.1.2' | '3.2.0'
+export type OpenApiSpecVersion = '3.1.0' | '3.1.1' | '3.1.2' | '3.2.0';
 
 /** Context supplied when OpenAPI needs a schema-library-specific projection. */
 export interface OpenApiSchemaProjectionContext {
-	readonly purpose: 'request' | 'response'
-	readonly specVersion: OpenApiSpecVersion
-	readonly target: 'draft-2020-12'
+	readonly purpose: 'request' | 'response';
+	readonly specVersion: OpenApiSpecVersion;
+	readonly target: 'draft-2020-12';
 }
 
 /** Optional adapter used when a Standard Schema does not expose Standard JSON Schema directly. */
 export type OpenApiSchemaProjector = (
 	schema: StandardSchemaV1,
 	context: OpenApiSchemaProjectionContext,
-) => unknown | undefined | Promise<unknown | undefined>
+) => unknown | undefined | Promise<unknown | undefined>;
 
 /** One server origin advertised by an OpenAPI document. */
 export interface OpenApiServer {
-	readonly url: string
-	readonly description?: string
+	readonly url: string;
+	readonly description?: string;
 }
 
 /** OpenAPI 3.1 document generated from one endpoint composition. */
 export interface OpenApiDocument {
-	readonly openapi: OpenApiSpecVersion
+	readonly openapi: OpenApiSpecVersion;
 	readonly info: Readonly<{
-		readonly title: string
-		readonly version: string
-		readonly description?: string
-	}>
-	readonly paths: Readonly<Record<string, Readonly<Record<string, unknown>>>>
-	readonly servers?: readonly OpenApiServer[]
+		readonly title: string;
+		readonly version: string;
+		readonly description?: string;
+	}>;
+	readonly paths: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+	readonly servers?: readonly OpenApiServer[];
 }
 
 /** Options for the endpoint-only OpenAPI projection. */
 export interface OpenApiOptions {
-	readonly title: string
-	readonly version: string
-	readonly description?: string
-	readonly includeInternal?: boolean
+	readonly title: string;
+	readonly version: string;
+	readonly description?: string;
+	readonly includeInternal?: boolean;
 	/** OpenAPI document version. Defaults to 3.1.2. Selecting 3.2.0 does not synthesize features that only exist in 3.2. */
-	readonly specVersion?: OpenApiSpecVersion
+	readonly specVersion?: OpenApiSpecVersion;
 	/** Controls whether a configured projector is a fallback or replaces the validator's Standard JSON Schema projection. */
-	readonly schemaProjectorMode?: 'fallback' | 'override'
+	readonly schemaProjectorMode?: 'fallback' | 'override';
 	/** Server origins advertised to generated clients and API reference tooling. */
-	readonly servers?: readonly OpenApiServer[]
+	readonly servers?: readonly OpenApiServer[];
 	/** Optional projection for validators that do not expose Standard JSON Schema directly. */
-	readonly schemaProjector?: OpenApiSchemaProjector
+	readonly schemaProjector?: OpenApiSchemaProjector;
 }
 
 /** Fully normalized options used by the OpenAPI projection after validation. */
-type NormalizedOpenApiOptions = Omit<OpenApiOptions, 'specVersion'> & Readonly<{
-	readonly specVersion: OpenApiSpecVersion
-}>
+type NormalizedOpenApiOptions =
+	& Omit<OpenApiOptions, 'specVersion'>
+	& Readonly<{
+		readonly specVersion: OpenApiSpecVersion;
+	}>;
 
 interface EndpointVisit {
-	readonly endpoint: EndpointDefinition
-	readonly path: string
-	readonly groups: readonly EndpointGroup[]
+	readonly endpoint: EndpointDefinition;
+	readonly path: string;
+	readonly groups: readonly EndpointGroup[];
 }
 
 /**
@@ -89,27 +91,29 @@ export async function openapi(
 	input: EndpointCompositionInput,
 	options: OpenApiOptions,
 ): Promise<OpenApiDocument> {
-	const normalizedOptions = normalizeOptions(options)
-	const validation = validate(input)
+	const normalizedOptions = normalizeOptions(options);
+	const validation = validate(input);
 	if (!validation.valid) {
 		throw new TypeError(
-			`Cannot project invalid endpoint definitions:\n${validation.issues.map((issue) => `- ${issue.message}`).join('\n')}`,
-		)
+			`Cannot project invalid endpoint definitions:\n${
+				validation.issues.map((issue) => `- ${issue.message}`).join('\n')
+			}`,
+		);
 	}
 
-	const paths: Record<string, Record<string, unknown>> = Object.create(null)
+	const paths: Record<string, Record<string, unknown>> = Object.create(null);
 	for (const visit of walk(input)) {
-		const path = openApiPath(visit.path)
-		const pathItem = paths[path] ??= Object.create(null) as Record<string, unknown>
+		const path = openApiPath(visit.path);
+		const pathItem = paths[path] ??= Object.create(null) as Record<string, unknown>;
 		for (const operation of visit.endpoint.operations) {
-			const internal = isInternal(visit.groups, visit.endpoint, operation)
-			if (internal && !normalizedOptions.includeInternal) continue
+			const internal = isInternal(visit.groups, visit.endpoint, operation);
+			if (internal && !normalizedOptions.includeInternal) continue;
 			if (pathItem[operation.method] !== undefined) {
 				throw new TypeError(
 					`OpenAPI path ${operation.method.toUpperCase()} ${path} is declared more than once.`,
-				)
+				);
 			}
-			pathItem[operation.method] = await operationObject(visit, operation, internal, normalizedOptions)
+			pathItem[operation.method] = await operationObject(visit, operation, internal, normalizedOptions);
 		}
 	}
 
@@ -121,8 +125,10 @@ export async function openapi(
 			...(normalizedOptions.description !== undefined ? { description: normalizedOptions.description } : {}),
 		},
 		paths,
-		...(normalizedOptions.servers !== undefined ? { servers: Object.freeze(normalizedOptions.servers.map((server) => freezeOpenApi({ ...server }))) } : {}),
-	})
+		...(normalizedOptions.servers !== undefined
+			? { servers: Object.freeze(normalizedOptions.servers.map((server) => freezeOpenApi({ ...server }))) }
+			: {}),
+	});
 }
 
 /**
@@ -138,25 +144,27 @@ async function operationObject(
 	internal: boolean,
 	options: OpenApiOptions,
 ): Promise<Readonly<Record<string, unknown>>> {
-	const parameters: unknown[] = []
-	let requestBody: unknown
-	for (const source of [
-		'param',
-		'query',
-		'header',
-		'cookie',
-		'json',
-		'form',
-		'raw',
-	] as const satisfies readonly EndpointInputSource[]) {
-		const slot = operation.inputs[source] ?? visit.endpoint.inputs[source]
-		if (!slot) continue
-		const schema = await projectSchema(slot, internal, options)
+	const parameters: unknown[] = [];
+	let requestBody: unknown;
+	for (
+		const source of [
+			'param',
+			'query',
+			'header',
+			'cookie',
+			'json',
+			'form',
+			'raw',
+		] as const satisfies readonly EndpointInputSource[]
+	) {
+		const slot = operation.inputs[source] ?? visit.endpoint.inputs[source];
+		if (!slot) continue;
+		const schema = await projectSchema(slot, internal, options);
 		if (source === 'json' || source === 'form' || source === 'raw') {
-			requestBody = requestBodyObject(source, slot, schema)
-			continue
+			requestBody = requestBodyObject(source, slot, schema);
+			continue;
 		}
-		parameters.push(...parameterObjects(source, slot, schema, visit.path))
+		parameters.push(...parameterObjects(source, slot, schema, visit.path));
 	}
 
 	const responses = await responseObjects(
@@ -164,12 +172,12 @@ async function operationObject(
 		problemDefinitions(visit.groups, visit.endpoint, operation),
 		internal,
 		options,
-	)
+	);
 	const tags = uniqueStrings([
 		...visit.groups.flatMap((group) => group.tags ?? []),
 		...(visit.endpoint.tags ?? []),
 		...(operation.tags ?? []),
-	])
+	]);
 
 	return freezeOpenApi({
 		operationId: operation.operationId,
@@ -180,7 +188,7 @@ async function operationObject(
 		...(parameters.length > 0 ? { parameters } : {}),
 		...(requestBody !== undefined ? { requestBody } : {}),
 		responses,
-	})
+	});
 }
 
 /**
@@ -196,11 +204,11 @@ function parameterObjects(
 	schema: unknown,
 	path: string,
 ): readonly Readonly<Record<string, unknown>>[] {
-	const object = asJsonObject(schema)
-	const documentedInput = documented(slot)
+	const object = asJsonObject(schema);
+	const documentedInput = documented(slot);
 	if (!object || !isRecord(object.properties)) {
 		if (source === 'param') {
-			throw new TypeError(`Path schema for ${path} must project an object with one property per route parameter.`)
+			throw new TypeError(`Path schema for ${path} must project an object with one property per route parameter.`);
 		}
 		return [freezeOpenApi({
 			in: source,
@@ -209,44 +217,46 @@ function parameterObjects(
 			schema,
 			...(documentedInput?.description !== undefined ? { description: documentedInput.description } : {}),
 			...examplesObject(documentedInput?.examples),
-		})]
+		})];
 	}
 
-	const properties = object.properties
-	const required = new Set(Array.isArray(object.required) ? object.required.filter(isString) : [])
-	const pathNames = source === 'param' ? pathParameters(path) : []
+	const properties = object.properties;
+	const required = new Set(Array.isArray(object.required) ? object.required.filter(isString) : []);
+	const pathNames = source === 'param' ? pathParameters(path) : [];
 	if (source === 'param') {
-		const projectedNames = Object.keys(properties)
-		const missing = pathNames.filter((name) => !projectedNames.includes(name))
-		const extra = projectedNames.filter((name) => !pathNames.includes(name))
+		const projectedNames = Object.keys(properties);
+		const missing = pathNames.filter((name) => !projectedNames.includes(name));
+		const extra = projectedNames.filter((name) => !pathNames.includes(name));
 		if (missing.length > 0 || extra.length > 0) {
 			throw new TypeError(
 				`Path parameter schema for ${path} does not match the route template ` +
-				`(missing: ${missing.join(', ') || 'none'}; extra: ${extra.join(', ') || 'none'}).`,
-			)
+					`(missing: ${missing.join(', ') || 'none'}; extra: ${extra.join(', ') || 'none'}).`,
+			);
 		}
 	}
 
-	return Object.freeze(Object.entries(properties).map(([name, property]) => {
-		const nestedObject = asJsonObject(property)?.type === 'object'
-		const nestedArray = asJsonObject(property)?.type === 'array'
-		if (source === 'query' && nestedObject) {
-			throw new TypeError(
-				`Nested query parameter ${JSON.stringify(name)} has no declared wire serialization. ` +
-				'Use a flat query schema or add an explicit transport parser before documenting deep-object syntax.',
-			)
-		}
-		return freezeOpenApi({
-			in: source === 'param' ? 'path' : source,
-			name,
-			required: source === 'param' || required.has(name),
-			schema: property,
-			...(documentedInput?.description !== undefined && Object.keys(properties).length === 1
-				? { description: documentedInput.description }
-				: {}),
-			...(source === 'query' && nestedArray ? { style: 'form', explode: true } : {}),
-		})
-	}))
+	return Object.freeze(
+		Object.entries(properties).map(([name, property]) => {
+			const nestedObject = asJsonObject(property)?.type === 'object';
+			const nestedArray = asJsonObject(property)?.type === 'array';
+			if (source === 'query' && nestedObject) {
+				throw new TypeError(
+					`Nested query parameter ${JSON.stringify(name)} has no declared wire serialization. ` +
+						'Use a flat query schema or add an explicit transport parser before documenting deep-object syntax.',
+				);
+			}
+			return freezeOpenApi({
+				in: source === 'param' ? 'path' : source,
+				name,
+				required: source === 'param' || required.has(name),
+				schema: property,
+				...(documentedInput?.description !== undefined && Object.keys(properties).length === 1
+					? { description: documentedInput.description }
+					: {}),
+				...(source === 'query' && nestedArray ? { style: 'form', explode: true } : {}),
+			});
+		}),
+	);
 }
 
 /**
@@ -261,8 +271,8 @@ function requestBodyObject(
 	slot: EndpointInputSlot,
 	schema: unknown,
 ): Readonly<Record<string, unknown>> {
-	const input = documented(slot)
-	const mediaType = input?.contentType ?? requestMedia(source)
+	const input = documented(slot);
+	const mediaType = input?.contentType ?? requestMedia(source);
 	return freezeOpenApi({
 		required: input?.required ?? true,
 		...(input?.description !== undefined ? { description: input.description } : {}),
@@ -272,7 +282,7 @@ function requestBodyObject(
 				...examplesObject(input?.examples),
 			},
 		},
-	})
+	});
 }
 
 /**
@@ -288,26 +298,26 @@ async function responseObjects(
 	internal: boolean,
 	options: OpenApiOptions,
 ): Promise<Readonly<Record<string, unknown>>> {
-	const byStatus = new Map<string, Readonly<Record<string, unknown>>[]>()
+	const byStatus = new Map<string, Readonly<Record<string, unknown>>[]>();
 	for (const definition of definitionValues<ResponseDefinition>(operation.responses)) {
-		appendStatus(byStatus, String(definition.status), await successResponseObject(definition, internal, options))
+		appendStatus(byStatus, String(definition.status), await successResponseObject(definition, internal, options));
 	}
 	for (const definition of problems) {
-		if (definition.exposure === 'internal' && !internal) continue
-		appendStatus(byStatus, String(definition.status), await problemResponseObject(definition, internal, options))
+		if (definition.exposure === 'internal' && !internal) continue;
+		appendStatus(byStatus, String(definition.status), await problemResponseObject(definition, internal, options));
 	}
 	if (byStatus.size === 0) {
 		if (!operation.rawResponse) {
-			throw new TypeError(`Public operation ${operation.id} declares no response or problem definitions.`)
+			throw new TypeError(`Public operation ${operation.id} declares no response or problem definitions.`);
 		}
-		byStatus.set('default', [freezeOpenApi({ description: 'Undocumented raw response.' })])
+		byStatus.set('default', [freezeOpenApi({ description: 'Undocumented raw response.' })]);
 	}
 
-	const result: Record<string, unknown> = Object.create(null)
+	const result: Record<string, unknown> = Object.create(null);
 	for (const [status, candidates] of byStatus) {
-		result[status] = candidates.length === 1 ? candidates[0] : mergeResponses(candidates)
+		result[status] = candidates.length === 1 ? candidates[0] : mergeResponses(candidates);
 	}
-	return freezeOpenApi(result)
+	return freezeOpenApi(result);
 }
 
 /**
@@ -322,34 +332,36 @@ async function successResponseObject(
 	internal: boolean,
 	options: OpenApiOptions,
 ): Promise<Readonly<Record<string, unknown>>> {
-	const contentType = definition.contentType ?? responseMedia(definition)
+	const contentType = definition.contentType ?? responseMedia(definition);
 	const result: Record<string, unknown> = {
 		description: definition.description,
-	}
+	};
 	if (definition.headers && Object.keys(definition.headers).length > 0) {
-		result.headers = Object.fromEntries(Object.entries(definition.headers).map(([name, value]) => [
-			name,
-			freezeOpenApi({ schema: { type: 'string' }, example: value }),
-		]))
+		result.headers = Object.fromEntries(
+			Object.entries(definition.headers).map(([name, value]) => [
+				name,
+				freezeOpenApi({ schema: { type: 'string' }, example: value }),
+			]),
+		);
 	}
 	if (definition.schema !== undefined && definition.mode !== 'empty' && definition.mode !== 'redirect') {
 		const projected = definition.jsonSchema !== undefined
 			? freezeOpenApi(definition.jsonSchema)
-			: await projectBareSchema(definition.schema, internal, options, 'response')
+			: await projectBareSchema(definition.schema, internal, options, 'response');
 		result.content = {
 			[contentType]: {
 				schema: responseBodySchema(definition, projected),
 				...responseExamplesObject(definition.examples),
 			},
-		}
+		};
 	}
 	if (definition.mode === 'redirect') {
 		result.headers = {
 			...(isRecord(result.headers) ? result.headers : {}),
 			Location: { schema: { type: 'string', format: 'uri-reference' } },
-		}
+		};
 	}
-	return freezeOpenApi(result)
+	return freezeOpenApi(result);
 }
 
 /**
@@ -361,7 +373,7 @@ async function successResponseObject(
  */
 function responseBodySchema(definition: ResponseDefinition, schema: unknown): unknown {
 	if (definition.mode === 'page') {
-		const pagination = definition.pagination
+		const pagination = definition.pagination;
 		return freezeOpenApi({
 			type: 'object',
 			required: ['data', 'meta'],
@@ -377,12 +389,10 @@ function responseBodySchema(definition: ResponseDefinition, schema: unknown): un
 					},
 					additionalProperties: true,
 				},
-				...((pagination?.links === 'body' || pagination?.links === 'both')
-					? { links: paginationLinksSchema() }
-					: {}),
+				...((pagination?.links === 'body' || pagination?.links === 'both') ? { links: paginationLinksSchema() } : {}),
 			},
 			additionalProperties: false,
-		})
+		});
 	}
 	if (definition.envelope === 'data' || definition.timestamp) {
 		return freezeOpenApi({
@@ -392,16 +402,14 @@ function responseBodySchema(definition: ResponseDefinition, schema: unknown): un
 				data: schema,
 				meta: {
 					type: 'object',
-					...(definition.timestamp
-						? { properties: { timestamp: { type: 'string', format: 'date-time' } } }
-						: {}),
+					...(definition.timestamp ? { properties: { timestamp: { type: 'string', format: 'date-time' } } } : {}),
 					additionalProperties: true,
 				},
 			},
 			additionalProperties: false,
-		})
+		});
 	}
-	return schema
+	return schema;
 }
 
 /**
@@ -433,7 +441,7 @@ function paginationMetadataSchema(includeTotals: boolean): Readonly<Record<strin
 			expiresAt: { type: 'string', format: 'date-time' },
 		},
 		additionalProperties: false,
-	})
+	});
 }
 
 /**
@@ -442,12 +450,12 @@ function paginationMetadataSchema(includeTotals: boolean): Readonly<Record<strin
  * @internal
  */
 function paginationLinksSchema(): Readonly<Record<string, unknown>> {
-	const link = { type: 'string', format: 'uri-reference' }
+	const link = { type: 'string', format: 'uri-reference' };
 	return freezeOpenApi({
 		type: 'object',
 		properties: { self: link, first: link, previous: link, next: link, last: link },
 		additionalProperties: false,
-	})
+	});
 }
 
 /**
@@ -464,8 +472,8 @@ async function problemResponseObject(
 ): Promise<Readonly<Record<string, unknown>>> {
 	const extensionSchema = definition.extensions === undefined
 		? undefined
-		: await projectBareSchema(definition.extensions.schema, internal, options, 'response')
-	const extensionObject = asJsonObject(extensionSchema)
+		: await projectBareSchema(definition.extensions.schema, internal, options, 'response');
+	const extensionObject = asJsonObject(extensionSchema);
 	const properties = {
 		type: { type: 'string', const: definition.type, format: 'uri-reference' },
 		title: { type: 'string', const: definition.title },
@@ -473,7 +481,7 @@ async function problemResponseObject(
 		detail: { type: 'string' },
 		instance: { type: 'string', format: 'uri-reference' },
 		...(extensionObject && isRecord(extensionObject.properties) ? extensionObject.properties : {}),
-	}
+	};
 	return freezeOpenApi({
 		description: definition.description,
 		content: {
@@ -487,7 +495,7 @@ async function problemResponseObject(
 				...problemExamplesObject(definition),
 			},
 		},
-	})
+	});
 }
 
 /**
@@ -500,30 +508,30 @@ async function problemResponseObject(
 function mergeResponses(
 	responses: readonly Readonly<Record<string, unknown>>[],
 ): Readonly<Record<string, unknown>> {
-	const descriptions = uniqueStrings(responses.map((response) => String(response.description ?? '')).filter(Boolean))
-	const media = new Map<string, unknown[]>()
-	const headers: Record<string, unknown> = Object.create(null)
+	const descriptions = uniqueStrings(responses.map((response) => String(response.description ?? '')).filter(Boolean));
+	const media = new Map<string, unknown[]>();
+	const headers: Record<string, unknown> = Object.create(null);
 	for (const response of responses) {
-		if (isRecord(response.headers)) Object.assign(headers, response.headers)
-		if (!isRecord(response.content)) continue
+		if (isRecord(response.headers)) Object.assign(headers, response.headers);
+		if (!isRecord(response.content)) continue;
 		for (const [contentType, value] of Object.entries(response.content)) {
-			if (!isRecord(value)) continue
-			const schemas = media.get(contentType) ?? []
-			if (value.schema !== undefined) schemas.push(value.schema)
-			media.set(contentType, schemas)
+			if (!isRecord(value)) continue;
+			const schemas = media.get(contentType) ?? [];
+			if (value.schema !== undefined) schemas.push(value.schema);
+			media.set(contentType, schemas);
 		}
 	}
-	const content: Record<string, unknown> = Object.create(null)
+	const content: Record<string, unknown> = Object.create(null);
 	for (const [contentType, schemas] of media) {
 		content[contentType] = {
 			schema: schemas.length === 1 ? schemas[0] : { oneOf: schemas },
-		}
+		};
 	}
 	return freezeOpenApi({
 		description: descriptions.join(' / ') || 'Response.',
 		...(Object.keys(headers).length > 0 ? { headers } : {}),
 		...(Object.keys(content).length > 0 ? { content } : {}),
-	})
+	});
 }
 
 /**
@@ -536,9 +544,9 @@ function appendStatus(
 	status: string,
 	value: Readonly<Record<string, unknown>>,
 ): void {
-	const values = byStatus.get(status) ?? []
-	values.push(value)
-	byStatus.set(status, values)
+	const values = byStatus.get(status) ?? [];
+	values.push(value);
+	byStatus.set(status, values);
 }
 
 /**
@@ -551,11 +559,11 @@ async function projectSchema(
 	internal: boolean,
 	options: OpenApiOptions,
 ): Promise<unknown> {
-	const input = documented(slot)
-	if (input?.jsonSchema !== undefined) return freezeOpenApi(input.jsonSchema)
-	const schema = schemaOf(slot) as StandardSchemaV1 & { readonly wireSchema?: () => unknown }
-	if (typeof schema.wireSchema === 'function') return freezeOpenApi(schema.wireSchema())
-	return await projectBareSchema(schema, internal, options, 'request')
+	const input = documented(slot);
+	if (input?.jsonSchema !== undefined) return freezeOpenApi(input.jsonSchema);
+	const schema = schemaOf(slot) as StandardSchemaV1 & { readonly wireSchema?: () => unknown };
+	if (typeof schema.wireSchema === 'function') return freezeOpenApi(schema.wireSchema());
+	return await projectBareSchema(schema, internal, options, 'request');
 }
 
 /** Project Standard JSON Schema in the correct wire direction, with explicit mapper precedence. */
@@ -565,28 +573,30 @@ async function projectBareSchema(
 	options: OpenApiOptions,
 	purpose: OpenApiSchemaProjectionContext['purpose'],
 ): Promise<unknown> {
-	const target = 'draft-2020-12' as const
-	const context: OpenApiSchemaProjectionContext = { purpose, specVersion: options.specVersion ?? '3.1.2', target }
+	const target = 'draft-2020-12' as const;
+	const context: OpenApiSchemaProjectionContext = { purpose, specVersion: options.specVersion ?? '3.1.2', target };
 	if (options.schemaProjectorMode === 'override') {
-		const projected = await options.schemaProjector?.(schema, context)
-		if (projected !== undefined) return freezeOpenApi(projected)
+		const projected = await options.schemaProjector?.(schema, context);
+		if (projected !== undefined) return freezeOpenApi(projected);
 	}
-	const standard = schema as StandardSchemaV1 & Partial<StandardJSONSchemaV1>
-	const converter = standard['~standard'].jsonSchema
+	const standard = schema as StandardSchemaV1 & Partial<StandardJSONSchemaV1>;
+	const converter = standard['~standard'].jsonSchema;
 	if (converter !== undefined) {
 		try {
-			return freezeOpenApi(purpose === 'request' ? converter.input({ target }) : converter.output({ target }))
+			return freezeOpenApi(purpose === 'request' ? converter.input({ target }) : converter.output({ target }));
 		} catch (error) {
 			if (options.schemaProjector === undefined) {
-				if (internal) return freezeOpenApi({})
-				throw new TypeError('Public endpoint schema could not be projected through Standard JSON Schema.', { cause: error })
+				if (internal) return freezeOpenApi({});
+				throw new TypeError('Public endpoint schema could not be projected through Standard JSON Schema.', {
+					cause: error,
+				});
 			}
 		}
 	}
-	const projected = await options.schemaProjector?.(schema, context)
-	if (projected !== undefined) return freezeOpenApi(projected)
-	if (internal) return freezeOpenApi({})
-	throw new TypeError('Public endpoint schema has no Standard JSON Schema projection or configured projector.')
+	const projected = await options.schemaProjector?.(schema, context);
+	if (projected !== undefined) return freezeOpenApi(projected);
+	if (internal) return freezeOpenApi({});
+	throw new TypeError('Public endpoint schema has no Standard JSON Schema projection or configured projector.');
 }
 
 /**
@@ -603,7 +613,7 @@ function problemDefinitions(
 		...groups.flatMap((group) => definitionValues<ProblemDefinition>(group.problems)),
 		...definitionValues<ProblemDefinition>(endpoint.problems),
 		...definitionValues<ProblemDefinition>(operation.problems),
-	])
+	]);
 }
 
 /**
@@ -614,8 +624,8 @@ function problemDefinitions(
 function definitionValues<Entry extends { readonly id: string; readonly kind: string }>(
 	input: unknown,
 ): readonly Entry[] {
-	if (input === undefined) return Object.freeze([])
-	return catalog.values(input as Parameters<typeof catalog.values<Entry>>[0])
+	if (input === undefined) return Object.freeze([]);
+	return catalog.values(input as Parameters<typeof catalog.values<Entry>>[0]);
 }
 
 /**
@@ -626,7 +636,7 @@ function definitionValues<Entry extends { readonly id: string; readonly kind: st
  * @internal
  */
 function walk(input: EndpointCompositionInput): readonly EndpointVisit[] {
-	const result: EndpointVisit[] = []
+	const result: EndpointVisit[] = [];
 	const visit = (
 		value: EndpointCompositionInput,
 		prefix: string,
@@ -634,18 +644,18 @@ function walk(input: EndpointCompositionInput): readonly EndpointVisit[] {
 	): void => {
 		for (const entry of flatten(value)) {
 			if (entry.kind === 'endpoint') {
-				result.push(Object.freeze({ endpoint: entry, path: joinPath(prefix, entry.path), groups }))
-				continue
+				result.push(Object.freeze({ endpoint: entry, path: joinPath(prefix, entry.path), groups }));
+				continue;
 			}
 			if (entry.kind === 'endpoint-group-selection') {
-				visit(entry.endpoints, prefix, groups)
-				continue
+				visit(entry.endpoints, prefix, groups);
+				continue;
 			}
-			visit(entry.endpoints, joinPath(prefix, entry.path), Object.freeze([...groups, entry]))
+			visit(entry.endpoints, joinPath(prefix, entry.path), Object.freeze([...groups, entry]));
 		}
-	}
-	visit(input, '', Object.freeze([]))
-	return Object.freeze(result)
+	};
+	visit(input, '', Object.freeze([]));
+	return Object.freeze(result);
 }
 
 /**
@@ -656,7 +666,7 @@ function walk(input: EndpointCompositionInput): readonly EndpointVisit[] {
 function flatten(input: EndpointCompositionInput): readonly EndpointEntry[] {
 	return Array.isArray(input)
 		? Object.freeze(input.flatMap((entry) => flatten(entry)))
-		: Object.freeze([input as EndpointEntry])
+		: Object.freeze([input as EndpointEntry]);
 }
 
 /**
@@ -671,7 +681,7 @@ function isInternal(
 ): boolean {
 	return groups.some((group) => group.internal === true) ||
 		endpoint.internal === true ||
-		operation.internal === true
+		operation.internal === true;
 }
 
 /**
@@ -682,7 +692,7 @@ function isInternal(
 function documented(slot: EndpointInputSlot) {
 	return typeof slot === 'object' && slot !== null && (slot as { kind?: unknown }).kind === 'endpoint-input'
 		? slot as Extract<EndpointInputSlot, { kind: 'endpoint-input' }>
-		: undefined
+		: undefined;
 }
 
 /**
@@ -691,14 +701,14 @@ function documented(slot: EndpointInputSlot) {
  * @internal
  */
 function examplesObject(examples: readonly EndpointExample[] | undefined): Readonly<Record<string, unknown>> {
-	if (!examples || examples.length === 0) return Object.freeze({})
+	if (!examples || examples.length === 0) return Object.freeze({});
 	return freezeOpenApi({
 		examples: Object.fromEntries(examples.map((example) => [example.key, {
 			...(example.summary !== undefined ? { summary: example.summary } : {}),
 			...(example.description !== undefined ? { description: example.description } : {}),
 			value: example.value,
 		}])),
-	})
+	});
 }
 
 /**
@@ -707,14 +717,14 @@ function examplesObject(examples: readonly EndpointExample[] | undefined): Reado
  * @internal
  */
 function responseExamplesObject(examples: readonly ResponseExample[] | undefined): Readonly<Record<string, unknown>> {
-	if (!examples || examples.length === 0) return Object.freeze({})
+	if (!examples || examples.length === 0) return Object.freeze({});
 	return freezeOpenApi({
 		examples: Object.fromEntries(examples.map((example) => [example.key, {
 			...(example.summary !== undefined ? { summary: example.summary } : {}),
 			...(example.description !== undefined ? { description: example.description } : {}),
 			value: example.value,
 		}])),
-	})
+	});
 }
 
 /**
@@ -725,7 +735,7 @@ function responseExamplesObject(examples: readonly ResponseExample[] | undefined
  * @internal
  */
 function problemExamplesObject(definition: ProblemDefinition): Readonly<Record<string, unknown>> {
-	if (!definition.examples || definition.examples.length === 0) return Object.freeze({})
+	if (!definition.examples || definition.examples.length === 0) return Object.freeze({});
 	return freezeOpenApi({
 		examples: Object.fromEntries(definition.examples.map((example) => [example.key, {
 			...(example.summary !== undefined ? { summary: example.summary } : {}),
@@ -736,7 +746,7 @@ function problemExamplesObject(definition: ProblemDefinition): Readonly<Record<s
 				...example.value,
 			},
 		}])),
-	})
+	});
 }
 
 /**
@@ -745,9 +755,9 @@ function problemExamplesObject(definition: ProblemDefinition): Readonly<Record<s
  * @internal
  */
 function requestMedia(source: 'json' | 'form' | 'raw'): string {
-	if (source === 'json') return 'application/json'
-	if (source === 'form') return 'application/x-www-form-urlencoded'
-	return 'application/octet-stream'
+	if (source === 'json') return 'application/json';
+	if (source === 'form') return 'application/x-www-form-urlencoded';
+	return 'application/octet-stream';
 }
 
 /**
@@ -756,46 +766,72 @@ function requestMedia(source: 'json' | 'form' | 'raw'): string {
  * @internal
  */
 function responseMedia(definition: ResponseDefinition): string {
-	if (definition.mode === 'download' || definition.mode === 'stream') return 'application/octet-stream'
-	if (definition.mode === 'html') return 'text/html; charset=utf-8'
-	return 'application/json'
+	if (definition.mode === 'download' || definition.mode === 'stream') return 'application/octet-stream';
+	if (definition.mode === 'html') return 'text/html; charset=utf-8';
+	return 'application/json';
 }
 
 /** Normalize OpenAPI options before projection can observe caller mutation or accessors. @internal */
 function normalizeOptions(options: OpenApiOptions): NormalizedOpenApiOptions {
-	record.assert(options, 'OpenAPI options')
-	if (typeof options.title !== 'string' || options.title.length === 0) throw new TypeError('OpenAPI title must be a non-empty string.')
-	if (typeof options.version !== 'string' || options.version.length === 0) throw new TypeError('OpenAPI version must be a non-empty string.')
-	if (options.description !== undefined && typeof options.description !== 'string') throw new TypeError('OpenAPI description must be a string.')
-	if (options.includeInternal !== undefined && typeof options.includeInternal !== 'boolean') throw new TypeError('includeInternal must be a boolean.')
-	if (options.schemaProjector !== undefined && typeof options.schemaProjector !== 'function') throw new TypeError('schemaProjector must be a function.')
-	const specVersion = options.specVersion ?? '3.1.2'
-	if (!['3.1.0', '3.1.1', '3.1.2', '3.2.0'].includes(specVersion)) throw new TypeError('Unsupported OpenAPI specVersion.')
-	if (options.schemaProjectorMode !== undefined && options.schemaProjectorMode !== 'fallback' && options.schemaProjectorMode !== 'override') throw new TypeError('schemaProjectorMode must be fallback or override.')
-	const servers = options.servers === undefined ? undefined : normalizeServers(options.servers)
-	return Object.freeze({
-		title: options.title,
-		version: options.version,
-		specVersion,
-		...(options.description !== undefined ? { description: options.description } : {}),
-		...(options.includeInternal !== undefined ? { includeInternal: options.includeInternal } : {}),
-		...(servers !== undefined ? { servers } : {}),
-		...(options.schemaProjector !== undefined ? { schemaProjector: options.schemaProjector } : {}),
-		...(options.schemaProjectorMode !== undefined ? { schemaProjectorMode: options.schemaProjectorMode } : {}),
-	} satisfies NormalizedOpenApiOptions)
+	record.assert(options, 'OpenAPI options');
+	if (typeof options.title !== 'string' || options.title.length === 0) {
+		throw new TypeError('OpenAPI title must be a non-empty string.');
+	}
+	if (typeof options.version !== 'string' || options.version.length === 0) {
+		throw new TypeError('OpenAPI version must be a non-empty string.');
+	}
+	if (options.description !== undefined && typeof options.description !== 'string') {
+		throw new TypeError('OpenAPI description must be a string.');
+	}
+	if (options.includeInternal !== undefined && typeof options.includeInternal !== 'boolean') {
+		throw new TypeError('includeInternal must be a boolean.');
+	}
+	if (options.schemaProjector !== undefined && typeof options.schemaProjector !== 'function') {
+		throw new TypeError('schemaProjector must be a function.');
+	}
+	const specVersion = options.specVersion ?? '3.1.2';
+	if (!['3.1.0', '3.1.1', '3.1.2', '3.2.0'].includes(specVersion)) {
+		throw new TypeError('Unsupported OpenAPI specVersion.');
+	}
+	if (
+		options.schemaProjectorMode !== undefined && options.schemaProjectorMode !== 'fallback' &&
+		options.schemaProjectorMode !== 'override'
+	) throw new TypeError('schemaProjectorMode must be fallback or override.');
+	const servers = options.servers === undefined ? undefined : normalizeServers(options.servers);
+	return Object.freeze(
+		{
+			title: options.title,
+			version: options.version,
+			specVersion,
+			...(options.description !== undefined ? { description: options.description } : {}),
+			...(options.includeInternal !== undefined ? { includeInternal: options.includeInternal } : {}),
+			...(servers !== undefined ? { servers } : {}),
+			...(options.schemaProjector !== undefined ? { schemaProjector: options.schemaProjector } : {}),
+			...(options.schemaProjectorMode !== undefined ? { schemaProjectorMode: options.schemaProjectorMode } : {}),
+		} satisfies NormalizedOpenApiOptions,
+	);
 }
 
 /** Snapshot advertised servers as inert OpenAPI data. @internal */
 function normalizeServers(servers: readonly OpenApiServer[]): readonly OpenApiServer[] {
-	if (!Array.isArray(servers)) throw new TypeError('OpenAPI servers must be an array.')
-	const result: OpenApiServer[] = []
+	if (!Array.isArray(servers)) throw new TypeError('OpenAPI servers must be an array.');
+	const result: OpenApiServer[] = [];
 	for (const server of servers) {
-		record.assert(server, 'OpenAPI server')
-		if (typeof server.url !== 'string' || server.url.length === 0) throw new TypeError('OpenAPI server URL must be a non-empty string.')
-		if (server.description !== undefined && typeof server.description !== 'string') throw new TypeError('OpenAPI server description must be a string.')
-		result.push(Object.freeze({ url: server.url, ...(server.description !== undefined ? { description: server.description } : {}) }))
+		record.assert(server, 'OpenAPI server');
+		if (typeof server.url !== 'string' || server.url.length === 0) {
+			throw new TypeError('OpenAPI server URL must be a non-empty string.');
+		}
+		if (server.description !== undefined && typeof server.description !== 'string') {
+			throw new TypeError('OpenAPI server description must be a string.');
+		}
+		result.push(
+			Object.freeze({
+				url: server.url,
+				...(server.description !== undefined ? { description: server.description } : {}),
+			}),
+		);
 	}
-	return Object.freeze(result)
+	return Object.freeze(result);
 }
 
 /**
@@ -804,10 +840,8 @@ function normalizeServers(servers: readonly OpenApiServer[]): readonly OpenApiSe
  * @internal
  */
 function openApiPath(path: string): string {
-	return path.replace(/:([A-Za-z0-9_]+)/g, '{$1}')
+	return path.replace(/:([A-Za-z0-9_]+)/g, '{$1}');
 }
-
-
 
 /**
  * Builds the as json object consumed by the endpoint OpenAPI projection.
@@ -815,7 +849,7 @@ function openApiPath(path: string): string {
  * @internal
  */
 function asJsonObject(value: unknown): Readonly<Record<string, unknown>> | undefined {
-	return isRecord(value) ? value : undefined
+	return isRecord(value) ? value : undefined;
 }
 
 /**
@@ -824,7 +858,7 @@ function asJsonObject(value: unknown): Readonly<Record<string, unknown>> | undef
  * @internal
  */
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-	return typeof value === 'object' && value !== null && !Array.isArray(value)
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /**
@@ -833,7 +867,7 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
  * @internal
  */
 function isString(value: unknown): value is string {
-	return typeof value === 'string'
+	return typeof value === 'string';
 }
 
 /**
@@ -842,7 +876,7 @@ function isString(value: unknown): value is string {
  * @internal
  */
 function uniqueStrings(values: readonly string[]): readonly string[] {
-	return Object.freeze([...new Set(values)])
+	return Object.freeze([...new Set(values)]);
 }
 
 /**
@@ -853,17 +887,19 @@ function uniqueStrings(values: readonly string[]): readonly string[] {
  * @internal
  */
 function uniqueDefinitions<Entry extends { readonly id: string }>(values: readonly Entry[]): readonly Entry[] {
-	const result: Entry[] = []
-	const owners = new Map<string, Entry>()
-	const seen = new Set<Entry>()
+	const result: Entry[] = [];
+	const owners = new Map<string, Entry>();
+	const seen = new Set<Entry>();
 	for (const value of values) {
-		const owner = owners.get(value.id)
-		if (owner && owner !== value) throw new TypeError(`Definition ID ${JSON.stringify(value.id)} belongs to different objects.`)
-		owners.set(value.id, value)
+		const owner = owners.get(value.id);
+		if (owner && owner !== value) {
+			throw new TypeError(`Definition ID ${JSON.stringify(value.id)} belongs to different objects.`);
+		}
+		owners.set(value.id, value);
 		if (!seen.has(value)) {
-			seen.add(value)
-			result.push(value)
+			seen.add(value);
+			result.push(value);
 		}
 	}
-	return Object.freeze(result)
+	return Object.freeze(result);
 }

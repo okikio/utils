@@ -66,8 +66,7 @@ export interface EnvironmentField<
 export type EnvironmentFields = Readonly<Record<string, EnvironmentField>>;
 
 /** Parsed output inferred from one field's Standard Schema implementation. */
-export type InferEnvironmentField<Field extends EnvironmentField> =
-	StandardSchemaV1.InferOutput<Field['schema']>;
+export type InferEnvironmentField<Field extends EnvironmentField> = StandardSchemaV1.InferOutput<Field['schema']>;
 
 /** Parsed output inferred from a complete field collection. */
 export type InferEnvironmentFields<Fields extends EnvironmentFields> = {
@@ -139,8 +138,8 @@ export interface EnvironmentDefinition<Fields extends EnvironmentFields = Enviro
 }
 
 /** Parsed output inferred from an environment definition. */
-export type InferEnvironment<Definition extends EnvironmentDefinition> =
-	Definition extends EnvironmentDefinition<infer Fields> ? InferEnvironmentFields<Fields> : never;
+export type InferEnvironment<Definition extends EnvironmentDefinition> = Definition extends
+	EnvironmentDefinition<infer Fields> ? InferEnvironmentFields<Fields> : never;
 
 /** One canonical field selected by a resource or host requirement. */
 export interface EnvironmentRequirementField<Field extends EnvironmentField = EnvironmentField> {

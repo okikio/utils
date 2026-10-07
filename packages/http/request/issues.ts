@@ -69,8 +69,6 @@ export function formatPath(path: readonly PropertyKey[]): string {
 	return path.map((segment) => {
 		if (typeof segment === 'number') return `[${segment}]`;
 		const value = String(segment);
-		return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(value)
-			? `.${value}`
-			: `[${JSON.stringify(value)}]`;
+		return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(value) ? `.${value}` : `[${JSON.stringify(value)}]`;
 	}).join('');
 }

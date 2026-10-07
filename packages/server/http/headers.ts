@@ -83,7 +83,9 @@ function normalizeSecurityHeaders(options: SecurityHeadersOptionsType): Security
 	if (options.additional !== undefined) {
 		recordCore.assert(options.additional, 'additional security headers');
 		for (const [name, value] of recordCore.entries(options.additional, 'additional security headers')) {
-			if (typeof value !== 'string') throw new TypeError(`additional security header ${JSON.stringify(name)} must be a string.`);
+			if (typeof value !== 'string') {
+				throw new TypeError(`additional security header ${JSON.stringify(name)} must be a string.`);
+			}
 		}
 		additional = recordCore.snapshot(options.additional, 'additional security headers');
 	}

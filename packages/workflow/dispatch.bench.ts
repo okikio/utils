@@ -27,28 +27,36 @@ async function cycle(): Promise<import('./types.ts').ActivityDispatchStatsType> 
 	const snapshot = context.snapshot(ctx);
 
 	for (let index = 0; index < ITEMS; index += 1) {
-		const item = Object.freeze({
-			activityId: 'benchmark.run',
-			activityVersion: '1',
-			input: index,
-			origin: Object.freeze({
-				workflowId: 'benchmark.workflow',
-				workflowVersion: '1',
-				runId: 'benchmark-run',
-				instructionPath: String(index),
-				instructionFingerprint: `fingerprint-${index}`,
-			}),
-			context: snapshot,
-			placement: Object.freeze([{ engine: 'benchmark', mode: 'required' as const }]),
-		} satisfies ActivityJobType);
+		const item = Object.freeze(
+			{
+				activityId: 'benchmark.run',
+				activityVersion: '1',
+				input: index,
+				origin: Object.freeze({
+					workflowId: 'benchmark.workflow',
+					workflowVersion: '1',
+					runId: 'benchmark-run',
+					instructionPath: String(index),
+					instructionFingerprint: `fingerprint-${index}`,
+				}),
+				context: snapshot,
+				placement: Object.freeze([{ engine: 'benchmark', mode: 'required' as const }]),
+			} satisfies ActivityJobType,
+		);
 		await store.add(ctx, item, { key: `benchmark-${index}` });
 	}
 	const claims = await store.claim(ctx, executor, { limit: ITEMS, duration: { seconds: 30 } });
 	for (const claim of claims) {
-		await store.complete(ctx, claim, Object.freeze({
-			type: 'success',
-			value: Object.freeze({ kind: 'value', value: null }),
-		} satisfies ActivityJobResultType));
+		await store.complete(
+			ctx,
+			claim,
+			Object.freeze(
+				{
+					type: 'success',
+					value: Object.freeze({ kind: 'value', value: null }),
+				} satisfies ActivityJobResultType,
+			),
+		);
 	}
 	return await store.stats();
 }

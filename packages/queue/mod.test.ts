@@ -45,7 +45,10 @@ describe('memory queue', () => {
 	it('claims by priority, preserves FIFO ties, and completes exact claims', async () => {
 		const clock = new context.TestClock();
 		await using ctx = context.create({ id: 'queue-owner', clock });
-		await using jobs = queue.memory<string, string>({ clock, id: ids('item-1', 'item-2', 'item-3', 'claim-1', 'claim-2', 'claim-3') });
+		await using jobs = queue.memory<string, string>({
+			clock,
+			id: ids('item-1', 'item-2', 'item-3', 'claim-1', 'claim-2', 'claim-3'),
+		});
 		const first = await jobs.add(ctx, 'first', { priority: 1 });
 		await jobs.add(ctx, 'second', { priority: 2 });
 		await jobs.add(ctx, 'third', { priority: 2 });
@@ -186,7 +189,9 @@ describe('memory queue', () => {
 
 	it('rejects invalid claim and retry timing instead of creating immediately stale ownership', async () => {
 		await using ctx = context.create({ id: 'queue-invalid-duration', clock: new context.TestClock() });
-		expect(() => queue.memory<string, string>({ defaultClaimDuration: {} })).toThrow('default claim duration must be positive');
+		expect(() => queue.memory<string, string>({ defaultClaimDuration: {} })).toThrow(
+			'default claim duration must be positive',
+		);
 		await using jobs = queue.memory<string, string>({ id: ids('item', 'claim') });
 		await jobs.add(ctx, 'value');
 		await expect(jobs.claim(ctx, { duration: {} })).rejects.toThrow('claim duration must be positive');
@@ -217,5 +222,4 @@ describe('memory queue', () => {
 		expect(duplicate).toEqual(first);
 		expect(await jobs.result(ctx, duplicate)).toBe('stored result');
 	});
-
 });

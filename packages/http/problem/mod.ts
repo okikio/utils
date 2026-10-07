@@ -62,23 +62,25 @@ export function define<
 	const retry = input.retry === undefined ? undefined : snapshotRetry(input.retry);
 	const provider = input.provider === undefined ? undefined : snapshotProvider(input.provider);
 	const extensions = input.extensions === undefined ? undefined : snapshotExtensionContract(input.extensions);
-	return Object.freeze({
-		id: input.id,
-		type: input.type,
-		status: input.status,
-		title: input.title,
-		description: input.description,
-		kind: 'problem',
-		exposure: input.exposure ?? 'public',
-		...(input.remediation === undefined ? {} : { remediation: input.remediation }),
-		...(input.externalDocumentation === undefined ? {} : { externalDocumentation: input.externalDocumentation }),
-		...(input.localizationKey === undefined ? {} : { localizationKey: input.localizationKey }),
-		...(input.severity === undefined ? {} : { severity: input.severity }),
-		...(examples === undefined ? {} : { examples }),
-		...(retry === undefined ? {} : { retry }),
-		...(provider === undefined ? {} : { provider }),
-		...(extensions === undefined ? {} : { extensions }),
-	} satisfies ProblemDefinition<Extensions, Status>);
+	return Object.freeze(
+		{
+			id: input.id,
+			type: input.type,
+			status: input.status,
+			title: input.title,
+			description: input.description,
+			kind: 'problem',
+			exposure: input.exposure ?? 'public',
+			...(input.remediation === undefined ? {} : { remediation: input.remediation }),
+			...(input.externalDocumentation === undefined ? {} : { externalDocumentation: input.externalDocumentation }),
+			...(input.localizationKey === undefined ? {} : { localizationKey: input.localizationKey }),
+			...(input.severity === undefined ? {} : { severity: input.severity }),
+			...(examples === undefined ? {} : { examples }),
+			...(retry === undefined ? {} : { retry }),
+			...(provider === undefined ? {} : { provider }),
+			...(extensions === undefined ? {} : { extensions }),
+		} satisfies ProblemDefinition<Extensions, Status>,
+	);
 }
 
 /** Create a named immutable problem catalog. */
@@ -116,11 +118,17 @@ export function create<
 	options: CreateProblemOptions<Extensions> = {},
 ): ProblemResult<Definition, ProblemBody<Definition> & Extensions> {
 	record.assert(options, 'Problem occurrence options');
-	if (options.detail !== undefined && typeof options.detail !== 'string') throw new TypeError('Problem detail must be a string.');
-	if (options.instance !== undefined && typeof options.instance !== 'string') throw new TypeError('Problem instance must be a string.');
+	if (options.detail !== undefined && typeof options.detail !== 'string') {
+		throw new TypeError('Problem detail must be a string.');
+	}
+	if (options.instance !== undefined && typeof options.instance !== 'string') {
+		throw new TypeError('Problem instance must be a string.');
+	}
 	const extensions = snapshotOccurrenceExtensions(options.extensions);
 	for (const key of record.keys(extensions)) {
-		if (Object.hasOwn(CANONICAL_MEMBERS, key)) throw new TypeError(`Problem extension ${JSON.stringify(key)} overwrites an RFC 9457 member.`);
+		if (Object.hasOwn(CANONICAL_MEMBERS, key)) {
+			throw new TypeError(`Problem extension ${JSON.stringify(key)} overwrites an RFC 9457 member.`);
+		}
 	}
 
 	const body = Object.freeze({
@@ -138,10 +146,13 @@ export function create<
 	);
 
 	const tuple = problemTuple<Definition, ProblemBody<Definition> & Extensions>(body, definition.status, headers);
-	problemResultMetadata.set(tuple, Object.freeze({
-		definition,
-		...(options.cause !== undefined ? { cause: options.cause } : {}),
-	}));
+	problemResultMetadata.set(
+		tuple,
+		Object.freeze({
+			definition,
+			...(options.cause !== undefined ? { cause: options.cause } : {}),
+		}),
+	);
 	return tuple;
 }
 
@@ -220,7 +231,9 @@ export function match(
 	const definition = definitionOf(value);
 	const metadata = catalog.metadata(universe);
 	const key = metadata.keyByEntry.get(definition);
-	if (key === undefined) throw new TypeError(`Problem ${JSON.stringify(definition.id)} is outside the supplied universe.`);
+	if (key === undefined) {
+		throw new TypeError(`Problem ${JSON.stringify(definition.id)} is outside the supplied universe.`);
+	}
 	const handler = handlers[key];
 	if (handler) return handler(value);
 	if (options) return options.otherwise(value);
@@ -248,39 +261,49 @@ export function document(input: DefinitionInput<ProblemDefinition>): readonly Pr
 		for (const entry of metadata.entries) keys.set(entry as ProblemDefinition, metadata.keyByEntry.get(entry)!);
 	}
 
-	return Object.freeze(catalog.values(input).map((definition): ProblemDocument => {
-		const key = keys.get(definition);
-		return Object.freeze({
-		...(key !== undefined ? { key } : {}),
-		id: definition.id,
-		type: definition.type,
-		status: definition.status,
-		title: definition.title,
-		description: definition.description,
-		...(definition.remediation !== undefined ? { remediation: definition.remediation } : {}),
-		...(definition.externalDocumentation !== undefined
-			? { externalDocumentation: definition.externalDocumentation }
-			: {}),
-		retry: definition.retry ?? Object.freeze({ kind: 'never' as const }),
-		severity: definition.severity ?? 'error',
-		exposure: definition.exposure,
-		examples: definition.examples ?? Object.freeze([]),
-		...(definition.provider !== undefined ? { provider: definition.provider } : {}),
-		});
-	}));
+	return Object.freeze(
+		catalog.values(input).map((definition): ProblemDocument => {
+			const key = keys.get(definition);
+			return Object.freeze({
+				...(key !== undefined ? { key } : {}),
+				id: definition.id,
+				type: definition.type,
+				status: definition.status,
+				title: definition.title,
+				description: definition.description,
+				...(definition.remediation !== undefined ? { remediation: definition.remediation } : {}),
+				...(definition.externalDocumentation !== undefined
+					? { externalDocumentation: definition.externalDocumentation }
+					: {}),
+				retry: definition.retry ?? Object.freeze({ kind: 'never' as const }),
+				severity: definition.severity ?? 'error',
+				exposure: definition.exposure,
+				examples: definition.examples ?? Object.freeze([]),
+				...(definition.provider !== undefined ? { provider: definition.provider } : {}),
+			});
+		}),
+	);
 }
 
 /** Snapshot concrete examples without invoking array or metadata accessors. */
-function snapshotExamples(values: readonly import('./types.ts').ProblemExample[]): readonly import('./types.ts').ProblemExample[] {
+function snapshotExamples(
+	values: readonly import('./types.ts').ProblemExample[],
+): readonly import('./types.ts').ProblemExample[] {
 	const descriptors = Object.getOwnPropertyDescriptors(values);
 	const result: import('./types.ts').ProblemExample[] = [];
 	for (let index = 0; index < values.length; index += 1) {
 		const descriptor = descriptors[String(index)];
-		if (descriptor === undefined || !('value' in descriptor)) throw new TypeError('Problem examples must be a dense data array without accessors.');
+		if (descriptor === undefined || !('value' in descriptor)) {
+			throw new TypeError('Problem examples must be a dense data array without accessors.');
+		}
 		const example = descriptor.value as import('./types.ts').ProblemExample;
 		record.assert(example, `Problem example ${index}`);
-		if (typeof example.key !== 'string' || example.key.length === 0) throw new TypeError(`Problem example ${index} key must be a non-empty string.`);
-		if (example.summary !== undefined && typeof example.summary !== 'string') throw new TypeError(`Problem example ${index} summary must be a string.`);
+		if (typeof example.key !== 'string' || example.key.length === 0) {
+			throw new TypeError(`Problem example ${index} key must be a non-empty string.`);
+		}
+		if (example.summary !== undefined && typeof example.summary !== 'string') {
+			throw new TypeError(`Problem example ${index} summary must be a string.`);
+		}
 		record.assert(example.value, `Problem example ${index} value`);
 		result.push(Object.freeze({
 			key: example.key,
@@ -298,32 +321,58 @@ function snapshotRetry(value: ProblemRetryPolicy): ProblemRetryPolicy {
 		case 'never':
 			return Object.freeze({ kind: 'never' });
 		case 'immediate':
-			if (value.maximumAttempts !== undefined && (!Number.isSafeInteger(value.maximumAttempts) || value.maximumAttempts < 1)) {
+			if (
+				value.maximumAttempts !== undefined &&
+				(!Number.isSafeInteger(value.maximumAttempts) || value.maximumAttempts < 1)
+			) {
 				throw new TypeError('Problem retry maximumAttempts must be a positive safe integer.');
 			}
-			return Object.freeze({ kind: 'immediate', ...(value.maximumAttempts === undefined ? {} : { maximumAttempts: value.maximumAttempts }) });
+			return Object.freeze({
+				kind: 'immediate',
+				...(value.maximumAttempts === undefined ? {} : { maximumAttempts: value.maximumAttempts }),
+			});
 		case 'after':
-			if (value.header !== undefined && typeof value.header !== 'string') throw new TypeError('Problem retry header must be a string.');
+			if (value.header !== undefined && typeof value.header !== 'string') {
+				throw new TypeError('Problem retry header must be a string.');
+			}
 			if (value.defaultSeconds !== undefined && (!Number.isFinite(value.defaultSeconds) || value.defaultSeconds < 0)) {
 				throw new TypeError('Problem retry defaultSeconds must be a non-negative finite number.');
 			}
-			return Object.freeze({ kind: 'after', ...(value.header === undefined ? {} : { header: value.header }), ...(value.defaultSeconds === undefined ? {} : { defaultSeconds: value.defaultSeconds }) });
+			return Object.freeze({
+				kind: 'after',
+				...(value.header === undefined ? {} : { header: value.header }),
+				...(value.defaultSeconds === undefined ? {} : { defaultSeconds: value.defaultSeconds }),
+			});
 	}
 }
 
 /** Snapshot provider metadata without retaining a mutable authoring object. */
-function snapshotProvider(value: import('./types.ts').ProblemProviderMetadata): import('./types.ts').ProblemProviderMetadata {
+function snapshotProvider(
+	value: import('./types.ts').ProblemProviderMetadata,
+): import('./types.ts').ProblemProviderMetadata {
 	record.assert(value, 'Problem provider metadata');
-	if (typeof value.name !== 'string' || value.name.length === 0) throw new TypeError('Problem provider name must be a non-empty string.');
-	if (value.code !== undefined && typeof value.code !== 'string') throw new TypeError('Problem provider code must be a string.');
-	if (value.documentation !== undefined && typeof value.documentation !== 'string') throw new TypeError('Problem provider documentation must be a string.');
-	return Object.freeze({ name: value.name, ...(value.code === undefined ? {} : { code: value.code }), ...(value.documentation === undefined ? {} : { documentation: value.documentation }) });
+	if (typeof value.name !== 'string' || value.name.length === 0) {
+		throw new TypeError('Problem provider name must be a non-empty string.');
+	}
+	if (value.code !== undefined && typeof value.code !== 'string') {
+		throw new TypeError('Problem provider code must be a string.');
+	}
+	if (value.documentation !== undefined && typeof value.documentation !== 'string') {
+		throw new TypeError('Problem provider documentation must be a string.');
+	}
+	return Object.freeze({
+		name: value.name,
+		...(value.code === undefined ? {} : { code: value.code }),
+		...(value.documentation === undefined ? {} : { documentation: value.documentation }),
+	});
 }
 
 /** Snapshot extension schema metadata while borrowing the schema behavior object itself. */
 function snapshotExtensionContract<const Contract extends ProblemExtensionContract>(value: Contract): Contract {
 	record.assert(value, 'Problem extension contract');
-	if (value.description !== undefined && typeof value.description !== 'string') throw new TypeError('Problem extension description must be a string.');
+	if (value.description !== undefined && typeof value.description !== 'string') {
+		throw new TypeError('Problem extension description must be a string.');
+	}
 	return record.snapshot(value, 'Problem extension contract');
 }
 
@@ -355,7 +404,9 @@ export async function validateExtensions<Definition extends ProblemDefinition>(
  * @internal
  */
 function assertDefinition(input: ProblemDefinitionInput<ProblemExtensionContract | undefined, ProblemStatus>): void {
-	if (!/^[a-z0-9][a-z0-9._:-]*$/i.test(input.id)) throw new TypeError(`Invalid problem id ${JSON.stringify(input.id)}.`);
+	if (!/^[a-z0-9][a-z0-9._:-]*$/i.test(input.id)) {
+		throw new TypeError(`Invalid problem id ${JSON.stringify(input.id)}.`);
+	}
 	let type: URL;
 	try {
 		type = new URL(input.type);

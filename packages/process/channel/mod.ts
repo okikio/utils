@@ -21,10 +21,10 @@ import * as schema from '@okikio/schema';
 
 import type {
 	ProcessChannel,
-	ProcessChannelSource,
-	ProcessChannelProtocol,
-	ProcessEventType,
 	ProcessChannelOptions,
+	ProcessChannelProtocol,
+	ProcessChannelSource,
+	ProcessEventType,
 	ProcessProtocolOptions,
 	ProcessRequestControl,
 	ProcessRequestFrame,
@@ -180,15 +180,17 @@ class Channel<Request, Response, Notice, CallRequest, CallResponse> {
 		this.#events.emit(Object.freeze({ type: 'opened', pid: child.pid }));
 		ctx.signal.addEventListener('abort', this.#parentAbort, { once: true });
 
-		this.channel = Object.freeze({
-			pid: child.pid,
-			events: this.#events.events,
-			request: (requestCtx, request, requestOptions = {}) => this.#request(requestCtx, request, requestOptions),
-			pause: (id) => this.#pause(id),
-			resume: (id) => this.#resume(id),
-			close: (reason?: unknown) => this.#closeOnce(reason),
-			[Symbol.asyncDispose]: async () => await this.#closeOnce('Process channel was disposed.'),
-		} satisfies ProcessChannel<Request, Response>);
+		this.channel = Object.freeze(
+			{
+				pid: child.pid,
+				events: this.#events.events,
+				request: (requestCtx, request, requestOptions = {}) => this.#request(requestCtx, request, requestOptions),
+				pause: (id) => this.#pause(id),
+				resume: (id) => this.#resume(id),
+				close: (reason?: unknown) => this.#closeOnce(reason),
+				[Symbol.asyncDispose]: async () => await this.#closeOnce('Process channel was disposed.'),
+			} satisfies ProcessChannel<Request, Response>,
+		);
 	}
 
 	/** Validate, correlate, and send one parent request under the caller-owned request context. */
@@ -278,7 +280,9 @@ class Channel<Request, Response, Notice, CallRequest, CallResponse> {
 			throw new ChannelProtocolError('Child sent a non-envelope frame.', message);
 		}
 		if (message.type === 'closed') {
-			if (this.#state === 'open') throw new ChannelProtocolError('Child closed the protocol without a parent close request.', message);
+			if (this.#state === 'open') {
+				throw new ChannelProtocolError('Child closed the protocol without a parent close request.', message);
+			}
 			this.#finish(undefined);
 			return;
 		}
@@ -290,7 +294,9 @@ class Channel<Request, Response, Notice, CallRequest, CallResponse> {
 			return;
 		}
 		const entry = this.#pending.get(id);
-		if (entry === undefined) throw new ChannelProtocolError(`Child used unknown request ID ${JSON.stringify(id)}.`, message);
+		if (entry === undefined) {
+			throw new ChannelProtocolError(`Child used unknown request ID ${JSON.stringify(id)}.`, message);
+		}
 
 		if (message.type === 'notice') {
 			if (this.#options.protocol.notice === undefined) {
@@ -298,7 +304,9 @@ class Channel<Request, Response, Notice, CallRequest, CallResponse> {
 			}
 			const notice = await schema.parse(this.#options.protocol.notice, message.notice);
 			this.#events.emit(Object.freeze({ type: 'notice', id }));
-			if (this.#options.notice !== undefined) void Promise.resolve(this.#options.notice(notice, entry.ctx, id)).catch(() => {});
+			if (this.#options.notice !== undefined) {
+				void Promise.resolve(this.#options.notice(notice, entry.ctx, id)).catch(() => {});
+			}
 			return;
 		}
 		if (message.type === 'call') {
@@ -333,7 +341,9 @@ class Channel<Request, Response, Notice, CallRequest, CallResponse> {
 		if (contract === undefined || this.#options.call === undefined) {
 			throw new ChannelProtocolError('Child requested a reverse call that the parent does not provide.', message);
 		}
-		if (typeof message.callId !== 'string') throw new ChannelProtocolError('Child reverse call is missing a call ID.', message);
+		if (typeof message.callId !== 'string') {
+			throw new ChannelProtocolError('Child reverse call is missing a call ID.', message);
+		}
 		const callId = message.callId;
 		assertId(callId, 'Process channel reverse call');
 		const request = await schema.parse(contract.request, message.request);
@@ -396,7 +406,9 @@ class Channel<Request, Response, Notice, CallRequest, CallResponse> {
 			entry.reject(new ChannelClosedError(reason));
 		}
 		for (const id of this.#cancelled.keys()) this.#forget(id);
-		try { this.#writer.releaseLock(); } catch { /* peer failure can release the writer first */ }
+		try {
+			this.#writer.releaseLock();
+		} catch { /* peer failure can release the writer first */ }
 		this.#events.emit(Object.freeze({ type: 'closed' }));
 		this.#events[Symbol.dispose]();
 	}
@@ -414,7 +426,9 @@ class Channel<Request, Response, Notice, CallRequest, CallResponse> {
 	#assert(id: string, operation: 'pause' | 'resume'): void {
 		assertId(id, 'Process channel request');
 		if (this.#state !== 'open') throw new ChannelClosedError();
-		if (!this.#pending.has(id)) throw new TypeError(`Cannot ${operation} unknown process channel request ${JSON.stringify(id)}.`);
+		if (!this.#pending.has(id)) {
+			throw new TypeError(`Cannot ${operation} unknown process channel request ${JSON.stringify(id)}.`);
+		}
 	}
 
 	/** Retain a cancelled request ID briefly so one raced child response can be ignored. */
@@ -471,7 +485,9 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 	/** Consume parent frames until close or one integrity failure ends the server. */
 	async #listen(): Promise<void> {
 		try {
-			for await (const message of frames(this.#options.input, this.#maximumFrameBytes, this.#receiveController.signal)) {
+			for await (
+				const message of frames(this.#options.input, this.#maximumFrameBytes, this.#receiveController.signal)
+			) {
 				await this.#receive(message);
 				// Protocol closure is independent from stdin lifetime. Stop after the
 				// close handshake instead of waiting for process shutdown.
@@ -479,7 +495,9 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 			}
 			if (this.#state === 'open') await this.#close(new ChannelClosedError('Parent input closed.'), false);
 		} catch (error) {
-			try { await this.#send({ type: 'fault', fault: fault(error) }); } catch { /* parent may already be gone */ }
+			try {
+				await this.#send({ type: 'fault', fault: fault(error) });
+			} catch { /* parent may already be gone */ }
 			await this.#close(error, false);
 		}
 	}
@@ -505,11 +523,17 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 			await this.#close(message.reason, true);
 			return;
 		}
-		if (typeof message.id !== 'string') throw new ChannelProtocolError(`${message.type} frame is missing a request ID.`, message);
+		if (typeof message.id !== 'string') {
+			throw new ChannelProtocolError(`${message.type} frame is missing a request ID.`, message);
+		}
 		const id = message.id;
 		const request = this.#active.get(id);
-		if (request === undefined && this.#ended.has(id) && (message.type === 'call-result' || message.type === 'call-fault')) return;
-		if (request === undefined) throw new ChannelProtocolError(`Parent used unknown request ID ${JSON.stringify(id)}.`, message);
+		if (
+			request === undefined && this.#ended.has(id) && (message.type === 'call-result' || message.type === 'call-fault')
+		) return;
+		if (request === undefined) {
+			throw new ChannelProtocolError(`Parent used unknown request ID ${JSON.stringify(id)}.`, message);
+		}
 
 		if (message.type === 'cancel') {
 			contextCore.cancel(request.ctx, message.reason);
@@ -536,9 +560,13 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 		if (typeof message.id !== 'string') throw new ChannelProtocolError('Request frame is missing an ID.', message);
 		const id = message.id;
 		assertId(id, 'Process channel request');
-		if (this.#active.has(id)) throw new ChannelProtocolError(`Request ${JSON.stringify(id)} is already active.`, message);
+		if (this.#active.has(id)) {
+			throw new ChannelProtocolError(`Request ${JSON.stringify(id)} is already active.`, message);
+		}
 		this.#forgetEnded(id);
-		if (!snapshot(message.context)) throw new ChannelProtocolError('Request context snapshot is invalid.', message.context);
+		if (!snapshot(message.context)) {
+			throw new ChannelProtocolError('Request context snapshot is invalid.', message.context);
+		}
 		const request = await schema.parse(this.#options.protocol.request, message.request);
 		const ctx = contextCore.restore(message.context);
 		const pause: PauseState = { paused: false, waiters: new Set() };
@@ -557,33 +585,47 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 		pause: PauseState,
 		calls: Map<string, PendingCall<CallResponse>>,
 	): Promise<void> {
-		const control = Object.freeze({
-			checkpoint: async () => {
-				contextCore.check(ctx);
-				if (pause.paused) await wait(ctx, pause);
-				contextCore.check(ctx);
-			},
-			notify: async (notice: Notice) => {
-				if (this.#options.protocol.notice === undefined) throw new ChannelProtocolError('This process protocol does not declare notices.');
-				const value = await schema.parse(this.#options.protocol.notice, notice);
-				await this.#send({ type: 'notice', id, notice: value });
-			},
-			call: async (callRequest: CallRequest) => {
-				const contract = this.#options.protocol.call;
-				if (contract === undefined) throw new ChannelProtocolError('This process protocol does not declare reverse calls.');
-				const value = await schema.parse(contract.request, callRequest);
-				const callId = this.#createCallId();
-				assertId(callId, 'Process channel reverse call');
-				if (calls.has(callId)) throw new ChannelProtocolError(`Reverse call ${JSON.stringify(callId)} is already active.`);
-				const result = new Promise<CallResponse>((resolve, reject) => calls.set(callId, { resolve, reject }));
-				try {
-					await this.#send({ type: 'call', id, callId, request: value });
-					return await result;
-				} finally {
-					calls.delete(callId);
-				}
-			},
-		} satisfies ProcessRequestControl<Notice, CallRequest, CallResponse>);
+		const control = Object.freeze(
+			{
+				checkpoint: async () => {
+					contextCore.check(ctx);
+					if (pause.paused) await wait(ctx, pause);
+					contextCore.check(ctx);
+				},
+				notify: async (notice: Notice) => {
+					if (this.#options.protocol.notice === undefined) {
+						throw new ChannelProtocolError(
+							'This process protocol does not declare notices.',
+						);
+					}
+					const value = await schema.parse(this.#options.protocol.notice, notice);
+					await this.#send({ type: 'notice', id, notice: value });
+				},
+				call: async (callRequest: CallRequest) => {
+					const contract = this.#options.protocol.call;
+					if (contract === undefined) {
+						throw new ChannelProtocolError(
+							'This process protocol does not declare reverse calls.',
+						);
+					}
+					const value = await schema.parse(contract.request, callRequest);
+					const callId = this.#createCallId();
+					assertId(callId, 'Process channel reverse call');
+					if (calls.has(callId)) {
+						throw new ChannelProtocolError(
+							`Reverse call ${JSON.stringify(callId)} is already active.`,
+						);
+					}
+					const result = new Promise<CallResponse>((resolve, reject) => calls.set(callId, { resolve, reject }));
+					try {
+						await this.#send({ type: 'call', id, callId, request: value });
+						return await result;
+					} finally {
+						calls.delete(callId);
+					}
+				},
+			} satisfies ProcessRequestControl<Notice, CallRequest, CallResponse>,
+		);
 
 		try {
 			const response = await this.#options.run(request, ctx, control);
@@ -608,7 +650,9 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 			await this.#send({ type: 'fault', id, fault: fault(error) });
 		} finally {
 			resume(pause);
-			for (const entry of calls.values()) entry.reject(new ChannelClosedError('Request ended before reverse call completion.'));
+			for (const entry of calls.values()) {
+				entry.reject(new ChannelClosedError('Request ended before reverse call completion.'));
+			}
 			calls.clear();
 			this.#active.delete(id);
 			this.#rememberEnded(id);
@@ -618,11 +662,16 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 
 	/** Settle one reverse call only while both request and call identities remain current. */
 	async #settleCall(id: string, request: Active<CallResponse>, message: Record<string, unknown>): Promise<void> {
-		if (typeof message.callId !== 'string') throw new ChannelProtocolError('Reverse-call result is missing a call ID.', message);
+		if (typeof message.callId !== 'string') {
+			throw new ChannelProtocolError('Reverse-call result is missing a call ID.', message);
+		}
 		const callId = message.callId;
 		const entry = request.calls.get(callId);
 		if (entry === undefined) {
-			throw new ChannelProtocolError(`Unknown reverse call ${JSON.stringify(callId)} for request ${JSON.stringify(id)}.`, message);
+			throw new ChannelProtocolError(
+				`Unknown reverse call ${JSON.stringify(callId)} for request ${JSON.stringify(id)}.`,
+				message,
+			);
 		}
 		request.calls.delete(callId);
 		if (message.type === 'call-fault') {
@@ -630,7 +679,9 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 			return;
 		}
 		const contract = this.#options.protocol.call;
-		if (contract === undefined) throw new ChannelProtocolError('Parent returned a reverse-call result for a protocol without calls.', message);
+		if (contract === undefined) {
+			throw new ChannelProtocolError('Parent returned a reverse-call result for a protocol without calls.', message);
+		}
 		entry.resolve(await schema.parse(contract.response, message.response));
 	}
 
@@ -651,12 +702,16 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 		}
 		await Promise.allSettled([...this.#active.values()].map((request) => request.settled));
 		if (acknowledge) {
-			try { await this.#send({ type: 'closed' }); } catch { /* parent already disconnected */ }
+			try {
+				await this.#send({ type: 'closed' });
+			} catch { /* parent already disconnected */ }
 		}
 		this.#state = 'closed';
 		if (!this.#receiveController.signal.aborted) this.#receiveController.abort(reason);
 		for (const id of this.#ended.keys()) this.#forgetEnded(id);
-		try { this.#writer.releaseLock(); } catch { /* writer may already be released */ }
+		try {
+			this.#writer.releaseLock();
+		} catch { /* writer may already be released */ }
 		this.#resolveClosed?.();
 		this.#resolveClosed = undefined;
 		void this.#loop;
@@ -706,7 +761,6 @@ export function serve<Request, Response, Notice = never, CallRequest = never, Ca
 	return new Server(options).server;
 }
 
-
 /** Parse bounded newline-delimited JSON frames without materializing an unbounded child stdout buffer. */
 async function* frames(
 	input: ReadableStream<Uint8Array>,
@@ -743,8 +797,11 @@ async function* frames(
 				start = index + 1;
 				if (bytes.byteLength === 0) continue;
 				let value: unknown;
-				try { value = JSON.parse(decoder.decode(bytes)); }
-				catch (error) { throw new ChannelProtocolError('Process channel frame is not valid JSON.', error); }
+				try {
+					value = JSON.parse(decoder.decode(bytes));
+				} catch (error) {
+					throw new ChannelProtocolError('Process channel frame is not valid JSON.', error);
+				}
 				yield value;
 			}
 			if (start < next.value.byteLength) {
@@ -762,19 +819,30 @@ async function* frames(
 }
 
 /** Write one JSON frame after enforcing the configured UTF-8 byte limit. */
-async function writeFrame(writer: WritableStreamDefaultWriter<Uint8Array>, frame: unknown, maximumBytes: number): Promise<void> {
+async function writeFrame(
+	writer: WritableStreamDefaultWriter<Uint8Array>,
+	frame: unknown,
+	maximumBytes: number,
+): Promise<void> {
 	let json: string;
-	try { json = JSON.stringify(frame); }
-	catch (error) { throw new ChannelProtocolError('Process channel frame is not JSON serializable.', error); }
+	try {
+		json = JSON.stringify(frame);
+	} catch (error) {
+		throw new ChannelProtocolError('Process channel frame is not JSON serializable.', error);
+	}
 	const bytes = new TextEncoder().encode(`${json}\n`);
-	if (bytes.byteLength - 1 > maximumBytes) throw new ChannelProtocolError(`Process channel frame exceeds ${maximumBytes} bytes.`, frame);
+	if (bytes.byteLength - 1 > maximumBytes) {
+		throw new ChannelProtocolError(`Process channel frame exceeds ${maximumBytes} bytes.`, frame);
+	}
 	await writer.write(bytes);
 }
 
 /** Validate the configured frame bound before any stream ownership is acquired. */
 function limit(value: number | undefined): number {
 	const resolved = value ?? DEFAULT_MAXIMUM_FRAME_BYTES;
-	if (!Number.isSafeInteger(resolved) || resolved < 1) throw new TypeError('maximumFrameBytes must be a positive safe integer.');
+	if (!Number.isSafeInteger(resolved) || resolved < 1) {
+		throw new TypeError('maximumFrameBytes must be a positive safe integer.');
+	}
 	return resolved;
 }
 
@@ -850,7 +918,9 @@ function concat(parts: readonly Uint8Array[], total: number): Uint8Array {
 
 /** Observe promise settlement without propagating it into the caller's cleanup path. */
 async function settles(value: Promise<unknown>): Promise<void> {
-	try { await value; } catch { /* close already records the local reason */ }
+	try {
+		await value;
+	} catch { /* close already records the local reason */ }
 }
 
 export type * from './types.ts';

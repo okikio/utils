@@ -174,7 +174,6 @@ export interface QueryDefinitionInput<Fields extends QueryFields> {
 	readonly description?: string;
 }
 
-
 /** Pagination parameter names exposed to server/response adapters. */
 export interface QueryPaginationParameters {
 	readonly cursor?: string;
@@ -299,7 +298,9 @@ export interface QueryAdapterIssue {
 /** Provider capability validation result. */
 export type QueryAdapterValidationResult =
 	| Readonly<{ readonly valid: true; readonly requirements: QueryRequirements }>
-	| Readonly<{ readonly valid: false; readonly requirements: QueryRequirements; readonly issues: readonly QueryAdapterIssue[] }>;
+	| Readonly<
+		{ readonly valid: false; readonly requirements: QueryRequirements; readonly issues: readonly QueryAdapterIssue[] }
+	>;
 
 /** Portable opaque cursor codec contract implemented by a resource adapter. */
 export interface CursorCodec<Payload = Readonly<Record<string, unknown>>> {

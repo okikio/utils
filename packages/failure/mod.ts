@@ -44,11 +44,13 @@ class FailureOccurrence<FailureDefinition extends Definition> extends Error impl
 }
 
 /** Define one immutable expected failure contract. */
-export function define<const Id extends string, Output>(input: Readonly<{
-	readonly id: Id;
-	readonly description: string;
-	readonly data: import('@standard-schema/spec').StandardSchemaV1<unknown, Output>;
-}>): Definition<Id, Output> {
+export function define<const Id extends string, Output>(
+	input: Readonly<{
+		readonly id: Id;
+		readonly description: string;
+		readonly data: import('@standard-schema/spec').StandardSchemaV1<unknown, Output>;
+	}>,
+): Definition<Id, Output> {
 	assertIdentifier(input.id);
 	if (input.description.trim().length === 0) throw new TypeError('Failure description must not be empty.');
 	schema.assert(input.data, 'failure data schema');
@@ -177,4 +179,4 @@ function assertIdentifier(value: string): void {
 	if (!/^[a-z0-9][a-z0-9._:-]*$/i.test(value)) throw new TypeError(`Invalid failure id ${JSON.stringify(value)}.`);
 }
 
-export type { Definition, Data, Occurrence, Encoded, FailureCatalog, FailureSelection } from './types.ts';
+export type { Data, Definition, Encoded, FailureCatalog, FailureSelection, Occurrence } from './types.ts';

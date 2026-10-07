@@ -13,8 +13,35 @@ export type SuccessStatus = 200 | 201 | 202 | 203 | 204 | 205 | 206 | 207 | 208 
 export type RedirectStatus = 300 | 301 | 302 | 303 | 304 | 305 | 306 | 307 | 308;
 /** Standard client-error HTTP status codes. */
 export type ClientErrorStatus =
-	| 400 | 401 | 402 | 403 | 404 | 405 | 406 | 407 | 408 | 409 | 410 | 411 | 412 | 413
-	| 414 | 415 | 416 | 417 | 418 | 421 | 422 | 423 | 424 | 425 | 426 | 428 | 429 | 431 | 451;
+	| 400
+	| 401
+	| 402
+	| 403
+	| 404
+	| 405
+	| 406
+	| 407
+	| 408
+	| 409
+	| 410
+	| 411
+	| 412
+	| 413
+	| 414
+	| 415
+	| 416
+	| 417
+	| 418
+	| 421
+	| 422
+	| 423
+	| 424
+	| 425
+	| 426
+	| 428
+	| 429
+	| 431
+	| 451;
 /** Standard server-error HTTP status codes. */
 export type ServerErrorStatus = 500 | 501 | 502 | 503 | 504 | 505 | 506 | 507 | 508 | 510 | 511;
 /** Every standard final/interim status recognized by the utility. */
@@ -31,8 +58,8 @@ export type HttpStatusSchema<Status extends number = HttpStatus> =
 	& StandardSchemaV1<unknown, Status>
 	& StandardJSONSchemaV1<unknown, Status>
 	& Readonly<{
-	readonly values: readonly Status[];
-	is(value: unknown): value is Status;
+		readonly values: readonly Status[];
+		is(value: unknown): value is Status;
 	}>;
 
 // 104 Upload Resumption Supported is a temporary IANA registration that expires 2026-11-13 unless extended or made permanent.
@@ -40,8 +67,35 @@ const informationalValues = [100, 101, 102, 103, 104] as const;
 const successValues = [200, 201, 202, 203, 204, 205, 206, 207, 208, 226] as const;
 const redirectValues = [300, 301, 302, 303, 304, 305, 306, 307, 308] as const;
 const clientErrorValues = [
-	400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415,
-	416, 417, 418, 421, 422, 423, 424, 425, 426, 428, 429, 431, 451,
+	400,
+	401,
+	402,
+	403,
+	404,
+	405,
+	406,
+	407,
+	408,
+	409,
+	410,
+	411,
+	412,
+	413,
+	414,
+	415,
+	416,
+	417,
+	418,
+	421,
+	422,
+	423,
+	424,
+	425,
+	426,
+	428,
+	429,
+	431,
+	451,
 ] as const;
 const serverErrorValues = [500, 501, 502, 503, 504, 505, 506, 507, 508, 510, 511] as const;
 const contentlessValues = [101, 204, 205, 304] as const;
@@ -66,13 +120,15 @@ export const contentful = createStatusSchema(
 		.filter((value) => !contentlessValues.includes(value as ContentlessStatus)) as ContentfulStatus[],
 );
 /** All recognized HTTP statuses. */
-export const any = createStatusSchema([
-	...informationalValues,
-	...successValues,
-	...redirectValues,
-	...clientErrorValues,
-	...serverErrorValues,
-] as const);
+export const any = createStatusSchema(
+	[
+		...informationalValues,
+		...successValues,
+		...redirectValues,
+		...clientErrorValues,
+		...serverErrorValues,
+	] as const,
+);
 
 /** Return whether a value is any recognized HTTP status. */
 export function is(value: unknown): value is HttpStatus {

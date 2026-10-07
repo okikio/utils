@@ -29,19 +29,33 @@ export function parseQuery(input: QueryInput, options: RequestParsingOptions = {
 	let count = 0;
 	for (const [name, value] of queryEntries(input, barePolicy)) {
 		count += 1;
-		if (count > policy.maximumQueryParameters) throw new RequestTransportError({
-			code: 'too-many-query-parameters', message: `At most ${policy.maximumQueryParameters} query parameters are allowed.`, path: ['query'],
-		});
-		if (name.length > policy.maximumParameterLength) throw new RequestTransportError({
-			code: 'query-name-too-large', message: `Query parameter name exceeds ${policy.maximumParameterLength} characters.`, path: ['query', name],
-		});
-		if (value.length > policy.maximumQueryValueLength) throw new RequestTransportError({
-			code: 'query-value-too-large', message: `Query parameter ${JSON.stringify(name)} exceeds ${policy.maximumQueryValueLength} characters.`, path: ['query', name],
-		});
+		if (count > policy.maximumQueryParameters) {
+			throw new RequestTransportError({
+				code: 'too-many-query-parameters',
+				message: `At most ${policy.maximumQueryParameters} query parameters are allowed.`,
+				path: ['query'],
+			});
+		}
+		if (name.length > policy.maximumParameterLength) {
+			throw new RequestTransportError({
+				code: 'query-name-too-large',
+				message: `Query parameter name exceeds ${policy.maximumParameterLength} characters.`,
+				path: ['query', name],
+			});
+		}
+		if (value.length > policy.maximumQueryValueLength) {
+			throw new RequestTransportError({
+				code: 'query-value-too-large',
+				message: `Query parameter ${JSON.stringify(name)} exceeds ${policy.maximumQueryValueLength} characters.`,
+				path: ['query', name],
+			});
+		}
 		(values[name] ??= []).push(value);
 	}
 	const result: Record<string, string | readonly string[]> = Object.create(null);
-	for (const [name, fieldValues] of Object.entries(values)) result[name] = fieldValues.length === 1 ? fieldValues[0]! : Object.freeze(fieldValues);
+	for (const [name, fieldValues] of Object.entries(values)) {
+		result[name] = fieldValues.length === 1 ? fieldValues[0]! : Object.freeze(fieldValues);
+	}
 	return Object.freeze(result);
 }
 

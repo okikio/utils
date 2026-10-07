@@ -7,7 +7,9 @@ import * as queue from '@okikio/queue';
 const JOBS = 100;
 
 /** Execute one bounded queue and pool lifecycle with counters retained as the benchmark oracle. */
-async function cycle(): Promise<Readonly<{ readonly completed: number; readonly leased: number; readonly waiting: number }>> {
+async function cycle(): Promise<
+	Readonly<{ readonly completed: number; readonly leased: number; readonly waiting: number }>
+> {
 	const clock = new context.TestClock();
 	await using owner = context.create({ id: 'coordination-bench', clock });
 	let next = 0;

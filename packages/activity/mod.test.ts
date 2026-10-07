@@ -18,8 +18,11 @@ function schema<Output>(validate: (value: unknown) => Output): StandardSchemaV1<
 			version: 1,
 			vendor: 'test',
 			validate(value: unknown) {
-				try { return { value: validate(value) }; }
-				catch (error) { return { issues: [{ message: error instanceof Error ? error.message : String(error) }] }; }
+				try {
+					return { value: validate(value) };
+				} catch (error) {
+					return { issues: [{ message: error instanceof Error ? error.message : String(error) }] };
+				}
 			},
 		}),
 	});
@@ -90,7 +93,13 @@ const GovernedStoreValue = activity.define({
 /** Creates one resource collection whose Store implementation appends to `values`. */
 function resources(ctx: context.Owned, values: string[] = []): resource.ResourceCollection {
 	const StoreLive = resource.implement(Store, {
-		create() { return { async save(value: string) { values.push(value); } }; },
+		create() {
+			return {
+				async save(value: string) {
+					values.push(value);
+				},
+			};
+		},
 	});
 	return resource.create(resource.implementations(StoreLive), { host: {}, ctx });
 }
@@ -103,26 +112,30 @@ describe('activity definitions and direct attempts', () => {
 			version: '1',
 			placement: [{ engine: 'browser', mode: 'required' }],
 		}]);
-		expect(() => activity.define({
-			id: 'test.invalid-version',
-			version: 'not valid!',
-			input: InputSchema,
-			result: ResultSchema,
-			placement: engine.require(Browser),
-		})).toThrow(TypeError);
+		expect(() =>
+			activity.define({
+				id: 'test.invalid-version',
+				version: 'not valid!',
+				input: InputSchema,
+				result: ResultSchema,
+				placement: engine.require(Browser),
+			})
+		).toThrow(TypeError);
 	});
 
 	it('creates a lazy activity request without starting external work', () => {
 		const operation = activity.request(StoreValue, { value: 'example' }, { key: 'store:example' });
 		const step = operation[Symbol.iterator]().next();
 		expect(step.done).toBe(false);
-		if (!step.done) expect(step.value).toMatchObject({
-			category: 'command',
-			type: 'activity',
-			activity: StoreValue,
-			input: { value: 'example' },
-			key: 'store:example',
-		});
+		if (!step.done) {
+			expect(step.value).toMatchObject({
+				category: 'command',
+				type: 'activity',
+				activity: StoreValue,
+				input: { value: 'example' },
+				key: 'store:example',
+			});
+		}
 	});
 
 	it('runs a concrete implementation with validated input and narrowed resources', async () => {
@@ -146,7 +159,9 @@ describe('activity definitions and direct attempts', () => {
 			resources: collection,
 			jobId: 'job:store-example',
 			attempt: 1,
-			heartbeat(value) { heartbeats.push(value); },
+			heartbeat(value) {
+				heartbeats.push(value);
+			},
 		});
 		expect(output).toEqual({ stored: true });
 		expect(values).toEqual(['example']);
@@ -225,23 +240,47 @@ describe('activity definitions and direct attempts', () => {
 	it('validates selected engine, input, result, and durable job identity', async () => {
 		await using ctx = context.create({ id: 'activity-invalid', clock: new context.TestClock() });
 		await using collection = resources(ctx);
-		const invalidResult = activity.implement(StoreValue, { async run() { return { stored: 'yes' } as never; } });
+		const invalidResult = activity.implement(StoreValue, {
+			async run() {
+				return { stored: 'yes' } as never;
+			},
+		});
 
 		await expect(activity.run({
-			implementation: invalidResult, engine: Analysis, input: { value: 'valid' }, ctx, resources: collection,
-			jobId: 'job:invalid-engine', attempt: 1,
+			implementation: invalidResult,
+			engine: Analysis,
+			input: { value: 'valid' },
+			ctx,
+			resources: collection,
+			jobId: 'job:invalid-engine',
+			attempt: 1,
 		})).rejects.toBeInstanceOf(activity.InvalidEngineError);
 		await expect(activity.run({
-			implementation: invalidResult, engine: Browser, input: { value: 'valid' }, ctx, resources: collection,
-			jobId: 'job:invalid-result', attempt: 1,
+			implementation: invalidResult,
+			engine: Browser,
+			input: { value: 'valid' },
+			ctx,
+			resources: collection,
+			jobId: 'job:invalid-result',
+			attempt: 1,
 		})).rejects.toThrow('Expected a stored boolean.');
 		await expect(activity.run({
-			implementation: invalidResult, engine: Browser, input: { value: 42 }, ctx, resources: collection,
-			jobId: 'job:invalid-input', attempt: 1,
+			implementation: invalidResult,
+			engine: Browser,
+			input: { value: 42 },
+			ctx,
+			resources: collection,
+			jobId: 'job:invalid-input',
+			attempt: 1,
 		})).rejects.toThrow('Expected a value string.');
 		await expect(activity.run({
-			implementation: invalidResult, engine: Browser, input: { value: 'valid' }, ctx, resources: collection,
-			jobId: ' ', attempt: 1,
+			implementation: invalidResult,
+			engine: Browser,
+			input: { value: 'valid' },
+			ctx,
+			resources: collection,
+			jobId: ' ',
+			attempt: 1,
 		})).rejects.toThrow('jobId must not be empty');
 	});
 
@@ -249,18 +288,36 @@ describe('activity definitions and direct attempts', () => {
 		await using ctx = context.create({ id: 'activity-failure', clock: new context.TestClock() });
 		await using collection = resources(ctx);
 		const expected = await failure.create(StoreUnavailable, { data: { reason: 'offline' } });
-		const declared = activity.implement(StoreValue, { async run() { throw expected; } });
+		const declared = activity.implement(StoreValue, {
+			async run() {
+				throw expected;
+			},
+		});
 		await expect(activity.run({
-			implementation: declared, engine: Browser, input: { value: 'x' }, ctx, resources: collection,
-			jobId: 'job:declared-failure', attempt: 1,
+			implementation: declared,
+			engine: Browser,
+			input: { value: 'x' },
+			ctx,
+			resources: collection,
+			jobId: 'job:declared-failure',
+			attempt: 1,
 		})).rejects.toBe(expected);
 
 		const Other = failure.define({ id: 'test.other', description: 'Other failure.', data: FailureDataSchema });
 		const undeclared = await failure.create(Other, { data: { reason: 'wrong contract' } });
-		const invalid = activity.implement(StoreValue, { async run() { throw undeclared; } });
+		const invalid = activity.implement(StoreValue, {
+			async run() {
+				throw undeclared;
+			},
+		});
 		await expect(activity.run({
-			implementation: invalid, engine: Browser, input: { value: 'x' }, ctx, resources: collection,
-			jobId: 'job:undeclared-failure', attempt: 1,
+			implementation: invalid,
+			engine: Browser,
+			input: { value: 'x' },
+			ctx,
+			resources: collection,
+			jobId: 'job:undeclared-failure',
+			attempt: 1,
 		})).rejects.toBeInstanceOf(activity.UndeclaredFailureError);
 	});
 
@@ -277,7 +334,10 @@ describe('activity definitions and direct attempts', () => {
 		});
 		await using parent = context.create({ id: 'workflow-parent', clock: new context.TestClock() });
 		await using workflowCtx = await workflow.context({
-			definition: Workflow, runId: 'run:activity-try', input: { value: 'example' }, ctx: parent,
+			definition: Workflow,
+			runId: 'run:activity-try',
+			input: { value: 'example' },
+			ctx: parent,
 		});
 		const occurrence = await failure.create(StoreUnavailable, { data: { reason: 'offline' } });
 		await using scheduler = workflow.scheduler();
@@ -286,7 +346,9 @@ describe('activity definitions and direct attempts', () => {
 			hostId: 'failure-provider',
 			provider: {
 				activities: [StoreValue],
-				async run() { return { type: 'failure', failure: occurrence }; },
+				async run() {
+					return { type: 'failure', failure: occurrence };
+				},
 			},
 		});
 		void registration;

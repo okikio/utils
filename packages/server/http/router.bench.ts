@@ -4,9 +4,17 @@ import { matchRoute, prepare, routeKey } from './router.ts';
 import type { RoutePlanInput } from './types.ts';
 
 const routeCount = 256;
-const routes: RoutePlanInput[] = Array.from({ length: routeCount }, (_, index) => index % 4 === 0
-	? Object.freeze({ kind: 'route' as const, method: 'GET', path: `/companies/${index}` })
-	: Object.freeze({ kind: 'route' as const, method: index % 2 === 0 ? 'POST' : 'GET', path: `/groups/${index}/companies/:id` }));
+const routes: RoutePlanInput[] = Array.from(
+	{ length: routeCount },
+	(_, index) =>
+		index % 4 === 0
+			? Object.freeze({ kind: 'route' as const, method: 'GET', path: `/companies/${index}` })
+			: Object.freeze({
+				kind: 'route' as const,
+				method: index % 2 === 0 ? 'POST' : 'GET',
+				path: `/groups/${index}/companies/:id`,
+			}),
+);
 const plan = prepare(routes);
 const requests = Array.from({ length: 256 }, (_, index) => ({
 	method: index % 3 === 0 ? 'POST' : 'GET',
@@ -25,7 +33,9 @@ function verify(): void {
 	for (let index = 0; index < requests.length; index += 1) {
 		const request = requests[index]!;
 		if (prepared(request.method, request.path) !== expected[index]) {
-			throw new Error(`Prepared route plan disagrees with the reference matcher for ${request.method} ${request.path}.`);
+			throw new Error(
+				`Prepared route plan disagrees with the reference matcher for ${request.method} ${request.path}.`,
+			);
 		}
 	}
 }

@@ -39,7 +39,9 @@ describe('capacity authoring records', () => {
 
 		const admission = capacity.create({ browserContexts: 1 });
 		const inheritedRequest = Object.create({ browserContexts: 1 }) as { browserContexts: number };
-		await expect(capacity.acquire(admission, inheritedRequest)).rejects.toThrow('plain object or null-prototype record');
+		await expect(capacity.acquire(admission, inheritedRequest)).rejects.toThrow(
+			'plain object or null-prototype record',
+		);
 	});
 });
 

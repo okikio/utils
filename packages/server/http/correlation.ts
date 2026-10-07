@@ -11,13 +11,17 @@ export interface CorrelationOptions extends requestWire.RequestCorrelationOption
 /** Establish one memoized W3C/request correlation value without selecting a tracing or logging provider. */
 export function correlation(options: CorrelationOptions = {}): Middleware {
 	recordCore.assert(options, 'correlation middleware options');
-	if (options.observe !== undefined && typeof options.observe !== 'function') throw new TypeError('correlation observe must be a function when provided.');
+	if (options.observe !== undefined && typeof options.observe !== 'function') {
+		throw new TypeError('correlation observe must be a function when provided.');
+	}
 	const normalized = recordCore.snapshot(options, 'correlation middleware options');
 	const { observe, ...correlationOptions } = normalized;
 	return async (request, next) => {
 		const value = await requestWire.correlation(request, correlationOptions);
 		if (observe !== undefined) {
-			try { await observe(value, request); } catch { /* observation cannot control request completion */ }
+			try {
+				await observe(value, request);
+			} catch { /* observation cannot control request completion */ }
 		}
 		return await next(request);
 	};

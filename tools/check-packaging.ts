@@ -12,10 +12,16 @@ for await (const entry of Deno.readDir(root)) {
 	const denoExports = denoJson.exports as Record<string, string> | undefined;
 	if (!same(npmExports, denoExports)) failures.push(`${entry.name}: npm and Deno exports differ.`);
 	for (const [key, target] of Object.entries(npmExports ?? {})) {
-		try { await Deno.stat(new URL(target, directory)); } catch { failures.push(`${entry.name}: export ${key} points to missing ${target}.`); }
+		try {
+			await Deno.stat(new URL(target, directory));
+		} catch {
+			failures.push(`${entry.name}: export ${key} points to missing ${target}.`);
+		}
 	}
 }
-if (failures.length > 0) throw new Error(`Package validation failed:\n${failures.map((value) => `- ${value}`).join('\n')}`);
+if (failures.length > 0) {
+	throw new Error(`Package validation failed:\n${failures.map((value) => `- ${value}`).join('\n')}`);
+}
 console.log('Package export parity and targets are valid.');
 
 /** Read one JSON/JSONC manifest without hiding malformed files. */
@@ -33,12 +39,14 @@ async function readJson(url: URL): Promise<Record<string, unknown> | undefined> 
 function same(left: unknown, right: unknown): boolean {
 	if (Object.is(left, right)) return true;
 	if (Array.isArray(left) || Array.isArray(right)) {
-		return Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((value, index) => same(value, right[index]));
+		return Array.isArray(left) && Array.isArray(right) && left.length === right.length &&
+			left.every((value, index) => same(value, right[index]));
 	}
 	if (!record(left) || !record(right)) return false;
 	const leftKeys = Object.keys(left).toSorted();
 	const rightKeys = Object.keys(right).toSorted();
-	return leftKeys.length === rightKeys.length && leftKeys.every((key, index) => key === rightKeys[index] && same(left[key], right[key]));
+	return leftKeys.length === rightKeys.length &&
+		leftKeys.every((key, index) => key === rightKeys[index] && same(left[key], right[key]));
 }
 
 /** Distinguish JSON object values from arrays, null, and primitive manifest values. */

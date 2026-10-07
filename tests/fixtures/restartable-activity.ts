@@ -11,8 +11,11 @@ function contract<Output>(validate: (value: unknown) => Output): StandardSchemaV
 			version: 1,
 			vendor: 'restartable-scenario',
 			validate(value: unknown) {
-				try { return { value: validate(value) }; }
-				catch (error) { return { issues: [{ message: error instanceof Error ? error.message : String(error) }] }; }
+				try {
+					return { value: validate(value) };
+				} catch (error) {
+					return { issues: [{ message: error instanceof Error ? error.message : String(error) }] };
+				}
 			},
 		}),
 	});
@@ -22,7 +25,9 @@ export const InputSchema = contract((value) => {
 	if (typeof value !== 'object' || value === null) throw new TypeError('Expected activity input.');
 	const input = value as { value?: unknown; stallFirst?: unknown };
 	if (typeof input.value !== 'string') throw new TypeError('Expected input.value string.');
-	if (input.stallFirst !== undefined && typeof input.stallFirst !== 'boolean') throw new TypeError('Expected input.stallFirst boolean.');
+	if (input.stallFirst !== undefined && typeof input.stallFirst !== 'boolean') {
+		throw new TypeError('Expected input.stallFirst boolean.');
+	}
 	return Object.freeze({ value: input.value, stallFirst: input.stallFirst === true });
 });
 
@@ -74,7 +79,9 @@ export const PersistLive = activity.implement(Persist, {
 		// Renew before the commit. Once the effect emitter acknowledges, the test
 		// knows the first attempt has a full claim lease and an external side effect.
 		await ctx.heartbeat({ phase: 'committing', attempt: ctx.attempt });
-		await effect.emit(ctx, Committed, { stored: ctx.input.value, attempt: ctx.attempt }, { key: `commit:${ctx.jobId}` });
+		await effect.emit(ctx, Committed, { stored: ctx.input.value, attempt: ctx.attempt }, {
+			key: `commit:${ctx.jobId}`,
+		});
 
 		// Model a host disappearing after external commit but before returning the
 		// activity result. The replacement Scheduler must recover through the same

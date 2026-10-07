@@ -3,22 +3,22 @@ import * as recordCore from '@okikio/record';
 import * as schema from '@okikio/schema';
 
 import type {
-	CheckResult,
 	CapacityConstraint,
-	ConstraintResult,
 	CapacityDefinition,
 	CapacityField,
 	CapacityFields,
-	CapacityValues,
 	CapacityStatusType,
 	CapacityUnit,
+	CapacityValues,
+	CheckResult,
+	ConstraintResult,
 } from './types.ts';
 
 /** Compile composed capacity field records into one statically visible field contract. */
-export type MergeFields<Definitions extends readonly CapacityFields[]> =
-	Definitions extends readonly [infer Head extends CapacityFields, ...infer Tail extends readonly CapacityFields[]]
-		? Head & MergeFields<Tail>
-		: Readonly<Record<never, never>>;
+export type MergeFields<Definitions extends readonly CapacityFields[]> = Definitions extends
+	readonly [infer Head extends CapacityFields, ...infer Tail extends readonly CapacityFields[]]
+	? Head & MergeFields<Tail>
+	: Readonly<Record<never, never>>;
 
 /** Error raised when validated values exceed one or more declared capacity constraints. */
 export class CapacityExceededError extends RangeError {
@@ -43,7 +43,11 @@ export function unit<const Id extends string>(
 	identifier(id, 'unit id');
 	text(input.description, 'unit description');
 	if (input.symbol !== undefined) text(input.symbol, 'unit symbol');
-	return Object.freeze({ id, description: input.description, ...(input.symbol === undefined ? {} : { symbol: input.symbol }) });
+	return Object.freeze({
+		id,
+		description: input.description,
+		...(input.symbol === undefined ? {} : { symbol: input.symbol }),
+	});
 }
 
 /** Attach a Standard Schema contract and meaning to one capacity field. */
@@ -65,13 +69,15 @@ export function field<
 export function constraint<
 	Value extends Readonly<Record<string, unknown>>,
 	const UnitType extends CapacityUnit,
->(input: Readonly<{
-	readonly id: string;
-	readonly description: string;
-	readonly unit: UnitType;
-	readonly used: (value: Value) => number;
-	readonly maximum: (value: Value) => number;
-}>): CapacityConstraint<Value, UnitType> {
+>(
+	input: Readonly<{
+		readonly id: string;
+		readonly description: string;
+		readonly unit: UnitType;
+		readonly used: (value: Value) => number;
+		readonly maximum: (value: Value) => number;
+	}>,
+): CapacityConstraint<Value, UnitType> {
 	identifier(input.id, 'constraint id');
 	text(input.description, 'constraint description');
 	assertUnit(input.unit);
@@ -240,7 +246,6 @@ function assertUniqueConstraints<Value extends Readonly<Record<string, unknown>>
 	}
 }
 
-
 function assertDefinition(value: unknown): void {
 	if (typeof value !== 'object' || value === null) throw new TypeError('capacity definition is invalid.');
 	const candidate = value as Readonly<{ readonly keys?: unknown; readonly constraints?: unknown }>;
@@ -250,19 +255,19 @@ function assertDefinition(value: unknown): void {
 }
 
 export type {
-	CapacityUnit,
-	CapacityField,
-	CapacityFields,
-	CapacityValues,
-	CapacityConstraint,
-	CapacityDefinition,
-	CapacityStatusType,
-	ConstraintResult,
-	CheckResult,
-	AdmissionLimits,
-	AdmissionRequest,
 	Admission,
 	AdmissionCancellation,
-	AdmissionSnapshot,
 	AdmissionLease,
+	AdmissionLimits,
+	AdmissionRequest,
+	AdmissionSnapshot,
+	CapacityConstraint,
+	CapacityDefinition,
+	CapacityField,
+	CapacityFields,
+	CapacityStatusType,
+	CapacityUnit,
+	CapacityValues,
+	CheckResult,
+	ConstraintResult,
 } from './types.ts';

@@ -15,22 +15,30 @@ const AnySchema = Object.freeze({
 	'~standard': Object.freeze({
 		version: 1 as const,
 		vendor: 'process-orchestration-scenario',
-		validate(value: unknown) { return { value }; },
+		validate(value: unknown) {
+			return { value };
+		},
 	}),
 });
 
 type ProcessResult = StandardSchemaV1.InferOutput<typeof ResultSchema>;
 type ProcessOutput = Readonly<{
-	readonly first: Readonly<{ readonly left: ProcessResult; readonly fragile: ProcessResult; readonly right: ProcessResult }>;
+	readonly first: Readonly<
+		{ readonly left: ProcessResult; readonly fragile: ProcessResult; readonly right: ProcessResult }
+	>;
 	readonly final: ProcessResult;
 }>;
-const OutputSchema = Object.freeze({
-	'~standard': Object.freeze({
-		version: 1 as const,
-		vendor: 'process-orchestration-scenario',
-		validate(value: unknown) { return { value: value as ProcessOutput }; },
-	}),
-} satisfies StandardSchemaV1<unknown, ProcessOutput>);
+const OutputSchema = Object.freeze(
+	{
+		'~standard': Object.freeze({
+			version: 1 as const,
+			vendor: 'process-orchestration-scenario',
+			validate(value: unknown) {
+				return { value: value as ProcessOutput };
+			},
+		}),
+	} satisfies StandardSchemaV1<unknown, ProcessOutput>,
+);
 
 const Definition = workflow.define({
 	id: 'scenario.process-orchestration.workflow',
@@ -80,16 +88,16 @@ test('parallel workflow fan-out survives a child-process crash and fans back in 
 		maximumIdle: 2,
 		effect: emitter,
 	});
-		await using jobs = dispatch.memory();
-		await using scheduler = workflow.scheduler({ activityDispatch: jobs, claimDuration: { seconds: 5 } });
-		await using registration = await workflow.executor({
-			dispatch: jobs,
-			engine: Engine,
-			hostId: 'process-pool',
-			claimDuration: { seconds: 5 },
-			capacity: 2,
+	await using jobs = dispatch.memory();
+	await using scheduler = workflow.scheduler({ activityDispatch: jobs, claimDuration: { seconds: 5 } });
+	await using registration = await workflow.executor({
+		dispatch: jobs,
+		engine: Engine,
+		hostId: 'process-pool',
+		claimDuration: { seconds: 5 },
+		capacity: 2,
 		provider,
-		});
+	});
 	await using runCtx = await workflow.context({
 		definition: Definition,
 		runId: 'process-orchestration-run',
@@ -111,5 +119,5 @@ test('parallel workflow fan-out survives a child-process crash and fans back in 
 	assert.equal(fragile.length, 2);
 	assert.notEqual(fragile[0]!.pid, fragile[1]!.pid, 'retry should run in a replacement child process');
 	assert.equal(output.first.fragile.attempt, 2);
-		assert.equal(provider.stats().leased, 0);
-	});
+	assert.equal(provider.stats().leased, 0);
+});

@@ -17,7 +17,8 @@ export interface CookieAttributes {
 }
 
 /** Import-safe definition of one stable application cookie. */
-export interface CookieDefinition<Schema extends StandardSchemaV1<string, string> = StandardSchemaV1<string, string>> extends CatalogEntryIdentity {
+export interface CookieDefinition<Schema extends StandardSchemaV1<string, string> = StandardSchemaV1<string, string>>
+	extends CatalogEntryIdentity {
 	readonly kind: 'cookie';
 	readonly name: string;
 	readonly value: Schema;

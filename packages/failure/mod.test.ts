@@ -12,7 +12,8 @@ const Timeout = failure.define({
 			version: 1,
 			vendor: 'test',
 			validate(value: unknown) {
-				return typeof value === 'object' && value !== null && typeof (value as { milliseconds?: unknown }).milliseconds === 'number'
+				return typeof value === 'object' && value !== null &&
+						typeof (value as { milliseconds?: unknown }).milliseconds === 'number'
 					? { value: Object.freeze({ milliseconds: (value as { milliseconds: number }).milliseconds }) }
 					: { issues: [{ message: 'Expected timeout data.' }] };
 			},
@@ -37,7 +38,6 @@ describe('failure', () => {
 		expect(decoded.definition).toBe(Timeout);
 		expect(decoded.data).toEqual({ milliseconds: 50 });
 	});
-
 
 	it('rejects structural impostors that were not created by the failure module', () => {
 		const impostor = Object.assign(new Error('forged'), {

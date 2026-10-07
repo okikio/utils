@@ -6,9 +6,13 @@ import { RequestTransportError } from './types.ts';
 export function parseMediaType(value: string): MediaType {
 	const [rawEssence, ...rawParameters] = value.split(';');
 	const [type, subtype, extra] = rawEssence!.trim().toLowerCase().split('/');
-	if (!type || !subtype || extra !== undefined || !token(type) || !token(subtype)) throw new RequestTransportError({
-		code: 'unsupported-content-type', message: `Invalid media type ${JSON.stringify(value)}.`, path: ['header', 'content-type'],
-	});
+	if (!type || !subtype || extra !== undefined || !token(type) || !token(subtype)) {
+		throw new RequestTransportError({
+			code: 'unsupported-content-type',
+			message: `Invalid media type ${JSON.stringify(value)}.`,
+			path: ['header', 'content-type'],
+		});
+	}
 	const parameters: Record<string, string> = Object.create(null);
 	for (const raw of rawParameters) {
 		const separator = raw.indexOf('=');
@@ -24,11 +28,21 @@ export function parseMediaType(value: string): MediaType {
 /** Require one of the supported request content types. */
 export function requireContentType(request: Request, supported: readonly string[]): MediaType {
 	const raw = request.headers.get('content-type');
-	if (!raw) throw new RequestTransportError({ code: 'unsupported-content-type', message: 'Content-Type is required.', path: ['header', 'content-type'] });
+	if (!raw) {
+		throw new RequestTransportError({
+			code: 'unsupported-content-type',
+			message: 'Content-Type is required.',
+			path: ['header', 'content-type'],
+		});
+	}
 	const parsed = parseMediaType(raw);
-	if (!supported.some((candidate) => mediaRangeMatches(candidate, parsed.essence))) throw new RequestTransportError({
-		code: 'unsupported-content-type', message: `Content-Type ${JSON.stringify(parsed.essence)} is not supported.`, path: ['header', 'content-type'],
-	});
+	if (!supported.some((candidate) => mediaRangeMatches(candidate, parsed.essence))) {
+		throw new RequestTransportError({
+			code: 'unsupported-content-type',
+			message: `Content-Type ${JSON.stringify(parsed.essence)} is not supported.`,
+			path: ['header', 'content-type'],
+		});
+	}
 	return parsed;
 }
 
@@ -60,8 +74,10 @@ export function negotiateContent(accept: string | null, supported: readonly stri
  */
 function structuredSuffixRanges(accept: string | null): readonly string[] {
 	if (accept === null) return Object.freeze([]);
-	return Object.freeze(accept.split(',').map((part) => part.split(';', 1)[0]!.trim().toLowerCase())
-		.filter((range) => range.includes('*+')));
+	return Object.freeze(
+		accept.split(',').map((part) => part.split(';', 1)[0]!.trim().toLowerCase())
+			.filter((range) => range.includes('*+')),
+	);
 }
 
 /**

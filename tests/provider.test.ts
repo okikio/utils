@@ -8,7 +8,9 @@ import * as endpoint from '@okikio/server/endpoint';
 import * as service from '@okikio/server/service';
 
 /** Build the smallest Standard Schema value needed by service/OpenAPI scenario fixtures. */
-function schema<Output>(jsonSchema: Readonly<Record<string, unknown>>): StandardSchemaV1<unknown, Output> & StandardJSONSchemaV1<unknown, Output> {
+function schema<Output>(
+	jsonSchema: Readonly<Record<string, unknown>>,
+): StandardSchemaV1<unknown, Output> & StandardJSONSchemaV1<unknown, Output> {
 	return Object.freeze({
 		'~standard': Object.freeze({
 			version: 1 as const,

@@ -1,6 +1,6 @@
 /** Normalize one source header into a stable matching/key form. */
 export function normalizeHeader(header: string): string {
-	if (typeof header !== 'string') throw new TypeError('header must be a string.')
+	if (typeof header !== 'string') throw new TypeError('header must be a string.');
 	return header
 		.replace(/^\ufeff/, '')
 		.normalize('NFKC')
@@ -11,5 +11,5 @@ export function normalizeHeader(header: string): string {
 		.replace(/[*:]/g, ' ')
 		.replace(/[_./\\()[\]-]+/g, ' ')
 		.replace(/\s+/g, ' ')
-		.trim()
+		.trim();
 }

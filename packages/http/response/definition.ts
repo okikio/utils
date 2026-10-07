@@ -15,22 +15,24 @@ import type {
 
 const defaultPaginationPolicy = Object.freeze({ links: 'both', totals: 'both' } satisfies PaginationResponsePolicy);
 
-const htmlBodySchema = Object.freeze({
-	'~standard': Object.freeze({
-		version: 1,
-		vendor: 'utils-http-response',
-		/**
-		 * Checks state and preserves the deterministic issues needed by callers.
-		 *
-		 * @internal
-		 */
-		validate(value: unknown): StandardSchemaV1.Result<HtmlBody> {
-			return typeof value === 'string' || value instanceof ReadableStream || isAsyncIterable(value)
-				? { value: value as HtmlBody }
-				: { issues: [{ message: 'Expected an HTML string, byte stream, or async iterable.' }] };
-		},
-	}),
-} satisfies ResponseSchema<unknown, HtmlBody>);
+const htmlBodySchema = Object.freeze(
+	{
+		'~standard': Object.freeze({
+			version: 1,
+			vendor: 'utils-http-response',
+			/**
+			 * Checks state and preserves the deterministic issues needed by callers.
+			 *
+			 * @internal
+			 */
+			validate(value: unknown): StandardSchemaV1.Result<HtmlBody> {
+				return typeof value === 'string' || value instanceof ReadableStream || isAsyncIterable(value)
+					? { value: value as HtmlBody }
+					: { issues: [{ message: 'Expected an HTML string, byte stream, or async iterable.' }] };
+			},
+		}),
+	} satisfies ResponseSchema<unknown, HtmlBody>,
+);
 
 /** Define one immutable successful HTTP response contract. */
 export function define<const Schema extends ResponseSchema | undefined, const Status extends ResponseStatus>(
@@ -47,7 +49,9 @@ export function define<const Schema extends ResponseSchema | undefined, const St
 		...(input.jsonSchema !== undefined ? { jsonSchema: input.jsonSchema } : {}),
 		...(input.contentType !== undefined ? { contentType: input.contentType } : {}),
 		...(input.headers !== undefined ? { headers: headers(input.headers) } : {}),
-		...(input.examples ? { examples: Object.freeze(input.examples.map((example) => Object.freeze({ ...example }))) } : {}),
+		...(input.examples
+			? { examples: Object.freeze(input.examples.map((example) => Object.freeze({ ...example }))) }
+			: {}),
 		mode,
 		envelope: input.envelope ?? (mode === 'page' ? 'data' : 'none'),
 		timestamp: input.timestamp ?? false,
@@ -90,9 +94,14 @@ export function noContent(
 	} = {},
 ): ResponseDefinition<undefined, 204> & { readonly mode: 'empty' } {
 	const description = options.description ?? 'No content.';
-	return define({ ...options, id: options.id ?? defaultId(204, description), description, status: 204, mode: 'empty' }) as ResponseDefinition<undefined, 204> & { readonly mode: 'empty' };
+	return define({
+		...options,
+		id: options.id ?? defaultId(204, description),
+		description,
+		status: 204,
+		mode: 'empty',
+	}) as ResponseDefinition<undefined, 204> & { readonly mode: 'empty' };
 }
-
 
 /** Define a bodyless `304 Not Modified` response for explicit conditional contracts. */
 export function notModified(
@@ -102,7 +111,13 @@ export function notModified(
 	} = {},
 ): ResponseDefinition<undefined, 304> & { readonly mode: 'empty' } {
 	const description = options.description ?? 'Not modified.';
-	return define({ ...options, id: options.id ?? defaultId(304, description), description, status: 304, mode: 'empty' }) as ResponseDefinition<undefined, 304> & { readonly mode: 'empty' };
+	return define({
+		...options,
+		id: options.id ?? defaultId(304, description),
+		description,
+		status: 304,
+		mode: 'empty',
+	}) as ResponseDefinition<undefined, 304> & { readonly mode: 'empty' };
 }
 
 /** Define a `206 Partial Content` response whose body is produced by an artifact adapter. */
@@ -110,15 +125,21 @@ export function partialContent<const Schema extends ResponseSchema>(
 	schema: Schema,
 	options: Omit<ResponseDefinitionInput<Schema, 206>, 'id' | 'status' | 'schema'> & { readonly id?: string },
 ): ResponseDefinition<Schema, 206> & { readonly mode: 'body' } {
-	return define({ ...options, id: options.id ?? defaultId(206, options.description), status: 206, schema }) as ResponseDefinition<Schema, 206> & { readonly mode: 'body' };
+	return define({ ...options, id: options.id ?? defaultId(206, options.description), status: 206, schema }) as
+		& ResponseDefinition<Schema, 206>
+		& { readonly mode: 'body' };
 }
 
 /** Define an HTTP redirect response. */
 export function redirect<const Status extends 300 | 301 | 302 | 303 | 307 | 308>(
 	status: Status,
-	options: Omit<ResponseDefinitionInput<undefined, Status>, 'id' | 'status' | 'schema' | 'mode'> & { readonly id?: string },
+	options: Omit<ResponseDefinitionInput<undefined, Status>, 'id' | 'status' | 'schema' | 'mode'> & {
+		readonly id?: string;
+	},
 ): ResponseDefinition<undefined, Status> & { readonly mode: 'redirect' } {
-	return define({ ...options, id: options.id ?? defaultId(status, options.description), status, mode: 'redirect' }) as ResponseDefinition<undefined, Status> & { readonly mode: 'redirect' };
+	return define({ ...options, id: options.id ?? defaultId(status, options.description), status, mode: 'redirect' }) as
+		& ResponseDefinition<undefined, Status>
+		& { readonly mode: 'redirect' };
 }
 
 /** Define a streaming response. */
@@ -126,7 +147,13 @@ export function stream<const Schema extends ResponseSchema>(
 	schema: Schema,
 	options: Omit<ResponseDefinitionInput<Schema, 200>, 'id' | 'status' | 'schema' | 'mode'> & { readonly id?: string },
 ): ResponseDefinition<Schema, 200> & { readonly mode: 'stream' } {
-	return define({ ...options, id: options.id ?? defaultId(200, options.description), status: 200, schema, mode: 'stream' }) as ResponseDefinition<Schema, 200> & { readonly mode: 'stream' };
+	return define({
+		...options,
+		id: options.id ?? defaultId(200, options.description),
+		status: 200,
+		schema,
+		mode: 'stream',
+	}) as ResponseDefinition<Schema, 200> & { readonly mode: 'stream' };
 }
 
 /** Define a paginated collection response. */
@@ -134,7 +161,13 @@ export function paginated<const Schema extends ResponseSchema>(
 	schema: Schema,
 	options: Omit<ResponseDefinitionInput<Schema, 200>, 'id' | 'status' | 'schema' | 'mode'> & { readonly id?: string },
 ): ResponseDefinition<Schema, 200> & { readonly mode: 'page' } {
-	return define({ ...options, id: options.id ?? defaultId(200, options.description), status: 200, schema, mode: 'page' }) as ResponseDefinition<Schema, 200> & { readonly mode: 'page' };
+	return define({
+		...options,
+		id: options.id ?? defaultId(200, options.description),
+		status: 200,
+		schema,
+		mode: 'page',
+	}) as ResponseDefinition<Schema, 200> & { readonly mode: 'page' };
 }
 
 /** Define a downloadable response. */
@@ -142,15 +175,23 @@ export function download<const Schema extends ResponseSchema>(
 	schema: Schema,
 	options: Omit<ResponseDefinitionInput<Schema, 200>, 'id' | 'status' | 'schema' | 'mode'> & { readonly id?: string },
 ): ResponseDefinition<Schema, 200> {
-	return define({ ...options, id: options.id ?? defaultId(200, options.description), status: 200, schema, mode: 'download' });
+	return define({
+		...options,
+		id: options.id ?? defaultId(200, options.description),
+		status: 200,
+		schema,
+		mode: 'download',
+	});
 }
 
 /** Define a small one-off HTML page without changing the Solid application renderer. */
 export function html(
-	options: Omit<ResponseDefinitionInput<typeof htmlBodySchema, 200>, 'id' | 'status' | 'schema' | 'mode' | 'contentType'> & {
-		readonly id?: string;
-		readonly contentType?: string;
-	},
+	options:
+		& Omit<ResponseDefinitionInput<typeof htmlBodySchema, 200>, 'id' | 'status' | 'schema' | 'mode' | 'contentType'>
+		& {
+			readonly id?: string;
+			readonly contentType?: string;
+		},
 ): ResponseDefinition<typeof htmlBodySchema, 200> & { readonly mode: 'html' } {
 	return define({
 		...options,
@@ -164,7 +205,10 @@ export function html(
 }
 
 /** Create a named immutable response catalog. */
-export function responseCatalog<const Namespace extends string, const Entries extends Readonly<Record<PropertyKey, ResponseDefinition>>>(
+export function responseCatalog<
+	const Namespace extends string,
+	const Entries extends Readonly<Record<PropertyKey, ResponseDefinition>>,
+>(
 	namespace: Namespace,
 	entries: Entries,
 ): Catalog<Entries[keyof Entries], Entries> {
@@ -183,25 +227,31 @@ export function select<
 }
 
 /** Compose response definitions, catalogs, selections, and nested arrays. */
-export function compose<Entry extends ResponseDefinition>(...inputs: readonly DefinitionInput<Entry>[]): readonly Entry[] {
+export function compose<Entry extends ResponseDefinition>(
+	...inputs: readonly DefinitionInput<Entry>[]
+): readonly Entry[] {
 	return catalog.compose(...inputs);
 }
 
 /** Create JSON-safe response documentation. */
 export function document(input: DefinitionInput<ResponseDefinition>): readonly ResponseDocument[] {
-	return Object.freeze(catalog.values(input).map((definition) => Object.freeze({
-		id: definition.id,
-		status: definition.status,
-		description: definition.description,
-		...(definition.contentType !== undefined ? { contentType: definition.contentType } : {}),
-		mode: definition.mode,
-		envelope: definition.envelope,
-		timestamp: definition.timestamp,
-		...(definition.pagination !== undefined ? { pagination: definition.pagination } : {}),
-		examples: definition.examples ?? Object.freeze([]),
-		headers: definition.headers ?? Object.freeze({}),
-		...(definition.filename !== undefined ? { filename: definition.filename } : {}),
-	})));
+	return Object.freeze(
+		catalog.values(input).map((definition) =>
+			Object.freeze({
+				id: definition.id,
+				status: definition.status,
+				description: definition.description,
+				...(definition.contentType !== undefined ? { contentType: definition.contentType } : {}),
+				mode: definition.mode,
+				envelope: definition.envelope,
+				timestamp: definition.timestamp,
+				...(definition.pagination !== undefined ? { pagination: definition.pagination } : {}),
+				examples: definition.examples ?? Object.freeze([]),
+				headers: definition.headers ?? Object.freeze({}),
+				...(definition.filename !== undefined ? { filename: definition.filename } : {}),
+			})
+		),
+	);
 }
 
 /**
@@ -210,8 +260,15 @@ export function document(input: DefinitionInput<ResponseDefinition>): readonly R
  * @internal
  */
 function defaultId(status: ResponseStatus, description: string): string {
-	const slug = description.normalize('NFKD').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
-	if (slug.length === 0) throw new TypeError('Response description must contain an identifier-safe character or an explicit id must be supplied.');
+	const slug = description.normalize('NFKD').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(
+		0,
+		80,
+	);
+	if (slug.length === 0) {
+		throw new TypeError(
+			'Response description must contain an identifier-safe character or an explicit id must be supplied.',
+		);
+	}
 	return `http:${status}:${slug}`;
 }
 
@@ -223,16 +280,32 @@ function defaultId(status: ResponseStatus, description: string): string {
  * @internal
  */
 function assertDefinition(input: ResponseDefinitionInput<ResponseSchema | undefined, ResponseStatus>): void {
-	if (!/^[a-z0-9][a-z0-9._:-]*$/i.test(input.id)) throw new TypeError(`Invalid response id ${JSON.stringify(input.id)}.`);
+	if (!/^[a-z0-9][a-z0-9._:-]*$/i.test(input.id)) {
+		throw new TypeError(`Invalid response id ${JSON.stringify(input.id)}.`);
+	}
 	if (input.description.trim().length === 0) throw new TypeError('Response description cannot be empty.');
 	const mode = input.mode ?? 'body';
-	if (mode === 'empty' && input.schema !== undefined) throw new TypeError('Empty responses cannot define a body schema.');
-	if (mode !== 'empty' && mode !== 'redirect' && input.schema === undefined) throw new TypeError(`${mode} responses require a body schema.`);
-	if ([204, 205, 304].includes(input.status) && mode !== 'empty') throw new TypeError(`HTTP ${input.status} responses must use empty mode.`);
-	if (mode === 'redirect' && ![300, 301, 302, 303, 307, 308].includes(input.status)) throw new TypeError('Redirect responses require a supported redirect status.');
-	if (input.filename !== undefined && mode !== 'download') throw new TypeError('Response filenames are only valid for download responses.');
-	if (input.pagination !== undefined && mode !== 'page') throw new TypeError('Pagination presentation is only valid for paginated responses.');
-	if (mode === 'page' && input.envelope === 'none') throw new TypeError('Paginated responses require the data envelope.');
+	if (mode === 'empty' && input.schema !== undefined) {
+		throw new TypeError('Empty responses cannot define a body schema.');
+	}
+	if (mode !== 'empty' && mode !== 'redirect' && input.schema === undefined) {
+		throw new TypeError(`${mode} responses require a body schema.`);
+	}
+	if ([204, 205, 304].includes(input.status) && mode !== 'empty') {
+		throw new TypeError(`HTTP ${input.status} responses must use empty mode.`);
+	}
+	if (mode === 'redirect' && ![300, 301, 302, 303, 307, 308].includes(input.status)) {
+		throw new TypeError('Redirect responses require a supported redirect status.');
+	}
+	if (input.filename !== undefined && mode !== 'download') {
+		throw new TypeError('Response filenames are only valid for download responses.');
+	}
+	if (input.pagination !== undefined && mode !== 'page') {
+		throw new TypeError('Pagination presentation is only valid for paginated responses.');
+	}
+	if (mode === 'page' && input.envelope === 'none') {
+		throw new TypeError('Paginated responses require the data envelope.');
+	}
 }
 
 /**

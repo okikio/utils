@@ -69,7 +69,11 @@ function normalizeError(value: unknown): Error {
 /** Validate and snapshot error middleware policy before asynchronous error handling begins. @internal */
 function normalizeErrorOptions(options: ErrorOptions): ErrorOptions {
 	recordCore.assert(options, 'error middleware options');
-	if (options.map !== undefined && typeof options.map !== 'function') throw new TypeError('error map must be a function when provided.');
-	if (options.onError !== undefined && typeof options.onError !== 'function') throw new TypeError('error onError must be a function when provided.');
+	if (options.map !== undefined && typeof options.map !== 'function') {
+		throw new TypeError('error map must be a function when provided.');
+	}
+	if (options.onError !== undefined && typeof options.onError !== 'function') {
+		throw new TypeError('error onError must be a function when provided.');
+	}
 	return recordCore.snapshot(options, 'error middleware options');
 }

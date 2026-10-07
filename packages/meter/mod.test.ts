@@ -22,7 +22,11 @@ describe('@okikio/meter', () => {
 		let accepted: effects.EffectOccurrence | undefined;
 		const ctx = effects.scope(owned, {
 			effects: [meter.effect(Bytes)],
-			emitter: { async emit(_ctx, occurrence) { accepted = occurrence; } },
+			emitter: {
+				async emit(_ctx, occurrence) {
+					accepted = occurrence;
+				},
+			},
 		});
 
 		const occurrence = await meter.record(ctx, Bytes, 42, { key: 'asset:42', attributes: { source: 'test' } });

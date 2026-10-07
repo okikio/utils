@@ -1,16 +1,12 @@
-`@okikio/deno`
-=============
+# `@okikio/deno`
 
-Purpose
--------
+## Purpose
 
-`@okikio/deno` contains reusable Deno-specific mechanics that do not depend on a
-product domain.
+`@okikio/deno` contains reusable Deno-specific mechanics that do not depend on a product domain.
 
 The current public submodule is `@okikio/deno/permissions`.
 
-Start here
-----------
+## Start here
 
 Import the submodule as a namespace:
 
@@ -18,49 +14,43 @@ Import the submodule as a namespace:
 import * as permissions from '@okikio/deno/permissions';
 
 const args = permissions.args({
-  read: true,
-  write: ['/srv/output', '/srv/tmp,1'],
-  run: ['chromium'],
+	read: true,
+	write: ['/srv/output', '/srv/tmp,1'],
+	run: ['chromium'],
 });
 ```
 
-`args()` produces stable `--allow-*` arguments. Scoped values are deduplicated
-without reordering. Literal commas are escaped by doubling them, matching Deno's
-CLI syntax for comma-delimited permission scopes.
+`args()` produces stable `--allow-*` arguments. Scoped values are deduplicated without reordering. Literal commas are
+escaped by doubling them, matching Deno's CLI syntax for comma-delimited permission scopes.
 
-`parse()` accepts only `--allow-*` arguments. It does not silently ignore command
-options or entrypoints. Repeated scoped grants are merged. An unscoped grant
-wins over scoped grants for the same permission.
+`parse()` accepts only `--allow-*` arguments. It does not silently ignore command options or entrypoints. Repeated
+scoped grants are merged. An unscoped grant wins over scoped grants for the same permission.
 
+## Round-trip existing arguments
 
-Round-trip existing arguments
------------------------------
-
-`parse()` is useful when a host receives permission arguments and needs a
-normalized grant model before composing another command:
+`parse()` is useful when a host receives permission arguments and needs a normalized grant model before composing
+another command:
 
 ```ts
 const grants = permissions.parse([
-  '--allow-read=/srv/input,/srv/cache',
-  '--allow-net=example.invalid:443',
+	'--allow-read=/srv/input,/srv/cache',
+	'--allow-net=example.invalid:443',
 ]);
 
 const canonical = permissions.args(grants);
 ```
 
-An unscoped grant such as `--allow-read` dominates scoped grants for the same
-permission. Unsupported flags are rejected instead of being silently ignored.
+An unscoped grant such as `--allow-read` dominates scoped grants for the same permission. Unsupported flags are rejected
+instead of being silently ignored.
 
-This package constructs permission arguments. It does not decide which
-permissions a particular executable should receive. That policy stays with the
-executable owner.
+This package constructs permission arguments. It does not decide which permissions a particular executable should
+receive. That policy stays with the executable owner.
 
-Convenience and the manual equivalent
--------------------------------------
+## Convenience and the manual equivalent
 
 Concrete map
-~~~~~~~~~~~~
 
+```
 | Convenience | Manual equivalent | Concrete value |
 | --- | --- | --- |
 | `permissions.args()` | sort permission names, merge repeated scopes, escape values, and emit the exact `--allow-*` arguments | deterministic Deno CLI permission arguments |
@@ -94,3 +84,4 @@ detail:
 
 The README is the primary user documentation. It intentionally stays close to
 the public source instead of maintaining a separate hand-written API reference.
+```

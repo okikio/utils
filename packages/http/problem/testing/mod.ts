@@ -1,5 +1,1 @@
-export {
-	coverage,
-	ProblemCoverageError,
-	type ProblemCoverageReport,
-} from './coverage.ts';
+export { coverage, ProblemCoverageError, type ProblemCoverageReport } from './coverage.ts';

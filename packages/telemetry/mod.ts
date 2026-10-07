@@ -27,7 +27,9 @@ import type {
 } from './types.ts';
 
 const LEVELS = Object.freeze(['trace', 'debug', 'info', 'warning', 'error', 'fatal'] as const);
-const LEVEL_RANK = Object.freeze(Object.fromEntries(LEVELS.map((level, index) => [level, index])) as Record<Level, number>);
+const LEVEL_RANK = Object.freeze(
+	Object.fromEntries(LEVELS.map((level, index) => [level, index])) as Record<Level, number>,
+);
 const EVENT_NAME = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/;
 const FALLBACK_BUFFER_KEY = '__telemetry__';
 
@@ -54,9 +56,12 @@ export function event(input: EventInput, fields: Fields = {}, now: () => string 
 	const level = input.level ?? 'info';
 	assertLevel(level);
 	const at = input.at ?? now();
-	if (typeof at !== 'string' || at.length === 0) throw new TypeError('Telemetry event timestamp must be a non-empty string.');
+	if (typeof at !== 'string' || at.length === 0) {
+		throw new TypeError('Telemetry event timestamp must be a non-empty string.');
+	}
 	const merged = mergeFields(fields, input.fields ?? {});
-	const projected = input.fault ?? (input.error === undefined ? undefined : faultCore.encode(input.error, input.faultOptions));
+	const projected = input.fault ??
+		(input.error === undefined ? undefined : faultCore.encode(input.error, input.faultOptions));
 	const frozenFault = projected === undefined ? undefined : snapshotValue(projected, 'fault');
 	return Object.freeze({
 		kind: 'telemetry-event',
@@ -99,12 +104,12 @@ export function fanout(...reporters: readonly Reporter[]): Reporter {
 	for (const reporter of reporters) assertReporter(reporter);
 	return Object.freeze({
 		async report(value: Event): Promise<void> {
-				const settled = await Promise.allSettled(reporters.map(async (reporter) => await reporter.report(value)));
+			const settled = await Promise.allSettled(reporters.map(async (reporter) => await reporter.report(value)));
 			const failures = settled.flatMap((result) => result.status === 'rejected' ? [result.reason] : []);
 			if (failures.length > 0) throw new AggregateError(failures, 'One or more telemetry reporters failed.');
 		},
 		async flush(): Promise<void> {
-				const settled = await Promise.allSettled(reporters.map(async (reporter) => await reporter.flush?.()));
+			const settled = await Promise.allSettled(reporters.map(async (reporter) => await reporter.flush?.()));
 			const failures = settled.flatMap((result) => result.status === 'rejected' ? [result.reason] : []);
 			if (failures.length > 0) throw new AggregateError(failures, 'One or more telemetry reporters failed to flush.');
 		},
@@ -138,10 +143,14 @@ export function memory(): MemoryReporter {
 export function buffer(target: Reporter, options: BufferOptions = {}): BufferedReporter {
 	assertReporter(target);
 	const capacity = options.capacity ?? 64;
-	if (!Number.isSafeInteger(capacity) || capacity < 0) throw new TypeError('Telemetry buffer capacity must be a non-negative safe integer.');
+	if (!Number.isSafeInteger(capacity) || capacity < 0) {
+		throw new TypeError('Telemetry buffer capacity must be a non-negative safe integer.');
+	}
 	const trigger = options.trigger ?? 'error';
 	assertLevel(trigger);
-	if (options.key !== undefined && typeof options.key !== 'function') throw new TypeError('Telemetry buffer key must be a function.');
+	if (options.key !== undefined && typeof options.key !== 'function') {
+		throw new TypeError('Telemetry buffer key must be a function.');
+	}
 	const keyOf = options.key ?? defaultBufferKey;
 	const buffers = new Map<string, Event[]>();
 
@@ -159,7 +168,9 @@ export function buffer(target: Reporter, options: BufferOptions = {}): BufferedR
 		async report(value: Event): Promise<void> {
 			assertEvent(value);
 			const key = keyOf(value);
-			if (typeof key !== 'string' || key.length === 0) throw new TypeError('Telemetry buffer key must be a non-empty string.');
+			if (typeof key !== 'string' || key.length === 0) {
+				throw new TypeError('Telemetry buffer key must be a non-empty string.');
+			}
 			if (LEVEL_RANK[value.level] >= LEVEL_RANK[trigger]) {
 				await flushKey(key);
 				await target.report(value);
@@ -208,7 +219,9 @@ function scope(
 			try {
 				await reporter.report(value);
 			} catch (error) {
-				try { await onReporterError?.(error, value); } catch { /* telemetry failure observation is non-authoritative */ }
+				try {
+					await onReporterError?.(error, value);
+				} catch { /* telemetry failure observation is non-authoritative */ }
 			}
 			return value;
 		},
@@ -219,7 +232,9 @@ function scope(
 			try {
 				await reporter.flush?.();
 			} catch (error) {
-				try { await onReporterError?.(error); } catch { /* telemetry failure observation is non-authoritative */ }
+				try {
+					await onReporterError?.(error);
+				} catch { /* telemetry failure observation is non-authoritative */ }
 			}
 		},
 	});
@@ -242,9 +257,13 @@ function freezeFields(fields: Fields): Fields {
 
 /** Clone JSON-safe values so later caller mutation cannot rewrite emitted telemetry history. @internal */
 function snapshotFields(fields: Fields): Fields {
-	if (fields === null || typeof fields !== 'object' || Array.isArray(fields)) throw new TypeError('Telemetry fields must be a record.');
+	if (fields === null || typeof fields !== 'object' || Array.isArray(fields)) {
+		throw new TypeError('Telemetry fields must be a record.');
+	}
 	const prototype = Object.getPrototypeOf(fields);
-	if (prototype !== Object.prototype && prototype !== null) throw new TypeError('Telemetry fields must use a plain record.');
+	if (prototype !== Object.prototype && prototype !== null) {
+		throw new TypeError('Telemetry fields must use a plain record.');
+	}
 	const output: Record<string, Value> = Object.create(null);
 	for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(fields))) {
 		if (!descriptor.enumerable) continue;
@@ -259,7 +278,9 @@ function snapshotFields(fields: Fields): Fields {
 function snapshotValue(value: Value, name: string): Value {
 	if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
 	if (typeof value === 'number') {
-		if (!Number.isFinite(value)) throw new TypeError(`Telemetry field ${JSON.stringify(name)} must contain finite numbers.`);
+		if (!Number.isFinite(value)) {
+			throw new TypeError(`Telemetry field ${JSON.stringify(name)} must contain finite numbers.`);
+		}
 		return value;
 	}
 	if (Array.isArray(value)) {
@@ -271,18 +292,24 @@ function snapshotValue(value: Value, name: string): Value {
 				output[index] = null;
 				continue;
 			}
-			if (!('value' in descriptor)) throw new TypeError(`Telemetry field ${JSON.stringify(name)} cannot contain accessors.`);
+			if (!('value' in descriptor)) {
+				throw new TypeError(`Telemetry field ${JSON.stringify(name)} cannot contain accessors.`);
+			}
 			output[index] = snapshotValue(descriptor.value as Value, name);
 		}
 		return Object.freeze(output);
 	}
 	if (typeof value !== 'object') throw new TypeError(`Telemetry field ${JSON.stringify(name)} must be JSON-safe.`);
 	const prototype = Object.getPrototypeOf(value);
-	if (prototype !== Object.prototype && prototype !== null) throw new TypeError(`Telemetry field ${JSON.stringify(name)} must use plain records.`);
+	if (prototype !== Object.prototype && prototype !== null) {
+		throw new TypeError(`Telemetry field ${JSON.stringify(name)} must use plain records.`);
+	}
 	const output: Record<string, Value> = Object.create(null);
 	for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(value))) {
 		if (!descriptor.enumerable) continue;
-		if (!('value' in descriptor)) throw new TypeError(`Telemetry field ${JSON.stringify(name)} cannot contain accessors.`);
+		if (!('value' in descriptor)) {
+			throw new TypeError(`Telemetry field ${JSON.stringify(name)} cannot contain accessors.`);
+		}
 		output[key] = snapshotValue(descriptor.value as Value, name);
 	}
 	return Object.freeze(output);
@@ -290,7 +317,9 @@ function snapshotValue(value: Value, name: string): Value {
 
 /** Reject malformed event names before they become stable diagnostic keys. @internal */
 function assertEventName(name: string): void {
-	if (typeof name !== 'string' || !EVENT_NAME.test(name)) throw new TypeError(`Invalid telemetry event name ${JSON.stringify(name)}.`);
+	if (typeof name !== 'string' || !EVENT_NAME.test(name)) {
+		throw new TypeError(`Invalid telemetry event name ${JSON.stringify(name)}.`);
+	}
 }
 
 /** Reject unsupported severities before adapter selection. @internal */
@@ -307,7 +336,9 @@ function assertReporter(reporter: Reporter): void {
 
 /** Reject malformed event objects accepted by reporter wrappers. @internal */
 function assertEvent(value: Event): void {
-	if (value === null || typeof value !== 'object' || value.kind !== 'telemetry-event') throw new TypeError('Telemetry reporter requires an event.');
+	if (value === null || typeof value !== 'object' || value.kind !== 'telemetry-event') {
+		throw new TypeError('Telemetry reporter requires an event.');
+	}
 	assertEventName(value.name);
 	assertLevel(value.level);
 }

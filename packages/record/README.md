@@ -1,15 +1,11 @@
-`@okikio/record`
-===============
+# `@okikio/record`
 
-Purpose
--------
+## Purpose
 
-`@okikio/record` defines the small JavaScript object shape used when a utility
-needs an ordinary string-keyed data map whose runtime enumeration must agree
-with its TypeScript record type.
+`@okikio/record` defines the small JavaScript object shape used when a utility needs an ordinary string-keyed data map
+whose runtime enumeration must agree with its TypeScript record type.
 
-Start here
-----------
+## Start here
 
 ```ts
 import * as record from '@okikio/record';
@@ -17,16 +13,14 @@ import * as record from '@okikio/record';
 const input = { host: 'localhost', port: 4321 } as const;
 record.assert(input, 'server options');
 
-record.keys(input);    // ('host' | 'port')[]
+record.keys(input); // ('host' | 'port')[]
 record.entries(input); // exact key/value pairs
 ```
 
-Why this exists
----------------
+## Why this exists
 
-`Object.keys()` and `Object.entries()` ignore inherited and non-enumerable
-properties. Accessor properties can also execute code when a later operation
-reads them. A generic API that accepts an arbitrary object and then snapshots it
+`Object.keys()` and `Object.entries()` ignore inherited and non-enumerable properties. Accessor properties can also
+execute code when a later operation reads them. A generic API that accepts an arbitrary object and then snapshots it
 with enumeration can therefore let TypeScript promise fields that runtime drops.
 
 The accepted shape is deliberately small:
@@ -38,8 +32,7 @@ The accepted shape is deliberately small:
 
 `record.is()` checks that shape. `record.assert()` rejects anything else.
 
-Immutable snapshots
--------------------
+## Immutable snapshots
 
 ```ts
 const source = Object.create(null);
@@ -48,16 +41,14 @@ source.__proto__ = 'ordinary-data';
 const snapshot = record.snapshot(source);
 ```
 
-`snapshot()` validates first, then copies every own enumerable string data
-property into a frozen null-prototype object. Keys such as `__proto__` therefore
-remain ordinary data.
+`snapshot()` validates first, then copies every own enumerable string data property into a frozen null-prototype object.
+Keys such as `__proto__` therefore remain ordinary data.
 
-Convenience and the manual equivalent
--------------------------------------
+## Convenience and the manual equivalent
 
 Concrete map
-~~~~~~~~~~~~
 
+```
 | Convenience | Manual equivalent | Concrete value |
 | --- | --- | --- |
 | `record.assert()` | inspect prototype, symbols, and every property descriptor before enumeration | prove `Object.keys()`/`entries()` sees the complete data shape |
@@ -84,3 +75,4 @@ Source guide
 3. `mod.test.ts` covers prototype, accessor, symbol, hidden-property, and
    `__proto__` behavior.
 4. `types.test.ts` locks exact key/value inference.
+```

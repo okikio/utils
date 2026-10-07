@@ -1,11 +1,4 @@
-export {
-	compose,
-	define,
-	environment,
-	requirement,
-	secret,
-	variable,
-} from './definition.ts';
+export { compose, define, environment, requirement, secret, variable } from './definition.ts';
 export type { ComposeEnvironmentFields } from './definition.ts';
 export { EnvironmentError } from './error.ts';
 export { example, manifest, requirementReport } from './projection.ts';

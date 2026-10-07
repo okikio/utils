@@ -14,7 +14,13 @@ describe('record', () => {
 	it('rejects inherited, hidden, symbol, and accessor properties without invoking accessors', () => {
 		let reads = 0;
 		const accessor = Object.create(null) as Record<string, unknown>;
-		Object.defineProperty(accessor, 'value', { enumerable: true, get() { reads += 1; return 1; } });
+		Object.defineProperty(accessor, 'value', {
+			enumerable: true,
+			get() {
+				reads += 1;
+				return 1;
+			},
+		});
 		expect(record.is(accessor)).toBe(false);
 		expect(() => record.assert(accessor, 'input')).toThrow('enumerable data property');
 		expect(reads).toBe(0);

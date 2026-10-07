@@ -1,17 +1,17 @@
 import * as recordCore from '@okikio/record';
 
 import type {
-	EndpointDefinition,
-	EndpointInputSlots,
-	EndpointHandler,
-	EndpointHandlerBinding,
 	AnyEndpointHandler,
 	AnyEndpointHandlerBinding,
-	EndpointHandlerSet,
-	EndpointRequestValues,
 	EmptyEndpointHost,
+	EndpointDefinition,
+	EndpointHandler,
+	EndpointHandlerBinding,
+	EndpointHandlerSet,
+	EndpointInputSlots,
 	EndpointMethod,
 	EndpointOperation,
+	EndpointRequestValues,
 } from './types.ts';
 
 /** Bind a complete single-method endpoint directly to its handler. */
@@ -51,7 +51,11 @@ export function handler(
 ): EndpointHandlerBinding | AnyEndpointHandlerBinding | EndpointHandlerSet {
 	if (isOperation(operationOrHandles)) {
 		if (!endpoint.operations.includes(operationOrHandles)) {
-			throw new TypeError(`Operation ${JSON.stringify(operationOrHandles.id)} does not belong to endpoint ${JSON.stringify(endpoint.id)}.`);
+			throw new TypeError(
+				`Operation ${JSON.stringify(operationOrHandles.id)} does not belong to endpoint ${
+					JSON.stringify(endpoint.id)
+				}.`,
+			);
 		}
 		if (typeof maybeHandle !== 'function') throw new TypeError('Endpoint handler must be a function.');
 		return erasedBinding(endpoint, operationOrHandles, maybeHandle as AnyEndpointHandler);
@@ -59,24 +63,32 @@ export function handler(
 
 	if (typeof operationOrHandles === 'function') {
 		if (endpoint.operations.length !== 1) {
-			throw new TypeError(`Endpoint ${JSON.stringify(endpoint.id)} requires an exhaustive method map or explicit operation.`);
+			throw new TypeError(
+				`Endpoint ${JSON.stringify(endpoint.id)} requires an exhaustive method map or explicit operation.`,
+			);
 		}
 		return erasedBinding(endpoint, endpoint.operations[0]!, operationOrHandles as AnyEndpointHandler);
 	}
 
-	if (!isHandlerRecord(operationOrHandles)) throw new TypeError('Endpoint handlers require a function or exhaustive method map.');
+	if (!isHandlerRecord(operationOrHandles)) {
+		throw new TypeError('Endpoint handlers require a function or exhaustive method map.');
+	}
 	const keys = Object.keys(operationOrHandles);
 	const expected = new Set(endpoint.operations.map((operation) => operation.method));
 	for (const key of keys) {
 		if (!expected.has(key as EndpointMethod)) {
-			throw new TypeError(`Handler map contains undeclared ${key.toUpperCase()} method for ${JSON.stringify(endpoint.id)}.`);
+			throw new TypeError(
+				`Handler map contains undeclared ${key.toUpperCase()} method for ${JSON.stringify(endpoint.id)}.`,
+			);
 		}
 	}
 	const bindings: AnyEndpointHandlerBinding[] = [];
 	for (const operation of endpoint.operations) {
 		const handle = operationOrHandles[operation.method];
 		if (typeof handle !== 'function') {
-			throw new TypeError(`Handler map is missing ${operation.method.toUpperCase()} for ${JSON.stringify(endpoint.id)}.`);
+			throw new TypeError(
+				`Handler map is missing ${operation.method.toUpperCase()} for ${JSON.stringify(endpoint.id)}.`,
+			);
 		}
 		bindings.push(erasedBinding(endpoint, operation, handle as AnyEndpointHandler));
 	}
@@ -114,7 +126,9 @@ export function handlers(
 		const existing = endpointBindings.get(value.operation);
 		if (existing && existing !== value) {
 			throw new TypeError(
-				`Operation ${JSON.stringify(value.operation.id)} has more than one handler binding for endpoint ${JSON.stringify(value.endpoint.id)}.`,
+				`Operation ${JSON.stringify(value.operation.id)} has more than one handler binding for endpoint ${
+					JSON.stringify(value.endpoint.id)
+				}.`,
 			);
 		}
 		if (!existing) {

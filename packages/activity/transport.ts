@@ -18,11 +18,7 @@ import type { PermissionChecker, PermissionDecision, PermissionRequest } from '@
 import * as requirement from '@okikio/requirement';
 import * as resource from '@okikio/resource';
 import * as schema from '@okikio/schema';
-import type {
-	ActivityAttemptControl,
-	ActivityAttemptResultType,
-	ActivityAttemptType,
-} from '@okikio/workflow';
+import type { ActivityAttemptControl, ActivityAttemptResultType, ActivityAttemptType } from '@okikio/workflow';
 import type { ActivityDefinition } from './types.ts';
 
 /** Cloneable atomic permission request carried to the authority-owning host. */
@@ -92,10 +88,12 @@ export function checker(
 		async check(_ctx: Context, requests: readonly PermissionRequest[]) {
 			const reply = await call(Object.freeze({
 				type: 'permission',
-				requests: Object.freeze(requests.map((request: PermissionRequest) => Object.freeze({
-					id: request.definition.id,
-					target: request.target,
-				}))),
+				requests: Object.freeze(requests.map((request: PermissionRequest) =>
+					Object.freeze({
+						id: request.definition.id,
+						target: request.target,
+					})
+				)),
 			}));
 			if (reply.type !== 'permission') throw new TypeError('Remote permission call returned the wrong reply type.');
 			return reply.decisions;
@@ -122,7 +120,9 @@ export async function heartbeat(
 	value?: unknown,
 ): Promise<void> {
 	const reply = await call(Object.freeze({ type: 'heartbeat', ...(value === undefined ? {} : { value }) }));
-	if (reply.type !== 'heartbeat' || reply.accepted !== true) throw new TypeError('Remote heartbeat returned the wrong reply type.');
+	if (reply.type !== 'heartbeat' || reply.accepted !== true) {
+		throw new TypeError('Remote heartbeat returned the wrong reply type.');
+	}
 }
 
 /**
@@ -166,7 +166,9 @@ export async function answer(
 	}
 	const decisions = await services.permission.check(ctx, Object.freeze(requests));
 	if (decisions.length !== requests.length) {
-		throw new permissions.PermissionDecisionError(`Permission evaluator returned ${decisions.length} decisions for ${requests.length} requests.`);
+		throw new permissions.PermissionDecisionError(
+			`Permission evaluator returned ${decisions.length} decisions for ${requests.length} requests.`,
+		);
 	}
 	return Object.freeze({
 		type: 'permission',
@@ -186,7 +188,10 @@ export async function result(activity: ActivityDefinition, value: WireResultType
 export async function wire(activity: ActivityDefinition, value: ActivityAttemptResultType): Promise<WireResultType> {
 	if (value.type === 'failure') {
 		if (!isFailureOccurrence(value.failure) || !activity.failures.includes(value.failure.definition)) {
-			return Object.freeze({ type: 'fault', fault: safeFault(new TypeError('Remote activity returned an undeclared failure.')) });
+			return Object.freeze({
+				type: 'fault',
+				fault: safeFault(new TypeError('Remote activity returned an undeclared failure.')),
+			});
 		}
 		return Object.freeze({ type: 'failure', failure: await failure.encode(value.failure) });
 	}
@@ -205,7 +210,11 @@ export async function wire(activity: ActivityDefinition, value: ActivityAttemptR
  */
 export function getPermissions(activity: ActivityDefinition): readonly permissions.PermissionDefinition[] {
 	const reachable = requirement.compose(activity.requirements, resource.reachable(activity.resources));
-	return Object.freeze(reachable.filter((entry) => entry.family === 'permission').map((entry) => entry.definition as permissions.PermissionDefinition));
+	return Object.freeze(
+		reachable.filter((entry) => entry.family === 'permission').map((entry) =>
+			entry.definition as permissions.PermissionDefinition
+		),
+	);
 }
 
 /** Construct one descriptive placeholder only for undeclared-ID error reporting. */
@@ -215,7 +224,9 @@ function permissionDefinition(id: string): permissions.PermissionDefinition {
 
 /** Reject a target value for a permission whose target is derived from execution state. */
 function targetless(value: unknown, definition: permissions.PermissionDefinition): undefined {
-	if (value !== undefined) throw new TypeError(`Permission ${JSON.stringify(definition.id)} does not accept a runtime target.`);
+	if (value !== undefined) {
+		throw new TypeError(`Permission ${JSON.stringify(definition.id)} does not accept a runtime target.`);
+	}
 	return undefined;
 }
 
@@ -254,11 +265,21 @@ function contract<Value>(
 /** Validate the identity and minimum serializable fields of one activity attempt. */
 function attempt(value: unknown): value is ActivityAttemptType {
 	if (!record(value)) return false;
-	return strings(value, ['jobId', 'claimId', 'activityId', 'activityVersion', 'engineId', 'registrationId', 'hostId']) &&
+	return strings(value, [
+		'jobId',
+		'claimId',
+		'activityId',
+		'activityVersion',
+		'engineId',
+		'registrationId',
+		'hostId',
+	]) &&
 		Number.isSafeInteger(value.attempt) && Number(value.attempt) > 0 &&
 		Number.isSafeInteger(value.generation) && Number(value.generation) > 0 &&
-		record(value.origin) && strings(value.origin, ['workflowId', 'workflowVersion', 'runId', 'instructionPath', 'instructionFingerprint']) &&
-		record(value.context) && typeof value.context.id === 'string' && typeof value.context.startedAt === 'string' && 'input' in value;
+		record(value.origin) &&
+		strings(value.origin, ['workflowId', 'workflowVersion', 'runId', 'instructionPath', 'instructionFingerprint']) &&
+		record(value.context) && typeof value.context.id === 'string' && typeof value.context.startedAt === 'string' &&
+		'input' in value;
 }
 
 /** Validate the serializable terminal result envelope without interpreting activity schemas. */
@@ -280,8 +301,14 @@ function notice(value: unknown): value is NoticeType {
 function hostCall(value: unknown): value is HostCallType {
 	if (!record(value) || typeof value.type !== 'string') return false;
 	if (value.type === 'heartbeat') return true;
-	if (value.type === 'effect') return record(value.effect) && typeof value.effect.id === 'string' && typeof value.effect.key === 'string' && 'value' in value.effect;
-	if (value.type === 'permission') return Array.isArray(value.requests) && value.requests.every((item) => record(item) && typeof item.id === 'string' && 'target' in item);
+	if (value.type === 'effect') {
+		return record(value.effect) && typeof value.effect.id === 'string' && typeof value.effect.key === 'string' &&
+			'value' in value.effect;
+	}
+	if (value.type === 'permission') {
+		return Array.isArray(value.requests) &&
+			value.requests.every((item) => record(item) && typeof item.id === 'string' && 'target' in item);
+	}
 	return false;
 }
 
@@ -289,9 +316,10 @@ function hostCall(value: unknown): value is HostCallType {
 function hostReply(value: unknown): value is HostReplyType {
 	if (!record(value) || typeof value.type !== 'string') return false;
 	if (value.type === 'heartbeat' || value.type === 'effect') return value.accepted === true;
-	return value.type === 'permission' && Array.isArray(value.decisions) && value.decisions.every((decision) =>
-		record(decision) && (typeof decision.allowed === 'boolean' || 'error' in decision)
-	);
+	return value.type === 'permission' && Array.isArray(value.decisions) &&
+		value.decisions.every((decision) =>
+			record(decision) && (typeof decision.allowed === 'boolean' || 'error' in decision)
+		);
 }
 
 /** Validate the encoded failure fields shared with `@okikio/failure`. */

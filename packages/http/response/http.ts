@@ -1,6 +1,6 @@
 import { ifNoneMatch } from '@std/http/etag';
 import type { HeaderInput, ResponseHeaders } from './headers.ts';
-import { headerValues, headers } from './headers.ts';
+import { headers, headerValues } from './headers.ts';
 
 /** Result of parsing one HTTP byte-range request. */
 export type ByteRange =
@@ -41,7 +41,6 @@ export function notModified(request: Request, responseHeaders: HeaderInput): boo
 	return Number.isFinite(modified) && Number.isFinite(since) && modified <= since;
 }
 
-
 /** Retain the representation metadata fields permitted on a generated 304 response. */
 export function conditionalHeaders(input: HeaderInput): ResponseHeaders {
 	const allowed = new Set(['cache-control', 'content-location', 'date', 'etag', 'expires', 'last-modified', 'vary']);
@@ -54,7 +53,9 @@ export function conditionalHeaders(input: HeaderInput): ResponseHeaders {
 
 /** Parse a single RFC 9110 bytes range without allocating or reading a body. */
 export function byteRange(value: string | null, size: number): ByteRange {
-	if (!Number.isSafeInteger(size) || size < 0) throw new TypeError('Byte range size must be a non-negative safe integer.');
+	if (!Number.isSafeInteger(size) || size < 0) {
+		throw new TypeError('Byte range size must be a non-negative safe integer.');
+	}
 	if (value === null || value.trim().length === 0) return Object.freeze({ kind: 'none' });
 	const match = /^bytes\s*=\s*(.+)$/i.exec(value);
 	if (!match) return Object.freeze({ kind: 'none' });
@@ -91,10 +92,15 @@ export function byteRange(value: string | null, size: number): ByteRange {
 }
 
 /** Return standard fields for one satisfiable or unsatisfiable byte-range decision. */
-export function byteRangeHeaders(range: Exclude<ByteRange, { readonly kind: 'none' | 'unsupported-multiple' }>): Readonly<Record<string, string>> {
-	const candidate: Readonly<{ readonly kind?: string; readonly contentRange?: string; readonly length?: number }> = range;
+export function byteRangeHeaders(
+	range: Exclude<ByteRange, { readonly kind: 'none' | 'unsupported-multiple' }>,
+): Readonly<Record<string, string>> {
+	const candidate: Readonly<{ readonly kind?: string; readonly contentRange?: string; readonly length?: number }> =
+		range;
 	if (candidate.kind !== 'satisfiable' && candidate.kind !== 'unsatisfiable') {
-		throw new TypeError(`Byte range headers require a satisfiable or unsatisfiable range, received ${JSON.stringify(candidate.kind)}.`);
+		throw new TypeError(
+			`Byte range headers require a satisfiable or unsatisfiable range, received ${JSON.stringify(candidate.kind)}.`,
+		);
 	}
 	if (typeof candidate.contentRange !== 'string' || candidate.contentRange.length === 0) {
 		throw new TypeError('Byte range contentRange must be a non-empty string.');

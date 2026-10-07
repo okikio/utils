@@ -1,5 +1,5 @@
 /** Deno subprocess adapter for {@link import('./mod.ts')}. */
-import type { Adapter, SignalType, SpawnOptionsType, Spawned, StdioType } from './types.ts';
+import type { Adapter, SignalType, Spawned, SpawnOptionsType, StdioType } from './types.ts';
 
 /**
  * Creates the Deno subprocess adapter.
@@ -31,11 +31,13 @@ export function create(): Adapter {
 				...(options.stdin === 'piped' ? { stdin: child.stdin } : {}),
 				...(options.stdout === 'piped' ? { stdout: child.stdout } : {}),
 				...(options.stderr === 'piped' ? { stderr: child.stderr } : {}),
-				status: child.status.then((status) => Object.freeze({
-					code: status.code,
-					success: status.success,
-					...(status.signal === null ? {} : { signal: status.signal }),
-				})),
+				status: child.status.then((status) =>
+					Object.freeze({
+						code: status.code,
+						success: status.success,
+						...(status.signal === null ? {} : { signal: status.signal }),
+					})
+				),
 				kill(signal: SignalType) {
 					if (options.tree === 'posix-process-group') {
 						// Detached POSIX commands lead a new process group. Deno.kill() accepts the

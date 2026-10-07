@@ -3,7 +3,8 @@ import * as recordCore from '@okikio/record';
 import { memoize } from './memo.ts';
 
 const correlationKey = Symbol('utils.http.request-correlation');
-const traceParentPattern = /^(?<version>[0-9a-f]{2})-(?<traceId>[0-9a-f]{32})-(?<parentSpanId>[0-9a-f]{16})-(?<flags>[0-9a-f]{2})$/;
+const traceParentPattern =
+	/^(?<version>[0-9a-f]{2})-(?<traceId>[0-9a-f]{32})-(?<parentSpanId>[0-9a-f]{16})-(?<flags>[0-9a-f]{2})$/;
 const requestIdPattern = /^[A-Za-z0-9][A-Za-z0-9._~:/+-]{0,127}$/;
 const traceStateKeyPattern = /^[a-z0-9][a-z0-9_*/@-]{0,255}$/;
 const traceStateValuePattern = /^[\x20-\x2B\x2D-\x3C\x3E-\x7E]{1,256}$/;
@@ -45,7 +46,6 @@ export function correlation(
 	return memoize(request, correlationKey, () => establishCorrelation(request, normalized));
 }
 
-
 /** Optional stable dimensions added to structured correlation fields. */
 export interface RequestCorrelationFieldOptions {
 	readonly service?: string;
@@ -64,8 +64,15 @@ export function correlationFields(
 	options: RequestCorrelationFieldOptions = {},
 ): Readonly<Record<string, string>> {
 	recordCore.assert(options, 'correlation field options');
-	for (const [name, field] of [['service', options.service], ['operationId', options.operationId], ['routeId', options.routeId]] as const) {
-		if (field !== undefined && typeof field !== 'string') throw new TypeError(`${name} must be a string when provided.`);
+	for (
+		const [name, field] of [['service', options.service], ['operationId', options.operationId], [
+			'routeId',
+			options.routeId,
+		]] as const
+	) {
+		if (field !== undefined && typeof field !== 'string') {
+			throw new TypeError(`${name} must be a string when provided.`);
+		}
 	}
 	return Object.freeze({
 		request_id: value.requestId,
@@ -97,11 +104,13 @@ export function requestId(value: string | null | undefined): string {
 }
 
 /** Parse an incoming W3C traceparent without accepting zero IDs or future-version ambiguity. */
-export function parseTraceParent(value: string | null): Readonly<{
-	readonly traceId: string;
-	readonly parentSpanId: string;
-	readonly flags: string;
-}> | undefined {
+export function parseTraceParent(value: string | null):
+	| Readonly<{
+		readonly traceId: string;
+		readonly parentSpanId: string;
+		readonly flags: string;
+	}>
+	| undefined {
 	if (value === null || value.length !== 55) return undefined;
 	const match = traceParentPattern.exec(value.toLowerCase());
 	if (!match?.groups || match.groups.version !== '00') return undefined;
@@ -115,7 +124,9 @@ export function parseTraceParent(value: string | null): Readonly<{
 
 /** Validate and normalize W3C tracestate. Invalid state is dropped, never forwarded. */
 export function parseTraceState(value: string | null, maximumLength = 512): string | undefined {
-	if (!Number.isSafeInteger(maximumLength) || maximumLength < 0) throw new TypeError('maximumLength must be a non-negative safe integer.');
+	if (!Number.isSafeInteger(maximumLength) || maximumLength < 0) {
+		throw new TypeError('maximumLength must be a non-negative safe integer.');
+	}
 	if (value === null || value.length === 0 || value.length > maximumLength) return undefined;
 	const members = value.split(',').map((member) => member.trim());
 	if (members.length > 32 || members.some((member) => member.length === 0)) return undefined;
@@ -134,19 +145,30 @@ export function parseTraceState(value: string | null, maximumLength = 512): stri
 /** Normalize correlation options before memoized asynchronous work can observe caller mutation. @internal */
 function correlationOptions(options: RequestCorrelationOptions): RequestCorrelationOptions {
 	recordCore.assert(options, 'request correlation options');
-	if (options.requestId !== undefined && typeof options.requestId !== 'string' && typeof options.requestId !== 'function') {
+	if (
+		options.requestId !== undefined && typeof options.requestId !== 'string' && typeof options.requestId !== 'function'
+	) {
 		throw new TypeError('requestId must be a string or function when provided.');
 	}
-	if (options.trustRequestId !== undefined && typeof options.trustRequestId !== 'boolean') throw new TypeError('trustRequestId must be a boolean when provided.');
-	if (options.sampled !== undefined && typeof options.sampled !== 'boolean') throw new TypeError('sampled must be a boolean when provided.');
-	if (options.maximumTraceStateLength !== undefined && (!Number.isSafeInteger(options.maximumTraceStateLength) || options.maximumTraceStateLength < 0)) {
+	if (options.trustRequestId !== undefined && typeof options.trustRequestId !== 'boolean') {
+		throw new TypeError('trustRequestId must be a boolean when provided.');
+	}
+	if (options.sampled !== undefined && typeof options.sampled !== 'boolean') {
+		throw new TypeError('sampled must be a boolean when provided.');
+	}
+	if (
+		options.maximumTraceStateLength !== undefined &&
+		(!Number.isSafeInteger(options.maximumTraceStateLength) || options.maximumTraceStateLength < 0)
+	) {
 		throw new TypeError('maximumTraceStateLength must be a non-negative safe integer.');
 	}
 	return Object.freeze({
 		...(options.requestId === undefined ? {} : { requestId: options.requestId }),
 		...(options.trustRequestId === undefined ? {} : { trustRequestId: options.trustRequestId }),
 		...(options.sampled === undefined ? {} : { sampled: options.sampled }),
-		...(options.maximumTraceStateLength === undefined ? {} : { maximumTraceStateLength: options.maximumTraceStateLength }),
+		...(options.maximumTraceStateLength === undefined
+			? {}
+			: { maximumTraceStateLength: options.maximumTraceStateLength }),
 	});
 }
 
@@ -161,9 +183,7 @@ async function establishCorrelation(
 	request: Request,
 	options: RequestCorrelationOptions,
 ): Promise<RequestCorrelation> {
-	const suppliedRequestId = typeof options.requestId === 'function'
-		? options.requestId(request)
-		: options.requestId;
+	const suppliedRequestId = typeof options.requestId === 'function' ? options.requestId(request) : options.requestId;
 	const upstreamRequestId = options.trustRequestId === true ? request.headers.get('x-request-id') : undefined;
 	const resolvedRequestId = requestId(suppliedRequestId ?? upstreamRequestId);
 	const incomingValue = request.headers.get('traceparent');

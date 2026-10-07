@@ -10,8 +10,8 @@ import {
 	create,
 	health,
 	mount,
-	prettyJson,
 	prepareRoutes,
+	prettyJson,
 	ready,
 	requestId,
 	route,
@@ -44,23 +44,26 @@ describe('framework-neutral HTTP host', () => {
 		expect(head.status).toBe(200);
 		expect(head.headers.get('x-probe')).toBe('yes');
 		expect(await head.text()).toBe('');
-		expect(() => create({
-			routes: [
-				route('GET', '/same', () => new Response('first')),
-				route('GET', '/same', () => new Response('second')),
-			],
-		})).toThrow(/Duplicate HTTP route shape/u);
+		expect(() =>
+			create({
+				routes: [
+					route('GET', '/same', () => new Response('first')),
+					route('GET', '/same', () => new Response('second')),
+				],
+			})
+		).toThrow(/Duplicate HTTP route shape/u);
 	});
 
 	it('rejects parameter-name-only route duplicates', () => {
-		expect(() => create({
-			routes: [
-				route('GET', '/items/:id', () => new Response('id')),
-				route('GET', '/items/:slug', () => new Response('slug')),
-			],
-		})).toThrow(/Duplicate HTTP route shape/u);
+		expect(() =>
+			create({
+				routes: [
+					route('GET', '/items/:id', () => new Response('id')),
+					route('GET', '/items/:slug', () => new Response('slug')),
+				],
+			})
+		).toThrow(/Duplicate HTTP route shape/u);
 	});
-
 
 	it('keeps trailing-slash routes distinct so append policy has a reachable target', async () => {
 		const app = create({
@@ -76,7 +79,9 @@ describe('framework-neutral HTTP host', () => {
 	it('cancels a discarded GET body when HEAD uses GET fallback metadata', async () => {
 		let cancelled = false;
 		const body = new ReadableStream<Uint8Array>({
-			cancel() { cancelled = true; },
+			cancel() {
+				cancelled = true;
+			},
 		});
 		const app = create({
 			routes: [route('GET', '/stream', () => new Response(body, { headers: { 'X-Route': 'get' } }))],
@@ -124,12 +129,14 @@ describe('framework-neutral HTTP host', () => {
 			],
 		});
 		expect(await (await app.fetch(new Request('http://localhost/api/admin/users'))).text()).toBe('admin');
-		expect(() => create({
-			routes: [
-				mount('/api', () => new Response('first')),
-				mount('/api', () => new Response('second')),
-			],
-		})).toThrow(/Duplicate HTTP mount path/u);
+		expect(() =>
+			create({
+				routes: [
+					mount('/api', () => new Response('first')),
+					mount('/api', () => new Response('second')),
+				],
+			})
+		).toThrow(/Duplicate HTTP mount path/u);
 	});
 
 	it('binds a compiler-prepared route plan and rejects plan drift', async () => {
@@ -141,23 +148,46 @@ describe('framework-neutral HTTP host', () => {
 		const app = create({ routes, plan });
 		expect(await (await app.fetch(new Request('http://localhost/static'))).text()).toBe('static');
 		expect(await (await app.fetch(new Request('http://localhost/items/1', { method: 'POST' }))).text()).toBe('item');
-		expect(() => create({ routes: [route('GET', '/other', () => new Response('other'))], plan })).toThrow(/bound handler|absent from/u);
+		expect(() => create({ routes: [route('GET', '/other', () => new Response('other'))], plan })).toThrow(
+			/bound handler|absent from/u,
+		);
 	});
 
 	it('strips a mount prefix without changing MCP-style method, headers, query, or body', async () => {
-		const seen: Array<Readonly<{ method: string; path: string; search: string; header: string | null; body: string }>> = [];
+		const seen: Array<Readonly<{ method: string; path: string; search: string; header: string | null; body: string }>> =
+			[];
 		const app = create({
 			routes: [mount('/mcp', async (request) => {
 				const url = new URL(request.url);
 				const body = request.method === 'POST' ? await request.text() : '';
-				seen.push({ method: request.method, path: url.pathname, search: url.search, header: request.headers.get('x-test'), body });
-				if (request.method === 'GET') return new Response('event: ready\n\n', { headers: { 'Content-Type': 'text/event-stream' } });
+				seen.push({
+					method: request.method,
+					path: url.pathname,
+					search: url.search,
+					header: request.headers.get('x-test'),
+					body,
+				});
+				if (request.method === 'GET') {
+					return new Response('event: ready\n\n', { headers: { 'Content-Type': 'text/event-stream' } });
+				}
 				return new Response(null, { status: 204 });
 			}, { requestPath: 'strip-prefix' })],
 		});
-		await app.fetch(new Request('http://localhost/mcp/messages?session=abc', { method: 'POST', headers: { 'X-Test': 'yes' }, body: 'payload' }));
-		const stream = await app.fetch(new Request('http://localhost/mcp/events?session=abc', { headers: { Accept: 'text/event-stream', 'X-Test': 'sse' } }));
-		await app.fetch(new Request('http://localhost/mcp/session?session=abc', { method: 'DELETE', headers: { 'X-Test': 'delete' } }));
+		await app.fetch(
+			new Request('http://localhost/mcp/messages?session=abc', {
+				method: 'POST',
+				headers: { 'X-Test': 'yes' },
+				body: 'payload',
+			}),
+		);
+		const stream = await app.fetch(
+			new Request('http://localhost/mcp/events?session=abc', {
+				headers: { Accept: 'text/event-stream', 'X-Test': 'sse' },
+			}),
+		);
+		await app.fetch(
+			new Request('http://localhost/mcp/session?session=abc', { method: 'DELETE', headers: { 'X-Test': 'delete' } }),
+		);
 		expect(stream.headers.get('content-type')).toContain('text/event-stream');
 		expect(seen).toEqual([
 			{ method: 'POST', path: '/messages', search: '?session=abc', header: 'yes', body: 'payload' },
@@ -195,8 +225,14 @@ describe('framework-neutral HTTP host', () => {
 	it('catches unexpected values and returns a safe RFC 9457 problem', async () => {
 		let observed: Error | undefined;
 		const handler = compose(
-			() => { throw new Error('database password leaked'); },
-			[catchErrors({ onError(error) { observed = error; } })],
+			() => {
+				throw new Error('database password leaked');
+			},
+			[catchErrors({
+				onError(error) {
+					observed = error;
+				},
+			})],
 		);
 		const result = await handler(new Request('http://localhost/fault'));
 		expect(result.status).toBe(500);
@@ -212,10 +248,16 @@ describe('framework-neutral HTTP host', () => {
 	it('keeps the safe fallback when a custom error mapper also fails', async () => {
 		let observed: Error | undefined;
 		const handler = compose(
-			() => { throw new Error('operation failed'); },
+			() => {
+				throw new Error('operation failed');
+			},
 			[catchErrors({
-				map() { throw new Error('mapper failed'); },
-				onError(error) { observed = error; },
+				map() {
+					throw new Error('mapper failed');
+				},
+				onError(error) {
+					observed = error;
+				},
 			})],
 		);
 		const result = await handler(new Request('http://localhost/fault'));
@@ -243,7 +285,10 @@ describe('framework-neutral HTTP host', () => {
 		const options = Object.create(null) as Parameters<typeof securityHeaders>[0];
 		Object.defineProperty(options, 'xFrameOptions', {
 			enumerable: true,
-			get() { reads += 1; return 'DENY'; },
+			get() {
+				reads += 1;
+				return 'DENY';
+			},
 		});
 		expect(() => securityHeaders(options)).toThrow('enumerable data property');
 		expect(reads).toBe(0);
@@ -262,7 +307,10 @@ describe('framework-neutral HTTP host', () => {
 		Object.defineProperty(methods, '0', {
 			configurable: true,
 			enumerable: true,
-			get() { reads += 1; return 'GET'; },
+			get() {
+				reads += 1;
+				return 'GET';
+			},
 		});
 		methods.length = 1;
 		expect(() => cors({ allowMethods: methods })).toThrow('dense string data elements');
@@ -272,26 +320,30 @@ describe('framework-neutral HTTP host', () => {
 		const middleware = cors(options);
 		options.allowMethods.push('POST');
 		const handler = compose(() => new Response('ok'), [middleware]);
-		const response = await handler(new Request('http://localhost/api', {
-			method: 'OPTIONS',
-			headers: {
-				Origin: 'https://app.example',
-				'Access-Control-Request-Method': 'POST',
-			},
-		}));
+		const response = await handler(
+			new Request('http://localhost/api', {
+				method: 'OPTIONS',
+				headers: {
+					Origin: 'https://app.example',
+					'Access-Control-Request-Method': 'POST',
+				},
+			}),
+		);
 		expect(response.headers.get('access-control-allow-methods')).toBe('GET');
 	});
 
 	it('completes CORS preflight and reflects requested headers', async () => {
 		const handler = compose(() => new Response('should not run'), [cors({ origin: ['https://app.example'] })]);
-		const result = await handler(new Request('http://localhost/api', {
-			method: 'OPTIONS',
-			headers: {
-				Origin: 'https://app.example',
-				'Access-Control-Request-Method': 'POST',
-				'Access-Control-Request-Headers': 'content-type, x-request-id',
-			},
-		}));
+		const result = await handler(
+			new Request('http://localhost/api', {
+				method: 'OPTIONS',
+				headers: {
+					Origin: 'https://app.example',
+					'Access-Control-Request-Method': 'POST',
+					'Access-Control-Request-Headers': 'content-type, x-request-id',
+				},
+			}),
+		);
 		expect(result.status).toBe(204);
 		expect(result.headers.get('access-control-allow-origin')).toBe('https://app.example');
 		expect(result.headers.get('access-control-allow-headers')).toBe('content-type, x-request-id');
@@ -303,9 +355,11 @@ describe('framework-neutral HTTP host', () => {
 		expect(() => cors({ maxAge: -1 })).toThrow(/non-negative safe integer/u);
 		const dynamic = cors({ credentials: true, origin: () => '*' });
 		const handler = compose(() => new Response('ok'), [dynamic]);
-		await expect(handler(new Request('http://localhost/', {
-			headers: { Origin: 'https://app.example' },
-		}))).rejects.toThrow(/origin resolver returned a wildcard/u);
+		await expect(handler(
+			new Request('http://localhost/', {
+				headers: { Origin: 'https://app.example' },
+			}),
+		)).rejects.toThrow(/origin resolver returned a wildcard/u);
 	});
 
 	it('merges Origin into an existing Vary field', async () => {
@@ -318,10 +372,11 @@ describe('framework-neutral HTTP host', () => {
 	});
 
 	it('propagates one request ID through a replaced POST request and response', async () => {
-		const handler = compose(async (request) => new Response(JSON.stringify({
-			id: request.headers.get('x-request-id'),
-			body: await request.text(),
-		})), [requestId({ generate: () => 'request-123' })]);
+		const handler = compose(async (request) =>
+			new Response(JSON.stringify({
+				id: request.headers.get('x-request-id'),
+				body: await request.text(),
+			})), [requestId({ generate: () => 'request-123' })]);
 		const result = await handler(new Request('http://localhost/echo', { method: 'POST', body: 'hello' }));
 		expect(result.headers.get('x-request-id')).toBe('request-123');
 		expect(await result.json()).toEqual({ id: 'request-123', body: 'hello' });
@@ -331,12 +386,16 @@ describe('framework-neutral HTTP host', () => {
 		const replaced = compose((request) => new Response(request.headers.get('x-request-id')), [
 			requestId({ generate: () => 'gateway-owned' }),
 		]);
-		expect(await (await replaced(new Request('http://localhost/', { headers: { 'X-Request-ID': 'client-owned' } }))).text()).toBe('gateway-owned');
+		expect(
+			await (await replaced(new Request('http://localhost/', { headers: { 'X-Request-ID': 'client-owned' } }))).text(),
+		).toBe('gateway-owned');
 
 		const trusted = compose((request) => new Response(request.headers.get('x-request-id')), [
 			requestId({ trustIncoming: true, generate: () => 'gateway-owned' }),
 		]);
-		expect(await (await trusted(new Request('http://localhost/', { headers: { 'X-Request-ID': 'client-owned' } }))).text()).toBe('client-owned');
+		expect(
+			await (await trusted(new Request('http://localhost/', { headers: { 'X-Request-ID': 'client-owned' } }))).text(),
+		).toBe('client-owned');
 	});
 
 	it('validates caller-generated request IDs before forwarding them', async () => {
@@ -350,7 +409,9 @@ describe('framework-neutral HTTP host', () => {
 	it('establishes one memoized correlation value without selecting a tracing provider', async () => {
 		let traceId: string | undefined;
 		const handler = compose(() => new Response('ok'), [correlation({
-			async observe(value) { traceId = value.traceId; },
+			async observe(value) {
+				traceId = value.traceId;
+			},
 		})]);
 		const request = new Request('http://localhost/');
 		await handler(request);
@@ -401,11 +462,17 @@ describe('framework-neutral HTTP host', () => {
 		const healthResponse = await alive(new Request('http://localhost/health'));
 		const readyResponse = await waiting(new Request('http://localhost/ready'));
 		expect(await healthResponse.json()).toEqual({
-			status: 'ok', service: 'smoke', timestamp: '2026-08-19T22:00:05.000Z', uptimeMs: 5000,
+			status: 'ok',
+			service: 'smoke',
+			timestamp: '2026-08-19T22:00:05.000Z',
+			uptimeMs: 5000,
 		});
 		expect(readyResponse.status).toBe(503);
 		expect(await readyResponse.json()).toEqual({
-			status: 'not-ready', service: 'smoke', detail: 'database unavailable', checks: { database: false },
+			status: 'not-ready',
+			service: 'smoke',
+			detail: 'database unavailable',
+			checks: { database: false },
 		});
 	});
 
@@ -418,7 +485,10 @@ describe('framework-neutral HTTP host', () => {
 		const set = Object.create(null) as Record<string, string>;
 		Object.defineProperty(set, 'X-Test', {
 			enumerable: true,
-			get() { reads += 1; return 'bad'; },
+			get() {
+				reads += 1;
+				return 'bad';
+			},
 		});
 		expect(() => withHeaders(new Response('ok'), set)).toThrow('enumerable data property');
 		expect(reads).toBe(0);
@@ -427,7 +497,10 @@ describe('framework-neutral HTTP host', () => {
 		Object.defineProperty(remove, '0', {
 			configurable: true,
 			enumerable: true,
-			get() { reads += 1; return 'X-Old'; },
+			get() {
+				reads += 1;
+				return 'X-Old';
+			},
 		});
 		remove.length = 1;
 		expect(() => withHeaders(new Response('ok'), {}, remove)).toThrow('dense string data elements');

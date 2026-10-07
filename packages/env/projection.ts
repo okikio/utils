@@ -37,17 +37,19 @@ export function example(definition: EnvironmentDefinition): string {
 	const fields = [...projection.variables, ...projection.secrets]
 		.toSorted((left, right) => left.key.localeCompare(right.key));
 
-	return `${fields.map((field) => {
-		const comments = [
-			field.title,
-			field.description,
-			field.documentationUrl ? `Documentation: ${field.documentationUrl}` : undefined,
-		].filter((value): value is string => Boolean(value))
-			.flatMap((value) => value.split('\n'))
-			.map((line) => `# ${line}`).join('\n');
-		const value = field.kind === 'secret' ? '<secret>' : field.example ?? '';
-		return `${comments}\n${field.key}=${value}`;
-	}).join('\n\n')}\n`;
+	return `${
+		fields.map((field) => {
+			const comments = [
+				field.title,
+				field.description,
+				field.documentationUrl ? `Documentation: ${field.documentationUrl}` : undefined,
+			].filter((value): value is string => Boolean(value))
+				.flatMap((value) => value.split('\n'))
+				.map((line) => `# ${line}`).join('\n');
+			const value = field.kind === 'secret' ? '<secret>' : field.example ?? '';
+			return `${comments}\n${field.key}=${value}`;
+		}).join('\n\n')
+	}\n`;
 }
 
 /**

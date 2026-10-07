@@ -16,23 +16,23 @@
  *
  * @module
  */
-export { create, available, snapshot, acquire } from './admission.ts';
-export { CapacityExceededError, unit, field, constraint, define, compose, check, assert } from './standard.ts';
+export { acquire, available, create, snapshot } from './admission.ts';
+export { assert, CapacityExceededError, check, compose, constraint, define, field, unit } from './standard.ts';
 export type {
-	MergeFields,
-	CapacityUnit,
-	CapacityField,
-	CapacityFields,
-	CapacityValues,
-	CapacityConstraint,
-	CapacityDefinition,
-	CapacityStatusType,
-	ConstraintResult,
-	CheckResult,
-	AdmissionLimits,
-	AdmissionRequest,
 	Admission,
 	AdmissionCancellation,
-	AdmissionSnapshot,
 	AdmissionLease,
+	AdmissionLimits,
+	AdmissionRequest,
+	AdmissionSnapshot,
+	CapacityConstraint,
+	CapacityDefinition,
+	CapacityField,
+	CapacityFields,
+	CapacityStatusType,
+	CapacityUnit,
+	CapacityValues,
+	CheckResult,
+	ConstraintResult,
+	MergeFields,
 } from './standard.ts';

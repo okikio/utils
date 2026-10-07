@@ -84,15 +84,17 @@ export async function* mapPooledOrdered<T, R>(input: {
 				inputDone = true;
 				break;
 			}
-			pending.push(Promise.resolve()
-				.then(() => input.map(next.value, { signal }))
-				.then<Settled, Settled>(
-					(value) => ({ ok: true, value }),
-					(error): Settled => {
-						if (!operationController.signal.aborted) operationController.abort(error);
-						return { ok: false, error };
-					},
-				));
+			pending.push(
+				Promise.resolve()
+					.then(() => input.map(next.value, { signal }))
+					.then<Settled, Settled>(
+						(value) => ({ ok: true, value }),
+						(error): Settled => {
+							if (!operationController.signal.aborted) operationController.abort(error);
+							return { ok: false, error };
+						},
+					),
+			);
 		}
 	};
 
@@ -169,7 +171,9 @@ export async function* mapPooledUnordered<T, R>(input: {
 						await completions.send({ value }, { signal });
 					} else {
 						let acknowledge!: () => void;
-						const acknowledged = new Promise<void>((resolve) => { acknowledge = resolve; });
+						const acknowledged = new Promise<void>((resolve) => {
+							acknowledge = resolve;
+						});
 						await completions.send({ value, acknowledge }, { signal });
 						await waitForAcknowledgement(acknowledged, signal);
 					}
@@ -212,7 +216,9 @@ export async function* mapPooledUnordered<T, R>(input: {
 }
 
 function waitForAcknowledgement(acknowledged: Promise<void>, signal: AbortSignal): Promise<void> {
-	if (signal.aborted) return Promise.reject(signal.reason ?? new DOMException('The pooled operation was aborted.', 'AbortError'));
+	if (signal.aborted) {
+		return Promise.reject(signal.reason ?? new DOMException('The pooled operation was aborted.', 'AbortError'));
+	}
 	return new Promise<void>((resolve, reject) => {
 		const onAbort = () => {
 			signal.removeEventListener('abort', onAbort);

@@ -110,32 +110,39 @@ export class ActivityJobs implements AsyncDisposable {
 	): Promise<ActivityAttemptResultType> {
 		this.#assertOpen();
 		const activity = command.activity;
-		const item = Object.freeze({
-			activityId: activity.id,
-			activityVersion: activity.version,
-			input: durable.snapshot(command.input, 'activity item input'),
-			origin: Object.freeze({
-				workflowId: ctx.workflow.id,
-				workflowVersion: ctx.version,
-				runId: ctx.runId,
-				instructionPath: path,
-				instructionFingerprint: fingerprint,
-			}),
-			context: context.snapshot(ctx),
-			...(command.options.affinity === undefined ? {} : {
-				affinity: freezeAffinity(command.options.affinity, 'activity item affinity'),
-			}),
-			placement: Object.freeze(activity.placement.choices.map((choice) => Object.freeze({
-				engine: choice.engine.id,
-				mode: choice.mode,
-			}))),
-		} satisfies ActivityJobType);
+		const item = Object.freeze(
+			{
+				activityId: activity.id,
+				activityVersion: activity.version,
+				input: durable.snapshot(command.input, 'activity item input'),
+				origin: Object.freeze({
+					workflowId: ctx.workflow.id,
+					workflowVersion: ctx.version,
+					runId: ctx.runId,
+					instructionPath: path,
+					instructionFingerprint: fingerprint,
+				}),
+				context: context.snapshot(ctx),
+				...(command.options.affinity === undefined ? {} : {
+					affinity: freezeAffinity(command.options.affinity, 'activity item affinity'),
+				}),
+				placement: Object.freeze(activity.placement.choices.map((choice) =>
+					Object.freeze({
+						engine: choice.engine.id,
+						mode: choice.mode,
+					})
+				)),
+			} satisfies ActivityJobType,
+		);
 		const ref = await this.#dispatch.add(ctx, item, { key: `${ctx.runId}:${fingerprint}` });
 		try {
 			return await decode(await this.#dispatch.result(ctx, ref), activity);
 		} catch (error) {
 			if (!context.cancelled(error) && !ctx.signal.aborted) throw error;
-			const reason = durable.value(faultCore.encode(ctx.signal.aborted ? ctx.signal.reason : error), 'activity cancellation');
+			const reason = durable.value(
+				faultCore.encode(ctx.signal.aborted ? ctx.signal.reason : error),
+				'activity cancellation',
+			);
 			await this.#dispatch.cancel(this.#control, ref, reason);
 			return Object.freeze({ type: 'cancelled', reason: durable.restore(reason) });
 		}
@@ -149,13 +156,19 @@ export class ActivityJobs implements AsyncDisposable {
 		this.#closePromise = (async () => {
 			const errors: unknown[] = [];
 			for (const executor of [...this.#executors]) {
-				try { await executor[Symbol.asyncDispose](); }
-				catch (error) { errors.push(error); }
+				try {
+					await executor[Symbol.asyncDispose]();
+				} catch (error) {
+					errors.push(error);
+				}
 			}
 			this.#executors.clear();
 			if (this.#disposeDispatch) {
-				try { await this.#dispatch.close(reason); }
-				catch (error) { errors.push(error); }
+				try {
+					await this.#dispatch.close(reason);
+				} catch (error) {
+					errors.push(error);
+				}
 			}
 			await this.#control[Symbol.asyncDispose]();
 			if (errors.length > 0) throw new AggregateError(errors, 'Activity job shutdown failed.');
@@ -229,29 +242,51 @@ class ExecutorRuntime {
 			: context.child(options.ctx, { id: `executor:${options.engine.id}:${options.hostId}` });
 		this.#claimCtx = context.child(this.#control, { id: `${this.#control.id}:claims` });
 		const owner = this;
-		this.#registration = Object.freeze({
-			get id() { return owner.#requiredLease().id; },
-			get engine() { return owner.#engine; },
-			get hostId() { return owner.#hostId; },
-			get generation() { return owner.#requiredLease().generation; },
-			get protocolVersion() { return owner.#protocolVersion; },
-			get affinity() { return owner.#affinity; },
-			get compute() { return owner.#compute; },
-			get activities() { return owner.#provider.activities; },
-			get capacity() {
-				return Object.freeze({
-					maximum: owner.#capacity,
-					active: owner.#active.size,
-					available: Math.max(0, owner.#capacity - owner.#active.size),
-				});
-			},
-			get leaseUntil() { return owner.#requiredLease().expiresAt; },
-			get draining() { return owner.#draining || owner.#closed; },
-			renew: (duration) => owner.#renewExecutor(duration),
-			resize: (capacity) => owner.#resize(capacity),
-			drain: () => owner.#drain(),
-			[Symbol.asyncDispose]: () => owner.#close(),
-		} satisfies EngineRegistration);
+		this.#registration = Object.freeze(
+			{
+				get id() {
+					return owner.#requiredLease().id;
+				},
+				get engine() {
+					return owner.#engine;
+				},
+				get hostId() {
+					return owner.#hostId;
+				},
+				get generation() {
+					return owner.#requiredLease().generation;
+				},
+				get protocolVersion() {
+					return owner.#protocolVersion;
+				},
+				get affinity() {
+					return owner.#affinity;
+				},
+				get compute() {
+					return owner.#compute;
+				},
+				get activities() {
+					return owner.#provider.activities;
+				},
+				get capacity() {
+					return Object.freeze({
+						maximum: owner.#capacity,
+						active: owner.#active.size,
+						available: Math.max(0, owner.#capacity - owner.#active.size),
+					});
+				},
+				get leaseUntil() {
+					return owner.#requiredLease().expiresAt;
+				},
+				get draining() {
+					return owner.#draining || owner.#closed;
+				},
+				renew: (duration) => owner.#renewExecutor(duration),
+				resize: (capacity) => owner.#resize(capacity),
+				drain: () => owner.#drain(),
+				[Symbol.asyncDispose]: () => owner.#close(),
+			} satisfies EngineRegistration,
+		);
 	}
 
 	get registration(): EngineRegistration {
@@ -262,10 +297,12 @@ class ExecutorRuntime {
 		this.#lease = await this.#dispatch.join(this.#control, {
 			engineId: this.#engine.id,
 			hostId: this.#hostId,
-			activities: Object.freeze(this.#provider.activities.map((activity) => Object.freeze({
-				id: activity.id,
-				version: activity.version,
-			}))),
+			activities: Object.freeze(this.#provider.activities.map((activity) =>
+				Object.freeze({
+					id: activity.id,
+					version: activity.version,
+				})
+			)),
 			capacity: this.#capacity,
 			...(this.#affinity === undefined ? {} : { affinity: this.#affinity }),
 			...(this.#compute === undefined ? {} : { compute: this.#compute }),
@@ -315,17 +352,29 @@ class ExecutorRuntime {
 			candidate.id === claim.value.activityId && candidate.version === claim.value.activityVersion
 		);
 		if (activity === undefined) {
-			await this.#commit(claim, Object.freeze({
-				type: 'fault',
-				fault: durable.value(
-					faultCore.encode(new Error(`Executor cannot resolve activity ${JSON.stringify(`${claim.value.activityId}@${claim.value.activityVersion}`)}.`)),
-					'activity fault',
-				),
-			}));
+			await this.#commit(
+				claim,
+				Object.freeze({
+					type: 'fault',
+					fault: durable.value(
+						faultCore.encode(
+							new Error(
+								`Executor cannot resolve activity ${
+									JSON.stringify(`${claim.value.activityId}@${claim.value.activityVersion}`)
+								}.`,
+							),
+						),
+						'activity fault',
+					),
+				}),
+			);
 			return;
 		}
 
-		await using restored = context.restore(claim.value.context, { signal: this.#control.signal, clock: this.#control.clock });
+		await using restored = context.restore(claim.value.context, {
+			signal: this.#control.signal,
+			clock: this.#control.clock,
+		});
 		const timeout = activity.resilience.find((entry): entry is TimeoutPolicy => entry.type === 'timeout');
 		const deadline = timeout === undefined ? undefined : this.#control.clock.now().add(timeout.duration);
 		await using attemptCtx = context.child(restored, {
@@ -334,18 +383,21 @@ class ExecutorRuntime {
 		});
 		const attempt = this.#attempt(claim, attemptCtx);
 		let renewal = Promise.resolve();
-		const control = Object.freeze({
-			heartbeat: async () => {
-				context.check(attemptCtx);
-				renewal = renewal.then(async () => {
-					claim = await this.#dispatch.renew(this.#control, claim, this.#claimDuration);
-				});
-				await renewal;
-			},
-		} satisfies ActivityAttemptControl);
+		const control = Object.freeze(
+			{
+				heartbeat: async () => {
+					context.check(attemptCtx);
+					renewal = renewal.then(async () => {
+						claim = await this.#dispatch.renew(this.#control, claim, this.#claimDuration);
+					});
+					await renewal;
+				},
+			} satisfies ActivityAttemptControl,
+		);
 		const cancel = (): void => {
-			try { void this.#provider.cancel?.(attempt, attemptCtx.signal.reason); }
-			catch { /* The attempt lease remains authoritative. */ }
+			try {
+				void this.#provider.cancel?.(attempt, attemptCtx.signal.reason);
+			} catch { /* The attempt lease remains authoritative. */ }
 		};
 		attemptCtx.signal.addEventListener('abort', cancel, { once: true });
 
@@ -378,7 +430,10 @@ class ExecutorRuntime {
 					if (retryFault(activity, claim.attempt)) {
 						await this.#dispatch.retry(this.#control, claim, { delay: delay(activity, claim.attempt, claim.itemId) });
 					} else {
-						await this.#commit(claim, Object.freeze({ type: 'fault', fault: durable.value(faultCore.encode(error), 'activity fault') }));
+						await this.#commit(
+							claim,
+							Object.freeze({ type: 'fault', fault: durable.value(faultCore.encode(error), 'activity fault') }),
+						);
 					}
 				}
 				return;
@@ -393,10 +448,13 @@ class ExecutorRuntime {
 				return;
 			}
 			if (result.type === 'cancelled') {
-				await this.#commit(claim, Object.freeze({
-					type: 'cancelled',
-					reason: durable.value(faultCore.encode(result.reason), 'activity cancellation'),
-				}));
+				await this.#commit(
+					claim,
+					Object.freeze({
+						type: 'cancelled',
+						reason: durable.value(faultCore.encode(result.reason), 'activity cancellation'),
+					}),
+				);
 				return;
 			}
 			if (retryFault(activity, claim.attempt)) {
@@ -405,10 +463,17 @@ class ExecutorRuntime {
 			}
 			const reason = result.type === 'failure'
 				? new TypeError(`Activity ${JSON.stringify(activity.id)} returned an undeclared failure.`)
-				: result.type === 'lost' ? result.reason : result.fault;
-			await this.#commit(claim, Object.freeze({ type: 'fault', fault: durable.value(faultCore.encode(reason), 'activity fault') }));
+				: result.type === 'lost'
+				? result.reason
+				: result.fault;
+			await this.#commit(
+				claim,
+				Object.freeze({ type: 'fault', fault: durable.value(faultCore.encode(reason), 'activity fault') }),
+			);
 		} catch (error) {
-			if (!(error instanceof dispatch.StaleActivityClaimError) && !(error instanceof dispatch.StaleExecutorError)) throw error;
+			if (!(error instanceof dispatch.StaleActivityClaimError) && !(error instanceof dispatch.StaleExecutorError)) {
+				throw error;
+			}
 		}
 	}
 
@@ -437,9 +502,12 @@ class ExecutorRuntime {
 
 	async #renewLease(): Promise<void> {
 		if (this.#closed || this.#draining || this.#lease === undefined) return;
-		try { this.#lease = await this.#dispatch.renewExecutor(this.#control, this.#lease, this.#registrationDuration); }
-		catch (error) {
-			if (!(error instanceof dispatch.StaleExecutorError) && !(error instanceof dispatch.DispatchClosedError)) this.#fault = error;
+		try {
+			this.#lease = await this.#dispatch.renewExecutor(this.#control, this.#lease, this.#registrationDuration);
+		} catch (error) {
+			if (!(error instanceof dispatch.StaleExecutorError) && !(error instanceof dispatch.DispatchClosedError)) {
+				this.#fault = error;
+			}
 			this.#draining = true;
 			context.cancel(this.#control, error);
 		}
@@ -471,17 +539,26 @@ class ExecutorRuntime {
 		this.#closed = true;
 		if (this.#renewal !== undefined) clearInterval(this.#renewal);
 		const errors: unknown[] = [];
-		try { await this.#drain(); }
-		catch (error) {
-			if (!(error instanceof dispatch.StaleExecutorError) && !(error instanceof dispatch.DispatchClosedError)) errors.push(error);
+		try {
+			await this.#drain();
+		} catch (error) {
+			if (!(error instanceof dispatch.StaleExecutorError) && !(error instanceof dispatch.DispatchClosedError)) {
+				errors.push(error);
+			}
 		}
-		try { await this.#dispatch.leave(this.#control, this.#requiredLease()); }
-		catch (error) {
-			if (!(error instanceof dispatch.StaleExecutorError) && !(error instanceof dispatch.DispatchClosedError)) errors.push(error);
+		try {
+			await this.#dispatch.leave(this.#control, this.#requiredLease());
+		} catch (error) {
+			if (!(error instanceof dispatch.StaleExecutorError) && !(error instanceof dispatch.DispatchClosedError)) {
+				errors.push(error);
+			}
 		}
 		if (this.#disposeProvider) {
-			try { await this.#provider.dispose?.(); }
-			catch (error) { errors.push(error); }
+			try {
+				await this.#provider.dispose?.();
+			} catch (error) {
+				errors.push(error);
+			}
 		}
 		await this.#control[Symbol.asyncDispose]();
 		if (this.#fault !== undefined) errors.push(this.#fault);
@@ -541,7 +618,11 @@ function retryFailure(activity: ActivityReference, value: unknown, attempt: numb
 function delay(activity: ActivityReference, failedAttempt: number, seed: string): Temporal.Duration {
 	const policy = retryPolicy(activity.resilience);
 	if (policy === undefined) return Temporal.Duration.from('PT0S');
-	return retryDelay(policy, failedAttempt, policy.jitter ? { jitter: retry.unit(`${seed}:${failedAttempt}`) } : undefined);
+	return retryDelay(
+		policy,
+		failedAttempt,
+		policy.jitter ? { jitter: retry.unit(`${seed}:${failedAttempt}`) } : undefined,
+	);
 }
 
 /** Extract an expected-failure identity without importing an activity implementation package. */
@@ -572,19 +653,27 @@ function normalizeProvider(provider: EngineProvider, disposeProvider: boolean): 
 	if (typeof provider !== 'object' || provider === null) throw new TypeError('Engine provider must be an object.');
 	const activities = snapshotActivities(dataProperty(provider, 'activities', 'Engine provider activities'));
 	const run = methodProperty<EngineProvider['run']>(provider, 'run', 'Engine provider run');
-	const cancel = optionalMethodProperty<NonNullable<EngineProvider['cancel']>>(provider, 'cancel', 'Engine provider cancel');
+	const cancel = optionalMethodProperty<NonNullable<EngineProvider['cancel']>>(
+		provider,
+		'cancel',
+		'Engine provider cancel',
+	);
 	const dispose = disposeProvider ? providerDisposer(provider) : undefined;
-	return Object.freeze({
-		activities,
-		run: (ctx, attempt, control) => run.call(provider, ctx, attempt, control),
-		...(cancel === undefined ? {} : { cancel: (attempt, reason) => cancel.call(provider, attempt, reason) }),
-		...(dispose === undefined ? {} : { dispose }),
-	} satisfies ProviderRuntime);
+	return Object.freeze(
+		{
+			activities,
+			run: (ctx, attempt, control) => run.call(provider, ctx, attempt, control),
+			...(cancel === undefined ? {} : { cancel: (attempt, reason) => cancel.call(provider, attempt, reason) }),
+			...(dispose === undefined ? {} : { dispose }),
+		} satisfies ProviderRuntime,
+	);
 }
 
 /** Snapshot the provider's advertised activity membership without executing array accessors. */
 function snapshotActivities(value: unknown): readonly ActivityReference[] {
-	if (!Array.isArray(value) || value.length === 0) throw new TypeError('Engine provider must advertise at least one activity definition.');
+	if (!Array.isArray(value) || value.length === 0) {
+		throw new TypeError('Engine provider must advertise at least one activity definition.');
+	}
 	const descriptors = Object.getOwnPropertyDescriptors(value);
 	const activities: ActivityReference[] = [];
 	for (let index = 0; index < value.length; index += 1) {
@@ -593,7 +682,9 @@ function snapshotActivities(value: unknown): readonly ActivityReference[] {
 			throw new TypeError('Engine provider activities must be a dense data array without accessors.');
 		}
 		const activity = descriptor.value;
-		if (typeof activity !== 'object' || activity === null || (activity as { readonly kind?: unknown }).kind !== 'activity') {
+		if (
+			typeof activity !== 'object' || activity === null || (activity as { readonly kind?: unknown }).kind !== 'activity'
+		) {
 			throw new TypeError(`Engine provider activity at index ${index} must be an activity definition.`);
 		}
 		activities.push(activity as ActivityReference);
@@ -613,7 +704,11 @@ function dataProperty(value: object, key: PropertyKey, name: string): unknown {
 }
 
 /** Read one required provider method without executing accessors. */
-function methodProperty<Method extends (...args: never[]) => unknown>(value: object, key: PropertyKey, name: string): Method {
+function methodProperty<Method extends (...args: never[]) => unknown>(
+	value: object,
+	key: PropertyKey,
+	name: string,
+): Method {
 	const method = dataProperty(value, key, name);
 	if (typeof method !== 'function') throw new TypeError(`${name} must be a function.`);
 	return method as Method;
@@ -633,7 +728,11 @@ function optionalMethodProperty<Method extends (...args: never[]) => unknown>(
 
 /** Capture a provider's disposal method only when ownership transfers. */
 function providerDisposer(provider: EngineProvider): (() => void | Promise<void>) | undefined {
-	const asyncDispose = optionalMethodProperty<() => Promise<void>>(provider, Symbol.asyncDispose, 'Engine provider asyncDispose');
+	const asyncDispose = optionalMethodProperty<() => Promise<void>>(
+		provider,
+		Symbol.asyncDispose,
+		'Engine provider asyncDispose',
+	);
 	if (asyncDispose !== undefined) return () => asyncDispose.call(provider);
 	const dispose = optionalMethodProperty<() => void>(provider, Symbol.dispose, 'Engine provider dispose');
 	return dispose === undefined ? undefined : () => dispose.call(provider);

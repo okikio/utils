@@ -78,12 +78,18 @@ describe('HTTP problem', () => {
 	it('requires exhaustive problem behavior registrations before invoking them', () => {
 		const Problems = problem.catalog('coverage', {
 			First: problem.define({
-				id: 'coverage:first', type: 'https://api.example.invalid/problems/coverage-first', status: 400,
-				title: 'First coverage problem', description: 'First problem used by the coverage test.',
+				id: 'coverage:first',
+				type: 'https://api.example.invalid/problems/coverage-first',
+				status: 400,
+				title: 'First coverage problem',
+				description: 'First problem used by the coverage test.',
 			}),
 			Second: problem.define({
-				id: 'coverage:second', type: 'https://api.example.invalid/problems/coverage-second', status: 409,
-				title: 'Second coverage problem', description: 'Second problem used by the coverage test.',
+				id: 'coverage:second',
+				type: 'https://api.example.invalid/problems/coverage-second',
+				status: 409,
+				title: 'Second coverage problem',
+				description: 'Second problem used by the coverage test.',
 			}),
 		});
 		const registered: string[] = [];
@@ -99,13 +105,24 @@ describe('HTTP problem', () => {
 	});
 
 	it('rejects invalid definitions and canonical extension collisions', () => {
-		expect(() => problem.define({
-			id: 'invalid', type: '/relative', status: 400, title: 'Invalid', description: 'Invalid URI.',
-		})).toThrow(TypeError);
-		expect(() => problem.define({
-			id: 'invalid', type: 'https://api.example.invalid/problems/invalid', status: 200,
-			title: 'Invalid', description: 'Invalid status.',
-		})).toThrow(TypeError);
+		expect(() =>
+			problem.define({
+				id: 'invalid',
+				type: '/relative',
+				status: 400,
+				title: 'Invalid',
+				description: 'Invalid URI.',
+			})
+		).toThrow(TypeError);
+		expect(() =>
+			problem.define({
+				id: 'invalid',
+				type: 'https://api.example.invalid/problems/invalid',
+				status: 200,
+				title: 'Invalid',
+				description: 'Invalid status.',
+			})
+		).toThrow(TypeError);
 	});
 	it('resolves stable problem URLs below a caller-owned namespace', () => {
 		expect(problem.url('https://problems.example.invalid/v1', 'widget-not-found'))
@@ -116,5 +133,4 @@ describe('HTTP problem', () => {
 		expect(types('not-found')).toBe('https://problems.example.invalid/v1/not-found');
 		expect(types('/invalid-input')).toBe('https://problems.example.invalid/v1/invalid-input');
 	});
-
 });

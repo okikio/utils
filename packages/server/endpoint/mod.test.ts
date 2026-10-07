@@ -6,23 +6,38 @@ import * as response from '@okikio/http/response';
 import * as problem from '@okikio/http/problem';
 import * as endpoint from './mod.ts';
 
-function schema<Output>(jsonSchema: Readonly<Record<string, unknown>>, validate: (value: unknown) => Output): StandardSchemaV1<unknown, Output> & StandardJSONSchemaV1<unknown, Output> {
+function schema<Output>(
+	jsonSchema: Readonly<Record<string, unknown>>,
+	validate: (value: unknown) => Output,
+): StandardSchemaV1<unknown, Output> & StandardJSONSchemaV1<unknown, Output> {
 	return {
 		'~standard': {
 			version: 1,
 			vendor: 'test',
 			validate(value) {
-				try { return { value: validate(value) }; }
-				catch (error) { return { issues: [{ message: error instanceof Error ? error.message : String(error) }] }; }
+				try {
+					return { value: validate(value) };
+				} catch (error) {
+					return { issues: [{ message: error instanceof Error ? error.message : String(error) }] };
+				}
 			},
 			jsonSchema: { input: () => jsonSchema, output: () => jsonSchema },
 		},
 	};
 }
 
-const Path = schema({ type: 'object', properties: { widgetId: { type: 'string' } }, required: ['widgetId'] }, (value) => value as { widgetId: string });
-const Query = schema({ type: 'object', properties: { include: { type: 'array', items: { type: 'string' } } } }, (value) => value as { include?: string[] });
-const Widget = schema({ type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }, (value) => value as { id: string });
+const Path = schema(
+	{ type: 'object', properties: { widgetId: { type: 'string' } }, required: ['widgetId'] },
+	(value) => value as { widgetId: string },
+);
+const Query = schema(
+	{ type: 'object', properties: { include: { type: 'array', items: { type: 'string' } } } },
+	(value) => value as { include?: string[] },
+);
+const Widget = schema(
+	{ type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+	(value) => value as { id: string },
+);
 const Detail = response.ok(Widget, { id: 'widgets:detail', description: 'Widget detail.' });
 const NotFound = problem.define({
 	id: 'widgets:not-found',
@@ -49,8 +64,14 @@ const WidgetById = endpoint.define({
 describe('endpoint definitions and handlers', () => {
 	it('binds operations by direct identity and requires exhaustive multi-method maps', () => {
 		const Update = endpoint.operation.patch({ id: 'widgets.update', json: Widget, responses: [Detail] });
-		const definition = endpoint.define({ id: 'widgets.item', path: '/:widgetId', param: Path, operations: [GetWidget, Update] });
-		expect(() => endpoint.handler(definition, { get: async () => response.create(Detail, { id: 'a' }) } as never)).toThrow(TypeError);
+		const definition = endpoint.define({
+			id: 'widgets.item',
+			path: '/:widgetId',
+			param: Path,
+			operations: [GetWidget, Update],
+		});
+		expect(() => endpoint.handler(definition, { get: async () => response.create(Detail, { id: 'a' }) } as never))
+			.toThrow(TypeError);
 		const handlers = endpoint.handler(definition, {
 			get: async () => response.create(Detail, { id: 'a' }),
 			patch: async () => response.create(Detail, { id: 'b' }),
@@ -79,10 +100,16 @@ describe('endpoint definitions and handlers', () => {
 
 	it('keeps wire input distinct from transformed handler input', () => {
 		const Transformed: StandardSchemaV1<{ readonly amount: string }, { readonly amount: number }> = {
-			'~standard': { version: 1, vendor: 'transform-test', validate(value) {
-				if (typeof value !== 'object' || value === null || typeof (value as { amount?: unknown }).amount !== 'string') return { issues: [{ message: 'amount must be a string' }] };
-				return { value: { amount: Number((value as { amount: string }).amount) } };
-			} },
+			'~standard': {
+				version: 1,
+				vendor: 'transform-test',
+				validate(value) {
+					if (
+						typeof value !== 'object' || value === null || typeof (value as { amount?: unknown }).amount !== 'string'
+					) return { issues: [{ message: 'amount must be a string' }] };
+					return { value: { amount: Number((value as { amount: string }).amount) } };
+				},
+			},
 		};
 		type Slots = Readonly<{ readonly json: typeof Transformed }>;
 		const wire: endpoint.InferEndpointWireInputs<Slots> = { json: { amount: '42' } };
@@ -94,7 +121,13 @@ describe('endpoint definitions and handlers', () => {
 	it('rejects accessor-backed endpoint authoring without invoking getters', () => {
 		let reads = 0;
 		const definition = Object.create(null) as Record<string, unknown>;
-		Object.defineProperty(definition, 'id', { enumerable: true, get() { reads++; return 'unsafe'; } });
+		Object.defineProperty(definition, 'id', {
+			enumerable: true,
+			get() {
+				reads++;
+				return 'unsafe';
+			},
+		});
 		Object.defineProperty(definition, 'path', { value: '/unsafe', enumerable: true });
 		Object.defineProperty(definition, 'operations', { value: [GetWidget], enumerable: true });
 		expect(() => endpoint.define(definition as never)).toThrow('enumerable data property');
@@ -103,11 +136,25 @@ describe('endpoint definitions and handlers', () => {
 
 	it('rejects accessor-backed handler maps without invoking handlers during classification', () => {
 		const Update = endpoint.operation.patch({ id: 'widgets.safe-map-update', json: Widget, responses: [Detail] });
-		const definition = endpoint.define({ id: 'widgets.safe-map', path: '/:widgetId', param: Path, operations: [GetWidget, Update] });
+		const definition = endpoint.define({
+			id: 'widgets.safe-map',
+			path: '/:widgetId',
+			param: Path,
+			operations: [GetWidget, Update],
+		});
 		let reads = 0;
 		const handles = Object.create(null) as Record<string, unknown>;
-		Object.defineProperty(handles, 'get', { enumerable: true, get() { reads++; return async () => response.create(Detail, { id: 'a' }); } });
-		Object.defineProperty(handles, 'patch', { value: async () => response.create(Detail, { id: 'b' }), enumerable: true });
+		Object.defineProperty(handles, 'get', {
+			enumerable: true,
+			get() {
+				reads++;
+				return async () => response.create(Detail, { id: 'a' });
+			},
+		});
+		Object.defineProperty(handles, 'patch', {
+			value: async () => response.create(Detail, { id: 'b' }),
+			enumerable: true,
+		});
 		expect(() => endpoint.handler(definition, handles as never)).toThrow('exhaustive method map');
 		expect(reads).toBe(0);
 	});
@@ -121,15 +168,21 @@ describe('endpoint definitions and handlers', () => {
 	});
 
 	it('rejects conflicting body inputs and path templates without param contracts', () => {
-		expect(() => endpoint.post({ id: 'widgets.invalid', path: '/', json: Widget, raw: Widget, responses: [Detail] })).toThrow(TypeError);
-		expect(() => endpoint.define({ id: 'widgets.invalid-path', path: '/:widgetId', operations: [GetWidget] })).toThrow(TypeError);
+		expect(() => endpoint.post({ id: 'widgets.invalid', path: '/', json: Widget, raw: Widget, responses: [Detail] }))
+			.toThrow(TypeError);
+		expect(() => endpoint.define({ id: 'widgets.invalid-path', path: '/:widgetId', operations: [GetWidget] })).toThrow(
+			TypeError,
+		);
 	});
 
 	it('requires canonical endpoint paths at definition time', () => {
-		expect(() => endpoint.get({ id: 'widgets.double-slash', path: '//widgets', responses: [Detail] })).toThrow('empty path segments');
-		expect(() => endpoint.get({ id: 'widgets.trailing-slash', path: '/widgets/', responses: [Detail] })).toThrow('must not end with /');
+		expect(() => endpoint.get({ id: 'widgets.double-slash', path: '//widgets', responses: [Detail] })).toThrow(
+			'empty path segments',
+		);
+		expect(() => endpoint.get({ id: 'widgets.trailing-slash', path: '/widgets/', responses: [Detail] })).toThrow(
+			'must not end with /',
+		);
 	});
-
 
 	it('promotes a single-method route parameter schema to the path contract', () => {
 		const endpointDefinition = endpoint.get({
@@ -158,9 +211,11 @@ describe('endpoint definitions and handlers', () => {
 		const result = endpoint.validate([first, second]);
 		expect(result.valid).toBe(false);
 		if (!result.valid) {
-			expect(result.issues.some((issue) =>
-				issue.code === 'duplicate-operation-id' && issue.message.includes('one endpoint path owner')
-			)).toBe(true);
+			expect(
+				result.issues.some((issue) =>
+					issue.code === 'duplicate-operation-id' && issue.message.includes('one endpoint path owner')
+				),
+			).toBe(true);
 		}
 	});
 
@@ -193,16 +248,24 @@ describe('endpoint definitions and handlers', () => {
 		expect(operation.operationId).toBe('getWidget');
 		expect(operation.parameters).toEqual([
 			{ in: 'path', name: 'widgetId', required: true, schema: { type: 'string' } },
-			{ in: 'query', name: 'include', required: false, schema: { type: 'array', items: { type: 'string' } }, style: 'form', explode: true },
+			{
+				in: 'query',
+				name: 'include',
+				required: false,
+				schema: { type: 'array', items: { type: 'string' } },
+				style: 'form',
+				explode: true,
+			},
 		]);
 		const responses = operation.responses as Record<string, unknown>;
 		expect(Object.keys(responses)).toEqual(['200', '404']);
 	});
 
-
-
 	it('documents a declared raw body independently of runtime parsing', async () => {
-		const Raw = endpoint.input(Widget, { contentType: 'application/vnd.example.signed+json', description: 'Signed exact bytes.' });
+		const Raw = endpoint.input(Widget, {
+			contentType: 'application/vnd.example.signed+json',
+			description: 'Signed exact bytes.',
+		});
 		const Receive = endpoint.post({ id: 'webhooks.receive', path: '/webhooks', raw: Raw, responses: [Detail] });
 		const document = await endpoint.openapi(Receive, { title: 'Webhooks', version: '1' });
 		const operation = document.paths['/webhooks']?.post as Readonly<Record<string, unknown>>;
@@ -215,7 +278,13 @@ describe('endpoint definitions and handlers', () => {
 	it('rejects accessor-backed OpenAPI options without invoking getters', async () => {
 		let reads = 0;
 		const options = Object.create(null) as Record<string, unknown>;
-		Object.defineProperty(options, 'title', { enumerable: true, get() { reads++; return 'Unsafe'; } });
+		Object.defineProperty(options, 'title', {
+			enumerable: true,
+			get() {
+				reads++;
+				return 'Unsafe';
+			},
+		});
 		Object.defineProperty(options, 'version', { value: '1', enumerable: true });
 		await expect(endpoint.openapi(WidgetById, options as never)).rejects.toThrow('enumerable data property');
 		expect(reads).toBe(0);
@@ -227,7 +296,13 @@ describe('endpoint definitions and handlers', () => {
 		const UnsafeRoute = endpoint.get({ id: 'unsafe-schema.get', path: '/unsafe-schema', responses: [UnsafeOutput] });
 		let reads = 0;
 		const accessor = Object.create(null) as Record<string, unknown>;
-		Object.defineProperty(accessor, 'type', { enumerable: true, get() { reads++; return 'string'; } });
+		Object.defineProperty(accessor, 'type', {
+			enumerable: true,
+			get() {
+				reads++;
+				return 'string';
+			},
+		});
 		await expect(endpoint.openapi(UnsafeRoute, { title: 'Unsafe', version: '1', schemaProjector: () => accessor }))
 			.rejects.toThrow('data property');
 		expect(reads).toBe(0);
@@ -265,7 +340,9 @@ describe('endpoint definitions and handlers', () => {
 		const responses = operation.responses as Readonly<Record<string, Readonly<Record<string, unknown>>>>;
 		const content = responses['200']?.content as Readonly<Record<string, Readonly<Record<string, unknown>>>>;
 		expect(content['application/json']?.schema).toEqual({
-			type: 'object', properties: { id: { type: 'string' } }, required: ['id'],
+			type: 'object',
+			properties: { id: { type: 'string' } },
+			required: ['id'],
 		});
 		expect(purposes).toEqual(['request', 'response']);
 		expect(document.servers).toEqual([{ url: 'https://api.example.com', description: 'Production' }]);
@@ -292,7 +369,10 @@ describe('endpoint definitions and handlers', () => {
 		type OperationDocument = Readonly<{ responses: Readonly<Record<string, OpenApiResponse>> }>;
 		const page = (document.paths['/widgets']?.get as OperationDocument).responses['200']!;
 		const pageSchema = page.content['application/json']!.schema as PageSchema;
-		expect(pageSchema.properties.data).toEqual({ type: 'array', items: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } });
+		expect(pageSchema.properties.data).toEqual({
+			type: 'array',
+			items: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+		});
 		expect(pageSchema.properties.meta.properties.pagination.properties.total).toEqual({ type: 'integer', minimum: 0 });
 		expect(pageSchema.properties.links.properties.next).toEqual({ type: 'string', format: 'uri-reference' });
 		const html = (document.paths['/widgets.html']?.get as OperationDocument).responses['200']!;
@@ -310,8 +390,18 @@ describe('endpoint definitions and handlers', () => {
 	});
 
 	it('rejects path schemas that do not exactly match the route template', async () => {
-		const WrongPath = schema({ type: 'object', properties: { id: { type: 'string' } }, required: ['id'] }, (value) => value as { id: string });
-		const wrong = endpoint.define({ id: 'widgets.wrong', path: '/:widgetId', param: WrongPath, operations: [GetWidget] });
-		await expect(endpoint.openapi(wrong, { title: 'Wrong', version: '1' })).rejects.toThrow('does not match the route template');
+		const WrongPath = schema(
+			{ type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+			(value) => value as { id: string },
+		);
+		const wrong = endpoint.define({
+			id: 'widgets.wrong',
+			path: '/:widgetId',
+			param: WrongPath,
+			operations: [GetWidget],
+		});
+		await expect(endpoint.openapi(wrong, { title: 'Wrong', version: '1' })).rejects.toThrow(
+			'does not match the route template',
+		);
 	});
 });

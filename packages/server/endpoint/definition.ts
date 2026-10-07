@@ -8,10 +8,12 @@ import { joinPath, normalizePathTemplate, pathParameters } from './path.ts';
 import type { ProblemDefinition } from '@okikio/http/problem';
 
 import type {
+	DefinedEndpointOperation,
 	EndpointCompositionInput,
 	EndpointDefinition,
-	EndpointResourceDefinition,
 	EndpointDefinitionInput,
+	EndpointDefinitionProblems,
+	EndpointDefinitionResources,
 	EndpointDocument,
 	EndpointEntry,
 	EndpointGroup,
@@ -25,12 +27,10 @@ import type {
 	EndpointMethod,
 	EndpointOperation,
 	EndpointOperationDocument,
-	DefinedEndpointOperation,
 	EndpointOperationInput,
 	EndpointOperationProblems,
 	EndpointOperationResources,
-	EndpointDefinitionProblems,
-	EndpointDefinitionResources,
+	EndpointResourceDefinition,
 	EndpointSchema,
 	EndpointValidationIssue,
 	EndpointValidationResult,
@@ -38,24 +38,28 @@ import type {
 	SingleMethodEndpointInput,
 } from './types.ts';
 
-const inputSources = Object.freeze([
-	'param',
-	'query',
-	'header',
-	'cookie',
-	'json',
-	'form',
-	'raw',
-] as const satisfies readonly EndpointInputSource[]);
-const methods = Object.freeze([
-	'get',
-	'post',
-	'put',
-	'patch',
-	'delete',
-	'options',
-	'head',
-] as const satisfies readonly EndpointMethod[]);
+const inputSources = Object.freeze(
+	[
+		'param',
+		'query',
+		'header',
+		'cookie',
+		'json',
+		'form',
+		'raw',
+	] as const satisfies readonly EndpointInputSource[],
+);
+const methods = Object.freeze(
+	[
+		'get',
+		'post',
+		'put',
+		'patch',
+		'delete',
+		'options',
+		'head',
+	] as const satisfies readonly EndpointMethod[],
+);
 
 /** Add transport documentation to a first-class Standard Schema value. */
 export function input<const Schema extends EndpointSchema>(
@@ -318,26 +322,36 @@ export function validate(input: EndpointCompositionInput): EndpointValidationRes
 			issues.push(issue('duplicate-id', `Endpoint ID ${JSON.stringify(endpoint.id)} is duplicated.`, endpoint));
 		}
 		endpointIds.set(endpoint.id, endpoint);
-		if (endpoint.operations.length === 0) issues.push(issue('missing-operation', `Endpoint ${endpoint.id} has no operations.`, endpoint));
+		if (endpoint.operations.length === 0) {
+			issues.push(issue('missing-operation', `Endpoint ${endpoint.id} has no operations.`, endpoint));
+		}
 		if (pathParameters(fullPath).length > 0 && endpoint.inputs.param === undefined) {
-			issues.push(issue('missing-path-schema', `Endpoint ${endpoint.id} has route parameters but no param schema.`, endpoint));
+			issues.push(
+				issue('missing-path-schema', `Endpoint ${endpoint.id} has route parameters but no param schema.`, endpoint),
+			);
 		}
 		const seenMethods = new Set<EndpointMethod>();
 		for (const operation of endpoint.operations) {
 			if (seenMethods.has(operation.method)) {
-				issues.push(issue('duplicate-method', `${endpoint.id} defines ${operation.method.toUpperCase()} twice.`, operation));
+				issues.push(
+					issue('duplicate-method', `${endpoint.id} defines ${operation.method.toUpperCase()} twice.`, operation),
+				);
 			}
 			seenMethods.add(operation.method);
 			const operationOwner = operationIds.get(operation.id);
 			if (operationOwner && operationOwner !== operation) {
-				issues.push(issue('duplicate-operation-id', `Operation ID ${JSON.stringify(operation.id)} is duplicated.`, operation));
+				issues.push(
+					issue('duplicate-operation-id', `Operation ID ${JSON.stringify(operation.id)} is duplicated.`, operation),
+				);
 			}
 			operationIds.set(operation.id, operation);
 			const owningEndpoint = operationEndpoints.get(operation);
 			if (owningEndpoint && owningEndpoint !== endpoint) {
 				issues.push(issue(
 					'duplicate-operation-id',
-					`Operation ${JSON.stringify(operation.id)} is attached to both ${JSON.stringify(owningEndpoint.id)} and ${JSON.stringify(endpoint.id)}. Each imported operation must have one endpoint path owner.`,
+					`Operation ${JSON.stringify(operation.id)} is attached to both ${JSON.stringify(owningEndpoint.id)} and ${
+						JSON.stringify(endpoint.id)
+					}. Each imported operation must have one endpoint path owner.`,
 					operation,
 				));
 			}
@@ -359,7 +373,9 @@ export function validate(input: EndpointCompositionInput): EndpointValidationRes
 			const routeKey = `${operation.method} ${normalizePathTemplate(fullPath)}`;
 			const routeOwner = routeOwners.get(routeKey);
 			if (routeOwner && routeOwner !== endpoint) {
-				issues.push(issue('ambiguous-route', `${routeKey} is owned by both ${routeOwner.id} and ${endpoint.id}.`, endpoint));
+				issues.push(
+					issue('ambiguous-route', `${routeKey} is owned by both ${routeOwner.id} and ${endpoint.id}.`, endpoint),
+				);
 			}
 			routeOwners.set(routeKey, endpoint);
 		}
@@ -378,25 +394,31 @@ export function document(input: EndpointCompositionInput): readonly EndpointDocu
 			id: endpoint.id,
 			path: fullPath,
 			groupIds: Object.freeze(groups.map((item) => item.id)),
-			operations: Object.freeze(endpoint.operations.map((operation): EndpointOperationDocument => Object.freeze({
-				id: operation.id,
-				method: operation.method,
-				operationId: operation.operationId,
-				...(operation.summary !== undefined ? { summary: operation.summary } : {}),
-				...(operation.description !== undefined ? { description: operation.description } : {}),
-				tags: operation.tags ?? Object.freeze([]),
-				deprecated: operation.deprecated ?? false,
-				internal: operation.internal ?? false,
-				inputs: Object.freeze(inputSources.filter((source) => operation.inputs[source] !== undefined || endpoint.inputs[source] !== undefined)),
-				responses: contributionIds(operation.responses),
-				problems: Object.freeze([...contributionIds(endpoint.problems), ...contributionIds(operation.problems)]),
-				resources: Object.freeze([...contributionIds(endpoint.resources), ...contributionIds(operation.resources)]),
-				effects: Object.freeze([
-					...groups.flatMap((group) => contributionIds(group.effects)),
-					...contributionIds(endpoint.effects),
-					...contributionIds(operation.effects),
-				]),
-			}))),
+			operations: Object.freeze(endpoint.operations.map((operation): EndpointOperationDocument =>
+				Object.freeze({
+					id: operation.id,
+					method: operation.method,
+					operationId: operation.operationId,
+					...(operation.summary !== undefined ? { summary: operation.summary } : {}),
+					...(operation.description !== undefined ? { description: operation.description } : {}),
+					tags: operation.tags ?? Object.freeze([]),
+					deprecated: operation.deprecated ?? false,
+					internal: operation.internal ?? false,
+					inputs: Object.freeze(inputSources.filter((source) =>
+						operation.inputs[source] !== undefined || endpoint.inputs[source] !== undefined
+					)),
+					responses: contributionIds(operation.responses),
+					problems: Object.freeze([...contributionIds(endpoint.problems), ...contributionIds(operation.problems)]),
+					resources: Object.freeze([...contributionIds(endpoint.resources), ...contributionIds(operation.resources)]),
+					effects: Object.freeze([
+						...groups.flatMap((group) =>
+							contributionIds(group.effects)
+						),
+						...contributionIds(endpoint.effects),
+						...contributionIds(operation.effects),
+					]),
+				})
+			)),
 		}));
 	});
 	return Object.freeze(documents);
@@ -427,8 +449,9 @@ function bindMethod<const Method extends EndpointMethod>(method: Method) {
 
 /** Path-independent operation constructors. */
 export const operation = Object.freeze({
-	define: <const Method extends EndpointMethod, const Input extends EndpointOperationInput>(definition: Input & { readonly method: Method }) =>
-		defineOperation(definition.method, definition),
+	define: <const Method extends EndpointMethod, const Input extends EndpointOperationInput>(
+		definition: Input & { readonly method: Method },
+	) => defineOperation(definition.method, definition),
 	get: bindMethod('get'),
 	post: bindMethod('post'),
 	put: bindMethod('put'),
@@ -500,7 +523,18 @@ function pickInputs<Input extends EndpointInputSlots>(definition: Input): PickEn
 function pickContributions(definition: object): EndpointContributionsRecord {
 	const source = definition as Readonly<Record<PropertyKey, unknown>>;
 	const result: EndpointContributionsRecord = {};
-	for (const key of ['middleware', 'authentication', 'requirements', 'effects', 'resources', 'problems', 'responses', 'resiliency'] as const) {
+	for (
+		const key of [
+			'middleware',
+			'authentication',
+			'requirements',
+			'effects',
+			'resources',
+			'problems',
+			'responses',
+			'resiliency',
+		] as const
+	) {
 		const value = source[key];
 		if (value === undefined) continue;
 		if (key === 'resiliency') {
@@ -559,11 +593,25 @@ function validateBody(operation: EndpointOperation, issues: EndpointValidationIs
 	const inputs = operation.inputs;
 	const bodySources = [inputs.json, inputs.form, inputs.raw].filter((value) => value !== undefined).length;
 	if (bodySources > 1) {
-		issues.push(issue('raw-body-conflict', `${operation.id} declares more than one body input mode (json, form, or raw).`, operation));
+		issues.push(
+			issue(
+				'raw-body-conflict',
+				`${operation.id} declares more than one body input mode (json, form, or raw).`,
+				operation,
+			),
+		);
 	}
-	if ((operation.method === 'get' || operation.method === 'head') &&
-		(inputs.raw !== undefined || inputs.json !== undefined || inputs.form !== undefined)) {
-		issues.push(issue('body-method-conflict', `${operation.method.toUpperCase()} operation ${operation.id} cannot declare a body.`, operation));
+	if (
+		(operation.method === 'get' || operation.method === 'head') &&
+		(inputs.raw !== undefined || inputs.json !== undefined || inputs.form !== undefined)
+	) {
+		issues.push(
+			issue(
+				'body-method-conflict',
+				`${operation.method.toUpperCase()} operation ${operation.id} cannot declare a body.`,
+				operation,
+			),
+		);
 	}
 }
 
@@ -574,7 +622,18 @@ function validateBody(operation: EndpointOperation, issues: EndpointValidationIs
  */
 function assertBodyCompatibility(method: EndpointMethod, inputs: EndpointInputSlots): void {
 	const issues: EndpointValidationIssue[] = [];
-	validateBody({ id: 'operation', kind: 'endpoint-operation', description: '', method, operationId: '', inputs, rawResponse: false } as EndpointOperation, issues);
+	validateBody(
+		{
+			id: 'operation',
+			kind: 'endpoint-operation',
+			description: '',
+			method,
+			operationId: '',
+			inputs,
+			rawResponse: false,
+		} as EndpointOperation,
+		issues,
+	);
 	if (issues.length > 0) throw new TypeError(issues[0]!.message);
 }
 
@@ -591,7 +650,6 @@ function contributionIds(value: unknown): readonly string[] {
 		return Object.freeze([]);
 	}
 }
-
 
 /**
  * Derives a stable camel-case OpenAPI operation ID from the endpoint method and route identity.
@@ -668,9 +726,15 @@ function assertId(id: string, label: string): void {
  */
 function assertPath(path: string): void {
 	if (!path.startsWith('/')) throw new TypeError(`Endpoint path ${JSON.stringify(path)} must begin with /.`);
-	if (path.includes('?') || path.includes('#')) throw new TypeError('Endpoint paths cannot contain query strings or fragments.');
-	if (path.includes('//')) throw new TypeError(`Endpoint path ${JSON.stringify(path)} must not contain empty path segments.`);
-	if (path.length > 1 && path.endsWith('/')) throw new TypeError(`Endpoint path ${JSON.stringify(path)} must not end with /.`);
+	if (path.includes('?') || path.includes('#')) {
+		throw new TypeError('Endpoint paths cannot contain query strings or fragments.');
+	}
+	if (path.includes('//')) {
+		throw new TypeError(`Endpoint path ${JSON.stringify(path)} must not contain empty path segments.`);
+	}
+	if (path.length > 1 && path.endsWith('/')) {
+		throw new TypeError(`Endpoint path ${JSON.stringify(path)} must not end with /.`);
+	}
 }
 
 /**

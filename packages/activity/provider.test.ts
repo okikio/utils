@@ -23,8 +23,11 @@ function contract<Output>(validate: (value: unknown) => Output): StandardSchemaV
 			version: 1,
 			vendor: 'activity-provider-test',
 			validate(value: unknown) {
-				try { return { value: validate(value) }; }
-				catch (error) { return { issues: [{ message: error instanceof Error ? error.message : String(error) }] }; }
+				try {
+					return { value: validate(value) };
+				} catch (error) {
+					return { issues: [{ message: error instanceof Error ? error.message : String(error) }] };
+				}
 			},
 		}),
 	});
@@ -96,7 +99,13 @@ const SaveLive = activity.implement(Save, {
 function resources(ctx: context.Owned): Readonly<{ collection: resource.ResourceCollection; values: string[] }> {
 	const values: string[] = [];
 	const StoreLive = resource.implement(Store, {
-		create() { return Object.freeze({ async save(value: string) { values.push(value); } }); },
+		create() {
+			return Object.freeze({
+				async save(value: string) {
+					values.push(value);
+				},
+			});
+		},
 	});
 	return Object.freeze({ collection: resource.create(resource.implementations(StoreLive), { ctx, host: {} }), values });
 }
@@ -139,10 +148,14 @@ function services() {
 		},
 	};
 	const emitter: effect.EffectEmitter = {
-		async emit(_ctx, occurrence) { effects.push(occurrence); },
+		async emit(_ctx, occurrence) {
+			effects.push(occurrence);
+		},
 	};
 	const control: ActivityAttemptControl = {
-		async heartbeat(value) { heartbeats.push(value); },
+		async heartbeat(value) {
+			heartbeats.push(value);
+		},
 	};
 	return { checker, emitter, control, permissions, effects, heartbeats };
 }
@@ -187,19 +200,31 @@ class PairedWorker implements RawWorker {
 	readonly scope: PairedScope;
 	terminated = false;
 
-	constructor() { this.scope = new PairedScope(this); }
-	postMessage(message: unknown): void { queueMicrotask(() => this.scope.receive(message)); }
-	terminate(): void { this.terminated = true; }
+	constructor() {
+		this.scope = new PairedScope(this);
+	}
+	postMessage(message: unknown): void {
+		queueMicrotask(() => this.scope.receive(message));
+	}
+	terminate(): void {
+		this.terminated = true;
+	}
 	addEventListener(type: 'message', listener: (event: MessageEvent<unknown>) => void): void;
 	addEventListener(type: 'error', listener: (event: ErrorEvent) => void): void;
 	addEventListener(type: 'messageerror', listener: (event: MessageEvent<unknown>) => void): void;
-	addEventListener(type: keyof PairedWorker['listeners'], listener: ((event: MessageEvent<unknown>) => void) | ((event: ErrorEvent) => void)): void {
+	addEventListener(
+		type: keyof PairedWorker['listeners'],
+		listener: ((event: MessageEvent<unknown>) => void) | ((event: ErrorEvent) => void),
+	): void {
 		(this.listeners[type] as Set<typeof listener>).add(listener);
 	}
 	removeEventListener(type: 'message', listener: (event: MessageEvent<unknown>) => void): void;
 	removeEventListener(type: 'error', listener: (event: ErrorEvent) => void): void;
 	removeEventListener(type: 'messageerror', listener: (event: MessageEvent<unknown>) => void): void;
-	removeEventListener(type: keyof PairedWorker['listeners'], listener: ((event: MessageEvent<unknown>) => void) | ((event: ErrorEvent) => void)): void {
+	removeEventListener(
+		type: keyof PairedWorker['listeners'],
+		listener: ((event: MessageEvent<unknown>) => void) | ((event: ErrorEvent) => void),
+	): void {
 		(this.listeners[type] as Set<typeof listener>).delete(listener);
 	}
 	/** Delivers one Worker-side frame back to the parent request owner. */
@@ -215,9 +240,15 @@ class PairedScope implements RawWorkerScope {
 		messageerror: new Set<(event: MessageEvent<unknown>) => void>(),
 	};
 	constructor(readonly parent: PairedWorker) {}
-	postMessage(message: unknown): void { queueMicrotask(() => this.parent.receive(message)); }
-	addEventListener(type: 'message' | 'messageerror', listener: (event: MessageEvent<unknown>) => void): void { this.listeners[type].add(listener); }
-	removeEventListener(type: 'message' | 'messageerror', listener: (event: MessageEvent<unknown>) => void): void { this.listeners[type].delete(listener); }
+	postMessage(message: unknown): void {
+		queueMicrotask(() => this.parent.receive(message));
+	}
+	addEventListener(type: 'message' | 'messageerror', listener: (event: MessageEvent<unknown>) => void): void {
+		this.listeners[type].add(listener);
+	}
+	removeEventListener(type: 'message' | 'messageerror', listener: (event: MessageEvent<unknown>) => void): void {
+		this.listeners[type].delete(listener);
+	}
 	/** Delivers one parent-side frame to every Worker server listener. */
 	receive(message: unknown): void {
 		for (const listener of this.listeners.message) listener(new MessageEvent('message', { data: message }));
@@ -250,7 +281,9 @@ class PairedProcessAdapter implements ProcessAdapter {
 		this.servers.push(server);
 
 		let settle!: (status: StatusType) => void;
-		const status = new Promise<StatusType>((resolve) => { settle = resolve; });
+		const status = new Promise<StatusType>((resolve) => {
+			settle = resolve;
+		});
 		let stopped = false;
 		const pid = ++this.#pid;
 		return Object.freeze({
@@ -261,9 +294,17 @@ class PairedProcessAdapter implements ProcessAdapter {
 			kill(signal: SignalType) {
 				if (stopped) return;
 				stopped = true;
-				settle(Object.freeze({ code: signal === 'SIGKILL' ? 137 : 0, success: signal !== 'SIGKILL', signal: String(signal) }));
+				settle(
+					Object.freeze({
+						code: signal === 'SIGKILL' ? 137 : 0,
+						success: signal !== 'SIGKILL',
+						signal: String(signal),
+					}),
+				);
 			},
-			isGone() { return stopped; },
+			isGone() {
+				return stopped;
+			},
 		});
 	}
 

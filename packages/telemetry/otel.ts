@@ -60,9 +60,11 @@ function valid(value: OpenTelemetrySpanContext): boolean {
 
 /** Reject malformed host adapters at the optional adapter seam. @internal */
 function assertApi(api: OpenTelemetryApi): void {
-	if (api === null || typeof api !== 'object' || api.context === null || typeof api.context !== 'object' ||
+	if (
+		api === null || typeof api !== 'object' || api.context === null || typeof api.context !== 'object' ||
 		typeof api.context.active !== 'function' || api.trace === null || typeof api.trace !== 'object' ||
-		typeof api.trace.getSpan !== 'function') {
+		typeof api.trace.getSpan !== 'function'
+	) {
 		throw new TypeError('OpenTelemetry adapter requires context.active() and trace.getSpan().');
 	}
 }

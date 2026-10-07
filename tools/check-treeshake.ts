@@ -11,17 +11,39 @@ import { build } from 'tsdown';
 const root = new URL('../', import.meta.url);
 const rootPath = root.pathname;
 const treeShakeCases = [
-	{ name: 'result-named', leaf: 'packages/result/mod.ts', umbrella: 'packages/utils/result.ts', source: 'import { ok } from SOURCE; console.log(ok);' },
-	{ name: 'result-namespace', leaf: 'packages/result/mod.ts', umbrella: 'packages/utils/result.ts', source: 'import * as value from SOURCE; console.log(value.ok);' },
-	{ name: 'http-request', leaf: 'packages/http/request/mod.ts', umbrella: 'packages/utils/http/request.ts', source: 'import { parseQuery } from SOURCE; console.log(parseQuery);' },
-	{ name: 'server-router', leaf: 'packages/server/http/mod.ts', umbrella: 'packages/utils/server/http.ts', source: 'import { prepareRoutes } from SOURCE; console.log(prepareRoutes);' },
+	{
+		name: 'result-named',
+		leaf: 'packages/result/mod.ts',
+		umbrella: 'packages/utils/result.ts',
+		source: 'import { ok } from SOURCE; console.log(ok);',
+	},
+	{
+		name: 'result-namespace',
+		leaf: 'packages/result/mod.ts',
+		umbrella: 'packages/utils/result.ts',
+		source: 'import * as value from SOURCE; console.log(value.ok);',
+	},
+	{
+		name: 'http-request',
+		leaf: 'packages/http/request/mod.ts',
+		umbrella: 'packages/utils/http/request.ts',
+		source: 'import { parseQuery } from SOURCE; console.log(parseQuery);',
+	},
+	{
+		name: 'server-router',
+		leaf: 'packages/server/http/mod.ts',
+		umbrella: 'packages/utils/server/http.ts',
+		source: 'import { prepareRoutes } from SOURCE; console.log(prepareRoutes);',
+	},
 ] as const;
 
 for (const item of treeShakeCases) {
 	const leaf = await bundleBytes(`${item.name}-leaf`, source(item.source, item.leaf));
 	const umbrella = await bundleBytes(`${item.name}-umbrella`, source(item.source, item.umbrella));
 	const overhead = umbrella - leaf;
-	if (overhead > 32) throw new Error(`${item.name}: umbrella adds ${overhead} bytes (${umbrella} vs ${leaf}); expected <= 32.`);
+	if (overhead > 32) {
+		throw new Error(`${item.name}: umbrella adds ${overhead} bytes (${umbrella} vs ${leaf}); expected <= 32.`);
+	}
 	console.log(`${item.name}: leaf=${leaf} umbrella=${umbrella} overhead=${overhead}`);
 }
 

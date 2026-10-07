@@ -1,10 +1,10 @@
-`@okikio/server/gateway`
-=======================
+# `@okikio/server/gateway`
 
-Import-driven edge routing and forwarding derived from import-safe service
-definitions. Compiled service manifests are optional drift checks, not route
-discovery inputs. Gateway definitions do not copy service path strings and do
-not own application requirement interpretation or domain validation. A gateway may authenticate a caller or add a signed assertion when its policy declares that edge behavior, but service-level permission, entitlement, meter, quota, consent, and future requirement families remain service-owned extensions.
+Import-driven edge routing and forwarding derived from import-safe service definitions. Compiled service manifests are
+optional drift checks, not route discovery inputs. Gateway definitions do not copy service path strings and do not own
+application requirement interpretation or domain validation. A gateway may authenticate a caller or add a signed
+assertion when its policy declares that edge behavior, but service-level permission, entitlement, meter, quota, consent,
+and future requirement families remain service-owned extensions.
 
 ```text
 import-safe service route
@@ -17,54 +17,50 @@ import-safe service route
   -> response policy and completion observation
 ```
 
-Definition
-----------
+## Definition
 
 ```ts
 const DashboardCredentials = gateway.credentials({
-  requestCookies: 'preserve',
-  requestAuthorization: 'strip',
-  responseCookies: 'preserve',
+	requestCookies: 'preserve',
+	requestAuthorization: 'strip',
+	responseCookies: 'preserve',
 });
 
 const DashboardPolicy = gateway.policy({
-  id: 'dashboard',
-  endpoints: [DashboardApi],
-  bodyLimit: 5_000_000,
-  timeout: Temporal.Duration.from({ seconds: 30 }),
-  cache: gateway.noStore(),
-  credentials: DashboardCredentials,
-  redirects: gateway.redirects({ mode: 'rewrite-origin' }),
+	id: 'dashboard',
+	endpoints: [DashboardApi],
+	bodyLimit: 5_000_000,
+	timeout: Temporal.Duration.from({ seconds: 30 }),
+	cache: gateway.noStore(),
+	credentials: DashboardCredentials,
+	redirects: gateway.redirects({ mode: 'rewrite-origin' }),
 });
 
 const PublicGateway = gateway.define({
-  id: 'public',
-  services: [
-    gateway.mount(DashboardService, {
-      origin: DashboardOrigin,
-    }),
-  ],
-  policies: [DashboardPolicy],
+	id: 'public',
+	services: [
+		gateway.mount(DashboardService, {
+			origin: DashboardOrigin,
+		}),
+	],
+	policies: [DashboardPolicy],
 });
 ```
 
-The compiler resolves exact method/path ownership directly from the mounted
-service definitions, then resolves origins, policy conflicts, credential
-treatment, redirect behavior, observers, and manifests before a runtime is
-created. Hosts may additionally pass compiled service manifests to
-`gateway.compile()` when deployment validation should reject definition/runtime
-drift. The manifests never become the route source of truth.
+The compiler resolves exact method/path ownership directly from the mounted service definitions, then resolves origins,
+policy conflicts, credential treatment, redirect behavior, observers, and manifests before a runtime is created. Hosts
+may additionally pass compiled service manifests to `gateway.compile()` when deployment validation should reject
+definition/runtime drift. The manifests never become the route source of truth.
 
-Host ownership
---------------
+## Host ownership
 
 A mount is **route metadata**, not service startup. `gateway.mount(Service, {
-origin })` reads an import-safe service definition so compilation can determine
-which upstream owns each method/path. It does not instantiate that service,
-open its resources, spawn a process, or bind its origin.
+origin })` reads an import-safe service
+definition so compilation can determine which upstream owns each method/path. It does not instantiate that service, open
+its resources, spawn a process, or bind its origin.
 
-`gateway.create()` returns one Fetch-compatible handler. The surrounding host
-owns the listener and its restart lifecycle:
+`gateway.create()` returns one Fetch-compatible handler. The surrounding host owns the listener and its restart
+lifecycle:
 
 ```text
 service definition --import--> gateway.compile()
@@ -78,13 +74,11 @@ service definition --import--> gateway.compile()
                  transport host owns socket
 ```
 
-For example, a Deno application can export the handler to `deno serve`; Deno
-then owns the TCP listener. Adding `Deno.serve()`, `Deno.listen()`, or a process
-supervisor inside this package would create competing transport ownership and
-is intentionally outside the gateway contract.
+For example, a Deno application can export the handler to `deno serve`; Deno then owns the TCP listener. Adding
+`Deno.serve()`, `Deno.listen()`, or a process supervisor inside this package would create competing transport ownership
+and is intentionally outside the gateway contract.
 
-Secure defaults
----------------
+## Secure defaults
 
 Unless an imported policy says otherwise, the gateway strips:
 
@@ -95,57 +89,45 @@ Unless an imported policy says otherwise, the gateway strips:
 - caller-supplied `Forwarded`, `X-Forwarded-*`, and `X-Real-IP`;
 - caller-supplied application trust headers.
 
-A host that knows the connected client address can provide `clientIp` to
-`gateway.create()`. The runtime reconstructs `X-Forwarded-Host`,
-`X-Forwarded-Proto`, and `X-Forwarded-For` only after the caller-supplied trust
-headers have been removed.
+A host that knows the connected client address can provide `clientIp` to `gateway.create()`. The runtime reconstructs
+`X-Forwarded-Host`, `X-Forwarded-Proto`, and `X-Forwarded-For` only after the caller-supplied trust headers have been
+removed.
 
-Authentication-provider proxy routes must opt into provider cookie
-pass-through. Programmatic routes normally verify the incoming API credential,
-strip it, and add a signed internal assertion through an explicit runtime
-adapter.
+Authentication-provider proxy routes must opt into provider cookie pass-through. Programmatic routes normally verify the
+incoming API credential, strip it, and add a signed internal assertion through an explicit runtime adapter.
 
-Hosts that own a reserved provider path or an unmatched frontend continuation can
-call `gateway.prepare()` before their own transport step. Preparation reuses the
-same trust-header removal, correlation, and reconstructed forwarding metadata as
-compiled service forwarding, while preserving `Cookie` and `Authorization` because
-no service credential policy has been selected yet. The host still owns the
-provider-specific target, credentials, and response semantics.
+Hosts that own a reserved provider path or an unmatched frontend continuation can call `gateway.prepare()` before their
+own transport step. Preparation reuses the same trust-header removal, correlation, and reconstructed forwarding metadata
+as compiled service forwarding, while preserving `Cookie` and `Authorization` because no service credential policy has
+been selected yet. The host still owns the provider-specific target, credentials, and response semantics.
 
-Redirects use `redirect: 'manual'`. Policies may preserve the `Location`,
-rewrite an internal origin to the public gateway origin, or reject cross-origin
-locations outside an allowlist.
+Redirects use `redirect: 'manual'`. Policies may preserve the `Location`, rewrite an internal origin to the public
+gateway origin, or reject cross-origin locations outside an allowlist.
 
-Streaming lifetime
-------------------
+## Streaming lifetime
 
-The gateway does not buffer a body unless a declared policy needs bounded
-inspection. The request body is forwarded as a stream, and the total timeout,
-abort propagation, byte accounting, and lifecycle observers remain active until
-the response body drains, cancels, aborts, or errors.
+The gateway does not buffer a body unless a declared policy needs bounded inspection. The request body is forwarded as a
+stream, and the total timeout, abort propagation, byte accounting, and lifecycle observers remain active until the
+response body drains, cancels, aborts, or errors.
 
-Observers
----------
+## Observers
 
-Observer definitions are import-safe and handlers are bound by direct identity.
-Events contain redacted identifiers and metrics, not cloned request/response
-bodies or credential-bearing URLs:
+Observer definitions are import-safe and handlers are bound by direct identity. Events contain redacted identifiers and
+metrics, not cloned request/response bodies or credential-bearing URLs:
 
 ```ts
 const GatewayTelemetry = gateway.observer.define({
-  id: 'gateway.telemetry',
-  description: 'Records gateway lifecycle metrics.',
+	id: 'gateway.telemetry',
+	description: 'Records gateway lifecycle metrics.',
 });
 
 const GatewayTelemetryHandler = gateway.observer.handler(
-  GatewayTelemetry,
-  (event) => logger.info(event.kind, event),
+	GatewayTelemetry,
+	(event) => logger.info(event.kind, event),
 );
 ```
 
-Supported stages are `denied`, `forwarding`, `response`, `completed`, `failed`,
-and `aborted`.
-
+Supported stages are `denied`, `forwarding`, `response`, `completed`, `failed`, and `aborted`.
 
 An observer answers a different question from middleware or a policy:
 
@@ -157,12 +139,10 @@ observer
   records what the gateway actually did
 ```
 
-Typical uses are route-denial audits, origin latency, bytes transferred,
-upstream failure rates, client cancellation, and proving whether a streamed
-response completed after its headers were sent. Observers are not mandatory for
-a gateway to route traffic. They become required only when the gateway
-definition imports an observer definition; the runtime then needs the matching
-handler.
+Typical uses are route-denial audits, origin latency, bytes transferred, upstream failure rates, client cancellation,
+and proving whether a streamed response completed after its headers were sent. Observers are not mandatory for a gateway
+to route traffic. They become required only when the gateway definition imports an observer definition; the runtime then
+needs the matching handler.
 
 ```text
 forwarding
@@ -180,18 +160,15 @@ aborted
 failed
   forwarding or the body stream failed
 ```
- Durable security audits should still be written through an
-outbox rather than relying on best-effort logging.
 
-Prepared routing
-----------------
+Durable security audits should still be written through an outbox rather than relying on best-effort logging.
 
-Gateway compilation now prepares the same handler-free route plan used by the
-framework-neutral HTTP host. Runtime matching therefore does not choose between
-`URLPattern` and a separate fallback algorithm based on host capabilities.
+## Prepared routing
+
+Gateway compilation now prepares the same handler-free route plan used by the framework-neutral HTTP host. Runtime
+matching therefore does not choose between `URLPattern` and a separate fallback algorithm based on host capabilities.
 Deno, Node, Bun, and edge runtimes use the same route-template semantics.
 
-The gateway remains the owner of network forwarding and trust decisions rather than an in-process mount. It
-still owns forwarding-header reconstruction, correlation, credential policy,
-body admission, timeouts, redirects, response filtering, and body-completion
-observation after a route has been selected.
+The gateway remains the owner of network forwarding and trust decisions rather than an in-process mount. It still owns
+forwarding-header reconstruction, correlation, credential policy, body admission, timeouts, redirects, response
+filtering, and body-completion observation after a route has been selected.

@@ -45,8 +45,12 @@ function history(store: Map<string, DurableEntry>): workflow.History {
 				throw error;
 			}
 		},
-		async close() { closed = true; },
-		async [Symbol.asyncDispose]() { closed = true; },
+		async close() {
+			closed = true;
+		},
+		async [Symbol.asyncDispose]() {
+			closed = true;
+		},
 	});
 }
 
@@ -136,13 +140,16 @@ test('worker activity survives Scheduler restart without duplicating the externa
 		ctx: parent,
 	});
 	const firstRun = workflow.run({ ctx: firstCtx, implementation: Implementation, scheduler: firstScheduler });
-	await within(Promise.race([
-		firstCommit.promise,
-		firstRun.then(
-			() => Promise.reject(new Error('Attempt 1 completed before announcing its external effect.')),
-			(error: unknown) => Promise.reject(error),
-		),
-	]), 'attempt 1 external commit');
+	await within(
+		Promise.race([
+			firstCommit.promise,
+			firstRun.then(
+				() => Promise.reject(new Error('Attempt 1 completed before announcing its external effect.')),
+				(error: unknown) => Promise.reject(error),
+			),
+		]),
+		'attempt 1 external commit',
+	);
 
 	// A fresh Scheduler/history/provider replica starts from persisted data only.
 	const secondHistory = history(durable);
@@ -190,7 +197,10 @@ test('worker activity survives Scheduler restart without duplicating the externa
 	await within(Promise.resolve(firstProvider[Symbol.asyncDispose]()), 'abandoned Worker provider teardown');
 	assert.deepEqual(await within(firstRun, 'stale Scheduler convergence'), { stored: 'acme' });
 	assert.deepEqual(
-		await within(workflow.run({ ctx: secondCtx, implementation: Implementation, scheduler: secondScheduler }), 'durable replay'),
+		await within(
+			workflow.run({ ctx: secondCtx, implementation: Implementation, scheduler: secondScheduler }),
+			'durable replay',
+		),
 		{ stored: 'acme' },
 	);
 	assert.deepEqual(attempts, [1, 2]);

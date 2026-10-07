@@ -1,105 +1,87 @@
-`@okikio/failure`
-================
+# `@okikio/failure`
 
-Purpose
--------
+## Purpose
 
-`@okikio/failure` defines expected reasons that an operation cannot complete as
-intended.
+`@okikio/failure` defines expected reasons that an operation cannot complete as intended.
 
-A failure definition has a stable ID, a description, and a Standard Schema for
-its durable data.  A runtime occurrence keeps the exact definition, validated
-data, a message, and an optional in-process cause.
+A failure definition has a stable ID, a description, and a Standard Schema for its durable data. A runtime occurrence
+keeps the exact definition, validated data, a message, and an optional in-process cause.
 
-Definitions and occurrences freeze their own outer objects, but validated failure
-`data` is owned by its schema/producer. The utility does not recursively freeze
-arbitrary schema output. `encode()` revalidates that data before transport instead
-of treating outer `Object.freeze()` as a durability guarantee.
+Definitions and occurrences freeze their own outer objects, but validated failure `data` is owned by its
+schema/producer. The utility does not recursively freeze arbitrary schema output. `encode()` revalidates that data
+before transport instead of treating outer `Object.freeze()` as a durability guarantee.
 
-
-
-Start here
-----------
+## Start here
 
 ```ts
 import * as failure from '@okikio/failure';
 import { z } from 'zod';
 
 const MissingFile = failure.define({
-  id: 'file.missing',
-  description: 'The requested file does not exist.',
-  data: z.object({ path: z.string() }),
+	id: 'file.missing',
+	description: 'The requested file does not exist.',
+	data: z.object({ path: z.string() }),
 });
 
 const occurrence = await failure.create(MissingFile, {
-  data: { path: '/tmp/input.csv' },
+	data: { path: '/tmp/input.csv' },
 });
 
 const encoded = await failure.encode(occurrence);
 ```
 
-Only `id`, validated durable data, and the message cross the encoded seam. The
-local JavaScript `cause` is intentionally not serialized.
+Only `id`, validated durable data, and the message cross the encoded seam. The local JavaScript `cause` is intentionally
+not serialized.
 
-Encode and reconstruct a durable occurrence
--------------------------------------------
+## Encode and reconstruct a durable occurrence
 
 ```ts
 const Failures = failure.catalog('imports', { InvalidFile });
 const occurrence = await failure.create(InvalidFile, {
-  data: { reason: 'missing-header' },
+	data: { reason: 'missing-header' },
 });
 
 const encoded = await failure.encode(occurrence);
 const restored = await failure.decode(encoded, Failures);
 ```
 
-Encoding deliberately omits process-local causes. Decoding resolves the stable
-failure ID through a trusted catalog and validates the durable data again.
+Encoding deliberately omits process-local causes. Decoding resolves the stable failure ID through a trusted catalog and
+validates the durable data again.
 
-How it fits
------------
+## How it fits
 
 Failure is not the same concept as `result` or an HTTP problem.
 
- -  `@okikio/result` is a success-or-failure container.
- -  `@okikio/failure` gives expected failures stable identity and durable data.
- -  `@okikio/http/problem` describes an RFC 9457 HTTP representation.
+- `@okikio/result` is a success-or-failure container.
+- `@okikio/failure` gives expected failures stable identity and durable data.
+- `@okikio/http/problem` describes an RFC 9457 HTTP representation.
 
-A queue or Worker can encode a failure occurrence and decode it through a
-trusted failure catalog.  An HTTP service can map the same failure to a declared
-HTTP problem without adding HTTP fields to the failure definition.
+A queue or Worker can encode a failure occurrence and decode it through a trusted failure catalog. An HTTP service can
+map the same failure to a declared HTTP problem without adding HTTP fields to the failure definition.
 
+## Durable data
 
-Durable data
-------------
+`failure.encode()` validates the data again before serialization. The encoded form contains only the stable failure ID,
+durable data, and message.
 
-`failure.encode()` validates the data again before serialization.  The encoded
-form contains only the stable failure ID, durable data, and message.
+The JavaScript `cause` stays local. Provider errors, sockets, request objects, and other non-durable values must not
+enter the encoded form.
 
-The JavaScript `cause` stays local. Provider errors, sockets, request objects,
-and other non-durable values must not enter the encoded form.
+`decode()` also treats the encoded envelope as data, not behavior. The envelope must be a plain object or null-prototype
+record with own enumerable data properties. Accessor-backed fields are rejected without invoking their getters. The
+nested `data` value is then validated by the trusted failure definition's Standard Schema.
 
-`decode()` also treats the encoded envelope as data, not behavior. The envelope
-must be a plain object or null-prototype record with own enumerable data
-properties. Accessor-backed fields are rejected without invoking their getters.
-The nested `data` value is then validated by the trusted failure definition's
-Standard Schema.
+## Progressive usage
 
-Progressive usage
------------------
+The package participates in the complete domain-enrichment example in `../../docs/composition.md`. Read that guide when
+the individual helpers make sense in isolation but their place in a service, resource graph, runtime host, or workflow
+is not yet clear.
 
-The package participates in the complete domain-enrichment example in
-`../../docs/composition.md`.  Read that guide when the
-individual helpers make sense in isolation but their place in a service,
-resource graph, runtime host, or workflow is not yet clear.
-
-Convenience and the manual equivalent
--------------------------------------
+## Convenience and the manual equivalent
 
 Concrete map
-~~~~~~~~~~~~
 
+```
 | Convenience | Manual equivalent | Concrete value |
 | --- | --- | --- |
 | `failure.define()` + occurrence creation | freeze failure identity, validate structured data, and retain nominal package-created occurrence identity | declared failures stay distinguishable from arbitrary errors |
@@ -144,3 +126,4 @@ detail:
 
 The README is the primary user documentation. It intentionally stays close to
 the public source instead of maintaining a separate hand-written API reference.
+```

@@ -16,20 +16,20 @@ import * as schema from '@okikio/schema';
 import type {
 	PermissionAll,
 	PermissionAny,
+	PermissionCatalog,
 	PermissionCheck,
 	PermissionChecker,
 	PermissionContext,
 	PermissionDecision,
 	PermissionDefinition,
-	PermissionOptions,
 	PermissionExpression,
 	PermissionExpressionInput,
-	PermissionCatalog,
-	PermissionSelection,
+	PermissionOptions,
 	PermissionRequest,
 	PermissionRequirement,
 	PermissionRuntime,
 	PermissionScopeOptions,
+	PermissionSelection,
 	PermissionTargetArguments,
 } from './types.ts';
 
@@ -90,9 +90,11 @@ export class PermissionDeniedError extends Error {
 
 	constructor(denied: readonly PermissionDefinition[]) {
 		const ids = [...new Set(denied.map((definition) => definition.id))];
-		super(ids.length === 0
-			? 'Permission was denied.'
-			: `Permission was denied for ${ids.map((id) => JSON.stringify(id)).join(', ')}.`);
+		super(
+			ids.length === 0
+				? 'Permission was denied.'
+				: `Permission was denied for ${ids.map((id) => JSON.stringify(id)).join(', ')}.`,
+		);
 		this.name = 'PermissionDeniedError';
 		this.denied = Object.freeze([...new Set(denied)]);
 	}
@@ -147,7 +149,6 @@ export function require(definition: PermissionDefinition): PermissionRequirement
 	return requirement.define({ family: 'permission', action: 'require', definition });
 }
 
-
 /**
  * Adapt one permission checker to the generic active-requirement runtime.
  *
@@ -155,7 +156,9 @@ export function require(definition: PermissionDefinition): PermissionRequirement
  * permissions only declare that later runtime checks are possible because no
  * concrete target exists at definition admission time.
  */
-export function interpreter(checker?: PermissionChecker): import('@okikio/requirement').RequirementInterpreter<PermissionRequirement> {
+export function interpreter(
+	checker?: PermissionChecker,
+): import('@okikio/requirement').RequirementInterpreter<PermissionRequirement> {
 	if (checker !== undefined) assertChecker(checker);
 	return Object.freeze({
 		scope(ctx: import('@okikio/context').Context, requirements: readonly PermissionRequirement[]) {
@@ -247,10 +250,12 @@ export function scope<Base extends import('@okikio/context').Context>(
 ): PermissionContext<Base> {
 	const permissions = catalogCore.compose(options.permissions);
 	if (options.checker !== undefined) assertChecker(options.checker);
-	const runtime = Object.freeze({
-		...(options.checker === undefined ? {} : { checker: options.checker }),
-		permissions,
-	} satisfies PermissionRuntime);
+	const runtime = Object.freeze(
+		{
+			...(options.checker === undefined ? {} : { checker: options.checker }),
+			permissions,
+		} satisfies PermissionRuntime,
+	);
 	return contextCore.view(ctx, { permissions: runtime });
 }
 
@@ -268,9 +273,7 @@ export async function check(
 	input: PermissionDefinition | PermissionExpression,
 	...target: readonly unknown[]
 ): Promise<boolean> {
-	const expression = isDefinition(input)
-		? direct(input, target)
-		: input;
+	const expression = isDefinition(input) ? direct(input, target) : input;
 	const [allowed] = await batch(ctx, [expression]);
 	return allowed!;
 }
@@ -289,9 +292,7 @@ export async function assert(
 	input: PermissionDefinition | PermissionExpression,
 	...target: readonly unknown[]
 ): Promise<void> {
-	const expression = isDefinition(input)
-		? direct(input, target)
-		: input;
+	const expression = isDefinition(input) ? direct(input, target) : input;
 	const evaluation = await evaluate(ctx, [expression]);
 	if (evaluation.allowed[0]) return;
 	throw new PermissionDeniedError(deniedDefinitions(evaluation.plans[0]!, evaluation.decisions, evaluation.leaves));
@@ -305,7 +306,10 @@ export async function assert(
  * parallel requests, database queries, or local graph evaluation while keeping
  * one consistent authorization view.
  */
-export async function batch(ctx: import('@okikio/context').Context, input: readonly PermissionExpressionInput[]): Promise<readonly boolean[]> {
+export async function batch(
+	ctx: import('@okikio/context').Context,
+	input: readonly PermissionExpressionInput[],
+): Promise<readonly boolean[]> {
 	if (input.length === 0) return Object.freeze([]);
 	return (await evaluate(ctx, input.map(toExpression))).allowed;
 }
@@ -345,7 +349,10 @@ interface Evaluation {
  *
  * @internal
  */
-async function evaluate(ctx: import('@okikio/context').Context, expressions: readonly PermissionExpression[]): Promise<Evaluation> {
+async function evaluate(
+	ctx: import('@okikio/context').Context,
+	expressions: readonly PermissionExpression[],
+): Promise<Evaluation> {
 	contextCore.check(ctx);
 	const permissionRuntime = getRuntime(ctx);
 	const checker = permissionRuntime.checker;
@@ -386,7 +393,9 @@ function plan(expression: PermissionExpression, leaves: PermissionCheck[]): Plan
 }
 
 /** Validate one authored target and produce the exact provider request. */
-async function normalize<Permission extends PermissionDefinition>(check: PermissionCheck<Permission>): Promise<PermissionRequest<Permission>> {
+async function normalize<Permission extends PermissionDefinition>(
+	check: PermissionCheck<Permission>,
+): Promise<PermissionRequest<Permission>> {
 	const target = check.definition.target === undefined
 		? undefined
 		: await schema.parse(check.definition.target, check.target);
@@ -409,7 +418,9 @@ function normalizeDecisions(input: readonly PermissionDecision[], expected: numb
 		}
 		if ('error' in decision) {
 			if ('allowed' in decision) {
-				throw new PermissionDecisionError(`Permission evaluator decision ${index} cannot contain both allowed and error.`);
+				throw new PermissionDecisionError(
+					`Permission evaluator decision ${index} cannot contain both allowed and error.`,
+				);
 			}
 			return Object.freeze({ error: decision.error });
 		}
@@ -433,7 +444,11 @@ type PlanOutcome =
 	| Readonly<{ readonly type: 'error'; readonly error: PermissionEvaluationError }>;
 
 /** Evaluate one internal expression plan with fail-closed three-state semantics. */
-function outcome(plan: Plan, decisions: readonly PermissionDecision[], leaves: readonly PermissionCheck[]): PlanOutcome {
+function outcome(
+	plan: Plan,
+	decisions: readonly PermissionDecision[],
+	leaves: readonly PermissionCheck[],
+): PlanOutcome {
 	if (plan.type === 'leaf') {
 		const decision = decisions[plan.index]!;
 		if ('error' in decision) {
@@ -530,7 +545,10 @@ function assertExpression(value: PermissionExpression): void {
 }
 
 /** Normalize expression-builder input while preserving authored order. */
-function normalizeExpressions(values: readonly PermissionExpressionInput[], operation: string): readonly PermissionExpression[] {
+function normalizeExpressions(
+	values: readonly PermissionExpressionInput[],
+	operation: string,
+): readonly PermissionExpression[] {
 	if (values.length === 0) throw new TypeError(`${operation} requires at least one permission expression.`);
 	return Object.freeze(values.map((value) => {
 		const expression = toExpression(value);
@@ -547,7 +565,10 @@ function toExpression(value: PermissionExpressionInput): PermissionExpression {
 /** Resolve permission runtime state from a composed execution-context view. */
 function getRuntime(ctx: import('@okikio/context').Context): PermissionRuntime {
 	const runtime = (ctx as import('@okikio/context').Context & { readonly permissions?: unknown }).permissions;
-	if (typeof runtime !== 'object' || runtime === null || !Array.isArray((runtime as Partial<PermissionRuntime>).permissions)) {
+	if (
+		typeof runtime !== 'object' || runtime === null ||
+		!Array.isArray((runtime as Partial<PermissionRuntime>).permissions)
+	) {
 		throw new MissingPermissionCheckerError();
 	}
 	return runtime as PermissionRuntime;
@@ -569,21 +590,21 @@ function assertIdentifier(id: string): void {
 export type {
 	PermissionAll,
 	PermissionAny,
+	PermissionCatalog,
 	PermissionCheck,
 	PermissionChecker,
 	PermissionContext,
 	PermissionDecision,
 	PermissionDefinition,
-	PermissionOptions,
+	PermissionDefinitions,
 	PermissionExpression,
 	PermissionExpressionInput,
-	PermissionDefinitions,
-	PermissionCatalog,
-	PermissionSelection,
+	PermissionOptions,
 	PermissionRequest,
 	PermissionRequirement,
 	PermissionRuntime,
 	PermissionScopeOptions,
+	PermissionSelection,
 	PermissionTarget,
 	PermissionTargetArguments,
 	PermissionTargetInput,

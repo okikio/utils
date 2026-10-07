@@ -165,27 +165,31 @@ class Runtime {
 	#reason: unknown;
 
 	constructor(options: MemoryDispatchOptions) {
-		this.#capacity = options.capacity === undefined ? Number.POSITIVE_INFINITY : assert.positive(options.capacity, 'dispatch capacity');
+		this.#capacity = options.capacity === undefined
+			? Number.POSITIVE_INFINITY
+			: assert.positive(options.capacity, 'dispatch capacity');
 		this.#clock = options.clock ?? context.SystemClock;
 		this.#id = options.id ?? (() => crypto.randomUUID());
-		this.#dispatch = Object.freeze({
-			add: (ctx, value, addOptions) => this.#add(ctx, value, addOptions),
-			result: (ctx, ref) => this.#result(ctx, ref),
-			cancel: (ctx, ref, reason) => this.#cancel(ctx, ref, reason),
-			join: (ctx, joinOptions) => this.#join(ctx, joinOptions),
-			renewExecutor: (ctx, lease, duration) => this.#renewExecutor(ctx, lease, duration),
-			resize: (ctx, lease, capacity) => this.#resize(ctx, lease, capacity),
-			drain: (ctx, lease) => this.#drain(ctx, lease),
-			leave: (ctx, lease) => this.#leave(ctx, lease),
-			claim: (ctx, lease, claimOptions) => this.#claim(ctx, lease, claimOptions),
-			watch: (ctx, claim) => this.#watch(ctx, claim),
-			renew: (ctx, claim, duration) => this.#renew(ctx, claim, duration),
-			complete: (ctx, claim, result) => this.#complete(ctx, claim, result),
-			retry: (ctx, claim, retryOptions) => this.#retry(ctx, claim, retryOptions),
-			stats: () => this.#stats(),
-			close: (reason) => this.#close(reason),
-			[Symbol.asyncDispose]: () => this.#close('Activity dispatch was disposed.'),
-		} satisfies ActivityDispatch);
+		this.#dispatch = Object.freeze(
+			{
+				add: (ctx, value, addOptions) => this.#add(ctx, value, addOptions),
+				result: (ctx, ref) => this.#result(ctx, ref),
+				cancel: (ctx, ref, reason) => this.#cancel(ctx, ref, reason),
+				join: (ctx, joinOptions) => this.#join(ctx, joinOptions),
+				renewExecutor: (ctx, lease, duration) => this.#renewExecutor(ctx, lease, duration),
+				resize: (ctx, lease, capacity) => this.#resize(ctx, lease, capacity),
+				drain: (ctx, lease) => this.#drain(ctx, lease),
+				leave: (ctx, lease) => this.#leave(ctx, lease),
+				claim: (ctx, lease, claimOptions) => this.#claim(ctx, lease, claimOptions),
+				watch: (ctx, claim) => this.#watch(ctx, claim),
+				renew: (ctx, claim, duration) => this.#renew(ctx, claim, duration),
+				complete: (ctx, claim, result) => this.#complete(ctx, claim, result),
+				retry: (ctx, claim, retryOptions) => this.#retry(ctx, claim, retryOptions),
+				stats: () => this.#stats(),
+				close: (reason) => this.#close(reason),
+				[Symbol.asyncDispose]: () => this.#close('Activity dispatch was disposed.'),
+			} satisfies ActivityDispatch,
+		);
 	}
 
 	get dispatch(): ActivityDispatch {
@@ -240,12 +244,14 @@ class Runtime {
 		this.#release(item);
 		item.state = 'cancelled';
 		item.claim = undefined;
-		item.result = Object.freeze({
-			type: 'cancelled',
-			reason: reason === undefined
-				? Object.freeze({ kind: 'undefined' })
-				: durable.snapshot(reason, 'activity cancellation') as unknown as HistoryValueType,
-		} satisfies ActivityJobResultType);
+		item.result = Object.freeze(
+			{
+				type: 'cancelled',
+				reason: reason === undefined
+					? Object.freeze({ kind: 'undefined' })
+					: durable.snapshot(reason, 'activity cancellation') as unknown as HistoryValueType,
+			} satisfies ActivityJobResultType,
+		);
 		this.#settle(item);
 	}
 
@@ -258,7 +264,10 @@ class Runtime {
 		assert.positive(options.capacity, 'executor capacity');
 		assert.positive(options.protocolVersion, 'executor protocolVersion');
 		if (options.activities.length === 0) throw new TypeError('Executor must advertise at least one activity.');
-		const advertised = durable.snapshot(options.activities, 'executor activities') as unknown as ExecutorJoinOptions['activities'];
+		const advertised = durable.snapshot(
+			options.activities,
+			'executor activities',
+		) as unknown as ExecutorJoinOptions['activities'];
 		const activities = Object.freeze(advertised.map((activity) => {
 			assert.id(activity.id, 'executor activity');
 			assert.id(activity.version, 'executor activity version');
@@ -266,24 +275,28 @@ class Runtime {
 		}));
 		const affinity = options.affinity === undefined ? undefined : freezeAffinity(options.affinity, 'executor affinity');
 		const computeValue = options.compute === undefined ? undefined : compute.freeze(options.compute);
-		const duration = options.duration === undefined ? undefined : assert.duration(options.duration, 'executor lease duration');
+		const duration = options.duration === undefined
+			? undefined
+			: assert.duration(options.duration, 'executor lease duration');
 		const key = executorKey(options.engineId, options.hostId);
 		const previous = this.#current.get(key);
 		if (previous !== undefined) this.#revoke(previous);
 		const generation = (this.#generations.get(key) ?? 0) + 1;
 		this.#generations.set(key, generation);
-		const lease = Object.freeze({
-			id: unique(this.#id, this.#executors),
-			engineId: options.engineId,
-			hostId: options.hostId,
-			generation,
-			protocolVersion: options.protocolVersion,
-			activities,
-			...(affinity === undefined ? {} : { affinity }),
-			...(computeValue === undefined ? {} : { compute: computeValue }),
-			capacity: options.capacity,
-			...(duration === undefined ? {} : { expiresAt: this.#clock.now().add(duration) }),
-		} satisfies ExecutorLeaseType);
+		const lease = Object.freeze(
+			{
+				id: unique(this.#id, this.#executors),
+				engineId: options.engineId,
+				hostId: options.hostId,
+				generation,
+				protocolVersion: options.protocolVersion,
+				activities,
+				...(affinity === undefined ? {} : { affinity }),
+				...(computeValue === undefined ? {} : { compute: computeValue }),
+				capacity: options.capacity,
+				...(duration === undefined ? {} : { expiresAt: this.#clock.now().add(duration) }),
+			} satisfies ExecutorLeaseType,
+		);
 		const state: ExecutorState = { lease, active: 0, draining: false, closed: false };
 		this.#executors.set(lease.id, state);
 		this.#current.set(key, state);
@@ -298,17 +311,21 @@ class Runtime {
 	): Promise<ExecutorLeaseType> {
 		context.check(ctx);
 		const state = this.#executor(lease);
-		state.lease = Object.freeze({
-			...state.lease,
-			expiresAt: this.#clock.now().add(assert.duration(duration, 'executor lease renewal duration')),
-		} satisfies ExecutorLeaseType);
+		state.lease = Object.freeze(
+			{
+				...state.lease,
+				expiresAt: this.#clock.now().add(assert.duration(duration, 'executor lease renewal duration')),
+			} satisfies ExecutorLeaseType,
+		);
 		return state.lease;
 	}
 
 	async #resize(ctx: context.Context, lease: ExecutorLeaseType, capacity: number): Promise<ExecutorLeaseType> {
 		context.check(ctx);
 		const state = this.#executor(lease);
-		state.lease = Object.freeze({ ...state.lease, capacity: assert.positive(capacity, 'executor capacity') } satisfies ExecutorLeaseType);
+		state.lease = Object.freeze(
+			{ ...state.lease, capacity: assert.positive(capacity, 'executor capacity') } satisfies ExecutorLeaseType,
+		);
 		this.#wake(this.#claimWaiters);
 		return state.lease;
 	}
@@ -363,10 +380,12 @@ class Runtime {
 	): Promise<ActivityClaimType> {
 		context.check(ctx);
 		const item = this.#claimed(claim);
-		const renewed = Object.freeze({
-			...claim,
-			expiresAt: this.#clock.now().add(assert.duration(duration, 'activity claim renewal duration')),
-		} satisfies ActivityClaimType);
+		const renewed = Object.freeze(
+			{
+				...claim,
+				expiresAt: this.#clock.now().add(assert.duration(duration, 'activity claim renewal duration')),
+			} satisfies ActivityClaimType,
+		);
 		item.claim = renewed;
 		return renewed;
 	}
@@ -377,7 +396,9 @@ class Runtime {
 			this.#expire();
 			const item = this.#item(claim.itemId);
 			if (item.state === 'cancelled') return 'cancelled';
-			if (item.state !== 'claimed' || item.claim?.id !== claim.id || item.claim.executorId !== claim.executorId) return 'lost';
+			if (item.state !== 'claimed' || item.claim?.id !== claim.id || item.claim.executorId !== claim.executorId) {
+				return 'lost';
+			}
 			await wait(ctx, this.#stateWaiters, this.#clock, this.#delay(this.#next(item)));
 		}
 	}
@@ -415,15 +436,17 @@ class Runtime {
 			else if (item.state === 'completed') completed += 1;
 			else cancelled += 1;
 		}
-		return Object.freeze({
-			queued,
-			claimed,
-			completed,
-			cancelled,
-			executors: this.#executors.size,
-			waitingClaims: this.#claimWaiters.size,
-			waitingResults: [...this.#resultWaiters.values()].reduce((total, waiters) => total + waiters.size, 0),
-		} satisfies ActivityDispatchStatsType);
+		return Object.freeze(
+			{
+				queued,
+				claimed,
+				completed,
+				cancelled,
+				executors: this.#executors.size,
+				waitingClaims: this.#claimWaiters.size,
+				waitingResults: [...this.#resultWaiters.values()].reduce((total, waiters) => total + waiters.size, 0),
+			} satisfies ActivityDispatchStatsType,
+		);
 	}
 
 	async #close(reason?: unknown): Promise<void> {
@@ -449,7 +472,10 @@ class Runtime {
 	#matches(item: ItemState, executor: ExecutorState, engineId: string): boolean {
 		if (executor.closed || executor.draining || executor.lease.engineId !== engineId) return false;
 		if (executor.active >= executor.lease.capacity) return false;
-		if (executor.lease.expiresAt !== undefined && Temporal.Instant.compare(this.#clock.now(), executor.lease.expiresAt) >= 0) return false;
+		if (
+			executor.lease.expiresAt !== undefined &&
+			Temporal.Instant.compare(this.#clock.now(), executor.lease.expiresAt) >= 0
+		) return false;
 		if (!affinityMatches(item.value.affinity, executor.lease.affinity)) return false;
 		return executor.lease.activities.some((activity) =>
 			activity.id === item.value.activityId && activity.version === item.value.activityVersion
@@ -458,15 +484,17 @@ class Runtime {
 
 	#take(item: ItemState, executor: ExecutorState, duration: Temporal.Duration): ActivityClaimType {
 		const claimedAt = this.#clock.now();
-		const claim = Object.freeze({
-			id: uniqueClaim(this.#id, this.#items),
-			itemId: item.id,
-			executorId: executor.lease.id,
-			attempt: item.attempt + 1,
-			value: item.value,
-			claimedAt,
-			expiresAt: claimedAt.add(duration),
-		} satisfies ActivityClaimType);
+		const claim = Object.freeze(
+			{
+				id: uniqueClaim(this.#id, this.#items),
+				itemId: item.id,
+				executorId: executor.lease.id,
+				attempt: item.attempt + 1,
+				value: item.value,
+				claimedAt,
+				expiresAt: claimedAt.add(duration),
+			} satisfies ActivityClaimType,
+		);
 		item.state = 'claimed';
 		item.attempt = claim.attempt;
 		item.claim = claim;
@@ -486,7 +514,9 @@ class Runtime {
 	#executor(lease: ExecutorLeaseType): ExecutorState {
 		this.#expire();
 		const state = this.#executors.get(lease.id);
-		if (state === undefined || state.closed || state.lease.generation !== lease.generation) throw new StaleExecutorError(lease.id);
+		if (state === undefined || state.closed || state.lease.generation !== lease.generation) {
+			throw new StaleExecutorError(lease.id);
+		}
 		return state;
 	}
 
@@ -521,7 +551,9 @@ class Runtime {
 	#expire(): void {
 		const now = this.#clock.now();
 		for (const executor of [...this.#executors.values()]) {
-			if (executor.lease.expiresAt !== undefined && Temporal.Instant.compare(now, executor.lease.expiresAt) >= 0) this.#revoke(executor);
+			if (executor.lease.expiresAt !== undefined && Temporal.Instant.compare(now, executor.lease.expiresAt) >= 0) {
+				this.#revoke(executor);
+			}
 		}
 		for (const item of this.#items.values()) {
 			if (item.state !== 'claimed' || item.claim === undefined) continue;
@@ -546,11 +578,15 @@ class Runtime {
 		let next: Temporal.Instant | undefined;
 		for (const item of this.#items.values()) {
 			const candidate = this.#next(item);
-			if (candidate !== undefined && (next === undefined || Temporal.Instant.compare(candidate, next) < 0)) next = candidate;
+			if (candidate !== undefined && (next === undefined || Temporal.Instant.compare(candidate, next) < 0)) {
+				next = candidate;
+			}
 		}
 		for (const executor of this.#executors.values()) {
 			const candidate = executor.lease.expiresAt;
-			if (candidate !== undefined && (next === undefined || Temporal.Instant.compare(candidate, next) < 0)) next = candidate;
+			if (candidate !== undefined && (next === undefined || Temporal.Instant.compare(candidate, next) < 0)) {
+				next = candidate;
+			}
 		}
 		return next;
 	}
@@ -662,7 +698,10 @@ function reject(waiters: Set<Waiter>, reason: unknown): void {
 }
 
 /** Validate a retry delay that may be zero. */
-function nonNegativeDuration(value: Temporal.Duration | Temporal.DurationLike | string, label: string): Temporal.Duration {
+function nonNegativeDuration(
+	value: Temporal.Duration | Temporal.DurationLike | string,
+	label: string,
+): Temporal.Duration {
 	const duration = Temporal.Duration.from(value);
 	if (duration.sign < 0) throw new TypeError(`${label} must not be negative.`);
 	return duration;

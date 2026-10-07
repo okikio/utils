@@ -1,121 +1,102 @@
-`@okikio/result`
-===============
+# `@okikio/result`
 
-Purpose
--------
+## Purpose
 
-`@okikio/result` provides a small frozen success-or-failure wrapper for expected
-caller branching.
+`@okikio/result` provides a small frozen success-or-failure wrapper for expected caller branching.
 
-Use it when failure is a normal branch that the caller should inspect.  Do not
-use it to define failure identity, validation, serialization, HTTP status, or
-retry policy.
+Use it when failure is a normal branch that the caller should inspect. Do not use it to define failure identity,
+validation, serialization, HTTP status, or retry policy.
 
+## How it fits
 
-How it fits
------------
+`@okikio/failure` defines expected failure families and runtime occurrences. `@okikio/result` only carries a success
+value or a failure value.
 
-`@okikio/failure` defines expected failure families and runtime occurrences.
-`@okikio/result` only carries a success value or a failure value.
+This separation keeps `@okikio/result` free of schemas, catalogs, and transport behavior. A result can therefore contain
+a failure occurrence, a validation problem, a string, or another exact reason type.
 
-This separation keeps `@okikio/result` free of schemas, catalogs, and transport
-behavior.  A result can therefore contain a failure occurrence, a validation
-problem, a string, or another exact reason type.
+The wrapper is shallowly immutable. `ok()` and `fail()` freeze the discriminated result object, but they borrow the
+supplied `value` or `failure`. They do not deep-freeze caller-owned objects, functions, collections, or errors. If a
+payload must itself be immutable, its producer owns that contract.
 
-The wrapper is shallowly immutable. `ok()` and `fail()` freeze the discriminated
-result object, but they borrow the supplied `value` or `failure`. They do not
-deep-freeze caller-owned objects, functions, collections, or errors. If a payload
-must itself be immutable, its producer owns that contract.
+## Start here
 
-
-Start here
-----------
-
-~~~~ typescript
+```typescript
 import * as result from '@okikio/result';
 
 const value = result.fail(validationFailure);
 
 if (result.isFailure(value)) {
-  return value.failure;
+	return value.failure;
 }
-~~~~
+```
 
-Transform or provide a fallback
--------------------------------
+## Transform or provide a fallback
 
 ```ts
 const message = result.match(value, {
-  ok: (item) => `loaded ${item}`,
-  failure: (reason) => `unavailable: ${reason}`,
+	ok: (item) => `loaded ${item}`,
+	failure: (reason) => `unavailable: ${reason}`,
 });
 
 const item = result.getOr(value, 'default');
 const lazyItem = result.getOrElse(value, () => loadDefault());
 ```
 
-`getOr()` accepts a fallback value. `getOrElse()` accepts a lazy fallback factory.
-Keeping those operations separate matters when the result value itself is a function:
+`getOr()` accepts a fallback value. `getOrElse()` accepts a lazy fallback factory. Keeping those operations separate
+matters when the result value itself is a function:
 
 ```ts
-const handler = result.getOr(failedHandler, fallbackHandler);       // returns the function
+const handler = result.getOr(failedHandler, fallbackHandler); // returns the function
 const lazy = result.getOrElse(failedHandler, () => fallbackHandler); // runs only the outer factory
 ```
 
-The manual equivalent is simply `value.ok ? value.value : fallback`, or the same
-branch with `fallback()` when lazy creation is useful. The utility does not guess
-whether a function is data or a callback.
+The manual equivalent is simply `value.ok ? value.value : fallback`, or the same branch with `fallback()` when lazy
+creation is useful. The utility does not guess whether a function is data or a callback.
 
-`unwrap()` is intentionally the sharp operation: it returns the success value or
-throws the stored failure. Use it only when the surrounding control flow already
-treats failure as exceptional.
+`unwrap()` is intentionally the sharp operation: it returns the success value or throws the stored failure. Use it only
+when the surrounding control flow already treats failure as exceptional.
 
+## Larger composition
 
-Larger composition
-------------------
-
-A parser can keep expected invalid input in the value channel while unexpected
-programming or I/O faults still throw normally:
+A parser can keep expected invalid input in the value channel while unexpected programming or I/O faults still throw
+normally:
 
 ```ts
 type ParseFailure = Readonly<{ kind: 'invalid-json'; message: string }>;
 
 function parseRecord(text: string): result.Result<unknown, ParseFailure> {
-  try {
-    return result.ok(JSON.parse(text));
-  } catch (error) {
-    return result.fail({
-      kind: 'invalid-json',
-      message: error instanceof Error ? error.message : 'Invalid JSON.',
-    });
-  }
+	try {
+		return result.ok(JSON.parse(text));
+	} catch (error) {
+		return result.fail({
+			kind: 'invalid-json',
+			message: error instanceof Error ? error.message : 'Invalid JSON.',
+		});
+	}
 }
 
 const parsed = parseRecord(input);
 const message = result.match(parsed, {
-  ok: () => 'accepted',
-  failure: (reason) => reason.message,
+	ok: () => 'accepted',
+	failure: (reason) => reason.message,
 });
 ```
 
-The utility does not catch exceptions for you. Choosing `Result` is the caller's
-explicit decision that a failure belongs in normal control flow.
+The utility does not catch exceptions for you. Choosing `Result` is the caller's explicit decision that a failure
+belongs in normal control flow.
 
+## Progressive usage
 
-Progressive usage
------------------
+The package participates in the complete domain-enrichment example in `../../docs/composition.md`. Read that guide when
+the individual helpers make sense in isolation but their place in a service, resource graph, runtime host, or workflow
+is not yet clear.
 
-The package participates in the complete domain-enrichment example in
-`../../docs/composition.md`.  Read that guide when the
-individual helpers make sense in isolation but their place in a service,
-resource graph, runtime host, or workflow is not yet clear.
-
-Convenience and the manual equivalent
--------------------------------------
+## Convenience and the manual equivalent
 
 Concrete map
-~~~~~~~~~~~~
 
+```
 | Convenience | Manual equivalent | Concrete value |
 | --- | --- | --- |
 | `result.ok()` / `fail()` | construct and freeze a discriminated success/failure tuple/object yourself | one tiny explicit non-throwing result vocabulary |
@@ -160,3 +141,4 @@ detail:
 
 The README is the primary user documentation. It intentionally stays close to
 the public source instead of maintaining a separate hand-written API reference.
+```

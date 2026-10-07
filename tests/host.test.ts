@@ -13,25 +13,34 @@ test('HTTP host composes middleware, safe errors, HEAD fallback, and body owners
 				observed.push(`route:${new URL(request.url).pathname}`);
 				return Response.json({ id: new URL(request.url).pathname.split('/').at(-1) });
 			}),
-			server.route('GET', '/stream', () => new Response(new ReadableStream<Uint8Array>({
-				cancel() {
-					cancelled = true;
-				},
-			}))),
+			server.route('GET', '/stream', () =>
+				new Response(
+					new ReadableStream<Uint8Array>({
+						cancel() {
+							cancelled = true;
+						},
+					}),
+				)),
 			server.route('GET', '/fault', () => {
 				throw new Error('database password should not appear in the HTTP response');
 			}),
 		],
 		middleware: [
-			server.catchErrors({ onError(error) { observed.push(`error:${error.message}`); } }),
-				server.requestId({ header: 'x-request-id', trustIncoming: true }),
+			server.catchErrors({
+				onError(error) {
+					observed.push(`error:${error.message}`);
+				},
+			}),
+			server.requestId({ header: 'x-request-id', trustIncoming: true }),
 			server.securityHeaders(),
 		],
 	});
 
-	const account = await app.fetch(new Request('https://service.invalid/accounts/acme', {
-		headers: { 'x-request-id': 'request-42' },
-	}));
+	const account = await app.fetch(
+		new Request('https://service.invalid/accounts/acme', {
+			headers: { 'x-request-id': 'request-42' },
+		}),
+	);
 	assert.equal(account.status, 200);
 	assert.equal(account.headers.get('x-request-id'), 'request-42');
 	assert.equal(account.headers.get('x-content-type-options'), 'nosniff');
@@ -50,11 +59,13 @@ test('HTTP host composes middleware, safe errors, HEAD fallback, and body owners
 	assert.ok(observed.includes('error:database password should not appear in the HTTP response'));
 
 	let discarded = false;
-	const abandoned = new Response(new ReadableStream<Uint8Array>({
-		cancel() {
-			discarded = true;
-		},
-	}));
+	const abandoned = new Response(
+		new ReadableStream<Uint8Array>({
+			cancel() {
+				discarded = true;
+			},
+		}),
+	);
 	await response.discard(abandoned);
 	assert.equal(discarded, true);
 });

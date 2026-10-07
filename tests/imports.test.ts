@@ -51,25 +51,33 @@ test('server definition entry points remain isolated from handlers, compilers, a
 });
 
 test('generic lifecycle imports do not install the disposal polyfill implicitly', async () => {
-	for (const entry of [
-		new URL('../packages/context/mod.ts', import.meta.url),
-		new URL('../packages/resource/mod.ts', import.meta.url),
-		new URL('../packages/task/mod.ts', import.meta.url),
-		new URL('../packages/workflow/mod.ts', import.meta.url),
-	]) {
+	for (
+		const entry of [
+			new URL('../packages/context/mod.ts', import.meta.url),
+			new URL('../packages/resource/mod.ts', import.meta.url),
+			new URL('../packages/task/mod.ts', import.meta.url),
+			new URL('../packages/workflow/mod.ts', import.meta.url),
+		]
+	) {
 		await excludes(entry, ['/packages/dispose/polyfill.ts']);
 	}
 });
 
 /** Assert that generic server cores cannot acquire a Deno listener behind a host adapter. */
 test('gateway and service runtimes remain transport-host neutral', async () => {
-	for (const entry of [
-		new URL('../packages/server/gateway/runtime.ts', import.meta.url),
-		new URL('../packages/server/service/runtime.ts', import.meta.url),
-		new URL('../packages/server/http/app.ts', import.meta.url),
-	]) {
+	for (
+		const entry of [
+			new URL('../packages/server/gateway/runtime.ts', import.meta.url),
+			new URL('../packages/server/service/runtime.ts', import.meta.url),
+			new URL('../packages/server/http/app.ts', import.meta.url),
+		]
+	) {
 		const source = await Deno.readTextFile(entry);
-		assert.doesNotMatch(source, /\bDeno\.(?:serve|listen|listenTls)\b/u, `${entry.pathname} must not own a Deno listener`);
+		assert.doesNotMatch(
+			source,
+			/\bDeno\.(?:serve|listen|listenTls)\b/u,
+			`${entry.pathname} must not own a Deno listener`,
+		);
 	}
 });
 

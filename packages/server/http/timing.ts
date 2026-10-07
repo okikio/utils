@@ -15,8 +15,12 @@ export function timing(options: TimingOptions = {}): Middleware {
 	const normalized = recordCore.snapshot(options, 'timing options');
 	const name = normalized.name ?? 'total';
 	if (!/^[A-Za-z][A-Za-z0-9_.-]*$/.test(name)) throw new TypeError('Server-Timing metric name is invalid.');
-	if (normalized.enabled !== undefined && typeof normalized.enabled !== 'function') throw new TypeError('Server-Timing enabled must be a function when provided.');
-	if (normalized.description !== undefined && typeof normalized.description !== 'string') throw new TypeError('Server-Timing description must be a string when provided.');
+	if (normalized.enabled !== undefined && typeof normalized.enabled !== 'function') {
+		throw new TypeError('Server-Timing enabled must be a function when provided.');
+	}
+	if (normalized.description !== undefined && typeof normalized.description !== 'string') {
+		throw new TypeError('Server-Timing description must be a string when provided.');
+	}
 	const enabled = normalized.enabled;
 	const description = normalized.description ?? 'Total Response Time';
 	return async (request, next) => {

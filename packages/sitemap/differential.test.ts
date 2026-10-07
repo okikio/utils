@@ -11,44 +11,55 @@ const SITEMAP_NAMESPACE = 'http://www.sitemaps.org/schemas/sitemap/0.9';
  * the live Deno conformance gate. Production code does not import Saxes.
  */
 describe('@std/xml sitemap namespace differential', () => {
-	for (const fixture of [
-		{
-			name: 'default namespace',
-			xml: '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.com/default</loc></url></urlset>',
-		},
-		{
-			name: 'prefixed namespace',
-			xml: '<sm:urlset xmlns:sm="http://www.sitemaps.org/schemas/sitemap/0.9"><sm:url><sm:loc>https://example.com/prefixed</sm:loc></sm:url></sm:urlset>',
-		},
-		{
-			name: 'extension namespace loc',
-			xml: '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"><url><loc>https://example.com/page</loc><image:image><image:loc>https://cdn.example.com/image.jpg</image:loc></image:image></url></urlset>',
-		},
-		{
-			name: 'default namespace shadowing',
-			xml: '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url xmlns="urn:not-sitemap"><loc>https://example.com/rejected</loc></url><url><loc>https://example.com/accepted</loc></url></urlset>',
-		},
-		{
-			name: 'entity decoding',
-			xml: '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.com/?a=1&amp;b=2</loc></url></urlset>',
-		},
-		{
-			name: 'CDATA route location',
-			xml: '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc><![CDATA[https://example.com/cdata]]></loc></url></urlset>',
-		},
-		{
-			name: 'comments and processing instructions',
-			xml: '<?xml version="1.0"?><?kaiju test?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><!-- comment --><url><loc>https://example.com/pi</loc></url></urlset>',
-		},
-		{
-			name: 'unbound qualified name rejection',
-			xml: '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><missing:loc>https://example.com/rejected</missing:loc></url></urlset>',
-		},
-		{
-			name: 'DOCTYPE rejection',
-			xml: '<!DOCTYPE urlset><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.com/rejected</loc></url></urlset>',
-		},
-	]) {
+	for (
+		const fixture of [
+			{
+				name: 'default namespace',
+				xml:
+					'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.com/default</loc></url></urlset>',
+			},
+			{
+				name: 'prefixed namespace',
+				xml:
+					'<sm:urlset xmlns:sm="http://www.sitemaps.org/schemas/sitemap/0.9"><sm:url><sm:loc>https://example.com/prefixed</sm:loc></sm:url></sm:urlset>',
+			},
+			{
+				name: 'extension namespace loc',
+				xml:
+					'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"><url><loc>https://example.com/page</loc><image:image><image:loc>https://cdn.example.com/image.jpg</image:loc></image:image></url></urlset>',
+			},
+			{
+				name: 'default namespace shadowing',
+				xml:
+					'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url xmlns="urn:not-sitemap"><loc>https://example.com/rejected</loc></url><url><loc>https://example.com/accepted</loc></url></urlset>',
+			},
+			{
+				name: 'entity decoding',
+				xml:
+					'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.com/?a=1&amp;b=2</loc></url></urlset>',
+			},
+			{
+				name: 'CDATA route location',
+				xml:
+					'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc><![CDATA[https://example.com/cdata]]></loc></url></urlset>',
+			},
+			{
+				name: 'comments and processing instructions',
+				xml:
+					'<?xml version="1.0"?><?kaiju test?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><!-- comment --><url><loc>https://example.com/pi</loc></url></urlset>',
+			},
+			{
+				name: 'unbound qualified name rejection',
+				xml:
+					'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><missing:loc>https://example.com/rejected</missing:loc></url></urlset>',
+			},
+			{
+				name: 'DOCTYPE rejection',
+				xml:
+					'<!DOCTYPE urlset><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.com/rejected</loc></url></urlset>',
+			},
+		]
+	) {
 		it(`matches Saxes for ${fixture.name}`, () => {
 			expect(parse({
 				url: 'https://example.com/sitemap.xml',
@@ -78,8 +89,12 @@ function parseWithSaxes(xml: string): readonly SitemapRecord[] {
 	let captureLoc = false;
 	let text = '';
 	let failed = false;
-	parser.on('error', () => { failed = true; });
-	parser.on('doctype', () => { failed = true; });
+	parser.on('error', () => {
+		failed = true;
+	});
+	parser.on('doctype', () => {
+		failed = true;
+	});
 	parser.on('opentag', (tag: SaxesTagNS) => {
 		if (failed) return;
 		if (isSitemap(tag, 'url')) current = { kind: 'url', alternates: [] };
@@ -95,8 +110,12 @@ function parseWithSaxes(xml: string): readonly SitemapRecord[] {
 		const hreflang = attribute(tag, 'hreflang')?.toLowerCase();
 		if (href && rel === 'alternate' && hreflang) current.alternates.push({ href, hreflang });
 	});
-	parser.on('text', (value: string) => { if (captureLoc) text += value; });
-	parser.on('cdata', (value: string) => { if (captureLoc) text += value; });
+	parser.on('text', (value: string) => {
+		if (captureLoc) text += value;
+	});
+	parser.on('cdata', (value: string) => {
+		if (captureLoc) text += value;
+	});
 	parser.on('closetag', (tag: SaxesTagNS) => {
 		if (failed) return;
 		if (captureLoc && isSitemap(tag, 'loc')) {
@@ -104,9 +123,11 @@ function parseWithSaxes(xml: string): readonly SitemapRecord[] {
 			captureLoc = false;
 		}
 		if (!current?.loc || (!isSitemap(tag, 'url') && !isSitemap(tag, 'sitemap'))) return;
-		records.push(current.kind === 'sitemap'
-			? { kind: 'sitemap', loc: current.loc, format: 'xml', alternates: current.alternates }
-			: { kind: 'url', loc: current.loc, format: 'xml', alternates: current.alternates });
+		records.push(
+			current.kind === 'sitemap'
+				? { kind: 'sitemap', loc: current.loc, format: 'xml', alternates: current.alternates }
+				: { kind: 'url', loc: current.loc, format: 'xml', alternates: current.alternates },
+		);
 		current = undefined;
 	});
 	try {

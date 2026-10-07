@@ -37,8 +37,12 @@ export function forwardHeaders(
 	options: ForwardHeaderOptionsType = {},
 ): Headers {
 	record.assert(options, 'HTTP forwarding header options');
-	const remove = new Set(stringList(options.remove ?? [], 'removed forwarding headers').map((name) => name.toLowerCase()));
-	const prefixes = stringList(options.removePrefixes ?? [], 'removed forwarding header prefixes').map((value) => value.toLowerCase());
+	const remove = new Set(
+		stringList(options.remove ?? [], 'removed forwarding headers').map((name) => name.toLowerCase()),
+	);
+	const prefixes = stringList(options.removePrefixes ?? [], 'removed forwarding header prefixes').map((value) =>
+		value.toLowerCase()
+	);
 	const headers = new Headers();
 
 	for (const [name, value] of request.headers) {

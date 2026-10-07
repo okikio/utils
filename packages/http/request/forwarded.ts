@@ -6,7 +6,8 @@ import { RequestTransportError } from './types.ts';
 export function externalUrl(request: Request, policy: ForwardedHeaderPolicy): URL {
 	const normalizedPolicy = forwardedPolicy(policy);
 	const result = new URL(request.url);
-	const hasForwarding = request.headers.has('forwarded') || [...request.headers.keys()].some((name) => name.startsWith('x-forwarded-'));
+	const hasForwarding = request.headers.has('forwarded') ||
+		[...request.headers.keys()].some((name) => name.startsWith('x-forwarded-'));
 	if (!normalizedPolicy.trust) {
 		if (hasForwarding) return result;
 		return result;
@@ -30,12 +31,35 @@ export function externalUrl(request: Request, policy: ForwardedHeaderPolicy): UR
 	}
 	if (protocol) {
 		const normalized = protocol.endsWith(':') ? protocol : `${protocol}:`;
-		if (normalizedPolicy.allowedProtocols && !normalizedPolicy.allowedProtocols.includes(normalized as 'http:' | 'https:')) throw new RequestTransportError({ code: 'untrusted-forwarded-header', message: `Forwarded protocol ${JSON.stringify(protocol)} is not allowed.`, path: ['header', 'forwarded'] });
+		if (
+			normalizedPolicy.allowedProtocols && !normalizedPolicy.allowedProtocols.includes(normalized as 'http:' | 'https:')
+		) {
+			throw new RequestTransportError({
+				code: 'untrusted-forwarded-header',
+				message: `Forwarded protocol ${JSON.stringify(protocol)} is not allowed.`,
+				path: ['header', 'forwarded'],
+			});
+		}
 		result.protocol = normalized;
 	}
 	if (host) {
-		if (/[\0\r\n/@\\]/.test(host)) throw new RequestTransportError({ code: 'untrusted-forwarded-header', message: 'Forwarded host is malformed.', path: ['header', 'forwarded'] });
-		if (normalizedPolicy.allowedHosts && !normalizedPolicy.allowedHosts.some((allowed) => allowed.toLowerCase() === host!.toLowerCase())) throw new RequestTransportError({ code: 'untrusted-forwarded-header', message: `Forwarded host ${JSON.stringify(host)} is not allowed.`, path: ['header', 'forwarded'] });
+		if (/[\0\r\n/@\\]/.test(host)) {
+			throw new RequestTransportError({
+				code: 'untrusted-forwarded-header',
+				message: 'Forwarded host is malformed.',
+				path: ['header', 'forwarded'],
+			});
+		}
+		if (
+			normalizedPolicy.allowedHosts &&
+			!normalizedPolicy.allowedHosts.some((allowed) => allowed.toLowerCase() === host!.toLowerCase())
+		) {
+			throw new RequestTransportError({
+				code: 'untrusted-forwarded-header',
+				message: `Forwarded host ${JSON.stringify(host)} is not allowed.`,
+				path: ['header', 'forwarded'],
+			});
+		}
 		const forwarded = new URL(`${result.protocol}//${host}`);
 		result.hostname = forwarded.hostname;
 		result.port = forwarded.port;
@@ -43,23 +67,35 @@ export function externalUrl(request: Request, policy: ForwardedHeaderPolicy): UR
 	return result;
 }
 
-
 /** Validate and snapshot forwarding trust policy before reading spoofable request metadata. @internal */
 function forwardedPolicy(policy: ForwardedHeaderPolicy): ForwardedHeaderPolicy {
 	recordCore.assert(policy, 'forwarded header policy');
 	if (typeof policy.trust !== 'boolean') throw new TypeError('forwarded header policy trust must be a boolean.');
-	for (const [name, value] of [['allowForwarded', policy.allowForwarded], ['allowXForwarded', policy.allowXForwarded]] as const) {
-		if (value !== undefined && typeof value !== 'boolean') throw new TypeError(`${name} must be a boolean when provided.`);
+	for (
+		const [name, value] of [['allowForwarded', policy.allowForwarded], [
+			'allowXForwarded',
+			policy.allowXForwarded,
+		]] as const
+	) {
+		if (value !== undefined && typeof value !== 'boolean') {
+			throw new TypeError(`${name} must be a boolean when provided.`);
+		}
 	}
 	const allowedHosts = policy.allowedHosts === undefined ? undefined : stringList(policy.allowedHosts, 'allowedHosts');
-	const allowedProtocols = policy.allowedProtocols === undefined ? undefined : stringList(policy.allowedProtocols, 'allowedProtocols');
-	if (allowedProtocols?.some((value) => value !== 'http:' && value !== 'https:')) throw new TypeError('allowedProtocols may contain only http: or https:.');
+	const allowedProtocols = policy.allowedProtocols === undefined
+		? undefined
+		: stringList(policy.allowedProtocols, 'allowedProtocols');
+	if (allowedProtocols?.some((value) => value !== 'http:' && value !== 'https:')) {
+		throw new TypeError('allowedProtocols may contain only http: or https:.');
+	}
 	return Object.freeze({
 		trust: policy.trust,
 		...(policy.allowForwarded === undefined ? {} : { allowForwarded: policy.allowForwarded }),
 		...(policy.allowXForwarded === undefined ? {} : { allowXForwarded: policy.allowXForwarded }),
 		...(allowedHosts === undefined ? {} : { allowedHosts }),
-		...(allowedProtocols === undefined ? {} : { allowedProtocols: allowedProtocols as readonly ('http:' | 'https:')[] }),
+		...(allowedProtocols === undefined
+			? {}
+			: { allowedProtocols: allowedProtocols as readonly ('http:' | 'https:')[] }),
 	});
 }
 

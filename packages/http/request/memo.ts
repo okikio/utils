@@ -15,7 +15,10 @@ export async function memoize<Value>(
 	}
 	const cacheRejected = options.cacheRejected ?? false;
 	let cache = requestCaches.get(request);
-	if (!cache) { cache = new Map(); requestCaches.set(request, cache); }
+	if (!cache) {
+		cache = new Map();
+		requestCaches.set(request, cache);
+	}
 	if (cache.has(key)) return await cache.get(key) as Value;
 	const pending = Promise.resolve().then(load);
 	cache.set(key, pending);

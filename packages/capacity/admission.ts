@@ -1,4 +1,11 @@
-import type { Admission, AdmissionCancellation, AdmissionLease, AdmissionLimits, AdmissionRequest, AdmissionSnapshot } from './types.ts';
+import type {
+	Admission,
+	AdmissionCancellation,
+	AdmissionLease,
+	AdmissionLimits,
+	AdmissionRequest,
+	AdmissionSnapshot,
+} from './types.ts';
 import * as recordCore from '@okikio/record';
 
 interface Waiter {
@@ -104,7 +111,6 @@ function normalize(value: Readonly<Record<string, number>>, name: string): Admis
 	}
 	return Object.freeze(Object.fromEntries(entries));
 }
-
 
 function assertPossible(admission: Admission, request: AdmissionRequest): void {
 	for (const [name, amount] of Object.entries(request)) {

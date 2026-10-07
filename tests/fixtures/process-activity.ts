@@ -11,8 +11,11 @@ function contract<Output>(validate: (value: unknown) => Output): StandardSchemaV
 			version: 1,
 			vendor: 'process-orchestration-scenario',
 			validate(value: unknown) {
-				try { return { value: validate(value) }; }
-				catch (error) { return { issues: [{ message: error instanceof Error ? error.message : String(error) }] }; }
+				try {
+					return { value: validate(value) };
+				} catch (error) {
+					return { issues: [{ message: error instanceof Error ? error.message : String(error) }] };
+				}
 			},
 		}),
 	});
@@ -22,7 +25,9 @@ export const InputSchema = contract((value) => {
 	if (typeof value !== 'object' || value === null) throw new TypeError('Expected process activity input.');
 	const input = value as { task?: unknown; crashFirst?: unknown };
 	if (typeof input.task !== 'string') throw new TypeError('Expected task string.');
-	if (input.crashFirst !== undefined && typeof input.crashFirst !== 'boolean') throw new TypeError('Expected crashFirst boolean.');
+	if (input.crashFirst !== undefined && typeof input.crashFirst !== 'boolean') {
+		throw new TypeError('Expected crashFirst boolean.');
+	}
 	return Object.freeze({ task: input.task, crashFirst: input.crashFirst === true });
 });
 
@@ -38,7 +43,9 @@ export const ResultSchema = contract((value) => {
 const AttemptSchema = contract((value) => {
 	if (typeof value !== 'object' || value === null) throw new TypeError('Expected process attempt effect.');
 	const attempt = value as { task?: unknown; pid?: unknown; attempt?: unknown };
-	if (typeof attempt.task !== 'string' || !Number.isSafeInteger(attempt.pid) || !Number.isSafeInteger(attempt.attempt)) {
+	if (
+		typeof attempt.task !== 'string' || !Number.isSafeInteger(attempt.pid) || !Number.isSafeInteger(attempt.attempt)
+	) {
 		throw new TypeError('Expected task, pid, and attempt effect fields.');
 	}
 	return Object.freeze({ task: attempt.task, pid: Number(attempt.pid), attempt: Number(attempt.attempt) });

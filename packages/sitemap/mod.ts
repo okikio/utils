@@ -241,7 +241,9 @@ class SitemapXmlCollector {
 		if (!this.#format) {
 			if (local === 'rss') this.#format = 'rss';
 			else if (local === 'feed') this.#format = 'atom';
-			else if (sitemapElement(local, uri, 'urlset', this.#policy) || sitemapElement(local, uri, 'sitemapindex', this.#policy)) {
+			else if (
+				sitemapElement(local, uri, 'urlset', this.#policy) || sitemapElement(local, uri, 'sitemapindex', this.#policy)
+			) {
 				this.#format = 'xml';
 			} else if (this.#defaultNamespaces.length === 1 && (local === 'urlset' || local === 'sitemapindex')) {
 				this.#namespaceProblem = {
@@ -258,7 +260,10 @@ class SitemapXmlCollector {
 			this.#capture = { tagName: 'loc', text: '' };
 			return;
 		}
-		if (this.#current && ['lastmod', 'changefreq', 'priority'].includes(local) && sitemapElement(local, uri, local, this.#policy)) {
+		if (
+			this.#current && ['lastmod', 'changefreq', 'priority'].includes(local) &&
+			sitemapElement(local, uri, local, this.#policy)
+		) {
 			this.#capture = { tagName: local as CapturedXmlText['tagName'], text: '' };
 			return;
 		}
@@ -289,9 +294,11 @@ class SitemapXmlCollector {
 		const defaultNamespace = this.#defaultNamespaces.at(-1);
 		const local = localName(rawName);
 		const uri = resolvedElementNamespace(rawName, callbackUri, defaultNamespace);
-		if (this.#capture && local === this.#capture.tagName && (
-			this.#capture.tagName === 'link' || sitemapElement(local, uri, this.#capture.tagName, this.#policy)
-		)) {
+		if (
+			this.#capture && local === this.#capture.tagName && (
+				this.#capture.tagName === 'link' || sitemapElement(local, uri, this.#capture.tagName, this.#policy)
+			)
+		) {
 			const value = this.#capture.text.trim();
 			if (this.#capture.tagName === 'loc' && isHttpUrl(value)) {
 				if (this.#current) this.#current.url = value;
@@ -310,17 +317,24 @@ class SitemapXmlCollector {
 		}
 
 		const recordUrl = this.#current?.url;
-		if ((sitemapElement(local, uri, 'url', this.#policy) || sitemapElement(local, uri, 'sitemap', this.#policy)) && recordUrl) {
+		if (
+			(sitemapElement(local, uri, 'url', this.#policy) || sitemapElement(local, uri, 'sitemap', this.#policy)) &&
+			recordUrl
+		) {
 			const record = this.#current!;
 			if (record.kind === 'sitemap') {
 				emit({
-					kind: 'sitemap', loc: recordUrl, format: 'xml',
+					kind: 'sitemap',
+					loc: recordUrl,
+					format: 'xml',
 					...(record.lastModified ? { lastModified: record.lastModified } : {}),
 					alternates: record.alternates,
 				});
 			} else {
 				emit({
-					kind: 'url', loc: recordUrl, format: this.#format ?? 'xml',
+					kind: 'url',
+					loc: recordUrl,
+					format: this.#format ?? 'xml',
 					...(record.lastModified ? { lastModified: record.lastModified } : {}),
 					...(record.changeFrequency ? { changeFrequency: record.changeFrequency } : {}),
 					...(record.priority !== undefined ? { priority: record.priority } : {}),
@@ -515,7 +529,10 @@ async function consumeTextLine(
 	if (!value) return;
 	if (value.startsWith('#')) {
 		if (policy === 'lenient') {
-			problems.push({ code: 'nonstandard_text_comment', message: 'Accepted a non-standard comment in a text sitemap.' });
+			problems.push({
+				code: 'nonstandard_text_comment',
+				message: 'Accepted a non-standard comment in a text sitemap.',
+			});
 		}
 		return;
 	}
@@ -533,7 +550,10 @@ function parseText(
 		if (!value) continue;
 		if (value.startsWith('#')) {
 			if (policy === 'lenient') {
-				problems.push({ code: 'nonstandard_text_comment', message: 'Accepted a non-standard comment in a text sitemap.' });
+				problems.push({
+					code: 'nonstandard_text_comment',
+					message: 'Accepted a non-standard comment in a text sitemap.',
+				});
 			}
 			continue;
 		}

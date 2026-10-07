@@ -292,9 +292,11 @@ describe('Worker server', () => {
 		await server.closed;
 
 		expect(scope.posted[0]?.message).toEqual({ type: 'result', id: 'cleanup-failure', response: { upper: 'VALUE' } });
-		expect(scope.posted.some(({ message }) =>
-			typeof message === 'object' && message !== null && 'type' in message && message.type === 'fault'
-		)).toBe(true);
+		expect(
+			scope.posted.some(({ message }) =>
+				typeof message === 'object' && message !== null && 'type' in message && message.type === 'fault'
+			),
+		).toBe(true);
 	});
 
 	it('encodes expected failures and keeps serving later requests', async () => {
@@ -352,7 +354,7 @@ describe('Worker server', () => {
 				return { upper: 'LATE' };
 			},
 		});
-			scope.message({
+		scope.message({
 			type: 'request',
 			id: 'slow',
 			context: { id: 'worker-slow', startedAt: '2026-08-05T00:00:00Z' },
@@ -415,12 +417,14 @@ describe('Worker intermediate protocol', () => {
 		fake.onPost = (message) => {
 			if (typeof message !== 'object' || message === null || !('type' in message)) return;
 			if (message.type === 'request') {
-				queueMicrotask(() => fake.message({
-					type: 'call',
-					id: requestId(message),
-					callId: 'permission-1',
-					request: { permission: 'media.read' },
-				}));
+				queueMicrotask(() =>
+					fake.message({
+						type: 'call',
+						id: requestId(message),
+						callId: 'permission-1',
+						request: { permission: 'media.read' },
+					})
+				);
 				return;
 			}
 			if (message.type === 'call-result' && 'id' in message && typeof message.id === 'string') {
@@ -445,9 +449,11 @@ describe('Worker intermediate protocol', () => {
 		});
 
 		expect(await handle.request(ctx, { value: 'value' })).toEqual({ upper: 'AUTHORIZED' });
-		expect(fake.posted.some(({ message }) =>
-			typeof message === 'object' && message !== null && 'type' in message && message.type === 'call-result'
-		)).toBe(true);
+		expect(
+			fake.posted.some(({ message }) =>
+				typeof message === 'object' && message !== null && 'type' in message && message.type === 'call-result'
+			),
+		).toBe(true);
 	});
 
 	it('blocks only cooperative checkpoints and resumes the same active request', async () => {

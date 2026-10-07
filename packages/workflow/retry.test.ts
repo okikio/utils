@@ -6,11 +6,14 @@ import * as retry from './retry.ts';
 
 describe('workflow retry values', () => {
 	it('derives repeatable bounded jitter from arbitrary instruction identities', () => {
-		fc.assert(fc.property(fc.string(), (identity) => {
-			const value = retry.unit(identity);
-			expect(retry.unit(identity)).toBe(value);
-			expect(value).toBeGreaterThanOrEqual(0);
-			expect(value).toBeLessThanOrEqual(1);
-		}), { numRuns: 500 });
+		fc.assert(
+			fc.property(fc.string(), (identity) => {
+				const value = retry.unit(identity);
+				expect(retry.unit(identity)).toBe(value);
+				expect(value).toBeGreaterThanOrEqual(0);
+				expect(value).toBeLessThanOrEqual(1);
+			}),
+			{ numRuns: 500 },
+		);
 	});
 });

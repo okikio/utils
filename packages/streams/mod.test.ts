@@ -82,7 +82,6 @@ describe('stream adapters and limits', () => {
 		await retained.cancel();
 	});
 
-
 	it('decodes UTF-8 lines across byte chunks and normalizes CRLF', async () => {
 		const encoder = new TextEncoder();
 		const encoded = encoder.encode('alpha\r\nβeta\nfinal');

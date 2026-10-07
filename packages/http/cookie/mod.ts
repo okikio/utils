@@ -88,7 +88,9 @@ export async function get<Definition extends CookieDefinition>(
 ): Promise<CookieValue<Definition> | undefined> {
 	const result = await safeGet(input, definition);
 	if (result.success) return result.value;
-	throw new TypeError(`Cookie ${JSON.stringify(definition.name)} is invalid: ${result.issues.map((issue) => issue.message).join('; ')}`);
+	throw new TypeError(
+		`Cookie ${JSON.stringify(definition.name)} is invalid: ${result.issues.map((issue) => issue.message).join('; ')}`,
+	);
 }
 
 /** Append one Set-Cookie field without overwriting other cookie writes. */
@@ -103,20 +105,27 @@ export function set<Definition extends CookieDefinition>(
 
 /** Append an expired Set-Cookie field for one definition. */
 function deleteCookie(headers: Headers, definition: CookieDefinition): void {
-	appendSetCookie(headers, occurrence(definition, '', {
-		expires: new Date(0),
-		maxAge: 0,
-	}));
+	appendSetCookie(
+		headers,
+		occurrence(definition, '', {
+			expires: new Date(0),
+			maxAge: 0,
+		}),
+	);
 }
 
 /** Create deterministic JSON-safe cookie documentation. */
 export function document(input: DefinitionInput<CookieDefinition>): readonly CookieDocument[] {
-	return Object.freeze(catalog.values(input).map((definition) => Object.freeze({
-		id: definition.id,
-		name: definition.name,
-		description: definition.description ?? '',
-		attributes: definition.attributes,
-	})));
+	return Object.freeze(
+		catalog.values(input).map((definition) =>
+			Object.freeze({
+				id: definition.id,
+				name: definition.name,
+				description: definition.description ?? '',
+				attributes: definition.attributes,
+			})
+		),
+	);
 }
 
 /**
@@ -161,9 +170,12 @@ function occurrence(
  */
 function sameSite(value: NonNullable<CookieAttributes['sameSite']>): NonNullable<StandardCookie['sameSite']> {
 	switch (value) {
-		case 'strict': return 'Strict';
-		case 'lax': return 'Lax';
-		case 'none': return 'None';
+		case 'strict':
+			return 'Strict';
+		case 'lax':
+			return 'Lax';
+		case 'none':
+			return 'None';
 	}
 }
 
@@ -179,7 +191,9 @@ function normalizeAttributes(name: string, input: CookieAttributes): CookieAttri
 		...input,
 		...(input.path !== undefined ? { path: normalizePath(input.path) } : {}),
 	});
-	if (attributes.sameSite === 'none' && !attributes.secure) throw new TypeError('SameSite=None cookies must be Secure.');
+	if (attributes.sameSite === 'none' && !attributes.secure) {
+		throw new TypeError('SameSite=None cookies must be Secure.');
+	}
 	if (attributes.partitioned && !attributes.secure) throw new TypeError('Partitioned cookies must be Secure.');
 	if (name.startsWith('__Secure-') && !attributes.secure) throw new TypeError('__Secure- cookies must be Secure.');
 	if (name.startsWith('__Host-')) {
@@ -233,7 +247,9 @@ function assertIdentifier(value: string): void {
  * @internal
  */
 function assertCookieName(value: string): void {
-	if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(value)) throw new TypeError(`Invalid cookie name ${JSON.stringify(value)}.`);
+	if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(value)) {
+		throw new TypeError(`Invalid cookie name ${JSON.stringify(value)}.`);
+	}
 }
 
 /**
@@ -241,20 +257,25 @@ function assertCookieName(value: string): void {
  *
  * @internal
  */
-function assertSchema(value: unknown): asserts value is import('@standard-schema/spec').StandardSchemaV1<string, string> {
-	if (typeof value !== 'object' || value === null || typeof (value as { '~standard'?: { validate?: unknown } })['~standard']?.validate !== 'function') {
+function assertSchema(
+	value: unknown,
+): asserts value is import('@standard-schema/spec').StandardSchemaV1<string, string> {
+	if (
+		typeof value !== 'object' || value === null ||
+		typeof (value as { '~standard'?: { validate?: unknown } })['~standard']?.validate !== 'function'
+	) {
 		throw new TypeError('Cookie value must implement Standard Schema.');
 	}
 }
 
 export { cookieCatalog as catalog, deleteCookie as delete };
 export type {
-	CookieSameSite,
 	CookieAttributes,
 	CookieDefinition,
 	CookieDefinitionInput,
+	CookieDocument,
+	CookieReadResult,
+	CookieSameSite,
 	CookieValue,
 	SetCookieOptions,
-	CookieReadResult,
-	CookieDocument,
 } from './types.ts';

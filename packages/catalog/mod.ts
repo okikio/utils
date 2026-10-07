@@ -81,7 +81,9 @@ export function create<
 		const previousKey = keyByEntry.get(entry);
 		if (previousKey !== undefined) {
 			throw new TypeError(
-				`Catalog ${JSON.stringify(namespace)} assigns definition ${JSON.stringify(entry.id)} to both ${JSON.stringify(previousKey)} and ${JSON.stringify(key)}.`,
+				`Catalog ${JSON.stringify(namespace)} assigns definition ${JSON.stringify(entry.id)} to both ${
+					JSON.stringify(previousKey)
+				} and ${JSON.stringify(key)}.`,
 			);
 		}
 		defineEntry(target, key, entry);
@@ -89,13 +91,15 @@ export function create<
 		keyByEntry.set(entry, key);
 	}
 
-	const metadata = Object.freeze({
-		type: 'catalog',
-		namespace,
-		keys: Object.freeze(keys as string[]),
-		entries: Object.freeze(orderedEntries),
-		keyByEntry: immutableMap(keyByEntry),
-	} satisfies CatalogMetadata);
+	const metadata = Object.freeze(
+		{
+			type: 'catalog',
+			namespace,
+			keys: Object.freeze(keys as string[]),
+			entries: Object.freeze(orderedEntries),
+			keyByEntry: immutableMap(keyByEntry),
+		} satisfies CatalogMetadata,
+	);
 
 	catalogMetadata.set(target, metadata);
 	return Object.freeze(target) as Catalog<Entries[keyof Entries], Entries>;
@@ -186,14 +190,16 @@ export function select<
 	}
 
 	const selectedKeys = Object.freeze([...seenKeys]);
-	const metadata = Object.freeze({
-		type: 'selection',
-		namespace: sourceMetadata.namespace,
-		source,
-		keys: selectedKeys,
-		entries: Object.freeze(selectedEntries),
-		keyByEntry: immutableMap(keyByEntry),
-	} satisfies CatalogSelectionMetadata<Entry>);
+	const metadata = Object.freeze(
+		{
+			type: 'selection',
+			namespace: sourceMetadata.namespace,
+			source,
+			keys: selectedKeys,
+			entries: Object.freeze(selectedEntries),
+			keyByEntry: immutableMap(keyByEntry),
+		} satisfies CatalogSelectionMetadata<Entry>,
+	);
 
 	selectionMetadata.set(target, metadata);
 	return Object.freeze(target) as CatalogSelection<Entries[keyof Entries], Pick<Entries, Keys[number]>>;
@@ -220,7 +226,9 @@ export function validate(input: unknown): CatalogValidationResult {
 				return;
 			}
 			if (entry.id.length === 0) issues.push({ code: 'empty-id', message: 'Catalog entry id cannot be empty.' });
-			if (entry.kind.length === 0) issues.push({ code: 'empty-kind', message: 'Catalog entry kind cannot be empty.', id: entry.id });
+			if (entry.kind.length === 0) {
+				issues.push({ code: 'empty-kind', message: 'Catalog entry kind cannot be empty.', id: entry.id });
+			}
 			const owner = idOwners.get(entry.id);
 			if (owner && owner !== entry) {
 				issues.push({
@@ -258,7 +266,6 @@ export function document(input: DefinitionInput<CatalogEntryIdentity>): CatalogD
 		entries: Object.freeze(values(input).map((entry, index) => documentEntry(String(index), entry))),
 	});
 }
-
 
 /**
  * Owns the internal immutable map state used by immutable catalog composition.
@@ -460,7 +467,11 @@ function visitUnknown(input: unknown, accept: (entry: unknown) => void): void {
  *
  * @internal
  */
-function defineEntry(target: Record<PropertyKey, CatalogEntryIdentity>, key: string, entry: CatalogEntryIdentity): void {
+function defineEntry(
+	target: Record<PropertyKey, CatalogEntryIdentity>,
+	key: string,
+	entry: CatalogEntryIdentity,
+): void {
 	Object.defineProperty(target, key, {
 		value: entry,
 		enumerable: true,
@@ -485,7 +496,9 @@ function assertNamespace(namespace: string): void {
  */
 function assertEntry(value: unknown, key?: string): asserts value is CatalogEntryIdentity {
 	if (!isEntry(value)) {
-		throw new TypeError(`${key ? `Catalog entry ${JSON.stringify(key)}` : 'Catalog entry'} must have string id and kind.`);
+		throw new TypeError(
+			`${key ? `Catalog entry ${JSON.stringify(key)}` : 'Catalog entry'} must have string id and kind.`,
+		);
 	}
 	if (value.id.length === 0) throw new TypeError('Catalog entry id cannot be empty.');
 	if (value.kind.length === 0) throw new TypeError(`Catalog entry ${JSON.stringify(value.id)} kind cannot be empty.`);

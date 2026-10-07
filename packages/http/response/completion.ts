@@ -60,7 +60,11 @@ export function onComplete(
 		 * @internal
 		 */
 		async cancel(reason) {
-			try { await reader.cancel(reason); } finally { notify({ outcome: 'cancelled', bytes, reason }); }
+			try {
+				await reader.cancel(reason);
+			} finally {
+				notify({ outcome: 'cancelled', bytes, reason });
+			}
 		},
 	});
 	return new Response(body, {

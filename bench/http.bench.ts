@@ -12,8 +12,12 @@ async function verify(): Promise<void> {
 	const response = await app.fetch(new Request('https://service.invalid/accounts/42'));
 	try {
 		if (response.status !== 200) throw new Error('HTTP benchmark route did not return success.');
-		if (response.headers.get('x-request-id') !== 'bench-request') throw new Error('HTTP benchmark did not apply request correlation.');
-		if (response.headers.get('x-content-type-options') !== 'nosniff') throw new Error('HTTP benchmark did not apply security headers.');
+		if (response.headers.get('x-request-id') !== 'bench-request') {
+			throw new Error('HTTP benchmark did not apply request correlation.');
+		}
+		if (response.headers.get('x-content-type-options') !== 'nosniff') {
+			throw new Error('HTTP benchmark did not apply security headers.');
+		}
 		const body = await response.json() as { path?: unknown };
 		if (body.path !== '/accounts/42') throw new Error('HTTP benchmark route did not preserve the requested path.');
 	} finally {

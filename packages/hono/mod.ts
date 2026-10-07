@@ -22,11 +22,12 @@ export function fetch(app: Hono, middleware: readonly http.Middleware[] = []): h
 export function catchErrors(
 	options: http.ErrorOptions = {},
 ): (error: Error, ctx: HonoContext) => Promise<Response> {
-	return async (error: Error, ctx: HonoContext): Promise<Response> => await http.errorResponse(error, ctx.req.raw, {
-		...options,
-		async map(normalized, request) {
-			if (error instanceof HTTPException) return error.getResponse();
-			return await options.map?.(normalized, request);
-		},
-	});
+	return async (error: Error, ctx: HonoContext): Promise<Response> =>
+		await http.errorResponse(error, ctx.req.raw, {
+			...options,
+			async map(normalized, request) {
+				if (error instanceof HTTPException) return error.getResponse();
+				return await options.map?.(normalized, request);
+			},
+		});
 }

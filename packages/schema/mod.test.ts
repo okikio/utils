@@ -2,7 +2,7 @@ import { expect } from '@std/expect';
 import { describe, it } from 'node:test';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 
-import { SchemaValidationError, is, parse, prefixIssues, validate } from './mod.ts';
+import { is, parse, prefixIssues, SchemaValidationError, validate } from './mod.ts';
 
 const PositiveInteger = {
 	'~standard': {

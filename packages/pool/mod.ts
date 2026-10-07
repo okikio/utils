@@ -391,7 +391,9 @@ class Runtime<Value> {
 		return Object.freeze({
 			value,
 			acquiredAt,
-			get invalid() { return state.invalid; },
+			get invalid() {
+				return state.invalid;
+			},
 			invalidate: (reason?: unknown) => this.#invalidate(state, reason),
 			[Symbol.asyncDispose]: () => this.#release(value, state),
 		});
@@ -471,7 +473,10 @@ class Runtime<Value> {
 		const expired: Value[] = [];
 		for (const entry of this.#idle) {
 			const age = entry.returnedAt.until(now);
-			if (duration.compare(age, this.#limits.maximumIdleAge) >= 0 && this.#idle.length - expired.length > this.#limits.minimum) {
+			if (
+				duration.compare(age, this.#limits.maximumIdleAge) >= 0 &&
+				this.#idle.length - expired.length > this.#limits.minimum
+			) {
 				expired.push(entry.value);
 			} else {
 				retained.push(entry);
@@ -603,15 +608,20 @@ function positiveDuration(value: Temporal.Duration | Temporal.DurationLike | str
 }
 
 /** Normalize a non-negative duration before it becomes an idle-retirement timing rule. */
-function nonNegativeDuration(value: Temporal.Duration | Temporal.DurationLike | string, label: string): Temporal.Duration {
+function nonNegativeDuration(
+	value: Temporal.Duration | Temporal.DurationLike | string,
+	label: string,
+): Temporal.Duration {
 	let parsed: Temporal.Duration;
 	try {
 		parsed = Temporal.Duration.from(value);
 	} catch {
 		throw new TypeError(`${label} must not be negative.`);
 	}
-	if (duration.compare(parsed, Temporal.Duration.from('PT0S')) < 0) throw new TypeError(`${label} must not be negative.`);
+	if (duration.compare(parsed, Temporal.Duration.from('PT0S')) < 0) {
+		throw new TypeError(`${label} must not be negative.`);
+	}
 	return parsed;
 }
 
-export type { Event, Stats, Lease, Pool, CreateOptions } from './types.ts';
+export type { CreateOptions, Event, Lease, Pool, Stats } from './types.ts';

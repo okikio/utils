@@ -61,21 +61,25 @@ export function define<
 		return existing as RequirementDefinition<Family, Action, Entry>;
 	}
 
-	const value = Object.freeze({
-		kind: 'requirement',
-		id: `${input.family}:${input.action}:${input.definition.id}`,
-		family: input.family,
-		action: input.action,
-		definition: input.definition,
-		...(input.description === undefined ? {} : { description: input.description }),
-	} satisfies RequirementDefinition<Family, Action, Entry>);
+	const value = Object.freeze(
+		{
+			kind: 'requirement',
+			id: `${input.family}:${input.action}:${input.definition.id}`,
+			family: input.family,
+			action: input.action,
+			definition: input.definition,
+			...(input.description === undefined ? {} : { description: input.description }),
+		} satisfies RequirementDefinition<Family, Action, Entry>,
+	);
 	owned.set(key, value);
 	definitions.set(input.definition, owned);
 	return value;
 }
 
 /** Compose direct requirements, catalogs, selections, and nested arrays. */
-export function compose<Entry extends RequirementDefinition>(...input: readonly RequirementInput<Entry>[]): readonly Entry[] {
+export function compose<Entry extends RequirementDefinition>(
+	...input: readonly RequirementInput<Entry>[]
+): readonly Entry[] {
 	return catalog.compose(...input);
 }
 
@@ -101,14 +105,18 @@ export function is(value: unknown): value is RequirementDefinition {
 
 /** Create deterministic JSON-safe documentation for requirement definitions. */
 export function document(input: RequirementInput): readonly RequirementDocument[] {
-	return Object.freeze(catalog.values(input).map((entry) => Object.freeze({
-		id: entry.id,
-		family: entry.family,
-		action: entry.action,
-		definition: entry.definition.id,
-		definitionKind: entry.definition.kind,
-		...(entry.description === undefined ? {} : { description: entry.description }),
-	})));
+	return Object.freeze(
+		catalog.values(input).map((entry) =>
+			Object.freeze({
+				id: entry.id,
+				family: entry.family,
+				action: entry.action,
+				definition: entry.definition.id,
+				definitionKind: entry.definition.kind,
+				...(entry.description === undefined ? {} : { description: entry.description }),
+			})
+		),
+	);
 }
 
 /**
@@ -122,10 +130,12 @@ export function scope<Base extends import('@okikio/context').Context>(
 	ctx: Base,
 	options: RequirementScopeOptions = {},
 ): RequirementContext<Base> {
-	const runtime = Object.freeze({
-		interpreters: Object.freeze({ ...(options.interpreters ?? {}) }),
-		unknown: options.unknown ?? 'reject',
-	} satisfies RequirementRuntime);
+	const runtime = Object.freeze(
+		{
+			interpreters: Object.freeze({ ...(options.interpreters ?? {}) }),
+			unknown: options.unknown ?? 'reject',
+		} satisfies RequirementRuntime,
+	);
 	return context.view(ctx, { requirements: runtime });
 }
 
@@ -172,7 +182,6 @@ export async function apply(ctx: import('@okikio/context').Context, input: Requi
 	context.check(ctx);
 }
 
-
 /**
  * Return the requirement runtime attached to a context, or the fail-closed
  * default used by plain contexts.
@@ -184,7 +193,9 @@ export async function apply(ctx: import('@okikio/context').Context, input: Requi
 function runtime(ctx: import('@okikio/context').Context): RequirementRuntime {
 	const candidate = (ctx as import('@okikio/context').Context & { readonly requirements?: unknown }).requirements;
 	if (candidate === undefined) return Object.freeze({ interpreters: Object.freeze({}), unknown: 'reject' });
-	if (typeof candidate !== 'object' || candidate === null) throw new TypeError('Context requirements runtime is invalid.');
+	if (typeof candidate !== 'object' || candidate === null) {
+		throw new TypeError('Context requirements runtime is invalid.');
+	}
 	const value = candidate as Partial<RequirementRuntime>;
 	if (typeof value.interpreters !== 'object' || value.interpreters === null) {
 		throw new TypeError('Context requirement interpreters must be an object.');

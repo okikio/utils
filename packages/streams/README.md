@@ -1,29 +1,23 @@
-`@okikio/streams`
-================
+# `@okikio/streams`
 
-Purpose
--------
+## Purpose
 
-`@okikio/streams` contains project-neutral adapters between Web Streams and
-iterables. It also owns bounded collection, batching, and UTF-8 line framing.
+`@okikio/streams` contains project-neutral adapters between Web Streams and iterables. It also owns bounded collection,
+batching, and UTF-8 line framing.
 
-The package preserves streaming and cancellation unless the caller explicitly
-chooses materialization through `collect()`.
+The package preserves streaming and cancellation unless the caller explicitly chooses materialization through
+`collect()`.
 
-Start here
-----------
+## Start here
 
 - `readable()` adapts an iterable to `ReadableStream`.
-- `iterable()` adapts a `ReadableStream` to an async iterable and cancels the
-  source when the consumer stops early unless `preventCancel` is set.
-- `lines()` frames a byte stream into UTF-8 lines. It handles UTF-8 sequences
-  split across chunks, removes CR before LF, returns the final unterminated
-  line, and can enforce `maximumLineBytes`.
-- `pipe()` sends iterable values to a `WritableStream` with native pressure and
-  cancellation behavior.
+- `iterable()` adapts a `ReadableStream` to an async iterable and cancels the source when the consumer stops early
+  unless `preventCancel` is set.
+- `lines()` frames a byte stream into UTF-8 lines. It handles UTF-8 sequences split across chunks, removes CR before LF,
+  returns the final unterminated line, and can enforce `maximumLineBytes`.
+- `pipe()` sends iterable values to a `WritableStream` with native pressure and cancellation behavior.
 - `batch()` emits bounded immutable groups without materializing the full source.
-- `collect()` materializes a finite source only within explicit item and byte
-  limits.
+- `collect()` materializes a finite source only within explicit item and byte limits.
 
 ```ts
 import * as streams from '@okikio/streams';
@@ -31,62 +25,60 @@ import * as streams from '@okikio/streams';
 const response = await fetch('https://service.invalid/events');
 if (response.body === null) throw new Error('Response has no body.');
 
-for await (const line of streams.lines(response.body, {
-  maximumLineBytes: 64 * 1024,
-})) {
-  consume(line);
+for await (
+	const line of streams.lines(response.body, {
+		maximumLineBytes: 64 * 1024,
+	})
+) {
+	consume(line);
 }
 ```
 
-`lines()` counts UTF-8 bytes before decoding. This makes the limit meaningful for
-process IPC even when one character spans several byte chunks.
+`lines()` counts UTF-8 bytes before decoding. This makes the limit meaningful for process IPC even when one character
+spans several byte chunks.
 
-Batch without materializing the source
---------------------------------------
+## Batch without materializing the source
 
 ```ts
 async function* values() {
-  for (let value = 0; value < 10_000; value++) yield value;
+	for (let value = 0; value < 10_000; value++) yield value;
 }
 
 for await (const group of streams.batch(values(), { maximumItems: 100 })) {
-  await writeGroup(group);
+	await writeGroup(group);
 }
 ```
 
-`batch()` retains only the current bounded group. At least one of
-`maximumItems` or `maximumBytes` is required. When byte limits matter, provide a
-`size(value)` function so the utility can enforce the same unit you care about.
+`batch()` retains only the current bounded group. At least one of `maximumItems` or `maximumBytes` is required. When
+byte limits matter, provide a `size(value)` function so the utility can enforce the same unit you care about.
 
 ```ts
-for await (const group of streams.batch(records(), {
-  maximumItems: 500,
-  maximumBytes: 4 * 1024 * 1024,
-  size: (record) => new TextEncoder().encode(JSON.stringify(record)).byteLength,
-  signal,
-})) {
-  await upload(group, signal);
+for await (
+	const group of streams.batch(records(), {
+		maximumItems: 500,
+		maximumBytes: 4 * 1024 * 1024,
+		size: (record) => new TextEncoder().encode(JSON.stringify(record)).byteLength,
+		signal,
+	})
+) {
+	await upload(group, signal);
 }
 ```
 
-Use `collect()` only when the caller intentionally wants a finite source in
-memory and can supply explicit limits. The manual equivalent is an ordinary
-`for await` loop that tracks the same counters before retaining each value.
+Use `collect()` only when the caller intentionally wants a finite source in memory and can supply explicit limits. The
+manual equivalent is an ordinary `for await` loop that tracks the same counters before retaining each value.
 
-Ownership
----------
+## Ownership
 
-This package does not own process lifecycle, retries, persistence, durable jobs,
-or domain-specific codecs. `@okikio/process` owns child process lifecycle.
-`@okikio/queue` owns claimed work. Product-specific durable representations belong
-in product packages.
+This package does not own process lifecycle, retries, persistence, durable jobs, or domain-specific codecs.
+`@okikio/process` owns child process lifecycle. `@okikio/queue` owns claimed work. Product-specific durable
+representations belong in product packages.
 
-Convenience and the manual equivalent
--------------------------------------
+## Convenience and the manual equivalent
 
 Concrete map
-~~~~~~~~~~~~
 
+```
 | Convenience | Manual equivalent | Concrete value |
 | --- | --- | --- |
 | `streams.lines()` | read chunks, incrementally decode UTF-8, carry partial lines, enforce byte/line bounds, and release the reader yourself | correct line framing across arbitrary chunk splits |
@@ -129,3 +121,4 @@ detail:
 
 The README is the primary user documentation. It intentionally stays close to
 the public source instead of maintaining a separate hand-written API reference.
+```

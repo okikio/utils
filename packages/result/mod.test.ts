@@ -16,7 +16,6 @@ describe('result', () => {
 		expect(result.unwrap(result.ok('ready'))).toBe('ready');
 	});
 
-
 	it('keeps function values distinct from lazy fallback factories', () => {
 		const stored = () => 'stored';
 		const fallback = () => 'fallback';

@@ -2,7 +2,10 @@ import { bench, do_not_optimize, group } from 'mitata';
 
 import * as workflow from '@okikio/workflow';
 
-const operations = Array.from({ length: 32 }, (_, index) => workflow.sleep({ milliseconds: index + 1 }, { key: `timer-${index}` }));
+const operations = Array.from(
+	{ length: 32 },
+	(_, index) => workflow.sleep({ milliseconds: index + 1 }, { key: `timer-${index}` }),
+);
 
 /** Derive the fixed workflow identity corpus outside and inside the timed workload. */
 async function identify(): Promise<readonly string[]> {
@@ -17,7 +20,10 @@ async function identify(): Promise<readonly string[]> {
 
 const initial = await identify();
 const repeated = await identify();
-if (initial.length !== operations.length || new Set(initial).size !== operations.length || !initial.every((value, index) => value === repeated[index])) {
+if (
+	initial.length !== operations.length || new Set(initial).size !== operations.length ||
+	!initial.every((value, index) => value === repeated[index])
+) {
 	throw new Error('Workflow benchmark identifiers are not unique and deterministic.');
 }
 

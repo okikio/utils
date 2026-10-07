@@ -178,11 +178,23 @@ export interface QueueRetryOptions {
  */
 export type QueueEventType =
 	| Readonly<{ readonly type: 'added'; readonly itemId: string; readonly key?: string }>
-	| Readonly<{ readonly type: 'claimed'; readonly itemId: string; readonly claimId: string; readonly owner: string; readonly attempt: number }>
-	| Readonly<{ readonly type: 'renewed'; readonly itemId: string; readonly claimId: string; readonly expiresAt: string }>
+	| Readonly<
+		{
+			readonly type: 'claimed';
+			readonly itemId: string;
+			readonly claimId: string;
+			readonly owner: string;
+			readonly attempt: number;
+		}
+	>
+	| Readonly<
+		{ readonly type: 'renewed'; readonly itemId: string; readonly claimId: string; readonly expiresAt: string }
+	>
 	| Readonly<{ readonly type: 'completed'; readonly itemId: string; readonly claimId: string }>
 	| Readonly<{ readonly type: 'failed'; readonly itemId: string; readonly claimId: string; readonly failureId: string }>
-	| Readonly<{ readonly type: 'retried'; readonly itemId: string; readonly claimId: string; readonly availableAt: string }>
+	| Readonly<
+		{ readonly type: 'retried'; readonly itemId: string; readonly claimId: string; readonly availableAt: string }
+	>
 	| Readonly<{ readonly type: 'cancelled'; readonly itemId: string }>
 	| Readonly<{ readonly type: 'claim-expired'; readonly itemId: string; readonly claimId: string }>
 	| Readonly<{ readonly type: 'closed' }>;
@@ -271,7 +283,11 @@ export interface Queue<Input, Output> extends AsyncDisposable {
 	/**
 	 * Extend the expiry time of the current claim owner.
 	 */
-	renew(ctx: Context, claim: QueueClaim<Input>, duration: Temporal.Duration | Temporal.DurationLike | string): Promise<QueueClaim<Input>>;
+	renew(
+		ctx: Context,
+		claim: QueueClaim<Input>,
+		duration: Temporal.Duration | Temporal.DurationLike | string,
+	): Promise<QueueClaim<Input>>;
 	/**
 	 * Return an authoritative snapshot of queue counts and local waiter pressure.
 	 *

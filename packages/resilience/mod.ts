@@ -16,8 +16,8 @@ import type {
 	ResilienceDocument,
 	ResilienceInput,
 	ResilienceOperationSafety,
-	ResiliencePolicy,
 	ResilienceOwner,
+	ResiliencePolicy,
 	ResilienceStage,
 	ResilienceValidationIssue,
 	ResilienceValidationResult,
@@ -81,7 +81,6 @@ export function retry(options: Readonly<{
 	});
 }
 
-
 /**
  * Compute the delay after one failed attempt without allocating a timer.
  *
@@ -132,10 +131,12 @@ export function circuitBreaker(options: Readonly<{
 }
 
 /** Define bounded concurrent admission and queueing. */
-export function bulkhead(options: Readonly<{
-	readonly concurrency: number;
-	readonly queue?: number;
-}>): BulkheadPolicy {
+export function bulkhead(
+	options: Readonly<{
+		readonly concurrency: number;
+		readonly queue?: number;
+	}>,
+): BulkheadPolicy {
 	assertPositiveInteger(options.concurrency, 'bulkhead concurrency');
 	assertNonNegative(options.queue ?? 0, 'bulkhead queue');
 	return Object.freeze({
@@ -147,11 +148,13 @@ export function bulkhead(options: Readonly<{
 }
 
 /** Define request-rate admission. */
-export function rateLimit(options: Readonly<{
-	readonly limit: number;
-	readonly window: Temporal.Duration | Temporal.DurationLike | string;
-	readonly key?: string;
-}>): RateLimitPolicy {
+export function rateLimit(
+	options: Readonly<{
+		readonly limit: number;
+		readonly window: Temporal.Duration | Temporal.DurationLike | string;
+		readonly key?: string;
+	}>,
+): RateLimitPolicy {
 	assertPositiveInteger(options.limit, 'rate limit');
 	return Object.freeze({
 		kind: 'resilience',
@@ -239,7 +242,11 @@ export function validate(
 		// layers frequently share one exported policy value.
 		if (existing === policy) continue;
 		if (existing !== undefined) {
-			issues.push({ code: 'conflicting-policy', message: `${policy.type} has more than one effective configuration.`, policy });
+			issues.push({
+				code: 'conflicting-policy',
+				message: `${policy.type} has more than one effective configuration.`,
+				policy,
+			});
 			continue;
 		}
 		byType.set(policy.type, policy);
@@ -267,12 +274,18 @@ export function is(value: unknown): value is ResiliencePolicy {
 
 /** Create deterministic JSON-safe documentation. */
 export function document(input: ResilienceInput): readonly ResilienceDocument[] {
-	return Object.freeze(compose(input).map((policy) => Object.freeze({
-		type: policy.type,
-		owner: owner(policy),
-		stage: stage(policy),
-		configuration: Object.freeze(configuration(policy)),
-	} satisfies ResilienceDocument)));
+	return Object.freeze(
+		compose(input).map((policy) =>
+			Object.freeze(
+				{
+					type: policy.type,
+					owner: owner(policy),
+					stage: stage(policy),
+					configuration: Object.freeze(configuration(policy)),
+				} satisfies ResilienceDocument,
+			)
+		),
+	);
 }
 
 /**
@@ -284,32 +297,39 @@ export function document(input: ResilienceInput): readonly ResilienceDocument[] 
  */
 function configuration(policy: ResiliencePolicy): Record<string, string | number | boolean | readonly string[]> {
 	switch (policy.type) {
-		case 'timeout': return { duration: policy.duration.toString() };
-		case 'idempotency': return {
-			header: policy.header,
-			required: policy.required,
-			...(policy.ttl !== undefined ? { ttl: policy.ttl.toString() } : {}),
-		};
-		case 'retry': return {
-			maximumAttempts: policy.maximumAttempts,
-			initialDelay: policy.initialDelay.toString(),
-			maximumDelay: policy.maximumDelay.toString(),
-			multiplier: policy.multiplier,
-			jitter: policy.jitter,
-			...(policy.retryOn !== undefined ? { retryOn: policy.retryOn } : {}),
-		};
-		case 'circuit-breaker': return {
-			failureThreshold: policy.failureThreshold,
-			resetAfter: policy.resetAfter.toString(),
-			halfOpenPermits: policy.halfOpenPermits,
-		};
-		case 'bulkhead': return { concurrency: policy.concurrency, queue: policy.queue };
-		case 'rate-limit': return {
-			limit: policy.limit,
-			window: policy.window.toString(),
-			...(policy.key !== undefined ? { key: policy.key } : {}),
-		};
-		case 'body-limit': return { bytes: policy.bytes };
+		case 'timeout':
+			return { duration: policy.duration.toString() };
+		case 'idempotency':
+			return {
+				header: policy.header,
+				required: policy.required,
+				...(policy.ttl !== undefined ? { ttl: policy.ttl.toString() } : {}),
+			};
+		case 'retry':
+			return {
+				maximumAttempts: policy.maximumAttempts,
+				initialDelay: policy.initialDelay.toString(),
+				maximumDelay: policy.maximumDelay.toString(),
+				multiplier: policy.multiplier,
+				jitter: policy.jitter,
+				...(policy.retryOn !== undefined ? { retryOn: policy.retryOn } : {}),
+			};
+		case 'circuit-breaker':
+			return {
+				failureThreshold: policy.failureThreshold,
+				resetAfter: policy.resetAfter.toString(),
+				halfOpenPermits: policy.halfOpenPermits,
+			};
+		case 'bulkhead':
+			return { concurrency: policy.concurrency, queue: policy.queue };
+		case 'rate-limit':
+			return {
+				limit: policy.limit,
+				window: policy.window.toString(),
+				...(policy.key !== undefined ? { key: policy.key } : {}),
+			};
+		case 'body-limit':
+			return { bytes: policy.bytes };
 	}
 }
 
@@ -326,7 +346,6 @@ function positiveDuration(
 	if (!(durationCore.milliseconds(duration) > 0)) throw new TypeError(`${name} must be positive.`);
 	return duration;
 }
-
 
 /**
  * Rejects invalid positive integer before it can enter authoritative module state.
@@ -352,23 +371,25 @@ function assertNonNegative(value: number, name: string): void {
  * @internal
  */
 function assertHeaderName(value: string): void {
-	if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(value)) throw new TypeError(`Invalid HTTP header name ${JSON.stringify(value)}.`);
+	if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(value)) {
+		throw new TypeError(`Invalid HTTP header name ${JSON.stringify(value)}.`);
+	}
 }
 
 export type {
-	ResilienceOperationSafety,
-	TimeoutPolicy,
-	IdempotencyPolicy,
-	RetryPolicy,
-	CircuitBreakerPolicy,
-	BulkheadPolicy,
-	RateLimitPolicy,
 	BodyLimitPolicy,
-	ResilienceOwner,
-	ResilienceStage,
-	ResiliencePolicy,
+	BulkheadPolicy,
+	CircuitBreakerPolicy,
+	IdempotencyPolicy,
+	RateLimitPolicy,
+	ResilienceDocument,
 	ResilienceInput,
+	ResilienceOperationSafety,
+	ResilienceOwner,
+	ResiliencePolicy,
+	ResilienceStage,
 	ResilienceValidationIssue,
 	ResilienceValidationResult,
-	ResilienceDocument,
+	RetryPolicy,
+	TimeoutPolicy,
 } from './types.ts';

@@ -23,11 +23,15 @@ export function freeze(value: ComputeType): ComputeType {
 	assert.id(value.id, 'compute');
 	if (value.kind !== undefined) assert.id(value.kind, 'compute kind');
 	if (value.parent !== undefined) assert.id(value.parent, 'compute parent');
-	const attributes = value.attributes === undefined ? undefined : freezeAffinity(value.attributes, 'compute attributes');
-	return Object.freeze({
-		id: value.id,
-		...(value.kind === undefined ? {} : { kind: value.kind }),
-		...(value.parent === undefined ? {} : { parent: value.parent }),
-		...(attributes === undefined ? {} : { attributes }),
-	} satisfies ComputeType);
+	const attributes = value.attributes === undefined
+		? undefined
+		: freezeAffinity(value.attributes, 'compute attributes');
+	return Object.freeze(
+		{
+			id: value.id,
+			...(value.kind === undefined ? {} : { kind: value.kind }),
+			...(value.parent === undefined ? {} : { parent: value.parent }),
+			...(attributes === undefined ? {} : { attributes }),
+		} satisfies ComputeType,
+	);
 }

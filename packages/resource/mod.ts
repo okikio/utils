@@ -19,17 +19,17 @@ import * as requirement from '@okikio/requirement';
 import type { EnvironmentRequirement } from '@okikio/env';
 
 import type {
-	ResourceImplementationAny,
 	ResourceCollection,
 	ResourceCollectionOptions,
+	ResourceCreateArgumentsAny,
 	ResourceDefinition,
-	ResourceOptions,
 	ResourceDependencies,
 	ResourceDocument,
-	ResourceCreateArgumentsAny,
 	ResourceImplementation,
+	ResourceImplementationAny,
 	ResourceImplementationOptions,
 	ResourceImplementationSet,
+	ResourceOptions,
 	ResourceValidationIssue,
 	ResourceValidationResult,
 	ResourceValue,
@@ -110,12 +110,16 @@ export class CollectionDisposedError extends Error {
 export function define<
 	const Dependencies extends ResourceDependencies = Readonly<Record<string, never>>,
 	const ResourceEnvironment extends EnvironmentRequirement | undefined = undefined,
->(input: ResourceOptions<Dependencies, ResourceEnvironment>): ResourceDefinition<unknown, Dependencies, ResourceEnvironment>;
+>(
+	input: ResourceOptions<Dependencies, ResourceEnvironment>,
+): ResourceDefinition<unknown, Dependencies, ResourceEnvironment>;
 /** Define a resource with an explicit concrete value contract. */
 export function define<ResourceValue>(): <
 	const Dependencies extends ResourceDependencies = Readonly<Record<string, never>>,
 	const ResourceEnvironment extends EnvironmentRequirement | undefined = undefined,
->(input: ResourceOptions<Dependencies, ResourceEnvironment>) => ResourceDefinition<ResourceValue, Dependencies, ResourceEnvironment>;
+>(
+	input: ResourceOptions<Dependencies, ResourceEnvironment>,
+) => ResourceDefinition<ResourceValue, Dependencies, ResourceEnvironment>;
 /** Create the direct or curried resource-definition authoring function. */
 export function define(
 	input?: ResourceOptions<ResourceDependencies, EnvironmentRequirement | undefined>,
@@ -136,7 +140,9 @@ export function define(
 function defineResource<
 	Dependencies extends ResourceDependencies,
 	ResourceEnvironment extends EnvironmentRequirement | undefined,
->(input: ResourceOptions<Dependencies, ResourceEnvironment>): ResourceDefinition<unknown, Dependencies, ResourceEnvironment> {
+>(
+	input: ResourceOptions<Dependencies, ResourceEnvironment>,
+): ResourceDefinition<unknown, Dependencies, ResourceEnvironment> {
 	assertDefinitionInput(input);
 	const dependencies = input.dependencies === undefined ? emptyDependencies : freezeRecord(input.dependencies);
 	const requirements = input.requirements === undefined ? Object.freeze([]) : requirement.compose(input.requirements);
@@ -281,11 +287,13 @@ export function document(
 	return Object.freeze(definitions.map((definition): ResourceDocument => {
 		const direct = Object.values(definition.dependencies);
 		const transitive = collectTransitiveDependencies(definition);
-		const environment = definition.environment?.fields.map((field) => Object.freeze({
-			key: field.key,
-			reason: field.reason,
-			requirementId: definition.environment!.id,
-		})) ?? Object.freeze([]);
+		const environment = definition.environment?.fields.map((field) =>
+			Object.freeze({
+				key: field.key,
+				reason: field.reason,
+				requirementId: definition.environment!.id,
+			})
+		) ?? Object.freeze([]);
 		return Object.freeze({
 			id: definition.id,
 			description: definition.description,
@@ -306,7 +314,9 @@ export function document(
 export const manifest = document;
 
 /** Collect every statically reachable requirement from a resource graph. */
-export function reachable(input: CatalogDefinitionInput<ResourceDefinition>): readonly import('@okikio/requirement').RequirementDefinition[] {
+export function reachable(
+	input: CatalogDefinitionInput<ResourceDefinition>,
+): readonly import('@okikio/requirement').RequirementDefinition[] {
 	const definitions = collectDefinitions(catalogCore.values(input), []);
 	const inputs = definitions.map((definition) => definition.requirements);
 	return inputs.length === 0 ? Object.freeze([]) : requirement.compose(inputs);
@@ -329,7 +339,9 @@ export function scope<Allowed extends ResourceDefinition>(
 		has<ResourceDefinition extends Allowed>(definition: ResourceDefinition): boolean {
 			return (definitions === undefined || definitions.has(definition)) && collection.has(definition);
 		},
-		async get<ResourceDefinition extends Allowed>(definition: ResourceDefinition): Promise<ResourceValue<ResourceDefinition>> {
+		async get<ResourceDefinition extends Allowed>(
+			definition: ResourceDefinition,
+		): Promise<ResourceValue<ResourceDefinition>> {
 			if (definitions !== undefined && !definitions.has(definition)) {
 				throw new MissingImplementationError(definition);
 			}
@@ -339,7 +351,10 @@ export function scope<Allowed extends ResourceDefinition>(
 }
 
 /** Create one independently owned, lazy resource collection. */
-export function create<Host>(implementationSet: ResourceImplementationSet, options: ResourceCollectionOptions<Host>): ResourceCollection {
+export function create<Host>(
+	implementationSet: ResourceImplementationSet,
+	options: ResourceCollectionOptions<Host>,
+): ResourceCollection {
 	const validation = validate(implementationSet);
 	if (!validation.valid) throwValidationIssue(validation.issues[0]!);
 	return new LiveCollection(implementationSet, options);
@@ -386,7 +401,8 @@ class LiveCollection implements ResourceCollection {
 		this.#environment = options.environment ?? emptyEnvironment;
 		this.#host = options.host;
 		this.#ctx = context.child(options.ctx);
-		this.#requirementRuntime = options.requirements ?? Object.freeze({ interpreters: Object.freeze({}), unknown: 'reject' as const });
+		this.#requirementRuntime = options.requirements ??
+			Object.freeze({ interpreters: Object.freeze({}), unknown: 'reject' as const });
 		this.#resources.use(this.#ctx);
 	}
 
@@ -484,7 +500,10 @@ class LiveCollection implements ResourceCollection {
 				mark(value);
 				return ownedCtx.use(value);
 			},
-			adopt<ResourceValue>(value: ResourceValue, dispose: (value: ResourceValue) => void | PromiseLike<void>): ResourceValue {
+			adopt<ResourceValue>(
+				value: ResourceValue,
+				dispose: (value: ResourceValue) => void | PromiseLike<void>,
+			): ResourceValue {
 				mark(value);
 				return ownedCtx.adopt(value, dispose);
 			},
@@ -497,13 +516,15 @@ class LiveCollection implements ResourceCollection {
 				? resourceCtx
 				: requirement.bind(resourceCtx, implementation.requirements);
 			if (implementation.requirements.length > 0) await requirement.apply(createCtx, implementation.requirements);
-			const args = Object.freeze({
-				definition,
-				dependencies: Object.freeze(dependencies),
-				environment: selectEnvironment(definition, this.#environment),
-				host: this.#host,
-				ctx: createCtx,
-			} satisfies ResourceCreateArgumentsAny);
+			const args = Object.freeze(
+				{
+					definition,
+					dependencies: Object.freeze(dependencies),
+					environment: selectEnvironment(definition, this.#environment),
+					host: this.#host,
+					ctx: createCtx,
+				} satisfies ResourceCreateArgumentsAny,
+			);
 			const value = await implementation.create(args);
 			if (isDisposable(value) && !registered.has(value as object)) ownedCtx.use(value);
 
@@ -519,7 +540,11 @@ class LiveCollection implements ResourceCollection {
 			try {
 				await ownedCtx[Symbol.asyncDispose]();
 			} catch (cleanup) {
-				throw new SuppressedError(cleanup, error, `Resource ${JSON.stringify(definition.id)} creation failed and cleanup also failed.`);
+				throw new SuppressedError(
+					cleanup,
+					error,
+					`Resource ${JSON.stringify(definition.id)} creation failed and cleanup also failed.`,
+				);
 			}
 			throw error;
 		}
@@ -561,7 +586,10 @@ class LiveCollection implements ResourceCollection {
  *
  * @internal
  */
-function collectDefinitions(roots: readonly ResourceDefinition[], issues: ResourceValidationIssue[]): ResourceDefinition[] {
+function collectDefinitions(
+	roots: readonly ResourceDefinition[],
+	issues: ResourceValidationIssue[],
+): ResourceDefinition[] {
 	const definitions: ResourceDefinition[] = [];
 	const visited = new Set<ResourceDefinition>();
 	const visiting: ResourceDefinition[] = [];
@@ -636,7 +664,9 @@ function collectTransitiveDependencies(definition: ResourceDefinition): Resource
 }
 
 /** Collect requirements reachable from one resource and its dependency graph. */
-function collectTransitiveRequirements(definition: ResourceDefinition): readonly import('@okikio/requirement').RequirementDefinition[] {
+function collectTransitiveRequirements(
+	definition: ResourceDefinition,
+): readonly import('@okikio/requirement').RequirementDefinition[] {
 	return reachable(definition);
 }
 
@@ -684,12 +714,16 @@ function freezeRecord<const RecordType extends Readonly<Record<string, Entry>>, 
 function assertDefinitionInput(
 	input: ResourceOptions<ResourceDependencies, EnvironmentRequirement | undefined>,
 ): void {
-	if (!/^[a-z0-9][a-z0-9._:-]*$/i.test(input.id)) throw new TypeError(`Invalid resource id ${JSON.stringify(input.id)}.`);
+	if (!/^[a-z0-9][a-z0-9._:-]*$/i.test(input.id)) {
+		throw new TypeError(`Invalid resource id ${JSON.stringify(input.id)}.`);
+	}
 	if (input.description.trim().length === 0) throw new TypeError('Resource description cannot be empty.');
 	if (input.dependencies !== undefined) recordCore.assert(input.dependencies, 'resource dependencies');
 	for (const [key, dependency] of Object.entries(input.dependencies ?? {})) {
 		if (key.length === 0) throw new TypeError('Resource dependency keys cannot be empty.');
-		if (!isDefinition(dependency)) throw new TypeError(`Resource dependency ${JSON.stringify(key)} is not a resource definition.`);
+		if (!isDefinition(dependency)) {
+			throw new TypeError(`Resource dependency ${JSON.stringify(key)} is not a resource definition.`);
+		}
 	}
 }
 
@@ -747,23 +781,23 @@ function throwValidationIssue(issue: ResourceValidationIssue): never {
 }
 
 export type {
-	ResourceImplementationAny,
 	ResourceCollection,
-	ResourceCreateArguments,
-	ResourceCreateContext,
 	ResourceCollectionOptions,
+	ResourceCreateArguments,
+	ResourceCreateArgumentsAny,
+	ResourceCreateContext,
 	ResourceDefinition,
-	ResourceOptions,
 	ResourceDependencies,
 	ResourceDependencyValues,
 	ResourceDocument,
 	ResourceDocumentation,
 	ResourceEnvironment,
-	ResourceCreateArgumentsAny,
 	ResourceHealth,
 	ResourceImplementation,
+	ResourceImplementationAny,
 	ResourceImplementationOptions,
 	ResourceImplementationSet,
+	ResourceOptions,
 	ResourceResolver,
 	ResourceValidationIssue,
 	ResourceValidationResult,

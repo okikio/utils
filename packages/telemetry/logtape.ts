@@ -29,12 +29,24 @@ export function reporter(logger: LogTapeLogger): Reporter {
 				...(value.error === undefined ? {} : { error: value.error }),
 			};
 			switch (value.level) {
-				case 'trace': logger.trace(value.message, properties); break;
-				case 'debug': logger.debug(value.message, properties); break;
-				case 'info': logger.info(value.message, properties); break;
-				case 'warning': logger.warn(value.message, properties); break;
-				case 'error': logger.error(value.message, properties); break;
-				case 'fatal': logger.fatal(value.message, properties); break;
+				case 'trace':
+					logger.trace(value.message, properties);
+					break;
+				case 'debug':
+					logger.debug(value.message, properties);
+					break;
+				case 'info':
+					logger.info(value.message, properties);
+					break;
+				case 'warning':
+					logger.warn(value.message, properties);
+					break;
+				case 'error':
+					logger.error(value.message, properties);
+					break;
+				case 'fatal':
+					logger.fatal(value.message, properties);
+					break;
 			}
 		},
 	});
@@ -55,8 +67,12 @@ export function run<Result>(api: LogTapeContextApi, fields: Fields, callback: ()
 
 /** Reject malformed logger adapters before they receive telemetry records. @internal */
 function assertLogger(logger: LogTapeLogger): void {
-	if (logger === null || typeof logger !== 'object') throw new TypeError('LogTape telemetry adapter requires a logger.');
+	if (logger === null || typeof logger !== 'object') {
+		throw new TypeError('LogTape telemetry adapter requires a logger.');
+	}
 	for (const level of ['trace', 'debug', 'info', 'warn', 'error', 'fatal'] as const) {
-		if (typeof logger[level] !== 'function') throw new TypeError(`LogTape telemetry adapter requires logger.${level}().`);
+		if (typeof logger[level] !== 'function') {
+			throw new TypeError(`LogTape telemetry adapter requires logger.${level}().`);
+		}
 	}
 }

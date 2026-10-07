@@ -105,9 +105,11 @@ export function match(document: RobotsDocument, input: { readonly userAgent: str
 	if (matches.length === 0) return true;
 
 	const bestSpecificity = Math.max(...matches.map((match) => match.specificity));
-	const matchingGroups = matches.filter((match) => match.specificity === bestSpecificity).map((match) => match.candidate);
+	const matchingGroups = matches.filter((match) => match.specificity === bestSpecificity).map((match) =>
+		match.candidate
+	);
 	const path = `${url.pathname}${url.search}`;
-	
+
 	let winner: RobotsRule | undefined;
 	let winnerLength = -1;
 	for (const group of matchingGroups) {
@@ -130,7 +132,14 @@ function patternMatches(pattern: string, path: string): boolean {
 	const expression = source.split('*').map(escapeRegExp).join('.*');
 	return new RegExp(`^${expression}${terminal ? '$' : ''}`, 'u').test(path);
 }
-function escapeRegExp(value: string): string { return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 function isHttpUrl(value: string): boolean {
-	try { const url = new URL(value); return url.protocol === 'http:' || url.protocol === 'https:'; } catch { return false; }
+	try {
+		const url = new URL(value);
+		return url.protocol === 'http:' || url.protocol === 'https:';
+	} catch {
+		return false;
+	}
 }

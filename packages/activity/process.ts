@@ -148,7 +148,11 @@ export async function create(options: ProcessProviderOptions): Promise<ProcessPr
 
 	return Object.freeze({
 		activities: Object.freeze([...activities.values()]),
-		async run(ctx: Context, attempt: ActivityAttemptType, control: ActivityAttemptControl): Promise<ActivityAttemptResultType> {
+		async run(
+			ctx: Context,
+			attempt: ActivityAttemptType,
+			control: ActivityAttemptControl,
+		): Promise<ActivityAttemptResultType> {
 			const definition = remote.definition(
 				activities,
 				options.engine,
@@ -163,7 +167,9 @@ export async function create(options: ProcessProviderOptions): Promise<ProcessPr
 				return await transport.result(definition, value);
 			} catch (error) {
 				if (channelFault(error)) lease.invalidate(error);
-				if (ctx.signal.aborted) return Object.freeze({ type: 'cancelled', reason: ctx.signal.reason }) as ActivityAttemptResultType;
+				if (ctx.signal.aborted) {
+					return Object.freeze({ type: 'cancelled', reason: ctx.signal.reason }) as ActivityAttemptResultType;
+				}
 				return Object.freeze({ type: 'lost', reason: error }) as ActivityAttemptResultType;
 			} finally {
 				host.active.delete(attempt.claimId);
@@ -173,8 +179,12 @@ export async function create(options: ProcessProviderOptions): Promise<ProcessPr
 			// The request Context is the cancellation authority. The channel emits
 			// the exact cancel frame when that Context aborts.
 		},
-		stats() { return hosts.stats(); },
-		drain(reason?: unknown) { return hosts.drain(reason); },
+		stats() {
+			return hosts.stats();
+		},
+		drain(reason?: unknown) {
+			return hosts.drain(reason);
+		},
 		async [Symbol.asyncDispose]() {
 			const reason = new Error('Activity process provider was disposed.');
 			const stopped = await Promise.allSettled([...live].map((host) => host.close(reason)));
@@ -197,29 +207,35 @@ export async function create(options: ProcessProviderOptions): Promise<ProcessPr
 		contexts.check(acquireCtx);
 		const hostCtx = contexts.child(options.ctx, { id: `${options.ctx.id}:activity-process:${crypto.randomUUID()}` });
 		try {
-			const child = hostCtx.use(await processes.start(hostCtx, options.adapter, {
-				...options.start,
-				stdin: 'piped',
-				stdout: { type: 'stream' },
-			}));
+			const child = hostCtx.use(
+				await processes.start(hostCtx, options.adapter, {
+					...options.start,
+					stdin: 'piped',
+					stdout: { type: 'stream' },
+				}),
+			);
 			contexts.check(acquireCtx);
 			if (child.stdin === undefined || child.stdout === undefined) {
 				throw new TypeError('Process provider child did not expose piped stdin/stdout.');
 			}
 			const active = new Map<string, Active>();
-			const connection = hostCtx.use(channel.open(hostCtx, child as Process & Required<Pick<Process, 'stdin' | 'stdout'>>, {
-				protocol: channel.protocol(remote.protocol()),
-				...(options.maximumFrameBytes === undefined ? {} : { maximumFrameBytes: options.maximumFrameBytes }),
-				async notice(notice, _requestCtx, requestId) {
-					const current = active.get(requestId);
-					if (current !== undefined) await options.observe?.(notice.value, current.attempt);
-				},
-				async call(call, requestCtx, requestId) {
-					const current = active.get(requestId);
-					if (current === undefined) throw new TypeError(`Process reverse call used inactive request ${JSON.stringify(requestId)}.`);
-					return await transport.answer(requestCtx, current.activity, current.control, options, call);
-				},
-			}));
+			const connection = hostCtx.use(
+				channel.open(hostCtx, child as Process & Required<Pick<Process, 'stdin' | 'stdout'>>, {
+					protocol: channel.protocol(remote.protocol()),
+					...(options.maximumFrameBytes === undefined ? {} : { maximumFrameBytes: options.maximumFrameBytes }),
+					async notice(notice, _requestCtx, requestId) {
+						const current = active.get(requestId);
+						if (current !== undefined) await options.observe?.(notice.value, current.attempt);
+					},
+					async call(call, requestCtx, requestId) {
+						const current = active.get(requestId);
+						if (current === undefined) {
+							throw new TypeError(`Process reverse call used inactive request ${JSON.stringify(requestId)}.`);
+						}
+						return await transport.answer(requestCtx, current.activity, current.control, options, call);
+					},
+				}),
+			);
 			contexts.check(acquireCtx);
 			let closing: Promise<void> | undefined;
 			let host!: Host;
@@ -231,7 +247,11 @@ export async function create(options: ProcessProviderOptions): Promise<ProcessPr
 						try {
 							await child.stop(reason);
 						} finally {
-							try { await hostCtx[Symbol.asyncDispose](); } finally { live.delete(host); }
+							try {
+								await hostCtx[Symbol.asyncDispose]();
+							} finally {
+								live.delete(host);
+							}
 						}
 					}
 				})();
@@ -241,7 +261,9 @@ export async function create(options: ProcessProviderOptions): Promise<ProcessPr
 			live.add(host);
 			return host;
 		} catch (error) {
-			try { await hostCtx[Symbol.asyncDispose](); } catch { /* Preserve the creation failure. */ }
+			try {
+				await hostCtx[Symbol.asyncDispose]();
+			} catch { /* Preserve the creation failure. */ }
 			throw error;
 		}
 	}
@@ -265,10 +287,16 @@ export function serve(options: ProcessServeOptions): channel.ProcessServer {
 		async run(attempt, ctx, control) {
 			const implementation = implementations.get(remote.identity(attempt.activityId, attempt.activityVersion));
 			if (implementation === undefined) {
-				return Object.freeze({ type: 'fault', fault: remote.fault(new MissingProcessActivityError(attempt.activityId, attempt.activityVersion)) });
+				return Object.freeze({
+					type: 'fault',
+					fault: remote.fault(new MissingProcessActivityError(attempt.activityId, attempt.activityVersion)),
+				});
 			}
 			if (attempt.engineId !== options.engine.id) {
-				return Object.freeze({ type: 'fault', fault: remote.fault(new activity.InvalidEngineError(attempt.activityId, attempt.engineId)) });
+				return Object.freeze({
+					type: 'fault',
+					fault: remote.fault(new activity.InvalidEngineError(attempt.activityId, attempt.engineId)),
+				});
 			}
 			const call = (request: transport.HostCallType) => control.call(request);
 			try {
@@ -308,7 +336,9 @@ export class MissingProcessActivityError extends Error {
 
 	/** Create one configuration error when the child process lacks the requested activity implementation. */
 	constructor(activityId: string, version: string) {
-		super(`Process activity provider has no implementation for ${JSON.stringify(remote.identity(activityId, version))}.`);
+		super(
+			`Process activity provider has no implementation for ${JSON.stringify(remote.identity(activityId, version))}.`,
+		);
 		this.name = 'MissingProcessActivityError';
 		this.activityId = activityId;
 		this.version = version;

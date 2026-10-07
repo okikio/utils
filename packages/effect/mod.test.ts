@@ -178,20 +178,27 @@ describe('@okikio/effect', () => {
 	it('rejects accessor-backed encoded effects without invoking accessors', async () => {
 		let reads = 0;
 		const encoded = Object.create(null) as Record<string, unknown>;
-		Object.defineProperty(encoded, 'id', { enumerable: true, get() { reads += 1; return RouteCommitted.id; } });
+		Object.defineProperty(encoded, 'id', {
+			enumerable: true,
+			get() {
+				reads += 1;
+				return RouteCommitted.id;
+			},
+		});
 		Object.defineProperty(encoded, 'key', { enumerable: true, value: 'route-accessor' });
 		Object.defineProperty(encoded, 'value', { enumerable: true, value: { routeId: 'accessor' } });
 		await expect(effect.decode(encoded, [RouteCommitted])).rejects.toThrow(TypeError);
 		expect(reads).toBe(0);
 	});
-
 });
 
 describe('@okikio/effect handlers and outbox', () => {
 	it('runs one exact direct handler and rejects duplicate authority', async () => {
 		await using ctx = context.create({ id: 'effect-direct', clock: new context.TestClock() });
 		const accepted: string[] = [];
-		const handler = effect.implement(RouteCommitted, (_ctx, occurrence) => { accepted.push(occurrence.key); });
+		const handler = effect.implement(RouteCommitted, (_ctx, occurrence) => {
+			accepted.push(occurrence.key);
+		});
 		const emitter = effect.emitter(handler);
 		const occurrence = await effect.create(RouteCommitted, { routeId: 'direct' }, { key: 'route-direct' });
 		await emitter.emit(ctx, occurrence);
@@ -206,7 +213,9 @@ describe('@okikio/effect handlers and outbox', () => {
 		const handled: string[] = [];
 		await using box = effect.outbox({
 			queue: jobs,
-			handlers: [effect.implement(RouteCommitted, (_ctx, occurrence) => { handled.push(occurrence.key); })],
+			handlers: [effect.implement(RouteCommitted, (_ctx, occurrence) => {
+				handled.push(occurrence.key);
+			})],
 		});
 		const occurrence = await effect.create(RouteCommitted, { routeId: 'route-20' }, { key: 'generation-2:route-20' });
 

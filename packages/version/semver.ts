@@ -5,47 +5,49 @@ import type { ParsedVersion, VersionOrder, VersionScheme } from '#/types.ts';
 const PARTIAL_SEMVER_PATTERN = /^v?(0|[1-9]\d*)(?:\.(0|[1-9]\d*))?$/u;
 
 /** Strict Semantic Versioning with explicit support for coarse major/minor observations. */
-export const semanticVersionScheme = Object.freeze({
-	id: 'semver',
-	description: 'Semantic Versioning 2.0.0; major and major.minor observations are retained as coarse families.',
-	parse(value: string): ParsedVersion | undefined {
-		const rawValue = value.trim();
-		if (!rawValue || rawValue.length > 96) return undefined;
-		const semverValue = rawValue.replace(/^v(?=\d)/iu, '');
-		const semver = tryParse(semverValue);
-		if (semver) return parsedSemVer(rawValue, semver);
-		const partial = rawValue.match(PARTIAL_SEMVER_PATTERN);
-		if (!partial) return undefined;
-		const release = partial.slice(1, 3).filter((part): part is string => part !== undefined).map(Number);
-		return {
-			schemeId: 'semver',
-			rawValue,
-			normalizedValue: release.join('.'),
-			precision: release.length === 1 ? 'major' : 'release_line',
-			release,
-		};
-	},
-	isEquivalent(left: ParsedVersion, right: ParsedVersion) {
-		if (!sameScheme(left, right)) return false;
-		const leftSemVer = toSemVer(left);
-		const rightSemVer = toSemVer(right);
-		if (leftSemVer && rightSemVer) return compare(leftSemVer, rightSemVer) === 0;
-		return left.normalizedValue === right.normalizedValue;
-	},
-	isRefinement(candidate: ParsedVersion, coarse: ParsedVersion) {
-		if (!sameScheme(candidate, coarse) || candidate.release.length < coarse.release.length) return false;
-		if (!coarse.release.every((part, index) => candidate.release[index] === part)) return false;
-		if (candidate.normalizedValue === coarse.normalizedValue) return true;
-		return candidate.release.length > coarse.release.length;
-	},
-	compareReleaseOrder(left: ParsedVersion, right: ParsedVersion) {
-		if (!sameScheme(left, right)) return undefined;
-		const leftSemVer = toSemVer(left);
-		const rightSemVer = toSemVer(right);
-		if (!leftSemVer || !rightSemVer) return undefined;
-		return compare(leftSemVer, rightSemVer) as VersionOrder;
-	},
-} satisfies VersionScheme);
+export const semanticVersionScheme = Object.freeze(
+	{
+		id: 'semver',
+		description: 'Semantic Versioning 2.0.0; major and major.minor observations are retained as coarse families.',
+		parse(value: string): ParsedVersion | undefined {
+			const rawValue = value.trim();
+			if (!rawValue || rawValue.length > 96) return undefined;
+			const semverValue = rawValue.replace(/^v(?=\d)/iu, '');
+			const semver = tryParse(semverValue);
+			if (semver) return parsedSemVer(rawValue, semver);
+			const partial = rawValue.match(PARTIAL_SEMVER_PATTERN);
+			if (!partial) return undefined;
+			const release = partial.slice(1, 3).filter((part): part is string => part !== undefined).map(Number);
+			return {
+				schemeId: 'semver',
+				rawValue,
+				normalizedValue: release.join('.'),
+				precision: release.length === 1 ? 'major' : 'release_line',
+				release,
+			};
+		},
+		isEquivalent(left: ParsedVersion, right: ParsedVersion) {
+			if (!sameScheme(left, right)) return false;
+			const leftSemVer = toSemVer(left);
+			const rightSemVer = toSemVer(right);
+			if (leftSemVer && rightSemVer) return compare(leftSemVer, rightSemVer) === 0;
+			return left.normalizedValue === right.normalizedValue;
+		},
+		isRefinement(candidate: ParsedVersion, coarse: ParsedVersion) {
+			if (!sameScheme(candidate, coarse) || candidate.release.length < coarse.release.length) return false;
+			if (!coarse.release.every((part, index) => candidate.release[index] === part)) return false;
+			if (candidate.normalizedValue === coarse.normalizedValue) return true;
+			return candidate.release.length > coarse.release.length;
+		},
+		compareReleaseOrder(left: ParsedVersion, right: ParsedVersion) {
+			if (!sameScheme(left, right)) return undefined;
+			const leftSemVer = toSemVer(left);
+			const rightSemVer = toSemVer(right);
+			if (!leftSemVer || !rightSemVer) return undefined;
+			return compare(leftSemVer, rightSemVer) as VersionOrder;
+		},
+	} satisfies VersionScheme,
+);
 
 function parsedSemVer(rawValue: string, semver: SemVer): ParsedVersion {
 	const prerelease = semver.prerelease && semver.prerelease.length > 0 ? [...semver.prerelease] : [];

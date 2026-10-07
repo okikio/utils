@@ -11,7 +11,9 @@ describe('atomic Deno file replacement', () => {
 			await file.write(path, 'first');
 			await file.write(path, 'second');
 			expect(await Deno.readTextFile(path)).toBe('second');
-			expect((await Array.fromAsync(Deno.readDir(`${directory}/nested`))).map((entry) => entry.name)).toEqual(['value.txt']);
+			expect((await Array.fromAsync(Deno.readDir(`${directory}/nested`))).map((entry) => entry.name)).toEqual([
+				'value.txt',
+			]);
 		} finally {
 			await Deno.remove(directory, { recursive: true });
 		}

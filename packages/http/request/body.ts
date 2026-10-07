@@ -41,22 +41,35 @@ export async function readBody(request: Request, options: RequestParsingOptions 
 	}
 	const result = new Uint8Array(total);
 	let offset = 0;
-	for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.byteLength; }
+	for (const chunk of chunks) {
+		result.set(chunk, offset);
+		offset += chunk.byteLength;
+	}
 	return result;
 }
 
 /** Parse bounded JSON after enforcing application/json or a +json media type. */
 export async function parseJson(request: Request, options: RequestParsingOptions = {}): Promise<unknown> {
 	const contentType = requireContentType(request, ['application/json', 'application/*+json']);
-	if (contentType.type !== 'application' || (contentType.subtype !== 'json' && !contentType.subtype.endsWith('+json'))) {
-		throw new RequestTransportError({ code: 'unsupported-content-type', message: `Content-Type ${contentType.essence} is not JSON.`, path: ['header', 'content-type'] });
+	if (
+		contentType.type !== 'application' || (contentType.subtype !== 'json' && !contentType.subtype.endsWith('+json'))
+	) {
+		throw new RequestTransportError({
+			code: 'unsupported-content-type',
+			message: `Content-Type ${contentType.essence} is not JSON.`,
+			path: ['header', 'content-type'],
+		});
 	}
 	const bytes = await readBody(request, options);
 	try {
 		const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
 		return JSON.parse(text);
 	} catch (error) {
-		throw new RequestTransportError({ code: 'invalid-json', message: error instanceof Error ? `Invalid JSON: ${error.message}` : 'Invalid JSON.', path: ['json'] });
+		throw new RequestTransportError({
+			code: 'invalid-json',
+			message: error instanceof Error ? `Invalid JSON: ${error.message}` : 'Invalid JSON.',
+			path: ['json'],
+		});
 	}
 }
 
@@ -66,16 +79,33 @@ export async function parseForm(request: Request, options: RequestParsingOptions
 	const bytes = await readBody(request, options);
 	const copy = new Request(request, { body: new Blob([new Uint8Array(bytes)]) });
 	let form: FormData;
-	try { form = await copy.formData(); } catch (error) {
-		throw new RequestTransportError({ code: 'invalid-form', message: error instanceof Error ? `Invalid form: ${error.message}` : 'Invalid form.', path: ['form'] });
+	try {
+		form = await copy.formData();
+	} catch (error) {
+		throw new RequestTransportError({
+			code: 'invalid-form',
+			message: error instanceof Error ? `Invalid form: ${error.message}` : 'Invalid form.',
+			path: ['form'],
+		});
 	}
 	const policy = limits(options);
 	const collected: Record<string, (string | File)[]> = Object.create(null);
 	let count = 0;
-	for (const [name, value] of form.entries()) { count += 1; (collected[name] ??= []).push(value); }
-	if (count > policy.maximumFormFields) throw new RequestTransportError({ code: 'invalid-form', message: `At most ${policy.maximumFormFields} form fields are allowed.`, path: ['form'] });
+	for (const [name, value] of form.entries()) {
+		count += 1;
+		(collected[name] ??= []).push(value);
+	}
+	if (count > policy.maximumFormFields) {
+		throw new RequestTransportError({
+			code: 'invalid-form',
+			message: `At most ${policy.maximumFormFields} form fields are allowed.`,
+			path: ['form'],
+		});
+	}
 	const result: Record<string, string | File | readonly (string | File)[]> = Object.create(null);
-	for (const [name, values] of Object.entries(collected)) result[name] = values.length === 1 ? values[0]! : Object.freeze(values);
+	for (const [name, values] of Object.entries(collected)) {
+		result[name] = values.length === 1 ? values[0]! : Object.freeze(values);
+	}
 	return Object.freeze(result);
 }
 
@@ -85,5 +115,9 @@ export async function parseForm(request: Request, options: RequestParsingOptions
  * @internal
  */
 function bodyTooLarge(maximum: number): RequestTransportError {
-	return new RequestTransportError({ code: 'body-too-large', message: `Request body exceeds ${maximum} bytes.`, path: ['body'] });
+	return new RequestTransportError({
+		code: 'body-too-large',
+		message: `Request body exceeds ${maximum} bytes.`,
+		path: ['body'],
+	});
 }

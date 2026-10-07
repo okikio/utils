@@ -27,7 +27,9 @@ export function mount(path: string, handler: Handler, options: MountOptions = {}
 	if (typeof handler !== 'function') throw new TypeError('HTTP mount handler must be a function.');
 	recordCore.assert(options, 'HTTP mount options');
 	const requestPath = options.requestPath ?? 'preserve';
-	if (requestPath !== 'preserve' && requestPath !== 'strip-prefix') throw new TypeError('HTTP mount requestPath must be preserve or strip-prefix.');
+	if (requestPath !== 'preserve' && requestPath !== 'strip-prefix') {
+		throw new TypeError('HTTP mount requestPath must be preserve or strip-prefix.');
+	}
 	return Object.freeze({ kind: 'mount', path: normalizeMountPath(path), handler, requestPath });
 }
 
@@ -79,8 +81,12 @@ export function create(options: CreateOptionsType = {}): App {
 function bind(plan: import('./types.ts').RoutePlan, routes: readonly RouteType[]): ReadonlyMap<string, RouteType> {
 	const actual = new Map(routes.map((entry) => [routeKey(routeDescriptor(entry)), entry] as const));
 	const expected = new Set(plan.routes.map(routeKey));
-	for (const key of expected) if (!actual.has(key)) throw new TypeError(`Prepared HTTP route ${key} has no bound handler.`);
-	for (const key of actual.keys()) if (!expected.has(key)) throw new TypeError(`Bound HTTP route ${key} is absent from the prepared plan.`);
+	for (const key of expected) {
+		if (!actual.has(key)) throw new TypeError(`Prepared HTTP route ${key} has no bound handler.`);
+	}
+	for (const key of actual.keys()) {
+		if (!expected.has(key)) throw new TypeError(`Bound HTTP route ${key} is absent from the prepared plan.`);
+	}
 	return actual;
 }
 
@@ -110,12 +116,20 @@ function routeList(values: readonly RouteType[]): readonly RouteType[] {
 	const result: RouteType[] = [];
 	for (let index = 0; index < values.length; index += 1) {
 		const descriptor = Object.getOwnPropertyDescriptor(values, String(index));
-		if (descriptor === undefined || !('value' in descriptor)) throw new TypeError('HTTP routes must contain dense data elements.');
+		if (descriptor === undefined || !('value' in descriptor)) {
+			throw new TypeError('HTTP routes must contain dense data elements.');
+		}
 		const value = descriptor.value as unknown;
 		recordCore.assert(value, `HTTP route at index ${index}`);
-		if (value.kind === 'route') result.push(route(value.method as string, value.path as string, value.handler as Handler));
-		else if (value.kind === 'mount') result.push(mount(value.path as string, value.handler as Handler, { requestPath: value.requestPath as MountOptions['requestPath'] }));
-		else throw new TypeError(`HTTP route at index ${index} has an invalid kind.`);
+		if (value.kind === 'route') {
+			result.push(route(value.method as string, value.path as string, value.handler as Handler));
+		} else if (value.kind === 'mount') {
+			result.push(
+				mount(value.path as string, value.handler as Handler, {
+					requestPath: value.requestPath as MountOptions['requestPath'],
+				}),
+			);
+		} else throw new TypeError(`HTTP route at index ${index} has an invalid kind.`);
 	}
 	return Object.freeze(result);
 }

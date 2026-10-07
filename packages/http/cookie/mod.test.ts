@@ -26,20 +26,24 @@ const Guest = cookie.define({
 
 describe('cookie definitions', () => {
 	it('enforces browser prefix and SameSite security invariants', () => {
-		expect(() => cookie.define({
-			id: 'invalid.host',
-			description: 'Invalid host cookie.',
-			name: '__Host-invalid',
-			value: Token,
-			attributes: { path: '/' },
-		})).toThrow(TypeError);
-		expect(() => cookie.define({
-			id: 'invalid.none',
-			description: 'Invalid SameSite cookie.',
-			name: 'invalid',
-			value: Token,
-			attributes: { sameSite: 'none' },
-		})).toThrow(TypeError);
+		expect(() =>
+			cookie.define({
+				id: 'invalid.host',
+				description: 'Invalid host cookie.',
+				name: '__Host-invalid',
+				value: Token,
+				attributes: { path: '/' },
+			})
+		).toThrow(TypeError);
+		expect(() =>
+			cookie.define({
+				id: 'invalid.none',
+				description: 'Invalid SameSite cookie.',
+				name: 'invalid',
+				value: Token,
+				attributes: { sameSite: 'none' },
+			})
+		).toThrow(TypeError);
 	});
 
 	it('validates reads and appends non-destructive Set-Cookie fields', async () => {

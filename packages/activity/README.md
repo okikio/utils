@@ -1,10 +1,8 @@
-`@okikio/activity`
-=================
+# `@okikio/activity`
 
-`@okikio/activity` defines externally meaningful work. Definitions are immutable
-and import-safe. They describe what one activity accepts, returns, can fail
-with, can emit, requires, and where it can run. They do not open a provider or
-start work.
+`@okikio/activity` defines externally meaningful work. Definitions are immutable and import-safe. They describe what one
+activity accepts, returns, can fail with, can emit, requires, and where it can run. They do not open a provider or start
+work.
 
 ```ts
 import * as activity from '@okikio/activity';
@@ -15,63 +13,57 @@ import * as permission from '@okikio/permission';
 const Browser = engine.define({ id: 'browser' });
 
 const Download = activity.define({
-  id: 'media.download',
-  version: '1',
-  input: DownloadInputSchema,
-  result: DownloadResultSchema,
-  placement: engine.require(Browser),
-  resources: [Http, Storage],
-  requirements: [permission.require(ReadSource)],
-  effects: [DownloadCommitted],
+	id: 'media.download',
+	version: '1',
+	input: DownloadInputSchema,
+	result: DownloadResultSchema,
+	placement: engine.require(Browser),
+	resources: [Http, Storage],
+	requirements: [permission.require(ReadSource)],
+	effects: [DownloadCommitted],
 });
 ```
 
-Definitions keep direct requirements separate from requirements that are only
-reachable through resource dependencies. Runtime admission applies direct
-active requirements. Reachable permissions remain available for later dynamic
-checks.
+Definitions keep direct requirements separate from requirements that are only reachable through resource dependencies.
+Runtime admission applies direct active requirements. Reachable permissions remain available for later dynamic checks.
 
-Start here
-----------
+## Start here
 
-`activity.request()` creates one serializable workflow operation. It does not
-execute the implementation.
+`activity.request()` creates one serializable workflow operation. It does not execute the implementation.
 
 ```ts
-const saved = yield* activity.request(Download, input);
+const saved = yield * activity.request(Download, input);
 ```
 
-`activity.try()` creates the same request but converts only declared activity
-failures into `@okikio/result`. Unexpected faults and cancellation still escape.
+`activity.try()` creates the same request but converts only declared activity failures into `@okikio/result`. Unexpected
+faults and cancellation still escape.
 
-Direct attempts
----------------
+## Direct attempts
 
-`activity.run()` executes one exact implementation in the current host. A
-host supplies the engine identity, input, parent context, resource collection,
-job identity, attempt number, and optional permission/effect services.
+`activity.run()` executes one exact implementation in the current host. A host supplies the engine identity, input,
+parent context, resource collection, job identity, attempt number, and optional permission/effect services.
 
 ```ts
 const DownloadLive = activity.implement(Download, {
-  async run(ctx) {
-    await permission.assert(ctx, ReadSource, { url: ctx.input.url });
-    const http = await ctx.get(Http);
-    const writer = ctx.use(await openWriter());
+	async run(ctx) {
+		await permission.assert(ctx, ReadSource, { url: ctx.input.url });
+		const http = await ctx.get(Http);
+		const writer = ctx.use(await openWriter());
 
-    for await (const chunk of http.get(ctx.input.url, ctx.signal)) {
-      await ctx.checkpoint();
-      await writer.write(chunk);
-      await ctx.heartbeat({ bytes: chunk.byteLength });
-    }
+		for await (const chunk of http.get(ctx.input.url, ctx.signal)) {
+			await ctx.checkpoint();
+			await writer.write(chunk);
+			await ctx.heartbeat({ bytes: chunk.byteLength });
+		}
 
-    await effect.emit(ctx, DownloadCommitted, {
-      url: ctx.input.url,
-    }, {
-      key: `download:${ctx.input.id}`,
-    });
+		await effect.emit(ctx, DownloadCommitted, {
+			url: ctx.input.url,
+		}, {
+			key: `download:${ctx.input.id}`,
+		});
 
-    return { ok: true };
-  },
+		return { ok: true };
+	},
 });
 ```
 
@@ -90,78 +82,63 @@ The direct attempt performs this sequence:
 11. Reject an expected failure that the activity did not declare.
 12. Dispose attempt-owned values.
 
-An implementation receives `ctx.get()` for borrowed resources and standard
-owned-context operations such as `use()`, `adopt()`, and `defer()` for values it
-creates itself.
+An implementation receives `ctx.get()` for borrowed resources and standard owned-context operations such as `use()`,
+`adopt()`, and `defer()` for values it creates itself.
 
-Scheduler admission
--------------------
+## Scheduler admission
 
-The default workflow Scheduler applies an activity's direct active requirements
-before it reserves engine capacity. It then marks the fenced attempt as already
-admitted. The provider calls `activity.run()` with that attempt, which binds
-dynamic permission/effect/resource scopes without repeating the admission
-check.
+The default workflow Scheduler applies an activity's direct active requirements before it reserves engine capacity. It
+then marks the fenced attempt as already admitted. The provider calls `activity.run()` with that attempt, which binds
+dynamic permission/effect/resource scopes without repeating the admission check.
 
-A caller that invokes `activity.run()` directly has no Scheduler above it, so
-direct requirements are applied by `run()` itself.
+A caller that invokes `activity.run()` directly has no Scheduler above it, so direct requirements are applied by `run()`
+itself.
 
-Engine placement
-----------------
+## Engine placement
 
-`@okikio/activity/engine` owns static execution-target definitions and placement
-choices:
+`@okikio/activity/engine` owns static execution-target definitions and placement choices:
 
 ```ts
 const placement = engine.oneOf(
-  engine.prefer(Browser),
-  engine.allow(Server),
+	engine.prefer(Browser),
+	engine.allow(Server),
 );
 ```
 
-`require()` selects one exact engine. `prefer()` and `allow()` define an ordered
-fallback choice. Placement does not start a process or Worker. Live engine
-providers run through `workflow.executor()`; `scheduler.register()` is the
+`require()` selects one exact engine. `prefer()` and `allow()` define an ordered fallback choice. Placement does not
+start a process or Worker. Live engine providers run through `workflow.executor()`; `scheduler.register()` is the
 attached-host convenience.
 
-Provider subpaths
------------------
+## Provider subpaths
 
 The package includes generic providers that compose existing runtime utilities:
 
 - `@okikio/activity/local` executes an implementation in the executor host.
 - `@okikio/activity/worker` composes `@okikio/pool` and `@okikio/worker`.
-- `@okikio/activity/process` composes `@okikio/pool`, `@okikio/process`, and the
-  typed process channel.
+- `@okikio/activity/process` composes `@okikio/pool`, `@okikio/process`, and the typed process channel.
 
-Activity dispatch remains the authority for logical item identity, attempt
-number, and terminal result. Providers report success, declared failure, fault,
-cancellation, or loss. Executors commit retry decisions through dispatch rather
-than silently creating another logical item.
+Activity dispatch remains the authority for logical item identity, attempt number, and terminal result. Providers report
+success, declared failure, fault, cancellation, or loss. Executors commit retry decisions through dispatch rather than
+silently creating another logical item.
 
-Permissions, effects, and heartbeats cross Worker/process transports as
-correlated reverse calls. The authoritative host validates the permission
-target or effect definition again before it answers. A heartbeat becomes
-meaningful only after the executor renews the exact active dispatch claim.
+Permissions, effects, and heartbeats cross Worker/process transports as correlated reverse calls. The authoritative host
+validates the permission target or effect definition again before it answers. A heartbeat becomes meaningful only after
+the executor renews the exact active dispatch claim.
 
-Pause and cancellation
-----------------------
+## Pause and cancellation
 
-Pause is cooperative. A running implementation pauses only when it calls
-`ctx.checkpoint()` or returns control. A `fetch()`, codec call, filesystem
-mutation, or database operation is not suspended at an arbitrary JavaScript
+Pause is cooperative. A running implementation pauses only when it calls `ctx.checkpoint()` or returns control. A
+`fetch()`, codec call, filesystem mutation, or database operation is not suspended at an arbitrary JavaScript
 instruction.
 
-Cancellation changes the local `AbortSignal` immediately. Worker and process
-providers also send the matching cancellation message. Cleanup still follows
-the owned activity context.
+Cancellation changes the local `AbortSignal` immediately. Worker and process providers also send the matching
+cancellation message. Cleanup still follows the owned activity context.
 
-Convenience and the manual equivalent
--------------------------------------
+## Convenience and the manual equivalent
 
 Concrete map
-~~~~~~~~~~~~
 
+```
 | Convenience | Manual equivalent | Concrete value |
 | --- | --- | --- |
 | `activity.define()` + `activity.implement()` | freeze metadata, keep a handler map, then validate input/result/failure schemas around every call | one activity identity and validation contract |
@@ -222,3 +199,4 @@ Unexpected runtime diagnostics
 Unexpected thrown values are projected through `@okikio/fault` before they cross
 runtime or durable seams. This is separate from `@okikio/failure`, which represents
 expected declared failures with stable application identity.
+```

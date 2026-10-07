@@ -6,7 +6,9 @@ describe('@okikio/task', () => {
 	it('completes and cleans one local operation', async () => {
 		let cleaned = false;
 		await using work = task.start(async (ctx) => {
-			ctx.defer(() => { cleaned = true; });
+			ctx.defer(() => {
+				cleaned = true;
+			});
 			return 42;
 		}, { id: 'task-complete' });
 		expect(await work.done).toBe(42);

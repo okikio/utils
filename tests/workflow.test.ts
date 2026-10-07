@@ -44,7 +44,12 @@ test('durable history replays one instruction without dispatching external work 
 		result: AnySchema,
 	});
 	await using parent = context.create({ id: 'scenario-parent' });
-	await using owned = await workflow.context({ definition, runId: 'run-1', input: { account: 'example.com' }, ctx: parent });
+	await using owned = await workflow.context({
+		definition,
+		runId: 'run-1',
+		input: { account: 'example.com' },
+		ctx: parent,
+	});
 	await using records = history.memory({ maximumEntries: 16 });
 
 	const iterator = workflow.sleep('PT1S')[Symbol.iterator]();

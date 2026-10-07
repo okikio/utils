@@ -130,7 +130,9 @@ export function compose(
 
 /** Create deterministic documentation for one normalized placement. */
 export function document(input: EnginePlacementInputType): readonly EnginePlacementDocumentType[] {
-	return Object.freeze(compose(input).choices.map((entry) => Object.freeze({ engine: entry.engine.id, mode: entry.mode })));
+	return Object.freeze(
+		compose(input).choices.map((entry) => Object.freeze({ engine: entry.engine.id, mode: entry.mode })),
+	);
 }
 
 /** Create one validated immutable candidate. */

@@ -17,9 +17,15 @@ export function requestId(options: RequestIdOptions = {}): Middleware {
 	recordCore.assert(options, 'request ID options');
 	const normalized = recordCore.snapshot(options, 'request ID options');
 	const header = normalized.header ?? 'X-Request-ID';
-	if (typeof header !== 'string' || !/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(header)) throw new TypeError('Request ID header must be a valid HTTP field name.');
-	if (normalized.trustIncoming !== undefined && typeof normalized.trustIncoming !== 'boolean') throw new TypeError('Request ID trustIncoming must be a boolean when provided.');
-	if (normalized.generate !== undefined && typeof normalized.generate !== 'function') throw new TypeError('Request ID generate must be a function when provided.');
+	if (typeof header !== 'string' || !/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(header)) {
+		throw new TypeError('Request ID header must be a valid HTTP field name.');
+	}
+	if (normalized.trustIncoming !== undefined && typeof normalized.trustIncoming !== 'boolean') {
+		throw new TypeError('Request ID trustIncoming must be a boolean when provided.');
+	}
+	if (normalized.generate !== undefined && typeof normalized.generate !== 'function') {
+		throw new TypeError('Request ID generate must be a function when provided.');
+	}
 	const generate = normalized.generate;
 	return async (request, next) => {
 		const supplied = normalized.trustIncoming === true ? request.headers.get(header) : null;

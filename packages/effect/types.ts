@@ -93,7 +93,9 @@ export interface EffectRuntime {
 }
 
 /** Execution-context view with declared-effect delivery available. */
-export type EffectContext<Base extends BaseContext = BaseContext> = Base & Readonly<{ readonly effects: EffectRuntime }>;
+export type EffectContext<Base extends BaseContext = BaseContext> =
+	& Base
+	& Readonly<{ readonly effects: EffectRuntime }>;
 
 /** Options accepted by `effects.scope()`. */
 export interface EffectScopeOptions {

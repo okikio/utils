@@ -43,7 +43,10 @@ export interface Encoded {
 }
 
 /** Named failure catalog. */
-export type FailureCatalog<Entries extends Readonly<Record<PropertyKey, Definition>>> = Catalog<Entries[keyof Entries], Entries>;
+export type FailureCatalog<Entries extends Readonly<Record<PropertyKey, Definition>>> = Catalog<
+	Entries[keyof Entries],
+	Entries
+>;
 
 /** Key-preserving failure catalog selection. */
 export type FailureSelection<

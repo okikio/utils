@@ -18,19 +18,19 @@ import type { Encoded as EncodedFailure } from '@okikio/failure';
 import * as schema from '@okikio/schema';
 
 import type {
+	RawWorker,
+	RawWorkerScope,
 	WorkerEventType,
+	WorkerHandle,
+	WorkerMessageOptions,
 	WorkerOpenOptions,
 	WorkerProtocol,
 	WorkerProtocolOptions,
-	RawWorker,
-	RawWorkerScope,
 	WorkerReply,
 	WorkerRequestControl,
 	WorkerRequestEnvelope,
 	WorkerRequestOptions,
-	WorkerMessageOptions,
 	WorkerServeOptions,
-	WorkerHandle,
 	WorkerServer,
 } from './types.ts';
 
@@ -214,7 +214,10 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 		// A parent response can race cancellation after the Worker has already
 		// released local request state. Ignore that late response rather than
 		// invalidating an otherwise healthy Worker correlation channel.
-		if (request === undefined && this.#ended.has(requestId) && (message.type === 'call-result' || message.type === 'call-fault')) {
+		if (
+			request === undefined && this.#ended.has(requestId) &&
+			(message.type === 'call-result' || message.type === 'call-fault')
+		) {
 			return;
 		}
 		if (request === undefined) {
@@ -240,7 +243,9 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 			return;
 		}
 
-		await this.#fault(new WorkerProtocolError(`Unsupported parent message type ${JSON.stringify(message.type)}.`, message));
+		await this.#fault(
+			new WorkerProtocolError(`Unsupported parent message type ${JSON.stringify(message.type)}.`, message),
+		);
 	}
 
 	/** Validate one request envelope before creating its local cancellation and cleanup lifetime. */
@@ -253,7 +258,9 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 		try {
 			assertId(requestId, 'Worker request');
 		} catch (error) {
-			await this.#fault(error instanceof Error ? error : new WorkerProtocolError('Worker request ID is invalid.', message));
+			await this.#fault(
+				error instanceof Error ? error : new WorkerProtocolError('Worker request ID is invalid.', message),
+			);
 			return;
 		}
 		if (this.#active.has(requestId)) {
@@ -298,39 +305,52 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 		pause: PauseState,
 		calls: Map<string, PendingCall<CallResponse>>,
 	): Promise<void> {
-		const control = Object.freeze({
-			checkpoint: async () => {
-				contextCore.check(requestCtx);
-				if (pause.paused) await wait(requestCtx, pause);
-				contextCore.check(requestCtx);
-			},
-			notify: async (notice: Notice, messageOptions: WorkerMessageOptions = {}) => {
-				if (this.#options.protocol.notice === undefined) {
-					throw new WorkerProtocolError('This Worker protocol does not declare notices.');
-				}
-				contextCore.check(requestCtx);
-				const validated = await schema.parse(this.#options.protocol.notice, notice);
-				contextCore.check(requestCtx);
-				this.#post(Object.freeze({ type: 'notice', id: requestId, notice: validated }), messageOptions.transfer);
-			},
-			call: async (callRequest: CallRequest, messageOptions: WorkerMessageOptions = {}) => {
-				const contract = this.#options.protocol.call;
-				if (contract === undefined) throw new WorkerProtocolError('This Worker protocol does not declare reverse calls.');
-				contextCore.check(requestCtx);
-				const validated = await schema.parse(contract.request, callRequest);
-				const callId = this.#createCallId();
-				assertId(callId, 'Worker reverse call');
-				if (calls.has(callId)) throw new WorkerProtocolError(`Reverse call ID ${JSON.stringify(callId)} is already active.`);
+		const control = Object.freeze(
+			{
+				checkpoint: async () => {
+					contextCore.check(requestCtx);
+					if (pause.paused) await wait(requestCtx, pause);
+					contextCore.check(requestCtx);
+				},
+				notify: async (notice: Notice, messageOptions: WorkerMessageOptions = {}) => {
+					if (this.#options.protocol.notice === undefined) {
+						throw new WorkerProtocolError('This Worker protocol does not declare notices.');
+					}
+					contextCore.check(requestCtx);
+					const validated = await schema.parse(this.#options.protocol.notice, notice);
+					contextCore.check(requestCtx);
+					this.#post(Object.freeze({ type: 'notice', id: requestId, notice: validated }), messageOptions.transfer);
+				},
+				call: async (callRequest: CallRequest, messageOptions: WorkerMessageOptions = {}) => {
+					const contract = this.#options.protocol.call;
+					if (contract === undefined) {
+						throw new WorkerProtocolError(
+							'This Worker protocol does not declare reverse calls.',
+						);
+					}
+					contextCore.check(requestCtx);
+					const validated = await schema.parse(contract.request, callRequest);
+					const callId = this.#createCallId();
+					assertId(callId, 'Worker reverse call');
+					if (calls.has(callId)) {
+						throw new WorkerProtocolError(
+							`Reverse call ID ${JSON.stringify(callId)} is already active.`,
+						);
+					}
 
-				const result = new Promise<CallResponse>((resolve, reject) => calls.set(callId, { resolve, reject }));
-				try {
-					this.#post(Object.freeze({ type: 'call', id: requestId, callId, request: validated }), messageOptions.transfer);
-					return await result;
-				} finally {
-					calls.delete(callId);
-				}
-			},
-		} satisfies WorkerRequestControl<Notice, CallRequest, CallResponse>);
+					const result = new Promise<CallResponse>((resolve, reject) => calls.set(callId, { resolve, reject }));
+					try {
+						this.#post(
+							Object.freeze({ type: 'call', id: requestId, callId, request: validated }),
+							messageOptions.transfer,
+						);
+						return await result;
+					} finally {
+						calls.delete(callId);
+					}
+				},
+			} satisfies WorkerRequestControl<Notice, CallRequest, CallResponse>,
+		);
 
 		try {
 			const handled = await this.#options.run(request, requestCtx, control);
@@ -339,7 +359,10 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 			const response = isReply(handled) ? handled.response : handled;
 			const validated = await schema.parse(this.#options.protocol.response, response);
 			if (requestCtx.signal.aborted) return;
-			this.#post(Object.freeze({ type: 'result', id: requestId, response: validated }), isReply(handled) ? handled.transfer : undefined);
+			this.#post(
+				Object.freeze({ type: 'result', id: requestId, response: validated }),
+				isReply(handled) ? handled.transfer : undefined,
+			);
 		} catch (error) {
 			if (requestCtx.signal.aborted) return;
 			if (failure.isOccurrence(error)) {
@@ -357,7 +380,9 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 			this.#post(Object.freeze({ type: 'fault', id: requestId, fault: serializeFault(error) }));
 		} finally {
 			resume(pause);
-			for (const entry of calls.values()) entry.reject(new WorkerStoppedError('Worker request ended before the reverse call completed.'));
+			for (const entry of calls.values()) {
+				entry.reject(new WorkerStoppedError('Worker request ended before the reverse call completed.'));
+			}
 			calls.clear();
 			this.#active.delete(requestId);
 			this.#remember(requestId);
@@ -378,7 +403,12 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 		const callId = message.callId;
 		const entry = request.calls.get(callId);
 		if (entry === undefined) {
-			await this.#fault(new WorkerProtocolError(`Unknown reverse call ID ${JSON.stringify(callId)} for request ${JSON.stringify(requestId)}.`, message));
+			await this.#fault(
+				new WorkerProtocolError(
+					`Unknown reverse call ID ${JSON.stringify(callId)} for request ${JSON.stringify(requestId)}.`,
+					message,
+				),
+			);
 			return;
 		}
 
@@ -389,7 +419,9 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 		}
 		const contract = this.#options.protocol.call;
 		if (contract === undefined) {
-			await this.#fault(new WorkerProtocolError('Parent returned a reverse-call result for a protocol without reverse calls.', message));
+			await this.#fault(
+				new WorkerProtocolError('Parent returned a reverse-call result for a protocol without reverse calls.', message),
+			);
 			return;
 		}
 		try {
@@ -397,7 +429,9 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 			request.calls.delete(callId);
 			entry.resolve(value);
 		} catch (error) {
-			await this.#fault(error instanceof Error ? error : new WorkerProtocolError('Reverse-call response validation failed.', message));
+			await this.#fault(
+				error instanceof Error ? error : new WorkerProtocolError('Reverse-call response validation failed.', message),
+			);
 		}
 	}
 
@@ -500,7 +534,10 @@ class Handle<Request, Response, Notice, CallRequest, CallResponse> {
 		this.#id = options.id ?? crypto.randomUUID();
 		assertId(this.#id, 'Worker');
 		const createRaw = options.create ?? ((module, workerOptions) => new Worker(module, workerOptions) as RawWorker);
-		this.#raw = createRaw(options.module, { type: 'module', ...(options.name === undefined ? {} : { name: options.name }) });
+		this.#raw = createRaw(options.module, {
+			type: 'module',
+			...(options.name === undefined ? {} : { name: options.name }),
+		});
 		this.#createRequestId = options.requestId ?? (() => crypto.randomUUID());
 		this.#shutdownMs = options.shutdownMs ?? 1_000;
 		if (!Number.isSafeInteger(this.#shutdownMs) || this.#shutdownMs < 0) {
@@ -535,12 +572,14 @@ class Handle<Request, Response, Notice, CallRequest, CallResponse> {
 		}
 		const validated = await schema.parse(this.#options.protocol.request, request);
 		contextCore.check(requestCtx);
-		const envelope = Object.freeze({
-			type: 'request',
-			id: requestId,
-			context: contextCore.snapshot(requestCtx),
-			request: validated,
-		} satisfies WorkerRequestEnvelope<Request>);
+		const envelope = Object.freeze(
+			{
+				type: 'request',
+				id: requestId,
+				context: contextCore.snapshot(requestCtx),
+				request: validated,
+			} satisfies WorkerRequestEnvelope<Request>,
+		);
 		const response = new Promise<Response>((resolve, reject) => {
 			const abort = () => this.#cancel(requestId, requestCtx, reject);
 			const unlink = () => requestCtx.signal.removeEventListener('abort', abort);
@@ -640,7 +679,9 @@ class Handle<Request, Response, Notice, CallRequest, CallResponse> {
 		}
 		const entry = this.#pending.get(requestId);
 		if (entry === undefined) {
-			this.#invalidate(new WorkerProtocolError(`Worker responded with unknown request ID ${JSON.stringify(requestId)}.`, message));
+			this.#invalidate(
+				new WorkerProtocolError(`Worker responded with unknown request ID ${JSON.stringify(requestId)}.`, message),
+			);
 			return;
 		}
 
@@ -672,9 +713,13 @@ class Handle<Request, Response, Notice, CallRequest, CallResponse> {
 				this.#events.emit(Object.freeze({ type: 'fault', id: requestId, reason: message.fault }));
 				return;
 			}
-			this.#invalidate(new WorkerProtocolError(`Unsupported Worker response type ${JSON.stringify(message.type)}.`, message));
+			this.#invalidate(
+				new WorkerProtocolError(`Unsupported Worker response type ${JSON.stringify(message.type)}.`, message),
+			);
 		} catch (error) {
-			this.#invalidate(error instanceof Error ? error : new WorkerProtocolError('Worker response validation failed.', message));
+			this.#invalidate(
+				error instanceof Error ? error : new WorkerProtocolError('Worker response validation failed.', message),
+			);
 		}
 	}
 
@@ -697,7 +742,9 @@ class Handle<Request, Response, Notice, CallRequest, CallResponse> {
 	async #call(requestId: string, entry: Pending<Response>, message: Record<string, unknown>): Promise<void> {
 		const contract = this.#options.protocol.call;
 		if (contract === undefined || this.#options.call === undefined) {
-			this.#invalidate(new WorkerProtocolError('Worker requested a reverse call that this parent does not provide.', message));
+			this.#invalidate(
+				new WorkerProtocolError('Worker requested a reverse call that this parent does not provide.', message),
+			);
 			return;
 		}
 		if (typeof message.callId !== 'string') {

@@ -6,7 +6,7 @@ import type {
 } from '@okikio/catalog';
 import type { Context, Owned, Resources } from '@okikio/context';
 import type { RequirementContext, RequirementRuntime } from '@okikio/requirement';
-import type { RequirementDefinition, RequirementInput, RequirementDocument } from '@okikio/requirement';
+import type { RequirementDefinition, RequirementDocument, RequirementInput } from '@okikio/requirement';
 import type { EnvironmentFields, EnvironmentRequirement, InferEnvironmentFields } from '@okikio/env';
 
 /** Private phantom key that preserves a resource definition's dependency type without runtime data. */
@@ -91,14 +91,13 @@ export type ResourceDependencyValues<Dependencies extends ResourceDependencies> 
 };
 
 /** Parsed direct environment values supplied to a resource implementation. */
-export type ResourceEnvironment<Requirement extends EnvironmentRequirement | undefined> =
-	Requirement extends EnvironmentRequirement<infer Fields extends EnvironmentFields>
-		? InferEnvironmentFields<Fields>
-		: Readonly<Record<string, never>>;
+export type ResourceEnvironment<Requirement extends EnvironmentRequirement | undefined> = Requirement extends
+	EnvironmentRequirement<infer Fields extends EnvironmentFields> ? InferEnvironmentFields<Fields>
+	: Readonly<Record<string, never>>;
 
 /** Exact environment requirement retained by one resource definition generic. */
-export type ResourceEnvironmentRequirement<Resource extends ResourceDefinition> =
-	Resource extends ResourceDefinition<infer _Value, infer _Dependencies, infer Requirement> ? Requirement : undefined;
+export type ResourceEnvironmentRequirement<Resource extends ResourceDefinition> = Resource extends
+	ResourceDefinition<infer _Value, infer _Dependencies, infer Requirement> ? Requirement : undefined;
 
 /** Borrowed execution scope supplied while creating one concrete resource value. */
 export interface ResourceCreateContext extends RequirementContext<Context>, Resources {}
@@ -213,10 +212,29 @@ export interface ResourceCollection extends AsyncDisposable {
 
 /** Resource graph validation issue. */
 export type ResourceValidationIssue =
-	| Readonly<{ readonly code: 'duplicate-definition-id'; readonly message: string; readonly id: string; readonly first: ResourceDefinition; readonly second: ResourceDefinition }>
-	| Readonly<{ readonly code: 'duplicate-implementation'; readonly message: string; readonly definition: ResourceDefinition }>
-	| Readonly<{ readonly code: 'missing-implementation'; readonly message: string; readonly definition: ResourceDefinition; readonly requiredBy: readonly ResourceDefinition[] }>
-	| Readonly<{ readonly code: 'dependency-cycle'; readonly message: string; readonly path: readonly ResourceDefinition[] }>;
+	| Readonly<
+		{
+			readonly code: 'duplicate-definition-id';
+			readonly message: string;
+			readonly id: string;
+			readonly first: ResourceDefinition;
+			readonly second: ResourceDefinition;
+		}
+	>
+	| Readonly<
+		{ readonly code: 'duplicate-implementation'; readonly message: string; readonly definition: ResourceDefinition }
+	>
+	| Readonly<
+		{
+			readonly code: 'missing-implementation';
+			readonly message: string;
+			readonly definition: ResourceDefinition;
+			readonly requiredBy: readonly ResourceDefinition[];
+		}
+	>
+	| Readonly<
+		{ readonly code: 'dependency-cycle'; readonly message: string; readonly path: readonly ResourceDefinition[] }
+	>;
 
 /** Deterministic validation result for a resource graph. */
 export type ResourceValidationResult =

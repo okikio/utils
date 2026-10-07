@@ -1,37 +1,31 @@
-`@okikio/queue`
-==============
+# `@okikio/queue`
 
-Purpose
--------
+## Purpose
 
-`@okikio/queue` defines a claimed-work queue and provides a process-local queue
-for tests, simulations, and local composition.
+`@okikio/queue` defines a claimed-work queue and provides a process-local queue for tests, simulations, and local
+composition.
 
 `@okikio/queue` can be used in two ways.
 
-The simple approach is close to a normal FIFO work queue.
-Add work, take one item, use the value, and move to the next item.
+The simple approach is close to a normal FIFO work queue. Add work, take one item, use the value, and move to the next
+item.
 
-The claimed-work approach adds ownership, lease time, retry state, and result tracking.
-That extra state matters when some work does not end after the first claim. A
-task can stop before completion, another task may need to recover the same
-item, and a caller may need the final result later.
+The claimed-work approach adds ownership, lease time, retry state, and result tracking. That extra state matters when
+some work does not end after the first claim. A task can stop before completion, another task may need to recover the
+same item, and a caller may need the final result later.
 
 `@okikio/queue` keeps that extra state explicitly:
 
- -  a stable item reference for later result lookup;
- -  a claim token for current ownership;
- -  a lease expiry time for recovery;
- -  retry state for another attempt;
- -  terminal states for completion, failure, and cancellation;
- -  blocked waiters for future work and future results.
+- a stable item reference for later result lookup;
+- a claim token for current ownership;
+- a lease expiry time for recovery;
+- retry state for another attempt;
+- terminal states for completion, failure, and cancellation;
+- blocked waiters for future work and future results.
 
-The result is closer to a local work broker with leases than to a minimal
-container.
+The result is closer to a local work broker with leases than to a minimal container.
 
-
-Start here
-----------
+## Start here
 
 Start with the smallest useful path.
 
@@ -64,46 +58,49 @@ const task = await jobs.take();
 
 `task?.value` is `'transcode file'`.
 
-That is the simple path.
-Most callers can start there.
+That is the simple path. Most callers can start there.
 
-Use `complete()` and `result()` only when the queue must keep track of what
-happened after `take()`.
+Use `complete()` and `result()` only when the queue must keep track of what happened after `take()`.
 
 Use this mental model for the tracked path:
 
- -  `QueueRef` names the logical item.
- -  `take()` gives one task a temporary lease on that item.
- -  `complete()` publishes the successful outcome for that item.
- -  `retry()` returns the same item to the queue for another attempt.
- -  `result(ref)` reads the terminal outcome later.
+- `QueueRef` names the logical item.
+- `take()` gives one task a temporary lease on that item.
+- `complete()` publishes the successful outcome for that item.
+- `retry()` returns the same item to the queue for another attempt.
+- `result(ref)` reads the terminal outcome later.
 
 ## Idempotent admission
 
-Use `key` when repeated producer attempts must resolve to the same logical queue item. The queue treats the key itself as authoritative identity. It does **not** compare two arbitrary `Input` values because a generic queue cannot know whether two domain values mean the same work.
+Use `key` when repeated producer attempts must resolve to the same logical queue item. The queue treats the key itself
+as authoritative identity. It does **not** compare two arbitrary `Input` values because a generic queue cannot know
+whether two domain values mean the same work.
 
 ```ts
 const first = await jobs.add('render report revision 7', {
-  key: 'report:customer-42:revision-7',
+	key: 'report:customer-42:revision-7',
 });
 
 const retry = await jobs.add('render report revision 7', {
-  key: 'report:customer-42:revision-7',
+	key: 'report:customer-42:revision-7',
 });
 
 // The producer retry reattaches to the first logical item.
 console.log(retry.id === first.id); // true
 ```
 
-If the payload changes the meaning of the work, change the key too. A useful durable key often includes a domain ID plus a stable version or fingerprint:
+If the payload changes the meaning of the work, change the key too. A useful durable key often includes a domain ID plus
+a stable version or fingerprint:
 
 ```ts
 await jobs.add('render report revision 8', {
-  key: 'report:customer-42:revision-8',
+	key: 'report:customer-42:revision-8',
 });
 ```
 
-Do not reuse one key for unrelated input and expect the queue to detect the conflict. Manually, this queue behavior is the same as keeping a `Map<string, QueueRef>` beside the work table: once a key points at an item, another admission with that key returns the same reference and leaves the retained input unchanged.
+Do not reuse one key for unrelated input and expect the queue to detect the conflict. Manually, this queue behavior is
+the same as keeping a `Map<string, QueueRef>` beside the work table: once a key points at an item, another admission
+with that key returns the same reference and leaves the retained input unchanged.
 
 The tracked-outcome path looks like this:
 
@@ -127,43 +124,35 @@ const output = await jobs.result(ref);
 
 Use the simple path when FIFO-like behavior is enough:
 
- -  keep priorities equal;
- -  do not delay items with `availableAt`;
- -  take one item at a time;
- -  read `task.value` and finish work outside the queue.
+- keep priorities equal;
+- do not delay items with `availableAt`;
+- take one item at a time;
+- read `task.value` and finish work outside the queue.
 
-The fuller path adds one rule that a plain FIFO queue does not keep.
-The queue keeps the item record after `claim()`.
+The fuller path adds one rule that a plain FIFO queue does not keep. The queue keeps the item record after `claim()`.
 The task receives a claim token instead of removing ownership from the queue.
 
 A claim carries:
 
- -  the item id;
- -  the task identity;
- -  the claim start time;
- -  the claim expiry time;
- -  the attempt number.
+- the item id;
+- the task identity;
+- the claim start time;
+- the claim expiry time;
+- the attempt number.
 
-Later calls such as `complete()`, `fail()`, `retry()`, and `renew()` must use
-the live claim.
-If the claim expired, the queue rejects the old claim.
-If another task claimed the item again, the queue rejects the old claim.
+Later calls such as `complete()`, `fail()`, `retry()`, and `renew()` must use the live claim. If the claim expired, the
+queue rejects the old claim. If another task claimed the item again, the queue rejects the old claim.
 
-Use the fuller path when retries, recovery, delayed work, or later result
-observation matter.
+Use the fuller path when retries, recovery, delayed work, or later result observation matter.
 
-The simple wrapper uses the larger queue under the hood.
-`fifo()` maps `take()` to `claim({ limit: 1 })`.
-The taken item then maps `complete()`, `fail()`, `retry()`, and `renew()` back
-to the underlying claimed-work queue.
+The simple wrapper uses the larger queue under the hood. `fifo()` maps `take()` to `claim({ limit: 1 })`. The taken item
+then maps `complete()`, `fail()`, `retry()`, and `renew()` back to the underlying claimed-work queue.
 
-
-QueueClaim lifecycle
----------------
+## QueueClaim lifecycle
 
 One item moves through these states.
 
-~~~~ text
+```text
 ADD WORK
 ===============================================================================
 
@@ -209,22 +198,19 @@ Only the current claim id and owner may change claimed work.
 
 Old claim after expiry or re-claim
   -> StaleClaimError
-~~~~
+```
 
-The queue keeps item identity even after terminal state.
-`result(ref)` can still find the same logical item later.
+The queue keeps item identity even after terminal state. `result(ref)` can still find the same logical item later.
 
-
-Common situations
------------------
+## Common situations
 
 The first situation is the simple path.
 
-~~~~ text
+```text
 producer adds item A
   -> task takes item A
   -> task uses item A
-~~~~
+```
 
 The same simple path in code looks like this:
 
@@ -258,19 +244,17 @@ const immediate = await jobs.take();
 // immediate is undefined because the item is delayed.
 ```
 
-After the delay passes, another `take()` call can receive the same item with a
-higher attempt number.
+After the delay passes, another `take()` call can receive the same item with a higher attempt number.
 
 The next situation explains why lease expiry exists.
 
-The failure case is concrete. A task can stop after claim time and before completion.
-That stop can come from process exit, cancellation, a crash, or lost
-connectivity. Without lease expiry, the item can stay stuck forever. Without a
+The failure case is concrete. A task can stop after claim time and before completion. That stop can come from process
+exit, cancellation, a crash, or lost connectivity. Without lease expiry, the item can stay stuck forever. Without a
 claim token, an old task can wake up later and overwrite newer work.
 
 The failure and recovery flow looks like this:
 
-~~~~ text
+```text
 task-a takes item A
   -> task-a stops before completion
   -> lease expires
@@ -278,7 +262,7 @@ task-a takes item A
   -> task-b takes item A
   -> task-b completes item A
   -> old task-a result is rejected
-~~~~
+```
 
 ```ts
 import * as context from '@okikio/context';
@@ -313,8 +297,7 @@ const result = await jobs.result(ref);
 
 `result` is `'recovered'`.
 
-If `task-a` later tries to finish the old take, the queue throws
-`StaleClaimError`.
+If `task-a` later tries to finish the old take, the queue throws `StaleClaimError`.
 
 The stale write looks like this in code:
 
@@ -326,16 +309,15 @@ await expect(first?.complete('late result')).rejects.toThrow(queue.StaleClaimErr
 
 The next situation explains why `result()` is separate from `claim()`.
 
-~~~~ text
+```text
 producer adds work
   -> task takes work
   -> task completes, fails, or retries work
   -> observer waits on result(ref)
   -> queue wakes observer on terminal state
-~~~~
+```
 
-`result()` waits for terminal state.
-`result()` does not claim ownership.
+`result()` waits for terminal state. `result()` does not claim ownership.
 
 The matching code looks like this:
 
@@ -360,44 +342,35 @@ const output = await waiting;
 // output is: 'ready'
 ```
 
-The first situation is enough for FIFO-like use.
-The later situations explain why the queue keeps more state than a plain FIFO
-queue.
+The first situation is enough for FIFO-like use. The later situations explain why the queue keeps more state than a
+plain FIFO queue.
 
-Queue state changes wake blocked callers.
-Two wait groups exist:
+Queue state changes wake blocked callers. Two wait groups exist:
 
- -  claim waiters wait for eligible work;
- -  result waiters wait for one item to reach terminal state.
+- claim waiters wait for eligible work;
+- result waiters wait for one item to reach terminal state.
 
-Wake-ups happen when work is added, delayed work becomes claimable, a claim
-expires, an item completes, fails, retries, or is cancelled, or the queue
-closes.
+Wake-ups happen when work is added, delayed work becomes claimable, a claim expires, an item completes, fails, retries,
+or is cancelled, or the queue closes.
 
+## How it fits
 
-How it fits
------------
+`@okikio/context` supplies caller identity, cancellation, optional deadline, and the clock used for claim expiry and
+delayed availability.
 
-`@okikio/context` supplies caller identity, cancellation, optional deadline, and
-the clock used for claim expiry and delayed availability.
+`@okikio/failure` supplies the encoded failure shape used when work reaches the failed state.
 
-`@okikio/failure` supplies the encoded failure shape used when work reaches the
-failed state.
+`@okikio/queue` does not implement durable storage, broker replication, or a full workflow engine. Concrete durable
+adapters belong in `packages/`.
 
-`@okikio/queue` does not implement durable storage, broker replication, or a
-full workflow engine.
-Concrete durable adapters belong in `packages/`.
+Read [types.ts](./types.ts) first when you want the public vocabulary. Read [mod.test.ts](./mod.test.ts) next when you
+want short behavior stories. Read [mod.ts](./mod.ts) last when you want the step-by-step state rules.
 
-Read [types.ts](./types.ts) first when you want the public vocabulary.
-Read [mod.test.ts](./mod.test.ts) next when you want short behavior stories.
-Read [mod.ts](./mod.ts) last when you want the step-by-step state rules.
-
-Convenience and the manual equivalent
--------------------------------------
+## Convenience and the manual equivalent
 
 Concrete map
-~~~~~~~~~~~~
 
+```
 | Convenience | Manual equivalent | Concrete value |
 | --- | --- | --- |
 | `queue.memory()` | maintain item state, keyed admission, claim leases, expiries, waiters, results, retries, cancellation, and close semantics manually | one authoritative logical-work state machine |
@@ -446,3 +419,4 @@ detail:
 
 The README is the primary user documentation. It intentionally stays close to
 the public source instead of maintaining a separate hand-written API reference.
+```

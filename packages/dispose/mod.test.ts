@@ -16,10 +16,20 @@ describe('@okikio/dispose', () => {
 		const first = new Error('first');
 		const second = new Error('second');
 		const stack = new DisposableStack();
-		stack.defer(() => { events.push('first'); throw first; });
-		stack.defer(() => { events.push('second'); throw second; });
+		stack.defer(() => {
+			events.push('first');
+			throw first;
+		});
+		stack.defer(() => {
+			events.push('second');
+			throw second;
+		});
 		let thrown: unknown;
-		try { stack.dispose(); } catch (error) { thrown = error; }
+		try {
+			stack.dispose();
+		} catch (error) {
+			thrown = error;
+		}
 		expect(events).toEqual(['second', 'first']);
 		expect(thrown).toBeInstanceOf(SuppressedError);
 		if (thrown instanceof SuppressedError) {
@@ -42,10 +52,20 @@ describe('@okikio/dispose', () => {
 		const first = new Error('first-async');
 		const second = new Error('second-async');
 		const stack = new AsyncDisposableStack();
-		stack.defer(async () => { await Promise.resolve(); throw first; });
-		stack.defer(async () => { await Promise.resolve(); throw second; });
+		stack.defer(async () => {
+			await Promise.resolve();
+			throw first;
+		});
+		stack.defer(async () => {
+			await Promise.resolve();
+			throw second;
+		});
 		let thrown: unknown;
-		try { await stack.disposeAsync(); } catch (error) { thrown = error; }
+		try {
+			await stack.disposeAsync();
+		} catch (error) {
+			thrown = error;
+		}
 		expect(thrown).toBeInstanceOf(SuppressedError);
 		if (thrown instanceof SuppressedError) {
 			expect(thrown.error).toBe(first);

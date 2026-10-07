@@ -12,10 +12,7 @@ import type { EffectEmitter } from '@okikio/effect';
 import type { PermissionChecker } from '@okikio/permission';
 import type { RequirementRuntime } from '@okikio/requirement';
 import type { ResourceCollection } from '@okikio/resource';
-import type {
-	ActivityAttemptResultType,
-	EngineProvider,
-} from '@okikio/workflow';
+import type { ActivityAttemptResultType, EngineProvider } from '@okikio/workflow';
 import * as activity from './mod.ts';
 import * as remote from './remote.ts';
 import type { ActivityDefinition, ActivityImplementation } from './types.ts';
@@ -63,16 +60,22 @@ export class MissingActivityError extends Error {
  */
 export function create(options: LocalProviderOptions): EngineProvider {
 	remote.engine(options.engine, 'Local provider');
-	if (options.implementations.length === 0) throw new TypeError('Local engine provider requires at least one implementation.');
+	if (options.implementations.length === 0) {
+		throw new TypeError('Local engine provider requires at least one implementation.');
+	}
 	const byDefinition = new Map<ActivityDefinition, ActivityImplementation>();
 	const byIdentity = new Map<string, ActivityImplementation>();
 	for (const implementation of options.implementations) {
 		assertImplementation(implementation);
 		if (byDefinition.has(implementation.definition)) {
-			throw new TypeError(`Activity ${JSON.stringify(implementation.definition.id)} has more than one local implementation.`);
+			throw new TypeError(
+				`Activity ${JSON.stringify(implementation.definition.id)} has more than one local implementation.`,
+			);
 		}
 		const key = remote.identity(implementation.definition.id, implementation.definition.version);
-		if (byIdentity.has(key)) throw new TypeError(`Activity identity ${JSON.stringify(key)} belongs to different local definitions.`);
+		if (byIdentity.has(key)) {
+			throw new TypeError(`Activity identity ${JSON.stringify(key)} belongs to different local definitions.`);
+		}
 		byDefinition.set(implementation.definition, implementation);
 		byIdentity.set(key, implementation);
 	}
@@ -85,11 +88,17 @@ export function create(options: LocalProviderOptions): EngineProvider {
 			control: import('@okikio/workflow').ActivityAttemptControl,
 		): Promise<ActivityAttemptResultType> {
 			if (attempt.engineId !== options.engine.id) {
-				return Object.freeze({ type: 'fault', fault: new activity.InvalidEngineError(attempt.activityId, attempt.engineId) });
+				return Object.freeze({
+					type: 'fault',
+					fault: new activity.InvalidEngineError(attempt.activityId, attempt.engineId),
+				});
 			}
 			const implementation = byIdentity.get(remote.identity(attempt.activityId, attempt.activityVersion));
 			if (implementation === undefined) {
-				return Object.freeze({ type: 'fault', fault: new MissingActivityError(attempt.activityId, attempt.activityVersion) });
+				return Object.freeze({
+					type: 'fault',
+					fault: new MissingActivityError(attempt.activityId, attempt.activityVersion),
+				});
 			}
 			try {
 				const value = await activity.run({
@@ -105,7 +114,9 @@ export function create(options: LocalProviderOptions): EngineProvider {
 					...(options.effect === undefined ? {} : { effect: options.effect }),
 					...(options.requirements === undefined ? {} : { requirements: options.requirements }),
 					...(options.checkpoint === undefined ? {} : { checkpoint: options.checkpoint }),
-					heartbeat(value) { return control.heartbeat(value); },
+					heartbeat(value) {
+						return control.heartbeat(value);
+					},
 				});
 				return Object.freeze({ type: 'success', value });
 			} catch (error) {
@@ -123,7 +134,10 @@ export function create(options: LocalProviderOptions): EngineProvider {
 
 /** Reject a malformed implementation before provider registration. */
 function assertImplementation(value: ActivityImplementation): void {
-	if (typeof value !== 'object' || value === null || value.definition?.kind !== 'activity' || typeof value.run !== 'function') {
+	if (
+		typeof value !== 'object' || value === null || value.definition?.kind !== 'activity' ||
+		typeof value.run !== 'function'
+	) {
 		throw new TypeError('Local provider implementation must bind an activity definition to run().');
 	}
 }

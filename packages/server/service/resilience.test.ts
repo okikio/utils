@@ -5,7 +5,7 @@ import * as effect from '@okikio/effect';
 import * as requirement from '@okikio/requirement';
 import * as resilience from '@okikio/resilience';
 
-import { resilience as resilienceHost, RetryableOperationError, retry as retryHost } from './resilience.ts';
+import { resilience as resilienceHost, retry as retryHost, RetryableOperationError } from './resilience.ts';
 import type { ServiceRequestState, ServiceResilienceAdapter } from './types.ts';
 
 const owner = requestContext.create({
@@ -44,13 +44,22 @@ describe('service resilience adapters', () => {
 	it('retries only explicitly classified failures', async () => {
 		let attempts = 0;
 		const runtime = retryHost();
-		const result = await runtime.run([
-			resilience.retry({ maximumAttempts: 3, initialDelay: { milliseconds: 1 }, maximumDelay: { milliseconds: 1 }, jitter: false }),
-		], state, () => {
-			attempts += 1;
-			if (attempts < 3) throw new RetryableOperationError(new Error('temporary'));
-			return Promise.resolve(new Response('ok'));
-		});
+		const result = await runtime.run(
+			[
+				resilience.retry({
+					maximumAttempts: 3,
+					initialDelay: { milliseconds: 1 },
+					maximumDelay: { milliseconds: 1 },
+					jitter: false,
+				}),
+			],
+			state,
+			() => {
+				attempts += 1;
+				if (attempts < 3) throw new RetryableOperationError(new Error('temporary'));
+				return Promise.resolve(new Response('ok'));
+			},
+		);
 		expect(result).toBeInstanceOf(Response);
 		expect(attempts).toBe(3);
 	});
@@ -58,12 +67,21 @@ describe('service resilience adapters', () => {
 	it('does not retry ordinary failures', async () => {
 		let attempts = 0;
 		const runtime = retryHost();
-		await expect(runtime.run([
-			resilience.retry({ maximumAttempts: 3, initialDelay: { milliseconds: 1 }, maximumDelay: { milliseconds: 1 }, jitter: false }),
-		], state, () => {
-			attempts += 1;
-			throw new Error('not classified');
-		})).rejects.toThrow('not classified');
+		await expect(runtime.run(
+			[
+				resilience.retry({
+					maximumAttempts: 3,
+					initialDelay: { milliseconds: 1 },
+					maximumDelay: { milliseconds: 1 },
+					jitter: false,
+				}),
+			],
+			state,
+			() => {
+				attempts += 1;
+				throw new Error('not classified');
+			},
+		)).rejects.toThrow('not classified');
 		expect(attempts).toBe(1);
 	});
 

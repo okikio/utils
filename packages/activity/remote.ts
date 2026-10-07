@@ -35,7 +35,10 @@ export function definitions(input: readonly ActivityDefinition[], owner: string)
 }
 
 /** Index remote implementations and reject duplicate ownership of one activity identity. */
-export function implementations(input: readonly ActivityImplementation[], owner: string): Map<string, ActivityImplementation> {
+export function implementations(
+	input: readonly ActivityImplementation[],
+	owner: string,
+): Map<string, ActivityImplementation> {
 	if (input.length === 0) throw new TypeError(`${owner} requires at least one activity implementation.`);
 	const output = new Map<string, ActivityImplementation>();
 	for (const implementation of input) {

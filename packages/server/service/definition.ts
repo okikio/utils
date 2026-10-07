@@ -37,7 +37,9 @@ export function define<
 	}
 	const observers = Object.freeze([...(input.observers ?? [])]);
 	for (const value of observers) {
-		if (value.kind !== 'service-observer') throw new TypeError('Service observers must be created with service.observer.define().');
+		if (value.kind !== 'service-observer') {
+			throw new TypeError('Service observers must be created with service.observer.define().');
+		}
 	}
 	return Object.freeze({
 		...pickContributions(input),
@@ -53,21 +55,25 @@ export function define<
 	});
 }
 
-const OBSERVER_KINDS = Object.freeze({
-	started: true,
-	response: true,
-	completed: true,
-	failed: true,
-	aborted: true,
-} satisfies Record<ServiceObserverEventKind, true>);
+const OBSERVER_KINDS = Object.freeze(
+	{
+		started: true,
+		response: true,
+		completed: true,
+		failed: true,
+		aborted: true,
+	} satisfies Record<ServiceObserverEventKind, true>,
+);
 const OBSERVER_EVENTS = Object.freeze(Object.keys(OBSERVER_KINDS) as ServiceObserverEventKind[]);
 
 /** Create one import-safe service observer definition. */
-function defineObserver(input: Readonly<{
-	readonly id: string;
-	readonly description: string;
-	readonly events?: readonly ServiceObserverEventKind[];
-}>): ServiceObserverDefinition {
+function defineObserver(
+	input: Readonly<{
+		readonly id: string;
+		readonly description: string;
+		readonly events?: readonly ServiceObserverEventKind[];
+	}>,
+): ServiceObserverDefinition {
 	assertIdentifier(input.id, 'service observer');
 	if (input.description.trim().length === 0) throw new TypeError('Service observer description cannot be empty.');
 	const events = Object.freeze([...(input.events ?? OBSERVER_EVENTS)]);
@@ -82,7 +88,9 @@ function observerHandler<Definition extends ServiceObserverDefinition>(
 	definition: Definition,
 	handle: ServiceObserverHandler<Definition>['handle'],
 ): ServiceObserverHandler<Definition> {
-	if (definition.kind !== 'service-observer') throw new TypeError('Service observer handlers require an exact observer definition.');
+	if (definition.kind !== 'service-observer') {
+		throw new TypeError('Service observer handlers require an exact observer definition.');
+	}
 	if (typeof handle !== 'function') throw new TypeError('Service observer handler must be a function.');
 	return Object.freeze({ kind: 'service-observer-handler', definition, handle });
 }
@@ -118,7 +126,11 @@ export function select<Service extends ServiceDefinition>(
 	const selected = leafEndpoints(endpoint.compose(input.endpoints));
 	for (const definition of selected) {
 		if (!available.has(definition)) {
-			throw new TypeError(`Service selection ${JSON.stringify(input.id)} targets endpoint ${JSON.stringify(definition.id)} outside ${JSON.stringify(service.id)}.`);
+			throw new TypeError(
+				`Service selection ${JSON.stringify(input.id)} targets endpoint ${JSON.stringify(definition.id)} outside ${
+					JSON.stringify(service.id)
+				}.`,
+			);
 		}
 	}
 	return Object.freeze({
@@ -145,7 +157,9 @@ export function compose(
 		}
 		const entry = value as Entry;
 		const owner = ids.get(entry.id);
-		if (owner && owner !== entry) throw new TypeError(`Service composition ID ${JSON.stringify(entry.id)} is owned by different objects.`);
+		if (owner && owner !== entry) {
+			throw new TypeError(`Service composition ID ${JSON.stringify(entry.id)} is owned by different objects.`);
+		}
 		ids.set(entry.id, entry);
 		if (!seen.has(entry)) {
 			seen.add(entry);
@@ -210,9 +224,15 @@ function snapshotInput<Value>(value: Value): Value {
  */
 function assertPath(value: string): void {
 	if (!value.startsWith('/')) throw new TypeError(`Service path ${JSON.stringify(value)} must begin with /.`);
-	if (value.includes('?') || value.includes('#')) throw new TypeError('Service paths may not contain query strings or fragments.');
-	if (value.includes('//')) throw new TypeError(`Service path ${JSON.stringify(value)} must not contain empty path segments.`);
-	if (value.length > 1 && value.endsWith('/')) throw new TypeError(`Service path ${JSON.stringify(value)} must not end with /.`);
+	if (value.includes('?') || value.includes('#')) {
+		throw new TypeError('Service paths may not contain query strings or fragments.');
+	}
+	if (value.includes('//')) {
+		throw new TypeError(`Service path ${JSON.stringify(value)} must not contain empty path segments.`);
+	}
+	if (value.length > 1 && value.endsWith('/')) {
+		throw new TypeError(`Service path ${JSON.stringify(value)} must not end with /.`);
+	}
 }
 
 /**

@@ -51,9 +51,7 @@ function snapshotValue(value: unknown, path: string, parents: Set<object>): Work
 
 	parents.add(value);
 	try {
-		return Array.isArray(value)
-			? snapshotArray(value, path, parents)
-			: snapshotRecord(value, path, parents);
+		return Array.isArray(value) ? snapshotArray(value, path, parents) : snapshotRecord(value, path, parents);
 	} finally {
 		parents.delete(value);
 	}
@@ -89,7 +87,11 @@ function isArrayIndex(key: string, length: number): boolean {
 }
 
 /** Snapshot enumerable string data from one plain object in stable key order. */
-function snapshotRecord(value: object, path: string, parents: Set<object>): Readonly<Record<string, WorkflowDurableValue>> {
+function snapshotRecord(
+	value: object,
+	path: string,
+	parents: Set<object>,
+): Readonly<Record<string, WorkflowDurableValue>> {
 	const prototype = Object.getPrototypeOf(value);
 	if (prototype !== Object.prototype && prototype !== null) throw new TypeError(`${path} contains a non-plain object.`);
 	assertNoSymbols(value, path);

@@ -1,16 +1,12 @@
-`@okikio/hono`
-====================
+# `@okikio/hono`
 
-Purpose
--------
+## Purpose
 
-This package adapts framework-neutral HTTP and service runtimes to Hono. The
-service compiler and `service.create()` do not require Hono. Import this package
-only when a host wants Hono routing, Hono-native middleware, or Hono context
+This package adapts framework-neutral HTTP and service runtimes to Hono. The service compiler and `service.create()` do
+not require Hono. Import this package only when a host wants Hono routing, Hono-native middleware, or Hono context
 features.
 
-Start here
-----------
+## Start here
 
 Wrap an ordinary Hono application with generic Fetch middleware:
 
@@ -27,8 +23,7 @@ const handler = hono.fetch(app, [http.securityHeaders()]);
 const response = await handler(new Request('https://service.invalid/health'));
 ```
 
-Mount a compiled service runtime
---------------------------------
+## Mount a compiled service runtime
 
 ```ts
 import { Hono } from 'hono';
@@ -48,22 +43,17 @@ export default {
 };
 ```
 
-`hono.mount()` registers `ServiceRuntime.routes` in the canonical order produced by the service
-runtime. This matters because Hono resolves matching handlers in registration order, while the
-framework-neutral runtime explicitly prefers more specific static routes and explicit `HEAD` routes.
+`hono.mount()` registers `ServiceRuntime.routes` in the canonical order produced by the service runtime. This matters
+because Hono resolves matching handlers in registration order, while the framework-neutral runtime explicitly prefers
+more specific static routes and explicit `HEAD` routes.
 
-Hono-specific middleware remains valid. The generic HTTP middleware is useful
-when the same behavior must also work with `Deno.serve`, Node fetch adapters,
-workers, tests, or another framework.
+Hono-specific middleware remains valid. The generic HTTP middleware is useful when the same behavior must also work with
+`Deno.serve`, Node fetch adapters, workers, tests, or another framework.
 
+## Framework ownership
 
-Framework ownership
--------------------
-
-Keep endpoint definitions, validation, resources, and business behavior in the
-framework-neutral server packages. Use Hono for the host features that are
-actually Hono-specific, such as its router, context helpers, or native
-middleware.
+Keep endpoint definitions, validation, resources, and business behavior in the framework-neutral server packages. Use
+Hono for the host features that are actually Hono-specific, such as its router, context helpers, or native middleware.
 
 ```ts
 const app = new Hono();
@@ -75,16 +65,14 @@ app.onError(hono.catchErrors({ expose: false }));
 export default { fetch: hono.fetch(app, genericHttpMiddleware) };
 ```
 
-This direction matters for tests and alternate runtimes: the same
-`serviceRuntime` can still be called directly as a Fetch handler without Hono.
+This direction matters for tests and alternate runtimes: the same `serviceRuntime` can still be called directly as a
+Fetch handler without Hono.
 
-
-Convenience and the manual equivalent
--------------------------------------
+## Convenience and the manual equivalent
 
 Concrete map
-~~~~~~~~~~~~
 
+```
 | Convenience | Manual equivalent | Concrete value |
 | --- | --- | --- |
 | `hono.mount()` | translate one service runtime into Hono routes and adapt request/response/context behavior manually | reuse service contracts without making Hono the contract owner |
@@ -130,3 +118,4 @@ contracts into Hono concepts only where a Hono application needs that bridge.
 The same compiled service can therefore run through the framework-neutral Fetch
 host, a Hono adapter, a gateway, or an embedded protocol handler without changing
 its endpoint definitions.
+```
