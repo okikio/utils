@@ -1,11 +1,27 @@
-// temporal.ts
-
-import { Temporal as PolyfillTemporal } from '@js-temporal/polyfill';
-
 /**
- * Uses the runtime Temporal implementation when available and falls back to
- * the reference-compatible implementation on runtimes that do not provide it.
+ * Install Temporal only when the host does not provide it.
+ *
+ * Import this module first at an application entry point. It lets duration,
+ * context, queue, pool and workflow code run on hosts without global Temporal.
+ * Libraries keep this choice with the application; ordinary utility imports do
+ * not install globals. Each Worker or process has its own global and needs its
+ * own entry-point import. An existing native implementation is preserved.
+ *
+ * @example
+ * ```ts
+ * import '@okikio/duration/polyfill';
+ * import { milliseconds } from '@okikio/duration';
+ * console.log(milliseconds('PT2.5S')); // 2500
+ * ```
+ * @module
  */
-export const Temporal: typeof PolyfillTemporal =
-	(globalThis as unknown as { Temporal?: typeof PolyfillTemporal }).Temporal ??
-		PolyfillTemporal;
+import { Temporal } from './temporal.ts';
+
+if (globalThis.Temporal === undefined) {
+	Object.defineProperty(globalThis, 'Temporal', {
+		value: Temporal,
+		configurable: true,
+		writable: true,
+		enumerable: false,
+	});
+}
