@@ -37,6 +37,8 @@ export interface CsvColumn {
 	index: number;
 	/** Original trimmed header, or a generated display label for a blank header. */
 	name: string;
+	/** Exact decoded header, including whitespace and blank/duplicate text. Older persisted parser snapshots may omit it. */
+	rawHeader?: string;
 	/** Stable unique key generated from the normalized header. */
 	key: string;
 	/** Normalized header used for matching. */
@@ -79,6 +81,8 @@ export interface CsvDocument {
 export interface CsvParseOptions {
 	/** Optional source name included in the returned document. */
 	fileName?: string;
+	/** Reject known binary signatures and non-text controls; also bound header cells. @default false */
+	textOnly?: boolean;
 	/** Force a delimiter or use automatic dialect detection. @default 'auto' */
 	delimiter?: CsvDelimiter | 'auto';
 	/** Force a one-based header row or detect it automatically. @default 'auto' */
@@ -97,6 +101,8 @@ export interface CsvParseOptions {
 	maximumCellCharacters?: number;
 	/** Maximum records inspected during automatic header selection. @default 25 */
 	headerScanRows?: number;
+	/** Keep all-empty logical data records as source occurrences. @default false */
+	preserveBlankRows?: boolean;
 }
 
 /** Stable machine-readable parse failure codes. */
@@ -119,13 +125,15 @@ export class CsvParseError extends Error {
 	/** One-based column related to the failure, when known. */
 	readonly column?: number;
 
+	/** Create this CsvParseError from the explicit contract values supplied by its caller. */
 	constructor(
 		code: CsvParseErrorCode,
 		message: string,
 		row?: number,
 		column?: number,
+		options?: ErrorOptions,
 	) {
-		super(message);
+		super(message, options);
 		this.name = 'CsvParseError';
 		this.code = code;
 		if (row !== undefined) this.row = row;

@@ -82,6 +82,7 @@ export function buildColumns(
 
 		return Object.freeze({
 			index,
+			rawHeader: source,
 			name: name || `Column ${index + 1}`,
 			key: occurrence === 1 ? baseKey : `${baseKey}__${occurrence}`,
 			normalizedName,

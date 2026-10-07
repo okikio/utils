@@ -1,16 +1,21 @@
-import { parse as parseCsvRecords } from '@std/csv/parse';
+import { buildColumns, isBlankRow, selectHeader } from './structure.ts';
+import { assertTextCharacters, assertTextSource } from './content.ts';
+import { records as parseCsvRecords } from './records.ts';
 
 import { rank } from './dialect.ts';
-import { decodeBytes, type DecodedCsvSource, decodeText } from './encoding.ts';
-import * as csvOptions from './options.ts';
+import type { DecodedCsvSource } from './encoding.ts';
+import { decodeBytes, decodeText } from './encoding.ts';
+import * as options from './options.ts';
 import type { ResolvedCsvOptions } from './options.ts';
-import { buildColumns, createRow, isBlankRow, selectHeader } from './structure.ts';
-import { type CsvDelimiter, type CsvDocument, CsvParseError, type CsvParseOptions, type CsvRow } from './types.ts';
+import type { CsvDelimiter, CsvDiagnostic, CsvDocument, CsvParseOptions, CsvRow } from './types.ts';
+import { CsvParseError } from './types.ts';
 
-/** Parse one decoded source using one exact delimiter and map grammar failures into the public error type. */
+/**
+ * Parse one delimiter without coercion and translate parser failures into the stable invalid-csv code.
+ */
 function parseRecords(text: string, delimiter: CsvDelimiter): string[][] {
 	try {
-		return parseCsvRecords(text, { separator: delimiter, fieldsPerRecord: -1 }) as string[][];
+		return parseCsvRecords(text, delimiter);
 	} catch (cause) {
 		throw new CsvParseError(
 			'invalid-csv',
@@ -19,10 +24,14 @@ function parseRecords(text: string, delimiter: CsvDelimiter): string[][] {
 	}
 }
 
-/** Try the requested delimiter or ranked supported delimiters until one produces a non-blank record. */
+/**
+ * Try an explicit delimiter or ranked candidates until a nonblank record supplies evidence.
+ *
+ * Blank-only input cannot establish an automatic dialect. Preserve the last parser failure when all candidates fail so malformed quoting still has useful diagnostics.
+ */
 function parseUsingDialect(text: string, requested: CsvParseOptions['delimiter']): {
-	readonly delimiter: CsvDelimiter;
-	readonly records: string[][];
+	delimiter: CsvDelimiter;
+	records: string[][];
 } {
 	const candidates = requested && requested !== 'auto' ? [requested] : rank(text);
 	let lastError: CsvParseError | undefined;
@@ -43,15 +52,42 @@ function parseUsingDialect(text: string, requested: CsvParseOptions['delimiter']
 }
 
 /**
- * Build one collecting CSV document from already decoded text.
+ * Reject an oversized source cell and record formula-like prefixes without evaluating or coercing the text.
  *
- * This is the shared collecting path after byte decoding. It enforces the
- * decoded-character limit, chooses the delimiter and header, applies the same
- * structural row policy as streaming parsing, and freezes parser-owned output.
+ * Row and column are one-based source coordinates. Numeric negative values remain ordinary text; the application decides whether a formula warning blocks an import.
+ */
+function validateCell(
+	value: string,
+	row: number,
+	column: number,
+	maximumCellCharacters: number,
+	diagnostics: CsvDiagnostic[],
+): void {
+	if (value.length > maximumCellCharacters) {
+		throw new CsvParseError(
+			'cell-too-large',
+			`Cell ${row}:${column} exceeds the configured ${maximumCellCharacters.toLocaleString()} character limit.`,
+			row,
+			column,
+		);
+	}
+	if (/^[=+@]/.test(value) || /^-(?!\d+(?:\.\d+)?$)/.test(value)) {
+		diagnostics.push({
+			code: 'spreadsheet-formula',
+			message: `Cell ${row}:${column} begins with a spreadsheet formula marker and was preserved as text.`,
+			row,
+			column,
+		});
+	}
+}
+
+/**
+ * Build one immutable document after source, header, row and cell admission succeeds.
  *
- * @internal
+ * Logical row numbers include preamble and skipped blank records. Width mismatches remain observations; explicit budgets reject the document. Source cells, raw headers and diagnostics retain separate ownership so import previews can explain normalization.
  */
 function parseDecoded(source: DecodedCsvSource, options: ResolvedCsvOptions): CsvDocument {
+	if (options.textOnly) assertTextCharacters(source.text);
 	if (source.text.length === 0) throw new CsvParseError('empty-file', 'The CSV file is empty.');
 
 	if (source.text.length > options.maximumCharacters) {
@@ -64,10 +100,13 @@ function parseDecoded(source: DecodedCsvSource, options: ResolvedCsvOptions): Cs
 	const { delimiter, records } = parseUsingDialect(source.text, options.delimiter ?? 'auto');
 	const headerIndex = selectHeader(records, options);
 	const header = records[headerIndex];
-	if (!header || header.every((value) => value.trim().length === 0)) {
+	if (!header) {
 		throw new CsvParseError('missing-header', 'The CSV document does not contain a usable header row.');
 	}
 
+	if (options.textOnly && header.some((value) => value.length > options.maximumCellCharacters)) {
+		throw new CsvParseError('cell-too-large', 'A CSV header exceeds the configured cell-character limit.');
+	}
 	if (header.length > options.maximumColumns) {
 		throw new CsvParseError(
 			'too-many-columns',
@@ -88,7 +127,7 @@ function parseDecoded(source: DecodedCsvSource, options: ResolvedCsvOptions): Cs
 
 	for (let index = headerIndex + 1; index < records.length; index += 1) {
 		const values = records[index] ?? [];
-		if (isBlankRow(values)) continue;
+		if (!options.preserveBlankRows && isBlankRow(values)) continue;
 		if (rows.length >= options.maximumRows) {
 			throw new CsvParseError(
 				'too-many-rows',
@@ -96,9 +135,32 @@ function parseDecoded(source: DecodedCsvSource, options: ResolvedCsvOptions): Cs
 			);
 		}
 
-		const row = createRow(values, index + 1, columns, options.maximumColumns, options.maximumCellCharacters);
-		diagnostics.push(...row.diagnostics);
-		rows.push(row);
+		const row = index + 1;
+		const rowDiagnostics: CsvDiagnostic[] = [];
+		if (values.length > options.maximumColumns) {
+			throw new CsvParseError(
+				'too-many-columns',
+				`Row ${row} contains ${values.length} columns; the configured limit is ${options.maximumColumns}.`,
+				row,
+			);
+		}
+		if (values.length !== columns.length) {
+			rowDiagnostics.push({
+				code: 'row-width-mismatch',
+				message: `Row ${row} has ${values.length} fields; the header has ${columns.length}.`,
+				row,
+			});
+		}
+		for (let column = 0; column < values.length; column += 1) {
+			validateCell(values[column] ?? '', row, column + 1, options.maximumCellCharacters, rowDiagnostics);
+		}
+		const frozenRowDiagnostics = Object.freeze(rowDiagnostics.map((diagnostic) => Object.freeze(diagnostic)));
+		diagnostics.push(...frozenRowDiagnostics);
+		rows.push(Object.freeze({
+			row,
+			values: Object.freeze([...values]),
+			diagnostics: frozenRowDiagnostics,
+		}));
 	}
 
 	if (rows.length === 0) {
@@ -127,19 +189,20 @@ function parseDecoded(source: DecodedCsvSource, options: ResolvedCsvOptions): Cs
  * console.log(document.columns[1]?.normalizedName) // "website"
  * ```
  */
-export function parse(text: string, options: CsvParseOptions = {}): CsvDocument {
-	const resolved = csvOptions.parse(options);
+export function parse(text: string, opts: CsvParseOptions = {}): CsvDocument {
+	const resolved = options.parse(opts);
 	return parseDecoded(decodeText(text), resolved);
 }
 
 /** Parses original CSV bytes with strict UTF-8 detection and bounded structural limits. */
-export function parseBytes(bytes: Uint8Array, options: CsvParseOptions = {}): CsvDocument {
-	const resolved = csvOptions.parse(options);
+export function parseBytes(bytes: Uint8Array, opts: CsvParseOptions = {}): CsvDocument {
+	const resolved = options.parse(opts);
 	if (bytes.byteLength > resolved.maximumBytes) {
 		throw new CsvParseError(
 			'source-too-large',
 			`The CSV source exceeds the configured ${resolved.maximumBytes.toLocaleString()} byte limit.`,
 		);
 	}
+	if (resolved.textOnly) assertTextSource(bytes);
 	return parseDecoded(decodeBytes(bytes, resolved.encoding), resolved);
 }

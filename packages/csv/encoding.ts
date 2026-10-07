@@ -4,9 +4,13 @@ const UTF8_BOM = new Uint8Array([0xef, 0xbb, 0xbf]);
 
 /** Decoded source plus metadata required by the structural parser. */
 export interface DecodedCsvSource {
+	/** Decoded source text retained for CSV dialect and record parsing. */
 	text: string;
+	/** Selected source encoding, or automatic detection where the options allow it. */
 	encoding: CsvEncoding;
+	/** Observed line-ending style retained in source metadata. */
 	lineEnding: CsvLineEnding;
+	/** Structured decode or parse observations retained for the caller. */
 	diagnostics: readonly CsvDiagnostic[];
 }
 
@@ -15,14 +19,14 @@ export interface DecodedCsvSource {
  *
  * @internal
  */
-function hasUtf8Bom(bytes: Uint8Array): boolean {
+function startsWithUtf8Bom(bytes: Uint8Array): boolean {
 	return bytes.length >= UTF8_BOM.length && UTF8_BOM.every((byte, index) => bytes[index] === byte);
 }
 
 /**
- * Detects the line ending used by bounded CSV parsing.
+ * Describe observed source line endings without counting each CRLF twice.
  *
- * CSV internals preserve streaming and diagnostics so import code can reject malformed or oversized input without materializing unbounded data.
+ * Mixed styles remain explicit metadata. This classification does not rewrite source bytes or determine logical CSV rows inside quoted cells.
  *
  * @internal
  */
@@ -44,8 +48,10 @@ function detectLineEnding(text: string): CsvLineEnding {
 export function decodeBytes(
 	bytes: Uint8Array,
 	encoding: NonNullable<CsvParseOptions['encoding']> = 'auto',
+	/** Discovery can end inside a valid multibyte character; the replay decoder completes it. */
+	partial = false,
 ): DecodedCsvSource {
-	const hasBom = hasUtf8Bom(bytes);
+	const hasBom = startsWithUtf8Bom(bytes);
 	const body = hasBom ? bytes.subarray(UTF8_BOM.length) : bytes;
 	const diagnostics: CsvDiagnostic[] = [];
 	let text: string;
@@ -55,11 +61,11 @@ export function decodeBytes(
 		text = new TextDecoder('windows-1252').decode(body);
 		selected = 'windows-1252';
 	} else if (encoding === 'utf-8') {
-		text = new TextDecoder('utf-8', { fatal: true }).decode(body);
+		text = new TextDecoder('utf-8', { fatal: true }).decode(body, { stream: partial });
 		selected = hasBom ? 'utf-8-bom' : 'utf-8';
 	} else {
 		try {
-			text = new TextDecoder('utf-8', { fatal: true }).decode(body);
+			text = new TextDecoder('utf-8', { fatal: true }).decode(body, { stream: partial });
 			selected = hasBom ? 'utf-8-bom' : 'utf-8';
 		} catch {
 			text = new TextDecoder('windows-1252').decode(body);

@@ -5,6 +5,65 @@ import * as csv from './mod.ts';
 
 const encoder = new TextEncoder();
 
+describe('CSV source ownership', () => {
+	it('releases the original source lock after natural end of input', async () => {
+		const source = new Blob(['A,B\n1,2\n']).stream();
+		await using document = await csv.parseStream(source, { headerRow: 1 });
+		expect((await Array.fromAsync(document.rows)).map((row) => row.values)).toEqual([['1', '2']]);
+		expect(source.locked).toBe(false);
+	});
+
+	it('cancels a blocked read before joining the active row iterator', async () => {
+		const reading = Promise.withResolvers<void>();
+		let cancelled = false;
+		const source = new ReadableStream<Uint8Array>({
+			start(controller) {
+				// Supply enough text after LF for the maintained parser's delimiter lookahead.
+				controller.enqueue(encoder.encode('A,B\nrow'));
+			},
+			pull() {
+				reading.resolve();
+			},
+			cancel() {
+				cancelled = true;
+			},
+		});
+		const document = await csv.parseStream(source, {
+			delimiter: ',',
+			headerRow: 1,
+			headerScanRows: 1,
+			maximumPeekBytes: 7,
+		});
+		const iterator = document.rows[Symbol.asyncIterator]();
+		const next = iterator.next();
+		void next.catch(() => {});
+		await reading.promise;
+		await document[Symbol.asyncDispose]();
+		expect((await next).done).toBe(true);
+		expect(cancelled).toBe(true);
+		expect(source.locked).toBe(false);
+	});
+
+	it('releases the source when empty or invalid discovery rejects the document', async () => {
+		for (const bytes of [new Uint8Array(), encoder.encode('A,B\n1,2\n')]) {
+			const source = new Blob([bytes]).stream();
+			await expect(csv.parseStream(source, { headerRow: 20 })).rejects.toBeInstanceOf(csv.CsvParseError);
+			expect(source.locked).toBe(false);
+		}
+	});
+
+	it('releases a source reader when peeking encounters a stream failure', async () => {
+		const failure = new Error('source failed');
+		const source = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.error(failure);
+			},
+		});
+		await expect(csv.parseStream(source)).rejects.toBe(failure);
+		expect(source.locked).toBe(false);
+	});
+});
+
 function stream(...chunks: string[]): ReadableStream<Uint8Array> {
 	const encoded = chunks.map((chunk) => encoder.encode(chunk));
 	return new ReadableStream<Uint8Array>({

@@ -15,7 +15,7 @@ describe('CSV headers', () => {
 			fc.property(fc.string(), (value) => {
 				expect(csv.normalizeHeader(csv.normalizeHeader(value))).toEqual(csv.normalizeHeader(value));
 			}),
-			{ numRuns: 500 },
+			{ numRuns: 500, seed: 20261007 },
 		);
 	});
 

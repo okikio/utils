@@ -15,6 +15,7 @@ const DEFAULTS = Object.freeze({
 const PARSE_KEYS = Object.freeze(
 	{
 		fileName: true,
+		textOnly: true,
 		delimiter: true,
 		headerRow: true,
 		encoding: true,
@@ -24,40 +25,44 @@ const PARSE_KEYS = Object.freeze(
 		maximumColumns: true,
 		maximumCellCharacters: true,
 		headerScanRows: true,
+		preserveBlankRows: true,
 	} as const,
 );
 
-const STREAM_KEYS = Object.freeze(
-	{
-		fileName: true,
-		delimiter: true,
-		headerRow: true,
-		encoding: true,
-		maximumBytes: true,
-		maximumRows: true,
-		maximumColumns: true,
-		maximumCellCharacters: true,
-		headerScanRows: true,
-		maximumPeekBytes: true,
-	} as const,
-);
+const { maximumCharacters: _collectingLimit, ...STREAM_PARSE_KEYS } = PARSE_KEYS;
+const STREAM_KEYS = Object.freeze({ ...STREAM_PARSE_KEYS, maximumPeekBytes: true } as const);
 
 /** Resolved collecting-parser options after defaults, limits, and unknown-key validation are applied. */
 export interface ResolvedCsvOptions {
+	/** Optional caller-supplied source name retained as document metadata. */
 	readonly fileName?: string;
+	/** Reject recognized binary signatures and non-text controls; also bound header-cell text. */
+	readonly textOnly: boolean;
+	/** Explicit CSV delimiter or automatic dialect detection. */
 	readonly delimiter: CsvDelimiter | 'auto';
+	/** One-based logical header row or automatic header discovery. */
 	readonly headerRow: number | 'auto';
+	/** Selected source encoding, or automatic detection where the options allow it. */
 	readonly encoding: 'auto' | Exclude<CsvEncoding, 'utf-8-bom'>;
+	/** Maximum input byte budget admitted by CSV parsing. */
 	readonly maximumBytes: number;
+	/** Maximum decoded text size admitted by collecting parsing; streaming uses byte and cell limits. */
 	readonly maximumCharacters: number;
+	/** Maximum logical rows admitted by CSV parsing. */
 	readonly maximumRows: number;
+	/** Maximum cells admitted in one logical CSV row. */
 	readonly maximumColumns: number;
+	/** Maximum decoded characters retained for one CSV cell. */
 	readonly maximumCellCharacters: number;
+	/** Maximum prefix rows inspected for automatic header discovery. */
 	readonly headerScanRows: number;
+	/** Retain blank logical source records instead of dropping them. */
+	readonly preserveBlankRows: boolean;
 }
 
 /** Resolved streaming-parser options, including the bounded prefix used before streaming continues. */
 export interface ResolvedCsvStreamOptions extends Omit<ResolvedCsvOptions, 'maximumCharacters'> {
+	/** Maximum source prefix retained before streaming encoding, dialect and header selection. */
 	readonly maximumPeekBytes: number;
 }
 
@@ -105,9 +110,15 @@ function resolve(
 		throw new RangeError('headerRow must be "auto" or a positive safe integer.');
 	}
 
+	if (options.textOnly !== undefined && typeof options.textOnly !== 'boolean') {
+		throw new TypeError('textOnly must be a boolean.');
+	}
 	const encoding = options.encoding ?? 'auto';
 	if (encoding !== 'auto' && encoding !== 'utf-8' && encoding !== 'windows-1252') {
 		throw new TypeError('encoding must be "auto", "utf-8", or "windows-1252".');
+	}
+	if (options.preserveBlankRows !== undefined && typeof options.preserveBlankRows !== 'boolean') {
+		throw new TypeError('preserveBlankRows must be a boolean.');
 	}
 
 	return Object.freeze({
@@ -115,6 +126,8 @@ function resolve(
 		delimiter,
 		headerRow,
 		encoding,
+		textOnly: options.textOnly ?? false,
+		preserveBlankRows: options.preserveBlankRows ?? false,
 		maximumBytes: limit(options.maximumBytes, DEFAULTS.maximumBytes, 'maximumBytes'),
 		maximumCharacters: limit(
 			'maximumCharacters' in options ? options.maximumCharacters : undefined,
@@ -145,6 +158,8 @@ export function stream(options: CsvStreamOptions = {}): ResolvedCsvStreamOptions
 		delimiter: resolved.delimiter,
 		headerRow: resolved.headerRow,
 		encoding: resolved.encoding,
+		textOnly: resolved.textOnly,
+		preserveBlankRows: resolved.preserveBlankRows,
 		maximumBytes: resolved.maximumBytes,
 		maximumRows: resolved.maximumRows,
 		maximumColumns: resolved.maximumColumns,
