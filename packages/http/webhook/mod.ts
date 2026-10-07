@@ -1,9 +1,19 @@
 /**
- * Framework-neutral webhook authentication over exact HTTP request bytes.
+ * Authenticate the exact received bytes while keeping the original request available to its parser.
  *
- * Inbound application behavior remains an endpoint responsibility. Outbound delivery
- * policy (subscriptions, persistence, retry, replay, dead letters) belongs to a
- * higher-level capability if/when the repository owns those semantics.
+ * The fixed test key and clock make this example reproducible. A real application supplies secrets and replay policy. Verify before parsing, then add key rotation and bounded raw-body admission; delivery retries and deduplication belong to the receiving service.
+ *
+ * @example
+ * ```ts
+ * import * as webhook from '@okikio/http/webhook';
+ * import * as standard from '@okikio/http/webhook/standard';
+ * const verifier = standard.create({ secret: 'whsec_' + btoa(String.fromCharCode(...new Uint8Array(32).fill(1))) });
+ * const body = '{"ok":true}';
+ * const headers = await verifier.sign({ id: 'event-1', timestamp: 1000, body });
+ * const request = new Request('https://service.invalid/webhook', { method: 'POST', headers, body });
+ * const verified = await webhook.verifyRequest(request, verifier, { now: new Date(1000_000) });
+ * console.log(verified.ok, (await request.json()).ok);
+ * ```
  *
  * @module
  */
@@ -52,6 +62,7 @@ export async function verifyRequest(
 	return await verifier.verify(Object.freeze({ body, headers: request.headers, now }));
 }
 
+/** Symmetric Standard Webhooks signing, verification, key rotation and bounded admission. */
 export * as standard from './standard.ts';
 export type {
 	VerifyRequestOptions,

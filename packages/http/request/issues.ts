@@ -17,11 +17,17 @@ export type RequestInputSource =
  * diagnostics, tests, and structured logging.
  */
 export interface RequestValidationDetail {
+	/** Request input location whose validation failed. */
 	readonly source: RequestInputSource;
+	/** Stable failure code; callers should branch on this instead of matching explanation text. */
 	readonly code: RequestIssueCode | 'invalid-value' | string;
+	/** Human-readable diagnostic explanation; it is not a stable program discriminator. */
 	readonly message: string;
+	/** Property-key path to the rejected value; rejected values themselves are not copied. */
 	readonly path: readonly PropertyKey[];
+	/** Human-readable input location supplied for this issue. */
 	readonly location: string;
+	/** Input field associated with this validation observation. */
 	readonly field?: string;
 }
 

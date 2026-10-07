@@ -1,7 +1,17 @@
 /**
- * Framework-neutral HTTP request parsing and normalization operations.
+ * Read bounded request bytes and preserve query multiplicity before domain validation.
  *
- * The namespace owns wire parsing limits and request metadata extraction. It does not route requests or acquire server resources.
+ * Choose the body budget before reading, then validate the decoded shape with an endpoint schema. Cancellation and one-byte-over-limit cases fail without returning a partial body.
+ *
+ * @example
+ * ```ts
+ * import * as request from '@okikio/http/request';
+ * console.log(JSON.stringify(request.parseQuery('?tag=a&tag=b')));
+ * const incoming = new Request('https://service.invalid/import', { method: 'POST', body: 'abc' });
+ * console.log(new TextDecoder().decode(await request.readBody(incoming, { maximumBodyBytes: 3 })));
+ * ```
+ *
+ * @module
  */
 export { parseAuthorization } from './authorization.ts';
 export { parseForm, parseJson, readBody } from './body.ts';

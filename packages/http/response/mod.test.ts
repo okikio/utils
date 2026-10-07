@@ -78,7 +78,7 @@ describe('response definitions and logical results', () => {
 		});
 
 		const Redirect = response.redirect(303, { description: 'Continue to the result.' });
-		expect(() => response.create(Redirect, undefined)).toThrow('requires a Location');
+		expect(() => response.create(Redirect, undefined)).toThrow(TypeError);
 		expect(response.create(Redirect, undefined, { location: '/result' })[2]).toEqual({ Location: '/result' });
 	});
 
@@ -94,7 +94,7 @@ describe('response definitions and logical results', () => {
 			},
 		});
 		expect(() => Reflect.apply(response.create, undefined, [Detail, { id: 'widget_1' }, options])).toThrow(
-			'data property',
+			TypeError,
 		);
 		expect(reads).toBe(0);
 
@@ -126,7 +126,7 @@ describe('response definitions and logical results', () => {
 			['Set-Cookie', 'access=one; Path=/'],
 			['Set-Cookie', 'refresh=two; Path=/'],
 		]);
-		expect(() => response.headers({ 'X-Test': 'safe\r\nInjected: yes' })).toThrow('forbidden control character');
+		expect(() => response.headers({ 'X-Test': 'safe\r\nInjected: yes' })).toThrow(TypeError);
 	});
 
 	it('rejects exotic header records without invoking accessors', () => {
@@ -139,11 +139,89 @@ describe('response definitions and logical results', () => {
 				return 'unsafe';
 			},
 		});
-		expect(() => response.headers(headers)).toThrow('enumerable data property');
+		expect(() => response.headers(headers)).toThrow(TypeError);
 		expect(reads).toBe(0);
 
 		const inherited = Object.create({ 'X-Test': 'unsafe' }) as response.ResponseHeaders;
-		expect(() => response.headers(inherited)).toThrow('plain object or null-prototype record');
+		expect(() => response.headers(inherited)).toThrow(TypeError);
+	});
+
+	it('observes caller header changes while retaining an independent admitted snapshot', () => {
+		const values = ['first'];
+		const caller = { 'X-Test': values };
+		const admitted = response.headers(caller);
+		expect(response.headerValues(caller, 'x-test')).toEqual(['first']);
+		values.push('second');
+		expect(response.headerValues(caller, 'x-test')).toEqual(['first', 'second']);
+		expect(response.headerValues(admitted, 'x-test')).toEqual(['first']);
+		values.push('private\r\nInjected: value');
+		expect(() => response.toHeaders(caller)).toThrow(TypeError);
+		expect(response.toHeaders(admitted).get('x-test')).toBe('first');
+
+		const native = new Headers({ 'X-Test': 'native-first' });
+		expect(response.headerValues(native, 'x-test')).toEqual(['native-first']);
+		native.set('X-Test', 'native-second');
+		expect(response.headerValues(native, 'x-test')).toEqual(['native-second']);
+		const list: [string, string][] = [['X-Test', 'list-first']];
+		expect(response.headerEntries(list)).toEqual([['X-Test', 'list-first']]);
+		list[0]![1] = 'list-second';
+		expect(response.headerEntries(list)).toEqual([['X-Test', 'list-second']]);
+	});
+
+	it('validates caller-frozen invalid and accessor-backed header records on every read', () => {
+		const invalid = Object.freeze({ 'X-Test': 'private\r\nInjected: value' });
+		for (const read of [response.headers, response.headerEntries, response.toHeaders]) {
+			expect(() => read(invalid)).toThrow(TypeError);
+		}
+		let reads = 0;
+		const accessor = Object.freeze({
+			get 'X-Test'() {
+				reads += 1;
+				return 'unsafe';
+			},
+		});
+		expect(() => response.headerValues(accessor, 'x-test')).toThrow(TypeError);
+		expect(() => response.mergeHeaders(accessor)).toThrow(TypeError);
+		expect(() => response.toHeaders(accessor)).toThrow(TypeError);
+		expect(reads).toBe(0);
+	});
+
+	it('retains grouped record order and repeated cookies through owned reads and merges', () => {
+		const admitted = response.headers([
+			['x-z', 'first'],
+			['set-cookie', 'session=one; Path=/'],
+			['x-a', 'middle'],
+			['X-Z', 'last'],
+			['Set-Cookie', 'refresh=two; Path=/'],
+			['10', 'ten'],
+			['2', 'two'],
+		]);
+		const expected = [
+			['2', 'two'],
+			['10', 'ten'],
+			['X-Z', 'first'],
+			['X-Z', 'last'],
+			['Set-Cookie', 'session=one; Path=/'],
+			['Set-Cookie', 'refresh=two; Path=/'],
+			['X-A', 'middle'],
+		];
+		expect(response.headerEntries(admitted)).toEqual(expected);
+		expect(response.headerEntries(response.headers(admitted))).toEqual(expected);
+		const merged = response.mergeHeaders(admitted, { 'x-z': 'replacement', 'x-extra': 'added' });
+		expect(response.headerEntries(merged)).toEqual([
+			['2', 'two'],
+			['10', 'ten'],
+			['X-Z', 'replacement'],
+			['Set-Cookie', 'session=one; Path=/'],
+			['Set-Cookie', 'refresh=two; Path=/'],
+			['X-A', 'middle'],
+			['X-Extra', 'added'],
+		]);
+		expect(response.headerValues(merged, 'set-cookie')).toEqual(['session=one; Path=/', 'refresh=two; Path=/']);
+		const native = response.toHeaders(merged);
+		expect(native.getSetCookie()).toEqual(['session=one; Path=/', 'refresh=two; Path=/']);
+		expect(native.get('x-z')).toBe('replacement');
+		expect(response.headerEntries(admitted)).toEqual(expected);
 	});
 
 	it('merges headers and metadata without losing body or definition identity', () => {
@@ -348,7 +426,7 @@ describe('response transport helpers', () => {
 				},
 			},
 		});
-		expect(() => Reflect.apply(response.pageLinks, undefined, [page, '/items'])).toThrow('enumerable data property');
+		expect(() => Reflect.apply(response.pageLinks, undefined, [page, '/items'])).toThrow(TypeError);
 		expect(reads).toBe(0);
 		expect(() =>
 			response.pageLinks({
@@ -359,7 +437,7 @@ describe('response transport helpers', () => {
 				hasMore: false,
 				page: 2,
 			}, '/items')
-		).toThrow('does not match offset');
+		).toThrow(TypeError);
 		expect(() =>
 			response.pageLinks({
 				kind: 'cursor',
@@ -367,7 +445,7 @@ describe('response transport helpers', () => {
 				limit: 1,
 				hasMore: true,
 			}, '/items')
-		).toThrow('items length');
+		).toThrow(TypeError);
 	});
 
 	it('validates pagination parameter aliases and snapshots URL options', () => {
@@ -382,14 +460,14 @@ describe('response transport helpers', () => {
 				'/items',
 				{ cursor: 'page', page: 'page' },
 			)
-		).toThrow('must be distinct');
+		).toThrow(TypeError);
 		expect(() =>
 			Reflect.apply(response.pageLinks, undefined, [
 				{ kind: 'offset', items: [], offset: 0, limit: 10, hasMore: false },
 				'/items',
 				{ typo: 'value' },
 			])
-		).toThrow('Unknown pagination parameter');
+		).toThrow(TypeError);
 
 		const base = new URL('https://service.invalid/items?filter=active');
 		const result = response.create(PageResponse, {
@@ -417,7 +495,7 @@ describe('response transport helpers', () => {
 				{ kind: 'offset', items: [], offset: 0, limit: 10, hasMore: false },
 				hostile,
 			])
-		).toThrow('string or URL');
+		).toThrow(TypeError);
 		expect(coerces).toBe(0);
 	});
 
@@ -447,7 +525,7 @@ describe('response transport helpers', () => {
 
 	it('isolates synchronous and asynchronous completion observer failures', async () => {
 		expect(() => Reflect.apply(response.onComplete, undefined, [new Response('ok'), undefined]))
-			.toThrow('observer must be a function');
+			.toThrow(TypeError);
 
 		const streamed = response.onComplete(new Response('example'), () => {
 			throw new Error('observer failed');

@@ -10,6 +10,7 @@ import type {
 
 const encoder = new TextEncoder();
 const timestampPattern = /^\d+$/;
+// deno-lint-ignore no-control-regex -- Signature tokens must reject ASCII controls as well as whitespace.
 const whitespaceOrControlPattern = /[\u0000-\u0020\u007f]/;
 const defaultToleranceSeconds = 300;
 const defaultMaximumSignatures = 10;
@@ -28,12 +29,19 @@ const signatureBytes = 32;
  * request cannot increase HMAC work without a declared limit.
  */
 export interface StandardWebhookOptions {
+	/** Application-owned symmetric signing key; no default production key is supplied. */
 	readonly secret?: string;
+	/** Application-owned keys used for explicit signing or verification rotation. */
 	readonly secrets?: readonly string[];
+	/** Allowed age difference between the signed timestamp and verification time, in seconds. */
 	readonly toleranceSeconds?: number;
+	/** Maximum signature tokens inspected for one verification. */
 	readonly maximumSignatures?: number;
+	/** Maximum encoded signature header length, in bytes. */
 	readonly maximumSignatureHeaderBytes?: number;
+	/** Maximum signing or verification keys admitted for one operation. */
 	readonly maximumKeys?: number;
+	/** Maximum encoded webhook ID length, in bytes. */
 	readonly maximumIdBytes?: number;
 }
 
@@ -45,8 +53,11 @@ export interface StandardWebhookOptions {
  * the current time.
  */
 export interface SignStandardWebhookOptions {
+	/** Stable identity used to correlate this contract or occurrence. */
 	readonly id: string;
+	/** Exact payload covered by the transport or signature contract. */
 	readonly body: WebhookPayload;
+	/** Timestamp used by the wire signature contract. */
 	readonly timestamp?: number | Date;
 }
 
@@ -59,6 +70,7 @@ export type StandardWebhookHeaders = Readonly<{
 
 /** Configured Standard Webhooks v1 verifier and signer. */
 export interface StandardWebhook extends WebhookVerifier {
+	/** Sign the exact supplied bytes and return headers from that same signing operation. */
 	sign(options: SignStandardWebhookOptions): Promise<StandardWebhookHeaders>;
 }
 

@@ -1,7 +1,20 @@
 /**
- * Cookie contracts, parsing, validation, and Set-Cookie serialization.
+ * Declare and validate a cookie once instead of repeating unsafe parsing and security attributes.
  *
- * The namespace keeps cookie definitions import-safe. Parsing and serialization occur only when a caller supplies Request or Headers data.
+ * Use safeGet() for ordinary invalid-input branches and keep independent Set-Cookie fields. The application must still authenticate the token, rotate credentials and decide session expiry.
+ *
+ * @example
+ * ```ts
+ * import * as cookie from '@okikio/http/cookie';
+ * import { z } from 'zod';
+ * const Session = cookie.define({ id: 'session', name: '__Host-session', description: 'Opaque session token.', value: z.string().min(1), attributes: { secure: true, httpOnly: true, path: '/', sameSite: 'lax' } });
+ * console.log(await cookie.get(new Headers({ cookie: '__Host-session=token-1' }), Session));
+ * const output = new Headers();
+ * cookie.set(output, Session, 'token-2');
+ * console.log(output.getSetCookie().length);
+ * ```
+ *
+ * @module
  */
 import * as catalog from '@okikio/catalog';
 import { getCookies, setCookie as appendSetCookie } from '@std/http/cookie';
@@ -164,7 +177,7 @@ function occurrence(
 }
 
 /**
- * Checks whether site are equivalent for the purposes of the surrounding module.
+ * Translate the application SameSite choice to the spelling used by the cookie serializer.
  *
  * @internal
  */

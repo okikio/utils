@@ -1,7 +1,19 @@
 /**
- * Framework-neutral successful HTTP response contracts and constructors.
+ * Keep a successful representation tied to one schema and attach a safe download name.
  *
- * The namespace owns response documents, headers, range/status helpers, and serialization without selecting a server framework.
+ * Add pagination, repeated headers, conditional responses or byte ranges as the representation needs them. The server validates an occurrence against its endpoint declarations and materializes the native Response; a filename header does not authorize access to a file.
+ *
+ * @example
+ * ```ts
+ * import * as response from '@okikio/http/response';
+ * import { z } from 'zod';
+ * const Saved = response.ok(z.object({ id: z.string() }), { id: 'asset.saved', description: 'Saved asset.' });
+ * const value = response.finalize(response.create(Saved, { id: 'asset-1' }));
+ * console.log(value.status);
+ * console.log(response.attachmentDisposition('reports/quarterly.csv'));
+ * ```
+ *
+ * @module
  */
 export {
 	accepted,
@@ -42,6 +54,7 @@ export {
 	serverError as serverErrorStatus,
 	success as successStatus,
 } from './status.ts';
+/** HTTP status recognition schemas; constructible response statuses are a separate policy. */
 export * as status from './status.ts';
 export type {
 	ClientErrorStatus,
@@ -87,3 +100,5 @@ export type {
 	ResponseStatus,
 	SuccessEnvelope,
 } from './types.ts';
+
+export { attachmentDisposition } from './filename.ts';

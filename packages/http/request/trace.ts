@@ -11,22 +11,33 @@ const traceStateValuePattern = /^[\x20-\x2B\x2D-\x3C\x3E-\x7E]{1,256}$/;
 
 /** W3C trace and request-correlation values derived from trusted request input. */
 export interface RequestCorrelation {
+	/** Request correlation identity; it is diagnostic data rather than authorization. */
 	readonly requestId: string;
+	/** Trace correlation identity retained for diagnostic propagation. */
 	readonly traceId: string;
+	/** Span correlation identity for the current operation. */
 	readonly spanId: string;
+	/** Valid incoming parent span identity, when a trace was continued. */
 	readonly parentSpanId?: string;
+	/** Trace flags retained in the representation required by this adapter. */
 	readonly traceFlags: string;
+	/** Optional validated vendor trace state carried for correlation. */
 	readonly traceState?: string;
+	/** Serialized W3C traceparent for the newly owned request span. */
 	readonly traceparent: string;
+	/** Whether a valid trace was continued, a fresh trace was created, or invalid parent data was replaced. */
 	readonly source: 'continued' | 'new' | 'replaced-invalid-parent';
 }
 
 /** Options used when establishing request correlation. */
 export interface RequestCorrelationOptions {
+	/** Explicit request identity or provider; ingress reuse is controlled separately by trustRequestId. */
 	readonly requestId?: string | ((request: Request) => string | undefined);
 	/** Accept X-Request-ID from this request as trusted ingress metadata. Defaults to false. */
 	readonly trustRequestId?: boolean;
+	/** Sampling bit selected for a newly established trace. */
 	readonly sampled?: boolean;
+	/** Maximum incoming tracestate character budget. */
 	readonly maximumTraceStateLength?: number;
 }
 
@@ -48,8 +59,11 @@ export function correlation(
 
 /** Optional stable dimensions added to structured correlation fields. */
 export interface RequestCorrelationFieldOptions {
+	/** Optional stable service identity added to correlation fields. */
 	readonly service?: string;
+	/** Stable operation identity used by generated clients, routing and diagnostics. */
 	readonly operationId?: string;
+	/** Identity of the selected compiled route, when routing has completed. */
 	readonly routeId?: string;
 }
 

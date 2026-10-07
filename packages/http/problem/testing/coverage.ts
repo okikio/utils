@@ -4,16 +4,22 @@ import type { ProblemDefinition } from '../types.ts';
 
 /** Coverage summary for one problem catalog or selection. */
 export interface ProblemCoverageReport {
+	/** Number of declared problem definitions in the selected coverage universe. */
 	readonly declared: number;
+	/** Number of declared problem definitions with registered coverage cases. */
 	readonly covered: number;
+	/** Authored problem keys without a registered coverage callback. */
 	readonly missing: readonly string[];
+	/** Registered keys that do not belong to the declared problem universe. */
 	readonly extra: readonly string[];
 }
 
 /** Error raised before registration when behavioral coverage is not exhaustive. */
 export class ProblemCoverageError extends Error {
+	/** Structured coverage result retained so callers can inspect missing and extra definitions. */
 	readonly report: ProblemCoverageReport;
 
+	/** Retain the coverage report that names missing and unexpected problem cases. */
 	constructor(report: ProblemCoverageReport) {
 		const details = [
 			report.missing.length > 0 ? `missing: ${report.missing.join(', ')}` : undefined,

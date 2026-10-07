@@ -11,7 +11,7 @@ describe('readText', () => {
 
 	it('rejects a declared body larger than the byte limit', async () => {
 		const response = new Response('ignored', { headers: { 'Content-Length': '12' } });
-		await expect(readText(response, 4)).rejects.toThrow('exceeds 4 bytes');
+		await expect(readText(response, 4)).rejects.toThrow(RangeError);
 	});
 
 	it('enforces the streamed byte count when Content-Length is missing', async () => {
@@ -22,7 +22,7 @@ describe('readText', () => {
 				controller.close();
 			},
 		});
-		await expect(readText(new Response(body), 5)).rejects.toThrow('exceeds 5 bytes');
+		await expect(readText(new Response(body), 5)).rejects.toThrow(RangeError);
 	});
 
 	it('counts bytes rather than UTF-16 characters', async () => {

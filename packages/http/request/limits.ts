@@ -27,8 +27,21 @@ export const DefaultRequestParsingLimits = Object.freeze(
 	} satisfies RequestParsingLimits,
 );
 
-/** Resolve and validate request parsing limits without erasing the known key set. */
-export function limits(options: RequestParsingOptions = {}): RequestParsingLimits {
+/** Only snapshots created here can bypass repeated descriptor and numeric checks. Caller freezing is not validation. */
+const prepared = new WeakMap<RequestParsingOptions, RequestParsingLimits>([
+	[DefaultRequestParsingLimits, DefaultRequestParsingLimits],
+]);
+
+/**
+ * Resolve request limits into an immutable snapshot that can be reused by several readers.
+ *
+ * Pass the returned policy to body, header or query readers to avoid repeating
+ * preparation. Later mutation of the authored options cannot alter that policy.
+ * Caller-owned records, including frozen records, still receive full validation.
+ */
+export function limits(options: RequestParsingOptions = DefaultRequestParsingLimits): RequestParsingLimits {
+	const existing = prepared.get(options);
+	if (existing !== undefined) return existing;
 	recordCore.assert(options, 'request parsing options');
 	const value = Object.freeze(
 		{
@@ -49,5 +62,6 @@ export function limits(options: RequestParsingOptions = {}): RequestParsingLimit
 			throw new TypeError(`${name} must be a non-negative safe integer.`);
 		}
 	}
+	prepared.set(value, value);
 	return value;
 }

@@ -1,11 +1,21 @@
-import { limits } from './limits.ts';
+import { DefaultRequestParsingLimits, limits } from './limits.ts';
 import { requireContentType } from './content.ts';
 import { parseContentLength } from './length.ts';
 import type { FormWireRecord, RequestParsingOptions } from './types.ts';
 import { RequestTransportError } from './types.ts';
 
-/** Read request bytes once with a hard upper bound and Content-Length precheck. */
-export async function readBody(request: Request, options: RequestParsingOptions = {}): Promise<Uint8Array> {
+/**
+ * Read request bytes once with a hard upper bound and Content-Length precheck.
+ *
+ * Cancellation settles before the reader lock is released. A body-limit issue
+ * remains the primary transport failure if cancellation rejects, with private
+ * cleanup diagnostics retained in its cause. Other primary and cleanup failures
+ * produce an AggregateError whose cause is the original read or abort failure.
+ */
+export async function readBody(
+	request: Request,
+	options: RequestParsingOptions = DefaultRequestParsingLimits,
+): Promise<Uint8Array> {
 	const policy = limits(options);
 	// Transfer-Encoding defines framing when present. Do not trust a simultaneous
 	// Content-Length for admission; enforce the actual streamed byte count below.
@@ -17,28 +27,61 @@ export async function readBody(request: Request, options: RequestParsingOptions 
 	const reader = request.body.getReader();
 	const chunks: Uint8Array[] = [];
 	let total = 0;
+	let cancellation: Promise<Readonly<{ failed: false }> | Readonly<{ failed: true; error: unknown }>> | undefined;
+	let failed = false;
+	let failure: unknown;
+	// Observe cancellation immediately, including rejection with undefined. The
+	// outcome promise never rejects and is joined by the reader's finally block.
+	const cancel = (reason: unknown) => {
+		cancellation ??= reader.cancel(reason).then(
+			() => ({ failed: false as const }),
+			(error: unknown) => ({ failed: true as const, error }),
+		);
+	};
 	const abort = () => {
-		void reader.cancel(request.signal.reason).catch(() => {});
+		cancel(request.signal.reason);
 	};
 	if (request.signal.aborted) abort();
 	else request.signal.addEventListener('abort', abort, { once: true });
 	try {
 		while (true) {
-			if (request.signal.aborted) throw request.signal.reason ?? new DOMException('Request aborted.', 'AbortError');
+			if (request.signal.aborted) throw request.signal.reason;
 			const { done, value } = await reader.read();
-			if (request.signal.aborted) throw request.signal.reason ?? new DOMException('Request aborted.', 'AbortError');
+			if (request.signal.aborted) throw request.signal.reason;
 			if (done) break;
 			total += value.byteLength;
 			if (total > policy.maximumBodyBytes) {
-				await reader.cancel('request body limit exceeded');
+				cancel('request body limit exceeded');
 				throw bodyTooLarge(policy.maximumBodyBytes);
 			}
 			chunks.push(value);
 		}
+	} catch (error) {
+		failed = true;
+		failure = error;
 	} finally {
 		request.signal.removeEventListener('abort', abort);
-		reader.releaseLock();
+		try {
+			const cleanup = cancellation === undefined ? undefined : await cancellation;
+			if (cleanup?.failed) {
+				if (
+					failure instanceof RequestTransportError && failure.issues.some((issue) => issue.code === 'body-too-large')
+				) {
+					failure = new RequestTransportError(failure.issues, { cause: cleanup.error });
+				} else if (failed) {
+					failure = new AggregateError([failure, cleanup.error], 'Request body read and cancellation failed.', {
+						cause: failure,
+					});
+				} else {
+					failure = cleanup.error;
+				}
+				failed = true;
+			}
+		} finally {
+			reader.releaseLock();
+		}
 	}
+	if (failed) throw failure;
 	const result = new Uint8Array(total);
 	let offset = 0;
 	for (const chunk of chunks) {
@@ -49,7 +92,10 @@ export async function readBody(request: Request, options: RequestParsingOptions 
 }
 
 /** Parse bounded JSON after enforcing application/json or a +json media type. */
-export async function parseJson(request: Request, options: RequestParsingOptions = {}): Promise<unknown> {
+export async function parseJson(
+	request: Request,
+	options: RequestParsingOptions = DefaultRequestParsingLimits,
+): Promise<unknown> {
 	const contentType = requireContentType(request, ['application/json', 'application/*+json']);
 	if (
 		contentType.type !== 'application' || (contentType.subtype !== 'json' && !contentType.subtype.endsWith('+json'))
@@ -74,9 +120,15 @@ export async function parseJson(request: Request, options: RequestParsingOptions
 }
 
 /** Parse a bounded URL-encoded or multipart form while preserving repeated string values. */
-export async function parseForm(request: Request, options: RequestParsingOptions = {}): Promise<FormWireRecord> {
+export async function parseForm(
+	request: Request,
+	options: RequestParsingOptions = DefaultRequestParsingLimits,
+): Promise<FormWireRecord> {
 	requireContentType(request, ['application/x-www-form-urlencoded', 'multipart/form-data']);
-	const bytes = await readBody(request, options);
+	// One immutable policy owns the complete read and decode, even if the caller
+	// changes its authored options while the body reader is awaiting a chunk.
+	const policy = limits(options);
+	const bytes = await readBody(request, policy);
 	const copy = new Request(request, { body: new Blob([new Uint8Array(bytes)]) });
 	let form: FormData;
 	try {
@@ -88,7 +140,6 @@ export async function parseForm(request: Request, options: RequestParsingOptions
 			path: ['form'],
 		});
 	}
-	const policy = limits(options);
 	const collected: Record<string, (string | File)[]> = Object.create(null);
 	let count = 0;
 	for (const [name, value] of form.entries()) {

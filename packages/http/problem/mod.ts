@@ -1,7 +1,17 @@
 /**
- * RFC 9457 problem definitions, catalogs, validation, and response creation.
+ * Give an expected HTTP rejection a stable type, status and remediation contract.
  *
- * Problem definitions stay import-safe so server composition can select them without constructing a response.
+ * Declare problems on endpoints, map expected domain failures to them and keep unexpected faults in redacted diagnostics. A service owns which details a caller may see.
+ *
+ * @example
+ * ```ts
+ * import * as problem from '@okikio/http/problem';
+ * const Missing = problem.define({ id: 'asset.missing', type: problem.url('https://problems.invalid/v1', 'asset-missing'), status: 404, title: 'Asset missing', description: 'The asset could not be found.' });
+ * const [body, status] = problem.create(Missing, { detail: 'No asset has that ID.' });
+ * console.log(status, body.type);
+ * ```
+ *
+ * @module
  */
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import * as catalog from '@okikio/catalog';

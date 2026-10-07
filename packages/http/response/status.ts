@@ -146,9 +146,10 @@ export function isContentless(value: unknown): value is ContentlessStatus {
 }
 
 /**
- * Creates status schema while preserving the module's ownership rules.
+ * Create a Standard Schema validator for an explicit set of recognized status codes.
  *
- * It builds deterministic logical HTTP representations before a framework creates the native Response.
+ * The copied frozen values document the allowed set. A private Set serves
+ * membership checks, and non-integers fail even if coercion could produce a code.
  *
  * @internal
  */

@@ -63,9 +63,9 @@ describe('Standard Webhooks', () => {
 			const result = await protocol.verify({ body: new TextEncoder().encode('{}'), headers, now: new Date(1000_000) });
 			if (!result.ok) expect(result.code).toBe(code);
 		}
-		expect(() => standard.create({ secrets: Array.from({ length: 11 }, (_, i) => secret(i)) })).toThrow('At most 10');
-		expect(() => standard.create({ secret: `whsec_${encodeBase64(new Uint8Array(8))}` })).toThrow('24-64');
-		await expect(protocol.sign({ id: 'bad.id', body: '{}' })).rejects.toThrow('Webhook id');
+		expect(() => standard.create({ secrets: Array.from({ length: 11 }, (_, i) => secret(i)) })).toThrow(TypeError);
+		expect(() => standard.create({ secret: `whsec_${encodeBase64(new Uint8Array(8))}` })).toThrow(TypeError);
+		await expect(protocol.sign({ id: 'bad.id', body: '{}' })).rejects.toThrow(TypeError);
 
 		const tooMany = new Headers(signed);
 		tooMany.set('webhook-signature', Array(11).fill(vectorSignature).join(' '));

@@ -1,7 +1,10 @@
 /** Final outcome of delivering a response body to the host/client. */
 export interface ResponseCompletion {
+	/** Whether the response body completed, was cancelled or failed. */
 	readonly outcome: 'completed' | 'cancelled' | 'errored';
+	/** Response-body bytes observed before its terminal outcome. */
 	readonly bytes: number;
+	/** Cancellation or stream failure reason retained for diagnostics. */
 	readonly reason?: unknown;
 }
 

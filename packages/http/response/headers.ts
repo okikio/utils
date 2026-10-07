@@ -14,6 +14,13 @@ export type HeaderInput = ResponseHeaders | readonly HeaderField[] | Headers;
 
 const fieldNamePattern = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
+/**
+ * Exact library-owned record identities prove their frozen values were admitted.
+ * Weak keys retain no caller input; cached occurrences reflect record enumeration
+ * and grouping, including numeric field names, rather than the original list.
+ */
+const admittedFields = new WeakMap<object, readonly HeaderField[]>();
+
 /** Validate and normalize one header input without flattening repeated fields. */
 export function headers(input: HeaderInput = Object.freeze({})): ResponseHeaders {
 	return fieldsToRecord(normalizeSource(input));
@@ -119,7 +126,9 @@ function normalizeHeaderValues(name: string, values: readonly string[]): HeaderF
  *
  * @internal
  */
-function normalizeSource(input: HeaderInput): HeaderField[] {
+function normalizeSource(input: HeaderInput): readonly HeaderField[] {
+	const admitted = admittedFields.get(input);
+	if (admitted !== undefined) return admitted;
 	const fields: HeaderField[] = [];
 	if (input instanceof Headers) {
 		const getSetCookie = (input as Headers & { getSetCookie?: () => string[] }).getSetCookie;
@@ -189,7 +198,15 @@ function fieldsToRecord(fields: readonly HeaderField[]): ResponseHeaders {
 	const grouped = group(fields);
 	const result: Record<string, HeaderValue> = Object.create(null);
 	for (const { name, values } of grouped.values()) result[name] = values.length === 1 ? values[0]! : values;
-	return Object.freeze(result);
+	const snapshot = Object.freeze(result);
+	const occurrences: HeaderField[] = [];
+	// Object keys preserve the record's own grouping and integer-key ordering.
+	// Reusing the incoming fields would change later reads of interleaved lists.
+	for (const name of Object.keys(snapshot)) {
+		for (const value of grouped.get(name.toLowerCase())!.values) occurrences.push(Object.freeze([name, value]));
+	}
+	admittedFields.set(snapshot, Object.freeze(occurrences));
+	return snapshot;
 }
 
 /**

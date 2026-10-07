@@ -1,11 +1,17 @@
+import { forward } from '../headers.ts';
 import * as record from '@okikio/record';
 
 /** Credential forwarding policy for one outbound HTTP request. */
 export interface ForwardHeaderOptionsType {
+	/** Explicit policy for retaining or stripping inbound Cookie headers. */
 	readonly requestCookies?: 'preserve' | 'strip';
+	/** Explicit policy for retaining or stripping inbound Authorization, including after authentication. */
 	readonly requestAuthorization?: 'preserve' | 'strip';
+	/** Host-trusted connected client address used when reconstructing forwarding metadata. */
 	readonly clientIp?: string;
+	/** Exact header names removed before forwarding. */
 	readonly remove?: readonly string[];
+	/** Header-name prefixes removed before forwarding. */
 	readonly removePrefixes?: readonly string[];
 }
 
@@ -45,7 +51,7 @@ export function forwardHeaders(
 	);
 	const headers = new Headers();
 
-	for (const [name, value] of request.headers) {
+	for (const [name, value] of forward(request.headers)) {
 		const normalized = name.toLowerCase();
 		if (removedHeaders.has(normalized) || normalized.startsWith('x-forwarded-')) continue;
 		if (remove.has(normalized) || prefixes.some((prefix) => normalized.startsWith(prefix))) continue;
