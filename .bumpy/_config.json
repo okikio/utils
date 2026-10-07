@@ -1,19 +1,14 @@
 {
 	"baseBranch": "main",
 	"access": "public",
-	"changelog": [
-		"./.bumpy/changelog.mjs",
-		{
-			"umbrella": "@okikio/utils"
-		}
-	],
+	"changelog": "default",
 	"privatePackages": {
 		"version": true,
 		"tag": false
 	},
 	"packages": {
 		"@okikio/*": {
-			"publishCommand": "node ../../.bumpy/publish-jsr.mjs",
+			"publishCommand": "deno run --allow-read --allow-net=jsr.io --allow-run ../../.bumpy/release.ts publish",
 			"skipNpmPublish": true,
 			"cascadeTo": {
 				"@okikio/utils": {
@@ -21,16 +16,16 @@
 					"bumpAs": "match"
 				}
 			},
-			"checkPublished": "node ../../.bumpy/check-jsr-published.mjs"
+			"checkPublished": "deno run --allow-read --allow-net=jsr.io ../../.bumpy/release.ts published"
 		},
 		"@okikio/utils": {
-			"publishCommand": "node ../../.bumpy/publish-jsr.mjs",
+			"publishCommand": "deno run --allow-read --allow-net=jsr.io --allow-run ../../.bumpy/release.ts publish",
 			"skipNpmPublish": true,
-			"checkPublished": "node ../../.bumpy/check-jsr-published.mjs"
+			"checkPublished": "deno run --allow-read --allow-net=jsr.io ../../.bumpy/release.ts published"
 		}
 	},
 	"versionPr": {
-		"title": "\ud83d\udc38 Version @okikio/utils packages",
+		"title": "🐸 Version @okikio/utils packages",
 		"branch": "bumpy/version-packages",
 		"preamble": "This release PR is generated from `.bumpy/*.md`. It updates package versions and changelogs. The workflow then synchronizes the same versions into each JSR `deno.json[c]` manifest before the release commit is finalized."
 	}

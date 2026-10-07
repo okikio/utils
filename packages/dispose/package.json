@@ -8,7 +8,8 @@
 	"license": "MIT",
 	"exports": {
 		".": "./mod.ts",
-		"./polyfill": "./polyfill.ts"
+		"./polyfill": "./polyfill.ts",
+		"./ponyfill": "./ponyfill.ts"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20"

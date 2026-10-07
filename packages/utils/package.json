@@ -3,7 +3,8 @@
 	"version": "0.0.0",
 	"type": "module",
 	"sideEffects": [
-		"./dispose/polyfill.ts"
+		"./dispose/polyfill.ts",
+		"./duration/polyfill.ts"
 	],
 	"license": "MIT",
 	"exports": {
@@ -36,6 +37,7 @@
 		"./csv/parse": "./csv/parse.ts",
 		"./csv/stream": "./csv/stream.ts",
 		"./csv/types": "./csv/types.ts",
+		"./csv/write": "./csv/write.ts",
 		"./deno": "./deno.ts",
 		"./deno/file": "./deno/file.ts",
 		"./deno/permissions": "./deno/permissions.ts",
@@ -44,7 +46,10 @@
 		"./deno/types": "./deno/types.ts",
 		"./dispose": "./dispose.ts",
 		"./dispose/polyfill": "./dispose/polyfill.ts",
+		"./dispose/ponyfill": "./dispose/ponyfill.ts",
 		"./duration": "./duration.ts",
+		"./duration/polyfill": "./duration/polyfill.ts",
+		"./duration/temporal": "./duration/temporal.ts",
 		"./duration/types": "./duration/types.ts",
 		"./effect": "./effect.ts",
 		"./effect/types": "./effect/types.ts",
@@ -68,6 +73,7 @@
 		"./html": "./html.ts",
 		"./http": "./http.ts",
 		"./http/cookie": "./http/cookie.ts",
+		"./http/headers": "./http/headers.ts",
 		"./http/problem": "./http/problem.ts",
 		"./http/problem/testing": "./http/problem/testing.ts",
 		"./http/problem/types": "./http/problem/types.ts",
@@ -85,6 +91,7 @@
 		"./meter": "./meter.ts",
 		"./meter/types": "./meter/types.ts",
 		"./permission": "./permission.ts",
+		"./permission/definition": "./permission/definition.ts",
 		"./permission/types": "./permission/types.ts",
 		"./pool": "./pool.ts",
 		"./pool/types": "./pool/types.ts",
@@ -104,6 +111,7 @@
 		"./record": "./record.ts",
 		"./record/types": "./record/types.ts",
 		"./requirement": "./requirement.ts",
+		"./requirement/definition": "./requirement/definition.ts",
 		"./requirement/types": "./requirement/types.ts",
 		"./resilience": "./resilience.ts",
 		"./resilience/types": "./resilience/types.ts",

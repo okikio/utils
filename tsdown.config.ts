@@ -1,32 +1,34 @@
+/** Stable tsdown projects source-owned public exports to additional npm artifacts. @module */
+import type { InlineConfig } from 'tsdown';
 import { defineConfig } from 'tsdown';
+import { resolve } from 'node:path';
 
-/**
- * Build every public source module as a first-class neutral ESM entry.
- *
- * Unbundled output preserves package and subpath ownership so downstream bundlers
- * can remove unused modules instead of first unpacking one library bundle.
- * Tests, benchmarks, and fixtures remain source-only.
- */
-export default defineConfig({
-	entry: ['**/*.ts', '!**/*.test.ts', '!**/*.bench.ts', '!fixtures/**/*.ts'],
-	outDir: 'dist',
-	format: ['esm'],
-	target: 'esnext',
-	platform: 'neutral',
-	dts: true,
-	clean: true,
-	unbundle: true,
-	failOnWarn: true,
-	publint: 'ci-only',
-	attw: 'ci-only',
-	deps: { neverBundle: [/^node:/] },
-	outputOptions(outputOptions) {
-		outputOptions.postBanner = (chunk) => {
-			if (!chunk.isEntry) return '';
-			const dtsPath = `./${chunk.fileName.replace(/\.js$/, '.d.ts').split('/').at(-1)}`;
-			return `/* @ts-self-types="${dtsPath}" */`;
-		};
-		return outputOptions;
-	},
-	workspace: { include: ['packages/*'] },
+/** Preserve each package's source module structure, external dependencies, and both Node module contracts. */
+export function projection(stage: string, entry: Record<string, string>, _root: string): InlineConfig {
+	return {
+		config: false,
+		cwd: stage,
+		entry,
+		root: resolve(stage, 'src'),
+		outDir: resolve(stage, 'dist'),
+		format: ['esm', 'cjs'],
+		platform: 'node',
+		target: 'esnext',
+		fixedExtension: true,
+		dts: { generator: 'tsc' },
+		tsconfig: resolve(stage, 'tsconfig.json'),
+		clean: true,
+		unbundle: true,
+		failOnWarn: true,
+		publint: false,
+		attw: false,
+		deps: {
+			neverBundle: [/^@okikio\//, /^@std\//, /^node:/],
+		},
+	};
+}
+
+// Package staging owns the dynamic manifest inventory; invoking the CLI directly is deliberately unsupported.
+export default defineConfig(() => {
+	throw new Error('Use mise run npm-build or npm-verify so canonical exports are staged before tsdown builds them.');
 });

@@ -276,3 +276,7 @@ $RECYCLE.BIN/
 .agents/
 coverage/
 .artifacts/
+
+# Pinned upstream test source is evidence, including its build-tool tests.
+!tests/fixtures/hono-upstream/source/build/
+!tests/fixtures/hono-upstream/source/build/**

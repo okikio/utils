@@ -21,11 +21,21 @@
 	"tasks": {
 		"check": "deno fmt --check && deno lint && deno check . && deno doc --lint mod.ts",
 		"test": "deno test -P=test",
-		"bench": "deno run -P=bench dispatch.bench.ts"
+		"bench": "deno run --v8-flags=--expose-gc -P=bench dispatch.bench.ts"
 	},
 	"permissions": {
 		"test": {},
-		"bench": {}
+		"bench": {
+			"env": [
+				"NODE_DISABLE_COLORS",
+				"NO_COLOR",
+				"FORCE_COLOR",
+				"CI"
+			],
+			"sys": [
+				"cpus"
+			]
+		}
 	},
 	"license": "MIT"
 }

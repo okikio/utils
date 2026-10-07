@@ -12,15 +12,28 @@
 		"./options": "./options.ts",
 		"./parse": "./parse.ts",
 		"./stream": "./stream.ts",
-		"./types": "./types.ts"
+		"./types": "./types.ts",
+		"./write": "./write.ts"
 	},
 	"dependencies": {
-		"@std/csv": "npm:@jsr/std__csv@^1.0.6",
-		"@okikio/record": "workspace:^"
+		"@okikio/record": "workspace:^",
+		"csv-parse": "7.0.3",
+		"csv-stringify": "6.9.0"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
 		"mitata": "^1.0.34",
-		"fast-check": "^4.9.0"
+		"fast-check": "^4.9.0",
+		"@std/csv": "npm:@jsr/std__csv@^1.0.6"
+	},
+	"imports": {
+		"#csv-parse": {
+			"browser": "csv-parse/browser/esm",
+			"default": "csv-parse"
+		},
+		"#csv-parse/sync": {
+			"browser": "csv-parse/browser/esm/sync",
+			"default": "csv-parse/sync"
+		}
 	}
 }

@@ -24,7 +24,8 @@
 		"./response/http": "./response/http.ts",
 		"./response/status": "./response/status.ts",
 		"./problem/types": "./problem/types.ts",
-		"./request/types": "./request/types.ts"
+		"./request/types": "./request/types.ts",
+		"./headers": "./headers.ts"
 	},
 	"imports": {
 		"@standard-schema/spec": "jsr:@standard-schema/spec@^1.1.0",

@@ -16,18 +16,23 @@
 		"./options": "./options.ts",
 		"./parse": "./parse.ts",
 		"./stream": "./stream.ts",
-		"./types": "./types.ts"
+		"./types": "./types.ts",
+		"./write": "./write.ts"
 	},
 	"imports": {
 		"@okikio/record": "../record/mod.ts",
 		"@std/csv": "jsr:@std/csv@^1.0.6",
 		"fast-check": "npm:fast-check@^4.9.0",
-		"mitata": "npm:mitata@^1.0.34"
+		"mitata": "npm:mitata@^1.0.34",
+		"#csv-parse": "npm:csv-parse@7.0.3",
+		"#csv-parse/sync": "npm:csv-parse@7.0.3/sync",
+		"csv-parse": "npm:csv-parse@7.0.3",
+		"csv-stringify/sync": "npm:csv-stringify@6.9.0/sync"
 	},
 	"tasks": {
 		"check": "deno fmt --check && deno lint && deno check . && deno doc --lint mod.ts",
 		"test": "deno test -P=test",
-		"bench": "deno run -P=bench parse.bench.ts"
+		"bench": "deno run --v8-flags=--expose-gc -P=bench parse.bench.ts"
 	},
 	"permissions": {
 		"test": {
@@ -38,6 +43,15 @@
 		"bench": {
 			"read": [
 				"./fixtures"
+			],
+			"env": [
+				"NODE_DISABLE_COLORS",
+				"NO_COLOR",
+				"FORCE_COLOR",
+				"CI"
+			],
+			"sys": [
+				"cpus"
 			]
 		}
 	},

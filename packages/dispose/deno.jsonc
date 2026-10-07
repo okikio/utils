@@ -10,7 +10,8 @@
 	},
 	"exports": {
 		".": "./mod.ts",
-		"./polyfill": "./polyfill.ts"
+		"./polyfill": "./polyfill.ts",
+		"./ponyfill": "./ponyfill.ts"
 	},
 	"imports": {},
 	"tasks": {

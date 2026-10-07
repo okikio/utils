@@ -2,14 +2,18 @@
 	"name": "@okikio/duration",
 	"version": "0.0.0",
 	"type": "module",
-	"sideEffects": false,
+	"sideEffects": [
+		"./polyfill.ts"
+	],
 	"license": "MIT",
 	"exports": {
 		".": "./mod.ts",
-		"./types": "./types.ts"
+		"./types": "./types.ts",
+		"./temporal": "./temporal.ts",
+		"./polyfill": "./polyfill.ts"
 	},
 	"dependencies": {
-		"@js-temporal/polyfill": "^0.5.1"
+		"temporal-polyfill": "1.0.5"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20"

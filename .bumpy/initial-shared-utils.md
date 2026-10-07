@@ -16,7 +16,6 @@
 '@okikio/env': minor
 '@okikio/failure': minor
 '@okikio/fault': minor
-'@okikio/hash': minor
 '@okikio/hono': minor
 '@okikio/html': minor
 '@okikio/http': minor
@@ -37,6 +36,7 @@
 '@okikio/sitemap': minor
 '@okikio/streams': minor
 '@okikio/task': minor
+'@okikio/telemetry': minor
 '@okikio/version': minor
 '@okikio/worker': minor
 '@okikio/workflow': minor

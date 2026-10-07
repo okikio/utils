@@ -8,10 +8,10 @@
 		".": "./mod.ts"
 	},
 	"dependencies": {
-		"css-tree": "^3.2.1"
+		"css-tree": "^3.2.1",
+		"@types/css-tree": "^3.2.0"
 	},
 	"devDependencies": {
-		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
-		"@types/css-tree": "^3.2.0"
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20"
 	}
 }
