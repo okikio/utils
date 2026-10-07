@@ -8,22 +8,27 @@ import * as resilience from '@okikio/resilience';
 import { resilience as resilienceHost, retry as retryHost, RetryableOperationError } from './resilience.ts';
 import type { ServiceRequestState, ServiceResilienceAdapter } from './types.ts';
 
-const owner = requestContext.create({
-	id: 'request_test',
-	signal: new AbortController().signal,
-	clock: { now: () => Temporal.Instant.from('2026-08-02T00:00:00Z'), sleep: () => Promise.resolve() },
-});
-const ctx = effect.scope(requirement.scope(owner), { effects: [] });
+/** Create a fresh request owner; immediate sleep qualifies retry classification, not elapsed delay. */
+function owner(): requestContext.Owned {
+	return requestContext.create({
+		id: 'request_test',
+		clock: { now: () => Temporal.Instant.from('2026-08-02T00:00:00Z'), sleep: () => Promise.resolve() },
+	});
+}
 
-const state = {
-	request: new Request('https://api.example.invalid/imports'),
-	host: {},
-	ctx,
-	input: {},
-	resources: {} as ServiceRequestState['resources'],
-	values: {} as ServiceRequestState['values'],
-	operation: {} as ServiceRequestState['operation'],
-} satisfies ServiceRequestState;
+/** Build fresh request state so an adapter cannot contaminate the next scenario. */
+function state(owned: requestContext.Owned): ServiceRequestState {
+	const ctx = effect.scope(requirement.scope(owned), { effects: [] });
+	return {
+		request: new Request('https://api.example.invalid/imports'),
+		host: {},
+		ctx,
+		input: {},
+		resources: {} as ServiceRequestState['resources'],
+		values: {} as ServiceRequestState['values'],
+		operation: {} as ServiceRequestState['operation'],
+	};
+}
 
 describe('service resilience adapters', () => {
 	it('does not invoke custom Error message accessors while wrapping retryable failures', () => {
@@ -42,6 +47,7 @@ describe('service resilience adapters', () => {
 	});
 
 	it('retries only explicitly classified failures', async () => {
+		await using owned = owner();
 		let attempts = 0;
 		const runtime = retryHost();
 		const result = await runtime.run(
@@ -53,7 +59,7 @@ describe('service resilience adapters', () => {
 					jitter: false,
 				}),
 			],
-			state,
+			state(owned),
 			() => {
 				attempts += 1;
 				if (attempts < 3) throw new RetryableOperationError(new Error('temporary'));
@@ -65,6 +71,7 @@ describe('service resilience adapters', () => {
 	});
 
 	it('does not retry ordinary failures', async () => {
+		await using owned = owner();
 		let attempts = 0;
 		const runtime = retryHost();
 		await expect(runtime.run(
@@ -76,7 +83,7 @@ describe('service resilience adapters', () => {
 					jitter: false,
 				}),
 			],
-			state,
+			state(owned),
 			() => {
 				attempts += 1;
 				throw new Error('not classified');
@@ -86,6 +93,7 @@ describe('service resilience adapters', () => {
 	});
 
 	it('composes focused runtimes in policy order', async () => {
+		await using owned = owner();
 		const events: string[] = [];
 		const runtime = (type: 'idempotency' | 'retry'): ServiceResilienceAdapter => ({
 			supports: (policy) => policy.type === type,
@@ -97,7 +105,7 @@ describe('service resilience adapters', () => {
 			},
 		});
 		const combined = resilienceHost(runtime('idempotency'), runtime('retry'));
-		await combined.run([resilience.idempotent(), resilience.retry()], state, async () => {
+		await combined.run([resilience.idempotent(), resilience.retry()], state(owned), async () => {
 			events.push('operation');
 			return new Response('ok');
 		});

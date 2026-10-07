@@ -48,8 +48,51 @@ const FrameworkProblemDefinitions = Object.freeze(
 	Object.values(ServerProblems) satisfies readonly problem.ProblemDefinition[],
 );
 
+/** Share immutable fallback configuration while every request retains its own requirement scope. @internal */
+const DefaultRequirementRuntime = Object.freeze(
+	{
+		interpreters: Object.freeze({}),
+		unknown: 'reject',
+	} satisfies requirements.RequirementRuntime,
+);
+
+/** An absent adapter contributes no request values or failure; its immutable result has no request authority. */
+const EmptyAdapterResult = Promise.resolve(Object.freeze({}));
+
+/** Definition-only envelopes belong to one runtime; request authority is never cached here. @internal */
+interface ResourceEnvelopesType {
+	readonly operations: WeakMap<EffectiveServiceOperation, ReadonlySet<ResourceDefinition>>;
+	readonly middleware: WeakMap<MiddlewareDefinition, ReadonlySet<ResourceDefinition>>;
+}
+
+/**
+ * Snapshot the compiled resource graph once before acquiring service ownership.
+ *
+ * Exact object identity selects each envelope. Compilation fixes these declarations;
+ * neither a string ID nor Object.freeze() on arbitrary caller input proves identity
+ * or authority. Keeping the maps local to create() also prevents one runtime from
+ * retaining another runtime's graph. Resolvers still borrow the current request ctx.
+ *
+ * @internal
+ */
+function prepareResourceEnvelopes(operations: readonly EffectiveServiceOperation[]): ResourceEnvelopesType {
+	const result: ResourceEnvelopesType = { operations: new WeakMap(), middleware: new WeakMap() };
+	for (const operation of operations) {
+		result.operations.set(operation, new Set(operation.resources));
+		for (const definitions of Object.values(operation.middleware)) {
+			for (const definition of definitions) {
+				if (!result.middleware.has(definition)) {
+					result.middleware.set(definition, new Set(resourceClosure(definition.resources)));
+				}
+			}
+		}
+	}
+	return result;
+}
+
 /** Error raised when a compiled service is missing a required runtime adapter. */
 export class ServiceRuntimeConfigurationError extends Error {
+	/** Explain a missing or incompatible host capability before accepting live requests. */
 	constructor(message: string) {
 		super(message);
 		this.name = 'ServiceRuntimeConfigurationError';
@@ -63,6 +106,7 @@ export function create<Host extends object, Values extends ServiceRequestValues 
 ): ServiceRuntime {
 	validateRuntimeAdapters(compiled, options.adapters);
 	const observers = observerIndex(compiled.definition.observers, options.observers ?? []);
+	const resourceEnvelopes = prepareResourceEnvelopes(compiled.operations);
 	const serviceContext = context.create({ id: `service:${compiled.definition.id}` });
 	let resources: ResourceCollection;
 	try {
@@ -93,6 +137,7 @@ export function create<Host extends object, Values extends ServiceRequestValues 
 						resources,
 						serviceContext,
 						middlewareByDefinition,
+						resourceEnvelopes,
 						observers,
 						options,
 					);
@@ -175,9 +220,13 @@ async function runOperation<Host extends object, Values extends ServiceRequestVa
 	resources: ResourceCollection,
 	serviceContext: Context,
 	middlewareByDefinition: ReadonlyMap<MiddlewareDefinition, MiddlewareHandler>,
+	resourceEnvelopes: ResourceEnvelopesType,
 	observers: ReadonlyMap<ServiceObserverDefinition, ServiceObserverHandler>,
 	options: CreateServiceOptions<Host, Values>,
 ): Promise<Response> {
+	// An empty observer declaration needs no event snapshot or async emission.
+	// Response completion still owns request cleanup whether observation exists or not.
+	const observed = operation.service.observers.length > 0;
 	let prepared: PreparedServiceRequestType;
 	try {
 		prepared = await prepareRequest(operation, request, serviceContext, options);
@@ -186,17 +235,19 @@ async function runOperation<Host extends object, Values extends ServiceRequestVa
 			? error
 			: new ServiceRequestSetupError(normalizeError(error));
 		const cause = setupError.cause instanceof Error ? setupError.cause : setupError;
-		await emitObservers(
-			operation.service.observers,
-			observers,
-			serviceEvent(
-				'failed',
-				operation,
-				request,
-				setupError.correlation,
-				{ error: cause },
-			),
-		);
+		if (observed) {
+			await emitObservers(
+				operation.service.observers,
+				observers,
+				serviceEvent(
+					'failed',
+					operation,
+					request,
+					setupError.correlation,
+					{ error: cause },
+				),
+			);
+		}
 		const result = http.problemResponse(problem.create(ServerProblems.Internal, {
 			instance: new URL(request.url).pathname,
 			cause,
@@ -206,7 +257,9 @@ async function runOperation<Host extends object, Values extends ServiceRequestVa
 			: http.withHeaders(result, { 'X-Request-ID': setupError.requestId });
 	}
 	const { requestId, requestContext, requestRequirements, values } = prepared;
-	await emitObservers(operation.service.observers, observers, serviceEvent('started', operation, request, prepared));
+	if (observed) {
+		await emitObservers(operation.service.observers, observers, serviceEvent('started', operation, request, prepared));
+	}
 	let activeRequest = request;
 	let mutableState: MutableServiceRequestState<Host, Values> = {
 		request: activeRequest,
@@ -214,6 +267,7 @@ async function runOperation<Host extends object, Values extends ServiceRequestVa
 		ctx: requestRequirements,
 		input: Object.freeze({}),
 		resources,
+		resourceEnvelopes,
 		values,
 		operation,
 		requestValues: emptyValuePatch<Values>(),
@@ -234,17 +288,19 @@ async function runOperation<Host extends object, Values extends ServiceRequestVa
 	};
 	const finish = async (httpResponse: Response): Promise<Response> => {
 		const completedResponse = http.withHeaders(httpResponse, { 'X-Request-ID': requestId });
-		await emitObservers(
-			operation.service.observers,
-			observers,
-			serviceEvent(
-				'response',
-				operation,
-				activeRequest,
-				prepared,
-				{ status: completedResponse.status },
-			),
-		);
+		if (observed) {
+			await emitObservers(
+				operation.service.observers,
+				observers,
+				serviceEvent(
+					'response',
+					operation,
+					activeRequest,
+					prepared,
+					{ status: completedResponse.status },
+				),
+			);
+		}
 		return response.onComplete(completedResponse, async (completion) => {
 			await disposeRequest();
 			const kind: ServiceObserverEventKind = completion.outcome === 'completed'
@@ -252,22 +308,24 @@ async function runOperation<Host extends object, Values extends ServiceRequestVa
 				: completion.outcome === 'cancelled'
 				? 'aborted'
 				: 'failed';
-			await emitObservers(
-				operation.service.observers,
-				observers,
-				serviceEvent(
-					kind,
-					operation,
-					activeRequest,
-					prepared,
-					{
-						status: completedResponse.status,
-						responseBytes: completion.bytes,
-						completion: Object.freeze({ outcome: completion.outcome, bytes: completion.bytes }),
-						...(completion.reason === undefined ? {} : { error: completion.reason }),
-					},
-				),
-			);
+			if (observed) {
+				await emitObservers(
+					operation.service.observers,
+					observers,
+					serviceEvent(
+						kind,
+						operation,
+						activeRequest,
+						prepared,
+						{
+							status: completedResponse.status,
+							responseBytes: completion.bytes,
+							completion: Object.freeze({ outcome: completion.outcome, bytes: completion.bytes }),
+							...(completion.reason === undefined ? {} : { error: completion.reason }),
+						},
+					),
+				);
+			}
 		});
 	};
 
@@ -317,31 +375,35 @@ async function runOperation<Host extends object, Values extends ServiceRequestVa
 		return await finish(await finalizeResult(operation, result, activeRequest));
 	} catch (error) {
 		if (request.signal.aborted) {
+			if (observed) {
+				await emitObservers(
+					operation.service.observers,
+					observers,
+					serviceEvent(
+						'aborted',
+						operation,
+						activeRequest,
+						prepared,
+						{ error: request.signal.reason ?? error },
+					),
+				);
+			}
+			await disposeRequest();
+			throw request.signal.reason ?? new DOMException('Request aborted.', 'AbortError');
+		}
+		if (observed) {
 			await emitObservers(
 				operation.service.observers,
 				observers,
 				serviceEvent(
-					'aborted',
+					'failed',
 					operation,
 					activeRequest,
 					prepared,
-					{ error: request.signal.reason ?? error },
+					{ error },
 				),
 			);
-			await disposeRequest();
-			throw request.signal.reason ?? new DOMException('Request aborted.', 'AbortError');
 		}
-		await emitObservers(
-			operation.service.observers,
-			observers,
-			serviceEvent(
-				'failed',
-				operation,
-				activeRequest,
-				prepared,
-				{ error },
-			),
-		);
 		if (error instanceof context.ContextDeadlineExceededError) {
 			return await finish(
 				await toResponse(
@@ -424,7 +486,11 @@ async function runOperation<Host extends object, Values extends ServiceRequestVa
 									request: activeRequest,
 									host: options.host,
 									input: mutableState.input,
-									resources: createResourceResolver(resources, new Set(operation.resources), executionContext),
+									resources: createResourceResolver(
+										resources,
+										resourceEnvelopes.operations.get(operation)!,
+										executionContext,
+									),
 									ctx: executionContext,
 									...mutableState.requestValues,
 								}),
@@ -439,22 +505,29 @@ async function runOperation<Host extends object, Values extends ServiceRequestVa
 }
 
 /**
- * Executes resilience stage as one finite phase of the module runtime.
- *
- * It links service definitions to exact implementations before traffic and keeps request-stage ownership visible at runtime.
+ * Apply the compiled policies for admission or an operation attempt.
+ * Empty stages forward the downstream promise. Active policies receive a frozen
+ * request-state view and may retry or replace the result through the configured
+ * adapter. Synchronous adapter failures remain rejections of this stage.
  *
  * @internal
  */
-async function runResilienceStage<Host extends object, Values extends ServiceRequestValues>(
+function runResilienceStage<Host extends object, Values extends ServiceRequestValues>(
 	operation: EffectiveServiceOperation,
 	stage: 'admission' | 'operation',
 	state: MutableServiceRequestState<Host, Values>,
 	options: CreateServiceOptions<Host, Values>,
 	next: () => Promise<ServiceStageResult>,
 ): Promise<ServiceStageResult> {
-	const policies = stage === 'admission' ? operation.execution.admission : operation.execution.operation;
-	if (policies.length === 0) return await next();
-	return await options.adapters!.resilience!.run(policies, freezeState(state), next);
+	try {
+		const policies = stage === 'admission' ? operation.execution.admission : operation.execution.operation;
+		// An absent stage cannot inspect or replace its downstream result.
+		return policies.length === 0
+			? next()
+			: Promise.resolve(options.adapters!.resilience!.run(policies, freezeState(state), next));
+	} catch (error) {
+		return Promise.reject(error);
+	}
 }
 
 /**
@@ -551,10 +624,7 @@ async function prepareRequest<Host extends object, Values extends ServiceRequest
 			...(timeout === undefined ? {} : { deadline: clock.now().add(timeout) }),
 		});
 		const values = createContextStore();
-		const requirementRuntime = options.adapters?.requirements ?? Object.freeze({
-			interpreters: Object.freeze({}),
-			unknown: 'reject' as const,
-		});
+		const requirementRuntime = options.adapters?.requirements ?? DefaultRequirementRuntime;
 		const requestEffects = effect.scope(requestContext, {
 			effects: operation.effects,
 			...(options.adapters?.effect === undefined ? {} : { emitter: options.adapters.effect }),
@@ -662,18 +732,26 @@ function serviceEvent(
 }
 
 /**
- * Runs middleware while preserving the module's cancellation and completion contract.
- *
- * It links service definitions to exact implementations before traffic and keeps request-stage ownership visible at runtime.
+ * Run one compiled middleware stage with a request-local continuation guard.
+ * Empty stages forward the final promise. Each declared middleware resolves by
+ * exact definition identity and borrows only its prepared resource envelope.
+ * Calling a continuation twice rejects before downstream work repeats.
  *
  * @internal
  */
-async function runMiddleware<Host extends object, Values extends ServiceRequestValues>(
+function runMiddleware<Host extends object, Values extends ServiceRequestValues>(
 	definitions: readonly MiddlewareDefinition[],
 	state: MutableServiceRequestState<Host, Values>,
 	handlers: ReadonlyMap<MiddlewareDefinition, MiddlewareHandler>,
 	final: () => Promise<ServiceStageResult>,
 ): Promise<ServiceStageResult> {
+	if (definitions.length === 0) {
+		try {
+			return final();
+		} catch (error) {
+			return Promise.reject(error);
+		}
+	}
 	let index = -1;
 	const dispatch = async (position: number): Promise<ServiceStageResult> => {
 		if (position <= index) throw new TypeError('Middleware called next() more than once.');
@@ -686,19 +764,26 @@ async function runMiddleware<Host extends object, Values extends ServiceRequestV
 			request: state.request,
 			host: state.host,
 			values: state.values,
-			resources: createResourceResolver(state.resources, new Set(resourceClosure(definition.resources)), state.ctx),
+			resources: createResourceResolver(
+				state.resources,
+				state.resourceEnvelopes.middleware.get(definition)!,
+				state.ctx,
+			),
 			ctx: state.ctx,
 		}, async () => await dispatch(position + 1)) as ServiceStageResult;
 	};
-	return await dispatch(0);
+	return dispatch(0);
 }
 
 /**
- * Runs one runtime adapter while preserving the module's cancellation and completion contract.
+ * Apply declared runtime capabilities to a frozen request-state view.
+ * An empty declaration shares a frozen empty result that contains no request
+ * authority. Active adapters may return a value patch or a problem; their
+ * synchronous failures become rejections without changing failure identity.
  *
  * @internal
  */
-async function runAdapter<Host extends object, Values extends ServiceRequestValues, Definition>(
+function runAdapter<Host extends object, Values extends ServiceRequestValues, Definition>(
 	runtime:
 		| ((
 			definitions: readonly Definition[],
@@ -709,14 +794,23 @@ async function runAdapter<Host extends object, Values extends ServiceRequestValu
 	state: MutableServiceRequestState<Host, Values>,
 	required = true,
 ): Promise<Readonly<{ readonly patch?: ServiceRequestStatePatch<Values>; readonly result?: problem.ProblemResult }>> {
-	if (definitions.length === 0) return Object.freeze({});
+	if (definitions.length === 0) return EmptyAdapterResult;
 	if (!runtime) {
-		if (required) throw new ServiceRuntimeConfigurationError('A required service runtime adapter was not supplied.');
-		return Object.freeze({});
+		if (required) {
+			return Promise.reject(
+				new ServiceRuntimeConfigurationError('A required service runtime adapter was not supplied.'),
+			);
+		}
+		return EmptyAdapterResult;
 	}
-	const result = await runtime(definitions, freezeState(state));
-	if (problem.is(result)) return Object.freeze({ result });
-	return result === undefined ? Object.freeze({}) : Object.freeze({ patch: result });
+	try {
+		return Promise.resolve(runtime(definitions, freezeState(state))).then((result) => {
+			if (problem.is(result)) return Object.freeze({ result });
+			return result === undefined ? EmptyAdapterResult : Object.freeze({ patch: result });
+		});
+	} catch (error) {
+		return Promise.reject(error);
+	}
 }
 
 /**
@@ -747,12 +841,11 @@ async function parseInputs(
 				...(maximumBodyBytes === undefined ? {} : { maximumBodyBytes }),
 			});
 		} catch (error) {
-			const sourceIssues = error instanceof requestWire.RequestTransportError
-				? requestWire.validationDetails(source, error.issues)
-				: [requestWire.validationDetail(source, {
-					message: error instanceof Error ? error.message : fault.message(error),
-				})];
-			issues.push(...sourceIssues);
+			// Only typed wire failures are safe client validation issues. An arbitrary
+			// reader or configuration failure may contain private provider diagnostics;
+			// let the operation's Internal response retain its cause outside the body.
+			if (!(error instanceof requestWire.RequestTransportError)) throw error;
+			issues.push(...requestWire.validationDetails(source, error.issues));
 			continue;
 		}
 		const result = await endpoint.match(endpoint.schemaOf(slot), raw);
@@ -780,12 +873,11 @@ async function rawInput(
 	routePath: string,
 	options: requestWire.RequestParsingOptions,
 ): Promise<unknown> {
-	const url = new URL(request.url);
 	switch (source) {
 		case 'param':
-			return requestWire.parseParameters(routePath, url.pathname, options);
+			return requestWire.parseParameters(routePath, new URL(request.url).pathname, options);
 		case 'query':
-			return requestWire.parseQuery(url.search, options);
+			return requestWire.parseQuery(new URL(request.url).search, options);
 		case 'header':
 			return requestWire.parseHeaders(request.headers, options);
 		case 'cookie':
@@ -1052,9 +1144,10 @@ function hasHeader(headers: response.ResponseHeaders, name: string): boolean {
 }
 
 /**
- * Creates context store while preserving the module's ownership rules.
+ * Keep request-local middleware values under exact definition-object keys.
  *
- * It links service definitions to exact implementations before traffic and keeps request-stage ownership visible at runtime.
+ * Each request gets a fresh map. Equal IDs on independently authored definitions
+ * do not share a value; a read before its producer runs fails explicitly.
  *
  * @internal
  */
@@ -1125,9 +1218,11 @@ function isConcreteResource(
 }
 
 /**
- * Creates resource resolver while preserving the module's ownership rules.
+ * Restrict resource access to the effective operation envelope.
  *
- * It links service definitions to exact implementations before traffic and keeps request-stage ownership visible at runtime.
+ * The collection owns lazy acquisition and cleanup. This request-local view
+ * borrows that collection but rejects definitions outside the compiled allow set
+ * before it can acquire a provider.
  *
  * @internal
  */
@@ -1192,11 +1287,11 @@ function resourceClosure(input: MiddlewareDefinition['resources']): ResourceDefi
 function freezeState<Host extends object, Values extends ServiceRequestValues>(
 	state: MutableServiceRequestState<Host, Values>,
 ): ServiceRequestState<Host, Values> {
-	const { requestValues, resources, ...base } = state;
+	const { requestValues, resources, resourceEnvelopes, ...base } = state;
 	return Object.freeze({
 		...requestValues,
 		...base,
-		resources: createResourceResolver(resources, new Set(state.operation.resources), state.ctx),
+		resources: createResourceResolver(resources, resourceEnvelopes.operations.get(state.operation)!, state.ctx),
 	});
 }
 
@@ -1377,6 +1472,7 @@ interface MutableServiceRequestState<
 	readonly host: Host;
 	ctx: ServiceExecutionContext;
 	readonly resources: ResourceCollection;
+	readonly resourceEnvelopes: ResourceEnvelopesType;
 	readonly values: ServiceContextStore;
 	readonly operation: EffectiveServiceOperation;
 	input: ServiceInputValues;

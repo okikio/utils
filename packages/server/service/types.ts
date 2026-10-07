@@ -47,7 +47,9 @@ import type {
 
 /** Static cross-cutting values contributed by a service or service policy. */
 export interface ServiceContributions {
+	/** Declared middleware contributions or their compiled placement plan. */
 	readonly middleware?: MiddlewareInput;
+	/** Authentication contracts required by the selected operation; the host supplies their evaluator. */
 	readonly authentication?: DefinitionInput<CatalogEntryIdentity>;
 	/** Requirements owned directly by this service contributions; reachable dependency requirements remain separate. */
 	readonly requirements?: RequirementInput;
@@ -55,7 +57,9 @@ export interface ServiceContributions {
 	readonly effects?: EffectDefinitions;
 	/** Resource definitions or collection available to this service contributions. */
 	readonly resources?: DefinitionInput<ResourceDefinition>;
+	/** Declared HTTP problem contracts or their projected IDs. */
 	readonly problems?: DefinitionInput<ProblemDefinition>;
+	/** Declared resilience policies; each policy retains a designated runtime owner. */
 	readonly resiliency?: ResilienceInput;
 }
 
@@ -63,6 +67,7 @@ export interface ServiceContributions {
 export interface ServicePolicy extends CatalogEntryIdentity, ServiceContributions {
 	/** Stable discriminant for this service policy value. */
 	readonly kind: 'service-policy';
+	/** Exact endpoint composition or selected bindings retained by this contract. */
 	readonly endpoints: readonly EndpointEntry[];
 }
 
@@ -80,32 +85,51 @@ export type ServiceObserverEventKind = 'started' | 'response' | 'completed' | 'f
 
 /** Import-safe subscription to selected service request lifecycle events. */
 export interface ServiceObserverDefinition extends CatalogEntryIdentity {
+	/** Discriminant used to recognize this contract without inspecting its other fields. */
 	readonly kind: 'service-observer';
+	/** Purpose and behavior of this contract, supplied by its author. */
 	readonly description: string;
+	/** Service lifecycle event kinds selected for observation; receiving headers and completing a body are separate events. */
 	readonly events: readonly ServiceObserverEventKind[];
 }
 
 /** Credential-free service request metadata emitted by the framework-neutral runtime. Error text still requires host redaction before external export. */
 export interface ServiceObserverEvent {
+	/** Discriminant used to recognize this contract without inspecting its other fields. */
 	readonly kind: ServiceObserverEventKind;
+	/** Identity of the service selected for this route or observation. */
 	readonly serviceId: string;
+	/** Request correlation identity; it is diagnostic data rather than authorization. */
 	readonly requestId?: string;
+	/** Trace correlation identity retained for diagnostic propagation. */
 	readonly traceId?: string;
+	/** Span correlation identity for the current operation. */
 	readonly spanId?: string;
+	/** HTTP method selected for this operation or route. */
 	readonly method: string;
+	/** Declared route pathname or prefix; path parameters retain the endpoint grammar. */
 	readonly path: string;
+	/** Identity of the selected endpoint path contract. */
 	readonly endpointId: string;
+	/** Stable operation identity used by generated clients, routing and diagnostics. */
 	readonly operationId: string;
+	/** HTTP status selected by this response or reported by this lifecycle observation. */
 	readonly status?: number;
+	/** Observed response-body bytes; response headers alone do not prove body completion. */
 	readonly responseBytes?: number;
+	/** Response-body terminal outcome and delivered byte count, distinct from receiving headers. */
 	readonly completion?: Readonly<{ readonly outcome: 'completed' | 'cancelled' | 'errored'; readonly bytes: number }>;
+	/** Diagnostic failure retained for this observation; it does not replace the authoritative operation result. */
 	readonly error?: Readonly<{ readonly name: string; readonly message: string }>;
 }
 
 /** Runtime handler bound to one exact import-safe service observer definition. */
 export interface ServiceObserverHandler<Definition extends ServiceObserverDefinition = ServiceObserverDefinition> {
+	/** Discriminant used to recognize this contract without inspecting its other fields. */
 	readonly kind: 'service-observer-handler';
+	/** Exact declaration involved in this binding, result or validation issue. */
 	readonly definition: Definition;
+	/** Observe a redacted service lifecycle event; this callback cannot settle the request. */
 	readonly handle: (event: ServiceObserverEvent) => void | Promise<void>;
 }
 
@@ -120,10 +144,15 @@ export interface ServiceDefinition<
 	readonly id: Id;
 	/** Deterministic or canonical path associated with this service. */
 	readonly path: Path;
+	/** Declared environment contract or explicit host inputs; importing it does not read ambient values. */
 	readonly environment?: EnvironmentDefinition;
+	/** Exact endpoint composition or selected bindings retained by this contract. */
 	readonly endpoints: readonly EndpointEntry[];
+	/** Workflow declarations, or their IDs in manifests, contributed by this service. */
 	readonly workflows: readonly WorkflowDefinition[];
+	/** Additive policies that apply to exact declarations in this composition. */
 	readonly policies: readonly ServicePolicy[];
+	/** Observer declarations or exact host-supplied handlers; observers remain outside result authority. */
 	readonly observers: readonly ServiceObserverDefinition[];
 }
 
@@ -150,7 +179,9 @@ export interface ServiceSelection<
 > extends CatalogEntryIdentity {
 	/** Stable discriminant for this service selection value. */
 	readonly kind: 'service-selection';
+	/** Original exact service declaration from which the endpoint selection was made. */
 	readonly service: Service;
+	/** Exact endpoint composition or selected bindings retained by this contract. */
 	readonly endpoints: readonly EndpointDefinition[];
 }
 
@@ -163,19 +194,25 @@ export interface ServiceImplementation<
 	readonly kind: 'service-implementation';
 	/** Exact import-safe definition bound to this service implementation. */
 	readonly definition: Definition;
+	/** Exact endpoint handler bindings supplied for this service. */
 	readonly endpoints: readonly AnyEndpointHandlerBinding[];
+	/** Exact middleware handler bindings supplied for this service. */
 	readonly middleware: readonly MiddlewareHandler[];
 	/** Resource definitions or collection available to this service implementation. */
 	readonly resources: ResourceImplementationSet;
+	/** Compile-time host inference slot; it is not a runtime provider instance. */
 	readonly hostType?: Host;
 }
 
 /** Input accepted by `service.implement()`. */
 export interface ServiceImplementationInput<Host extends object = EmptyEndpointHost> {
+	/** Exact endpoint handler bindings supplied for this service. */
 	readonly endpoints?: readonly (AnyEndpointHandlerBinding | readonly AnyEndpointHandlerBinding[])[];
+	/** Exact middleware handler bindings supplied for this service. */
 	readonly middleware?: readonly MiddlewareHandler[];
 	/** Resource definitions or collection available to this service implementation. */
 	readonly resources?: ResourceImplementationSet;
+	/** Compile-time host inference slot; it is not a runtime provider instance. */
 	readonly hostType?: Host;
 }
 
@@ -183,11 +220,15 @@ export interface ServiceImplementationInput<Host extends object = EmptyEndpointH
 export interface ServiceRoute {
 	/** Stable service route identity used for correlation, lookup, or durable records. */
 	readonly id: string;
+	/** Exact service contract retained by this binding or selection. */
 	readonly service: ServiceDefinition;
+	/** Exact endpoint path contract to which this binding belongs. */
 	readonly endpoint: EndpointDefinition;
 	/** Child operation coordinated by this service route. */
 	readonly operation: EndpointOperation;
+	/** Enclosing endpoint groups retained in route order. */
 	readonly groups: readonly EndpointGroup[];
+	/** HTTP method selected for this operation or route. */
 	readonly method: EndpointMethod;
 	/** Deterministic or canonical path associated with this service route. */
 	readonly path: string;
@@ -195,7 +236,9 @@ export interface ServiceRoute {
 
 /** One request input selected during service compilation. */
 export interface ServiceExecutionInput {
+	/** Request location from which this compiled validation step reads wire values. */
 	readonly source: EndpointInputSource;
+	/** Schema or input declaration compiled for this particular request source. */
 	readonly slot: EndpointInputSlot;
 }
 
@@ -206,16 +249,23 @@ export interface ServiceExecutionInput {
  * declared validation, authentication, requirements, middleware, or resilience.
  */
 export interface ServiceExecutionPlan {
+	/** Declared request input slots or their compiled validation steps. */
 	readonly inputs: readonly ServiceExecutionInput[];
+	/** Maximum request-body bytes admitted by this runtime policy. */
 	readonly bodyLimit?: number;
+	/** Request timeout retained as a duration, or serialized duration text in a manifest. */
 	readonly timeout?: Temporal.Duration;
+	/** Prepared resilience policies applied at the request admission stage. */
 	readonly admission: readonly ResiliencePolicy[];
+	/** Resilience policies applied around the selected endpoint operation. */
 	readonly operation: readonly ResiliencePolicy[];
 }
 
 /** Fully resolved static contract for one operation. */
 export interface EffectiveServiceOperation extends ServiceRoute {
+	/** Declared middleware contributions or their compiled placement plan. */
 	readonly middleware: MiddlewarePlan;
+	/** Authentication contracts required by the selected operation; the host supplies their evaluator. */
 	readonly authentication: readonly CatalogEntryIdentity[];
 	/** Requirements active for every execution of this operation. */
 	readonly requirements: readonly RequirementDefinition[];
@@ -225,10 +275,15 @@ export interface EffectiveServiceOperation extends ServiceRoute {
 	readonly effects: readonly EffectDefinition[];
 	/** Resource definitions or collection available to this effective service operation. */
 	readonly resources: readonly ResourceDefinition[];
+	/** Declared HTTP problem contracts or their projected IDs. */
 	readonly problems: readonly ProblemDefinition[];
+	/** Declared successful response contracts or their projected IDs. */
 	readonly responses: readonly ResponseDefinition[];
+	/** Declared resilience policies; each policy retains a designated runtime owner. */
 	readonly resiliency: readonly ResiliencePolicy[];
+	/** Prepared request validation and policy work for this operation. */
 	readonly execution: ServiceExecutionPlan;
+	/** Exact endpoint handler selected during compilation. */
 	readonly handler: AnyEndpointHandlerBinding;
 }
 
@@ -236,6 +291,7 @@ export interface EffectiveServiceOperation extends ServiceRoute {
 export interface ServiceRouteManifestEntry {
 	/** Stable service route manifest identity used for correlation, lookup, or durable records. */
 	readonly id: string;
+	/** HTTP method selected for this operation or route. */
 	readonly method: Uppercase<EndpointMethod>;
 	/** Deterministic or canonical path associated with this service route manifest. */
 	readonly path: string;
@@ -243,6 +299,7 @@ export interface ServiceRouteManifestEntry {
 	readonly operationId: string;
 	/** Stable endpoint identity carried by this service route manifest. */
 	readonly endpointId: string;
+	/** Authentication contracts required by the selected operation; the host supplies their evaluator. */
 	readonly authentication: readonly string[];
 	/** Requirements owned directly by this service route manifest; reachable dependency requirements remain separate. */
 	readonly requirements: readonly RequirementDocument[];
@@ -252,11 +309,15 @@ export interface ServiceRouteManifestEntry {
 	readonly effects: readonly string[];
 	/** Resource definitions or collection available to this service route manifest. */
 	readonly resources: readonly string[];
+	/** Declared HTTP problem contracts or their projected IDs. */
 	readonly problems: readonly string[];
+	/** Declared successful response contracts or their projected IDs. */
 	readonly responses: readonly string[];
+	/** Declared middleware contributions or their compiled placement plan. */
 	readonly middleware: Readonly<Record<string, readonly string[]>>;
 	/** Effective resilience policies with their runtime owner and lifecycle stage. */
 	readonly resiliency: readonly ResilienceDocument[];
+	/** JSON-safe prepared input locations and body/time limits for this route. */
 	readonly execution: Readonly<
 		{ readonly inputs: readonly EndpointInputSource[]; readonly bodyLimit?: number; readonly timeout?: string }
 	>;
@@ -270,10 +331,13 @@ export interface ServiceManifest {
 	readonly path: string;
 	/** Human-readable service manifest purpose used by documentation and diagnostics. */
 	readonly description?: string;
+	/** Authored or compiled route entries retained by this application or manifest. */
 	readonly routes: readonly ServiceRouteManifestEntry[];
+	/** Declared environment contract or explicit host inputs; importing it does not read ambient values. */
 	readonly environment?: EnvironmentManifest;
 	/** Resource definitions or collection available to this service manifest. */
 	readonly resources: readonly string[];
+	/** Inspectable resource dependency graph; it contains no acquired resource values. */
 	readonly resourceGraph: readonly ResourceDocument[];
 	/** Requirements owned directly by this service manifest; reachable dependency requirements remain separate. */
 	readonly requirements: readonly RequirementDocument[];
@@ -281,12 +345,17 @@ export interface ServiceManifest {
 	readonly reachableRequirements: readonly RequirementDocument[];
 	/** Distinct effect IDs reachable from compiled service operations. */
 	readonly effects: readonly string[];
+	/** Declared HTTP problem contracts or their projected IDs. */
 	readonly problems: readonly string[];
+	/** Declared successful response contracts or their projected IDs. */
 	readonly responses: readonly string[];
+	/** Declared middleware contributions or their compiled placement plan. */
 	readonly middleware: readonly string[];
 	/** Distinct resilience policy kinds used anywhere in this service. */
 	readonly resiliency: readonly string[];
+	/** Workflow declarations, or their IDs in manifests, contributed by this service. */
 	readonly workflows: readonly string[];
+	/** Observer declarations or exact host-supplied handlers; observers remain outside result authority. */
 	readonly observers: readonly string[];
 }
 
@@ -299,10 +368,13 @@ export interface CompiledService<
 	readonly kind: 'compiled-service';
 	/** Exact import-safe definition bound to this compiled service. */
 	readonly definition: Definition;
+	/** Exact live behavior set bound to this compiled service. */
 	readonly implementation: ServiceImplementation<Definition, Host>;
 	/** Keyed child operations coordinated by this compiled service. */
 	readonly operations: readonly EffectiveServiceOperation[];
+	/** Prepared handler-free route metadata bound to the corresponding runtime handlers. */
 	readonly routePlan: RoutePlan;
+	/** Deterministic data projection for inspection, deployment and drift checks. */
 	readonly manifest: ServiceManifest;
 }
 
@@ -317,6 +389,7 @@ export type ServiceValidationSubject =
 
 /** One compiler validation issue. */
 export interface ServiceValidationIssue {
+	/** Stable failure code; callers should branch on this instead of matching explanation text. */
 	readonly code:
 		| 'invalid-definition'
 		| 'invalid-endpoint'
@@ -332,6 +405,7 @@ export interface ServiceValidationIssue {
 		| 'invalid-resiliency'
 		| 'missing-environment'
 		| 'environment-conflict';
+	/** Human-readable diagnostic explanation; it is not a stable program discriminator. */
 	readonly message: string;
 	/** Exact import-safe definition bound to this service validation issue. */
 	readonly definition?: ServiceValidationSubject;
@@ -427,6 +501,7 @@ export interface ServiceRuntimeAdapters<
 	Host extends object = EmptyEndpointHost,
 	Values extends ServiceRequestValues = ServiceRequestValues,
 > {
+	/** Host-owned evaluation of the declared authentication contracts before forwarding or operation admission. */
 	readonly authenticate?: (
 		requirements: readonly CatalogEntryIdentity[],
 		state: ServiceRequestState<Host, Values>,
@@ -441,9 +516,11 @@ export interface ServiceRuntimeAdapters<
 
 /** Direct-identity context store used by middleware and runtime adapters. */
 export interface ServiceContextStore {
+	/** Test whether this exact context definition has a stored request value. */
 	has<Definition extends MiddlewareContextDefinition>(definition: Definition): boolean;
 	/** Get one addressable value under this service context store contract. */
 	get<Definition extends MiddlewareContextDefinition>(definition: Definition): MiddlewareContextValue<Definition>;
+	/** Store a value under the exact context definition so later declared middleware can retrieve it. */
 	set<Definition extends MiddlewareContextDefinition>(
 		definition: Definition,
 		value: MiddlewareContextValue<Definition>,
@@ -455,8 +532,11 @@ export interface CreateServiceOptions<
 	Host extends object = EmptyEndpointHost,
 	Values extends ServiceRequestValues = ServiceRequestValues,
 > {
+	/** Declared environment contract or explicit host inputs; importing it does not read ambient values. */
 	readonly environment?: Readonly<Record<string, unknown>>;
+	/** Application-owned host values supplied by the composition root. */
 	readonly host: Host;
+	/** Host-supplied authentication, requirement or transport capabilities; no provider is chosen implicitly. */
 	readonly adapters?: ServiceRuntimeAdapters<Host, Values>;
 	/** Add domain-specific runtime views after validation and active admission requirements. */
 	readonly requirementContext?: (
@@ -464,6 +544,7 @@ export interface CreateServiceOptions<
 		state: ServiceRequestState<Host, Values>,
 		reachable: readonly RequirementDefinition[],
 	) => ServiceExecutionContext;
+	/** Bounded wire parsing policy and limit overrides for this runtime. */
 	readonly requestParsing?: RequestParsingOptions;
 	/** Exact observer handlers required by observer definitions imported by this service. */
 	readonly observers?: readonly ServiceObserverHandler[];

@@ -5,11 +5,17 @@ import { withHeaders } from './response.ts';
 
 /** Framework-neutral CORS policy. */
 export interface CorsOptionsType {
+	/** Explicit allowed origin, origin set or resolver; wildcard credentials are rejected. */
 	readonly origin?: string | readonly string[] | ((origin: string, request: Request) => string | undefined);
+	/** HTTP methods advertised for an admitted CORS preflight. */
 	readonly allowMethods?: readonly string[];
+	/** Request header names advertised for an admitted CORS preflight. */
 	readonly allowHeaders?: readonly string[];
+	/** Response header names exposed by the CORS policy. */
 	readonly exposeHeaders?: readonly string[];
+	/** Whether admitted CORS responses allow credentials; wildcard origin cannot be combined with this. */
 	readonly credentials?: boolean;
+	/** CORS preflight cache duration in seconds. */
 	readonly maxAge?: number;
 }
 

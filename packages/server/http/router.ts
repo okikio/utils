@@ -4,8 +4,26 @@ import type { RoutePlan, RoutePlanInput } from './types.ts';
 /** Runtime indexes derived once from an immutable route plan. */
 interface RouteIndexType {
 	readonly static: ReadonlyMap<string, string>;
-	readonly dynamic: ReadonlyMap<string, readonly RoutePlanInput[]>;
+	readonly dynamic: ReadonlyMap<string, PrefixType>;
 	readonly mounts: readonly RoutePlanInput[];
+}
+
+/** Cached template segments and key preserve the original bucket's specificity order. */
+interface CandidateType {
+	readonly parts: readonly string[];
+	readonly key: string;
+	readonly order: number;
+}
+
+/** Fixed segments before the first parameter partition candidates without changing their precedence. */
+interface PrefixType {
+	readonly children: Map<string, PrefixType>;
+	readonly candidates: CandidateType[];
+}
+
+/** Create one private prefix node; it is populated during preparation and never changed by matching. */
+function prefix(): PrefixType {
+	return { children: new Map(), candidates: [] };
 }
 
 const indexes = new WeakMap<RoutePlan, RouteIndexType>();
@@ -105,12 +123,31 @@ function runtimeIndex(plan: RoutePlan): RouteIndexType {
 		bucket.push(route);
 		dynamic.set(key, bucket);
 	}
-	for (const bucket of dynamic.values()) bucket.sort((a, b) => compareRouteSpecificity(b.path, a.path));
+	const partitions = new Map<string, PrefixType>();
+	for (const [key, bucket] of dynamic) {
+		bucket.sort((a, b) => compareRouteSpecificity(b.path, a.path));
+		const root = prefix();
+		for (const [order, route] of bucket.entries()) {
+			const parts = routeParts(route.path);
+			let node = root;
+			for (const part of parts) {
+				if (part.startsWith(':')) break;
+				let child = node.children.get(part);
+				if (child === undefined) {
+					child = prefix();
+					node.children.set(part, child);
+				}
+				node = child;
+			}
+			node.candidates.push({ parts, key: routeKey(route), order });
+		}
+		partitions.set(key, root);
+	}
 	mounts.sort((a, b) => b.path.length - a.path.length);
 	const value = Object.freeze(
 		{
 			static: staticRoutes,
-			dynamic: new Map([...dynamic].map(([key, value]) => [key, Object.freeze(value)] as const)),
+			dynamic: partitions,
 			mounts: Object.freeze(mounts),
 		} satisfies RouteIndexType,
 	);
@@ -125,21 +162,31 @@ function matchMethod(plan: RoutePlan, method: string, pathname: string): string 
 	if (exact !== undefined) return exact;
 	const actual = requestParts(pathname);
 	if (actual === undefined) return undefined;
-	const candidates = prepared.dynamic.get(bucketKey(method, actual.length));
-	if (!candidates) return undefined;
-	for (const route of candidates) {
-		const expected = routeParts(route.path);
-		let matches = true;
-		for (let part = 0; part < expected.length; part += 1) {
-			const candidate = expected[part]!;
-			if (!candidate.startsWith(':') && candidate !== actual[part]) {
-				matches = false;
+	let node = prepared.dynamic.get(bucketKey(method, actual.length));
+	let selected: CandidateType | undefined;
+	let depth = 0;
+	while (node !== undefined) {
+		for (const candidate of node.candidates) {
+			// Buckets retain their global rank. A narrower prefix must not hide an earlier generic candidate.
+			if (selected !== undefined && candidate.order >= selected.order) break;
+			if (matches(candidate.parts, actual)) {
+				selected = candidate;
 				break;
 			}
 		}
-		if (matches) return routeKey(route);
+		const part = actual[depth++];
+		node = part === undefined ? undefined : node.children.get(part);
 	}
-	return undefined;
+	return selected?.key;
+}
+
+/** Compare cached segments, keeping empty parameters and concrete duplicate/trailing slashes distinct. */
+function matches(expected: readonly string[], actual: readonly string[]): boolean {
+	for (let index = 0; index < expected.length; index += 1) {
+		const part = expected[index]!, value = actual[index]!;
+		if (part.startsWith(':') ? value.length === 0 : part !== value) return false;
+	}
+	return true;
 }
 
 /** Keep request-path splitting exact: duplicate and trailing slashes remain significant. */

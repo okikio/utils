@@ -4,8 +4,11 @@ import { withHeaders } from './response.ts';
 
 /** Options used by framework-neutral Server-Timing middleware. */
 export interface TimingOptions {
+	/** Server-Timing metric name. */
 	readonly name?: string;
+	/** Optional Server-Timing metric description. */
 	readonly description?: string;
+	/** Whether Server-Timing is emitted, or a predicate that selects requests for emission. */
 	readonly enabled?: (request: Request) => boolean;
 }
 

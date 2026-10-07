@@ -4,6 +4,7 @@ import { joinPath } from '@okikio/server/endpoint/path';
 import * as response from '@okikio/http/response';
 import * as problem from '@okikio/http/problem';
 import * as requestWire from '@okikio/http/request';
+import { forward as forwardHeaders } from '@okikio/http/headers';
 import { GatewayProblems } from './problems.ts';
 import * as fault from '@okikio/fault';
 import * as http from '../http/mod.ts';
@@ -25,6 +26,7 @@ import type {
 const removedRequestHeaders = Object.freeze(
 	new Set([
 		'connection',
+		'proxy-connection',
 		'keep-alive',
 		'proxy-authenticate',
 		'proxy-authorization',
@@ -37,19 +39,6 @@ const removedRequestHeaders = Object.freeze(
 		'x-request-id',
 		'traceparent',
 		'tracestate',
-	]),
-);
-
-const removedResponseHeaders = Object.freeze(
-	new Set([
-		'connection',
-		'keep-alive',
-		'proxy-authenticate',
-		'proxy-authorization',
-		'te',
-		'trailer',
-		'transfer-encoding',
-		'upgrade',
 	]),
 );
 
@@ -109,11 +98,13 @@ export function create(compiled: CompiledGateway, options: CreateGatewayOptions 
 			);
 			const route = match(compiled, request);
 			if (!route) {
-				await emit(
-					compiled.definition.observers,
-					observers,
-					event('denied', compiled.definition.id, correlation, request),
-				);
+				if (observed(compiled.definition.observers, 'denied')) {
+					await emit(
+						compiled.definition.observers,
+						observers,
+						event('denied', compiled.definition.id, correlation, request),
+					);
+				}
 				return correlated(
 					problemResponse(problem.create(GatewayProblems.NotFound, { instance: new URL(request.url).pathname })),
 					correlation.requestId,
@@ -141,10 +132,13 @@ async function forward(
 	options: CreateGatewayOptions,
 	observers: ReadonlyMap<GatewayObserverDefinition, GatewayObserverHandler>,
 ): Promise<Response> {
-	const controller = new AbortController();
-	const signal = AbortSignal.any([request.signal, controller.signal]);
+	// A controller is needed only for the gateway-owned deadline. The incoming
+	// signal already owns caller cancellation when no deadline is configured.
+	let signal = request.signal;
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	if (route.timeout !== undefined) {
+		const controller = new AbortController();
+		signal = AbortSignal.any([request.signal, controller.signal]);
 		timer = setTimeout(
 			() => controller.abort(new DOMException('Gateway deadline exceeded.', 'TimeoutError')),
 			timerMilliseconds(route.timeout),
@@ -154,27 +148,41 @@ async function forward(
 	const state = Object.freeze({ request, route, requestId, correlation, signal } satisfies GatewayRequestState);
 	const base = (kind: GatewayObserverEventKind): GatewayObserverEvent =>
 		event(kind, compiled.definition.id, correlation, request, route);
-	const finish = (httpResponse: Response): Response => {
-		const abortable = abortableResponse(httpResponse, signal);
-		return response.onComplete(correlated(abortable, requestId, options), async (completion) => {
+	const finish = (httpResponse: Response, forwarded = false): Response => {
+		// Generated problems get correlation only. Upstream responses additionally
+		// apply credentials and cache policy in the same sanitized header copy.
+		const prepared = forwarded
+			? forwardedResponse(httpResponse, route, requestId, options)
+			: correlated(httpResponse, requestId, options);
+		const abortable = abortableResponse(prepared, signal);
+		// Completion tracking owns the deadline and declared terminal events only.
+		// Caller cancellation still owns the abortable body when neither needs tracking.
+		if (
+			timer === undefined && !observed(route.observers, 'completed') &&
+			!observed(route.observers, 'failed') && !observed(route.observers, 'aborted')
+		) return abortable;
+		return response.onComplete(abortable, async (completion) => {
 			if (timer !== undefined) clearTimeout(timer);
 			let kind: GatewayObserverEventKind = 'failed';
 			if (completion.outcome === 'completed') kind = 'completed';
 			else if (signal.aborted) kind = 'aborted';
-			await emit(
-				route.observers,
-				observers,
-				Object.freeze({
-					...base(kind),
-					status: httpResponse.status,
-					responseBytes: completion.bytes,
-					completion: Object.freeze({ outcome: completion.outcome, bytes: completion.bytes }),
-				}),
-			);
+			if (observed(route.observers, kind)) {
+				await emit(
+					route.observers,
+					observers,
+					Object.freeze({
+						...base(kind),
+						status: httpResponse.status,
+						responseBytes: completion.bytes,
+						completion: Object.freeze({ outcome: completion.outcome, bytes: completion.bytes }),
+					}),
+				);
+			}
 		});
 	};
 	const finishProblem = (value: problem.ProblemResult): Response => finish(problemResponse(value));
 	try {
+		signal.throwIfAborted();
 		const headers = sanitizedHeaders(request.headers, route, options);
 		for (const [name, value] of requestWire.propagationHeaders(correlation)) headers.set(name, value);
 		applyForwardingHeaders(headers, request, options.clientIp?.(request));
@@ -213,43 +221,57 @@ async function forward(
 			signal,
 		};
 		const upstream = new Request(target, upstreamInit);
-		await emit(
-			route.observers,
-			observers,
-			Object.freeze({
-				...base('forwarding'),
-				...(body instanceof Uint8Array ? { requestBytes: body.byteLength } : contentLength(request)),
-			}),
-		);
-		const upstreamResponse = await fetcher(upstream);
-		await emit(route.observers, observers, Object.freeze({ ...base('response'), status: upstreamResponse.status }));
-		const redirected = applyRedirectPolicy(upstreamResponse, route, source);
-		if (problem.is(redirected)) return finishProblem(redirected);
-		const credentialsApplied = applyResponseCredentials(redirected, route);
-		return finish(applyCachePolicy(credentialsApplied, route.cache.mode));
-	} catch (error) {
-		if (request.signal.aborted) {
-			if (timer !== undefined) clearTimeout(timer);
+		if (observed(route.observers, 'forwarding')) {
 			await emit(
 				route.observers,
 				observers,
 				Object.freeze({
-					...base('aborted'),
-					error: safeError(error),
+					...base('forwarding'),
+					...(body instanceof Uint8Array ? { requestBytes: body.byteLength } : contentLength(request)),
 				}),
 			);
+		}
+		const upstreamResponse = await fetcher(upstream);
+		// A custom Fetch adapter can resolve after cancellation. Retain ownership
+		// of that late body until it is released, then preserve the caller's reason.
+		if (signal.aborted) {
+			await response.discard(upstreamResponse, signal.reason);
+			signal.throwIfAborted();
+		}
+		if (observed(route.observers, 'response')) {
+			await emit(route.observers, observers, Object.freeze({ ...base('response'), status: upstreamResponse.status }));
+		}
+		const redirected = applyRedirectPolicy(upstreamResponse, route, source);
+		if (problem.is(redirected)) {
+			await response.discard(upstreamResponse, redirected);
+			return finishProblem(redirected);
+		}
+		return finish(redirected, true);
+	} catch (error) {
+		if (request.signal.aborted) {
+			if (timer !== undefined) clearTimeout(timer);
+			if (observed(route.observers, 'aborted')) {
+				await emit(
+					route.observers,
+					observers,
+					Object.freeze({
+						...base('aborted'),
+						error: safeError(error),
+					}),
+				);
+			}
 			throw request.signal.reason ?? new DOMException('Request aborted.', 'AbortError');
 		}
 		await safeOnError(options, error, state);
 		const aborted = signal.aborted;
-		await emit(
-			route.observers,
-			observers,
-			Object.freeze({
-				...base(aborted ? 'aborted' : 'failed'),
-				error: safeError(error),
-			}),
-		);
+		const kind = aborted ? 'aborted' : 'failed';
+		if (observed(route.observers, kind)) {
+			await emit(
+				route.observers,
+				observers,
+				Object.freeze({ ...base(kind), error: safeError(error) }),
+			);
+		}
 		if (aborted) {
 			return finishProblem(problem.create(GatewayProblems.DeadlineExceeded, {
 				instance: new URL(request.url).pathname,
@@ -325,6 +347,11 @@ function observerIndex(
 	return new Map(handlers.map((handler) => [handler.definition, handler] as const));
 }
 
+/** Avoid allocating diagnostic records when no declared observer accepts the event. */
+function observed(definitions: readonly GatewayObserverDefinition[], kind: GatewayObserverEventKind): boolean {
+	return definitions.some((definition) => definition.events.includes(kind));
+}
+
 /**
  * Publishes a gateway diagnostic event without making the observer stream authoritative for routing state.
  *
@@ -398,9 +425,14 @@ function applyForwardingHeaders(headers: Headers, request: Pick<Request, 'url'>,
 /** Attach generic and host-selected request correlation headers to one gateway response. */
 function correlated(value: Response, requestId: string, options: CreateGatewayOptions): Response {
 	const headers = copyResponseHeaders(value.headers, true);
+	applyCorrelationHeaders(headers, requestId, options);
+	return new Response(value.body, { status: value.status, statusText: value.statusText, headers });
+}
+
+/** Apply trusted correlation after connection-nominated fields have been removed. */
+function applyCorrelationHeaders(headers: Headers, requestId: string, options: CreateGatewayOptions): void {
 	headers.set('x-request-id', requestId);
 	if (options.metadataHeaders?.requestId !== undefined) headers.set(options.metadataHeaders.requestId, requestId);
-	return new Response(value.body, { status: value.status, statusText: value.statusText, headers });
 }
 
 /** Apply routing metadata only after client headers and adapter patches have been sanitized. */
@@ -469,14 +501,16 @@ function sanitizedHeaders(input: Headers, route: CompiledGatewayRoute, options: 
 
 /** Remove caller-controlled transport and trust headers before a downstream hop is constructed. @internal */
 function sanitizedForwardHeaders(input: Headers, options: PrepareGatewayRequestOptions): Headers {
-	const output = new Headers();
-	input.forEach((value, key) => {
+	const output = forwardHeaders(input);
+	// Headers iterators are live. Snapshot names so deletion cannot skip adjacent
+	// reserved fields and allow a second client-controlled trust value through.
+	for (const key of [...output.keys()]) {
 		const normalized = key.toLowerCase();
-		if (removedRequestHeaders.has(normalized)) return;
-		if (trustedHeader(normalized, options)) return;
-		if (normalized === 'forwarded' || normalized.startsWith('x-forwarded-')) return;
-		output.append(key, value);
-	});
+		if (
+			removedRequestHeaders.has(normalized) || trustedHeader(normalized, options) ||
+			normalized === 'forwarded' || normalized.startsWith('x-forwarded-')
+		) output.delete(key);
+	}
 	return output;
 }
 
@@ -505,13 +539,28 @@ function applyHeaders(headers: Headers, patch: Readonly<Record<string, string>> 
 }
 
 /**
- * Applies response credential policy at the phase that owns its side effects.
+ * Apply upstream credential, cache and correlation policy with one header copy.
  *
- * @internal
+ * Strip connection-nominated fields before adding gateway-owned policy values;
+ * preserve separate cookies only when the route allows them. Generated problems
+ * use correlation alone and must not inherit this upstream response policy.
  */
-function applyResponseCredentials(value: Response, route: CompiledGatewayRoute): Response {
-	if (route.credentials.responseCookies === 'preserve') return value;
-	const headers = copyResponseHeaders(value.headers, false);
+function forwardedResponse(
+	value: Response,
+	route: CompiledGatewayRoute,
+	requestId: string,
+	options: CreateGatewayOptions,
+): Response {
+	const headers = copyResponseHeaders(
+		value.headers,
+		route.credentials.responseCookies === 'preserve',
+		value.body !== null,
+	);
+	if (route.cache.mode === 'no-store') {
+		headers.set('Cache-Control', 'no-store');
+		headers.set('Pragma', 'no-cache');
+	}
+	applyCorrelationHeaders(headers, requestId, options);
 	return new Response(value.body, { status: value.status, statusText: value.statusText, headers });
 }
 
@@ -542,21 +591,8 @@ function applyRedirectPolicy(
 	}
 	if (route.redirects.mode !== 'rewrite-origin' || resolved.origin !== new URL(route.origin).origin) return value;
 	const rewritten = new URL(resolved.pathname + resolved.search + resolved.hash, incoming.origin);
-	const headers = copyResponseHeaders(value.headers, true);
+	const headers = copyResponseHeaders(value.headers, true, value.body !== null);
 	headers.set('Location', rewritten.href);
-	return new Response(value.body, { status: value.status, statusText: value.statusText, headers });
-}
-
-/**
- * Applies cache policy at the phase that owns its side effects.
- *
- * @internal
- */
-function applyCachePolicy(value: Response, mode: 'no-store' | 'pass-through'): Response {
-	if (mode === 'pass-through') return value;
-	const headers = copyResponseHeaders(value.headers, true);
-	headers.set('Cache-Control', 'no-store');
-	headers.set('Pragma', 'no-cache');
 	return new Response(value.body, { status: value.status, statusText: value.statusText, headers });
 }
 
@@ -567,22 +603,19 @@ function applyCachePolicy(value: Response, mode: 'no-store' | 'pass-through'): R
  *
  * @internal
  */
-function copyResponseHeaders(input: Headers, includeCookies: boolean): Headers {
-	const output = new Headers();
-	input.forEach((value, key) => {
-		const normalized = key.toLowerCase();
-		if (normalized === 'set-cookie' || removedResponseHeaders.has(normalized)) return;
-		output.append(key, value);
-	});
-	if (includeCookies) {
-		let cookieHeaders: string[] = [];
-		if ('getSetCookie' in input && typeof input.getSetCookie === 'function') cookieHeaders = input.getSetCookie();
-		else {
-			const cookie = input.get('set-cookie');
-			if (cookie !== null) cookieHeaders = [cookie];
-		}
-		for (const value of cookieHeaders) output.append('Set-Cookie', value);
+function copyResponseHeaders(input: Headers, includeCookies: boolean, upstreamBody = false): Headers {
+	// Strip connection-nominated fields before credential policy; cookie preservation must not restore a removed hop field.
+	const output = forwardHeaders(input);
+	// Native Fetch in both supported runtimes decodes single gzip/br bodies while
+	// retaining wire headers. Other codings differ between engines, so their
+	// adapters must normalize metadata themselves. HEAD and empty wire bodies
+	// retain representation metadata. Inspect before Connection can remove it.
+	const encoding = input.get('content-encoding')?.trim().toLowerCase();
+	if (upstreamBody && input.get('content-length')?.trim() !== '0' && (encoding === 'gzip' || encoding === 'br')) {
+		output.delete('content-encoding');
+		output.delete('content-length');
 	}
+	if (!includeCookies) output.delete('set-cookie');
 	return output;
 }
 

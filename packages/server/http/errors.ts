@@ -10,8 +10,11 @@ export type ErrorResultType = Response | problem.ProblemResult | undefined;
 
 /** Options used by the framework-neutral all-errors middleware. */
 export interface ErrorOptions {
+	/** Map an unexpected error to an explicit Response; absent mapping falls back to the configured problem. */
 	readonly map?: (error: Error, request: Request) => ErrorResultType | Promise<ErrorResultType>;
+	/** Observe an unexpected downstream error before it is mapped to a response. */
 	readonly onError?: (error: Error, request: Request, response: Response) => void | Promise<void>;
+	/** Declared fallback HTTP problem used when the error mapper supplies no response. */
 	readonly problem?: problem.ProblemDefinition;
 }
 

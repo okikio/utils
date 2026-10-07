@@ -69,8 +69,11 @@ function splitRequestPath(pathname: string): readonly string[] {
 
 /** Options used by trailing-slash normalization middleware. */
 export interface TrailingSlashOptions {
+	/** Redirect a noncanonical GET pathname immediately; otherwise redirect only after the original route returns 404. */
 	readonly alwaysRedirect?: boolean;
+	/** Redirect status; defaults to 301. */
 	readonly status?: 301 | 302 | 307 | 308;
+	/** Skip trailing-slash normalization for a pathname selected by this predicate. */
 	readonly skip?: (pathname: string) => boolean;
 }
 

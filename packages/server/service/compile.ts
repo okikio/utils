@@ -47,8 +47,10 @@ import type {
 
 /** Error raised when service compilation finds one or more contract defects. */
 export class ServiceCompilationError extends Error {
+	/** Structured validation issues retained for inspection without matching error messages. */
 	readonly issues: readonly ServiceValidationIssue[];
 
+	/** Retain service validation issues when compilation cannot produce a valid route set. */
 	constructor(issues: readonly ServiceValidationIssue[]) {
 		super(
 			`Service compilation failed with ${issues.length} issue${issues.length === 1 ? '' : 's'}:\n${

@@ -23,8 +23,11 @@ export type OpenApiSpecVersion = '3.1.0' | '3.1.1' | '3.1.2' | '3.2.0';
 
 /** Context supplied when OpenAPI needs a schema-library-specific projection. */
 export interface OpenApiSchemaProjectionContext {
+	/** Whether this schema projection describes request input or response output. */
 	readonly purpose: 'request' | 'response';
+	/** OpenAPI document version selected by the projection owner. */
 	readonly specVersion: OpenApiSpecVersion;
+	/** JSON Schema draft requested from this schema-library adapter. */
 	readonly target: 'draft-2020-12';
 }
 
@@ -36,27 +39,37 @@ export type OpenApiSchemaProjector = (
 
 /** One server origin advertised by an OpenAPI document. */
 export interface OpenApiServer {
+	/** Explicit URL used by this contract; transport owners validate origins separately. */
 	readonly url: string;
+	/** Purpose and behavior of this contract, supplied by its author. */
 	readonly description?: string;
 }
 
 /** OpenAPI 3.1 document generated from one endpoint composition. */
 export interface OpenApiDocument {
+	/** OpenAPI document version emitted by this projection. */
 	readonly openapi: OpenApiSpecVersion;
+	/** API title, application version and description for generated clients and references. */
 	readonly info: Readonly<{
 		readonly title: string;
 		readonly version: string;
 		readonly description?: string;
 	}>;
+	/** Projected endpoint paths and method-operation descriptions. */
 	readonly paths: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+	/** Advertised server origins; this projection does not open connections. */
 	readonly servers?: readonly OpenApiServer[];
 }
 
 /** Options for the endpoint-only OpenAPI projection. */
 export interface OpenApiOptions {
+	/** API title shown in generated references. */
 	readonly title: string;
+	/** Application API version shown in generated references. */
 	readonly version: string;
+	/** Purpose and behavior of this contract, supplied by its author. */
 	readonly description?: string;
+	/** Include internal operations in this explicitly requested documentation projection. */
 	readonly includeInternal?: boolean;
 	/** OpenAPI document version. Defaults to 3.1.2. Selecting 3.2.0 does not synthesize features that only exist in 3.2. */
 	readonly specVersion?: OpenApiSpecVersion;

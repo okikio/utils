@@ -1,7 +1,23 @@
 /**
- * Import-safe endpoint definitions, request contracts, matching, and endpoint composition.
+ * Describe a route from input and response contracts before a handler or provider starts.
  *
- * Runtime server resources are created by higher-level service/gateway composition, not by importing this namespace.
+ * Bind the exact Health definition with endpoint.handler(), then compile its service. Domain schemas remain authoritative for coercion and validation; endpoint wire projections describe what clients actually send.
+ *
+ * @example
+ * ```ts
+ * import '@okikio/duration/polyfill';
+ * import '@okikio/dispose/polyfill';
+ * import * as endpoint from '@okikio/server/endpoint';
+ * import * as response from '@okikio/http/response';
+ * import * as service from '@okikio/server/service';
+ * import { z } from 'zod';
+ * const Healthy = response.ok(z.object({ ok: z.boolean() }), { id: 'health.ok', description: 'Service health.' });
+ * const Health = endpoint.get({ id: 'health.read', path: '/health', responses: [Healthy] });
+ * const Api = service.define({ id: 'health-api', path: '/api', endpoints: [Health] });
+ * console.log(Health.path, Api.path);
+ * ```
+ *
+ * @module
  */
 export {
 	compose,

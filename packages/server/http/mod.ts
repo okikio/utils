@@ -1,4 +1,18 @@
-/** Framework-neutral HTTP host composition built directly on Web Request and Response. */
+/**
+ * Mount a portable Fetch app while keeping listener ownership with the host.
+ *
+ * Add mounts, request correlation, CORS or safe exception responses deliberately. HEAD fallback selects GET behavior while the runtime suppresses its response body. A Deno or framework adapter owns the network listener.
+ *
+ * @example
+ * ```ts
+ * import * as http from '@okikio/server/http';
+ * const app = http.create({ routes: [http.route('GET', '/health', () => Response.json({ ok: true }))], middleware: [http.securityHeaders()] });
+ * console.log((await app.fetch(new Request('https://service.invalid/health', { method: 'HEAD' }))).status);
+ * console.log((await app.fetch(new Request('https://service.invalid/missing'))).status);
+ * ```
+ *
+ * @module
+ */
 export { compose, create, mount, route } from './app.ts';
 export { access } from './access.ts';
 export { correlation } from './correlation.ts';

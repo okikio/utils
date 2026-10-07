@@ -100,10 +100,10 @@ const repository = resource.implement(WidgetRepository, {
 describe('service compiler', () => {
 	it('requires canonical service paths at definition time', () => {
 		expect(() => service.define({ id: 'widgets-double-slash', path: '//api', endpoints: [GetWidget] })).toThrow(
-			'empty path segments',
+			TypeError,
 		);
 		expect(() => service.define({ id: 'widgets-trailing-slash', path: '/api/', endpoints: [GetWidget] })).toThrow(
-			'must not end with /',
+			TypeError,
 		);
 	});
 

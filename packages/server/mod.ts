@@ -1,9 +1,20 @@
 /**
- * Server composition namespaces.
+ * Compose a portable fetch application from route and middleware values. A large if chain mixes routing, exception mapping and security headers, making it hard to mount the same service on another host.
  *
- * Definitions remain import-safe. Runtime construction occurs only through an
- * explicit `service.create` or `gateway.create` call. Resource ownership lives
- * in the provider-neutral `@okikio/resource` package.
+ * Start with Web Request/Response routes, then move stable schemas into endpoint definitions and bind implementations through services. A gateway composes host services; an explicit Deno or framework adapter starts the listener. Definitions do not create connections. Middleware and response bodies have real ownership and cancellation costs, so choose buffering only for bounded payloads.
+ *
+ * @example
+ * ```ts
+ * import * as http from '@okikio/server/http';
+ * const app = http.create({
+ *   routes: [http.route('GET', '/health', () => Response.json({ ok: true }))],
+ *   middleware: [http.securityHeaders()],
+ * });
+ * const response = await app.fetch(new Request('https://service.invalid/health'));
+ * console.log(response.status, (await response.json()).ok);
+ * ```
+ *
+ * @module
  */
 export * as http from './http/mod.ts';
 export * as endpoint from './endpoint/mod.ts';

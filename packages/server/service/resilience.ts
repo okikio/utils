@@ -19,8 +19,10 @@ import type {
  * throw this wrapper or supply an explicit classifier to {@link retry}.
  */
 export class RetryableOperationError extends Error {
+	/** Stable failure code; callers should branch on this instead of matching explanation text. */
 	readonly code?: string;
 
+	/** Retain a stable failure code for the explicit retry policy to inspect. */
 	constructor(cause: Error, options: Readonly<{ readonly code?: string; readonly message?: string }> = {}) {
 		super(options.message ?? fault.message(cause), { cause });
 		this.name = 'RetryableOperationError';

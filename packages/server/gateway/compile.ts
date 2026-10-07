@@ -48,8 +48,10 @@ const defaultRedirects = Object.freeze(
 
 /** Error raised when a gateway cannot be compiled safely. */
 export class GatewayCompilationError extends Error {
+	/** Structured validation issues retained for inspection without matching error messages. */
 	readonly issues: readonly GatewayValidationIssue[];
 
+	/** Retain gateway validation issues when compilation cannot produce a valid route set. */
 	constructor(issues: readonly GatewayValidationIssue[]) {
 		super(
 			`Gateway compilation failed with ${issues.length} issue${issues.length === 1 ? '' : 's'}:\n${

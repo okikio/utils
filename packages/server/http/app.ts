@@ -33,7 +33,12 @@ export function mount(path: string, handler: Handler, options: MountOptions = {}
 	return Object.freeze({ kind: 'mount', path: normalizeMountPath(path), handler, requestPath });
 }
 
-/** Compose Fetch-compatible middleware around one terminal handler in authored order. */
+/**
+ * Compose Fetch-compatible middleware around one terminal handler in authored order.
+ * Each invocation owns its downstream call. Calling that middleware's `next`
+ * twice rejects before a second route or side effect runs; requests reuse the
+ * prepared chain with independent guards.
+ */
 export function compose(handler: Handler, middleware: readonly Middleware[] = []): Handler {
 	if (typeof handler !== 'function') throw new TypeError('HTTP handler must be a function.');
 	const layers = middlewareList(middleware);
@@ -41,7 +46,20 @@ export function compose(handler: Handler, middleware: readonly Middleware[] = []
 	for (let index = layers.length - 1; index >= 0; index -= 1) {
 		const next = current;
 		const layer = layers[index]!;
-		current = (request) => layer(request, next);
+		current = (request) => {
+			let called = false;
+			return layer(request, (downstream) => {
+				if (called) return Promise.reject(new TypeError('HTTP middleware next() cannot be called more than once.'));
+				called = true;
+				// Reuse an asynchronous handler's promise. A synchronous result or
+				// failure still becomes a promise so next(request).catch(...) works.
+				try {
+					return Promise.resolve(next(downstream));
+				} catch (error) {
+					return Promise.reject(error);
+				}
+			});
+		};
 	}
 	return current;
 }
@@ -55,14 +73,15 @@ export function create(options: CreateOptionsType = {}): App {
 	const notFound = options.notFound ?? (() => new Response('Not found.', { status: 404 }));
 	if (typeof notFound !== 'function') throw new TypeError('HTTP notFound handler must be a function when provided.');
 	const middleware = middlewareList(options.middleware ?? []);
-	const dispatch: Handler = async (request) => {
+	// Routing adds no asynchronous work. Forward the selected result directly;
+	// middleware and the public Fetch boundary still own rejection and HEAD cleanup.
+	const dispatch: Handler = (request) => {
 		const url = new URL(request.url);
 		const method = request.method.toUpperCase();
 		const key = matchRoute(plan, method, url.pathname);
 		if (key !== undefined) {
 			const selected = handlers.get(key)!;
-			const response = await selected.handler(request);
-			return method === 'HEAD' ? await withoutBody(response) : response;
+			return selected.handler(request);
 		}
 		const mountKey = matchMount(plan, url.pathname);
 		if (mountKey !== undefined) {
@@ -70,11 +89,24 @@ export function create(options: CreateOptionsType = {}): App {
 			const mountedRequest = selected.kind === 'mount' && selected.requestPath === 'strip-prefix'
 				? new Request(stripMountPrefix(url, selected.path), request)
 				: request;
-			return await selected.handler(mountedRequest);
+			return selected.handler(mountedRequest);
 		}
-		return await notFound(request);
+		return notFound(request);
 	};
-	return Object.freeze({ routes, fetch: compose(dispatch, middleware) });
+	const fetch = compose(dispatch, middleware);
+	return Object.freeze({
+		routes,
+		fetch(request: Request): Promise<Response> {
+			try {
+				const response = Promise.resolve(fetch(request));
+				// Only HEAD needs a continuation after the final middleware result.
+				// Other requests can retain the handler's promise without another await.
+				return request.method === 'HEAD' ? response.then(withoutBody) : response;
+			} catch (error) {
+				return Promise.reject(error);
+			}
+		},
+	});
 }
 
 /** Bind exact handlers to an inert compiler route plan and reject plan drift. */

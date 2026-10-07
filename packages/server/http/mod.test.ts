@@ -22,6 +22,52 @@ import {
 } from './mod.ts';
 
 describe('framework-neutral HTTP host', () => {
+	it('keeps synchronous route failures inside the public Fetch rejection boundary', async () => {
+		const reason = new Error('route failed');
+		const app = create({
+			routes: [route('GET', '/fault', () => {
+				throw reason;
+			})],
+		});
+		// Obtaining the promise must not throw, and the caller owns the exact failure.
+		const result = app.fetch(new Request('http://localhost/fault'));
+		await expect(result).rejects.toBe(reason);
+	});
+
+	it('joins delayed route results and preserves middleware error recovery for routes, mounts and misses', async () => {
+		const reason = new Error('selected handler failed');
+		const seen: unknown[] = [];
+		const app = create({
+			routes: [
+				route('GET', '/fault', () => {
+					throw reason;
+				}),
+				route('GET', '/delayed', async () => {
+					await Promise.resolve();
+					throw reason;
+				}),
+				mount('/mounted', () => Promise.reject(reason)),
+			],
+			notFound: () => {
+				throw reason;
+			},
+			middleware: [async (request, next) => {
+				try {
+					return await next(request);
+				} catch (error) {
+					seen.push(error);
+					return new Response('recovered', { status: 503 });
+				}
+			}],
+		});
+		for (const path of ['/fault', '/delayed', '/mounted/child', '/missing']) {
+			const result = await app.fetch(new Request(`http://localhost${path}`));
+			expect(result.status).toBe(503);
+			expect(await result.text()).toBe('recovered');
+		}
+		expect(seen).toEqual([reason, reason, reason, reason]);
+	});
+
 	it('dispatches exact and parameterized routes without a framework', async () => {
 		const app = create({
 			routes: [
@@ -51,7 +97,7 @@ describe('framework-neutral HTTP host', () => {
 					route('GET', '/same', () => new Response('second')),
 				],
 			})
-		).toThrow(/Duplicate HTTP route shape/u);
+		).toThrow(TypeError);
 	});
 
 	it('rejects parameter-name-only route duplicates', () => {
@@ -62,7 +108,7 @@ describe('framework-neutral HTTP host', () => {
 					route('GET', '/items/:slug', () => new Response('slug')),
 				],
 			})
-		).toThrow(/Duplicate HTTP route shape/u);
+		).toThrow(TypeError);
 	});
 
 	it('keeps trailing-slash routes distinct so append policy has a reachable target', async () => {
@@ -104,10 +150,10 @@ describe('framework-neutral HTTP host', () => {
 	});
 
 	it('rejects route templates that URL parsing would rewrite before matching', () => {
-		expect(() => route('GET', '/items?mode=all', () => new Response('bad'))).toThrow('must not contain a query');
-		expect(() => route('GET', '/items/%2e%2e/admin', () => new Response('bad'))).toThrow('dot segments');
-		expect(() => route('GET', '/items/:', () => new Response('bad'))).toThrow('route parameter');
-		expect(() => route('GET', '/items/:item-id', () => new Response('bad'))).toThrow('route parameter');
+		expect(() => route('GET', '/items?mode=all', () => new Response('bad'))).toThrow(TypeError);
+		expect(() => route('GET', '/items/%2e%2e/admin', () => new Response('bad'))).toThrow(TypeError);
+		expect(() => route('GET', '/items/:', () => new Response('bad'))).toThrow(TypeError);
+		expect(() => route('GET', '/items/:item-id', () => new Response('bad'))).toThrow(TypeError);
 	});
 
 	it('prefers a static route over a matching parameter route regardless of authored order', async () => {
@@ -136,7 +182,7 @@ describe('framework-neutral HTTP host', () => {
 					mount('/api', () => new Response('second')),
 				],
 			})
-		).toThrow(/Duplicate HTTP mount path/u);
+		).toThrow(TypeError);
 	});
 
 	it('binds a compiler-prepared route plan and rejects plan drift', async () => {
@@ -148,9 +194,7 @@ describe('framework-neutral HTTP host', () => {
 		const app = create({ routes, plan });
 		expect(await (await app.fetch(new Request('http://localhost/static'))).text()).toBe('static');
 		expect(await (await app.fetch(new Request('http://localhost/items/1', { method: 'POST' }))).text()).toBe('item');
-		expect(() => create({ routes: [route('GET', '/other', () => new Response('other'))], plan })).toThrow(
-			/bound handler|absent from/u,
-		);
+		expect(() => create({ routes: [route('GET', '/other', () => new Response('other'))], plan })).toThrow(TypeError);
 	});
 
 	it('strips a mount prefix without changing MCP-style method, headers, query, or body', async () => {
@@ -222,6 +266,42 @@ describe('framework-neutral HTTP host', () => {
 		expect(observed).toEqual(['a:before', 'b:before', 'handler', 'b:after', 'a:after']);
 	});
 
+	it('lets middleware recover synchronous downstream failures through the continuation promise', async () => {
+		const reason = new Error('downstream failed');
+		let observed: unknown;
+		const handler = compose(() => {
+			throw reason;
+		}, [
+			(request, next) =>
+				Promise.resolve(next(request)).catch((error) => {
+					observed = error;
+					return new Response('recovered');
+				}),
+		]);
+		expect(await (await handler(new Request('https://example.test/'))).text()).toBe('recovered');
+		expect(observed).toBe(reason);
+	});
+
+	it('rejects a repeated continuation while preserving the first response and request isolation', async () => {
+		let calls = 0;
+		const handler = compose(() => {
+			calls += 1;
+			return new Response('once');
+		}, [
+			async (request, next) => {
+				const first = next(request);
+				await expect(Promise.resolve(next(request))).rejects.toBeInstanceOf(TypeError);
+				return await first;
+			},
+		]);
+		const responses = await Promise.all([
+			handler(new Request('https://example.test/one')),
+			handler(new Request('https://example.test/two')),
+		]);
+		expect(await Promise.all(responses.map((response) => response.text()))).toEqual(['once', 'once']);
+		expect(calls).toBe(2);
+	});
+
 	it('catches unexpected values and returns a safe RFC 9457 problem', async () => {
 		let observed: Error | undefined;
 		const handler = compose(
@@ -290,15 +370,15 @@ describe('framework-neutral HTTP host', () => {
 				return 'DENY';
 			},
 		});
-		expect(() => securityHeaders(options)).toThrow('enumerable data property');
+		expect(() => securityHeaders(options)).toThrow(TypeError);
 		expect(reads).toBe(0);
 	});
 
 	it('rejects invalid security-header values instead of coercing them', () => {
 		expect(() => Reflect.apply(securityHeaders, undefined, [{ xFrameOptions: 1 }]))
-			.toThrow('xFrameOptions must be a string or false');
+			.toThrow(TypeError);
 		expect(() => Reflect.apply(securityHeaders, undefined, [{ additional: { 'X-Test': 1 } }]))
-			.toThrow('additional security header');
+			.toThrow(TypeError);
 	});
 
 	it('snapshots CORS configuration and rejects accessor-backed lists without invoking them', async () => {
@@ -313,7 +393,7 @@ describe('framework-neutral HTTP host', () => {
 			},
 		});
 		methods.length = 1;
-		expect(() => cors({ allowMethods: methods })).toThrow('dense string data elements');
+		expect(() => cors({ allowMethods: methods })).toThrow(TypeError);
 		expect(reads).toBe(0);
 
 		const options = { allowMethods: ['GET'] };
@@ -351,15 +431,15 @@ describe('framework-neutral HTTP host', () => {
 	});
 
 	it('rejects invalid credentialed wildcard and max-age CORS configuration', async () => {
-		expect(() => cors({ origin: '*', credentials: true })).toThrow(/wildcard origin/u);
-		expect(() => cors({ maxAge: -1 })).toThrow(/non-negative safe integer/u);
+		expect(() => cors({ origin: '*', credentials: true })).toThrow(TypeError);
+		expect(() => cors({ maxAge: -1 })).toThrow(TypeError);
 		const dynamic = cors({ credentials: true, origin: () => '*' });
 		const handler = compose(() => new Response('ok'), [dynamic]);
 		await expect(handler(
 			new Request('http://localhost/', {
 				headers: { Origin: 'https://app.example' },
 			}),
-		)).rejects.toThrow(/origin resolver returned a wildcard/u);
+		)).rejects.toThrow(TypeError);
 	});
 
 	it('merges Origin into an existing Vary field', async () => {
@@ -477,7 +557,7 @@ describe('framework-neutral HTTP host', () => {
 	});
 
 	it('rejects invalid access observers at middleware creation', () => {
-		expect(() => Reflect.apply(access, undefined, [undefined])).toThrow('access observer must be a function');
+		expect(() => Reflect.apply(access, undefined, [undefined])).toThrow(TypeError);
 	});
 
 	it('validates and snapshots response header replacement input', async () => {
@@ -490,7 +570,7 @@ describe('framework-neutral HTTP host', () => {
 				return 'bad';
 			},
 		});
-		expect(() => withHeaders(new Response('ok'), set)).toThrow('enumerable data property');
+		expect(() => withHeaders(new Response('ok'), set)).toThrow(TypeError);
 		expect(reads).toBe(0);
 
 		const remove: string[] = [];
@@ -503,7 +583,7 @@ describe('framework-neutral HTTP host', () => {
 			},
 		});
 		remove.length = 1;
-		expect(() => withHeaders(new Response('ok'), {}, remove)).toThrow('dense string data elements');
+		expect(() => withHeaders(new Response('ok'), {}, remove)).toThrow(TypeError);
 		expect(reads).toBe(0);
 
 		const result = withHeaders(

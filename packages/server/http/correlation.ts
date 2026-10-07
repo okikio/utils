@@ -5,6 +5,7 @@ import type { Middleware } from './types.ts';
 
 /** Options used to establish and observe one request correlation value. */
 export interface CorrelationOptions extends requestWire.RequestCorrelationOptions {
+	/** Observe established request correlation without choosing admission or response behavior. */
 	readonly observe?: (value: requestWire.RequestCorrelation, request: Request) => void | Promise<void>;
 }
 

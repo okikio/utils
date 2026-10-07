@@ -3,8 +3,11 @@ import type { Handler, ReadinessType } from './types.ts';
 
 /** Options used by the liveness handler. */
 export interface HealthOptions {
+	/** Optional application service name included in the liveness result. */
 	readonly service?: string;
+	/** Service start time as epoch milliseconds, used for uptime reporting. */
 	readonly startedAt?: number;
+	/** Clock returning a valid Date for liveness timestamp and uptime reporting. */
 	readonly now?: () => Date;
 }
 

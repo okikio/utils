@@ -17,6 +17,7 @@ interface ExactRouteType {
 
 /** Controls which pathname a mounted child Fetch handler receives. */
 export interface MountOptions {
+	/** Whether a prefix mount preserves the request pathname or strips its matched prefix. */
 	readonly requestPath?: 'preserve' | 'strip-prefix';
 }
 
@@ -38,14 +39,19 @@ export type RoutePlanInput =
 
 /** Immutable handler-free route plan prepared before request dispatch. */
 export interface RoutePlan {
+	/** Discriminant used to recognize this contract without inspecting its other fields. */
 	readonly kind: 'http-route-plan';
+	/** Authored or compiled route entries retained by this application or manifest. */
 	readonly routes: readonly RoutePlanInput[];
 }
 
 /** Options used to create one framework-neutral HTTP application. */
 export interface CreateOptionsType {
+	/** Authored or compiled route entries retained by this application or manifest. */
 	readonly routes?: readonly RouteType[];
+	/** Declared middleware contributions or their compiled placement plan. */
 	readonly middleware?: readonly Middleware[];
+	/** Fetch-compatible handler used when no route matches the request. */
 	readonly notFound?: Handler;
 	/** Optional compiler-produced plan. Every authored route must bind to it exactly. */
 	readonly plan?: RoutePlan;
@@ -53,14 +59,19 @@ export interface CreateOptionsType {
 
 /** Fetch-compatible HTTP application assembled from explicit routes and middleware. */
 export interface App {
+	/** Authored or compiled route entries retained by this application or manifest. */
 	readonly routes: readonly RouteType[];
+	/** Fetch-compatible request entry; its host owns listeners and transport shutdown. */
 	readonly fetch: Handler;
 }
 
 /** Outcome returned by a readiness probe. */
 export interface ReadinessType {
+	/** Whether the probe reports that this application can accept useful work. */
 	readonly ready: boolean;
+	/** Human-readable explanation of this occurrence or readiness result. */
 	readonly detail?: string;
+	/** Named readiness outcomes returned by the explicit probe. */
 	readonly checks?: Readonly<Record<string, boolean>>;
 }
 

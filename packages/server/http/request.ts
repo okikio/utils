@@ -6,9 +6,11 @@ import { withHeaders } from './response.ts';
 
 /** Options used by request-ID propagation middleware. */
 export interface RequestIdOptions {
+	/** Header used for downstream and response request-ID propagation; defaults to X-Request-ID. */
 	readonly header?: string;
 	/** Reuse a valid inbound request ID. Defaults to false. */
 	readonly trustIncoming?: boolean;
+	/** Supply a request identity when ingress did not provide a trusted valid one. */
 	readonly generate?: (request: Request) => string;
 }
 

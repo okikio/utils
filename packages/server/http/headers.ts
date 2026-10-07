@@ -5,17 +5,29 @@ import { withHeaders } from './response.ts';
 
 /** Static security-header overrides. `false` removes one default header. */
 export interface SecurityHeadersOptionsType {
+	/** Override Cross-Origin-Opener-Policy; false removes that default header. */
 	readonly crossOriginOpenerPolicy?: string | false;
+	/** Override Cross-Origin-Resource-Policy; false removes that default header. */
 	readonly crossOriginResourcePolicy?: string | false;
+	/** Override Origin-Agent-Cluster; false removes that default header. */
 	readonly originAgentCluster?: string | false;
+	/** Override Referrer-Policy; false removes that default header. */
 	readonly referrerPolicy?: string | false;
+	/** Override Strict-Transport-Security; false removes that default header. */
 	readonly strictTransportSecurity?: string | false;
+	/** Override X-Content-Type-Options; false removes that default header. */
 	readonly xContentTypeOptions?: string | false;
+	/** Override X-DNS-Prefetch-Control; false removes that default header. */
 	readonly xDnsPrefetchControl?: string | false;
+	/** Override X-Download-Options; false removes that default header. */
 	readonly xDownloadOptions?: string | false;
+	/** Override X-Frame-Options; false removes that default header. */
 	readonly xFrameOptions?: string | false;
+	/** Override X-Permitted-Cross-Domain-Policies; false removes that default header. */
 	readonly xPermittedCrossDomainPolicies?: string | false;
+	/** Override X-XSS-Protection; false removes that default header. */
 	readonly xXssProtection?: string | false;
+	/** Additional static response headers selected by the application. */
 	readonly additional?: Readonly<Record<string, string>>;
 }
 

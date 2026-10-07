@@ -6,8 +6,11 @@ const PRETTY_JSON_MAX_BYTES = 1024 * 1024;
 
 /** Options used by development-oriented JSON pretty printing. */
 export interface PrettyJsonOptionsType {
+	/** JSON indentation spaces, from zero through ten; defaults to two. */
 	readonly space?: number;
+	/** Query parameter whose presence requests pretty JSON; defaults to pretty. */
 	readonly query?: string;
+	/** Pretty-print supported JSON responses without requiring the configured query flag. */
 	readonly force?: boolean;
 }
 
