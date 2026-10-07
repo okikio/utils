@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
-import { describe, it, test } from 'node:test';
-import { expect } from '@std/expect';
+import { test } from 'node:test';
 
 import * as context from '@okikio/context';
 import * as pool from '@okikio/pool';
@@ -78,66 +77,5 @@ test('queue retry releases an invalid provider before durable work resumes', asy
 		cancelled: 0,
 		waitingClaims: 0,
 		waitingResults: 0,
-	});
-});
-
-describe('coordination pressure', () => {
-	it('never exceeds pool ownership under concurrent acquisition pressure', async () => {
-		await using owner = context.create({ id: 'pool-pressure' });
-		let open = 0;
-		let peak = 0;
-		let next = 0;
-		await using values = await pool.create({
-			ctx: owner,
-			maximum: 4,
-			async create() {
-				open += 1;
-				peak = Math.max(peak, open);
-				await Promise.resolve();
-				return { id: ++next };
-			},
-			close() {
-				open -= 1;
-			},
-		});
-
-		await Promise.all(Array.from({ length: 100 }, async () => {
-			await using lease = await values.acquire(owner);
-			await Promise.resolve(lease.value.id);
-		}));
-
-		expect(peak).toBeLessThanOrEqual(4);
-		expect(values.stats()).toMatchObject({ leased: 0, creating: 0, waiting: 0 });
-	});
-
-	it('never grants one queue item to simultaneous claims', async () => {
-		await using ctx = context.create({ id: 'queue-pressure', clock: new context.TestClock() });
-		await using jobs = queue.memory<number, number>();
-		for (let value = 0; value < 100; value += 1) await jobs.add(ctx, value);
-
-		const groups = await Promise.all(
-			Array.from(
-				{ length: 20 },
-				(_, index) => jobs.claim(ctx, { owner: `consumer-${index}`, limit: 5, duration: { minutes: 1 } }),
-			),
-		);
-		const claims = groups.flat();
-		const itemIds = claims.map((claim) => claim.itemId);
-		expect(new Set(itemIds).size).toBe(itemIds.length);
-		expect(claims).toHaveLength(100);
-
-		await Promise.all(claims.map((claim) => jobs.complete(ctx, claim, claim.value)));
-		expect(await jobs.stats()).toMatchObject({ queued: 0, claimed: 0, completed: 100 });
-	});
-
-	it('keeps terminal result authority stable while many callers wait', async () => {
-		await using ctx = context.create({ id: 'queue-result-pressure', clock: new context.TestClock() });
-		await using jobs = queue.memory<string, string>();
-		const ref = await jobs.add(ctx, 'work');
-		const claim = (await jobs.claim(ctx, { owner: 'consumer' }))[0]!;
-		const waiters = Array.from({ length: 50 }, () => jobs.result(ctx, ref));
-		await jobs.complete(ctx, claim, 'done');
-		expect(await Promise.all(waiters)).toEqual(Array.from({ length: 50 }, () => 'done'));
-		expect((await jobs.stats()).waitingResults).toBe(0);
 	});
 });

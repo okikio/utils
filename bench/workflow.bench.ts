@@ -27,6 +27,12 @@ if (
 	throw new Error('Workflow benchmark identifiers are not unique and deterministic.');
 }
 
+// A changed instruction must not reuse completion history for the original sleep.
+const changed = workflow.sleep({ milliseconds: 999 }, { key: 'timer-0' })[Symbol.iterator]().next();
+if (changed.done || (await workflow.identify(changed.value, 'bench.workflow@1/0:sleep')).fingerprint === initial[0]) {
+	throw new Error('Changed workflow input reused the original identity.');
+}
+
 group('durable workflow identity', () => {
 	bench('identify 32 deterministic timer instructions', async () => {
 		do_not_optimize(await identify());

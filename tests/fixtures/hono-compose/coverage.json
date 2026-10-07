@@ -1,0 +1,629 @@
+{
+	"upstream": {
+		"repository": "https://github.com/honojs/hono",
+		"commit": "06880c4a2b04de9dd74217f26dd831209b9c01f1",
+		"version": "4.13.5",
+		"source": "src/compose.test.ts"
+	},
+	"expectationScope": "Explicit public HTTP projections and lifecycle adaptations; no private Context, generic private composer, or whole-upstream-suite pass claim.",
+	"cases": [
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 44,
+			"title": "Request",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Retain log=log message and xxx=yyy on one request.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Replace Context.get/set with fixture-owned per-request state; no claim about the Context API.",
+			"localScenario": "Request and Response retain upstream state and header values"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 51,
+			"title": "Response",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "JSON message=new response, x-custom-header=custom-header and zzz=xxx.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Observe public HTTP response and per-request state; original Context fields are not Utils APIs.",
+			"localScenario": "Request and Response retain upstream state and header values"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 78,
+			"title": "Response",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Non-async terminal returns a promise resolving JSON message=new response.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Use an explicit owned promise gate instead of an incidental setTimeout.",
+			"localScenario": "non-async handler returns an owned promise"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 110,
+			"title": "Should return 200 Response",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Request header x-header-foo=foo produces body foo; response x-header-bar=bar.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Use native Request headers and returned Response instead of Context accessors.",
+			"localScenario": "request and response header middleware preserve foo and bar"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 136,
+			"title": "Should return 200 Response",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "First response terminates with 200 Hello; later middleware and terminal are not invoked.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Wire response retained; no assertion of private Context.finalized.",
+			"localScenario": "early response skips later middleware"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 161,
+			"title": "Should return 404 Response",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Passthrough reaches custom synchronous 404 onNotFound.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Wire status/body retained; Context.finalized has no Utils counterpart.",
+			"localScenario": "not found callback: sync"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 171,
+			"title": "Should return 404 Response - async handler",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Passthrough reaches custom asynchronous 404 onNotFoundAsync.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Wire status/body retained; Context.finalized has no Utils counterpart.",
+			"localScenario": "not found callback: async"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 198,
+			"title": "Should return 401 Response",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "After downstream Hello, middleware replaces status/body with 401 Not authorized.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Hono explicitly assigns Context.res; Utils returns replacement. Both discard the intentionally abandoned response.",
+			"localScenario": "middleware replaces Hello with Not authorized and owns discarded body"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 225,
+			"title": "Should return 200 Response",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "x-custom=foo written before next is visible to terminal body foo.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Wire status/body retained; Context.finalized has no Utils counterpart.",
+			"localScenario": "next sees request header written before dispatch"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 241,
+			"title": "Error on handler",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Synchronous throwing handler reaches mapper: 500 onError.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Use Hono.onError and Utils.catchErrors.map; Context.finalized is not a shared contract.",
+			"localScenario": "onError callback: sync"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 264,
+			"title": "Error on handler - async",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Synchronous throwing handler reaches asynchronous mapper: 500 onError.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Upstream async title describes mapper, not throwing handler. Use each public error-mapping API.",
+			"localScenario": "onError callback: async"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 280,
+			"title": "Run all the middlewares",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "All three middleware append literal stack [0,1,2].",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Provide finite terminal Hello to satisfy the public HTTP response contract.",
+			"localScenario": "all middleware enters in authored order"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 340,
+			"title": "Should throw multiple call error",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Two-layer repeated next rejects before a second terminal call.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Hono Error next() called multiple times and Utils TypeError more than once are independently asserted; error classes/messages deliberately differ.",
+			"localScenario": "repeated next rejects once: nested"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 363,
+			"title": "should get executed order one by one",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Called [true,true,true], order [1,2,3,4,5,6].",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Supply finite terminal Hello; original private composition had no final response.",
+			"localScenario": "onion order matches all six literal steps"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 403,
+			"title": "should not get executed if previous next() not triggered",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Called [true,true], order [1,2,6]; third middleware not entered.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Original no-next middleware returned undefined; public HTTP port supplies owned 401 Not authorized instead of claiming unfinished Context parity.",
+			"localScenario": "lack next short-circuits with an owned 401 response"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 440,
+			"title": "should be able to be called twice",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "One prepared app processes distinct requests with independent [1,2,3,4,5,6] arrays.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Request lifetime replaces caller-created Context lifetime.",
+			"localScenario": "reuse keeps separate request state and resets continuation ownership"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 486,
+			"title": "should create next functions that return a Promise",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "All five actual next return values are Promises and joined.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Original middleware discards next promises and returns undefined. Public HTTP port returns/joins them to own completion; records actual next values without a promise-producing adapter.",
+			"localScenario": "plain middleware can return and await all five continuation promises"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 505,
+			"title": "should work with 0 middleware",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Empty middleware succeeds with finite terminal response 200 Hello.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Original private call only proved resolution without a response. Public HTTP requires terminal response.",
+			"localScenario": "empty middleware reaches terminal response"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 509,
+			"title": "should work when yielding at the end of the stack",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "After awaiting terminal, called=true.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Supply finite terminal Hello; private end-of-stack Context behavior is not exported.",
+			"localScenario": "yielding end of stack resumes the awaiting middleware"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 524,
+			"title": "should reject on errors in middleware",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Synchronous middleware rejects with the exact ExpectedError instance.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Hono public onError deliberately rethrows to preserve upstream ownership; Utils fetch rejects directly.",
+			"localScenario": "middleware propagates ExpectedError: sync"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 541,
+			"title": "should keep the context",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "All three middleware and terminal observe one object identity during request.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Observe actual Hono Context identities versus actual Utils Request identities; caller-provided Context equality is incompatible.",
+			"localScenario": "all layers retain the same per-request identity"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 570,
+			"title": "should catch downstream errors",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Downstream async throw is caught upstream; exact order [1,6,4,2,3].",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Hono public onError rethrows so outer middleware owns recovery. Recovery returns finite Hello; additional authored synchronous variant also runs.",
+			"localScenario": "upstream catches downstream thrown error: async"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 599,
+			"title": "should compose w/ next",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Empty chain invokes supplied terminal exactly once.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Terminal Handler/route substitutes for private optional Context/Next argument; generic private Next API is not shared.",
+			"localScenario": "empty composition invokes caller terminal"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 608,
+			"title": "should handle errors in wrapped non-async functions",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Wrapped non-async throwing function rejects exact ExpectedError instance.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Public HTTP error boundary rethrows; an extra wrapper passes next without translating the thrown error.",
+			"localScenario": "middleware propagates ExpectedError: wrapped"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 626,
+			"title": "should compose w/ other compositions",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Nested registration/composition enters literal order [1,2,3].",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Hono.route copies child routes; Utils.compose nests Fetch middleware. This does not claim equivalence to Hono private compose factory.",
+			"localScenario": "nested public composition preserves all three middleware calls"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 651,
+			"title": "should throw if next() is called multiple times",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Single middleware calling next twice rejects; terminal count=1.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Independently assert Hono Error/message and Utils TypeError/message; no loosened shared error message.",
+			"localScenario": "repeated next rejects once: single"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 665,
+			"title": "should return a valid middleware",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Nested group and outer middleware perform exactly three calls.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Retain literal count=3 and order [1,2,3] using published nesting APIs, not private factory identity.",
+			"localScenario": "nested public composition preserves all three middleware calls"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 689,
+			"title": "should return last return value",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Inner/outer post-next observations both see 2; final value is 1.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Native HTTP Response is returned rather than private Context; final per-request state is observed separately.",
+			"localScenario": "last outer state update follows both inner value observations"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 712,
+			"title": "should not affect the original middleware array",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Registration retains caller array length/function identity; later mutation cannot change selected middleware.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Hono public use(...input) and Utils public compose snapshot; private tuple-array representation is not shared. Mutation check is an authored strengthening.",
+			"localScenario": "registration leaves caller array unchanged and snapshots its middleware"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 730,
+			"title": "should not get stuck on the passed in next",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Middleware and terminal each count=1, request stays pending until owned gate released, then resolves.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Public terminal route/Handler replaces private passed-in Next(context,next); no generic Context dispatch signature claim. Gate and every started promise join in finally.",
+			"localScenario": "passed terminal stalls then resumes exactly once"
+		}
+	],
+	"audit": [
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 44,
+			"title": "Request",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Retain log=log message and xxx=yyy on one request.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Replace Context.get/set with fixture-owned per-request state; no claim about the Context API.",
+			"localScenario": "Request and Response retain upstream state and header values"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 51,
+			"title": "Response",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "JSON message=new response, x-custom-header=custom-header and zzz=xxx.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Observe public HTTP response and per-request state; original Context fields are not Utils APIs.",
+			"localScenario": "Request and Response retain upstream state and header values"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 78,
+			"title": "Response",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Non-async terminal returns a promise resolving JSON message=new response.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Use an explicit owned promise gate instead of an incidental setTimeout.",
+			"localScenario": "non-async handler returns an owned promise"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 110,
+			"title": "Should return 200 Response",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Request header x-header-foo=foo produces body foo; response x-header-bar=bar.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Use native Request headers and returned Response instead of Context accessors.",
+			"localScenario": "request and response header middleware preserve foo and bar"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 136,
+			"title": "Should return 200 Response",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "First response terminates with 200 Hello; later middleware and terminal are not invoked.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Wire response retained; no assertion of private Context.finalized.",
+			"localScenario": "early response skips later middleware"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 161,
+			"title": "Should return 404 Response",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Passthrough reaches custom synchronous 404 onNotFound.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Wire status/body retained; Context.finalized has no Utils counterpart.",
+			"localScenario": "not found callback: sync"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 171,
+			"title": "Should return 404 Response - async handler",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Passthrough reaches custom asynchronous 404 onNotFoundAsync.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Wire status/body retained; Context.finalized has no Utils counterpart.",
+			"localScenario": "not found callback: async"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 198,
+			"title": "Should return 401 Response",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "After downstream Hello, middleware replaces status/body with 401 Not authorized.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Hono explicitly assigns Context.res; Utils returns replacement. Both discard the intentionally abandoned response.",
+			"localScenario": "middleware replaces Hello with Not authorized and owns discarded body"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 225,
+			"title": "Should return 200 Response",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "x-custom=foo written before next is visible to terminal body foo.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Wire status/body retained; Context.finalized has no Utils counterpart.",
+			"localScenario": "next sees request header written before dispatch"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 241,
+			"title": "Error on handler",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Synchronous throwing handler reaches mapper: 500 onError.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Use Hono.onError and Utils.catchErrors.map; Context.finalized is not a shared contract.",
+			"localScenario": "onError callback: sync"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 264,
+			"title": "Error on handler - async",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Synchronous throwing handler reaches asynchronous mapper: 500 onError.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Upstream async title describes mapper, not throwing handler. Use each public error-mapping API.",
+			"localScenario": "onError callback: async"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 280,
+			"title": "Run all the middlewares",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "All three middleware append literal stack [0,1,2].",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Provide finite terminal Hello to satisfy the public HTTP response contract.",
+			"localScenario": "all middleware enters in authored order"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 308,
+			"title": "Should not be finalized - lack `next()`",
+			"behavior": "Inspect Context.finalized=false after middleware/handler returns undefined without a Response.",
+			"disposition": "incompatible-private-context-contract",
+			"reason": "Hono private compose returns an unfinished Context. Published Hono.fetch requires a finalized Response and Utils Handler/Middleware must return Response. Neither Context.finalized nor undefined-returning middleware is a Utils public API; no unsafe cast or fabricated wire expectation is used."
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 322,
+			"title": "Should not be finalized - lack `return Response`",
+			"behavior": "Inspect Context.finalized=false after middleware/handler returns undefined without a Response.",
+			"disposition": "incompatible-private-context-contract",
+			"reason": "Hono private compose returns an unfinished Context. Published Hono.fetch requires a finalized Response and Utils Handler/Middleware must return Response. Neither Context.finalized nor undefined-returning middleware is a Utils public API; no unsafe cast or fabricated wire expectation is used."
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 340,
+			"title": "Should throw multiple call error",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Two-layer repeated next rejects before a second terminal call.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Hono Error next() called multiple times and Utils TypeError more than once are independently asserted; error classes/messages deliberately differ.",
+			"localScenario": "repeated next rejects once: nested"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 363,
+			"title": "should get executed order one by one",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Called [true,true,true], order [1,2,3,4,5,6].",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Supply finite terminal Hello; original private composition had no final response.",
+			"localScenario": "onion order matches all six literal steps"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 403,
+			"title": "should not get executed if previous next() not triggered",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Called [true,true], order [1,2,6]; third middleware not entered.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Original no-next middleware returned undefined; public HTTP port supplies owned 401 Not authorized instead of claiming unfinished Context parity.",
+			"localScenario": "lack next short-circuits with an owned 401 response"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 440,
+			"title": "should be able to be called twice",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "One prepared app processes distinct requests with independent [1,2,3,4,5,6] arrays.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Request lifetime replaces caller-created Context lifetime.",
+			"localScenario": "reuse keeps separate request state and resets continuation ownership"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 486,
+			"title": "should create next functions that return a Promise",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "All five actual next return values are Promises and joined.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Original middleware discards next promises and returns undefined. Public HTTP port returns/joins them to own completion; records actual next values without a promise-producing adapter.",
+			"localScenario": "plain middleware can return and await all five continuation promises"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 505,
+			"title": "should work with 0 middleware",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Empty middleware succeeds with finite terminal response 200 Hello.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Original private call only proved resolution without a response. Public HTTP requires terminal response.",
+			"localScenario": "empty middleware reaches terminal response"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 509,
+			"title": "should work when yielding at the end of the stack",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "After awaiting terminal, called=true.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Supply finite terminal Hello; private end-of-stack Context behavior is not exported.",
+			"localScenario": "yielding end of stack resumes the awaiting middleware"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 524,
+			"title": "should reject on errors in middleware",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Synchronous middleware rejects with the exact ExpectedError instance.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Hono public onError deliberately rethrows to preserve upstream ownership; Utils fetch rejects directly.",
+			"localScenario": "middleware propagates ExpectedError: sync"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 541,
+			"title": "should keep the context",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "All three middleware and terminal observe one object identity during request.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Observe actual Hono Context identities versus actual Utils Request identities; caller-provided Context equality is incompatible.",
+			"localScenario": "all layers retain the same per-request identity"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 570,
+			"title": "should catch downstream errors",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Downstream async throw is caught upstream; exact order [1,6,4,2,3].",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Hono public onError rethrows so outer middleware owns recovery. Recovery returns finite Hello; additional authored synchronous variant also runs.",
+			"localScenario": "upstream catches downstream thrown error: async"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 599,
+			"title": "should compose w/ next",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Empty chain invokes supplied terminal exactly once.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Terminal Handler/route substitutes for private optional Context/Next argument; generic private Next API is not shared.",
+			"localScenario": "empty composition invokes caller terminal"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 608,
+			"title": "should handle errors in wrapped non-async functions",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Wrapped non-async throwing function rejects exact ExpectedError instance.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Public HTTP error boundary rethrows; an extra wrapper passes next without translating the thrown error.",
+			"localScenario": "middleware propagates ExpectedError: wrapped"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 626,
+			"title": "should compose w/ other compositions",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Nested registration/composition enters literal order [1,2,3].",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Hono.route copies child routes; Utils.compose nests Fetch middleware. This does not claim equivalence to Hono private compose factory.",
+			"localScenario": "nested public composition preserves all three middleware calls"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 651,
+			"title": "should throw if next() is called multiple times",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Single middleware calling next twice rejects; terminal count=1.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Independently assert Hono Error/message and Utils TypeError/message; no loosened shared error message.",
+			"localScenario": "repeated next rejects once: single"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 665,
+			"title": "should return a valid middleware",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Nested group and outer middleware perform exactly three calls.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Retain literal count=3 and order [1,2,3] using published nesting APIs, not private factory identity.",
+			"localScenario": "nested public composition preserves all three middleware calls"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 689,
+			"title": "should return last return value",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Inner/outer post-next observations both see 2; final value is 1.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Native HTTP Response is returned rather than private Context; final per-request state is observed separately.",
+			"localScenario": "last outer state update follows both inner value observations"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 712,
+			"title": "should not affect the original middleware array",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Registration retains caller array length/function identity; later mutation cannot change selected middleware.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Hono public use(...input) and Utils public compose snapshot; private tuple-array representation is not shared. Mutation check is an authored strengthening.",
+			"localScenario": "registration leaves caller array unchanged and snapshots its middleware"
+		},
+		{
+			"upstreamPath": "src/compose.test.ts",
+			"registrationLine": 730,
+			"title": "should not get stuck on the passed in next",
+			"localFile": "tests/hono-compose.test.ts",
+			"behavior": "Middleware and terminal each count=1, request stays pending until owned gate released, then resolves.",
+			"disposition": "adapted-public-http-contract",
+			"reason": "Public terminal route/Handler replaces private passed-in Next(context,next); no generic Context dispatch signature claim. Gate and every started promise join in finally.",
+			"localScenario": "passed terminal stalls then resumes exactly once"
+		}
+	]
+}

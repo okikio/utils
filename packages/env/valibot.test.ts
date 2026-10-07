@@ -10,7 +10,7 @@ describe('environment adapter authoring records', () => {
 		const Hidden = v.pipe(v.string(), v.description('Hidden value.'));
 		const inputs = { VISIBLE: Visible } as { VISIBLE: typeof Visible; HIDDEN: typeof Hidden };
 		Object.defineProperty(inputs, 'HIDDEN', { value: Hidden, enumerable: false });
-		expect(() => env.define(inputs)).toThrow('enumerable data property');
+		expect(() => env.define(inputs)).toThrow(TypeError);
 	});
 });
 

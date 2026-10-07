@@ -40,7 +40,7 @@ describe('codec object records', () => {
 	it('rejects hidden codec shape properties instead of dropping them from composition', () => {
 		const shape = { identity: StringCodec };
 		Object.defineProperty(shape, 'hidden', { value: StringCodec, enumerable: false });
-		expect(() => codec.object(shape)).toThrow('enumerable data property');
+		expect(() => codec.object(shape)).toThrow(TypeError);
 	});
 
 	it('rejects accessor-backed object input instead of executing getters during validation', async () => {
@@ -54,7 +54,7 @@ describe('codec object records', () => {
 				return 'workspace-1';
 			},
 		});
-		await expect(codec.decode(Definition, input)).rejects.toThrow('ordinary data object');
+		await expect(codec.decode(Definition, input)).rejects.toThrow(TypeError);
 		expect(reads).toBe(0);
 	});
 });

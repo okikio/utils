@@ -37,15 +37,19 @@ test('CRM import discovery preserves explicit CSV structure while composing web 
 	].join('\r\n');
 
 	await using document = await csv.parseStream(byteStream(source, [1, 5, 17, 31, 48, 63]), {
-		headerRow: 3,
+		// The blank third source record counts; the header is the fourth record.
+		headerRow: 4,
 		headerScanRows: 1,
 		maximumRows: 10,
 	});
 
-	assert.equal(document.headerRow, 3);
+	assert.equal(document.headerRow, 4);
 	assert.deepEqual(document.columns.map((column) => column.name), ['Domain', 'Homepage']);
 	const rows = await streams.collect(document.rows, { maximumItems: 10 });
-	assert.deepEqual(rows.map((row) => row.values[0]), ['example.com', 'acme.test']);
+	assert.deepEqual(rows.map((row) => [row.row, row.values]), [
+		[5, ['example.com', 'https://example.com']],
+		[6, ['acme.test', 'https://acme.test']],
+	]);
 
 	const policy = robots.parse([
 		'User-agent: *',

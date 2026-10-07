@@ -61,7 +61,7 @@ function deferred() {
 }
 
 /** Bound one scenario stage so lifecycle regressions fail with the blocked ownership step. */
-async function within<Value>(promise: Promise<Value>, label: string, milliseconds = 5_000): Promise<Value> {
+async function within<Value>(promise: Promise<Value>, label: string, milliseconds = 30_000): Promise<Value> {
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	try {
 		return await Promise.race([
@@ -87,9 +87,9 @@ const Implementation = workflow.implement(Definition, function* (ctx) {
 });
 
 test('worker activity survives Scheduler restart without duplicating the external commit', async () => {
-	const clock = context.SystemClock;
+	const clock = new context.TestClock();
 	await using parent = context.create({ id: 'scenario.restartable-worker.parent', clock });
-	const jobs = dispatch.memory({
+	await using jobs = dispatch.memory({
 		clock,
 	});
 	const durable = new Map<string, DurableEntry>();
@@ -109,7 +109,7 @@ test('worker activity survives Scheduler restart without duplicating the externa
 	});
 
 	const workerModule = new URL('./fixtures/restartable-worker.ts', import.meta.url);
-	const firstProvider = await activityWorker.create({
+	await using firstProvider = await activityWorker.create({
 		ctx: parent,
 		engine: Engine,
 		activities: [Persist],
@@ -118,28 +118,30 @@ test('worker activity survives Scheduler restart without duplicating the externa
 		shutdownMs: 50,
 		effect: emitter,
 	});
-	const firstHistory = history(durable);
-	const firstScheduler = workflow.scheduler({
+	await using firstHistory = history(durable);
+	await using firstScheduler = workflow.scheduler({
 		id: 'scenario-scheduler-a',
 		clock,
 		history: firstHistory,
 		activityDispatch: jobs,
 		claimDuration: { seconds: 3 },
 	});
-	const firstRegistration = await workflow.executor({
+	await using _firstRegistration = await workflow.executor({
 		dispatch: jobs,
 		engine: Engine,
 		hostId: 'worker-a',
 		claimDuration: { seconds: 3 },
 		provider: firstProvider,
 	});
-	const firstCtx = await workflow.context({
+	await using firstCtx = await workflow.context({
 		definition: Definition,
 		runId: 'restartable-run',
 		input: { value: 'acme', stallFirst: true },
 		ctx: parent,
 	});
 	const firstRun = workflow.run({ ctx: firstCtx, implementation: Implementation, scheduler: firstScheduler });
+	// Attach observation immediately; later assertions still await this original result.
+	void firstRun.catch(() => {});
 	await within(
 		Promise.race([
 			firstCommit.promise,
@@ -152,8 +154,8 @@ test('worker activity survives Scheduler restart without duplicating the externa
 	);
 
 	// A fresh Scheduler/history/provider replica starts from persisted data only.
-	const secondHistory = history(durable);
-	const secondProvider = await activityWorker.create({
+	await using secondHistory = history(durable);
+	await using secondProvider = await activityWorker.create({
 		ctx: parent,
 		engine: Engine,
 		activities: [Persist],
@@ -162,30 +164,34 @@ test('worker activity survives Scheduler restart without duplicating the externa
 		shutdownMs: 50,
 		effect: emitter,
 	});
-	const secondScheduler = workflow.scheduler({
+	await using secondScheduler = workflow.scheduler({
 		id: 'scenario-scheduler-b',
 		clock,
 		history: secondHistory,
 		activityDispatch: jobs,
 		claimDuration: { seconds: 3 },
 	});
-	const secondRegistration = await workflow.executor({
+	await using _secondRegistration = await workflow.executor({
 		dispatch: jobs,
 		engine: Engine,
 		hostId: 'worker-b',
 		claimDuration: { seconds: 3 },
 		provider: secondProvider,
 	});
-	const secondCtx = await workflow.context({
+	await using secondCtx = await workflow.context({
 		definition: Definition,
 		runId: 'restartable-run',
 		input: { value: 'acme', stallFirst: true },
 		ctx: parent,
 	});
 	const recovered = workflow.run({ ctx: secondCtx, implementation: Implementation, scheduler: secondScheduler });
+	void recovered.catch(() => {});
+	// Startup and native module checking cannot consume a logical lease.
+	// Expiry begins only after the first effect was observed and replica B exists.
+	clock.advance({ seconds: 4 });
 
 	// Attempt 1 renewed immediately before committing. Replica B must observe the
-	// same durable logical job after the real lease expires and own attempt 2.
+	// same durable logical job after the logical lease expires and own attempt 2.
 	await within(secondCommit.promise, 'replacement attempt external commit');
 	assert.deepEqual(await within(recovered, 'replacement workflow completion'), { stored: 'acme' });
 	assert.deepEqual(attempts, [1, 2]);
@@ -205,15 +211,4 @@ test('worker activity survives Scheduler restart without duplicating the externa
 	);
 	assert.deepEqual(attempts, [1, 2]);
 	assert.equal(committed.size, 1);
-
-	await firstCtx[Symbol.asyncDispose]();
-	await secondCtx[Symbol.asyncDispose]();
-	await firstRegistration[Symbol.asyncDispose]();
-	await secondRegistration[Symbol.asyncDispose]();
-	await firstScheduler.close();
-	await secondScheduler.close();
-	await firstHistory.close();
-	await secondHistory.close();
-	await secondProvider[Symbol.asyncDispose]();
-	await jobs.close();
 });

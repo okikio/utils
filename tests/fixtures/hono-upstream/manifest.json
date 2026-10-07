@@ -1,0 +1,1544 @@
+{
+	"schemaVersion": 1,
+	"upstream": {
+		"repository": "https://github.com/honojs/hono",
+		"commit": "06880c4a2b04de9dd74217f26dd831209b9c01f1",
+		"version": "4.13.5"
+	},
+	"provenance": "Pinned checkout supplied for this review. Content hashes qualify retained bytes; they do not assert Git checkout execution.",
+	"license": {
+		"path": "LICENSE",
+		"sha256": "a6ab98e5c77b9070c443eaff2ff81034a6f8cc05a7524d5098eb0f24defa0115"
+	},
+	"sources": [
+		{
+			"path": "build/remove-private-fields.test.ts",
+			"preserved": "source/build/remove-private-fields.test.txt",
+			"bytes": 932,
+			"sha256": "57e1f6bfc597beaf806e58ebf7c71a223ddcfa0556c6e6956ed4b71109e222dd",
+			"scope": {
+				"category": "build-contract",
+				"target": "tools/check-packaging.ts; tools/npm.ts",
+				"reason": "Hono build transforms and export validation use Hono manifests; review equivalent Utils artifact guarantees independently."
+			}
+		},
+		{
+			"path": "build/validate-exports.test.ts",
+			"preserved": "source/build/validate-exports.test.txt",
+			"bytes": 756,
+			"sha256": "9a6c774c5491b9d5879d7f9fd0931b91d3087ad0646235281ed6af05c611e57f",
+			"scope": {
+				"category": "build-contract",
+				"target": "tools/check-packaging.ts; tools/npm.ts",
+				"reason": "Hono build transforms and export validation use Hono manifests; review equivalent Utils artifact guarantees independently."
+			}
+		},
+		{
+			"path": "runtime-tests/bun/color.test.ts",
+			"preserved": "source/runtime-tests/bun/color.test.txt",
+			"bytes": 547,
+			"sha256": "81b03cb5798421b91914344a68d3e035be1f102e476d9476cd111251783b17ff",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "runtime-tests/bun/index.test.tsx",
+			"preserved": "source/runtime-tests/bun/index.test.txt",
+			"bytes": 13990,
+			"sha256": "0ad8a48b6b04226fffa0e77a3ecf28735d4a31f1a918b1d3480eef20aa6675b1",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "runtime-tests/deno-jsx/jsx.test.tsx",
+			"preserved": "source/runtime-tests/deno-jsx/jsx.test.txt",
+			"bytes": 5988,
+			"sha256": "6c2634155860e94821545294bd5fa5306927c8ac0a9be428c3c7638637897d28",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "runtime-tests/deno/hono.test.ts",
+			"preserved": "source/runtime-tests/deno/hono.test.txt",
+			"bytes": 1051,
+			"sha256": "10a0f5512ce88c569c7fab1021af27376b9c538c019522e292140576a880596b",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "runtime-tests/deno/middleware.test.tsx",
+			"preserved": "source/runtime-tests/deno/middleware.test.txt",
+			"bytes": 5994,
+			"sha256": "2da031c6f835e709680490fd8ad5e7f815f20a78fa2df35ed869c5c978ba5f8e",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "runtime-tests/deno/ssg.test.tsx",
+			"preserved": "source/runtime-tests/deno/ssg.test.txt",
+			"bytes": 1480,
+			"sha256": "00d2123c135f4af3adeff3485b449dceec3c18745e1099b9ce42cde2c5647c86",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "runtime-tests/deno/stream.test.ts",
+			"preserved": "source/runtime-tests/deno/stream.test.txt",
+			"bytes": 3110,
+			"sha256": "379bb14635baf5343bbb405b92887e526abc19156f0c97f89c1b4c5008c72840",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "runtime-tests/fastly/index.test.ts",
+			"preserved": "source/runtime-tests/fastly/index.test.txt",
+			"bytes": 3287,
+			"sha256": "31057ba34ffc5faa0532a72c13bd24d4aad1b8e0286224ece97ca3aa9fa9982e",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "runtime-tests/lambda-edge/index.test.ts",
+			"preserved": "source/runtime-tests/lambda-edge/index.test.txt",
+			"bytes": 32371,
+			"sha256": "747d86c65571191788a6d28c60071adbe22dafcb013de5e1e48174f9c7d0b3f3",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "runtime-tests/lambda/index.test.ts",
+			"preserved": "source/runtime-tests/lambda/index.test.txt",
+			"bytes": 33894,
+			"sha256": "29cdd536faf8b7612686ef145fad4a09f61c9a5426cd5093cad96520221ea778",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "runtime-tests/lambda/stream.test.ts",
+			"preserved": "source/runtime-tests/lambda/stream.test.txt",
+			"bytes": 2055,
+			"sha256": "2273d395a4979a6484d3ccf661b412d515115dc2f573b78d8a2fbd2508f29147",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "runtime-tests/node/index.test.ts",
+			"preserved": "source/runtime-tests/node/index.test.txt",
+			"bytes": 8073,
+			"sha256": "83bcec81a2ff14552b3a435cce560a8cd33cf22369aaee29fd6b9cfbf36c36bb",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "runtime-tests/workerd/index.test.ts",
+			"preserved": "source/runtime-tests/workerd/index.test.txt",
+			"bytes": 2866,
+			"sha256": "a1c592b22f71ff4ceea427735fbfd68d1b045d8f73c346536bbea3e837c4b252",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "src/adapter/aws-lambda/conninfo.test.ts",
+			"preserved": "source/src/adapter/aws-lambda/conninfo.test.txt",
+			"bytes": 3142,
+			"sha256": "d7ad9e7b45ae0ee100dad71ae58a9dfee5ad770a3850ad7c89741c129ba74330",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "src/adapter/aws-lambda/handler.test.ts",
+			"preserved": "source/src/adapter/aws-lambda/handler.test.txt",
+			"bytes": 20559,
+			"sha256": "f15dd0a1304d9a40c7079378d13dbfe0007ae1de4588745ad1346c080ed32870",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "src/adapter/bun/conninfo.test.ts",
+			"preserved": "source/src/adapter/bun/conninfo.test.txt",
+			"bytes": 2456,
+			"sha256": "8e22fdfe4dbd8b3acbba42a12814c0d9a88b2389a353fc46c94f2876ef9b988b",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "src/adapter/bun/server.test.ts",
+			"preserved": "source/src/adapter/bun/server.test.txt",
+			"bytes": 423,
+			"sha256": "1f4b37eacfdf781894d6b1a4b6f7158282113741471fdccbf5047cfbbf333ab7",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "src/adapter/bun/websocket.test.ts",
+			"preserved": "source/src/adapter/bun/websocket.test.txt",
+			"bytes": 4800,
+			"sha256": "625510b4fd1d8e0cf674eae68920a81135a1ba165e86bd9306a5b10fe1fdd1b7",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "src/adapter/cloudflare-pages/conninfo.test.ts",
+			"preserved": "source/src/adapter/cloudflare-pages/conninfo.test.txt",
+			"bytes": 756,
+			"sha256": "c41e4f22bdf7d81838fae30625532f3bc1ecf6ac5ccd0bd5eb65a9e3b24268ec",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "src/adapter/cloudflare-pages/handler.test.ts",
+			"preserved": "source/src/adapter/cloudflare-pages/handler.test.txt",
+			"bytes": 9271,
+			"sha256": "764f07efa7e6993cbba40ffc36167f8bc9a9f5344be68eb97bdfc73d3e59bf64",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "src/adapter/cloudflare-workers/conninfo.test.ts",
+			"preserved": "source/src/adapter/cloudflare-workers/conninfo.test.txt",
+			"bytes": 492,
+			"sha256": "38ff6b65f5e2bb494acab410567699ebde2e0816e5a337095104d749e6832ba8",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "src/adapter/cloudflare-workers/serve-static.test.ts",
+			"preserved": "source/src/adapter/cloudflare-workers/serve-static.test.txt",
+			"bytes": 8003,
+			"sha256": "5f8ecbd5c1f55c1ac2f60d3219f11e2295de69df8bfd2ebdd6b07557993fbc92",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "src/adapter/cloudflare-workers/utils.test.ts",
+			"preserved": "source/src/adapter/cloudflare-workers/utils.test.txt",
+			"bytes": 977,
+			"sha256": "cf0a89258bf3f4f267fe3053aeb263e710b09d9461b956f18bec054ef9d95a0a",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "src/adapter/cloudflare-workers/websocket.test.ts",
+			"preserved": "source/src/adapter/cloudflare-workers/websocket.test.txt",
+			"bytes": 3680,
+			"sha256": "a479666c660cf02ded71de9e8bdf235d654747f80be6eb0e1ef6d1a761717465",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "src/adapter/deno/conninfo.test.ts",
+			"preserved": "source/src/adapter/deno/conninfo.test.txt",
+			"bytes": 700,
+			"sha256": "9d25d1070723b2387ad589c9877a7f64f9e3fb570aeef52f596b0b1f01dadd6d",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "src/adapter/deno/websocket.test.ts",
+			"preserved": "source/src/adapter/deno/websocket.test.txt",
+			"bytes": 4051,
+			"sha256": "86f81533125a70f8958d3479b3ac96b54aae5699281a1b8455ffdcea07fcf55d",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "src/adapter/lambda-edge/conninfo.test.ts",
+			"preserved": "source/src/adapter/lambda-edge/conninfo.test.txt",
+			"bytes": 635,
+			"sha256": "8032d69ceea53992e9c50de835924845fcbee453449a5e64674557d6c69bf442",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "src/adapter/lambda-edge/handler.test.ts",
+			"preserved": "source/src/adapter/lambda-edge/handler.test.txt",
+			"bytes": 11132,
+			"sha256": "5cdc3aa691bc65bd79461aa2937d32b0ecbb01c1f2d1c28ee5885e901621c187",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "src/adapter/netlify/conninfo.test.ts",
+			"preserved": "source/src/adapter/netlify/conninfo.test.txt",
+			"bytes": 933,
+			"sha256": "ae563c12743bb2fed1c6fee8c96584da397bbfe70197188c66fbdd9500910178",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "src/adapter/service-worker/handler.test.ts",
+			"preserved": "source/src/adapter/service-worker/handler.test.txt",
+			"bytes": 3474,
+			"sha256": "f9e7e8b0fb8caf9d61a66fce7357278c9fb25e91cb42da5d6a50fc881631997b",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "src/adapter/vercel/conninfo.test.ts",
+			"preserved": "source/src/adapter/vercel/conninfo.test.txt",
+			"bytes": 433,
+			"sha256": "8ab45b4a328d574ad574e89c00ce4254dbfeb7d77e8f1807b0a97fbf1439bc11",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "src/adapter/vercel/handler.test.ts",
+			"preserved": "source/src/adapter/vercel/handler.test.txt",
+			"bytes": 1032,
+			"sha256": "ee296808ad16dd9ae75088f9f4f3bd8454fc98b1049c1c216c6a016f58782a75",
+			"scope": {
+				"category": "host-integration",
+				"target": "packages/server; packages/deno; packages/process; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+			}
+		},
+		{
+			"path": "src/client/client.test.ts",
+			"preserved": "source/src/client/client.test.txt",
+			"bytes": 65148,
+			"sha256": "069e9ed54030d834d54283ea4b3256b83fc92bc3d545354483508a0691a39587",
+			"scope": {
+				"category": "framework-programming-model",
+				"target": "no Hono-compatible JSX/client/preset API",
+				"reason": "These suites specify Hono JSX renderers, typed clients or bundled router presets. Utils has no equivalent named API; shared HTTP assertions can still be translated separately."
+			}
+		},
+		{
+			"path": "src/client/types.test.ts",
+			"preserved": "source/src/client/types.test.txt",
+			"bytes": 5149,
+			"sha256": "f242938f498c7124103f5a7c9f69e91e7d99837943a6ea6bde36b3c719dfaa73",
+			"scope": {
+				"category": "type-contract",
+				"target": "packages/server/service; packages/server/endpoint; packages/http/response",
+				"reason": "Compile-time input/output inference must be qualified against each public programming model; preserved expectTypeOf expressions are not runtime tests."
+			}
+		},
+		{
+			"path": "src/client/utils.test.ts",
+			"preserved": "source/src/client/utils.test.txt",
+			"bytes": 14264,
+			"sha256": "d8a0ae21d12ee0265ad00194ca675c08c30de8425e5b72008feb807d873ab3c3",
+			"scope": {
+				"category": "framework-programming-model",
+				"target": "no Hono-compatible JSX/client/preset API",
+				"reason": "These suites specify Hono JSX renderers, typed clients or bundled router presets. Utils has no equivalent named API; shared HTTP assertions can still be translated separately."
+			}
+		},
+		{
+			"path": "src/compose.test.ts",
+			"preserved": "source/src/compose.test.txt",
+			"bytes": 20372,
+			"sha256": "ca3b03f22fd534f16df27665954af9d879a94cf4555dbc9e91f1e2706efb69d2",
+			"scope": {
+				"category": "core-fetch-contract",
+				"target": "packages/server/http; packages/http/request; packages/http/response",
+				"reason": "Request inputs and observable Fetch outputs are applicable. Hono Context properties and composition API need explicit translation rather than a whole-suite compatibility claim."
+			}
+		},
+		{
+			"path": "src/context.test.ts",
+			"preserved": "source/src/context.test.txt",
+			"bytes": 19793,
+			"sha256": "66d7f5000ca6693d41c10a96520f1784f2518cf97ba0be79a82768bc30334194",
+			"scope": {
+				"category": "core-fetch-contract",
+				"target": "packages/server/http; packages/http/request; packages/http/response",
+				"reason": "Request inputs and observable Fetch outputs are applicable. Hono Context properties and composition API need explicit translation rather than a whole-suite compatibility claim."
+			}
+		},
+		{
+			"path": "src/helper/accepts/accepts.test.ts",
+			"preserved": "source/src/helper/accepts/accepts.test.txt",
+			"bytes": 8548,
+			"sha256": "61ddbdc05d009c5ff770f747b37711c366028e24986e02e6bf44a2530c4f9a95",
+			"scope": {
+				"category": "helper-component",
+				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
+			}
+		},
+		{
+			"path": "src/helper/adapter/index.test.ts",
+			"preserved": "source/src/helper/adapter/index.test.txt",
+			"bytes": 1369,
+			"sha256": "f066cf06d57bb830700adf92c18d1c4a42500dcf7ec8854ea96e55920a010820",
+			"scope": {
+				"category": "helper-component",
+				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
+			}
+		},
+		{
+			"path": "src/helper/cookie/index.test.ts",
+			"preserved": "source/src/helper/cookie/index.test.txt",
+			"bytes": 18257,
+			"sha256": "397848e882e77280b4078938e9218b5e45bb0f60900a033c9a0c24efca977be1",
+			"scope": {
+				"category": "helper-component",
+				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
+			}
+		},
+		{
+			"path": "src/helper/css/common.case.test.tsx",
+			"preserved": "source/src/helper/css/common.case.test.txt",
+			"bytes": 15195,
+			"sha256": "01e3e4b519fe2023f922336eb2358002f2b62e6e2ff547a83644733cb9378284",
+			"scope": {
+				"category": "helper-component",
+				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
+			}
+		},
+		{
+			"path": "src/helper/css/index.test.tsx",
+			"preserved": "source/src/helper/css/index.test.txt",
+			"bytes": 19440,
+			"sha256": "36d22b9109d826f204cef36d35fa3b96e88ce36128d970753894393d12eee53a",
+			"scope": {
+				"category": "helper-component",
+				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
+			}
+		},
+		{
+			"path": "src/helper/dev/index.test.ts",
+			"preserved": "source/src/helper/dev/index.test.txt",
+			"bytes": 5310,
+			"sha256": "030833ab6d61592ef3fc1f1d4f261e5c8391f26f4a1d356d076e3780ded99a7c",
+			"scope": {
+				"category": "helper-component",
+				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
+			}
+		},
+		{
+			"path": "src/helper/factory/index.test.ts",
+			"preserved": "source/src/helper/factory/index.test.txt",
+			"bytes": 12354,
+			"sha256": "7de1451f50411df9317adeda46492a1bf6495b6aaea8faab215b2fd486de8165",
+			"scope": {
+				"category": "helper-component",
+				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
+			}
+		},
+		{
+			"path": "src/helper/html/index.test.ts",
+			"preserved": "source/src/helper/html/index.test.txt",
+			"bytes": 2577,
+			"sha256": "4039494f9c595a16916fcf06925e986dc73becbc438a15f436c9d198b41e284d",
+			"scope": {
+				"category": "helper-component",
+				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
+			}
+		},
+		{
+			"path": "src/helper/proxy/index.test.ts",
+			"preserved": "source/src/helper/proxy/index.test.txt",
+			"bytes": 12236,
+			"sha256": "a7fb2b6c6250afd42258017fed14c9195f08b8ad74b29d0ce719cffb4b8fa2a9",
+			"scope": {
+				"category": "proxy-contract",
+				"target": "packages/server/gateway",
+				"reason": "Forwarded request/response bodies, cookies, aborts and hop-by-hop headers are applicable; strict Gateway policy differences require named outcomes."
+			}
+		},
+		{
+			"path": "src/helper/route/index.test.ts",
+			"preserved": "source/src/helper/route/index.test.txt",
+			"bytes": 6954,
+			"sha256": "79660e9986eff79dce5d79e6432a7d349c46295aa91c35fc1a8d49e4fa7a47a3",
+			"scope": {
+				"category": "helper-component",
+				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
+			}
+		},
+		{
+			"path": "src/helper/ssg/plugins.test.tsx",
+			"preserved": "source/src/helper/ssg/plugins.test.txt",
+			"bytes": 9519,
+			"sha256": "a09b879895eed859282b30aae4da67d5b2484352dce7a3d9bc75ba3d9d20d619",
+			"scope": {
+				"category": "helper-component",
+				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
+			}
+		},
+		{
+			"path": "src/helper/ssg/ssg.test.tsx",
+			"preserved": "source/src/helper/ssg/ssg.test.txt",
+			"bytes": 40157,
+			"sha256": "092e27912dd14b01bbbf5324b6a559bfbd7f100fad4919b7a2c5b4f294da7405",
+			"scope": {
+				"category": "helper-component",
+				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
+			}
+		},
+		{
+			"path": "src/helper/ssg/utils.test.ts",
+			"preserved": "source/src/helper/ssg/utils.test.txt",
+			"bytes": 5555,
+			"sha256": "408efed2d5f75a1a586b3db8b3a8576afe78b9d5e92e092e34696036fb6dc7ca",
+			"scope": {
+				"category": "helper-component",
+				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
+			}
+		},
+		{
+			"path": "src/helper/streaming/sse.test.tsx",
+			"preserved": "source/src/helper/streaming/sse.test.txt",
+			"bytes": 12776,
+			"sha256": "e2fdc29812ea1ee87fd42790411773738af9f605405ce2f481ac8ce3a3da8fd0",
+			"scope": {
+				"category": "helper-component",
+				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
+			}
+		},
+		{
+			"path": "src/helper/streaming/stream.test.ts",
+			"preserved": "source/src/helper/streaming/stream.test.txt",
+			"bytes": 3621,
+			"sha256": "f90c5457c0d99a483b09397abc27cb06ad8fe3b777143a5fdffe2a03b0f584d9",
+			"scope": {
+				"category": "helper-component",
+				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
+			}
+		},
+		{
+			"path": "src/helper/streaming/text.test.ts",
+			"preserved": "source/src/helper/streaming/text.test.txt",
+			"bytes": 969,
+			"sha256": "6f5b5aaab5562f831f8c2684b720e49f6ee575fbc97512633be7e4d979c7408e",
+			"scope": {
+				"category": "helper-component",
+				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
+			}
+		},
+		{
+			"path": "src/helper/testing/index.test.ts",
+			"preserved": "source/src/helper/testing/index.test.txt",
+			"bytes": 1608,
+			"sha256": "7727effcfe0dcff2877f47cc78fe247b8722c78e6d0c3bd5a2023e2bd9b1e03e",
+			"scope": {
+				"category": "helper-component",
+				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
+			}
+		},
+		{
+			"path": "src/helper/websocket/index.test.ts",
+			"preserved": "source/src/helper/websocket/index.test.txt",
+			"bytes": 3939,
+			"sha256": "a42cecd3506e56e7013952e1021a659843689ae7a608a11a9c1be96c1bd838fe",
+			"scope": {
+				"category": "helper-component",
+				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
+			}
+		},
+		{
+			"path": "src/hono.test.ts",
+			"preserved": "source/src/hono.test.txt",
+			"bytes": 111213,
+			"sha256": "77ff7bf47566c856e2bcf065eebba41ebe4054cb2c5bf5cbf591c0e82df11504",
+			"scope": {
+				"category": "core-fetch-contract",
+				"target": "packages/server/http; packages/http/request; packages/http/response",
+				"reason": "Request inputs and observable Fetch outputs are applicable. Hono Context properties and composition API need explicit translation rather than a whole-suite compatibility claim."
+			}
+		},
+		{
+			"path": "src/http-exception.test.ts",
+			"preserved": "source/src/http-exception.test.txt",
+			"bytes": 1520,
+			"sha256": "b0eeb813fa540cb9eaf105ceb4b80b1aebf2160a2f6987dfb586bf1255fdf615",
+			"scope": {
+				"category": "core-fetch-contract",
+				"target": "packages/server/http; packages/http/request; packages/http/response",
+				"reason": "Request inputs and observable Fetch outputs are applicable. Hono Context properties and composition API need explicit translation rather than a whole-suite compatibility claim."
+			}
+		},
+		{
+			"path": "src/jsx/base.test.tsx",
+			"preserved": "source/src/jsx/base.test.txt",
+			"bytes": 2038,
+			"sha256": "a38a70927fcd526367b027887275a467f6e5f2d281472553b44d0c0ea28e6c6f",
+			"scope": {
+				"category": "framework-programming-model",
+				"target": "no Hono-compatible JSX/client/preset API",
+				"reason": "These suites specify Hono JSX renderers, typed clients or bundled router presets. Utils has no equivalent named API; shared HTTP assertions can still be translated separately."
+			}
+		},
+		{
+			"path": "src/jsx/children.test.ts",
+			"preserved": "source/src/jsx/children.test.txt",
+			"bytes": 1513,
+			"sha256": "cd43f54c3702386da9dee89625f68c34b61870a382f31d29fc4b6e7ca9734ca3",
+			"scope": {
+				"category": "framework-programming-model",
+				"target": "no Hono-compatible JSX/client/preset API",
+				"reason": "These suites specify Hono JSX renderers, typed clients or bundled router presets. Utils has no equivalent named API; shared HTTP assertions can still be translated separately."
+			}
+		},
+		{
+			"path": "src/jsx/components.test.tsx",
+			"preserved": "source/src/jsx/components.test.txt",
+			"bytes": 23638,
+			"sha256": "39c5b5c391e8dbec8498d51dd7e9b1a2e91c485866cb66dbeae06aa064ea2489",
+			"scope": {
+				"category": "framework-programming-model",
+				"target": "no Hono-compatible JSX/client/preset API",
+				"reason": "These suites specify Hono JSX renderers, typed clients or bundled router presets. Utils has no equivalent named API; shared HTTP assertions can still be translated separately."
+			}
+		},
+		{
+			"path": "src/jsx/context-isolation.test.ts",
+			"preserved": "source/src/jsx/context-isolation.test.txt",
+			"bytes": 22652,
+			"sha256": "63273e07eccf92f01b0eaa6901edc51fcbcc321a0a3e6462569158c6d6ee754b",
+			"scope": {
+				"category": "framework-programming-model",
+				"target": "no Hono-compatible JSX/client/preset API",
+				"reason": "These suites specify Hono JSX renderers, typed clients or bundled router presets. Utils has no equivalent named API; shared HTTP assertions can still be translated separately."
+			}
+		},
+		{
+			"path": "src/jsx/dom/client.test.tsx",
+			"preserved": "source/src/jsx/dom/client.test.txt",
+			"bytes": 3907,
+			"sha256": "38c5385a1b9f99c828b25fbea1c793867366aaa4512cd1736acc6fc019e66b52",
+			"scope": {
+				"category": "framework-programming-model",
+				"target": "no Hono-compatible JSX/client/preset API",
+				"reason": "These suites specify Hono JSX renderers, typed clients or bundled router presets. Utils has no equivalent named API; shared HTTP assertions can still be translated separately."
+			}
+		},
+		{
+			"path": "src/jsx/dom/components.test.tsx",
+			"preserved": "source/src/jsx/dom/components.test.txt",
+			"bytes": 11404,
+			"sha256": "1141dbaa37fa0a15ad1950a21cae3a1dcde80b2c1cc8288890f37125be1da954",
+			"scope": {
+				"category": "framework-programming-model",
+				"target": "no Hono-compatible JSX/client/preset API",
+				"reason": "These suites specify Hono JSX renderers, typed clients or bundled router presets. Utils has no equivalent named API; shared HTTP assertions can still be translated separately."
+			}
+		},
+		{
+			"path": "src/jsx/dom/context.test.tsx",
+			"preserved": "source/src/jsx/dom/context.test.txt",
+			"bytes": 5382,
+			"sha256": "7772fe04357f78b4ead75062bb7ec6e9fb8d928e2e2b79c4e0e3aa191e388fee",
+			"scope": {
+				"category": "framework-programming-model",
+				"target": "no Hono-compatible JSX/client/preset API",
+				"reason": "These suites specify Hono JSX renderers, typed clients or bundled router presets. Utils has no equivalent named API; shared HTTP assertions can still be translated separately."
+			}
+		},
+		{
+			"path": "src/jsx/dom/css.test.tsx",
+			"preserved": "source/src/jsx/dom/css.test.txt",
+			"bytes": 3966,
+			"sha256": "0da7cc3e561d45327b6c04c0ffda132da4accc1c2a7de86ffd028b773a265825",
+			"scope": {
+				"category": "framework-programming-model",
+				"target": "no Hono-compatible JSX/client/preset API",
+				"reason": "These suites specify Hono JSX renderers, typed clients or bundled router presets. Utils has no equivalent named API; shared HTTP assertions can still be translated separately."
+			}
+		},
+		{
+			"path": "src/jsx/dom/hooks/index.test.tsx",
+			"preserved": "source/src/jsx/dom/hooks/index.test.txt",
+			"bytes": 5329,
+			"sha256": "6da1bbdd00c775a31f26797eb8c74ffdb0a5651009d606c14474693f4d15b1db",
+			"scope": {
+				"category": "framework-programming-model",
+				"target": "no Hono-compatible JSX/client/preset API",
+				"reason": "These suites specify Hono JSX renderers, typed clients or bundled router presets. Utils has no equivalent named API; shared HTTP assertions can still be translated separately."
+			}
+		},
+		{
+			"path": "src/jsx/dom/index.test.tsx",
+			"preserved": "source/src/jsx/dom/index.test.txt",
+			"bytes": 96766,
+			"sha256": "5dbf8da76bf393c15f897bf6f0208123c58ef534d3a73094e9b9d653fe6b5f51",
+			"scope": {
+				"category": "framework-programming-model",
+				"target": "no Hono-compatible JSX/client/preset API",
+				"reason": "These suites specify Hono JSX renderers, typed clients or bundled router presets. Utils has no equivalent named API; shared HTTP assertions can still be translated separately."
+			}
+		},
+		{
+			"path": "src/jsx/dom/intrinsic-element/components.test.tsx",
+			"preserved": "source/src/jsx/dom/intrinsic-element/components.test.txt",
+			"bytes": 49760,
+			"sha256": "1ff12473df6e8746b2cc6b63096aa16a7f76e99a8a549ed838d3543a2d2b3aaf",
+			"scope": {
+				"category": "framework-programming-model",
+				"target": "no Hono-compatible JSX/client/preset API",
+				"reason": "These suites specify Hono JSX renderers, typed clients or bundled router presets. Utils has no equivalent named API; shared HTTP assertions can still be translated separately."
+			}
+		},
+		{
+			"path": "src/jsx/dom/server.test.tsx",
+			"preserved": "source/src/jsx/dom/server.test.txt",
+			"bytes": 4021,
+			"sha256": "06f0fe3b2690aa13ce5a90a7aa71eb25e9eb235d85b0660c20cfefdb67648d9c",
+			"scope": {
+				"category": "framework-programming-model",
+				"target": "no Hono-compatible JSX/client/preset API",
+				"reason": "These suites specify Hono JSX renderers, typed clients or bundled router presets. Utils has no equivalent named API; shared HTTP assertions can still be translated separately."
+			}
+		},
+		{
+			"path": "src/jsx/hooks/dom.test.tsx",
+			"preserved": "source/src/jsx/hooks/dom.test.txt",
+			"bytes": 27808,
+			"sha256": "e5cb1f5424c5be6ca91769f0af395bac693cb1fcbc07a741adb6a4093fcf71a4",
+			"scope": {
+				"category": "framework-programming-model",
+				"target": "no Hono-compatible JSX/client/preset API",
+				"reason": "These suites specify Hono JSX renderers, typed clients or bundled router presets. Utils has no equivalent named API; shared HTTP assertions can still be translated separately."
+			}
+		},
+		{
+			"path": "src/jsx/hooks/string.test.tsx",
+			"preserved": "source/src/jsx/hooks/string.test.txt",
+			"bytes": 1287,
+			"sha256": "98fc9e0a68a9797a0976d57e470083346171ac891be82c90eb39d71a8e2af2e4",
+			"scope": {
+				"category": "framework-programming-model",
+				"target": "no Hono-compatible JSX/client/preset API",
+				"reason": "These suites specify Hono JSX renderers, typed clients or bundled router presets. Utils has no equivalent named API; shared HTTP assertions can still be translated separately."
+			}
+		},
+		{
+			"path": "src/jsx/index.test.tsx",
+			"preserved": "source/src/jsx/index.test.txt",
+			"bytes": 52970,
+			"sha256": "89a3ac17b45b7607b0761094b5755d359f1e5d2184361d0bad70e0793d012c16",
+			"scope": {
+				"category": "framework-programming-model",
+				"target": "no Hono-compatible JSX/client/preset API",
+				"reason": "These suites specify Hono JSX renderers, typed clients or bundled router presets. Utils has no equivalent named API; shared HTTP assertions can still be translated separately."
+			}
+		},
+		{
+			"path": "src/jsx/intrinsic-element/components.test.tsx",
+			"preserved": "source/src/jsx/intrinsic-element/components.test.txt",
+			"bytes": 23328,
+			"sha256": "37d997a0cf871df815bf334040876bda11f35cca0b432f4acd9c55afa25423e6",
+			"scope": {
+				"category": "framework-programming-model",
+				"target": "no Hono-compatible JSX/client/preset API",
+				"reason": "These suites specify Hono JSX renderers, typed clients or bundled router presets. Utils has no equivalent named API; shared HTTP assertions can still be translated separately."
+			}
+		},
+		{
+			"path": "src/jsx/jsx-runtime.test.tsx",
+			"preserved": "source/src/jsx/jsx-runtime.test.txt",
+			"bytes": 2823,
+			"sha256": "2584ff80a9fe2eaac6103060aa682c2969462038906e870d248d6a4a6af861b5",
+			"scope": {
+				"category": "framework-programming-model",
+				"target": "no Hono-compatible JSX/client/preset API",
+				"reason": "These suites specify Hono JSX renderers, typed clients or bundled router presets. Utils has no equivalent named API; shared HTTP assertions can still be translated separately."
+			}
+		},
+		{
+			"path": "src/jsx/streaming.test.tsx",
+			"preserved": "source/src/jsx/streaming.test.txt",
+			"bytes": 32897,
+			"sha256": "aa0683d159c21b4c37c89f401daefac48f2f1c66b246da53f116cad5569f8927",
+			"scope": {
+				"category": "framework-programming-model",
+				"target": "no Hono-compatible JSX/client/preset API",
+				"reason": "These suites specify Hono JSX renderers, typed clients or bundled router presets. Utils has no equivalent named API; shared HTTP assertions can still be translated separately."
+			}
+		},
+		{
+			"path": "src/jsx/utils.test.ts",
+			"preserved": "source/src/jsx/utils.test.txt",
+			"bytes": 12081,
+			"sha256": "845df447c6da3b1726ca26924d5b114c1588f62dea5b6d4f48f81f2906eee0af",
+			"scope": {
+				"category": "framework-programming-model",
+				"target": "no Hono-compatible JSX/client/preset API",
+				"reason": "These suites specify Hono JSX renderers, typed clients or bundled router presets. Utils has no equivalent named API; shared HTTP assertions can still be translated separately."
+			}
+		},
+		{
+			"path": "src/middleware/basic-auth/index.test.ts",
+			"preserved": "source/src/middleware/basic-auth/index.test.txt",
+			"bytes": 12930,
+			"sha256": "2cbe3bc0305a10c9b9c51395bb71ec5e7913258b863bc8fda2f28cca371d063e",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/bearer-auth/index.test.ts",
+			"preserved": "source/src/middleware/bearer-auth/index.test.txt",
+			"bytes": 35285,
+			"sha256": "1a11d3c325e5ea67b4e9dcddf61926920ceae87c2d20dfd84d5fce4b4b8d1142",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/body-limit/index.test.ts",
+			"preserved": "source/src/middleware/body-limit/index.test.txt",
+			"bytes": 8228,
+			"sha256": "1b87de9e5778f403d7e1faf670367c6d0bb33b765501970921b567022ba3ad7b",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/cache/index.test.ts",
+			"preserved": "source/src/middleware/cache/index.test.txt",
+			"bytes": 39481,
+			"sha256": "543273c1d48042607c3a8b2ddfb01f2fe46fe9c8cba0bf9e31f7bef27507b685",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/combine/index.test.ts",
+			"preserved": "source/src/middleware/combine/index.test.txt",
+			"bytes": 9856,
+			"sha256": "c7f5b6bdaf76f5a3404345896bb5cbd43dfe12937444ad3a82af8e632cfb9b8f",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/compress/index.test.ts",
+			"preserved": "source/src/middleware/compress/index.test.txt",
+			"bytes": 19597,
+			"sha256": "9f7ab3137a6e4068517a40b54452dce50bfccca7eabcd0a4b5231d51b23c00b6",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/context-storage/index.test.ts",
+			"preserved": "source/src/middleware/context-storage/index.test.txt",
+			"bytes": 1082,
+			"sha256": "dc3bdc2c95b8a01c50964cf63787987647fd81ef5ad1419d313482d1cff0d358",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/cors/index.test.ts",
+			"preserved": "source/src/middleware/cors/index.test.txt",
+			"bytes": 16799,
+			"sha256": "dbbf3b8893e1fbca2cd9f8471ed462c2828495f43feef01e20c23aea4ef8645c",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/csrf/index.test.ts",
+			"preserved": "source/src/middleware/csrf/index.test.txt",
+			"bytes": 16248,
+			"sha256": "964b2a2d5afe0b463492befd1d1702ab69689ecb781de8cd5a6348288264d81c",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/etag/digest.test.ts",
+			"preserved": "source/src/middleware/etag/digest.test.txt",
+			"bytes": 637,
+			"sha256": "e100e980156a016e008327dc720696c6bd38ad64e213736ceb60a9625d6eb3d0",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/etag/index.test.ts",
+			"preserved": "source/src/middleware/etag/index.test.txt",
+			"bytes": 15879,
+			"sha256": "85532bf61d774c18ddfcb3069dbb72ed2612581fe46f328e2032e8db61855b73",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/ip-restriction/index.test.ts",
+			"preserved": "source/src/middleware/ip-restriction/index.test.txt",
+			"bytes": 7695,
+			"sha256": "ff4311934875af1a289397024d5e14de7689e1c81dddc6cdd7b7f7649231ef51",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/jsx-renderer/index.test.tsx",
+			"preserved": "source/src/middleware/jsx-renderer/index.test.txt",
+			"bytes": 15252,
+			"sha256": "d3ed1267de40d512efcb724e032bcb09856489ff4dd3336cd6680c851ab9b873",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/jwk/index.test.ts",
+			"preserved": "source/src/middleware/jwk/index.test.txt",
+			"bytes": 43998,
+			"sha256": "67771b05c5c90d1c91bfcde895ad91b368bab70b7a0e99d829b0f8f6608b45ad",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/jwk/keys.test.json",
+			"preserved": "source/src/middleware/jwk/keys.test.txt",
+			"bytes": 4518,
+			"sha256": "591d18d31af3039d04388fe7b522bc73249f07a277cfd89a17833db7a7520ad1",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/jwt/index.test.ts",
+			"preserved": "source/src/middleware/jwt/index.test.txt",
+			"bytes": 28551,
+			"sha256": "fa4241d0d4e03e50197b26e009584d925c40c0dfee098019811f298c3dacd639",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/language/index.test.ts",
+			"preserved": "source/src/middleware/language/index.test.txt",
+			"bytes": 14009,
+			"sha256": "a22ff54d485df4fa658f1f578644cf81ede6dc540f5c6aec7644ebb22c9f50ca",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/logger/index.test.ts",
+			"preserved": "source/src/middleware/logger/index.test.txt",
+			"bytes": 6399,
+			"sha256": "8ef991f5ab399ec455a153de14c408e7a76365e30d4a9d86f5bcf138b14d3538",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/method-not-allowed/index.test.ts",
+			"preserved": "source/src/middleware/method-not-allowed/index.test.txt",
+			"bytes": 9666,
+			"sha256": "626b2eb06b4d38013a6ec1c0057965b4207a5d4aaaf708435b68d655ce33b258",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/method-override/index.test.ts",
+			"preserved": "source/src/middleware/method-override/index.test.txt",
+			"bytes": 7182,
+			"sha256": "29e07b71bcf6522db48693441c6e1f76a33c0c5b7717bfa1400695072008d317",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/powered-by/index.test.ts",
+			"preserved": "source/src/middleware/powered-by/index.test.txt",
+			"bytes": 1207,
+			"sha256": "47628e4eec86a7f5c473e875233ee40e387a7d12705c52868a337a6afd1f56fa",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/pretty-json/index.test.ts",
+			"preserved": "source/src/middleware/pretty-json/index.test.txt",
+			"bytes": 3542,
+			"sha256": "4bb9bacc41295af197b8ad96c39220aff960d39f3aa64856328f576dab3d4122",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/request-id/index.test.ts",
+			"preserved": "source/src/middleware/request-id/index.test.txt",
+			"bytes": 6035,
+			"sha256": "b431c4a2be25f17175f9ec7d2029602ef94bf26ae6b588a7e1e03a84e193e647",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/secure-headers/index.test.ts",
+			"preserved": "source/src/middleware/secure-headers/index.test.txt",
+			"bytes": 21960,
+			"sha256": "73b2ff75642cebb8440da80e221be341fb21b5b6db8808406cb9ccc8a963791d",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/serve-static/index.test.ts",
+			"preserved": "source/src/middleware/serve-static/index.test.txt",
+			"bytes": 10357,
+			"sha256": "c1af13578ec0d254266715a9821ed3e4ba33e085e5d7b09eade6180b55d1b002",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/serve-static/path.test.ts",
+			"preserved": "source/src/middleware/serve-static/path.test.txt",
+			"bytes": 1474,
+			"sha256": "95a07b36f481a37172609509f1bba72f8266872aab57b567e20d634302ed004c",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/timeout/index.test.ts",
+			"preserved": "source/src/middleware/timeout/index.test.txt",
+			"bytes": 2489,
+			"sha256": "aed4e271ece4d5c072522f82df310e4dd33e882e29d0047d3a462050e7f6b095",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/timing/index.test.ts",
+			"preserved": "source/src/middleware/timing/index.test.txt",
+			"bytes": 9805,
+			"sha256": "f58739de06a0621533f7fc5eae8ede3b8a88919e8754e1211197ebf17a7a766a",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/middleware/trailing-slash/index.test.ts",
+			"preserved": "source/src/middleware/trailing-slash/index.test.txt",
+			"bytes": 13275,
+			"sha256": "dcd0690007ca26e59f4a6057a7925bc2b0be80ed759b7bf45d7c2d2f8ada4e42",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/preset/quick.test.ts",
+			"preserved": "source/src/preset/quick.test.txt",
+			"bytes": 992,
+			"sha256": "0353cbe74e4fa808330e11c5dd15cd164c473dcb89598d137f33bd59627783f5",
+			"scope": {
+				"category": "framework-programming-model",
+				"target": "no Hono-compatible JSX/client/preset API",
+				"reason": "These suites specify Hono JSX renderers, typed clients or bundled router presets. Utils has no equivalent named API; shared HTTP assertions can still be translated separately."
+			}
+		},
+		{
+			"path": "src/preset/tiny.test.ts",
+			"preserved": "source/src/preset/tiny.test.txt",
+			"bytes": 964,
+			"sha256": "ccf0f721c44c6205aa44dee397b79544ff424f0c56ee9b304bc19aedff3d7226",
+			"scope": {
+				"category": "framework-programming-model",
+				"target": "no Hono-compatible JSX/client/preset API",
+				"reason": "These suites specify Hono JSX renderers, typed clients or bundled router presets. Utils has no equivalent named API; shared HTTP assertions can still be translated separately."
+			}
+		},
+		{
+			"path": "src/request.test.ts",
+			"preserved": "source/src/request.test.txt",
+			"bytes": 22103,
+			"sha256": "5e3715f006801c25e20ade4668d6449a52b3387e15450e5720231fe5fdf2a2ad",
+			"scope": {
+				"category": "core-fetch-contract",
+				"target": "packages/server/http; packages/http/request; packages/http/response",
+				"reason": "Request inputs and observable Fetch outputs are applicable. Hono Context properties and composition API need explicit translation rather than a whole-suite compatibility claim."
+			}
+		},
+		{
+			"path": "src/router/common.case.test.ts",
+			"preserved": "source/src/router/common.case.test.txt",
+			"bytes": 37207,
+			"sha256": "cb707618ef3050997fbbc444faa4b31f3933a56f4bee3fee19089f678689368b",
+			"scope": {
+				"category": "router-contract",
+				"target": "packages/server/http/router.ts",
+				"reason": "Public method/path/parameter and registration-order cases are applicable; private trie and compiled-regexp representations are Hono-specific. Common cases are instantiated by router wrappers."
+			}
+		},
+		{
+			"path": "src/router/linear-router/router.test.ts",
+			"preserved": "source/src/router/linear-router/router.test.txt",
+			"bytes": 2862,
+			"sha256": "e20bf2e7a7af991675e78fbf43131b35d1bd40897524639e1a57edd384303d93",
+			"scope": {
+				"category": "router-contract",
+				"target": "packages/server/http/router.ts",
+				"reason": "Public method/path/parameter and registration-order cases are applicable; private trie and compiled-regexp representations are Hono-specific. Common cases are instantiated by router wrappers."
+			}
+		},
+		{
+			"path": "src/router/pattern-router/router.test.ts",
+			"preserved": "source/src/router/pattern-router/router.test.txt",
+			"bytes": 1091,
+			"sha256": "8bd93eee0a8ac336e152f0c9969e752fafa6eaaabccbc9414dc56e2c947d7e08",
+			"scope": {
+				"category": "router-contract",
+				"target": "packages/server/http/router.ts",
+				"reason": "Public method/path/parameter and registration-order cases are applicable; private trie and compiled-regexp representations are Hono-specific. Common cases are instantiated by router wrappers."
+			}
+		},
+		{
+			"path": "src/router/reg-exp-router/prepared-router.test.ts",
+			"preserved": "source/src/router/reg-exp-router/prepared-router.test.txt",
+			"bytes": 4654,
+			"sha256": "4d4f4993016c9da53ab25b8b184968495216f6f86476439d41e09995a882985c",
+			"scope": {
+				"category": "router-contract",
+				"target": "packages/server/http/router.ts",
+				"reason": "Public method/path/parameter and registration-order cases are applicable; private trie and compiled-regexp representations are Hono-specific. Common cases are instantiated by router wrappers."
+			}
+		},
+		{
+			"path": "src/router/reg-exp-router/router.test.ts",
+			"preserved": "source/src/router/reg-exp-router/router.test.txt",
+			"bytes": 8935,
+			"sha256": "32b1762a174d509147bf4088b2721c78f60c2afaebe7111d3d1c276c31877957",
+			"scope": {
+				"category": "router-contract",
+				"target": "packages/server/http/router.ts",
+				"reason": "Public method/path/parameter and registration-order cases are applicable; private trie and compiled-regexp representations are Hono-specific. Common cases are instantiated by router wrappers."
+			}
+		},
+		{
+			"path": "src/router/smart-router/router.test.ts",
+			"preserved": "source/src/router/smart-router/router.test.txt",
+			"bytes": 343,
+			"sha256": "f65fb3a6a5892d31fd2098381aa50cc4182091aad27f595e99497d91e301086b",
+			"scope": {
+				"category": "router-contract",
+				"target": "packages/server/http/router.ts",
+				"reason": "Public method/path/parameter and registration-order cases are applicable; private trie and compiled-regexp representations are Hono-specific. Common cases are instantiated by router wrappers."
+			}
+		},
+		{
+			"path": "src/router/trie-router/node.test.ts",
+			"preserved": "source/src/router/trie-router/node.test.txt",
+			"bytes": 28695,
+			"sha256": "05114f5ba6320ea730b164bac10ac5d9a8ca48963e869501f7d30456e49c57a6",
+			"scope": {
+				"category": "router-contract",
+				"target": "packages/server/http/router.ts",
+				"reason": "Public method/path/parameter and registration-order cases are applicable; private trie and compiled-regexp representations are Hono-specific. Common cases are instantiated by router wrappers."
+			}
+		},
+		{
+			"path": "src/router/trie-router/router.test.ts",
+			"preserved": "source/src/router/trie-router/router.test.txt",
+			"bytes": 175,
+			"sha256": "3044a064381a692c3ea6d339910bd0e5eb6cf3394ed77155dc2f0373e9f71645",
+			"scope": {
+				"category": "router-contract",
+				"target": "packages/server/http/router.ts",
+				"reason": "Public method/path/parameter and registration-order cases are applicable; private trie and compiled-regexp representations are Hono-specific. Common cases are instantiated by router wrappers."
+			}
+		},
+		{
+			"path": "src/types.test.ts",
+			"preserved": "source/src/types.test.txt",
+			"bytes": 128380,
+			"sha256": "d7d03e6ab394fd923745c6ee3e42fd332f2770d9b5f71ff2285bcc5605633de3",
+			"scope": {
+				"category": "type-contract",
+				"target": "packages/server/service; packages/server/endpoint; packages/http/response",
+				"reason": "Compile-time input/output inference must be qualified against each public programming model; preserved expectTypeOf expressions are not runtime tests."
+			}
+		},
+		{
+			"path": "src/utils/accept.test.ts",
+			"preserved": "source/src/utils/accept.test.txt",
+			"bytes": 8451,
+			"sha256": "1bcb191bacb57942480757a72f7f19f85070bd030ffdd88ff13d3a4ed6a7f9bb",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/utils/basic-auth.test.ts",
+			"preserved": "source/src/utils/basic-auth.test.txt",
+			"bytes": 1617,
+			"sha256": "5a29537601bfe5f9711de3b834900378008e5ed1e1714313d282149689494dd9",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/utils/body.test.ts",
+			"preserved": "source/src/utils/body.test.txt",
+			"bytes": 14810,
+			"sha256": "1f6877165f80aabe9f350e94012d6a70d7cf7a398c1fc72b421cc6557c58dc74",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/utils/buffer.test.ts",
+			"preserved": "source/src/utils/buffer.test.txt",
+			"bytes": 5450,
+			"sha256": "1d07a2c290f2f50fb521cab78b22fd02bf8447e48a81f8dd51cea3431ed26773",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/utils/color.test.ts",
+			"preserved": "source/src/utils/color.test.txt",
+			"bytes": 1394,
+			"sha256": "c34d3b95526ee522afcb82ad01767c1679915b442e920d496afa5235e51244ab",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/utils/concurrent.test.ts",
+			"preserved": "source/src/utils/concurrent.test.txt",
+			"bytes": 2177,
+			"sha256": "969163a7a7d503caa522664bed6d79afe4f04b149df8337979e1f617560e725a",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/utils/cookie.test.ts",
+			"preserved": "source/src/utils/cookie.test.txt",
+			"bytes": 20092,
+			"sha256": "3b08cae7c4afd858c08a3f05cce98126939d534690daa216a6c159cb79be5c15",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/utils/crypto.test.ts",
+			"preserved": "source/src/utils/crypto.test.txt",
+			"bytes": 1579,
+			"sha256": "8f822eef56e2f05a3fcf12aa70c05ddd935537536b704b0fc8709ce3b51124ec",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/utils/encode.test.ts",
+			"preserved": "source/src/utils/encode.test.txt",
+			"bytes": 2057,
+			"sha256": "d21fe515f5fb7b6f468185b305b7bdb8447080a26cd9233976e76663912bac62",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/utils/filepath.test.ts",
+			"preserved": "source/src/utils/filepath.test.txt",
+			"bytes": 3440,
+			"sha256": "b6e78430507661c6d6a6871fa5a3f2f060a6a273f4ad84767119a125008a7495",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/utils/html.test.ts",
+			"preserved": "source/src/utils/html.test.txt",
+			"bytes": 529,
+			"sha256": "83db2a4e6aff27dffd51c65e04b2f34a22f3aabee9d4856d0bf9005fbd2218c2",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/utils/ipaddr.test.ts",
+			"preserved": "source/src/utils/ipaddr.test.txt",
+			"bytes": 5773,
+			"sha256": "bcf7933293745d89f35fbc27441c43da5ba64693b26f9fe42289949d2d919c8f",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/utils/jwt/jwa.test.ts",
+			"preserved": "source/src/utils/jwt/jwa.test.txt",
+			"bytes": 3015,
+			"sha256": "04332df18a0a5654fcd4c4bf0a17606fc07fed481158635675ec60e962f7e82d",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/utils/jwt/jwt.test.ts",
+			"preserved": "source/src/utils/jwt/jwt.test.txt",
+			"bytes": 58387,
+			"sha256": "339992bf07a084244aa7146d2e261e25a8ae373759c5babbd68979c742ffd6a4",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/utils/mime.test.ts",
+			"preserved": "source/src/utils/mime.test.txt",
+			"bytes": 3053,
+			"sha256": "b699081881949bc54fac57cb11a13d73aae1b986e13ec293c762d5b902221a47",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/utils/stream.test.ts",
+			"preserved": "source/src/utils/stream.test.txt",
+			"bytes": 7388,
+			"sha256": "c74d9c64bed30a9ea3480a801c25550a23140e52eb90a6de98d18adfd7b99469",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/utils/types.test.ts",
+			"preserved": "source/src/utils/types.test.txt",
+			"bytes": 9114,
+			"sha256": "f52a2796b5a839464ebba9c0d2a4e4b653094e9d0cfd8ef96125b557068ce085",
+			"scope": {
+				"category": "type-contract",
+				"target": "packages/server/service; packages/server/endpoint; packages/http/response",
+				"reason": "Compile-time input/output inference must be qualified against each public programming model; preserved expectTypeOf expressions are not runtime tests."
+			}
+		},
+		{
+			"path": "src/utils/url.test.ts",
+			"preserved": "source/src/utils/url.test.txt",
+			"bytes": 15211,
+			"sha256": "2fc582760602904849e7eefdbd9f66266d0b775a2318d1aa0322928e960af0b9",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/validator/utils.test.ts",
+			"preserved": "source/src/validator/utils.test.txt",
+			"bytes": 2720,
+			"sha256": "2b3eb3bc25ae770aaa1e1f575822ad8c8b6fa68f6fd983a1d3b08e366013cac9",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		},
+		{
+			"path": "src/validator/validator.test.ts",
+			"preserved": "source/src/validator/validator.test.txt",
+			"bytes": 37705,
+			"sha256": "608ffffd4e7c7f7d17a5e12b37005cfd8f4086691311ed84970d2d70a0a9b6c0",
+			"scope": {
+				"category": "http-component",
+				"target": "packages/http; packages/server; packages/query; packages/encoding; packages/markup",
+				"reason": "Inspect matching parsing, header, body, security and streaming components. Some auth, JWT, JWK, compression, logging or platform-cache behavior has no corresponding Utils middleware."
+			}
+		}
+	]
+}

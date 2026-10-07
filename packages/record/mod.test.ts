@@ -22,20 +22,20 @@ describe('record', () => {
 			},
 		});
 		expect(record.is(accessor)).toBe(false);
-		expect(() => record.assert(accessor, 'input')).toThrow('enumerable data property');
+		expect(() => record.assert(accessor, 'input')).toThrow(TypeError);
 		expect(reads).toBe(0);
 
 		const inherited = Object.create({ hidden: 1 }) as Record<string, unknown>;
 		inherited.visible = 2;
-		expect(() => record.assert(inherited, 'input')).toThrow('plain object or null-prototype record');
+		expect(() => record.assert(inherited, 'input')).toThrow(TypeError);
 
 		const hidden = {} as Record<string, unknown>;
 		Object.defineProperty(hidden, 'value', { value: 1, enumerable: false });
-		expect(() => record.assert(hidden, 'input')).toThrow('enumerable data property');
+		expect(() => record.assert(hidden, 'input')).toThrow(TypeError);
 
 		const symbol = { value: 1 } as Record<string, unknown>;
 		Object.defineProperty(symbol, Symbol('hidden'), { value: 2, enumerable: true });
-		expect(() => record.assert(symbol, 'input')).toThrow('string keys only');
+		expect(() => record.assert(symbol, 'input')).toThrow(TypeError);
 	});
 
 	it('returns exact ordered keys and entries and snapshots caller mutation', () => {

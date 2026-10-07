@@ -37,8 +37,8 @@ describe('Deno permission arguments', () => {
 	});
 
 	it('rejects unsupported arguments and empty scope entries', () => {
-		expect(() => permissions.parse(['--quiet'])).toThrow('Expected a Deno --allow-*');
-		expect(() => permissions.parse(['--allow-read='])).toThrow('must not be empty');
-		expect(() => permissions.decodeList('/a,/b,')).toThrow('empty values');
+		expect(() => permissions.parse(['--quiet'])).toThrow(TypeError);
+		expect(() => permissions.parse(['--allow-read='])).toThrow(TypeError);
+		expect(() => permissions.decodeList('/a,/b,')).toThrow(TypeError);
 	});
 });

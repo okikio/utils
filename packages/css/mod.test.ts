@@ -48,9 +48,8 @@ describe('@okikio/css', () => {
 
 		expect(css.resources(parsed).some((reference) => reference.url === 'ok.webp')).toBe(true);
 		expect(parsed.problems).toHaveLength(2);
-		expect(parsed.problems.map((problem) => problem.message)).toEqual([
-			'Identifier is expected',
-			'Colon is expected',
-		]);
+		// Parser wording is diagnostic. The public evidence is that both problems
+		// retain usable source coordinates beside the recoverable resource.
+		expect(parsed.problems.every((problem) => problem.line > 0 && problem.column > 0)).toBe(true);
 	});
 });

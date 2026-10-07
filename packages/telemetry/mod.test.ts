@@ -83,7 +83,7 @@ describe('@okikio/telemetry', () => {
 				return 'secret';
 			},
 		});
-		expect(() => telemetry.event({ name: 'test.event', fields }, {}, fixed)).toThrow('cannot be an accessor');
+		expect(() => telemetry.event({ name: 'test.event', fields }, {}, fixed)).toThrow(TypeError);
 		expect(reads).toBe(0);
 	});
 

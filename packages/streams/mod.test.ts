@@ -140,4 +140,63 @@ describe('stream adapters and limits', () => {
 		);
 		expect(written).toEqual([1, 2, 3]);
 	});
+
+	it('does not exhaust a producer while a destination write is blocked', async () => {
+		const writing = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		let produced = 0;
+		let returned = false;
+		async function* source() {
+			try {
+				for (let value = 0; value < 100; value += 1) {
+					produced += 1;
+					yield value;
+				}
+			} finally {
+				returned = true;
+			}
+		}
+		const output: number[] = [];
+		const completion = streams.pipe(
+			source(),
+			new WritableStream<number>({
+				async write(value) {
+					if (value === 0) {
+						writing.resolve();
+						await release.promise;
+					}
+					output.push(value);
+				},
+			}),
+		);
+		await writing.promise;
+		// Native buffering may prefetch. The contract is bounded flow, not one
+		// exact scheduler turn or internal pull count.
+		expect(produced).toBeLessThan(100);
+		release.resolve();
+		await completion;
+		expect(output).toEqual(Array.from({ length: 100 }, (_, value) => value));
+		expect(returned).toBe(true);
+	});
+
+	it('returns the producer and preserves a consumer failure', async () => {
+		const failure = new Error('destination failed');
+		let returned = false;
+		async function* source() {
+			try {
+				for (let value = 0; value < 100; value += 1) yield value;
+			} finally {
+				returned = true;
+			}
+		}
+		await expect(streams.pipe(
+			source(),
+			new WritableStream<number>({
+				write() {
+					throw failure;
+				},
+			}),
+		)).rejects.toBe(failure);
+		expect(returned).toBe(true);
+	});
 });

@@ -1,5 +1,5 @@
 /** Register and execute the cross-package benchmark stories. */
-import { run } from 'mitata';
+import { run } from './run.ts';
 
 import './coordination.bench.ts';
 import './discovery.bench.ts';

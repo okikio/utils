@@ -1,0 +1,136 @@
+{
+	"commit": "06880c4a2b04de9dd74217f26dd831209b9c01f1",
+	"version": "4.13.5",
+	"upstreamImplementation": "src/helper/proxy/index.ts",
+	"localTestFile": "tests/hono-proxy.test.ts",
+	"unmatched": [],
+	"execution": "Pending root serial qualification; inventory does not infer runtime success.",
+	"cases": [
+		{
+			"upstreamPath": "src/helper/proxy/index.test.ts",
+			"registrationLine": 76,
+			"title": "compressed",
+			"localFile": "tests/hono-proxy.test.ts",
+			"fixtureId": "compressed",
+			"behavior": "Every original asserted request URL/header and response status/header/body projection is checked against literals. Hono removes explicitly supplied Accept-Encoding; gateway forwards it. Both expect Fetch-decoded response metadata.",
+			"disposition": "adapted-contract-difference"
+		},
+		{
+			"upstreamPath": "src/helper/proxy/index.test.ts",
+			"registrationLine": 102,
+			"title": "uncompressed",
+			"localFile": "tests/hono-proxy.test.ts",
+			"fixtureId": "uncompressed",
+			"behavior": "Every original asserted request URL/header and response status/header/body projection is checked against literals. Request encoding negotiation differs; uncompressed response length remains valid in both.",
+			"disposition": "adapted-contract-difference"
+		},
+		{
+			"upstreamPath": "src/helper/proxy/index.test.ts",
+			"registrationLine": 127,
+			"title": "POST request",
+			"localFile": "tests/hono-proxy.test.ts",
+			"fixtureId": "post",
+			"behavior": "Every original asserted request URL/header and response status/header/body projection is checked against literals. Shared original expectations.",
+			"disposition": "ported"
+		},
+		{
+			"upstreamPath": "src/helper/proxy/index.test.ts",
+			"registrationLine": 151,
+			"title": "remove hop-by-hop headers",
+			"localFile": "tests/hono-proxy.test.ts",
+			"fixtureId": "hop-default",
+			"behavior": "Every original asserted request URL/header and response status/header/body projection is checked against literals. Gateway strips caller Host and Connection-nominated fields; default Hono intentionally keeps the nominated Custom-Header.",
+			"disposition": "adapted-contract-difference"
+		},
+		{
+			"upstreamPath": "src/helper/proxy/index.test.ts",
+			"registrationLine": 177,
+			"title": "remove hop-by-hop headers with strictConnectionProcessing",
+			"localFile": "tests/hono-proxy.test.ts",
+			"fixtureId": "hop-strict",
+			"behavior": "Every original asserted request URL/header and response status/header/body projection is checked against literals. Strict request nomination removal agrees; gateway still removes caller-selected Host.",
+			"disposition": "adapted-contract-difference"
+		},
+		{
+			"upstreamPath": "src/helper/proxy/index.test.ts",
+			"registrationLine": 208,
+			"title": "invalid hop-by-hop headers with strictConnectionProcessing",
+			"localFile": "tests/hono-proxy.test.ts",
+			"fixtureId": "hop-invalid",
+			"behavior": "Every original asserted request URL/header and response status/header/body projection is checked against literals. Hono strict mode rejects malformed nomination syntax; generic gateway forwarding ignores invalid tokens while stripping valid nominations.",
+			"disposition": "adapted-contract-difference"
+		},
+		{
+			"upstreamPath": "src/helper/proxy/index.test.ts",
+			"registrationLine": 228,
+			"title": "specify hop-by-hop header by options",
+			"localFile": "tests/hono-proxy.test.ts",
+			"fixtureId": "hop-option",
+			"behavior": "Every original asserted request URL/header and response status/header/body projection is checked against literals. Explicit Hono init may restore a hop credential; gateway transport policy strips it and forbids trusted adapter patches from restoring it.",
+			"disposition": "adapted-contract-difference"
+		},
+		{
+			"upstreamPath": "src/helper/proxy/index.test.ts",
+			"registrationLine": 246,
+			"title": "remove response headers listed in the Connection header",
+			"localFile": "tests/hono-proxy.test.ts",
+			"fixtureId": "connection-response",
+			"behavior": "Every original asserted request URL/header and response status/header/body projection is checked against literals. Shared original expectations.",
+			"disposition": "ported"
+		},
+		{
+			"upstreamPath": "src/helper/proxy/index.test.ts",
+			"registrationLine": 256,
+			"title": "modify header",
+			"localFile": "tests/hono-proxy.test.ts",
+			"fixtureId": "modify",
+			"behavior": "Every original asserted request URL/header and response status/header/body projection is checked against literals. Shared original expectations.",
+			"disposition": "ported"
+		},
+		{
+			"upstreamPath": "src/helper/proxy/index.test.ts",
+			"registrationLine": 274,
+			"title": "does not propagate undefined request headers",
+			"localFile": "tests/hono-proxy.test.ts",
+			"fixtureId": "undefined-auth",
+			"behavior": "Every original asserted request URL/header and response status/header/body projection is checked against literals. Hono deletes an explicit undefined override; gateway uses its declared default credential stripping policy instead of accepting undefined Headers values.",
+			"disposition": "adapted-contract-difference"
+		},
+		{
+			"upstreamPath": "src/helper/proxy/index.test.ts",
+			"registrationLine": 293,
+			"title": "client disconnect",
+			"localFile": "tests/hono-proxy.test.ts",
+			"fixtureId": "disconnect",
+			"behavior": "Original POST body test and abort reason client disconnect; Hono original response body preserved. Abort timing gated at actual upstream entry; gateway caller abort rejects exact reason and late response cancellation is joined.",
+			"disposition": "adapted-contract-difference"
+		},
+		{
+			"upstreamPath": "src/helper/proxy/index.test.ts",
+			"registrationLine": 307,
+			"title": "not found",
+			"localFile": "tests/hono-proxy.test.ts",
+			"fixtureId": "not-found",
+			"behavior": "Every original asserted request URL/header and response status/header/body projection is checked against literals. Shared original expectations.",
+			"disposition": "ported"
+		},
+		{
+			"upstreamPath": "src/helper/proxy/index.test.ts",
+			"registrationLine": 314,
+			"title": "pass a Request object to proxyInit",
+			"localFile": "tests/hono-proxy.test.ts",
+			"fixtureId": "request-init",
+			"behavior": "Every original asserted request URL/header and response status/header/body projection is checked against literals. Hono accepts Request as its init overload; gateway accepts a native Request through its Fetch handler. Encoding negotiation differs.",
+			"disposition": "adapted-contract-difference"
+		},
+		{
+			"upstreamPath": "src/helper/proxy/index.test.ts",
+			"registrationLine": 336,
+			"title": "Should call the custom fetch method when specified",
+			"localFile": "tests/hono-proxy.test.ts",
+			"fixtureId": "custom-fetch",
+			"behavior": "Every original asserted request URL/header and response status/header/body projection is checked against literals. Shared original expectations.",
+			"disposition": "ported"
+		}
+	]
+}

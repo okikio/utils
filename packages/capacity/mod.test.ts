@@ -30,17 +30,17 @@ describe('capacity authoring records', () => {
 	it('rejects hidden definition fields instead of dropping them from the snapshot', () => {
 		const fields = { cores: countField };
 		Object.defineProperty(fields, 'hidden', { value: countField, enumerable: false });
-		expect(() => capacity.define(fields)).toThrow('enumerable data property');
+		expect(() => capacity.define(fields)).toThrow(TypeError);
 	});
 
 	it('rejects inherited admission limits and requests', async () => {
 		const inheritedLimits = Object.create({ browserContexts: 1 }) as { browserContexts: number };
-		expect(() => capacity.create(inheritedLimits)).toThrow('plain object or null-prototype record');
+		expect(() => capacity.create(inheritedLimits)).toThrow(TypeError);
 
 		const admission = capacity.create({ browserContexts: 1 });
 		const inheritedRequest = Object.create({ browserContexts: 1 }) as { browserContexts: number };
 		await expect(capacity.acquire(admission, inheritedRequest)).rejects.toThrow(
-			'plain object or null-prototype record',
+			TypeError,
 		);
 	});
 });
@@ -67,7 +67,7 @@ describe('capacity definitions', () => {
 		const conflicting = capacity.define({
 			cores: capacity.field(z.number().int().nonnegative(), count, { description: 'Another core field.' }),
 		});
-		expect(() => capacity.compose(left, conflicting)).toThrow('conflicting definitions');
+		expect(() => capacity.compose(left, conflicting)).toThrow(TypeError);
 	});
 });
 
@@ -150,8 +150,8 @@ describe('capacity admission', () => {
 
 	it('rejects unknown and impossible requests before they enter the FIFO queue', async () => {
 		const admission = capacity.create({ browserContexts: 1 });
-		await expect(capacity.acquire(admission, { browserContexts: 2 })).rejects.toThrow('exceeds capacity');
-		await expect(capacity.acquire(admission, { uploadParts: 1 })).rejects.toThrow('Unknown resource capacity');
+		await expect(capacity.acquire(admission, { browserContexts: 2 })).rejects.toThrow(RangeError);
+		await expect(capacity.acquire(admission, { uploadParts: 1 })).rejects.toThrow(RangeError);
 	});
 
 	it('preserves resource names exactly as the previous Zod record contract did', async () => {

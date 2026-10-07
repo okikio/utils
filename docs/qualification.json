@@ -1,0 +1,4196 @@
+{
+	"schemaVersion": 1,
+	"evidenceRule": "This file selects executable proofs and explains applicability. It never records a gate as passed; generated receipts carry actual runtime versions, source/artifact hashes, commands, and observed outcomes.",
+	"packages": [
+		{
+			"name": "@okikio/activity",
+			"manifest": "packages/activity/deno.jsonc",
+			"model": "Define lazy schema-checked units of work and invoke them through local, Worker, or framed-process providers.",
+			"behavior": {
+				"files": [
+					"packages/activity/engine.test.ts",
+					"packages/activity/mod.test.ts",
+					"packages/activity/provider.test.ts"
+				],
+				"properties": [
+					"Input/result validation precedes acceptance; required engine placement is exclusive.",
+					"Declared failures stay distinct from faults; reverse permission/effect calls retain authority."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/activity/engine.test.ts",
+					"packages/activity/mod.test.ts",
+					"packages/activity/provider.test.ts"
+				],
+				"properties": [
+					"Input/result validation precedes acceptance; required engine placement is exclusive.",
+					"Declared failures stay distinct from faults; reverse permission/effect calls retain authority."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"workflow-recovery"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/activity/engine.test.ts",
+						"packages/activity/mod.test.ts",
+						"packages/activity/provider.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/recovery.bench.ts",
+					"packages/workflow/dispatch.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What does an executed activity plus Scheduler replacement and replay cost? What does dispatch admission and fencing cost for 1000 activities? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"No equivalent baseline is claimed; measure this explicit operation.",
+					"No equivalent baseline is claimed; measure this explicit operation.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Process-local memory adapters survive Scheduler replacement, not process death; the provider must run exactly once.",
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/capacity",
+			"manifest": "packages/capacity/deno.jsonc",
+			"model": "Reserve named admission capacity atomically before work begins.",
+			"behavior": {
+				"files": [
+					"packages/capacity/mod.test.ts"
+				],
+				"properties": [
+					"No partial reservation; FIFO head-of-line admission; release is idempotent.",
+					"Aborted waiters leave accounting unchanged and impossible requests never enter the queue."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/capacity/mod.test.ts"
+				],
+				"properties": [
+					"No partial reservation; FIFO head-of-line admission; release is idempotent.",
+					"Aborted waiters leave accounting unchanged and impossible requests never enter the queue."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"crawl-discovery"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/capacity/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/lifetimes.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What does bounded work and owned cleanup cost? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"JSR std/async pooledMap compares ordered successful values only; failure ownership differs.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/catalog",
+			"manifest": "packages/catalog/deno.jsonc",
+			"model": "Keep canonical definition identity and named selection separate from live execution.",
+			"behavior": {
+				"files": [
+					"packages/catalog/core.mod.test.ts",
+					"packages/catalog/mod.test.ts"
+				],
+				"properties": [
+					"Duplicate exact objects coalesce; conflicting IDs or source aliases reject.",
+					"Prototype-shaped keys survive; copied lookalikes cannot acquire canonical identity."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/catalog/core.mod.test.ts",
+					"packages/catalog/mod.test.ts"
+				],
+				"properties": [
+					"Duplicate exact objects coalesce; conflicting IDs or source aliases reject.",
+					"Prototype-shaped keys survive; copied lookalikes cannot acquire canonical identity."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"platform-services"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/catalog/core.mod.test.ts",
+						"packages/catalog/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"command": "deno task test:node",
+					"files": [
+						"packages/catalog/mod.test.ts"
+					]
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/values.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What does bounded validation, wire conversion and lookup cost in a 100-value import? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"Direct Zod, Map, Object.assign, Date and JSR std/semver where outputs can be compared; each omits named utility contracts.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/codec",
+			"manifest": "packages/codec/deno.jsonc",
+			"model": "Validate independent encode and decode directions, then compose nested records and arrays.",
+			"behavior": {
+				"files": [
+					"packages/codec/mod.test.ts"
+				],
+				"properties": [
+					"Optional nested values round trip with complete invalid-data paths.",
+					"Definition/input accessors cannot run as a side effect of validation."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/codec/mod.test.ts"
+				],
+				"properties": [
+					"Optional nested values round trip with complete invalid-data paths.",
+					"Definition/input accessors cannot run as a side effect of validation."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"repository-failures"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/codec/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/values.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts",
+					"bench/alternatives.bench.ts"
+				],
+				"question": "What does bounded validation, wire conversion and lookup cost in a 100-value import? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children? What does the same bounded successful public operation cost against an established implementation?",
+				"comparisons": [
+					"Direct Zod, Map, Object.assign, Date and JSR std/semver where outputs can be compared; each omits named utility contracts.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately.",
+					"Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases."
+				],
+				"limits": [
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded.",
+					"Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions."
+				]
+			}
+		},
+		{
+			"name": "@okikio/concurrency",
+			"manifest": "packages/concurrency/deno.jsonc",
+			"model": "Run bounded transforms and channels with explicit completion and buffering ownership.",
+			"behavior": {
+				"files": [
+					"packages/concurrency/bounded.test.ts",
+					"packages/concurrency/channel.test.ts"
+				],
+				"properties": [
+					"Active work remains bounded; cancellation stops admission and joins admitted siblings.",
+					"Unordered completion, acknowledged slot reuse, and draining channel close remain distinct contracts."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/concurrency/bounded.test.ts",
+					"packages/concurrency/channel.test.ts"
+				],
+				"properties": [
+					"Active work remains bounded; cancellation stops admission and joins admitted siblings.",
+					"Unordered completion, acknowledged slot reuse, and draining channel close remain distinct contracts."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"crawl-discovery"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/concurrency/bounded.test.ts",
+						"packages/concurrency/channel.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/lifetimes.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts",
+					"bench/alternatives.bench.ts"
+				],
+				"question": "What does bounded work and owned cleanup cost? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children? What does the same bounded successful public operation cost against an established implementation?",
+				"comparisons": [
+					"JSR std/async pooledMap compares ordered successful values only; failure ownership differs.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately.",
+					"Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases."
+				],
+				"limits": [
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded.",
+					"Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions."
+				]
+			}
+		},
+		{
+			"name": "@okikio/context",
+			"manifest": "packages/context/deno.jsonc",
+			"model": "Pass cancellation, deadline, clock, identity, and cleanup ownership through nested operations.",
+			"behavior": {
+				"files": [
+					"packages/context/mod.test.ts"
+				],
+				"properties": [
+					"Child deadlines cannot exceed their parent; cancellation cause remains available.",
+					"TestClock drives expiry; views borrow one owner; cleanup and listener removal are idempotent."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/context/mod.test.ts"
+				],
+				"properties": [
+					"Child deadlines cannot exceed their parent; cancellation cause remains available.",
+					"TestClock drives expiry; views borrow one owner; cleanup and listener removal are idempotent."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"crawl-processes",
+					"media-jobs",
+					"workflow-recovery"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/context/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [
+						"packages/context/mod.test.ts"
+					],
+					"command": "deno task test:node"
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semantic": {
+						"files": [
+							"tests/coordination.test.ts",
+							"tests/workflow.test.ts"
+						],
+						"formats": [
+							"esm",
+							"cjs"
+						],
+						"proves": "Compile existing public-import scenarios with all production packages external, then execute each format against physically installed exact packed artifacts. This selection needs the actual npm-verify receipt to count as execution."
+					}
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/lifetimes.bench.ts",
+					"bench/mod.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What does bounded work and owned cleanup cost? What does 100 queued jobs through four owned resources cost? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"JSR std/async pooledMap compares ordered successful values only; failure ownership differs.",
+					"No equivalent baseline is claimed; measure this explicit operation.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/css",
+			"manifest": "packages/css/deno.jsonc",
+			"model": "Parse CSS syntax and inspect resource references, variables, media features, and selector features.",
+			"behavior": {
+				"files": [
+					"packages/css/mod.test.ts"
+				],
+				"properties": [
+					"Resource kind depends on AST context instead of URL spelling.",
+					"Recoverable parse problems retain source coordinates beside usable references."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/css/mod.test.ts"
+				],
+				"properties": [
+					"Resource kind depends on AST context instead of URL spelling.",
+					"Recoverable parse problems retain source coordinates beside usable references."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"crawl-discovery"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/css/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semantic": {
+						"files": [
+							"tests/discovery.test.ts"
+						],
+						"formats": [
+							"esm",
+							"cjs"
+						],
+						"proves": "Compile existing public-import scenarios with all production packages external, then execute each format against physically installed exact packed artifacts. This selection needs the actual npm-verify receipt to count as execution."
+					}
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/mod.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts",
+					"bench/alternatives.bench.ts"
+				],
+				"question": "What does a CRM/discovery composition cost with 1000 rows and 250 extracted resources? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children? What does the same bounded successful public operation cost against an established implementation?",
+				"comparisons": [
+					"No equivalent baseline is claimed; measure this explicit operation.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately.",
+					"Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases."
+				],
+				"limits": [
+					"Fixed structured local fixtures; no network or hostile-page performance claim.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded.",
+					"Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions."
+				]
+			}
+		},
+		{
+			"name": "@okikio/csv",
+			"manifest": "packages/csv/deno.jsonc",
+			"model": "Discover and decode bounded CSV input while preserving original cells, headers, and row occurrences.",
+			"behavior": {
+				"files": [
+					"packages/csv/core.options.test.ts",
+					"packages/csv/core.parse.test.ts",
+					"packages/csv/core.stream.test.ts",
+					"packages/csv/dialect.test.ts",
+					"packages/csv/encoding.test.ts",
+					"packages/csv/headers.test.ts",
+					"packages/csv/occurrences.test.ts",
+					"packages/csv/options.test.ts",
+					"packages/csv/parse.test.ts",
+					"packages/csv/properties.test.ts",
+					"packages/csv/stream.test.ts",
+					"packages/csv/write.test.ts"
+				],
+				"properties": [
+					"Quoted commas/newlines, BOM/legacy encoding, explicit late headers, malformed input, and exact limits.",
+					"Independent generated original cells survive collecting and byte-chunked parsing; readers unlock on failure/disposal."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/csv/core.options.test.ts",
+					"packages/csv/core.parse.test.ts",
+					"packages/csv/core.stream.test.ts",
+					"packages/csv/dialect.test.ts",
+					"packages/csv/encoding.test.ts",
+					"packages/csv/headers.test.ts",
+					"packages/csv/occurrences.test.ts",
+					"packages/csv/options.test.ts",
+					"packages/csv/parse.test.ts",
+					"packages/csv/properties.test.ts",
+					"packages/csv/stream.test.ts",
+					"packages/csv/write.test.ts"
+				],
+				"properties": [
+					"Quoted commas/newlines, BOM/legacy encoding, explicit late headers, malformed input, and exact limits.",
+					"Independent generated original cells survive collecting and byte-chunked parsing; readers unlock on failure/disposal."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"crm-import"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/csv/core.options.test.ts",
+						"packages/csv/core.parse.test.ts",
+						"packages/csv/core.stream.test.ts",
+						"packages/csv/dialect.test.ts",
+						"packages/csv/encoding.test.ts",
+						"packages/csv/headers.test.ts",
+						"packages/csv/occurrences.test.ts",
+						"packages/csv/options.test.ts",
+						"packages/csv/parse.test.ts",
+						"packages/csv/properties.test.ts",
+						"packages/csv/stream.test.ts",
+						"packages/csv/write.test.ts"
+					]
+				},
+				"sourceNode": {
+					"command": "deno task test:node",
+					"files": [
+						"packages/csv/core.parse.test.ts",
+						"packages/csv/core.stream.test.ts",
+						"packages/csv/occurrences.test.ts",
+						"packages/csv/stream.test.ts",
+						"packages/csv/write.test.ts"
+					]
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semantic": {
+						"files": [
+							"tests/discovery.test.ts"
+						],
+						"formats": [
+							"esm",
+							"cjs"
+						],
+						"proves": "Compile existing public-import scenarios with all production packages external, then execute each format against physically installed exact packed artifacts. This selection needs the actual npm-verify receipt to count as execution."
+					}
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"packages/csv/parse.bench.ts",
+					"bench/mod.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts",
+					"bench/alternatives.bench.ts"
+				],
+				"question": "How do startup, collected 10k-row and streamed imports scale? What does a CRM/discovery composition cost with 1000 rows and 250 extracted resources? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children? What does the same bounded successful public operation cost against an established implementation?",
+				"comparisons": [
+					"npm csv-parse and JSR std/csv raw records omit document metadata and diagnostics.",
+					"No equivalent baseline is claimed; measure this explicit operation.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately.",
+					"Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases."
+				],
+				"limits": [
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Fixed structured local fixtures; no network or hostile-page performance claim.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded.",
+					"Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions."
+				]
+			}
+		},
+		{
+			"name": "@okikio/deno",
+			"manifest": "packages/deno/deno.jsonc",
+			"model": "Expose explicitly Deno-owned permission flags, atomic replacement, and temporary port discovery.",
+			"behavior": {
+				"files": [
+					"packages/deno/file.test.ts",
+					"packages/deno/mod.test.ts",
+					"packages/deno/port.test.ts"
+				],
+				"properties": [
+					"Permission argument round trips preserve literal commas and scope merging.",
+					"Cancelled replacement preserves prior bytes; successful replacement leaves no temporary files."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/deno/file.test.ts",
+					"packages/deno/mod.test.ts",
+					"packages/deno/port.test.ts"
+				],
+				"properties": [
+					"Permission argument round trips preserve literal commas and scope merging.",
+					"Cancelled replacement preserves prior bytes; successful replacement leaves no temporary files."
+				]
+			},
+			"scenarios": {
+				"ids": [],
+				"reason": "Public import/declaration and ownership contracts are the applicable scenario; no existing larger consumer flow was found."
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/deno/file.test.ts",
+						"packages/deno/mod.test.ts",
+						"packages/deno/port.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"reason": "The package owns Deno permission/filesystem/listener capabilities and is intentionally absent from npm."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/hosts.bench.ts",
+					"bench/imports.bench.ts"
+				],
+				"question": "What do real child/Worker startup, warm correlated messages and joined shutdown cost? What is the startup cost of selectively importing this package in a fresh process?",
+				"comparisons": [
+					"Deno.Command same child/output versus utility bounded capture and lifecycle; Worker warm versus cold.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately."
+				],
+				"limits": [
+					"Native Deno only; no assertion that importable Node Worker has a backend.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+				]
+			}
+		},
+		{
+			"name": "@okikio/dispose",
+			"manifest": "packages/dispose/deno.jsonc",
+			"model": "Own local LIFO disposable stacks through direct-import ponyfill constructors, or explicitly install missing global compatibility at the executable boundary.",
+			"behavior": {
+				"files": [
+					"packages/dispose/mod.test.ts",
+					"packages/dispose/ponyfill.test.ts"
+				],
+				"properties": [
+					"Cleanup is LIFO, ownership transfer does not dispose, and every cleanup runs after earlier failure.",
+					"SuppressedError keeps the primary thrown value, including undefined."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/dispose/mod.test.ts",
+					"packages/dispose/ponyfill.test.ts"
+				],
+				"properties": [
+					"Cleanup is LIFO, ownership transfer does not dispose, and every cleanup runs after earlier failure.",
+					"SuppressedError keeps the primary thrown value, including undefined."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"media-jobs"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/dispose/mod.test.ts",
+						"packages/dispose/ponyfill.test.ts"
+					]
+				},
+				"sourceNode": {
+					"command": "deno task test:node",
+					"files": [
+						"packages/dispose/ponyfill.test.ts",
+						"tests/compatibility.test.ts"
+					]
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately. Fresh children exercise root, ponyfill and umbrella direct constructors with native, missing-constructor and missing-symbol hosts; imports leave globals unchanged.",
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/duration",
+			"manifest": "packages/duration/deno.jsonc",
+			"model": "Convert and compare Temporal durations using a deterministic calendar anchor.",
+			"behavior": {
+				"files": [
+					"packages/duration/mod.test.ts"
+				],
+				"properties": [
+					"Fixed units and calendar units resolve consistently; negative and positive ordering remains stable.",
+					"The ponyfill does not install a global and the explicit polyfill preserves native Temporal."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/duration/mod.test.ts"
+				],
+				"properties": [
+					"Fixed units and calendar units resolve consistently; negative and positive ordering remains stable.",
+					"The ponyfill does not install a global and the explicit polyfill preserves native Temporal."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"crawl-processes",
+					"workflow-recovery"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/duration/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/values.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What does bounded validation, wire conversion and lookup cost in a 100-value import? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"Direct Zod, Map, Object.assign, Date and JSR std/semver where outputs can be compared; each omits named utility contracts.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/effect",
+			"manifest": "packages/effect/deno.jsonc",
+			"model": "Create schema-checked effect occurrences and deliver them through an explicit authority or outbox.",
+			"behavior": {
+				"files": [
+					"packages/effect/mod.test.ts"
+				],
+				"properties": [
+					"Acceptance is authoritative before producer cancellation; undeclared effects fail before delivery.",
+					"One idempotency key produces one logical outbox item; retries preserve logical identity."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/effect/mod.test.ts"
+				],
+				"properties": [
+					"Acceptance is authoritative before producer cancellation; undeclared effects fail before delivery.",
+					"One idempotency key produces one logical outbox item; retries preserve logical identity."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"workflow-recovery",
+					"core-authority"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/effect/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/contracts.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What does policy admission and validated accepted evidence cost? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"No equivalent baseline is claimed; measure this explicit operation.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Local checking/emission; no remote authorization service or durable sink.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/email",
+			"manifest": "packages/email/deno.jsonc",
+			"model": "Extract ranked domain evidence from streamed CSV rows with configurable email-domain classification.",
+			"behavior": {
+				"files": [
+					"packages/email/mod.test.ts"
+				],
+				"properties": [
+					"IDNA and whole-label matching preserve DNS identity and prevent false suffix positives.",
+					"Invalid caller rules reject; immutable ranked candidates retain their sources."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/email/mod.test.ts"
+				],
+				"properties": [
+					"IDNA and whole-label matching preserve DNS identity and prevent false suffix positives.",
+					"Invalid caller rules reject; immutable ranked candidates retain their sources."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"crm-import"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/email/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/values.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What does bounded validation, wire conversion and lookup cost in a 100-value import? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"Direct Zod, Map, Object.assign, Date and JSR std/semver where outputs can be compared; each omits named utility contracts.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/entitlement",
+			"manifest": "packages/entitlement/deno.jsonc",
+			"model": "Define provider-neutral entitlement metadata that projects one canonical requirement.",
+			"behavior": {
+				"files": [
+					"packages/entitlement/mod.test.ts"
+				],
+				"properties": [
+					"Repeated projection preserves exact requirement identity and stable metadata."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/entitlement/mod.test.ts"
+				],
+				"properties": [
+					"Repeated projection preserves exact requirement identity and stable metadata."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"core-authority"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/entitlement/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/contracts.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What does policy admission and validated accepted evidence cost? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"No equivalent baseline is claimed; measure this explicit operation.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Local checking/emission; no remote authorization service or durable sink.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/env",
+			"manifest": "packages/env/deno.jsonc",
+			"model": "Define typed environment fields separately from deterministic source selection and validation.",
+			"behavior": {
+				"files": [
+					"packages/env/source.test.ts",
+					"packages/env/standard.test.ts",
+					"packages/env/valibot.test.ts",
+					"packages/env/value.test.ts",
+					"packages/env/zod.test.ts"
+				],
+				"properties": [
+					"All field issues are reported together; asynchronous schemas stay supported.",
+					"Secret metadata does not expose examples; record snapshots and source precedence preserve arbitrary keys."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/env/source.test.ts",
+					"packages/env/standard.test.ts",
+					"packages/env/valibot.test.ts",
+					"packages/env/value.test.ts",
+					"packages/env/zod.test.ts"
+				],
+				"properties": [
+					"All field issues are reported together; asynchronous schemas stay supported.",
+					"Secret metadata does not expose examples; record snapshots and source precedence preserve arbitrary keys."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"platform-services",
+					"signed-callback",
+					"provider-lazy"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/env/source.test.ts",
+						"packages/env/standard.test.ts",
+						"packages/env/valibot.test.ts",
+						"packages/env/value.test.ts",
+						"packages/env/zod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"packages/env/mod.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts",
+					"bench/alternatives.bench.ts"
+				],
+				"question": "What does two-field configuration parsing cost? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children? What does the same bounded successful public operation cost against an established implementation?",
+				"comparisons": [
+					"Direct npm Zod; schema/value contract reviewed separately.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately.",
+					"Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases."
+				],
+				"limits": [
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded.",
+					"Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions."
+				]
+			}
+		},
+		{
+			"name": "@okikio/failure",
+			"manifest": "packages/failure/deno.jsonc",
+			"model": "Represent declared failures with exact definition identity and encode only durable data.",
+			"behavior": {
+				"files": [
+					"packages/failure/mod.test.ts"
+				],
+				"properties": [
+					"Causes remain process-local; invalid data/unknown IDs and structural impostors reject.",
+					"Decoding encoded data does not execute caller accessors."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/failure/mod.test.ts"
+				],
+				"properties": [
+					"Causes remain process-local; invalid data/unknown IDs and structural impostors reject.",
+					"Decoding encoded data does not execute caller accessors."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"repository-failures"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/failure/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/values.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What does bounded validation, wire conversion and lookup cost in a 100-value import? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"Direct Zod, Map, Object.assign, Date and JSR std/semver where outputs can be compared; each omits named utility contracts.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/fault",
+			"manifest": "packages/fault/deno.jsonc",
+			"model": "Project bounded safe diagnostics from arbitrary faults without retaining live objects.",
+			"behavior": {
+				"files": [
+					"packages/fault/mod.test.ts"
+				],
+				"properties": [
+					"Cycles, depth, breadth, and string limits are enforced without user coercion or getters.",
+					"Native error names survive; arbitrary prototypes do not become executable diagnostics."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/fault/mod.test.ts"
+				],
+				"properties": [
+					"Cycles, depth, breadth, and string limits are enforced without user coercion or getters.",
+					"Native error names survive; arbitrary prototypes do not become executable diagnostics."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"repository-failures"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/fault/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/values.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What does bounded validation, wire conversion and lookup cost in a 100-value import? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"Direct Zod, Map, Object.assign, Date and JSR std/semver where outputs can be compared; each omits named utility contracts.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/hono",
+			"manifest": "packages/hono/deno.jsonc",
+			"model": "Mount compiled service routes in Hono while preserving generic middleware and error contracts.",
+			"behavior": {
+				"files": [
+					"packages/hono/mod.test.ts"
+				],
+				"properties": [
+					"Static route precedence agrees with the framework-neutral runtime.",
+					"Hono-native exceptions cross the shared safe error boundary."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/hono/mod.test.ts"
+				],
+				"properties": [
+					"Static route precedence agrees with the framework-neutral runtime.",
+					"Hono-native exceptions cross the shared safe error boundary."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"platform-services"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/hono/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"packages/hono/mod.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts",
+					"bench/http-parity.bench.ts"
+				],
+				"question": "What does portable middleware add around a consumed Hono JSON response? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children? What does the same independently qualified API, gateway forwarding policy and 16/256/4096-route corpus cost through pure Utils and pure Hono?",
+				"comparisons": [
+					"npm Hono direct fetch with identical payload but no security middleware.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately.",
+					"Hono 4.13.5 and Utils consume the same authored requests, response bodies and selected wire headers."
+				],
+				"limits": [
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded.",
+					"Warm in-process Fetch dispatch; construction and cleanup outside timing. Validation/ownership mechanisms differ despite equal shared outputs. Six counterbalanced processes qualify uncertainty separately; no listener, deployed or equivalence guarantee."
+				]
+			}
+		},
+		{
+			"name": "@okikio/html",
+			"manifest": "packages/html/deno.jsonc",
+			"model": "Parse real HTML tree rules and inspect selectors, text, attributes, and source positions.",
+			"behavior": {
+				"files": [
+					"packages/html/mod.test.ts"
+				],
+				"properties": [
+					"Malformed table markup receives HTML tree repair; duplicate attributes are reported recoverably.",
+					"Selector results and source line coordinates refer to the same document."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/html/mod.test.ts"
+				],
+				"properties": [
+					"Malformed table markup receives HTML tree repair; duplicate attributes are reported recoverably.",
+					"Selector results and source line coordinates refer to the same document."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"crawl-discovery"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/html/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semantic": {
+						"files": [
+							"tests/discovery.test.ts"
+						],
+						"formats": [
+							"esm",
+							"cjs"
+						],
+						"proves": "Compile existing public-import scenarios with all production packages external, then execute each format against physically installed exact packed artifacts. This selection needs the actual npm-verify receipt to count as execution."
+					}
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/mod.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts",
+					"bench/alternatives.bench.ts"
+				],
+				"question": "What does a CRM/discovery composition cost with 1000 rows and 250 extracted resources? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children? What does the same bounded successful public operation cost against an established implementation?",
+				"comparisons": [
+					"No equivalent baseline is claimed; measure this explicit operation.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately.",
+					"Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases."
+				],
+				"limits": [
+					"Fixed structured local fixtures; no network or hostile-page performance claim.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded.",
+					"Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions."
+				]
+			}
+		},
+		{
+			"name": "@okikio/http",
+			"manifest": "packages/http/deno.jsonc",
+			"model": "Read and describe bounded Fetch requests/responses, cookies, problems, and authenticated webhooks.",
+			"behavior": {
+				"files": [
+					"packages/http/cookie/mod.test.ts",
+					"packages/http/headers.test.ts",
+					"packages/http/problem/mod.test.ts",
+					"packages/http/request/mod.test.ts",
+					"packages/http/response/body.test.ts",
+					"packages/http/response/filename.test.ts",
+					"packages/http/response/mod.test.ts",
+					"packages/http/webhook/mod.test.ts",
+					"tests/http-parity.test.ts",
+					"tests/hono-contracts.test.ts",
+					"tests/hono-proxy.test.ts",
+					"tests/hono-compose.test.ts"
+				],
+				"properties": [
+					"Actual streamed bytes own limits; cancellation/body discard releases readers and retains causes.",
+					"Credential trust, repeated cookies/query values, problem identity, byte ranges, and signature vectors preserve wire contracts."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/http/cookie/mod.test.ts",
+					"packages/http/headers.test.ts",
+					"packages/http/problem/mod.test.ts",
+					"packages/http/request/mod.test.ts",
+					"packages/http/response/body.test.ts",
+					"packages/http/response/filename.test.ts",
+					"packages/http/response/mod.test.ts",
+					"packages/http/webhook/mod.test.ts",
+					"tests/http-parity.test.ts",
+					"tests/hono-contracts.test.ts",
+					"tests/hono-proxy.test.ts",
+					"tests/hono-compose.test.ts"
+				],
+				"properties": [
+					"Actual streamed bytes own limits; cancellation/body discard releases readers and retains causes.",
+					"Credential trust, repeated cookies/query values, problem identity, byte ranges, and signature vectors preserve wire contracts."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"platform-services",
+					"signed-callback",
+					"provider-lazy",
+					"hono-parity",
+					"hono-upstream"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/http/cookie/mod.test.ts",
+						"packages/http/headers.test.ts",
+						"packages/http/problem/mod.test.ts",
+						"packages/http/request/mod.test.ts",
+						"packages/http/response/body.test.ts",
+						"packages/http/response/filename.test.ts",
+						"packages/http/response/mod.test.ts",
+						"packages/http/webhook/mod.test.ts",
+						"tests/http-parity.test.ts",
+						"tests/hono-contracts.test.ts",
+						"tests/hono-proxy.test.ts",
+						"tests/hono-compose.test.ts"
+					]
+				},
+				"sourceNode": {
+					"command": "deno task test:node",
+					"files": [
+						"packages/http/headers.test.ts",
+						"tests/http-parity.test.ts",
+						"tests/hono-contracts.test.ts",
+						"tests/hono-proxy.test.ts",
+						"tests/hono-compose.test.ts"
+					]
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semantic": {
+						"files": [
+							"tests/host.test.ts",
+							"tests/provider.test.ts",
+							"tests/http-parity.test.ts"
+						],
+						"formats": [
+							"esm",
+							"cjs"
+						],
+						"proves": "Compile existing public-import scenarios with all production packages external, then execute each format against physically installed exact packed artifacts. This selection needs the actual npm-verify receipt to count as execution."
+					}
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/mod.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts",
+					"bench/http-parity.bench.ts",
+					"bench/alternatives.bench.ts",
+					"bench/http-challengers.bench.ts"
+				],
+				"question": "What does a consumed or cancelled routed response through middleware cost? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children? What does the same independently qualified API, gateway forwarding policy and 16/256/4096-route corpus cost through pure Utils and pure Hono? What does the same bounded successful public operation cost against an established implementation? What does the same complete API and 16/256/4096-route corpus cost on one runtime against compiled Elysia and Vixeny?",
+				"comparisons": [
+					"No equivalent baseline is claimed; measure this explicit operation.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately.",
+					"Hono 4.13.5 and Utils consume the same authored requests, response bodies and selected wire headers.",
+					"Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases.",
+					"Utils, Hono4.13.5, Elysia1.4.30 AOT and Vixeny0.1.53 native response compiler consume identical authored requests and complete response projections."
+				],
+				"limits": [
+					"Fetch pipeline only; no actual listener/network latency.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded.",
+					"Warm in-process Fetch dispatch; construction and cleanup outside timing. Validation/ownership mechanisms differ despite equal shared outputs. Six counterbalanced processes qualify uncertainty separately; no listener, deployed or equivalence guarantee.",
+					"Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions.",
+					"Warm in-process Fetch dispatch; compilation and close excluded. Eight balanced fresh processes per Deno/Node/Bun view. Application adapters match selected output, not gateway/resource ownership; no listener, speed gate or equivalence claim. Vixeny uses one traceable unminified JS emission."
+				]
+			}
+		},
+		{
+			"name": "@okikio/meter",
+			"manifest": "packages/meter/deno.jsonc",
+			"model": "Represent timestamped measurements as declared effects accepted by the caller-owned emitter.",
+			"behavior": {
+				"files": [
+					"packages/meter/mod.test.ts"
+				],
+				"properties": [
+					"Recording retains exact occurrence identity and valid structured measurement data."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/meter/mod.test.ts"
+				],
+				"properties": [
+					"Recording retains exact occurrence identity and valid structured measurement data."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"core-authority"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/meter/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/contracts.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What does policy admission and validated accepted evidence cost? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"No equivalent baseline is claimed; measure this explicit operation.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Local checking/emission; no remote authorization service or durable sink.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/permission",
+			"manifest": "packages/permission/deno.jsonc",
+			"model": "Define target-aware permission expressions and evaluate bounded batches through an explicit checker.",
+			"behavior": {
+				"files": [
+					"packages/permission/mod.test.ts"
+				],
+				"properties": [
+					"Fail closed before provider work for undeclared permissions, invalid targets, or absent authority.",
+					"Allow/deny/error composition preserves meaning and does not convert checker faults into denials."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/permission/mod.test.ts"
+				],
+				"properties": [
+					"Fail closed before provider work for undeclared permissions, invalid targets, or absent authority.",
+					"Allow/deny/error composition preserves meaning and does not convert checker faults into denials."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"core-authority"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/permission/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"command": "deno task test:node",
+					"files": [
+						"packages/permission/mod.test.ts"
+					]
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/contracts.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What does policy admission and validated accepted evidence cost? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"No equivalent baseline is claimed; measure this explicit operation.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Local checking/emission; no remote authorization service or durable sink.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/pool",
+			"manifest": "packages/pool/deno.jsonc",
+			"model": "Acquire reusable values through bounded creation, FIFO waiters, invalidation, and drain ownership.",
+			"behavior": {
+				"files": [
+					"packages/pool/mod.test.ts"
+				],
+				"properties": [
+					"Creation and health checks remain inside maximum capacity; cancelled acquisition closes late values.",
+					"Drain waits for asynchronous release/creation and cleanup faults wake subsequent waiters."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/pool/mod.test.ts"
+				],
+				"properties": [
+					"Creation and health checks remain inside maximum capacity; cancelled acquisition closes late values.",
+					"Drain waits for asynchronous release/creation and cleanup faults wake subsequent waiters."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"crawl-processes"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/pool/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"command": "deno task test:node",
+					"files": [
+						"packages/pool/mod.test.ts"
+					]
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semantic": {
+						"files": [
+							"tests/coordination.test.ts"
+						],
+						"formats": [
+							"esm",
+							"cjs"
+						],
+						"proves": "Compile existing public-import scenarios with all production packages external, then execute each format against physically installed exact packed artifacts. This selection needs the actual npm-verify receipt to count as execution."
+					}
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"packages/pool/mod.bench.ts",
+					"bench/mod.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What does borrow/release and optional health checking cost? What does 100 queued jobs through four owned resources cost? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"Direct object lookup omits lifecycle ownership.",
+					"No equivalent baseline is claimed; measure this explicit operation.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/process",
+			"manifest": "packages/process/deno.jsonc",
+			"model": "Own native child lifecycle and framed request channels through explicit runtime adapters.",
+			"behavior": {
+				"files": [
+					"packages/process/channel/mod.test.ts",
+					"packages/process/lifecycle.test.ts",
+					"packages/process/mod.test.ts",
+					"packages/process/node.test.ts"
+				],
+				"properties": [
+					"Output limits, stdio ownership, cancellation, termination, and spawn failure are observable.",
+					"Correlation, reverse calls, frame bounds, and POSIX group termination retain protocol/lifecycle identity."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/process/channel/mod.test.ts",
+					"packages/process/lifecycle.test.ts",
+					"packages/process/mod.test.ts",
+					"packages/process/node.test.ts"
+				],
+				"properties": [
+					"Output limits, stdio ownership, cancellation, termination, and spawn failure are observable.",
+					"Correlation, reverse calls, frame bounds, and POSIX group termination retain protocol/lifecycle identity."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"crawl-processes"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/process/channel/mod.test.ts",
+						"packages/process/lifecycle.test.ts",
+						"packages/process/mod.test.ts",
+						"packages/process/node.test.ts"
+					]
+				},
+				"sourceNode": {
+					"command": "deno task test:node",
+					"files": [
+						"packages/process/lifecycle.test.ts",
+						"packages/process/node.test.ts",
+						"packages/process/channel/mod.test.ts"
+					]
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"exclusions": [
+						"Deno adapter subpaths remain JSR-only."
+					],
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/hosts.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What do real child/Worker startup, warm correlated messages and joined shutdown cost? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"Deno.Command same child/output versus utility bounded capture and lifecycle; Worker warm versus cold.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Native Deno only; no assertion that importable Node Worker has a backend.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/query",
+			"manifest": "packages/query/deno.jsonc",
+			"model": "Parse validated Boolean URL queries, projections, stable ordering, and pagination without provider policy.",
+			"behavior": {
+				"files": [
+					"packages/query/core.mod.test.ts",
+					"packages/query/expression.test.ts",
+					"packages/query/mod.test.ts",
+					"packages/query/pagination.test.ts",
+					"packages/query/url.test.ts"
+				],
+				"properties": [
+					"Reserved grammar, budgets, typed scalar encodings, and schema issues fail closed.",
+					"Canonicalization preserves typed meaning; sort priority and stable cursor tiebreakers survive round trips."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/query/core.mod.test.ts",
+					"packages/query/expression.test.ts",
+					"packages/query/mod.test.ts",
+					"packages/query/pagination.test.ts",
+					"packages/query/url.test.ts"
+				],
+				"properties": [
+					"Reserved grammar, budgets, typed scalar encodings, and schema issues fail closed.",
+					"Canonicalization preserves typed meaning; sort priority and stable cursor tiebreakers survive round trips."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"platform-services"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/query/core.mod.test.ts",
+						"packages/query/expression.test.ts",
+						"packages/query/mod.test.ts",
+						"packages/query/pagination.test.ts",
+						"packages/query/url.test.ts"
+					]
+				},
+				"sourceNode": {
+					"command": "deno task test:node",
+					"files": [
+						"packages/query/expression.test.ts",
+						"packages/query/mod.test.ts",
+						"packages/query/pagination.test.ts",
+						"packages/query/url.test.ts"
+					]
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/values.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What does bounded validation, wire conversion and lookup cost in a 100-value import? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"Direct Zod, Map, Object.assign, Date and JSR std/semver where outputs can be compared; each omits named utility contracts.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/queue",
+			"manifest": "packages/queue/deno.jsonc",
+			"model": "Claim bounded keyed work with priorities, FIFO ties, leases, retries, and terminal result authority.",
+			"behavior": {
+				"files": [
+					"packages/queue/mod.test.ts"
+				],
+				"properties": [
+					"Expired claims cannot overwrite a replacement; renewal and delayed retry follow TestClock.",
+					"Concurrent claims never duplicate ownership; terminal keyed results remain idempotent and waiter counts return to zero."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/queue/mod.test.ts"
+				],
+				"properties": [
+					"Expired claims cannot overwrite a replacement; renewal and delayed retry follow TestClock.",
+					"Concurrent claims never duplicate ownership; terminal keyed results remain idempotent and waiter counts return to zero."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"workflow-recovery"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/queue/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [
+						"packages/queue/mod.test.ts"
+					],
+					"command": "deno task test:node"
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semantic": {
+						"files": [
+							"tests/coordination.test.ts"
+						],
+						"formats": [
+							"esm",
+							"cjs"
+						],
+						"proves": "Compile existing public-import scenarios with all production packages external, then execute each format against physically installed exact packed artifacts. This selection needs the actual npm-verify receipt to count as execution."
+					}
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"packages/queue/mod.bench.ts",
+					"bench/mod.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What does admitting, claiming and completing 1000 bounded jobs cost? What does 100 queued jobs through four owned resources cost? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"Native FIFO array omits claims, generations and cancellation.",
+					"No equivalent baseline is claimed; measure this explicit operation.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/record",
+			"manifest": "packages/record/deno.jsonc",
+			"model": "Inspect and snapshot plain data records without inherited state or executable properties.",
+			"behavior": {
+				"files": [
+					"packages/record/mod.test.ts"
+				],
+				"properties": [
+					"Prototype-shaped own keys remain data; hidden/symbol/accessor fields reject without invoking getters.",
+					"Caller mutation cannot rewrite the immutable snapshot."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/record/mod.test.ts"
+				],
+				"properties": [
+					"Prototype-shaped own keys remain data; hidden/symbol/accessor fields reject without invoking getters.",
+					"Caller mutation cannot rewrite the immutable snapshot."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"repository-failures"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/record/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/values.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What does bounded validation, wire conversion and lookup cost in a 100-value import? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"Direct Zod, Map, Object.assign, Date and JSR std/semver where outputs can be compared; each omits named utility contracts.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/requirement",
+			"manifest": "packages/requirement/deno.jsonc",
+			"model": "Describe provider-neutral requirement families while keeping interpretation with explicit owners.",
+			"behavior": {
+				"files": [
+					"packages/requirement/core.mod.test.ts",
+					"packages/requirement/mod.test.ts"
+				],
+				"properties": [
+					"Projection preserves canonical catalog keys and memoized requirement identity.",
+					"Family selection does not execute a provider or merge unrelated string-key authority."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/requirement/core.mod.test.ts",
+					"packages/requirement/mod.test.ts"
+				],
+				"properties": [
+					"Projection preserves canonical catalog keys and memoized requirement identity.",
+					"Family selection does not execute a provider or merge unrelated string-key authority."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"core-authority"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/requirement/core.mod.test.ts",
+						"packages/requirement/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"command": "deno task test:node",
+					"files": [
+						"packages/requirement/mod.test.ts"
+					]
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/contracts.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What does policy admission and validated accepted evidence cost? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"No equivalent baseline is claimed; measure this explicit operation.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Local checking/emission; no remote authorization service or durable sink.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/resilience",
+			"manifest": "packages/resilience/deno.jsonc",
+			"model": "Compose import-safe timeout, retry, idempotency, breaker, bulkhead, rate, and body-limit policy values.",
+			"behavior": {
+				"files": [
+					"packages/resilience/mod.test.ts"
+				],
+				"properties": [
+					"Unsafe retries require idempotency; caller keys and numeric limits remain bounded.",
+					"Runtime adapters retry only explicitly classified failures and retain authored policy order."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/resilience/mod.test.ts"
+				],
+				"properties": [
+					"Unsafe retries require idempotency; caller keys and numeric limits remain bounded.",
+					"Runtime adapters retry only explicitly classified failures and retain authored policy order."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"platform-services",
+					"signed-callback"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/resilience/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/contracts.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What does policy admission and validated accepted evidence cost? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"No equivalent baseline is claimed; measure this explicit operation.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Local checking/emission; no remote authorization service or durable sink.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/resource",
+			"manifest": "packages/resource/deno.jsonc",
+			"model": "Acquire lazy dependency-ordered resources through exact definitions and owned disposal.",
+			"behavior": {
+				"files": [
+					"packages/resource/mod.test.ts"
+				],
+				"properties": [
+					"Concurrent acquisition coalesces; creation failure releases partial resources and retry acquires afresh.",
+					"Borrow authority is checked per actor; failed cleanup retains primary failure; late values close during disposal."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/resource/mod.test.ts"
+				],
+				"properties": [
+					"Concurrent acquisition coalesces; creation failure releases partial resources and retry acquires afresh.",
+					"Borrow authority is checked per actor; failed cleanup retains primary failure; late values close during disposal."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"media-jobs",
+					"platform-services",
+					"signed-callback",
+					"provider-lazy"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/resource/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semantic": {
+						"files": [
+							"tests/provider.test.ts"
+						],
+						"formats": [
+							"esm",
+							"cjs"
+						],
+						"proves": "Compile existing public-import scenarios with all production packages external, then execute each format against physically installed exact packed artifacts. This selection needs the actual npm-verify receipt to count as execution."
+					}
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/lifetimes.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What does bounded work and owned cleanup cost? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"JSR std/async pooledMap compares ordered successful values only; failure ownership differs.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/result",
+			"manifest": "packages/result/deno.jsonc",
+			"model": "Return discriminated success/failure values and match or unwrap them without hidden execution.",
+			"behavior": {
+				"files": [
+					"packages/result/mod.test.ts"
+				],
+				"properties": [
+					"Unwrap throws the exact supplied failure; function values stay distinct from lazy fallback factories."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/result/mod.test.ts"
+				],
+				"properties": [
+					"Unwrap throws the exact supplied failure; function values stay distinct from lazy fallback factories."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"repository-failures"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/result/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/values.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts",
+					"bench/alternatives.bench.ts"
+				],
+				"question": "What does bounded validation, wire conversion and lookup cost in a 100-value import? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children? What does the same bounded successful public operation cost against an established implementation?",
+				"comparisons": [
+					"Direct Zod, Map, Object.assign, Date and JSR std/semver where outputs can be compared; each omits named utility contracts.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately.",
+					"Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases."
+				],
+				"limits": [
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded.",
+					"Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions."
+				]
+			}
+		},
+		{
+			"name": "@okikio/robots",
+			"manifest": "packages/robots/deno.jsonc",
+			"model": "Parse robots policy and match crawler paths using specificity and longest-rule precedence.",
+			"behavior": {
+				"files": [
+					"packages/robots/mod.test.ts"
+				],
+				"properties": [
+					"Wildcard and specific groups do not accidentally merge; equal-length Allow wins.",
+					"Sitemap directives accept only absolute HTTP URLs and preserve extension records."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/robots/mod.test.ts"
+				],
+				"properties": [
+					"Wildcard and specific groups do not accidentally merge; equal-length Allow wins.",
+					"Sitemap directives accept only absolute HTTP URLs and preserve extension records."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"crawl-discovery"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/robots/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semantic": {
+						"files": [
+							"tests/discovery.test.ts"
+						],
+						"formats": [
+							"esm",
+							"cjs"
+						],
+						"proves": "Compile existing public-import scenarios with all production packages external, then execute each format against physically installed exact packed artifacts. This selection needs the actual npm-verify receipt to count as execution."
+					}
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/mod.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What does a CRM/discovery composition cost with 1000 rows and 250 extracted resources? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"No equivalent baseline is claimed; measure this explicit operation.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Fixed structured local fixtures; no network or hostile-page performance claim.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/schema",
+			"manifest": "packages/schema/deno.jsonc",
+			"model": "Use Standard Schema contracts without selecting a concrete validator implementation.",
+			"behavior": {
+				"files": [
+					"packages/schema/mod.test.ts"
+				],
+				"properties": [
+					"Success narrows output; invalid input retains structured issues.",
+					"Nested issue prefixing preserves the original issue object."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/schema/mod.test.ts"
+				],
+				"properties": [
+					"Success narrows output; invalid input retains structured issues.",
+					"Nested issue prefixing preserves the original issue object."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"platform-services"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/schema/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/values.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts",
+					"bench/alternatives.bench.ts"
+				],
+				"question": "What does bounded validation, wire conversion and lookup cost in a 100-value import? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children? What does the same bounded successful public operation cost against an established implementation?",
+				"comparisons": [
+					"Direct Zod, Map, Object.assign, Date and JSR std/semver where outputs can be compared; each omits named utility contracts.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately.",
+					"Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases."
+				],
+				"limits": [
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded.",
+					"Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions."
+				]
+			}
+		},
+		{
+			"name": "@okikio/server",
+			"manifest": "packages/server/deno.jsonc",
+			"model": "Compile endpoint/service/gateway contracts into Fetch runtimes with explicit middleware and host ownership.",
+			"behavior": {
+				"files": [
+					"packages/server/endpoint/mod.test.ts",
+					"packages/server/gateway/mod.test.ts",
+					"packages/server/http/mod.test.ts",
+					"packages/server/middleware/mod.test.ts",
+					"packages/server/service/compile.test.ts",
+					"packages/server/service/resilience.test.ts",
+					"packages/server/service/runtime.test.ts",
+					"tests/http-parity.test.ts",
+					"packages/server/http/router.test.ts",
+					"tests/hono-contracts.test.ts",
+					"tests/hono-proxy.test.ts",
+					"tests/hono-compose.test.ts"
+				],
+				"properties": [
+					"Exact handler/resource coverage, middleware order, safe problems, body/cancellation limits, and raw webhook authentication.",
+					"Trust reconstruction, mounted services, response completion, readiness, and deadline lifetime remain caller-visible."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/server/endpoint/mod.test.ts",
+					"packages/server/gateway/mod.test.ts",
+					"packages/server/http/mod.test.ts",
+					"packages/server/middleware/mod.test.ts",
+					"packages/server/service/compile.test.ts",
+					"packages/server/service/resilience.test.ts",
+					"packages/server/service/runtime.test.ts",
+					"tests/http-parity.test.ts",
+					"packages/server/http/router.test.ts",
+					"tests/hono-contracts.test.ts",
+					"tests/hono-proxy.test.ts",
+					"tests/hono-compose.test.ts"
+				],
+				"properties": [
+					"Exact handler/resource coverage, middleware order, safe problems, body/cancellation limits, and raw webhook authentication.",
+					"Trust reconstruction, mounted services, response completion, readiness, and deadline lifetime remain caller-visible."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"platform-services",
+					"signed-callback",
+					"provider-lazy",
+					"hono-parity",
+					"hono-upstream"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/server/endpoint/mod.test.ts",
+						"packages/server/gateway/mod.test.ts",
+						"packages/server/http/mod.test.ts",
+						"packages/server/middleware/mod.test.ts",
+						"packages/server/service/compile.test.ts",
+						"packages/server/service/resilience.test.ts",
+						"packages/server/service/runtime.test.ts",
+						"tests/http-parity.test.ts",
+						"packages/server/http/router.test.ts",
+						"tests/hono-contracts.test.ts",
+						"tests/hono-proxy.test.ts",
+						"tests/hono-compose.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [
+						"tests/http-parity.test.ts",
+						"packages/server/http/mod.test.ts",
+						"packages/server/http/router.test.ts",
+						"tests/hono-contracts.test.ts",
+						"tests/hono-proxy.test.ts",
+						"tests/hono-compose.test.ts"
+					],
+					"command": "deno task test:node"
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semantic": {
+						"files": [
+							"tests/host.test.ts",
+							"tests/provider.test.ts",
+							"tests/http-parity.test.ts"
+						],
+						"formats": [
+							"esm",
+							"cjs"
+						],
+						"proves": "Compile existing public-import scenarios with all production packages external, then execute each format against physically installed exact packed artifacts. This selection needs the actual npm-verify receipt to count as execution."
+					}
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"packages/server/http/router.bench.ts",
+					"bench/mod.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts",
+					"bench/http-parity.bench.ts",
+					"bench/alternatives.bench.ts",
+					"bench/http-challengers.bench.ts"
+				],
+				"question": "How does prepared route lookup scale at 16, 256 and 4096 routes? What does a consumed or cancelled routed response through middleware cost? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children? What does the same independently qualified API, gateway forwarding policy and 16/256/4096-route corpus cost through pure Utils and pure Hono? What does the same bounded successful public operation cost against an established implementation? What does the same complete API and 16/256/4096-route corpus cost on one runtime against compiled Elysia and Vixeny?",
+				"comparisons": [
+					"Independent linear matcher with same route choices.",
+					"No equivalent baseline is claimed; measure this explicit operation.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately.",
+					"Hono 4.13.5 and Utils consume the same authored requests, response bodies and selected wire headers.",
+					"Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases.",
+					"Utils, Hono4.13.5, Elysia1.4.30 AOT and Vixeny0.1.53 native response compiler consume identical authored requests and complete response projections."
+				],
+				"limits": [
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Fetch pipeline only; no actual listener/network latency.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded.",
+					"Warm in-process Fetch dispatch; construction and cleanup outside timing. Validation/ownership mechanisms differ despite equal shared outputs. Six counterbalanced processes qualify uncertainty separately; no listener, deployed or equivalence guarantee.",
+					"Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions.",
+					"Warm in-process Fetch dispatch; compilation and close excluded. Eight balanced fresh processes per Deno/Node/Bun view. Application adapters match selected output, not gateway/resource ownership; no listener, speed gate or equivalence claim. Vixeny uses one traceable unminified JS emission."
+				]
+			}
+		},
+		{
+			"name": "@okikio/sitemap",
+			"manifest": "packages/sitemap/deno.jsonc",
+			"model": "Incrementally parse Sitemap, feed, and text routes while respecting namespaces and hostile XML limits.",
+			"behavior": {
+				"files": [
+					"packages/sitemap/differential.test.ts",
+					"packages/sitemap/mod.test.ts"
+				],
+				"properties": [
+					"Extension URLs do not become page routes; URL-set and index positions remain distinct.",
+					"Protocol-scale streams do not retain an entry inventory; chunk splits, cancellation, DOCTYPE, and truncation retain correct meaning."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/sitemap/differential.test.ts",
+					"packages/sitemap/mod.test.ts"
+				],
+				"properties": [
+					"Extension URLs do not become page routes; URL-set and index positions remain distinct.",
+					"Protocol-scale streams do not retain an entry inventory; chunk splits, cancellation, DOCTYPE, and truncation retain correct meaning."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"crawl-discovery"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/sitemap/differential.test.ts",
+						"packages/sitemap/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semantic": {
+						"files": [
+							"tests/discovery.test.ts"
+						],
+						"formats": [
+							"esm",
+							"cjs"
+						],
+						"proves": "Compile existing public-import scenarios with all production packages external, then execute each format against physically installed exact packed artifacts. This selection needs the actual npm-verify receipt to count as execution."
+					}
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/mod.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts",
+					"bench/alternatives.bench.ts"
+				],
+				"question": "What does a CRM/discovery composition cost with 1000 rows and 250 extracted resources? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children? What does the same bounded successful public operation cost against an established implementation?",
+				"comparisons": [
+					"No equivalent baseline is claimed; measure this explicit operation.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately.",
+					"Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases."
+				],
+				"limits": [
+					"Fixed structured local fixtures; no network or hostile-page performance claim.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded.",
+					"Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions."
+				]
+			}
+		},
+		{
+			"name": "@okikio/streams",
+			"manifest": "packages/streams/deno.jsonc",
+			"model": "Adapt iterables and Web Streams with bounded collection, batching, text lines, and pressure propagation.",
+			"behavior": {
+				"files": [
+					"packages/streams/mod.test.ts"
+				],
+				"properties": [
+					"Item/byte limits and UTF-8/CRLF boundaries preserve data independently of physical chunks.",
+					"Early return/consumer failure returns upstream ownership; a blocked sink cannot exhaust its producer."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/streams/mod.test.ts"
+				],
+				"properties": [
+					"Item/byte limits and UTF-8/CRLF boundaries preserve data independently of physical chunks.",
+					"Early return/consumer failure returns upstream ownership; a blocked sink cannot exhaust its producer."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"crm-import",
+					"crawl-discovery",
+					"crawl-processes"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/streams/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semantic": {
+						"files": [
+							"tests/discovery.test.ts"
+						],
+						"formats": [
+							"esm",
+							"cjs"
+						],
+						"proves": "Compile existing public-import scenarios with all production packages external, then execute each format against physically installed exact packed artifacts. This selection needs the actual npm-verify receipt to count as execution."
+					}
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/lifetimes.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts",
+					"bench/alternatives.bench.ts"
+				],
+				"question": "What does bounded work and owned cleanup cost? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children? What does the same bounded successful public operation cost against an established implementation?",
+				"comparisons": [
+					"JSR std/async pooledMap compares ordered successful values only; failure ownership differs.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately.",
+					"Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases."
+				],
+				"limits": [
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded.",
+					"Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions."
+				]
+			}
+		},
+		{
+			"name": "@okikio/task",
+			"manifest": "packages/task/deno.jsonc",
+			"model": "Own one process-local operation with cooperative pause, cancellation, terminal result, and cleanup.",
+			"behavior": {
+				"files": [
+					"packages/task/mod.test.ts"
+				],
+				"properties": [
+					"Success waits for cleanup; cancelled pause releases checkpoints.",
+					"Primary plus cleanup failure retains undefined as a valid thrown value."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/task/mod.test.ts"
+				],
+				"properties": [
+					"Success waits for cleanup; cancelled pause releases checkpoints.",
+					"Primary plus cleanup failure retains undefined as a valid thrown value."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"media-jobs"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/task/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"command": "deno task test:node",
+					"files": [
+						"packages/task/mod.test.ts"
+					]
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semantic": {
+						"files": [
+							"tests/coordination.test.ts"
+						],
+						"formats": [
+							"esm",
+							"cjs"
+						],
+						"proves": "Compile existing public-import scenarios with all production packages external, then execute each format against physically installed exact packed artifacts. This selection needs the actual npm-verify receipt to count as execution."
+					}
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/lifetimes.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What does bounded work and owned cleanup cost? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"JSR std/async pooledMap compares ordered successful values only; failure ownership differs.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/telemetry",
+			"manifest": "packages/telemetry/deno.jsonc",
+			"model": "Project bounded structured lifecycle diagnostics through explicit non-authoritative reporters.",
+			"behavior": {
+				"files": [
+					"packages/telemetry/lifecycle.test.ts",
+					"packages/telemetry/logtape.test.ts",
+					"packages/telemetry/mod.test.ts",
+					"packages/telemetry/otel.test.ts",
+					"packages/telemetry/server.test.ts"
+				],
+				"properties": [
+					"Reporter failures cannot rewrite execution authority; fan-out preserves all delivery faults.",
+					"Caller mutation/accessors cannot rewrite recorded fields; lifecycle projections preserve IDs and safe fault details."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/telemetry/lifecycle.test.ts",
+					"packages/telemetry/logtape.test.ts",
+					"packages/telemetry/mod.test.ts",
+					"packages/telemetry/otel.test.ts",
+					"packages/telemetry/server.test.ts"
+				],
+				"properties": [
+					"Reporter failures cannot rewrite execution authority; fan-out preserves all delivery faults.",
+					"Caller mutation/accessors cannot rewrite recorded fields; lifecycle projections preserve IDs and safe fault details."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"repository-failures"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/telemetry/lifecycle.test.ts",
+						"packages/telemetry/logtape.test.ts",
+						"packages/telemetry/mod.test.ts",
+						"packages/telemetry/otel.test.ts",
+						"packages/telemetry/server.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/lifetimes.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What does bounded work and owned cleanup cost? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"JSR std/async pooledMap compares ordered successful values only; failure ownership differs.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/utils",
+			"manifest": "packages/utils/deno.jsonc",
+			"model": "Re-export focused programming models as one convenience installation without a second implementation.",
+			"behavior": {
+				"files": [
+					"packages/utils/mod.test.ts"
+				],
+				"properties": [
+					"Public subpaths and package inventory match focused manifests exactly.",
+					"Unused optional adapters and host-only imports remain outside selected consumer graphs."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/utils/mod.test.ts"
+				],
+				"properties": [
+					"Public subpaths and package inventory match focused manifests exactly.",
+					"Unused optional adapters and host-only imports remain outside selected consumer graphs."
+				]
+			},
+			"scenarios": {
+				"ids": [],
+				"reason": "Public import/declaration and ownership contracts are the applicable scenario; no existing larger consumer flow was found."
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/utils/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"exclusions": [
+						"Deno adapter subpaths remain JSR-only."
+					],
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/version",
+			"manifest": "packages/version/deno.jsonc",
+			"model": "Resolve compatible version evidence using explicit semantic and vendor-dotted schemes.",
+			"behavior": {
+				"files": [
+					"packages/version/mod.test.ts"
+				],
+				"properties": [
+					"Precision outranks source priority; qualifiers and incompatible exact observations remain conflicts.",
+					"SemVer build metadata corroborates release identity without inventing a refinement."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/version/mod.test.ts"
+				],
+				"properties": [
+					"Precision outranks source priority; qualifiers and incompatible exact observations remain conflicts.",
+					"SemVer build metadata corroborates release identity without inventing a refinement."
+				]
+			},
+			"scenarios": {
+				"ids": [],
+				"reason": "Public import/declaration and ownership contracts are the applicable scenario; no existing larger consumer flow was found."
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/version/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/values.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts",
+					"bench/alternatives.bench.ts"
+				],
+				"question": "What does bounded validation, wire conversion and lookup cost in a 100-value import? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children? What does the same bounded successful public operation cost against an established implementation?",
+				"comparisons": [
+					"Direct Zod, Map, Object.assign, Date and JSR std/semver where outputs can be compared; each omits named utility contracts.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately.",
+					"Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases."
+				],
+				"limits": [
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded.",
+					"Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions."
+				]
+			}
+		},
+		{
+			"name": "@okikio/worker",
+			"manifest": "packages/worker/deno.jsonc",
+			"model": "Correlate schema-checked Worker requests, reverse calls, transfers, cancellation, and cooperative shutdown.",
+			"behavior": {
+				"files": [
+					"packages/worker/mod.test.ts"
+				],
+				"properties": [
+					"Unknown IDs/malformed results invalidate ownership; late results cannot replace cancellation.",
+					"Pending schema admission is cancellable; shutdown joins cleanup without waiting forever for external validators."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/worker/mod.test.ts"
+				],
+				"properties": [
+					"Unknown IDs/malformed results invalidate ownership; late results cannot replace cancellation.",
+					"Pending schema admission is cancellable; shutdown joins cleanup without waiting forever for external validators."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"workflow-recovery"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/worker/mod.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [],
+					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"exclusions": [
+						"Deno adapter subpaths remain JSR-only."
+					],
+					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/hosts.bench.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What do real child/Worker startup, warm correlated messages and joined shutdown cost? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"Deno.Command same child/output versus utility bounded capture and lifecycle; Worker warm versus cold.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Native Deno only; no assertion that importable Node Worker has a backend.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		},
+		{
+			"name": "@okikio/workflow",
+			"manifest": "packages/workflow/deno.jsonc",
+			"model": "Describe lazy replayable instructions separately from live providers and scheduler/dispatch authority.",
+			"behavior": {
+				"files": [
+					"packages/workflow/dispatch.test.ts",
+					"packages/workflow/durable.test.ts",
+					"packages/workflow/history.test.ts",
+					"packages/workflow/kernel.test.ts",
+					"packages/workflow/mod.test.ts",
+					"packages/workflow/retry.test.ts",
+					"packages/workflow/scheduler.test.ts"
+				],
+				"properties": [
+					"Durable values exclude accessors, sparse arrays, and unsupported data before persistence.",
+					"Paths/fingerprints fence divergence; leases/host generations fence stale results; cancellation joins sibling and cleanup work."
+				]
+			},
+			"invariants": {
+				"files": [
+					"packages/workflow/dispatch.test.ts",
+					"packages/workflow/durable.test.ts",
+					"packages/workflow/history.test.ts",
+					"packages/workflow/kernel.test.ts",
+					"packages/workflow/mod.test.ts",
+					"packages/workflow/retry.test.ts",
+					"packages/workflow/scheduler.test.ts"
+				],
+				"properties": [
+					"Durable values exclude accessors, sparse arrays, and unsupported data before persistence.",
+					"Paths/fingerprints fence divergence; leases/host generations fence stale results; cancellation joins sibling and cleanup work."
+				]
+			},
+			"scenarios": {
+				"ids": [
+					"workflow-recovery"
+				]
+			},
+			"runtime": {
+				"sourceDeno": {
+					"command": "deno task test",
+					"files": [
+						"packages/workflow/dispatch.test.ts",
+						"packages/workflow/durable.test.ts",
+						"packages/workflow/history.test.ts",
+						"packages/workflow/kernel.test.ts",
+						"packages/workflow/mod.test.ts",
+						"packages/workflow/retry.test.ts",
+						"packages/workflow/scheduler.test.ts"
+					]
+				},
+				"sourceNode": {
+					"files": [
+						"packages/workflow/dispatch.test.ts"
+					],
+					"command": "deno task test:node"
+				},
+				"emittedNode": {
+					"command": "mise run npm-verify",
+					"checker": "tools/npm-consumer.mjs",
+					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
+					"semantic": {
+						"files": [
+							"tests/workflow.test.ts"
+						],
+						"formats": [
+							"esm",
+							"cjs"
+						],
+						"proves": "Compile existing public-import scenarios with all production packages external, then execute each format against physically installed exact packed artifacts. This selection needs the actual npm-verify receipt to count as execution."
+					}
+				}
+			},
+			"benchmark": {
+				"registry": "bench/coverage.json",
+				"programs": [
+					"bench/recovery.bench.ts",
+					"packages/workflow/dispatch.bench.ts",
+					"bench/mod.ts",
+					"bench/imports.bench.ts",
+					"bench/npm-imports.bench.ts"
+				],
+				"question": "What does an executed activity plus Scheduler replacement and replay cost? What does dispatch admission and fencing cost for 1000 activities? What does deterministic identity for 32 instructions cost? What is the startup cost of selectively importing this package in a fresh process? What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparisons": [
+					"No equivalent baseline is claimed; measure this explicit operation.",
+					"No equivalent baseline is claimed; measure this explicit operation.",
+					"No equivalent baseline is claimed; measure this explicit operation.",
+					"Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+					"Same native Node child without a package import; focused and eager umbrella separately."
+				],
+				"limits": [
+					"Process-local memory adapters survive Scheduler replacement, not process death; the provider must run exactly once.",
+					"Source Deno implementation; no deployed integration or performance threshold.",
+					"Identity-only case; actual execute/replay is measured separately.",
+					"Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests.",
+					"Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+				]
+			}
+		}
+	],
+	"scenarios": [
+		{
+			"id": "crm-import",
+			"origins": [
+				{
+					"repository": "okikio/kaiju-platform",
+					"paths": [
+						"apps/frontend/src/routes/(product)/_app/(import)/-csv.ts"
+					]
+				}
+			],
+			"tests": [
+				"tests/discovery.test.ts",
+				"packages/csv/properties.test.ts",
+				"packages/email/mod.test.ts"
+			],
+			"flow": "Stage CRM file streams, preserve original columns/row occurrences, then classify domain evidence.",
+			"failure": "Late explicit headers, malformed rows, byte/row/cell bounds, and chunk splits cannot silently alter original cells.",
+			"ownership": "CSV owns the reader until iteration/disposal. The application deliberately materializes rows for editable drafts.",
+			"proof": "Reconstructed generic import composition and exact generated-cell oracles; no browser UI or IndexedDB recovery claim."
+		},
+		{
+			"id": "crawl-discovery",
+			"origins": [
+				{
+					"repository": "okikio/kaiju-crawl",
+					"paths": [
+						"packages/discovery/src/sitemap.ts",
+						"packages/assets/src/resource/index.ts",
+						"packages/page/src/source.ts",
+						"packages/browser/src/capture.ts"
+					]
+				}
+			],
+			"tests": [
+				"tests/discovery.test.ts",
+				"packages/sitemap/mod.test.ts",
+				"packages/concurrency/bounded.test.ts",
+				"packages/capacity/mod.test.ts"
+			],
+			"flow": "Parse robots/Sitemap routes and inspect HTML/CSS references before admitting bounded crawl work.",
+			"failure": "Namespaces, malformed/hostile documents, producer cancellation, and exhausted capacity must retain their distinct outcomes.",
+			"ownership": "The parser owns only source iteration; the collector owns Fetch/browser providers and application admission policy.",
+			"proof": "Public-import reconstruction plus protocol-scale parser and bounded-admission tests, without executing remote crawl workloads."
+		},
+		{
+			"id": "crawl-processes",
+			"origins": [
+				{
+					"repository": "okikio/kaiju-crawl",
+					"paths": [
+						"packages/archive/src/wacz/process/pool.ts",
+						"packages/browser/src/process/pool.ts",
+						"packages/browser/src/lighthouse/process/client.ts"
+					]
+				}
+			],
+			"tests": [
+				"tests/coordination.test.ts",
+				"tests/process-orchestration.test.ts",
+				"packages/process/mod.test.ts",
+				"packages/process/node.test.ts",
+				"packages/process/channel/mod.test.ts"
+			],
+			"flow": "Bound waiting archive/browser work, exchange framed requests, and replace invalid native providers before retry.",
+			"failure": "Native process loss, output/frame limits, cancelled waiting work, and stale completion cannot leak ownership or corrupt the result.",
+			"ownership": "Applications select adapters/launch arguments; generic process and pool capabilities own child/lease disposal.",
+			"proof": "Real Deno child replacement and native Node child/group tests plus deterministic coordination; no WACZ or Chrome implementation claim."
+		},
+		{
+			"id": "media-jobs",
+			"origins": [
+				{
+					"repository": "okikio/mediad",
+					"paths": [
+						"packages/media/download/download.ts",
+						"packages/media/convert/convert.ts",
+						"packages/media/storage/resource.ts"
+					]
+				}
+			],
+			"tests": [
+				"packages/task/mod.test.ts",
+				"packages/context/mod.test.ts",
+				"packages/resource/mod.test.ts",
+				"packages/dispose/mod.test.ts"
+			],
+			"flow": "Run a downloadable or conversion job under one Task/context and acquire storage only when required.",
+			"failure": "Cancellation releases cooperative pauses; late acquisition closes; primary and cleanup failures both remain observable.",
+			"ownership": "Task owns local execution cleanup; resource owns an acquired filesystem; progress/logging remain observational application concerns.",
+			"proof": "Generic lifetime/cleanup contracts exercised through the public API. Media codecs, remote resume, and browser OPFS remain the consumer repos qualification."
+		},
+		{
+			"id": "platform-services",
+			"origins": [
+				{
+					"repository": "okikio/kaiju-platform",
+					"paths": [
+						"services/reports/definition.ts",
+						"services/gateway/mod.ts",
+						"packages/db/postgres/src/collection.ts",
+						"packages/list/src/import.ts"
+					]
+				}
+			],
+			"tests": [
+				"tests/host.test.ts",
+				"packages/server/service/compile.test.ts",
+				"packages/server/service/runtime.test.ts",
+				"packages/server/gateway/mod.test.ts",
+				"packages/hono/mod.test.ts"
+			],
+			"flow": "Compile exact service definitions, validate request input, mount service routes, and reconstruct upstream trust metadata.",
+			"failure": "Missing authority/handler coverage, failed readiness, malformed framing, untrusted headers, and total-body timeout fail safely.",
+			"ownership": "Definitions import without acquisition; runtime owns request resources; host owns listeners, routing origins, and logging configuration.",
+			"proof": "Generic Fetch/Hono/gateway compositions and schema/query contracts; no PostgreSQL, deployed gateway, or application identity integration claim."
+		},
+		{
+			"id": "signed-callback",
+			"origins": [
+				{
+					"repository": "okikio/kaiju-platform",
+					"paths": [
+						"services/enrichment/endpoints/research/result.ts"
+					]
+				}
+			],
+			"tests": [
+				"packages/http/webhook/mod.test.ts",
+				"packages/server/service/runtime.test.ts",
+				"tests/provider.test.ts"
+			],
+			"flow": "Retain exact callback bytes, authenticate before JSON parsing, and lazily acquire optional signing material.",
+			"failure": "Invalid signatures, oversized bodies, cancelled reads, and missing provider configuration cannot invoke a trusted handler.",
+			"ownership": "Request runtime owns the body; application supplies signing configuration and durable acceptance policy.",
+			"proof": "Published webhook vector and generic raw-byte service scenario; no production callback delivery or database commit claim."
+		},
+		{
+			"id": "provider-lazy",
+			"origins": [
+				{
+					"repository": "okikio/mediad",
+					"paths": [
+						"packages/media/storage/resource.ts"
+					]
+				}
+			],
+			"tests": [
+				"tests/provider.test.ts",
+				"packages/resource/mod.test.ts",
+				"tests/imports.test.ts"
+			],
+			"flow": "Describe capabilities and OpenAPI without opening optional providers; acquire only on a requiring operation.",
+			"failure": "Failed acquisition preserves unrelated routes and can be retried; stale values close if disposal wins.",
+			"ownership": "Definition creation borrows metadata only; acquired values transfer disposal to the collection.",
+			"proof": "Independent provider double qualifies acquisition isolation; physical OPFS providers are qualified by their own library."
+		},
+		{
+			"id": "workflow-recovery",
+			"origins": [
+				{
+					"repository": "okikio/Core",
+					"paths": [
+						"tools/intelligence-runtime/entry.ts"
+					]
+				}
+			],
+			"tests": [
+				"tests/restartable-worker.test.ts",
+				"tests/process-orchestration.test.ts",
+				"tests/workflow.test.ts",
+				"packages/workflow/scheduler.test.ts",
+				"packages/workflow/dispatch.test.ts"
+			],
+			"flow": "Run activities through Worker/process hosts, retain durable-shaped completions, replace scheduler/provider replicas, and replay.",
+			"failure": "Expired claims, replaced host generations, lost worker/process execution, and changed fingerprints cannot replace terminal authority.",
+			"ownership": "Scheduler/dispatch owns leases; provider owns host execution; external effect sink owns idempotent acceptance.",
+			"proof": "Core exposes the programming model, but no concrete deployed durable scheduler consumer was found. Repository scenarios use real Worker/process hosts and an in-memory shared history/effect sink; they prove replica recovery, not persisted crash recovery."
+		},
+		{
+			"id": "core-authority",
+			"origins": [
+				{
+					"repository": "okikio/Core",
+					"paths": [
+						"packages/identity/core/src/service.ts",
+						"packages/identity/core/src/permissions.ts",
+						"packages/billing/core/src/meters.ts",
+						"packages/billing/core/src/entitlements.ts"
+					]
+				}
+			],
+			"tests": [
+				"packages/permission/mod.test.ts",
+				"packages/requirement/mod.test.ts",
+				"packages/entitlement/mod.test.ts",
+				"packages/meter/mod.test.ts"
+			],
+			"flow": "Declare target-aware identity/billing requirements and project accepted measurements through explicit owner capabilities.",
+			"failure": "Absent/malformed checker authority fails closed; duplicate definitions cannot silently merge unrelated requirements.",
+			"ownership": "Applications own provider authorization and billing interpretation. Generic definitions remain import-safe and meters announce facts only.",
+			"proof": "Definition/batch/measurement composition tested with independent authority doubles; no live billing or identity-provider policy claim."
+		},
+		{
+			"id": "repository-failures",
+			"origins": [
+				{
+					"repository": "okikio/utils",
+					"paths": [
+						"packages/failure/mod.ts",
+						"packages/fault/mod.ts",
+						"packages/codec/mod.ts",
+						"packages/telemetry/lifecycle.ts"
+					]
+				}
+			],
+			"tests": [
+				"packages/failure/mod.test.ts",
+				"packages/fault/mod.test.ts",
+				"packages/codec/mod.test.ts",
+				"packages/telemetry/lifecycle.test.ts"
+			],
+			"flow": "Carry declared failures and bounded diagnostics across schema, provider, and observation boundaries.",
+			"failure": "Unsafe accessors, unknown identities, invalid nested data, reporter errors, and circular diagnostics remain bounded without executing caller code.",
+			"ownership": "Live causes remain local; encoded data belongs to transports; reporter output is never terminal authority.",
+			"proof": "Focused public contracts and generic lifecycle projections are strongest current evidence; no historical deployment dependency is invented."
+		},
+		{
+			"id": "hono-parity",
+			"flow": "Run independently implemented pure Hono and pure Utils APIs against authored input/status/header/body vectors, compiled service validation and gateway forwarding policy.",
+			"failure": "Malformed JSON, validation, exact/over-limit streamed bodies, errors, HEAD, missing routes and hop-by-hop nominated headers have explicit expectations.",
+			"ownership": "Each side owns fresh applications and consumed response bodies; Utils retains compiled operation/service/resource authority. Framework-specific precedence is tested separately rather than made artificially equivalent.",
+			"proof": "The source test checks each implementation against literal expectations. The same fixture is compiled and run against exact installed npm artifacts in ESM and CommonJS. Benchmark preflights reuse these outputs; timings do not define correctness.",
+			"origins": [
+				{
+					"repository": "https://github.com/honojs/hono/tree/v4.13.5",
+					"paths": [
+						"src/hono.test.ts",
+						"src/middleware/body-limit/index.test.ts"
+					]
+				},
+				{
+					"repository": "okikio/utils",
+					"paths": [
+						"tests/fixtures/http-parity/README.md",
+						"tests/fixtures/http-parity/corpus.ts"
+					]
+				}
+			],
+			"tests": [
+				"tests/http-parity.test.ts",
+				"packages/server/http/router.test.ts"
+			]
+		},
+		{
+			"id": "hono-upstream",
+			"flow": "Run published pinned Hono and real Utils HTTP/gateway APIs on independently recorded upstream inputs and output observations.",
+			"failure": "Malformed headers, aborted and cancelled bodies, repeated continuations, missing routes and response replacement retain explicit outcomes.",
+			"ownership": "Each fixture owns and consumes its response bodies; released gates replace incidental timers. Hono Context contracts remain explicit applicability differences.",
+			"proof": "Selected upstream-observation source tests run on Deno and Node. Preserving all upstream source files is provenance, not executed coverage; these new corpora are not claimed as emitted-package scenarios.",
+			"origins": [
+				{
+					"repository": "honojs/hono@06880c4a2b04de9dd74217f26dd831209b9c01f1",
+					"paths": [
+						"src/router/common.case.test.ts",
+						"src/request.test.ts",
+						"src/context.test.ts",
+						"src/hono.test.ts",
+						"src/helper/proxy/index.test.ts",
+						"src/compose.test.ts"
+					]
+				}
+			],
+			"tests": [
+				"tests/hono-contracts.test.ts",
+				"tests/hono-proxy.test.ts",
+				"tests/hono-compose.test.ts"
+			]
+		}
+	],
+	"testReview": [
+		{
+			"file": "bench/validate.test.ts",
+			"disposition": "strengthen",
+			"protects": "Independent empty, failed and contradictory native timing populations reject; a known population qualifies without fixing an elapsed-time performance threshold."
+		},
+		{
+			"file": "packages/activity/engine.test.ts",
+			"disposition": "retain",
+			"protects": "Import-safe exact engine identity, exclusive required placement, deduplication in authored order, and invalid placement rejection."
+		},
+		{
+			"file": "packages/activity/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Lazy requests, versioned durable identity, schema-checked attempts, narrowed resources, permission/effect authority, and declared versus undeclared failures."
+		},
+		{
+			"file": "packages/activity/provider.test.ts",
+			"disposition": "retain",
+			"protects": "The same independent activity contract through local, paired Worker, and framed-process providers: reverse authority calls, heartbeats, effects, resources, and terminal outcomes."
+		},
+		{
+			"file": "packages/capacity/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Atomic multi-key reservations, impossible admission, FIFO blocking, cancelled waiters, idempotent release, and immutable capacity accounting."
+		},
+		{
+			"file": "packages/capacity/types.test.ts",
+			"disposition": "type-contract",
+			"protects": "Compiler consumer fixtures preserve inferred input/output, readonly, discriminant, overload, and intentional rejection contracts."
+		},
+		{
+			"file": "packages/catalog/core.mod.test.ts",
+			"disposition": "retain",
+			"protects": "Prototype-shaped own keys remain entries; key-preserving identifiers, exact membership, selection, and get retain canonical object identity."
+		},
+		{
+			"file": "packages/catalog/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Canonical object deduplication, conflicting keys, source aliases, selection, and prototype-shaped keys without starting runtime work."
+		},
+		{
+			"file": "packages/codec/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Independent encode/decode validators, array/record/optional nesting, structured issue paths, malformed definitions, and inert accessor handling."
+		},
+		{
+			"file": "packages/codec/types.test.ts",
+			"disposition": "type-contract",
+			"protects": "Compiler consumer fixtures preserve inferred input/output, readonly, discriminant, overload, and intentional rejection contracts."
+		},
+		{
+			"file": "packages/concurrency/bounded.test.ts",
+			"disposition": "retain",
+			"protects": "Independent active-work counters and gated callbacks prove bounded admission, output/completion order, cancellation, sibling joining, and pressure."
+		},
+		{
+			"file": "packages/concurrency/channel.test.ts",
+			"disposition": "retain",
+			"protects": "Bounded slots, send/receive order, blocked producers, close/error propagation, consumer cancellation, and acknowledged slot reuse."
+		},
+		{
+			"file": "packages/context/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Logical-clock deadlines, child inheritance, parent/child cancellation causes, borrowed views, scope disposal, and listener ownership. Positive nanosecond deadlines, availability and lease boundaries retain a timer without early cancellation or zero-delay spinning."
+		},
+		{
+			"file": "packages/context/types.test.ts",
+			"disposition": "type-contract",
+			"protects": "Compiler consumer fixtures preserve inferred input/output, readonly, discriminant, overload, and intentional rejection contracts."
+		},
+		{
+			"file": "packages/css/mod.test.ts",
+			"disposition": "strengthen",
+			"protects": "CSS AST classification of URLs, variables, media/selector features, and recovery coordinates; parse diagnostics do not depend on parser prose."
+		},
+		{
+			"file": "packages/csv/core.options.test.ts",
+			"disposition": "retain",
+			"protects": "Core parser option validation and imported-record ownership reject malformed/accessor-backed settings before parsing."
+		},
+		{
+			"file": "packages/csv/core.parse.test.ts",
+			"disposition": "retain",
+			"protects": "The core parser distinguishes quoted fields, malformed dialects, headers, offsets, and row/cell bounds on authored input."
+		},
+		{
+			"file": "packages/csv/core.stream.test.ts",
+			"disposition": "strengthen",
+			"protects": "Web Stream input and early termination preserve complete data and release readers; duplicated empty logical groups were removed."
+		},
+		{
+			"file": "packages/csv/dialect.test.ts",
+			"disposition": "retain",
+			"protects": "Independent delimiter/comment/quote/escape samples qualify dialect discovery and malformed configuration rejection."
+		},
+		{
+			"file": "packages/csv/encoding.test.ts",
+			"disposition": "retain",
+			"protects": "BOM, Unicode, and legacy byte samples qualify encoding detection and decoding independently of chunk boundaries."
+		},
+		{
+			"file": "packages/csv/headers.test.ts",
+			"disposition": "retain",
+			"protects": "Header normalization handles aliases, collisions, punctuation, and Unicode; seeded generated inputs prove normalization idempotence."
+		},
+		{
+			"file": "packages/csv/occurrences.test.ts",
+			"disposition": "retain",
+			"protects": "Duplicate original headers/cells retain distinct occurrence identity through semantic projection and row access."
+		},
+		{
+			"file": "packages/csv/options.test.ts",
+			"disposition": "retain",
+			"protects": "Typed authoring snapshots, validation issues, explicit header selection, imported limits, and deferred reader ownership."
+		},
+		{
+			"file": "packages/csv/parse.test.ts",
+			"disposition": "retain",
+			"protects": "Authored edge cases and CRM fixtures protect discovered headers, delimiters, encoding, original records, malformed rows, and boundary policy."
+		},
+		{
+			"file": "packages/csv/properties.test.ts",
+			"disposition": "strengthen",
+			"protects": "An independent quoted CSV encoder supplies expected original cells across generated byte splits; a 10,000-row pull source proves incremental reading."
+		},
+		{
+			"file": "packages/csv/stream.test.ts",
+			"disposition": "retain",
+			"protects": "Entered-read cancellation and async disposal settle the active iterator and release its reader; terminal rejection remains observed."
+		},
+		{
+			"file": "packages/csv/types.test.ts",
+			"disposition": "type-contract",
+			"protects": "Compiler consumer fixtures preserve inferred input/output, readonly, discriminant, overload, and intentional rejection contracts."
+		},
+		{
+			"file": "packages/csv/write.test.ts",
+			"disposition": "retain",
+			"protects": "Authored quote/escape/newline/formula settings and streaming output preserve explicit writer semantics and upstream ownership."
+		},
+		{
+			"file": "packages/deno/file.test.ts",
+			"disposition": "retain",
+			"protects": "Real temporary filesystem replacement preserves previous bytes on cancellation/failure and removes temporary ownership after success."
+		},
+		{
+			"file": "packages/deno/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Explicit Deno permission scope parsing and argument projection retain literal commas, deduplication, and permission authority."
+		},
+		{
+			"file": "packages/deno/port.test.ts",
+			"disposition": "retain",
+			"protects": "A real temporary listener yields a usable ephemeral port and releases listener ownership before returning."
+		},
+		{
+			"file": "packages/dispose/mod.test.ts",
+			"disposition": "retain",
+			"protects": "LIFO cleanup, move/adopt/defer, all-cleanup execution, native preservation, async disposal, and suppressed failure identity including undefined."
+		},
+		{
+			"file": "packages/duration/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Temporal duration conversion/comparison, positive/negative and calendar units, and explicit ponyfill behavior with a deterministic anchor."
+		},
+		{
+			"file": "packages/effect/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Declared schema-checked occurrences, required resources, outbox/idempotency identity, cancellation after acceptance, and classified delivery failures."
+		},
+		{
+			"file": "packages/effect/types.test.ts",
+			"disposition": "type-contract",
+			"protects": "Compiler consumer fixtures preserve inferred input/output, readonly, discriminant, overload, and intentional rejection contracts."
+		},
+		{
+			"file": "packages/email/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Streamed row/header extraction, IDNA and whole-label domain classification, source-ranked immutable candidates, and malformed caller rule rejection."
+		},
+		{
+			"file": "packages/entitlement/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Memoized projection of one exact entitlement requirement preserves canonical identity and documented metadata."
+		},
+		{
+			"file": "packages/env/source.test.ts",
+			"disposition": "strengthen",
+			"protects": "An independent seeded plain-map lookup oracle qualifies source precedence, snapshots, arbitrary keys, merging, and Node/Deno-neutral lookup."
+		},
+		{
+			"file": "packages/env/standard.test.ts",
+			"disposition": "strengthen",
+			"protects": "Standard Schema field/source separation, aggregate structured issues, async validation, exact identity, hidden-shape rejection, and secret-safe projections."
+		},
+		{
+			"file": "packages/env/types.test.ts",
+			"disposition": "type-contract",
+			"protects": "Compiler consumer fixtures preserve inferred input/output, readonly, discriminant, overload, and intentional rejection contracts."
+		},
+		{
+			"file": "packages/env/valibot.test.ts",
+			"disposition": "retain",
+			"protects": "Valibot native metadata and explicit overrides, canonical schema reuse, inert authoring records, and secret example suppression."
+		},
+		{
+			"file": "packages/env/value.test.ts",
+			"disposition": "retain",
+			"protects": "Whitespace becomes missing only for strings; trimming preserves the identity of non-string caller values."
+		},
+		{
+			"file": "packages/env/zod.test.ts",
+			"disposition": "strengthen",
+			"protects": "Zod metadata and schema reuse, explicit secret rules, hidden metadata rejection, and required descriptions through stable error class."
+		},
+		{
+			"file": "packages/failure/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Declared definition identity, causes kept local, encoded/decoded durable data, unknown IDs, lookalikes, and accessor rejection."
+		},
+		{
+			"file": "packages/failure/types.test.ts",
+			"disposition": "type-contract",
+			"protects": "Compiler consumer fixtures preserve inferred input/output, readonly, discriminant, overload, and intentional rejection contracts."
+		},
+		{
+			"file": "packages/fault/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Independent hostile/cyclic objects test bounded diagnostic depth/breadth/strings, safe native Error names, and no getter/coercion execution."
+		},
+		{
+			"file": "packages/fault/types.test.ts",
+			"disposition": "type-contract",
+			"protects": "Compiler consumer fixtures preserve inferred input/output, readonly, discriminant, overload, and intentional rejection contracts."
+		},
+		{
+			"file": "packages/hono/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Compiled service routes and Hono middleware/exception boundaries agree with framework-neutral contracts without selecting a deployment host."
+		},
+		{
+			"file": "packages/html/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Real HTML tree repair, selectors/text/attributes, source positions, and recoverable duplicate attribute problems."
+		},
+		{
+			"file": "packages/http/cookie/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Cookie security-prefix and SameSite invariants, schema validation, duplicate behavior, and non-destructive separate Set-Cookie fields."
+		},
+		{
+			"file": "packages/http/headers.test.ts",
+			"disposition": "retain",
+			"protects": "Hop-by-hop Connection options are removed while repeated cookies survive independent Fetch Header handling."
+		},
+		{
+			"file": "packages/http/problem/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Exact RFC 9457 occurrence/definition identity, immutable authored extensions, exhaustive testing behavior, invalid collisions, and namespace URLs."
+		},
+		{
+			"file": "packages/http/request/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Wire grammar, repeated query/flags, path decoding, inert options, byte/framing limits, forms, credential trust/redaction, schema issues, and memoized correlation."
+		},
+		{
+			"file": "packages/http/response/body.test.ts",
+			"disposition": "retain",
+			"protects": "Actual streamed bytes, declared/missing lengths, Unicode byte versus UTF-16 count, and invalid limit rejection."
+		},
+		{
+			"file": "packages/http/response/filename.test.ts",
+			"disposition": "retain",
+			"protects": "Ordinary attachment names survive; quotes and control/injection-shaped names receive safe wire quoting."
+		},
+		{
+			"file": "packages/http/response/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Exact result identity, immutable headers/page windows, cursor/offset links, conditional/range responses, observer isolation, and body completion/discard ownership."
+		},
+		{
+			"file": "packages/http/response/types.test.ts",
+			"disposition": "type-contract",
+			"protects": "Compiler consumer fixtures preserve inferred input/output, readonly, discriminant, overload, and intentional rejection contracts."
+		},
+		{
+			"file": "packages/http/webhook/mod.test.ts",
+			"disposition": "retain",
+			"protects": "The published independent Standard Webhooks signing vector, exact raw bytes, rotated keys, time/header/body bounds, and verifier-fault distinction."
+		},
+		{
+			"file": "packages/meter/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Schema-checked timestamped measurement records retain exact effect occurrence identity through the explicit emitter."
+		},
+		{
+			"file": "packages/permission/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Exact permission identities, target schemas, allow/deny/error algebra, fail-closed absent authority, and bounded checker batches."
+		},
+		{
+			"file": "packages/pool/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Bounded create/health checks, FIFO acquisition, late values after cancellation, invalidation, drain joining, and cleanup faults waking waiters."
+		},
+		{
+			"file": "packages/pool/types.test.ts",
+			"disposition": "type-contract",
+			"protects": "Compiler consumer fixtures preserve inferred input/output, readonly, discriminant, overload, and intentional rejection contracts."
+		},
+		{
+			"file": "packages/process/channel/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Paired framed stream fixtures qualify correlation, request/result validation, reverse calls/notices, cooperative pause, cancellation, and frame-byte bounds. Gated reverse-call cancellation and close settle the child before a parent adapter can return."
+		},
+		{
+			"file": "packages/process/lifecycle.test.ts",
+			"disposition": "retain",
+			"protects": "Independent child doubles test output failure plus termination joining and distinguish denied signals from confirmed natural exit."
+		},
+		{
+			"file": "packages/process/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Real Deno children qualify stdout/stderr/input, output limits, cancellation, signal/stop, spawn failure, and asynchronous handle disposal."
+		},
+		{
+			"file": "packages/process/node.test.ts",
+			"disposition": "strengthen",
+			"protects": "Real Node children qualify Web Stream stdio, repeat stop, spawn failure, and POSIX descendant reaping; each long-lived child registers cleanup immediately."
+		},
+		{
+			"file": "packages/query/core.mod.test.ts",
+			"disposition": "strengthen",
+			"protects": "Reserved flat URL grammar, schema/operator/cardinality budgets, caller-owned unrelated parameters, requested sort limits, and truthful OpenAPI projection."
+		},
+		{
+			"file": "packages/query/core.types.test.ts",
+			"disposition": "type-contract",
+			"protects": "Compiler consumer fixtures preserve inferred input/output, readonly, discriminant, overload, and intentional rejection contracts."
+		},
+		{
+			"file": "packages/query/expression.test.ts",
+			"disposition": "retain",
+			"protects": "Independent nested ALL/ANY/NOT trees preserve leaf paths and counting without teaching the generic walker provider-specific semantics."
+		},
+		{
+			"file": "packages/query/mod.test.ts",
+			"disposition": "strengthen",
+			"protects": "Collection schemas, validation/defaults, typed filters, projection/sort, pagination and immutable query definition identity."
+		},
+		{
+			"file": "packages/query/pagination.test.ts",
+			"disposition": "retain",
+			"protects": "Calendar cursor TTL uses an exact caller-supplied anchor without global Temporal; zero/negative TTL admission rejects."
+		},
+		{
+			"file": "packages/query/types.test.ts",
+			"disposition": "type-contract",
+			"protects": "Compiler consumer fixtures preserve inferred input/output, readonly, discriminant, overload, and intentional rejection contracts."
+		},
+		{
+			"file": "packages/query/url.test.ts",
+			"disposition": "retain",
+			"protects": "Independent canonical equivalences, lossless typed URL scalar/list round trips, authored sort order, bounded hostile grammar, and accessor/inherited-shape rejection."
+		},
+		{
+			"file": "packages/queue/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Keyed priority/FIFO admission, exclusive claims, TestClock lease/renew/retry, stale-token fencing, terminal results, cancellation, and owned drain. Positive nanosecond deadlines, availability and lease boundaries retain a timer without early cancellation or zero-delay spinning."
+		},
+		{
+			"file": "packages/queue/types.test.ts",
+			"disposition": "type-contract",
+			"protects": "Compiler consumer fixtures preserve inferred input/output, readonly, discriminant, overload, and intentional rejection contracts."
+		},
+		{
+			"file": "packages/record/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Plain own-key snapshots preserve prototype-shaped data; hidden/symbol/accessor/nonplain records reject without executing caller code."
+		},
+		{
+			"file": "packages/record/types.test.ts",
+			"disposition": "type-contract",
+			"protects": "Compiler consumer fixtures preserve inferred input/output, readonly, discriminant, overload, and intentional rejection contracts."
+		},
+		{
+			"file": "packages/requirement/core.mod.test.ts",
+			"disposition": "retain",
+			"protects": "Key-preserving catalog projection memoizes exact requirements; a selected subset retains the same canonical requirement object."
+		},
+		{
+			"file": "packages/requirement/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Memoized family projection, canonical catalog membership, family selection, and no merging of unrelated string-key authority."
+		},
+		{
+			"file": "packages/resilience/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Import-safe policy validation, numeric/key bounds, unsafe retry/idempotency constraints, ordered declarations, and immutable policy snapshots."
+		},
+		{
+			"file": "packages/resource/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Independent create/close doubles and gates prove lazy ordered dependencies, acquisition coalescing, borrowed authority, retries, partial cleanup, and late-value disposal."
+		},
+		{
+			"file": "packages/resource/types.test.ts",
+			"disposition": "type-contract",
+			"protects": "Compiler consumer fixtures preserve inferred input/output, readonly, discriminant, overload, and intentional rejection contracts."
+		},
+		{
+			"file": "packages/result/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Discriminated success/failure narrowing, matching, fallback factory versus value semantics, and exact supplied failure thrown by unwrap."
+		},
+		{
+			"file": "packages/result/types.test.ts",
+			"disposition": "type-contract",
+			"protects": "Compiler consumer fixtures preserve inferred input/output, readonly, discriminant, overload, and intentional rejection contracts."
+		},
+		{
+			"file": "packages/robots/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Authored specificity/longest-rule examples qualify wildcard versus specific groups, equal Allow ties, encoded paths, and absolute HTTP Sitemap directives."
+		},
+		{
+			"file": "packages/schema/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Portable Standard Schema success/failure validation and immutable prefixed issue paths retain original issue identity."
+		},
+		{
+			"file": "packages/schema/types.test.ts",
+			"disposition": "type-contract",
+			"protects": "Compiler consumer fixtures preserve inferred input/output, readonly, discriminant, overload, and intentional rejection contracts."
+		},
+		{
+			"file": "packages/server/endpoint/mod.test.ts",
+			"disposition": "strengthen",
+			"protects": "Exact operation/handler identity and coverage, transformed inputs, canonical paths, conflict codes, inert snapshots, and truthful OpenAPI body/query/path schemas."
+		},
+		{
+			"file": "packages/server/gateway/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Independent upstream capture proves rebuilt trust, redacted credentials, redirect/cookie policy, preflight byte bounds, response completion, and logical deadline lifetime."
+		},
+		{
+			"file": "packages/server/http/mod.test.ts",
+			"disposition": "strengthen",
+			"protects": "Prepared routing versus independent authored cases, precedence/mount/HEAD ownership, middleware onion, safe problems, CORS/security/correlation, readiness, and observer isolation. Public Fetch keeps exact failures and middleware recovery across synchronous and asynchronous routes, mounts and notFound."
+		},
+		{
+			"file": "packages/server/middleware/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Explicit middleware lanes/order, exact handler identity, required context coverage, per-Request once semantics, and inert immutable contribution records."
+		},
+		{
+			"file": "packages/server/service/compile.test.ts",
+			"disposition": "retain",
+			"protects": "Compiler-resolved effective contracts, exact handlers/resources, inherited problems, content negotiation, resilience projection, and nested conflict reporting."
+		},
+		{
+			"file": "packages/server/service/resilience.test.ts",
+			"disposition": "strengthen",
+			"protects": "Fresh owned logical-clock contexts prove classification-only retry, no retry of ordinary faults, inert Error wrapping, and authored policy execution order."
+		},
+		{
+			"file": "packages/server/service/runtime.test.ts",
+			"disposition": "retain",
+			"protects": "Concrete Fetch service tests protect transformed schemas, safe declared/unexpected problems, request context/resource authority, Webhooks, byte bounds, and lifecycle."
+		},
+		{
+			"file": "packages/sitemap/differential.test.ts",
+			"disposition": "retain",
+			"protects": "A separate XML parser supplies valid-document expectations for namespace/root/route distinction; malformed/hostile inputs retain explicit rejection semantics."
+		},
+		{
+			"file": "packages/sitemap/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Protocol-scale pull streams, namespace-qualified routes, truncation, XML entity/DOCTYPE bounds, feeds/text, chunk boundaries, and cancellation release."
+		},
+		{
+			"file": "packages/streams/mod.test.ts",
+			"disposition": "strengthen",
+			"protects": "Authored item/byte limits and Unicode/CRLF/batch boundaries plus independent producer accounting prove pressure and upstream return on consumer failure."
+		},
+		{
+			"file": "packages/task/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Gated work and cleanup prove cooperative pause/checkpoints, cancellation while paused, terminal result authority, primary/cleanup failures, and success after disposal."
+		},
+		{
+			"file": "packages/telemetry/lifecycle.test.ts",
+			"disposition": "retain",
+			"protects": "Synthetic queue, Worker, process and channel events project stable redacted diagnostics; reporting cannot replace lifecycle authority."
+		},
+		{
+			"file": "packages/telemetry/logtape.test.ts",
+			"disposition": "retain",
+			"protects": "A captured logger surface qualifies severity/fields and opt-in implicit context without owning global LogTape configuration."
+		},
+		{
+			"file": "packages/telemetry/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Independent reporters prove fan-out delivery and retained reporter failures, inert immutable fields, bounded fault projection, and non-authoritative reporting."
+		},
+		{
+			"file": "packages/telemetry/otel.test.ts",
+			"disposition": "retain",
+			"protects": "Synthetic active spans qualify explicit OpenTelemetry projection, absent spans, and invalid/all-zero trace IDs without owning the SDK."
+		},
+		{
+			"file": "packages/telemetry/server.test.ts",
+			"disposition": "retain",
+			"protects": "Synthetic service/gateway event records project shared IDs, safe faults, and policy metadata without selecting a logging/tracing backend."
+		},
+		{
+			"file": "packages/utils/mod.test.ts",
+			"disposition": "retain",
+			"protects": "The manifest-derived focused package inventory and umbrella exports preserve one implementation and exact public package identity."
+		},
+		{
+			"file": "packages/version/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Independent authored SemVer/vendor evidence qualifies precision, priority, qualifier conflicts, corroboration, and build metadata behavior."
+		},
+		{
+			"file": "packages/worker/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Paired Worker endpoints and controlled validators prove request correlation, unknown/malformed results, transfer/reverse calls, late result fencing, cancellation, and shutdown."
+		},
+		{
+			"file": "packages/workflow/dispatch.test.ts",
+			"disposition": "retain",
+			"protects": "Independent registered host capacities and TestClock qualify placement/version/affinity, generation fencing/requeue, producer cancellation, retry wakeup, and durable snapshots. Fractional-millisecond retries retain wake-up ownership beside already-ready foreign work. Queued results wait for mutation without polling; replacement and expiry release drain ownership before stale claims reject."
+		},
+		{
+			"file": "packages/workflow/durable.test.ts",
+			"disposition": "strengthen",
+			"protects": "Hand-authored invalid arrays/objects and getter traps prove reproducible numeric/plain durable snapshots without testing diagnostic prose."
+		},
+		{
+			"file": "packages/workflow/history.test.ts",
+			"disposition": "retain",
+			"protects": "Real in-memory history with independent dispatch callbacks protects replay without duplicate dispatch, concurrent coalescing, fingerprint divergence, and retained entry bounds."
+		},
+		{
+			"file": "packages/workflow/kernel.test.ts",
+			"disposition": "retain",
+			"protects": "Gates and independent iterators/resources prove reducer ordering, branch budget, LIFO/joined cleanup, failure suppression, sibling cancellation, and exactly-once iterator return."
+		},
+		{
+			"file": "packages/workflow/mod.test.ts",
+			"disposition": "retain",
+			"protects": "Public instruction/runner composition protects lazy Steps, combinators, scoped resources, cancellation, provider authority, declared failures, and durable replay."
+		},
+		{
+			"file": "packages/workflow/retry.test.ts",
+			"disposition": "strengthen",
+			"protects": "Seeded arbitrary instruction identities prove repeatable bounded jitter, with no clock or latency acceptance threshold."
+		},
+		{
+			"file": "packages/workflow/scheduler.test.ts",
+			"disposition": "retain",
+			"protects": "Independent registered activity providers and logical clocks prove capacity, snapshots, exclusive placement, heartbeat renewal, generation fencing, durable failure replay, and cancellation."
+		},
+		{
+			"file": "packages/workflow/types.test.ts",
+			"disposition": "type-contract",
+			"protects": "Compiler consumer fixtures preserve inferred input/output, readonly, discriminant, overload, and intentional rejection contracts."
+		},
+		{
+			"file": "tests/compatibility.test.ts",
+			"disposition": "retain",
+			"protects": "Fresh-process missing-global probes qualify explicit Temporal/disposal compatibility and preservation of existing native globals."
+		},
+		{
+			"file": "tests/coordination.test.ts",
+			"disposition": "consolidate",
+			"protects": "Queue+Task+pool invalidation/retry composition; duplicate pressure groups consolidated into pool.test.ts and queue.test.ts."
+		},
+		{
+			"file": "tests/discovery.test.ts",
+			"disposition": "retain",
+			"protects": "Public-import CRM header/row preservation composed with crawler robots/Sitemap/HTML/CSS discovery and bounded batching."
+		},
+		{
+			"file": "tests/docs.test.ts",
+			"disposition": "retain",
+			"protects": "Explicitly marked README examples compile and execute; exported inventory derives from manifests rather than prose spelling."
+		},
+		{
+			"file": "tests/host.test.ts",
+			"disposition": "retain",
+			"protects": "Fetch middleware ordering, safe errors, HEAD body cancellation, request-ID trust and explicit discarded-body ownership."
+		},
+		{
+			"file": "tests/http.test.ts",
+			"disposition": "consolidate",
+			"protects": "Seeded repeated-query oracle, exact/malformed body bounds, and pull-gated caller cancellation with exact cause and unlocked body."
+		},
+		{
+			"file": "tests/imports.test.ts",
+			"disposition": "retain",
+			"protects": "Module-graph value-edge boundaries and fresh-process forbidden-host probes preserve import safety without source regex formatting contracts."
+		},
+		{
+			"file": "tests/pool.test.ts",
+			"disposition": "retain",
+			"protects": "Independent physical open/close accounting across 100 concurrent callers proves maximum ownership, rather than private counters alone."
+		},
+		{
+			"file": "tests/process-orchestration.test.ts",
+			"disposition": "retain",
+			"protects": "Real Deno child crash during workflow fan-out requires a different native PID on retry and complete fan-in output without outstanding leases."
+		},
+		{
+			"file": "tests/provider.test.ts",
+			"disposition": "retain",
+			"protects": "Definition/OpenAPI/runtime catalog does not acquire optional providers; failed acquisition preserves other routes and retry succeeds."
+		},
+		{
+			"file": "tests/queue.test.ts",
+			"disposition": "retain",
+			"protects": "100 items/20 concurrent claimants preserve exclusive claims, complete accounting, and 50 result waiters receive one terminal result."
+		},
+		{
+			"file": "tests/restartable-worker.test.ts",
+			"disposition": "retain",
+			"protects": "Real Worker reverse effects and scheduler replica replacement preserve one external idempotent commit and fence stale completion; backend is in-memory."
+		},
+		{
+			"file": "tests/workflow.test.ts",
+			"disposition": "retain",
+			"protects": "Identical instruction history replays without duplicate external dispatch; durable identity and retained entry count are public backend contracts."
+		},
+		{
+			"file": "tools/audit-duplicates.test.ts",
+			"disposition": "strengthen",
+			"protects": "Independent AST fixture programs qualify structural duplicates, ignored test data, private lifecycle versus owner bypass, any/empty-catch/long-name signals, and import cycles."
+		},
+		{
+			"file": "tools/audit-fragile-tests.test.ts",
+			"disposition": "strengthen",
+			"protects": "Independent positive/fault syntax fixtures exercise timers, time, random seeds, snapshots, unawaited assertions, swallowed failures and diagnostics; stale/duplicate exemptions and parse failures reject."
+		},
+		{
+			"file": "tools/check-docs.test.ts",
+			"disposition": "strengthen",
+			"protects": "Colored and plain Deno documentation diagnostics retain identical stable code/location; new codes and location-free failures remain visible for rejection, independent of explanation prose."
+		},
+		{
+			"file": "tools/check-qualification.test.ts",
+			"disposition": "strengthen",
+			"protects": "An independent tiny catalogue proves new package/test discovery cannot escape review, wrong-owner/escaping evidence rejects, and each runtime/performance selection stays explicit."
+		},
+		{
+			"file": "tools/check-selective.test.ts",
+			"disposition": "strengthen",
+			"protects": "Independent retained module graphs reject unrelated capabilities; source manifests protect export parity, physical files, explicit side-effect targets, and retained polyfill setup without bundle byte thresholds."
+		},
+		{
+			"file": "tools/release.test.ts",
+			"disposition": "retain",
+			"protects": "The actual release command runs only in an owned fixture repo: version drift rejects, sync preserves JSONC/idempotence, and mismatched registry names never overwrite source."
+		},
+		{
+			"file": "bench/compare.test.ts",
+			"disposition": "strengthen",
+			"protects": "Paired log-ratio interval controls distinguish a resolved factor, inconclusive noisy observations and invalid or incomplete six-trial input."
+		},
+		{
+			"file": "tests/alternatives.test.ts",
+			"disposition": "strengthen",
+			"protects": "Independent expected public outputs and malformed/failure controls qualify 15 comparable operations without borrowing either implementation as the oracle."
+		},
+		{
+			"file": "tests/http-parity.test.ts",
+			"disposition": "strengthen",
+			"protects": "Pinned upstream Hono input vectors and literal outcomes qualify both frameworks, compiled services and gateways; precedence differences, HEAD bodies, actual byte bounds and isolated request state remain explicit."
+		},
+		{
+			"file": "packages/dispose/ponyfill.test.ts",
+			"disposition": "strengthen",
+			"protects": "Direct local constructors qualify LIFO, ownership transfer, error suppression, callable/subclassable errors and native/missing protocol contracts without installing globals."
+		},
+		{
+			"file": "packages/server/http/router.test.ts",
+			"disposition": "strengthen",
+			"protects": "An independent linear matcher checks specificity, methods, fixed prefixes, empty parameters and reversed registration across authored and generated paths."
+		},
+		{
+			"file": "tests/hono-contracts.test.ts",
+			"disposition": "strengthen",
+			"protects": "Pinned routing, request parsing/body ownership, response assembly and application observations with explicit capability differences."
+		},
+		{
+			"file": "tests/hono-proxy.test.ts",
+			"disposition": "strengthen",
+			"protects": "All14 upstream proxy registrations plus hop headers, credentials, redirects, streaming, disconnect and unsupported encoding boundaries."
+		},
+		{
+			"file": "tests/hono-compose.test.ts",
+			"disposition": "strengthen",
+			"protects": "Public onion order, short circuits, promise returns, response replacement and exactly one downstream continuation per layer per request."
+		},
+		{
+			"file": "tools/hono-inventory.test.ts",
+			"disposition": "strengthen",
+			"protects": "TypeScript AST registration extraction, source correspondence and structural drift detection without relying on source formatting."
+		},
+		{
+			"file": "tests/elysia-parity.test.ts",
+			"disposition": "strengthen",
+			"protects": "Independent literal API, malformed decoding, byte limits, concurrent actor isolation and compiled route-table observations qualify the actual Elysia fixture; lifecycle output does not claim generic onion middleware."
+		},
+		{
+			"file": "tests/http-vixeny.test.ts",
+			"disposition": "strengthen",
+			"protects": "Independent API and route-table literals qualify the emitted pinned Vixeny compiler, registration precedence and concurrent state; invalid sizes reject before compilation."
+		},
+		{
+			"file": "bench/challenger-compare.test.ts",
+			"disposition": "strengthen",
+			"protects": "Missing or repeated matrix measurements reject; balanced candidate positions and predecessor pairs are verified; known factors and noisy uncertainty controls protect eight-process estimates without timing thresholds."
+		}
+	]
+}

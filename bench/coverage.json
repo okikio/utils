@@ -1,0 +1,983 @@
+{
+	"schemaVersion": 1,
+	"packages": {
+		"@okikio/activity": [
+			{
+				"program": "bench/recovery.bench.ts",
+				"question": "What does an executed activity plus Scheduler replacement and replay cost?",
+				"comparison": "No equivalent baseline is claimed; measure this explicit operation.",
+				"limits": "Process-local memory adapters survive Scheduler replacement, not process death; the provider must run exactly once."
+			},
+			{
+				"program": "packages/workflow/dispatch.bench.ts",
+				"question": "What does dispatch admission and fencing cost for 1000 activities?",
+				"comparison": "No equivalent baseline is claimed; measure this explicit operation.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/capacity": [
+			{
+				"program": "bench/lifetimes.bench.ts",
+				"question": "What does bounded work and owned cleanup cost?",
+				"comparison": "JSR std/async pooledMap compares ordered successful values only; failure ownership differs.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/catalog": [
+			{
+				"program": "bench/values.bench.ts",
+				"question": "What does bounded validation, wire conversion and lookup cost in a 100-value import?",
+				"comparison": "Direct Zod, Map, Object.assign, Date and JSR std/semver where outputs can be compared; each omits named utility contracts.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/codec": [
+			{
+				"program": "bench/values.bench.ts",
+				"question": "What does bounded validation, wire conversion and lookup cost in a 100-value import?",
+				"comparison": "Direct Zod, Map, Object.assign, Date and JSR std/semver where outputs can be compared; each omits named utility contracts.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			},
+			{
+				"program": "bench/alternatives.bench.ts",
+				"question": "What does the same bounded successful public operation cost against an established implementation?",
+				"comparison": "Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases.",
+				"limits": "Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions."
+			}
+		],
+		"@okikio/concurrency": [
+			{
+				"program": "bench/lifetimes.bench.ts",
+				"question": "What does bounded work and owned cleanup cost?",
+				"comparison": "JSR std/async pooledMap compares ordered successful values only; failure ownership differs.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			},
+			{
+				"program": "bench/alternatives.bench.ts",
+				"question": "What does the same bounded successful public operation cost against an established implementation?",
+				"comparison": "Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases.",
+				"limits": "Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions."
+			}
+		],
+		"@okikio/context": [
+			{
+				"program": "bench/lifetimes.bench.ts",
+				"question": "What does bounded work and owned cleanup cost?",
+				"comparison": "JSR std/async pooledMap compares ordered successful values only; failure ownership differs.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/mod.ts",
+				"question": "What does 100 queued jobs through four owned resources cost?",
+				"comparison": "No equivalent baseline is claimed; measure this explicit operation.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/css": [
+			{
+				"program": "bench/mod.ts",
+				"question": "What does a CRM/discovery composition cost with 1000 rows and 250 extracted resources?",
+				"comparison": "No equivalent baseline is claimed; measure this explicit operation.",
+				"limits": "Fixed structured local fixtures; no network or hostile-page performance claim."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			},
+			{
+				"program": "bench/alternatives.bench.ts",
+				"question": "What does the same bounded successful public operation cost against an established implementation?",
+				"comparison": "Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases.",
+				"limits": "Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions."
+			}
+		],
+		"@okikio/csv": [
+			{
+				"program": "packages/csv/parse.bench.ts",
+				"question": "How do startup, collected 10k-row and streamed imports scale?",
+				"comparison": "npm csv-parse and JSR std/csv raw records omit document metadata and diagnostics.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/mod.ts",
+				"question": "What does a CRM/discovery composition cost with 1000 rows and 250 extracted resources?",
+				"comparison": "No equivalent baseline is claimed; measure this explicit operation.",
+				"limits": "Fixed structured local fixtures; no network or hostile-page performance claim."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			},
+			{
+				"program": "bench/alternatives.bench.ts",
+				"question": "What does the same bounded successful public operation cost against an established implementation?",
+				"comparison": "Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases.",
+				"limits": "Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions."
+			}
+		],
+		"@okikio/deno": [
+			{
+				"program": "bench/hosts.bench.ts",
+				"question": "What do real child/Worker startup, warm correlated messages and joined shutdown cost?",
+				"comparison": "Deno.Command same child/output versus utility bounded capture and lifecycle; Worker warm versus cold.",
+				"limits": "Native Deno only; no assertion that importable Node Worker has a backend."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			}
+		],
+		"@okikio/dispose": [
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/duration": [
+			{
+				"program": "bench/values.bench.ts",
+				"question": "What does bounded validation, wire conversion and lookup cost in a 100-value import?",
+				"comparison": "Direct Zod, Map, Object.assign, Date and JSR std/semver where outputs can be compared; each omits named utility contracts.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/effect": [
+			{
+				"program": "bench/contracts.bench.ts",
+				"question": "What does policy admission and validated accepted evidence cost?",
+				"comparison": "No equivalent baseline is claimed; measure this explicit operation.",
+				"limits": "Local checking/emission; no remote authorization service or durable sink."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/email": [
+			{
+				"program": "bench/values.bench.ts",
+				"question": "What does bounded validation, wire conversion and lookup cost in a 100-value import?",
+				"comparison": "Direct Zod, Map, Object.assign, Date and JSR std/semver where outputs can be compared; each omits named utility contracts.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/entitlement": [
+			{
+				"program": "bench/contracts.bench.ts",
+				"question": "What does policy admission and validated accepted evidence cost?",
+				"comparison": "No equivalent baseline is claimed; measure this explicit operation.",
+				"limits": "Local checking/emission; no remote authorization service or durable sink."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/env": [
+			{
+				"program": "packages/env/mod.bench.ts",
+				"question": "What does two-field configuration parsing cost?",
+				"comparison": "Direct npm Zod; schema/value contract reviewed separately.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			},
+			{
+				"program": "bench/alternatives.bench.ts",
+				"question": "What does the same bounded successful public operation cost against an established implementation?",
+				"comparison": "Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases.",
+				"limits": "Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions."
+			}
+		],
+		"@okikio/failure": [
+			{
+				"program": "bench/values.bench.ts",
+				"question": "What does bounded validation, wire conversion and lookup cost in a 100-value import?",
+				"comparison": "Direct Zod, Map, Object.assign, Date and JSR std/semver where outputs can be compared; each omits named utility contracts.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/fault": [
+			{
+				"program": "bench/values.bench.ts",
+				"question": "What does bounded validation, wire conversion and lookup cost in a 100-value import?",
+				"comparison": "Direct Zod, Map, Object.assign, Date and JSR std/semver where outputs can be compared; each omits named utility contracts.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/hono": [
+			{
+				"program": "packages/hono/mod.bench.ts",
+				"question": "What does portable middleware add around a consumed Hono JSON response?",
+				"comparison": "npm Hono direct fetch with identical payload but no security middleware.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			},
+			{
+				"program": "bench/http-parity.bench.ts",
+				"question": "What does the same independently qualified API, gateway forwarding policy and 16/256/4096-route corpus cost through pure Utils and pure Hono?",
+				"comparison": "Hono 4.13.5 and Utils consume the same authored requests, response bodies and selected wire headers.",
+				"limits": "Warm in-process Fetch dispatch; construction and cleanup outside timing. Validation/ownership mechanisms differ despite equal shared outputs. Six counterbalanced processes qualify uncertainty separately; no listener, deployed or equivalence guarantee."
+			}
+		],
+		"@okikio/html": [
+			{
+				"program": "bench/mod.ts",
+				"question": "What does a CRM/discovery composition cost with 1000 rows and 250 extracted resources?",
+				"comparison": "No equivalent baseline is claimed; measure this explicit operation.",
+				"limits": "Fixed structured local fixtures; no network or hostile-page performance claim."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			},
+			{
+				"program": "bench/alternatives.bench.ts",
+				"question": "What does the same bounded successful public operation cost against an established implementation?",
+				"comparison": "Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases.",
+				"limits": "Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions."
+			}
+		],
+		"@okikio/http": [
+			{
+				"program": "bench/mod.ts",
+				"question": "What does a consumed or cancelled routed response through middleware cost?",
+				"comparison": "No equivalent baseline is claimed; measure this explicit operation.",
+				"limits": "Fetch pipeline only; no actual listener/network latency."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			},
+			{
+				"program": "bench/http-parity.bench.ts",
+				"question": "What does the same independently qualified API, gateway forwarding policy and 16/256/4096-route corpus cost through pure Utils and pure Hono?",
+				"comparison": "Hono 4.13.5 and Utils consume the same authored requests, response bodies and selected wire headers.",
+				"limits": "Warm in-process Fetch dispatch; construction and cleanup outside timing. Validation/ownership mechanisms differ despite equal shared outputs. Six counterbalanced processes qualify uncertainty separately; no listener, deployed or equivalence guarantee."
+			},
+			{
+				"program": "bench/alternatives.bench.ts",
+				"question": "What does the same bounded successful public operation cost against an established implementation?",
+				"comparison": "Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases.",
+				"limits": "Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions."
+			},
+			{
+				"program": "bench/http-challengers.bench.ts",
+				"question": "What does the same complete API and 16/256/4096-route corpus cost on one runtime against compiled Elysia and Vixeny?",
+				"comparison": "Utils, Hono4.13.5, Elysia1.4.30 AOT and Vixeny0.1.53 native response compiler consume identical authored requests and complete response projections.",
+				"limits": "Warm in-process Fetch dispatch; compilation and close excluded. Eight balanced fresh processes per Deno/Node/Bun view. Application adapters match selected output, not gateway/resource ownership; no listener, speed gate or equivalence claim. Vixeny uses one traceable unminified JS emission."
+			}
+		],
+		"@okikio/meter": [
+			{
+				"program": "bench/contracts.bench.ts",
+				"question": "What does policy admission and validated accepted evidence cost?",
+				"comparison": "No equivalent baseline is claimed; measure this explicit operation.",
+				"limits": "Local checking/emission; no remote authorization service or durable sink."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/permission": [
+			{
+				"program": "bench/contracts.bench.ts",
+				"question": "What does policy admission and validated accepted evidence cost?",
+				"comparison": "No equivalent baseline is claimed; measure this explicit operation.",
+				"limits": "Local checking/emission; no remote authorization service or durable sink."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/pool": [
+			{
+				"program": "packages/pool/mod.bench.ts",
+				"question": "What does borrow/release and optional health checking cost?",
+				"comparison": "Direct object lookup omits lifecycle ownership.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/mod.ts",
+				"question": "What does 100 queued jobs through four owned resources cost?",
+				"comparison": "No equivalent baseline is claimed; measure this explicit operation.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/process": [
+			{
+				"program": "bench/hosts.bench.ts",
+				"question": "What do real child/Worker startup, warm correlated messages and joined shutdown cost?",
+				"comparison": "Deno.Command same child/output versus utility bounded capture and lifecycle; Worker warm versus cold.",
+				"limits": "Native Deno only; no assertion that importable Node Worker has a backend."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/query": [
+			{
+				"program": "bench/values.bench.ts",
+				"question": "What does bounded validation, wire conversion and lookup cost in a 100-value import?",
+				"comparison": "Direct Zod, Map, Object.assign, Date and JSR std/semver where outputs can be compared; each omits named utility contracts.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/queue": [
+			{
+				"program": "packages/queue/mod.bench.ts",
+				"question": "What does admitting, claiming and completing 1000 bounded jobs cost?",
+				"comparison": "Native FIFO array omits claims, generations and cancellation.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/mod.ts",
+				"question": "What does 100 queued jobs through four owned resources cost?",
+				"comparison": "No equivalent baseline is claimed; measure this explicit operation.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/record": [
+			{
+				"program": "bench/values.bench.ts",
+				"question": "What does bounded validation, wire conversion and lookup cost in a 100-value import?",
+				"comparison": "Direct Zod, Map, Object.assign, Date and JSR std/semver where outputs can be compared; each omits named utility contracts.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/requirement": [
+			{
+				"program": "bench/contracts.bench.ts",
+				"question": "What does policy admission and validated accepted evidence cost?",
+				"comparison": "No equivalent baseline is claimed; measure this explicit operation.",
+				"limits": "Local checking/emission; no remote authorization service or durable sink."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/resilience": [
+			{
+				"program": "bench/contracts.bench.ts",
+				"question": "What does policy admission and validated accepted evidence cost?",
+				"comparison": "No equivalent baseline is claimed; measure this explicit operation.",
+				"limits": "Local checking/emission; no remote authorization service or durable sink."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/resource": [
+			{
+				"program": "bench/lifetimes.bench.ts",
+				"question": "What does bounded work and owned cleanup cost?",
+				"comparison": "JSR std/async pooledMap compares ordered successful values only; failure ownership differs.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/result": [
+			{
+				"program": "bench/values.bench.ts",
+				"question": "What does bounded validation, wire conversion and lookup cost in a 100-value import?",
+				"comparison": "Direct Zod, Map, Object.assign, Date and JSR std/semver where outputs can be compared; each omits named utility contracts.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			},
+			{
+				"program": "bench/alternatives.bench.ts",
+				"question": "What does the same bounded successful public operation cost against an established implementation?",
+				"comparison": "Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases.",
+				"limits": "Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions."
+			}
+		],
+		"@okikio/robots": [
+			{
+				"program": "bench/mod.ts",
+				"question": "What does a CRM/discovery composition cost with 1000 rows and 250 extracted resources?",
+				"comparison": "No equivalent baseline is claimed; measure this explicit operation.",
+				"limits": "Fixed structured local fixtures; no network or hostile-page performance claim."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/schema": [
+			{
+				"program": "bench/values.bench.ts",
+				"question": "What does bounded validation, wire conversion and lookup cost in a 100-value import?",
+				"comparison": "Direct Zod, Map, Object.assign, Date and JSR std/semver where outputs can be compared; each omits named utility contracts.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			},
+			{
+				"program": "bench/alternatives.bench.ts",
+				"question": "What does the same bounded successful public operation cost against an established implementation?",
+				"comparison": "Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases.",
+				"limits": "Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions."
+			}
+		],
+		"@okikio/server": [
+			{
+				"program": "packages/server/http/router.bench.ts",
+				"question": "How does prepared route lookup scale at 16, 256 and 4096 routes?",
+				"comparison": "Independent linear matcher with same route choices.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/mod.ts",
+				"question": "What does a consumed or cancelled routed response through middleware cost?",
+				"comparison": "No equivalent baseline is claimed; measure this explicit operation.",
+				"limits": "Fetch pipeline only; no actual listener/network latency."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			},
+			{
+				"program": "bench/http-parity.bench.ts",
+				"question": "What does the same independently qualified API, gateway forwarding policy and 16/256/4096-route corpus cost through pure Utils and pure Hono?",
+				"comparison": "Hono 4.13.5 and Utils consume the same authored requests, response bodies and selected wire headers.",
+				"limits": "Warm in-process Fetch dispatch; construction and cleanup outside timing. Validation/ownership mechanisms differ despite equal shared outputs. Six counterbalanced processes qualify uncertainty separately; no listener, deployed or equivalence guarantee."
+			},
+			{
+				"program": "bench/alternatives.bench.ts",
+				"question": "What does the same bounded successful public operation cost against an established implementation?",
+				"comparison": "Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases.",
+				"limits": "Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions."
+			},
+			{
+				"program": "bench/http-challengers.bench.ts",
+				"question": "What does the same complete API and 16/256/4096-route corpus cost on one runtime against compiled Elysia and Vixeny?",
+				"comparison": "Utils, Hono4.13.5, Elysia1.4.30 AOT and Vixeny0.1.53 native response compiler consume identical authored requests and complete response projections.",
+				"limits": "Warm in-process Fetch dispatch; compilation and close excluded. Eight balanced fresh processes per Deno/Node/Bun view. Application adapters match selected output, not gateway/resource ownership; no listener, speed gate or equivalence claim. Vixeny uses one traceable unminified JS emission."
+			}
+		],
+		"@okikio/sitemap": [
+			{
+				"program": "bench/mod.ts",
+				"question": "What does a CRM/discovery composition cost with 1000 rows and 250 extracted resources?",
+				"comparison": "No equivalent baseline is claimed; measure this explicit operation.",
+				"limits": "Fixed structured local fixtures; no network or hostile-page performance claim."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			},
+			{
+				"program": "bench/alternatives.bench.ts",
+				"question": "What does the same bounded successful public operation cost against an established implementation?",
+				"comparison": "Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases.",
+				"limits": "Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions."
+			}
+		],
+		"@okikio/streams": [
+			{
+				"program": "bench/lifetimes.bench.ts",
+				"question": "What does bounded work and owned cleanup cost?",
+				"comparison": "JSR std/async pooledMap compares ordered successful values only; failure ownership differs.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			},
+			{
+				"program": "bench/alternatives.bench.ts",
+				"question": "What does the same bounded successful public operation cost against an established implementation?",
+				"comparison": "Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases.",
+				"limits": "Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions."
+			}
+		],
+		"@okikio/task": [
+			{
+				"program": "bench/lifetimes.bench.ts",
+				"question": "What does bounded work and owned cleanup cost?",
+				"comparison": "JSR std/async pooledMap compares ordered successful values only; failure ownership differs.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/telemetry": [
+			{
+				"program": "bench/lifetimes.bench.ts",
+				"question": "What does bounded work and owned cleanup cost?",
+				"comparison": "JSR std/async pooledMap compares ordered successful values only; failure ownership differs.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/utils": [
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/version": [
+			{
+				"program": "bench/values.bench.ts",
+				"question": "What does bounded validation, wire conversion and lookup cost in a 100-value import?",
+				"comparison": "Direct Zod, Map, Object.assign, Date and JSR std/semver where outputs can be compared; each omits named utility contracts.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			},
+			{
+				"program": "bench/alternatives.bench.ts",
+				"question": "What does the same bounded successful public operation cost against an established implementation?",
+				"comparison": "Pinned Zod, neverthrow, p-limit, JSR std/async and std/csv, csv-parse, parse5, CSS Tree, Saxes, Hono and native Web APIs; 15 shared-output or explicitly same-engine-adapter cases.",
+				"limits": "Independent literal correctness expectations precede timing. Same-engine adapters do not prove parser independence; successful mapping does not equate cancellation/ownership. Saxes is an archived historical comparator. See docs/alternatives.md for all 42 family dispositions."
+			}
+		],
+		"@okikio/worker": [
+			{
+				"program": "bench/hosts.bench.ts",
+				"question": "What do real child/Worker startup, warm correlated messages and joined shutdown cost?",
+				"comparison": "Deno.Command same child/output versus utility bounded capture and lifecycle; Worker warm versus cold.",
+				"limits": "Native Deno only; no assertion that importable Node Worker has a backend."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		],
+		"@okikio/workflow": [
+			{
+				"program": "bench/recovery.bench.ts",
+				"question": "What does an executed activity plus Scheduler replacement and replay cost?",
+				"comparison": "No equivalent baseline is claimed; measure this explicit operation.",
+				"limits": "Process-local memory adapters survive Scheduler replacement, not process death; the provider must run exactly once."
+			},
+			{
+				"program": "packages/workflow/dispatch.bench.ts",
+				"question": "What does dispatch admission and fencing cost for 1000 activities?",
+				"comparison": "No equivalent baseline is claimed; measure this explicit operation.",
+				"limits": "Source Deno implementation; no deployed integration or performance threshold."
+			},
+			{
+				"program": "bench/mod.ts",
+				"question": "What does deterministic identity for 32 instructions cost?",
+				"comparison": "No equivalent baseline is claimed; measure this explicit operation.",
+				"limits": "Identity-only case; actual execute/replay is measured separately."
+			},
+			{
+				"program": "bench/imports.bench.ts",
+				"question": "What is the startup cost of selectively importing this package in a fresh process?",
+				"comparison": "Same fresh Deno process with no package import; umbrella and all entrypoints shown separately.",
+				"limits": "Process launch included; dependency and OS caches may be warm. Import cost is separate from the operation and ownership contracts qualified by tests."
+			},
+			{
+				"program": "bench/npm-imports.bench.ts",
+				"question": "What is the exact installed npm root import cost in fresh native Node ESM and CommonJS children?",
+				"comparison": "Same native Node child without a package import; focused and eager umbrella separately.",
+				"limits": "Requires the physically installed npm:verify consumer. Native Node26.10; launch/exit included, dependency/OS caches may be warm. Deno-only package/subpaths are excluded."
+			}
+		]
+	}
+}

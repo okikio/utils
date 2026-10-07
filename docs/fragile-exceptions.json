@@ -1,0 +1,58 @@
+[
+	{
+		"file": "bench/challenger-compare.test.ts",
+		"rule": "wall-clock-timer",
+		"function": "compareProjection",
+		"operation": "setTimeout",
+		"count": 1,
+		"reason": "A cleared sixty-second watchdog stops and joins a stuck controller child. Literal native reports and exit receipts decide correctness; no elapsed-time or benchmark-speed threshold is asserted."
+	},
+	{
+		"file": "packages/process/node.test.ts",
+		"rule": "wall-clock-now",
+		"function": "expectGone",
+		"operation": "performance.now",
+		"count": 2,
+		"reason": "The descendant has no owned ChildProcess handle. OS reaping is observed with a ten-second stuck-test ceiling, never a performance threshold."
+	},
+	{
+		"file": "packages/process/node.test.ts",
+		"rule": "wall-clock-timer",
+		"function": "expectGone",
+		"operation": "setTimeout",
+		"count": 1,
+		"reason": "Bounded OS process-table polling yields while the kernel reaps a killed descendant; no production timer or speed result is simulated."
+	},
+	{
+		"file": "tests/restartable-worker.test.ts",
+		"rule": "wall-clock-timer",
+		"function": "within",
+		"operation": "setTimeout",
+		"count": 1,
+		"reason": "A cleared thirty-second watchdog identifies a blocked ownership stage. Explicit commit gates and TestClock synchronize the scenario, without elapsed-time assertions."
+	},
+	{
+		"file": "packages/csv/stream.test.ts",
+		"rule": "swallowed-rejection",
+		"function": "cancels a blocked read before joining the active row iterator",
+		"operation": "next.catch",
+		"count": 1,
+		"reason": "Immediate rejection observation prevents a false unhandled rejection during disposal; the original pending next promise is awaited and its terminal result asserted below."
+	},
+	{
+		"file": "tests/restartable-worker.test.ts",
+		"rule": "swallowed-rejection",
+		"function": "worker activity survives Scheduler restart without duplicating the external commit",
+		"operation": "firstRun.catch",
+		"count": 1,
+		"reason": "Attach rejection observation before asynchronous worker loss. The original firstRun is later awaited and its cancellation or replacement result checked explicitly."
+	},
+	{
+		"file": "tests/restartable-worker.test.ts",
+		"rule": "swallowed-rejection",
+		"function": "worker activity survives Scheduler restart without duplicating the external commit",
+		"operation": "recovered.catch",
+		"count": 1,
+		"reason": "Observe replacement failure immediately while the scenario waits for its commit gate. The original recovered promise is later awaited and the complete replacement output asserted."
+	}
+]

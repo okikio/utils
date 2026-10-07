@@ -30,9 +30,9 @@ const wireCount: string = encoded.count;
 void wireCount;
 
 // @ts-expect-error decoded count is a number, not the encoded string representation.
-const wrongDecoded: string = decoded.count;
+const _wrongDecoded: string = decoded.count;
 // @ts-expect-error encoded count is a string, not the application number representation.
-const wrongEncoded: number = encoded.count;
+const _wrongEncoded: number = encoded.count;
 
 function schema<Input, Output>(transform: (value: Input) => Output): StandardSchemaV1<Input, Output> {
 	return {

@@ -90,7 +90,7 @@ test('parallel workflow fan-out survives a child-process crash and fans back in 
 	});
 	await using jobs = dispatch.memory();
 	await using scheduler = workflow.scheduler({ activityDispatch: jobs, claimDuration: { seconds: 5 } });
-	await using registration = await workflow.executor({
+	await using _registration = await workflow.executor({
 		dispatch: jobs,
 		engine: Engine,
 		hostId: 'process-pool',

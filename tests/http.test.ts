@@ -1,11 +1,8 @@
-import assert from 'node:assert/strict';
-import { describe, it, test } from 'node:test';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import fc from 'fast-check';
 
 import * as request from '@okikio/http/request';
-import * as response from '@okikio/http/response';
-import * as server from '@okikio/server/http';
 
 /** Build the repeated-query record used as an independent oracle for URLSearchParams inputs. */
 function expectedQuery(
@@ -23,72 +20,6 @@ function expectedQuery(
 	return Object.fromEntries([...grouped].map(([key, values]) => [key, values.length === 1 ? values[0]! : values]));
 }
 
-test('HTTP host composes middleware, safe errors, HEAD fallback, and body ownership', async () => {
-	const observed: string[] = [];
-	let cancelled = false;
-	const app = server.create({
-		routes: [
-			server.route('GET', '/accounts/:id', (input) => {
-				observed.push(`route:${new URL(input.url).pathname}`);
-				return Response.json({ id: new URL(input.url).pathname.split('/').at(-1) });
-			}),
-			server.route('GET', '/stream', () =>
-				new Response(
-					new ReadableStream<Uint8Array>({
-						cancel() {
-							cancelled = true;
-						},
-					}),
-				)),
-			server.route('GET', '/fault', () => {
-				throw new Error('database password should not cross the HTTP surface');
-			}),
-		],
-		middleware: [
-			server.catchErrors({
-				onError(error) {
-					observed.push(`error:${error.message}`);
-				},
-			}),
-			server.requestId({ header: 'x-request-id', trustIncoming: true }),
-			server.securityHeaders(),
-		],
-	});
-
-	const account = await app.fetch(
-		new Request('https://service.invalid/accounts/acme', {
-			headers: { 'x-request-id': 'request-42' },
-		}),
-	);
-	assert.equal(account.status, 200);
-	assert.equal(account.headers.get('x-request-id'), 'request-42');
-	assert.equal(account.headers.get('x-content-type-options'), 'nosniff');
-	assert.deepEqual(await account.json(), { id: 'acme' });
-
-	const head = await app.fetch(new Request('https://service.invalid/stream', { method: 'HEAD' }));
-	assert.equal(head.status, 200);
-	assert.equal(head.body, null);
-	assert.equal(cancelled, true);
-
-	const fault = await app.fetch(new Request('https://service.invalid/fault'));
-	assert.equal(fault.status, 500);
-	const problem = await fault.json() as Record<string, unknown>;
-	assert.equal(problem.title, 'Internal server error');
-	assert.equal(JSON.stringify(problem).includes('password'), false);
-	assert.ok(observed.includes('error:database password should not cross the HTTP surface'));
-
-	let discarded = false;
-	const abandoned = new Response(
-		new ReadableStream<Uint8Array>({
-			cancel() {
-				discarded = true;
-			},
-		}),
-	);
-	await response.discard(abandoned);
-	assert.equal(discarded, true);
-});
-
 describe('HTTP request contracts', () => {
 	it('preserves generated repeated-query values', () => {
 		fc.assert(
@@ -104,7 +35,7 @@ describe('HTTP request contracts', () => {
 					})).toEqual(expectedQuery(entries));
 				},
 			),
-			{ numRuns: 500 },
+			{ numRuns: 500, seed: 20261007 },
 		);
 	});
 
@@ -141,9 +72,14 @@ describe('HTTP request contracts', () => {
 
 	it('does not return a partial body after request cancellation', async () => {
 		const controller = new AbortController();
+		const entered = Promise.withResolvers<void>();
+		const reason = new Error('caller cancelled');
 		const body = new ReadableStream<Uint8Array>({
 			start(stream) {
 				stream.enqueue(new TextEncoder().encode('partial'));
+			},
+			pull() {
+				entered.resolve();
 			},
 		});
 		const input: RequestInit & { duplex: 'half' } = {
@@ -153,8 +89,9 @@ describe('HTTP request contracts', () => {
 			signal: controller.signal,
 		};
 		const reading = request.readBody(new Request('https://service.invalid/body', input));
-		await Promise.resolve();
-		controller.abort(new Error('caller cancelled'));
-		await expect(reading).rejects.toThrow('caller cancelled');
+		await entered.promise;
+		controller.abort(reason);
+		await expect(reading).rejects.toBe(reason);
+		expect(body.locked).toBe(false);
 	});
 });

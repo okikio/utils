@@ -25,20 +25,30 @@ async function verify(): Promise<void> {
 	}
 }
 
-async function batch(): Promise<number> {
+async function batch(consume = false): Promise<number> {
 	let status = 0;
 	for (let index = 0; index < 100; index += 1) {
 		const response = await app.fetch(new Request(`https://service.invalid/accounts/${index}`));
 		status += response.status;
-		await response.body?.cancel();
+		if (consume) {
+			const body = await response.json() as { path?: unknown };
+			if (body.path !== `/accounts/${index}`) throw new Error('HTTP batch lost route/body correlation.');
+		} else await response.body?.cancel();
 	}
 	return status;
 }
 
 await verify();
+if (await batch(true) !== 20_000 || await batch(false) !== 20_000) {
+	throw new Error('HTTP batch did not serve every request.');
+}
 
 group('HTTP composition', () => {
-	bench('100 routed requests through request-id and security middleware', async () => {
+	bench('100 routed headers + body cancellation through middleware', async () => {
 		do_not_optimize(await batch());
+	}).gc('once');
+
+	bench('100 routed requests + JSON consumption through middleware', async () => {
+		do_not_optimize(await batch(true));
 	}).gc('once');
 });

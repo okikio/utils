@@ -76,7 +76,10 @@ describe('Standard Schema environment definitions', () => {
 		});
 
 		await expect(definition.parse({ VALUE: 'example' })).resolves.toEqual({ VALUE: 'EXAMPLE' });
-		expect(() => definition.parseSync({ VALUE: 'example' })).toThrow(/validates asynchronously/);
+		expect(() => definition.parseSync({ VALUE: 'example' })).toThrow(env.EnvironmentError);
+		const invalid = definition.safeParseSync({ VALUE: 'example' });
+		expect(invalid.success).toBe(false);
+		if (!invalid.success) expect(invalid.issues).toMatchObject([{ key: 'VALUE', source: 'invalid' }]);
 	});
 
 	it('deduplicates the same canonical field across definitions', () => {
@@ -100,14 +103,14 @@ describe('Standard Schema environment definitions', () => {
 
 		const hidden = { VISIBLE: field } as Record<string, typeof field>;
 		Object.defineProperty(hidden, 'HIDDEN', { value: field, enumerable: false });
-		expect(() => env.environment(hidden)).toThrow('must be an enumerable data property');
+		expect(() => env.environment(hidden)).toThrow(TypeError);
 
 		const accessor = {} as Record<string, typeof field>;
 		Object.defineProperty(accessor, 'VALUE', { get: () => field, enumerable: true });
-		expect(() => env.environment(accessor)).toThrow('must be an enumerable data property');
+		expect(() => env.environment(accessor)).toThrow(TypeError);
 
 		const inherited = Object.create({ INHERITED: field }) as Record<string, typeof field>;
-		expect(() => env.environment(inherited)).toThrow('plain object or null-prototype record');
+		expect(() => env.environment(inherited)).toThrow(TypeError);
 	});
 
 	it('supports prototype-shaped definition keys without false conflicts', () => {

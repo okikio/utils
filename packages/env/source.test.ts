@@ -29,17 +29,20 @@ describe('environment value sources', () => {
 	});
 
 	it('round-trips arbitrary external string keys', () => {
-		fc.assert(fc.property(
-			fc.array(fc.tuple(fc.string(), fc.string())),
-			(entries) => {
-				const expected = new Map(entries);
-				const source = env.record(Object.fromEntries(entries));
+		fc.assert(
+			fc.property(
+				fc.array(fc.tuple(fc.string(), fc.string())),
+				(entries) => {
+					const expected = new Map(entries);
+					const source = env.record(Object.fromEntries(entries));
 
-				for (const [key, value] of expected) {
-					expect(source.get(key)).toBe(value);
-				}
-			},
-		));
+					for (const [key, value] of expected) {
+						expect(source.get(key)).toBe(value);
+					}
+				},
+			),
+			{ numRuns: 500, seed: 20261007 },
+		);
 	});
 
 	it('merges sparse sources from lowest to highest precedence', () => {

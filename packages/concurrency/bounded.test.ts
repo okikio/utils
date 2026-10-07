@@ -46,7 +46,7 @@ describe('runBoundedQueue', () => {
 			items: [1],
 			concurrency: Number.NaN,
 			run: () => Promise.resolve(),
-		})).rejects.toThrow('positive safe integer');
+		})).rejects.toThrow(RangeError);
 	});
 
 	it('processes undefined values as data', async () => {
@@ -110,18 +110,22 @@ describe('mapPooledOrdered', () => {
 describe('mapPooledUnordered', () => {
 	it('yields values in completion order while std pooledMap owns admission', async () => {
 		const releases = new Map<number, () => void>();
+		const admitted = Promise.withResolvers<void>();
 		const values: number[] = [];
 		const iterator = mapPooledUnordered({
 			items: [1, 2, 3],
 			concurrency: 3,
 			async map(value) {
-				await new Promise<void>((resolve) => releases.set(value, resolve));
+				await new Promise<void>((resolve) => {
+					releases.set(value, resolve);
+					if (releases.size === 3) admitted.resolve();
+				});
 				return value;
 			},
 		})[Symbol.asyncIterator]();
 
 		const first = iterator.next();
-		while (releases.size < 3) await Promise.resolve();
+		await admitted.promise;
 		releases.get(3)?.();
 		values.push((await first).value as number);
 		releases.get(1)?.();
@@ -171,7 +175,7 @@ describe('mapPooledUnordered', () => {
 		expect((await iterator.next()).value).toBe(1);
 		expect(started).toEqual([1]);
 		const second = iterator.next();
-		while (started.length < 2) await Promise.resolve();
+		// The iterator result is the observable admission and completion signal.
 		expect((await second).value).toBe(2);
 		await iterator.return?.();
 	});

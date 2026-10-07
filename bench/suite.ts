@@ -1,0 +1,20 @@
+/** Each isolated benchmark program owns its own Mitata registration and run. */
+export const programs = Object.freeze([
+	'../packages/env/mod.bench.ts',
+	'../packages/csv/parse.bench.ts',
+	'../packages/queue/mod.bench.ts',
+	'../packages/pool/mod.bench.ts',
+	'../packages/workflow/dispatch.bench.ts',
+	'../packages/server/http/router.bench.ts',
+	'./mod.ts',
+	'./values.bench.ts',
+	'./contracts.bench.ts',
+	'./lifetimes.bench.ts',
+	'./hosts.bench.ts',
+	'./recovery.bench.ts',
+	'../packages/hono/mod.bench.ts',
+	'./imports.bench.ts',
+	'./http-parity.bench.ts',
+	'./http-challengers.bench.ts',
+	'./alternatives.bench.ts',
+]);
