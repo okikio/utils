@@ -69,6 +69,17 @@ Pass cancellation into the actual fetch or provider call. Breaking iteration can
 settlement. A concurrency bound limits active work, not the size of a result array; fold or batch large outputs instead
 of materializing them all.
 
+If a mapper fails, the operation stops admitting work, cancels admitted siblings, and waits for them to settle before
+rejecting with that first failure. The rejected value keeps its original identity, even if it is `undefined`, `null`, a
+string, or an object rather than an `Error`. Native cancellation signals supply a default `DOMException` for
+`abort(undefined)`; the terminal mapper rejection still retains `undefined`. Pass the signal into cooperative work so
+cleanup can finish. A mapper that ignores cancellation and never settles can prevent the batch from settling too.
+
+Ordered mapping also closes its input iterator. If that source cleanup fails, admitted siblings are still joined. A
+cleanup failure alone is rethrown unchanged. If both the operation and source cleanup fail, you receive an
+`AggregateError` whose `errors` array contains the operation failure first and cleanup failure second; `cause` retains
+the operation failure. This keeps both failures available to your logger or error handler.
+
 [Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
 variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
 dependencies before running them.

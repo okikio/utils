@@ -11,8 +11,10 @@ export interface PooledOperationContext {
  * Run values through Deno std's bounded async pool with structured sibling cancellation.
  *
  * `pooledMap()` owns concurrency and input backpressure. This adapter adds the
- * the application lifecycle rule that one failed operation aborts already admitted sibling
+ * application lifecycle rule that one failed operation aborts already admitted sibling
  * work through the operation signal before the failure is returned to the caller.
+ * The original thrown value is retained, including `undefined`; native abort
+ * signals can normalize that value without changing the terminal rejection.
  */
 export async function runBoundedQueue<T>(input: {
 	readonly items: Iterable<T> | AsyncIterable<T>;
@@ -25,6 +27,9 @@ export async function runBoundedQueue<T>(input: {
 	input.signal?.throwIfAborted();
 
 	const failureController = new AbortController();
+	// AbortController replaces an undefined reason with a DOMException. Keep the
+	// mapper failure separately so its terminal value can still be undefined.
+	let failure: { readonly error: unknown } | undefined;
 	const signal = input.signal ? AbortSignal.any([input.signal, failureController.signal]) : failureController.signal;
 	const mapped = pooledMap(concurrency, input.items, async (item) => {
 		signal.throwIfAborted();
@@ -32,7 +37,10 @@ export async function runBoundedQueue<T>(input: {
 		try {
 			await input.run(item, { signal });
 		} catch (error) {
-			if (!failureController.signal.aborted) failureController.abort(error);
+			if (!failureController.signal.aborted) {
+				failure = { error };
+				failureController.abort(error);
+			}
 			throw error;
 		}
 	});
@@ -43,7 +51,7 @@ export async function runBoundedQueue<T>(input: {
 			// aggregate failure semantics. The mapped value is intentionally void.
 		}
 	} catch (error) {
-		if (failureController.signal.aborted) throw failureController.signal.reason;
+		if (failure !== undefined) throw failure.error;
 		throw error;
 	}
 	input.signal?.throwIfAborted();
@@ -56,7 +64,11 @@ export async function runBoundedQueue<T>(input: {
  * intentional: a rejected background promise can become an unhandled rejection
  * while the consumer is still waiting for an earlier item. The first mapper
  * failure aborts admitted siblings, all admitted promises are drained, and only
- * then is that original failure rethrown to the caller.
+ * then is that original failure rethrown to the caller. Source iteration is also
+ * closed before settlement. If source cleanup fails, admitted mappers are still
+ * joined. When an operation and its source cleanup both fail, an AggregateError
+ * retains them in that order, with the operation failure as its cause. A sole
+ * operation or cleanup failure keeps its exact value, including undefined.
  */
 export async function* mapPooledOrdered<T, R>(input: {
 	readonly items: Iterable<T> | AsyncIterable<T>;
@@ -68,6 +80,7 @@ export async function* mapPooledOrdered<T, R>(input: {
 	input.signal?.throwIfAborted();
 
 	const operationController = new AbortController();
+	let failure: { readonly error: unknown } | undefined;
 	const signal = input.signal
 		? AbortSignal.any([input.signal, operationController.signal])
 		: operationController.signal;
@@ -76,6 +89,7 @@ export async function* mapPooledOrdered<T, R>(input: {
 	const pending: Promise<Settled>[] = [];
 	let inputDone = false;
 	let completedNormally = false;
+	let primaryFailure: { readonly error: unknown } | undefined;
 
 	const admit = async (): Promise<void> => {
 		while (!inputDone && pending.length < concurrency && !signal.aborted) {
@@ -90,7 +104,10 @@ export async function* mapPooledOrdered<T, R>(input: {
 					.then<Settled, Settled>(
 						(value) => ({ ok: true, value }),
 						(error): Settled => {
-							if (!operationController.signal.aborted) operationController.abort(error);
+							if (!operationController.signal.aborted) {
+								failure = { error };
+								operationController.abort(error);
+							}
 							return { ok: false, error };
 						},
 					),
@@ -98,17 +115,44 @@ export async function* mapPooledOrdered<T, R>(input: {
 		}
 	};
 
+	/** Close source iteration and join admitted work; retain primary and cleanup failures together. */
+	async function close(): Promise<void> {
+		if (!completedNormally && !operationController.signal.aborted) {
+			operationController.abort(new DOMException('The pooled-map consumer stopped before completion.', 'AbortError'));
+		}
+		let cleanupFailure: { readonly error: unknown } | undefined;
+		try {
+			await iterator.return?.();
+		} catch (error) {
+			cleanupFailure = { error };
+		} finally {
+			// Source return and mapper settlement are independent cleanup duties.
+			// One failing return must not release ownership of the admitted work.
+			await Promise.all(pending);
+		}
+		if (cleanupFailure !== undefined) {
+			if (primaryFailure !== undefined) {
+				throw new AggregateError(
+					[primaryFailure.error, cleanupFailure.error],
+					'The pooled operation and source cleanup both failed.',
+					{ cause: primaryFailure.error },
+				);
+			}
+			throw cleanupFailure.error;
+		}
+	}
+
 	try {
 		await admit();
 		while (pending.length > 0) {
 			const result = await pending.shift()!;
 			if (!result.ok) {
 				await Promise.all(pending);
-				throw result.error;
+				throw failure === undefined ? result.error : failure.error;
 			}
 			if (operationController.signal.aborted) {
 				await Promise.all(pending);
-				throw operationController.signal.reason;
+				throw failure === undefined ? operationController.signal.reason : failure.error;
 			}
 			input.signal?.throwIfAborted();
 			yield result.value;
@@ -116,12 +160,11 @@ export async function* mapPooledOrdered<T, R>(input: {
 		}
 		input.signal?.throwIfAborted();
 		completedNormally = true;
+	} catch (error) {
+		primaryFailure = { error };
+		throw error;
 	} finally {
-		if (!completedNormally && !operationController.signal.aborted) {
-			operationController.abort(new DOMException('The pooled-map consumer stopped before completion.', 'AbortError'));
-		}
-		await iterator.return?.();
-		await Promise.all(pending);
+		await close();
 	}
 }
 
@@ -153,6 +196,7 @@ export async function* mapPooledUnordered<T, R>(input: {
 	input.signal?.throwIfAborted();
 
 	const operationController = new AbortController();
+	let failure: { readonly error: unknown } | undefined;
 	const signal = input.signal
 		? AbortSignal.any([input.signal, operationController.signal])
 		: operationController.signal;
@@ -178,7 +222,10 @@ export async function* mapPooledUnordered<T, R>(input: {
 						await waitForAcknowledgement(acknowledged, signal);
 					}
 				} catch (error) {
-					if (!operationController.signal.aborted) operationController.abort(error);
+					if (!operationController.signal.aborted) {
+						failure = { error };
+						operationController.abort(error);
+					}
 					throw error;
 				}
 			});
@@ -188,7 +235,11 @@ export async function* mapPooledUnordered<T, R>(input: {
 			}
 			completions.close();
 		} catch (error) {
-			const reason = operationController.signal.aborted ? operationController.signal.reason : error;
+			const reason = failure !== undefined
+				? failure.error
+				: operationController.signal.aborted
+				? operationController.signal.reason
+				: error;
 			completions.close(reason);
 			throw reason;
 		}
@@ -215,14 +266,15 @@ export async function* mapPooledUnordered<T, R>(input: {
 	}
 }
 
+/** Release a blocked producer on acknowledgement or cancellation while retaining the exact signal cause. */
 function waitForAcknowledgement(acknowledged: Promise<void>, signal: AbortSignal): Promise<void> {
 	if (signal.aborted) {
-		return Promise.reject(signal.reason ?? new DOMException('The pooled operation was aborted.', 'AbortError'));
+		return Promise.reject(signal.reason);
 	}
 	return new Promise<void>((resolve, reject) => {
 		const onAbort = () => {
 			signal.removeEventListener('abort', onAbort);
-			reject(signal.reason ?? new DOMException('The pooled operation was aborted.', 'AbortError'));
+			reject(signal.reason);
 		};
 		signal.addEventListener('abort', onAbort, { once: true });
 		void acknowledged.then(

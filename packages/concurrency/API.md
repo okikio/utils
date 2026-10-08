@@ -31,7 +31,7 @@ Pass cancellation into the actual fetch or provider call. Breaking iteration can
 settlement. A concurrency bound limits active work, not the size of a result array; fold or batch large outputs instead
 of materializing them all.
 
-[Declaration source](bounded.ts#L60)
+[Declaration source](bounded.ts#L72)
 
 ```text
 async function* mapPooledOrdered<T, R>(input: { readonly items: Iterable<T> | AsyncIterable<T>; readonly concurrency: number; readonly signal?: AbortSignal; readonly map: (item: T, context: PooledOperationContext) => Promise<R>; }): AsyncIterable<R>
@@ -41,10 +41,14 @@ async function* mapPooledOrdered<T, R>(input: { readonly items: Iterable<T> | As
   intentional: a rejected background promise can become an unhandled rejection
   while the consumer is still waiting for an earlier item. The first mapper
   failure aborts admitted siblings, all admitted promises are drained, and only
-  then is that original failure rethrown to the caller.
+  then is that original failure rethrown to the caller. Source iteration is also
+  closed before settlement. If source cleanup fails, admitted mappers are still
+  joined. When an operation and its source cleanup both fail, an AggregateError
+  retains them in that order, with the operation failure as its cause. A sole
+  operation or cleanup failure keeps its exact value, including undefined.
 ```
 
-[Declaration source](bounded.ts#L142)
+[Declaration source](bounded.ts#L185)
 
 ```text
 async function* mapPooledUnordered<T, R>(input: { readonly items: Iterable<T> | AsyncIterable<T>; readonly concurrency: number; readonly shouldStop?: () => boolean; readonly signal?: AbortSignal; readonly acknowledgeCompletions?: boolean; readonly map: (item: T, context: PooledOperationContext) => Promise<R>; }): AsyncIterable<R>
@@ -60,15 +64,17 @@ async function* mapPooledUnordered<T, R>(input: { readonly items: Iterable<T> | 
 
 ### root: runBoundedQueue
 
-[Declaration source](bounded.ts#L16)
+[Declaration source](bounded.ts#L18)
 
 ```text
 async function runBoundedQueue<T>(input: { readonly items: Iterable<T> | AsyncIterable<T>; readonly concurrency: number; readonly shouldStop?: () => boolean; readonly signal?: AbortSignal; readonly run: (item: T, context: PooledOperationContext) => Promise<void>; }): Promise<void>
   Run values through Deno std's bounded async pool with structured sibling cancellation.
 
   `pooledMap()` owns concurrency and input backpressure. This adapter adds the
-  the application lifecycle rule that one failed operation aborts already admitted sibling
+  application lifecycle rule that one failed operation aborts already admitted sibling
   work through the operation signal before the failure is returned to the caller.
+  The original thrown value is retained, including `undefined`; native abort
+  signals can normalize that value without changing the terminal rejection.
 ```
 
 ### root: Channel
@@ -123,7 +129,7 @@ public import table when writing application imports.
 | ------------------------------------ | --------------------------------------------------------- |
 | `pooledMap`                          | [External source](https://jsr.io/@std/async/1.5.0/mod.ts) |
 | `Channel`                            | [Source](channel.ts)                                      |
-| [Declaration source](bounded.ts#L60) |                                                           |
+| [Declaration source](bounded.ts#L72) |                                                           |
 
 ```text
 async function* mapPooledOrdered<T, R>(input: { readonly items: Iterable<T> | AsyncIterable<T>; readonly concurrency: number; readonly signal?: AbortSignal; readonly map: (item: T, context: PooledOperationContext) => Promise<R>; }): AsyncIterable<R>
@@ -133,10 +139,14 @@ async function* mapPooledOrdered<T, R>(input: { readonly items: Iterable<T> | As
   intentional: a rejected background promise can become an unhandled rejection
   while the consumer is still waiting for an earlier item. The first mapper
   failure aborts admitted siblings, all admitted promises are drained, and only
-  then is that original failure rethrown to the caller.
+  then is that original failure rethrown to the caller. Source iteration is also
+  closed before settlement. If source cleanup fails, admitted mappers are still
+  joined. When an operation and its source cleanup both fail, an AggregateError
+  retains them in that order, with the operation failure as its cause. A sole
+  operation or cleanup failure keeps its exact value, including undefined.
 ```
 
-[Declaration source](bounded.ts#L142)
+[Declaration source](bounded.ts#L185)
 
 ```text
 async function* mapPooledUnordered<T, R>(input: { readonly items: Iterable<T> | AsyncIterable<T>; readonly concurrency: number; readonly shouldStop?: () => boolean; readonly signal?: AbortSignal; readonly acknowledgeCompletions?: boolean; readonly map: (item: T, context: PooledOperationContext) => Promise<R>; }): AsyncIterable<R>
@@ -152,15 +162,17 @@ async function* mapPooledUnordered<T, R>(input: { readonly items: Iterable<T> | 
 
 ### bounded: runBoundedQueue
 
-[Declaration source](bounded.ts#L16)
+[Declaration source](bounded.ts#L18)
 
 ```text
 async function runBoundedQueue<T>(input: { readonly items: Iterable<T> | AsyncIterable<T>; readonly concurrency: number; readonly shouldStop?: () => boolean; readonly signal?: AbortSignal; readonly run: (item: T, context: PooledOperationContext) => Promise<void>; }): Promise<void>
   Run values through Deno std's bounded async pool with structured sibling cancellation.
 
   `pooledMap()` owns concurrency and input backpressure. This adapter adds the
-  the application lifecycle rule that one failed operation aborts already admitted sibling
+  application lifecycle rule that one failed operation aborts already admitted sibling
   work through the operation signal before the failure is returned to the caller.
+  The original thrown value is retained, including `undefined`; native abort
+  signals can normalize that value without changing the terminal rejection.
 ```
 
 ### bounded: PooledOperationContext

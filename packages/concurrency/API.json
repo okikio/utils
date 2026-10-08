@@ -423,13 +423,13 @@
 						{
 							"location": {
 								"filename": "./packages/concurrency/bounded.ts",
-								"line": 16,
+								"line": 18,
 								"col": 0,
-								"byteIndex": 669
+								"byteIndex": 820
 							},
 							"declarationKind": "export",
 							"jsDoc": {
-								"doc": "Run values through Deno std's bounded async pool with structured sibling cancellation.\n\n`pooledMap()` owns concurrency and input backpressure. This adapter adds the\nthe application lifecycle rule that one failed operation aborts already admitted sibling\nwork through the operation signal before the failure is returned to the caller."
+								"doc": "Run values through Deno std's bounded async pool with structured sibling cancellation.\n\n`pooledMap()` owns concurrency and input backpressure. This adapter adds the\napplication lifecycle rule that one failed operation aborts already admitted sibling\nwork through the operation signal before the failure is returned to the caller.\nThe original thrown value is retained, including `undefined`; native abort\nsignals can normalize that value without changing the terminal rejection."
 							},
 							"kind": "function",
 							"def": {
@@ -446,9 +446,9 @@
 														"name": "items",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 17,
+															"line": 19,
 															"col": 2,
-															"byteIndex": 720
+															"byteIndex": 871
 														},
 														"readonly": true,
 														"tsType": {
@@ -503,9 +503,9 @@
 														"name": "concurrency",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 18,
+															"line": 20,
 															"col": 2,
-															"byteIndex": 769
+															"byteIndex": 920
 														},
 														"readonly": true,
 														"tsType": {
@@ -518,9 +518,9 @@
 														"name": "shouldStop",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 19,
+															"line": 21,
 															"col": 2,
-															"byteIndex": 800
+															"byteIndex": 951
 														},
 														"readonly": true,
 														"optional": true,
@@ -541,9 +541,9 @@
 														"name": "signal",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 20,
+															"line": 22,
 															"col": 2,
-															"byteIndex": 838
+															"byteIndex": 989
 														},
 														"readonly": true,
 														"optional": true,
@@ -559,9 +559,9 @@
 														"name": "run",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 21,
+															"line": 23,
 															"col": 2,
-															"byteIndex": 870
+															"byteIndex": 1021
 														},
 														"readonly": true,
 														"tsType": {
@@ -655,13 +655,13 @@
 						{
 							"location": {
 								"filename": "./packages/concurrency/bounded.ts",
-								"line": 60,
+								"line": 72,
 								"col": 0,
-								"byteIndex": 2335
+								"byteIndex": 3045
 							},
 							"declarationKind": "export",
 							"jsDoc": {
-								"doc": "Transform values concurrently and yield them in input order.\n\nMapper promises settle into data before they enter the ordered queue. This is\nintentional: a rejected background promise can become an unhandled rejection\nwhile the consumer is still waiting for an earlier item. The first mapper\nfailure aborts admitted siblings, all admitted promises are drained, and only\nthen is that original failure rethrown to the caller."
+								"doc": "Transform values concurrently and yield them in input order.\n\nMapper promises settle into data before they enter the ordered queue. This is\nintentional: a rejected background promise can become an unhandled rejection\nwhile the consumer is still waiting for an earlier item. The first mapper\nfailure aborts admitted siblings, all admitted promises are drained, and only\nthen is that original failure rethrown to the caller. Source iteration is also\nclosed before settlement. If source cleanup fails, admitted mappers are still\njoined. When an operation and its source cleanup both fail, an AggregateError\nretains them in that order, with the operation failure as its cause. A sole\noperation or cleanup failure keeps its exact value, including undefined."
 							},
 							"kind": "function",
 							"def": {
@@ -678,9 +678,9 @@
 														"name": "items",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 61,
+															"line": 73,
 															"col": 2,
-															"byteIndex": 2391
+															"byteIndex": 3101
 														},
 														"readonly": true,
 														"tsType": {
@@ -735,9 +735,9 @@
 														"name": "concurrency",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 62,
+															"line": 74,
 															"col": 2,
-															"byteIndex": 2440
+															"byteIndex": 3150
 														},
 														"readonly": true,
 														"tsType": {
@@ -750,9 +750,9 @@
 														"name": "signal",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 63,
+															"line": 75,
 															"col": 2,
-															"byteIndex": 2471
+															"byteIndex": 3181
 														},
 														"readonly": true,
 														"optional": true,
@@ -768,9 +768,9 @@
 														"name": "map",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 64,
+															"line": 76,
 															"col": 2,
-															"byteIndex": 2503
+															"byteIndex": 3213
 														},
 														"readonly": true,
 														"tsType": {
@@ -882,9 +882,9 @@
 						{
 							"location": {
 								"filename": "./packages/concurrency/bounded.ts",
-								"line": 142,
+								"line": 185,
 								"col": 0,
-								"byteIndex": 5098
+								"byteIndex": 6874
 							},
 							"declarationKind": "export",
 							"jsDoc": {
@@ -905,9 +905,9 @@
 														"name": "items",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 143,
+															"line": 186,
 															"col": 2,
-															"byteIndex": 5156
+															"byteIndex": 6932
 														},
 														"readonly": true,
 														"tsType": {
@@ -962,9 +962,9 @@
 														"name": "concurrency",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 144,
+															"line": 187,
 															"col": 2,
-															"byteIndex": 5205
+															"byteIndex": 6981
 														},
 														"readonly": true,
 														"tsType": {
@@ -977,9 +977,9 @@
 														"name": "shouldStop",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 145,
+															"line": 188,
 															"col": 2,
-															"byteIndex": 5236
+															"byteIndex": 7012
 														},
 														"readonly": true,
 														"optional": true,
@@ -1000,9 +1000,9 @@
 														"name": "signal",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 146,
+															"line": 189,
 															"col": 2,
-															"byteIndex": 5274
+															"byteIndex": 7050
 														},
 														"readonly": true,
 														"optional": true,
@@ -1021,9 +1021,9 @@
 														},
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 148,
+															"line": 191,
 															"col": 2,
-															"byteIndex": 5401
+															"byteIndex": 7177
 														},
 														"readonly": true,
 														"optional": true,
@@ -1037,9 +1037,9 @@
 														"name": "map",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 149,
+															"line": 192,
 															"col": 2,
-															"byteIndex": 5445
+															"byteIndex": 7221
 														},
 														"readonly": true,
 														"tsType": {
@@ -1209,13 +1209,13 @@
 						{
 							"location": {
 								"filename": "./packages/concurrency/bounded.ts",
-								"line": 16,
+								"line": 18,
 								"col": 0,
-								"byteIndex": 669
+								"byteIndex": 820
 							},
 							"declarationKind": "export",
 							"jsDoc": {
-								"doc": "Run values through Deno std's bounded async pool with structured sibling cancellation.\n\n`pooledMap()` owns concurrency and input backpressure. This adapter adds the\nthe application lifecycle rule that one failed operation aborts already admitted sibling\nwork through the operation signal before the failure is returned to the caller."
+								"doc": "Run values through Deno std's bounded async pool with structured sibling cancellation.\n\n`pooledMap()` owns concurrency and input backpressure. This adapter adds the\napplication lifecycle rule that one failed operation aborts already admitted sibling\nwork through the operation signal before the failure is returned to the caller.\nThe original thrown value is retained, including `undefined`; native abort\nsignals can normalize that value without changing the terminal rejection."
 							},
 							"kind": "function",
 							"def": {
@@ -1232,9 +1232,9 @@
 														"name": "items",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 17,
+															"line": 19,
 															"col": 2,
-															"byteIndex": 720
+															"byteIndex": 871
 														},
 														"readonly": true,
 														"tsType": {
@@ -1289,9 +1289,9 @@
 														"name": "concurrency",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 18,
+															"line": 20,
 															"col": 2,
-															"byteIndex": 769
+															"byteIndex": 920
 														},
 														"readonly": true,
 														"tsType": {
@@ -1304,9 +1304,9 @@
 														"name": "shouldStop",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 19,
+															"line": 21,
 															"col": 2,
-															"byteIndex": 800
+															"byteIndex": 951
 														},
 														"readonly": true,
 														"optional": true,
@@ -1327,9 +1327,9 @@
 														"name": "signal",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 20,
+															"line": 22,
 															"col": 2,
-															"byteIndex": 838
+															"byteIndex": 989
 														},
 														"readonly": true,
 														"optional": true,
@@ -1345,9 +1345,9 @@
 														"name": "run",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 21,
+															"line": 23,
 															"col": 2,
-															"byteIndex": 870
+															"byteIndex": 1021
 														},
 														"readonly": true,
 														"tsType": {
@@ -1441,13 +1441,13 @@
 						{
 							"location": {
 								"filename": "./packages/concurrency/bounded.ts",
-								"line": 60,
+								"line": 72,
 								"col": 0,
-								"byteIndex": 2335
+								"byteIndex": 3045
 							},
 							"declarationKind": "export",
 							"jsDoc": {
-								"doc": "Transform values concurrently and yield them in input order.\n\nMapper promises settle into data before they enter the ordered queue. This is\nintentional: a rejected background promise can become an unhandled rejection\nwhile the consumer is still waiting for an earlier item. The first mapper\nfailure aborts admitted siblings, all admitted promises are drained, and only\nthen is that original failure rethrown to the caller."
+								"doc": "Transform values concurrently and yield them in input order.\n\nMapper promises settle into data before they enter the ordered queue. This is\nintentional: a rejected background promise can become an unhandled rejection\nwhile the consumer is still waiting for an earlier item. The first mapper\nfailure aborts admitted siblings, all admitted promises are drained, and only\nthen is that original failure rethrown to the caller. Source iteration is also\nclosed before settlement. If source cleanup fails, admitted mappers are still\njoined. When an operation and its source cleanup both fail, an AggregateError\nretains them in that order, with the operation failure as its cause. A sole\noperation or cleanup failure keeps its exact value, including undefined."
 							},
 							"kind": "function",
 							"def": {
@@ -1464,9 +1464,9 @@
 														"name": "items",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 61,
+															"line": 73,
 															"col": 2,
-															"byteIndex": 2391
+															"byteIndex": 3101
 														},
 														"readonly": true,
 														"tsType": {
@@ -1521,9 +1521,9 @@
 														"name": "concurrency",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 62,
+															"line": 74,
 															"col": 2,
-															"byteIndex": 2440
+															"byteIndex": 3150
 														},
 														"readonly": true,
 														"tsType": {
@@ -1536,9 +1536,9 @@
 														"name": "signal",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 63,
+															"line": 75,
 															"col": 2,
-															"byteIndex": 2471
+															"byteIndex": 3181
 														},
 														"readonly": true,
 														"optional": true,
@@ -1554,9 +1554,9 @@
 														"name": "map",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 64,
+															"line": 76,
 															"col": 2,
-															"byteIndex": 2503
+															"byteIndex": 3213
 														},
 														"readonly": true,
 														"tsType": {
@@ -1668,9 +1668,9 @@
 						{
 							"location": {
 								"filename": "./packages/concurrency/bounded.ts",
-								"line": 142,
+								"line": 185,
 								"col": 0,
-								"byteIndex": 5098
+								"byteIndex": 6874
 							},
 							"declarationKind": "export",
 							"jsDoc": {
@@ -1691,9 +1691,9 @@
 														"name": "items",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 143,
+															"line": 186,
 															"col": 2,
-															"byteIndex": 5156
+															"byteIndex": 6932
 														},
 														"readonly": true,
 														"tsType": {
@@ -1748,9 +1748,9 @@
 														"name": "concurrency",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 144,
+															"line": 187,
 															"col": 2,
-															"byteIndex": 5205
+															"byteIndex": 6981
 														},
 														"readonly": true,
 														"tsType": {
@@ -1763,9 +1763,9 @@
 														"name": "shouldStop",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 145,
+															"line": 188,
 															"col": 2,
-															"byteIndex": 5236
+															"byteIndex": 7012
 														},
 														"readonly": true,
 														"optional": true,
@@ -1786,9 +1786,9 @@
 														"name": "signal",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 146,
+															"line": 189,
 															"col": 2,
-															"byteIndex": 5274
+															"byteIndex": 7050
 														},
 														"readonly": true,
 														"optional": true,
@@ -1807,9 +1807,9 @@
 														},
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 148,
+															"line": 191,
 															"col": 2,
-															"byteIndex": 5401
+															"byteIndex": 7177
 														},
 														"readonly": true,
 														"optional": true,
@@ -1823,9 +1823,9 @@
 														"name": "map",
 														"location": {
 															"filename": "./packages/concurrency/bounded.ts",
-															"line": 149,
+															"line": 192,
 															"col": 2,
-															"byteIndex": 5445
+															"byteIndex": 7221
 														},
 														"readonly": true,
 														"tsType": {
