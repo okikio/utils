@@ -111,8 +111,10 @@
 					]
 				},
 				"sourceNode": {
-					"files": [],
-					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+					"files": [
+						"packages/capacity/mod.test.ts"
+					],
+					"command": "mise run verify (native Node selection via tools/check-node.ts)"
 				},
 				"emittedNode": {
 					"command": "mise run npm-verify",
@@ -179,7 +181,7 @@
 					]
 				},
 				"sourceNode": {
-					"command": "deno task test:node",
+					"command": "mise run verify (native Node selection via tools/check-node.ts)",
 					"files": [
 						"packages/catalog/mod.test.ts"
 					]
@@ -246,8 +248,10 @@
 					]
 				},
 				"sourceNode": {
-					"files": [],
-					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+					"files": [
+						"tests/alternatives.test.ts"
+					],
+					"command": "mise run verify (native Node selection via tools/check-node.ts)"
 				},
 				"emittedNode": {
 					"command": "mise run npm-verify",
@@ -290,7 +294,8 @@
 				],
 				"properties": [
 					"Active work remains bounded; cancellation stops admission and joins admitted siblings.",
-					"Unordered completion, acknowledged slot reuse, and draining channel close remain distinct contracts."
+					"Unordered completion, acknowledged slot reuse, and draining channel close remain distinct contracts.",
+					"Exact first mapper failures survive native abort normalization; ordered source cleanup always joins admitted siblings and retains both operation and cleanup failures when necessary."
 				]
 			},
 			"invariants": {
@@ -300,7 +305,8 @@
 				],
 				"properties": [
 					"Active work remains bounded; cancellation stops admission and joins admitted siblings.",
-					"Unordered completion, acknowledged slot reuse, and draining channel close remain distinct contracts."
+					"Unordered completion, acknowledged slot reuse, and draining channel close remain distinct contracts.",
+					"Exact first mapper failures survive native abort normalization; ordered source cleanup always joins admitted siblings and retains both operation and cleanup failures when necessary."
 				]
 			},
 			"scenarios": {
@@ -317,14 +323,22 @@
 					]
 				},
 				"sourceNode": {
-					"files": [],
-					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+					"files": [
+						"packages/concurrency/bounded.test.ts",
+						"tests/alternatives.test.ts"
+					],
+					"command": "mise run verify (native Node selection via tools/check-node.ts)"
 				},
 				"emittedNode": {
 					"command": "mise run npm-verify",
 					"checker": "tools/npm-consumer.mjs",
 					"proves": "Exact packed public subpaths import and require in a clean Node consumer; semantic emitted suites are recorded separately.",
-					"semanticLimit": "All claimed packed subpaths receive declaration/import/require checks. No package-specific emitted behavioral suite is claimed here beyond the separately recorded representative consumer smoke assertions."
+					"semantic": {
+						"files": [
+							"packages/concurrency/bounded.test.ts"
+						],
+						"proves": "The canonical bounded mapper suite is compiled and executed against physically installed archives in ESM and CommonJS; exact first failure values, joined sibling cancellation, admission bounds, ordered and unordered completion, and early consumer return are exercised."
+					}
 				}
 			},
 			"benchmark": {
@@ -390,7 +404,7 @@
 					"files": [
 						"packages/context/mod.test.ts"
 					],
-					"command": "deno task test:node"
+					"command": "mise run verify (native Node selection via tools/check-node.ts)"
 				},
 				"emittedNode": {
 					"command": "mise run npm-verify",
@@ -467,8 +481,10 @@
 					]
 				},
 				"sourceNode": {
-					"files": [],
-					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+					"files": [
+						"tests/alternatives.test.ts"
+					],
+					"command": "mise run verify (native Node selection via tools/check-node.ts)"
 				},
 				"emittedNode": {
 					"command": "mise run npm-verify",
@@ -577,13 +593,14 @@
 					]
 				},
 				"sourceNode": {
-					"command": "deno task test:node",
+					"command": "mise run verify (native Node selection via tools/check-node.ts)",
 					"files": [
 						"packages/csv/core.parse.test.ts",
 						"packages/csv/core.stream.test.ts",
 						"packages/csv/occurrences.test.ts",
 						"packages/csv/stream.test.ts",
-						"packages/csv/write.test.ts"
+						"packages/csv/write.test.ts",
+						"tests/alternatives.test.ts"
 					]
 				},
 				"emittedNode": {
@@ -730,7 +747,7 @@
 					]
 				},
 				"sourceNode": {
-					"command": "deno task test:node",
+					"command": "mise run verify (native Node selection via tools/check-node.ts)",
 					"files": [
 						"packages/dispose/ponyfill.test.ts",
 						"tests/compatibility.test.ts"
@@ -1069,8 +1086,10 @@
 					]
 				},
 				"sourceNode": {
-					"files": [],
-					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+					"files": [
+						"tests/alternatives.test.ts"
+					],
+					"command": "mise run verify (native Node selection via tools/check-node.ts)"
 				},
 				"emittedNode": {
 					"command": "mise run npm-verify",
@@ -1335,8 +1354,10 @@
 					]
 				},
 				"sourceNode": {
-					"files": [],
-					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+					"files": [
+						"tests/alternatives.test.ts"
+					],
+					"command": "mise run verify (native Node selection via tools/check-node.ts)"
 				},
 				"emittedNode": {
 					"command": "mise run npm-verify",
@@ -1449,13 +1470,16 @@
 					]
 				},
 				"sourceNode": {
-					"command": "deno task test:node",
+					"command": "mise run verify (native Node selection via tools/check-node.ts)",
 					"files": [
 						"packages/http/headers.test.ts",
 						"tests/http-parity.test.ts",
 						"tests/hono-contracts.test.ts",
 						"tests/hono-proxy.test.ts",
-						"tests/hono-compose.test.ts"
+						"tests/hono-compose.test.ts",
+						"packages/http/request/mod.test.ts",
+						"packages/http/response/mod.test.ts",
+						"tests/alternatives.test.ts"
 					]
 				},
 				"emittedNode": {
@@ -1603,7 +1627,7 @@
 					]
 				},
 				"sourceNode": {
-					"command": "deno task test:node",
+					"command": "mise run verify (native Node selection via tools/check-node.ts)",
 					"files": [
 						"packages/permission/mod.test.ts"
 					]
@@ -1670,7 +1694,7 @@
 					]
 				},
 				"sourceNode": {
-					"command": "deno task test:node",
+					"command": "mise run verify (native Node selection via tools/check-node.ts)",
 					"files": [
 						"packages/pool/mod.test.ts"
 					]
@@ -1758,7 +1782,7 @@
 					]
 				},
 				"sourceNode": {
-					"command": "deno task test:node",
+					"command": "mise run verify (native Node selection via tools/check-node.ts)",
 					"files": [
 						"packages/process/lifecycle.test.ts",
 						"packages/process/node.test.ts",
@@ -1842,7 +1866,7 @@
 					]
 				},
 				"sourceNode": {
-					"command": "deno task test:node",
+					"command": "mise run verify (native Node selection via tools/check-node.ts)",
 					"files": [
 						"packages/query/expression.test.ts",
 						"packages/query/mod.test.ts",
@@ -1915,7 +1939,7 @@
 					"files": [
 						"packages/queue/mod.test.ts"
 					],
-					"command": "deno task test:node"
+					"command": "mise run verify (native Node selection via tools/check-node.ts)"
 				},
 				"emittedNode": {
 					"command": "mise run npm-verify",
@@ -1991,8 +2015,10 @@
 					]
 				},
 				"sourceNode": {
-					"files": [],
-					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+					"files": [
+						"tests/alternatives.test.ts"
+					],
+					"command": "mise run verify (native Node selection via tools/check-node.ts)"
 				},
 				"emittedNode": {
 					"command": "mise run npm-verify",
@@ -2059,7 +2085,7 @@
 					]
 				},
 				"sourceNode": {
-					"command": "deno task test:node",
+					"command": "mise run verify (native Node selection via tools/check-node.ts)",
 					"files": [
 						"packages/requirement/mod.test.ts"
 					]
@@ -2267,8 +2293,10 @@
 					]
 				},
 				"sourceNode": {
-					"files": [],
-					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+					"files": [
+						"tests/alternatives.test.ts"
+					],
+					"command": "mise run verify (native Node selection via tools/check-node.ts)"
 				},
 				"emittedNode": {
 					"command": "mise run npm-verify",
@@ -2409,8 +2437,10 @@
 					]
 				},
 				"sourceNode": {
-					"files": [],
-					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+					"files": [
+						"tests/alternatives.test.ts"
+					],
+					"command": "mise run verify (native Node selection via tools/check-node.ts)"
 				},
 				"emittedNode": {
 					"command": "mise run npm-verify",
@@ -2520,9 +2550,13 @@
 						"packages/server/http/router.test.ts",
 						"tests/hono-contracts.test.ts",
 						"tests/hono-proxy.test.ts",
-						"tests/hono-compose.test.ts"
+						"tests/hono-compose.test.ts",
+						"packages/server/gateway/mod.test.ts",
+						"packages/server/service/runtime.test.ts",
+						"tests/elysia-parity.test.ts",
+						"tests/http-vixeny.test.ts"
 					],
-					"command": "deno task test:node"
+					"command": "mise run verify (native Node selection via tools/check-node.ts)"
 				},
 				"emittedNode": {
 					"command": "mise run npm-verify",
@@ -2612,8 +2646,10 @@
 					]
 				},
 				"sourceNode": {
-					"files": [],
-					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+					"files": [
+						"tests/alternatives.test.ts"
+					],
+					"command": "mise run verify (native Node selection via tools/check-node.ts)"
 				},
 				"emittedNode": {
 					"command": "mise run npm-verify",
@@ -2768,7 +2804,7 @@
 					]
 				},
 				"sourceNode": {
-					"command": "deno task test:node",
+					"command": "mise run verify (native Node selection via tools/check-node.ts)",
 					"files": [
 						"packages/task/mod.test.ts"
 					]
@@ -2984,8 +3020,10 @@
 					]
 				},
 				"sourceNode": {
-					"files": [],
-					"reason": "No same-source Node selection for this package is claimed by tools/check-node.ts; emitted-package runtime qualification is a separate lane."
+					"files": [
+						"tests/alternatives.test.ts"
+					],
+					"command": "mise run verify (native Node selection via tools/check-node.ts)"
 				},
 				"emittedNode": {
 					"command": "mise run npm-verify",
@@ -3139,9 +3177,10 @@
 				},
 				"sourceNode": {
 					"files": [
-						"packages/workflow/dispatch.test.ts"
+						"packages/workflow/dispatch.test.ts",
+						"packages/workflow/scheduler.test.ts"
 					],
-					"command": "deno task test:node"
+					"command": "mise run verify (native Node selection via tools/check-node.ts)"
 				},
 				"emittedNode": {
 					"command": "mise run npm-verify",

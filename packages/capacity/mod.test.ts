@@ -121,17 +121,29 @@ describe('capacity admission', () => {
 		(await waiting).release();
 	});
 
-	it('does not strand a waiter when abort races registration', async () => {
-		for (let index = 0; index < 100; index += 1) {
-			const admission = capacity.create({ browserContexts: 1 });
-			const held = await capacity.acquire(admission, { browserContexts: 1 });
-			const abort = new AbortController();
-			const waiting = capacity.acquire(admission, { browserContexts: 1 }, abort.signal);
-			abort.abort(new DOMException('cancelled', 'AbortError'));
-			await expect(waiting).rejects.toThrow('cancelled');
-			held.release();
-			expect(capacity.snapshot(admission).queuedRequests).toBe(0);
-		}
+	it("removes a cancelled queued waiter without releasing another caller's reservation", async () => {
+		const admission = capacity.create({ browserContexts: 1 });
+		const held = await capacity.acquire(admission, { browserContexts: 1 });
+		const abort = new AbortController();
+		const waiting = capacity.acquire(admission, { browserContexts: 1 }, abort.signal);
+		expect(capacity.snapshot(admission).queuedRequests).toBe(1);
+		const reason = new DOMException('cancelled', 'AbortError');
+		abort.abort(reason);
+		await expect(waiting).rejects.toBe(reason);
+		expect(capacity.snapshot(admission).queuedRequests).toBe(0);
+		expect(capacity.available(admission)).toEqual({ browserContexts: 0 });
+		held.release();
+		expect(capacity.available(admission)).toEqual({ browserContexts: 1 });
+	});
+
+	it('retains a pre-aborted caller cause without reserving or enqueueing work', async () => {
+		const admission = capacity.create({ browserContexts: 1 });
+		const abort = new AbortController();
+		const reason = Object.freeze({ code: 'caller-cancelled' });
+		abort.abort(reason);
+		await expect(capacity.acquire(admission, { browserContexts: 1 }, abort.signal)).rejects.toBe(reason);
+		expect(capacity.snapshot(admission).queuedRequests).toBe(0);
+		expect(capacity.available(admission)).toEqual({ browserContexts: 1 });
 	});
 
 	it('removes an aborted head waiter and admits the next request', async () => {
@@ -140,8 +152,9 @@ describe('capacity admission', () => {
 		const abort = new AbortController();
 		const head = capacity.acquire(admission, { a: 1, b: 1 }, abort.signal);
 		const tail = capacity.acquire(admission, { a: 1 });
-		abort.abort(new Error('skip blocked head'));
-		await expect(head).rejects.toThrow('skip blocked head');
+		const reason = new Error('skip blocked head');
+		abort.abort(reason);
+		await expect(head).rejects.toBe(reason);
 		const tailLease = await tail;
 		tailLease.release();
 		occupiedB.release();

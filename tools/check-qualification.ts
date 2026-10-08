@@ -8,6 +8,7 @@
  * @module
  */
 import { testFiles } from './audit-fragile-tests.ts';
+import { nodeTests } from './check-node.ts';
 import { parse } from '@std/jsonc';
 
 /** A source-native package manifest owns publication identity and entrypoints. */
@@ -92,7 +93,13 @@ export function qualify(
 					text(evidence.command, `${name}.${lane}.command`, errors);
 					reference(text(evidence.checker, `${name}.${lane}.checker`, errors), files, errors);
 					text(evidence.proves, `${name}.${lane}.proves`, errors);
-					if (evidence.semantic !== undefined) {
+					const hasSemantic = evidence.semantic !== undefined;
+					const hasLimit = evidence.semanticLimit !== undefined;
+					if (hasSemantic === hasLimit) {
+						errors.push(`${name} needs exactly one emitted semantic selection or explicit import-only limit.`);
+					}
+					if (hasLimit) text(evidence.semanticLimit, `${name}.emitted semantic limit`, errors);
+					if (hasSemantic) {
 						const semantic = object(evidence.semantic, `${name}.${lane}.semantic`, errors);
 						const selected = strings(semantic.files, `${name}.emitted semantic files`, errors);
 						if (selected.length === 0) {
@@ -121,6 +128,35 @@ export function qualify(
 	for (const manifest of manifests) if (!names.has(manifest.name)) errors.push(`Unqualified package: ${manifest.name}`);
 	for (const file of files) {
 		if (/(?:\.test|_test)\.ts$/.test(file) && !reviewed.has(file)) errors.push(`Unreviewed test: ${file}`);
+	}
+	return errors;
+}
+
+/** Keep the source Node claims equal to the suites selected by the actual runtime gate. */
+export function qualifyNodeSelection(input: unknown, selection: readonly string[]): readonly string[] {
+	const errors: string[] = [];
+	const packages = objects(object(input, 'matrix', errors).packages, 'packages', errors);
+	const selected = new Set(selection);
+	const reported = new Set<string>();
+	for (const item of packages) {
+		const name = text(item.name, 'package.name', errors);
+		const runtime = object(item.runtime, `${name}.runtime`, errors);
+		const node = object(runtime.sourceNode, `${name}.sourceNode`, errors);
+		const files = strings(node.files, `${name}.sourceNode.files`, errors);
+		for (const file of files) {
+			reported.add(file);
+			if (!selected.has(file)) errors.push(`${name} claims an unselected Node test: ${file}`);
+		}
+		const manifest = text(item.manifest, `${name}.manifest`, errors);
+		const prefix = manifest.slice(0, manifest.lastIndexOf('/') + 1);
+		for (const file of selected) {
+			if (prefix && file.startsWith(prefix) && !files.includes(file)) {
+				errors.push(`${name} omits a selected focused Node test: ${file}`);
+			}
+		}
+	}
+	for (const file of selected) {
+		if (!reported.has(file)) errors.push(`Selected Node test has no qualification record: ${file}`);
 	}
 	return errors;
 }
@@ -258,7 +294,11 @@ if (import.meta.main) {
 			}
 		}
 	}
-	const errors = [...qualify(document, selected, files), ...qualifyBenchmarks(benchmarks, selected, files)];
+	const errors = [
+		...qualify(document, selected, files),
+		...qualifyBenchmarks(benchmarks, selected, files),
+		...qualifyNodeSelection(document, nodeTests),
+	];
 	for (const error of errors) console.error(error);
 	console.log(
 		`Qualification references: ${selected.length} packages, ${

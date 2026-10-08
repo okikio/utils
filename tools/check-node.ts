@@ -3,7 +3,10 @@ import { fileURLToPath } from 'node:url';
 
 // Deno-only wire and listener tests remain in the Deno suite. These files use
 // real Node children plus the same portable source used by the package tests.
-const files = [
+/** Canonical runtime selection, also checked against the qualification matrix without starting Node. */
+export const nodeTests = [
+	'packages/capacity/mod.test.ts',
+	'packages/concurrency/bounded.test.ts',
 	'packages/process/node.test.ts',
 	'packages/process/lifecycle.test.ts',
 	'packages/process/channel/mod.test.ts',
@@ -43,17 +46,19 @@ const files = [
 	'packages/http/response/mod.test.ts',
 ];
 
-const status = await new Deno.Command('node', {
-	args: [
-		'--import',
-		'./packages/duration/polyfill.ts',
-		'--import',
-		'./packages/dispose/polyfill.ts',
-		'--test',
-		...files,
-	],
-	cwd: fileURLToPath(new URL('../', import.meta.url)),
-	stdout: 'inherit',
-	stderr: 'inherit',
-}).spawn().status;
-if (!status.success) Deno.exit(status.code);
+if (import.meta.main) {
+	const status = await new Deno.Command('node', {
+		args: [
+			'--import',
+			'./packages/duration/polyfill.ts',
+			'--import',
+			'./packages/dispose/polyfill.ts',
+			'--test',
+			...nodeTests,
+		],
+		cwd: fileURLToPath(new URL('../', import.meta.url)),
+		stdout: 'inherit',
+		stderr: 'inherit',
+	}).spawn().status;
+	if (!status.success) Deno.exit(status.code);
+}

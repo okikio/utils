@@ -135,6 +135,17 @@ Keep the source hash, exact command/runtime, artifact hash where applicable, and
 packed export that imports successfully has passed an import contract; this alone does not qualify its behavioral suite.
 Clean emitted consumers run separately through `mise run npm-verify`.
 
+The matrix must choose either an emitted behavioral suite or an explicit import-only limit for each portable package. An
+omitted classification fails the gate; imports alone must not become a behavioral claim. The same gate checks
+`sourceNode` records against the import-safe selection exported by `tools/check-node.ts`, so adding a native suite or
+removing one requires an accurate runtime record.
+
+Bounded mapper tests use independent failure values and exact identity assertions rather than matching error messages.
+They gate an admitted sibling, make another mapper fail, and require sibling settlement with no further admission before
+the terminal rejection. The canonical suite runs on Deno source, Node source, and physically installed ESM and CommonJS
+archives. `undefined` needs this distinction: native abort changes its signal reason, while the mapper's rejected value
+must remain `undefined`.
+
 The fragile audit parses TypeScript with Oxc. It detects concrete wall-clock waits/current-time reads, unseeded
 generated properties, snapshots, unawaited terminal expectations, empty catch/discarded rejection callbacks, and
 diagnostic-regex throw expectations. It ignores comments and fixture strings. Its independent positive and fault

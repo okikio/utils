@@ -1,7 +1,7 @@
 import { expect } from '@std/expect';
 import { describe, it } from 'node:test';
 
-import { qualify, qualifyBenchmarks } from './check-qualification.ts';
+import { qualify, qualifyBenchmarks, qualifyNodeSelection } from './check-qualification.ts';
 
 /** Independent tiny matrix exercises validation without reproducing the repository inventory. */
 function fixture() {
@@ -25,11 +25,12 @@ function fixture() {
 			},
 			runtime: {
 				sourceDeno: { command: 'deno task test', files: ['packages/example/mod.test.ts'] },
-				sourceNode: { files: [], reason: 'This source selector is not part of the Node gate.' },
+				sourceNode: { files: [] as string[], reason: 'This source selector is not part of the Node gate.' },
 				emittedNode: {
 					command: 'mise run npm-verify',
 					checker: 'tools/consumer.mjs',
-					proves: 'Install the packed export and compare its semantic value.',
+					proves: 'Install the packed export and inspect its public entrypoints.',
+					semanticLimit: 'This fixture selects export imports only; no emitted behavioral suite is claimed.',
 				},
 			},
 			benchmark: { programs: ['bench/example.bench.ts'], question: 'What is the allocation cost per admitted value?' },
@@ -67,6 +68,45 @@ describe('qualification matrix', () => {
 		expect(qualify(document, manifests, files)).toEqual([]);
 	});
 
+	it('rejects emitted imports with neither a behavioral selection nor an import-only limit', () => {
+		const { document, manifests, files } = fixture();
+		const item = document.packages[0]!;
+		expect(qualify(document, manifests, files)).toEqual([]);
+		const unclassified = {
+			...document,
+			packages: [{
+				...item,
+				runtime: { ...item.runtime, emittedNode: { ...item.runtime.emittedNode, semanticLimit: undefined } },
+			}],
+		};
+		expect(qualify(unclassified, manifests, files).length).toBeGreaterThan(0);
+	});
+
+	it('rejects contradictory behavioral and import-only claims even when their files exist', () => {
+		const { document, manifests, files } = fixture();
+		const item = document.packages[0]!;
+		const contradictory = {
+			...document,
+			packages: [{
+				...item,
+				runtime: {
+					...item.runtime,
+					emittedNode: {
+						...item.runtime.emittedNode,
+						semantic: { files: ['packages/example/mod.test.ts'], proves: 'Caller identity survives emission.' },
+					},
+				},
+			}],
+		};
+		expect(qualify(contradictory, manifests, files).length).toBeGreaterThan(0);
+	});
+
+	it('rejects an empty import-only explanation', () => {
+		const { document, manifests, files } = fixture();
+		document.packages[0]!.runtime.emittedNode.semanticLimit = '';
+		expect(qualify(document, manifests, files).length).toBeGreaterThan(0);
+	});
+
 	it('rejects an absent benchmark program independently of valid comparison metadata', () => {
 		const { registry, manifests, files } = performanceFixture();
 		expect(qualifyBenchmarks(registry, manifests, files)).toEqual([]);
@@ -101,6 +141,7 @@ describe('qualification matrix', () => {
 					...original.runtime,
 					emittedNode: {
 						...original.runtime.emittedNode,
+						semanticLimit: undefined,
 						semantic: { files: ['packages/example/mod.test.ts'], proves: 'Owned cleanup survives packed imports.' },
 					},
 				},
@@ -183,5 +224,31 @@ describe('qualification matrix', () => {
 		expect(qualify(document, manifests, files)).toEqual([]);
 		document.packages.push(document.packages[0]!);
 		expect(qualify(document, manifests, files).length).toBeGreaterThan(0);
+	});
+});
+
+describe('native Node qualification selection', () => {
+	it('accepts the same focused suites recorded by the runtime gate', () => {
+		const { document } = fixture();
+		document.packages[0]!.runtime.sourceNode.files = ['packages/example/mod.test.ts'];
+		expect(qualifyNodeSelection(document, ['packages/example/mod.test.ts'])).toEqual([]);
+	});
+
+	it('rejects an omitted focused suite that the runtime gate actually runs', () => {
+		const { document } = fixture();
+		expect(qualifyNodeSelection(document, ['packages/example/mod.test.ts']).length).toBeGreaterThan(0);
+	});
+
+	it('rejects a behavioral claim for a suite the runtime gate does not run', () => {
+		const { document } = fixture();
+		document.packages[0]!.runtime.sourceNode.files = ['packages/example/mod.test.ts'];
+		expect(qualifyNodeSelection(document, []).length).toBeGreaterThan(0);
+	});
+
+	it('requires a qualification owner for a selected composed consumer', () => {
+		const { document } = fixture();
+		expect(qualifyNodeSelection(document, ['tests/consumer.test.ts']).length).toBeGreaterThan(0);
+		document.packages[0]!.runtime.sourceNode.files = ['tests/consumer.test.ts'];
+		expect(qualifyNodeSelection(document, ['tests/consumer.test.ts'])).toEqual([]);
 	});
 });

@@ -33,6 +33,17 @@ for (const directory of await readdir(resolve(root, 'packages'))) {
 }
 const portable = [...manifests].filter(([name]) => name !== 'deno');
 
+/** Reuse canonical tests through public imports in both emitted formats; never substitute artifact-only oracles. */
+const scenarioSources = {
+	discovery: 'tests/discovery.test.ts',
+	coordination: 'tests/coordination.test.ts',
+	host: 'tests/host.test.ts',
+	workflow: 'tests/workflow.test.ts',
+	provider: 'tests/provider.test.ts',
+	'http-parity': 'tests/http-parity.test.ts',
+	bounded: 'packages/concurrency/bounded.test.ts',
+};
+
 if (mode === 'build' || mode === 'verify') {
 	await rm(output, { recursive: true, force: true });
 	await mkdir(output, { recursive: true });
@@ -275,9 +286,9 @@ async function consumer(): Promise<void> {
 			include: ['public.mts', 'public.cts', 'scenario-*.test.ts', 'typed-scenario-*.cts'],
 		}),
 	);
-	for (const name of ['discovery', 'coordination', 'host', 'workflow', 'provider', 'http-parity']) {
-		await cp(resolve(root, `tests/${name}.test.ts`), resolve(directory, `scenario-${name}.test.ts`));
-		await cp(resolve(root, `tests/${name}.test.ts`), resolve(directory, `typed-scenario-${name}.cts`));
+	for (const [name, source] of Object.entries(scenarioSources)) {
+		await cp(resolve(root, source), resolve(directory, `scenario-${name}.test.ts`));
+		await cp(resolve(root, source), resolve(directory, `typed-scenario-${name}.cts`));
 	}
 	await cp(resolve(root, 'tests/fixtures/http-parity'), resolve(directory, 'fixtures/http-parity'), {
 		recursive: true,
@@ -427,10 +438,10 @@ function visit(value: unknown, inspect: (node: Record<string, unknown>) => void)
 
 /** Reuse real cross-package source scenarios while resolving every production import to installed archives. */
 async function scenarios(directory: string): Promise<void> {
-	const names = ['discovery', 'coordination', 'host', 'workflow', 'provider', 'http-parity'];
+	const names = Object.keys(scenarioSources);
 	const entry: Record<string, string> = {};
-	for (const name of names) {
-		const source = resolve(root, `tests/${name}.test.ts`);
+	for (const [name, path] of Object.entries(scenarioSources)) {
+		const source = resolve(root, path);
 		const target = resolve(directory, `scenario-${name}.test.ts`);
 		await cp(source, target);
 		entry[`scenario-${name}.test`] = target;
@@ -461,6 +472,6 @@ async function scenarios(directory: string): Promise<void> {
 	}
 	for (const result of results) await result[Symbol.asyncDispose]();
 	console.log(
-		'Installed ESM and CommonJS artifacts passed discovery, coordination, HTTP host, workflow, provider ownership and independent Hono parity scenarios.',
+		'Installed ESM and CommonJS artifacts passed discovery, coordination, HTTP host, workflow, provider ownership, bounded mapper failures and independent Hono parity scenarios.',
 	);
 }
