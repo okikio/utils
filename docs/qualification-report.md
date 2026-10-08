@@ -4,6 +4,10 @@ This is the initial qualification snapshot. The subsequent [comparison receipt](
 and alternative fixtures, disposal ponyfill, additional defects, refreshed artifact gates and measured performance.
 Counts and hashes below describe the initial snapshot and are preserved as historical evidence.
 
+The [issue #1 follow-up](issue-1-report.md) records the later committed lockfiles, qualification guard repairs, bounded
+mapper failure and cleanup fixes, and refreshed source/artifact gates. Pending delivery statements below belong to this
+initial snapshot.
+
 ## Summary
 
 The supported source and npm qualification gates pass. The review covers 42 source packages, 133 canonical test files,

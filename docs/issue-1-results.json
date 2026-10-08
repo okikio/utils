@@ -1,0 +1,349 @@
+{
+	"issue": "https://github.com/okikio/utils/issues/1",
+	"status": "local-qualification-passed",
+	"createdAt": "2026-10-08T03:16:21.170675+00:00",
+	"basis": {
+		"head": "e16c7da1a64d1c8c146271e09ff7fff7b39e3512",
+		"state": "issue follow-up applied to existing local main",
+		"lockfileCommit": "67f0fc9",
+		"inputScope": "Code, tests, executable task definitions, configuration, manifests, locks, benchmark registry, and qualification matrix; generated API and prose excluded to avoid receipt self-reference.",
+		"inputDigestSha256": "7890782577fee85610848acbe392245abafb6e617ea44eee1a9c609b1cf6ee5f",
+		"inputCount": 740,
+		"inputHashes": ".artifacts/issue-1/20261007/source-input-hashes.json",
+		"locks": {
+			"deno.lock": "e609649adddf96371edb0f5256303d5ae9619818f73cdc8e3693edd47687c699",
+			"pnpm-lock.yaml": "bb731dd7f2866e783dfaf6cd8bc511d039fc33a37f5c9260b59b022a993e5303"
+		}
+	},
+	"runner": {
+		"image": "node:26.10.0-bookworm",
+		"imageId": "sha256:069ccbe17a8d3f347f1dfafc5e9168693ed1f4c14eb8e19e71b4ba91bf546ab6",
+		"platform": "Linux arm64",
+		"memoryBytes": 2147483648,
+		"nanoCpus": 2000000000,
+		"pidsLimit": 256,
+		"runtimes": {
+			"deno": "deno 2.9.7 (stable, release, aarch64-unknown-linux-gnu)",
+			"node": "26.10.0",
+			"pnpm": "11.17.0",
+			"bun": "1.4.2",
+			"mise": "2026.10.3 linux-arm64 (2026-10-05)"
+		}
+	},
+	"checks": [
+		{
+			"command": "mise run verify",
+			"exitCode": 0,
+			"log": "source-canonical.log",
+			"deno": {
+				"groupsPassed": 187,
+				"stepsPassed": 1269,
+				"failed": 0,
+				"ignored": 1
+			},
+			"node": {
+				"files": 39,
+				"testsPassed": 834,
+				"failed": 0,
+				"skipped": 0
+			},
+			"benchmarkPreflights": 17,
+			"packages": 42,
+			"canonicalTestFiles": 145
+		},
+		{
+			"command": "mise run npm-verify",
+			"exitCode": 0,
+			"log": "npm-canonical.log",
+			"archives": 41,
+			"publicSubpaths": 292,
+			"formats": [
+				"ESM",
+				"CommonJS"
+			],
+			"skipLibCheck": false,
+			"strictPackageValidators": [
+				"publint --strict",
+				"attw --profile node16"
+			],
+			"scenarioSources": 7,
+			"behaviorTestsPerFormat": 44,
+			"failed": 0
+		},
+		{
+			"command": "mise run bench-npm -- --check",
+			"exitCode": 0,
+			"log": "npm-bench-check.log"
+		},
+		{
+			"command": "pnpm exec bumpy ci check --strict; pnpm exec bumpy version; deno run --allow-read --allow-write .bumpy/release.ts sync; deno run --allow-read .bumpy/release.ts check",
+			"exitCode": 0,
+			"log": "release-fixture-final.log",
+			"isolatedDirectory": "/release-fixture",
+			"packagesVersionedAndChecked": 42,
+			"publicationPerformed": false
+		}
+	],
+	"regressionControls": {
+		"previousImplementation": "e16c7da:packages/concurrency/bounded.ts",
+		"negativeControlLog": "pre-fix-canonical-control.log",
+		"failingStepsBeforeRepair": 6,
+		"currentSuiteLog": "canonical-regressions.log",
+		"groupsPassed": 4,
+		"stepsPassedAfterRepair": 25,
+		"failedAfterRepair": 0,
+		"oracle": "Independent failure values, sibling admission/join gates, iterator cleanup values and AggregateError ordering/cause; event-loop checkpoint, no elapsed-time threshold."
+	},
+	"npmArchives": [
+		{
+			"archive": "okikio-activity-0.0.0.tgz",
+			"sha256": "911c4a9675316378150a08a81e6be59384abae70835694a0e29875ffb60534bd"
+		},
+		{
+			"archive": "okikio-capacity-0.0.0.tgz",
+			"sha256": "d9523d6ff84cf1dfc645e65779522a6eb0fc8eaa1888ed1931abedc41829fe00"
+		},
+		{
+			"archive": "okikio-catalog-0.0.0.tgz",
+			"sha256": "001eb95336065e2034bb903421f02960e9f41e6dd2a8dbfd2a25556ae9331788"
+		},
+		{
+			"archive": "okikio-codec-0.0.0.tgz",
+			"sha256": "db4aa0c16ace537a146d1533eaf06691d36162ddaa2c90490f03561f8001d3f6"
+		},
+		{
+			"archive": "okikio-concurrency-0.0.0.tgz",
+			"sha256": "1290ba64a64af4e0d7c51589274b5eda6db42d6a68f89dab245d0a91caa7afc7"
+		},
+		{
+			"archive": "okikio-context-0.0.0.tgz",
+			"sha256": "6eac16c4b02853c7a86a7ec0ec610ba073655a0394eaf14c33aec0b565a5a30c"
+		},
+		{
+			"archive": "okikio-css-0.0.0.tgz",
+			"sha256": "e1243507289750a618abe48b863f9154f7edaf5a711efb6dfb5ccc51fe33e3ec"
+		},
+		{
+			"archive": "okikio-csv-0.0.0.tgz",
+			"sha256": "0412020c9dfb9f1acec9d06f64b9ca7b2dcea77a715fe8e056db7facfb9f1ffd"
+		},
+		{
+			"archive": "okikio-dispose-0.0.0.tgz",
+			"sha256": "bdc6d59b24997b60cc8922ce5dd2fc198a6a023535d4d187652b7fb82f435e92"
+		},
+		{
+			"archive": "okikio-duration-0.0.0.tgz",
+			"sha256": "a88a9f4fb4a039018f88c5efdbffb634d64b4a942b44a2ccc2a5afcdb00ae0d9"
+		},
+		{
+			"archive": "okikio-effect-0.0.0.tgz",
+			"sha256": "5081cc038b709a8bac6473fd65b6384201399f8a6206e4179361f7f3622d65dd"
+		},
+		{
+			"archive": "okikio-email-0.0.0.tgz",
+			"sha256": "4c7e28335ebe6f882a85e41d321c2e00dbbedeb115a3d7a5b973135918a364b8"
+		},
+		{
+			"archive": "okikio-entitlement-0.0.0.tgz",
+			"sha256": "9bd32d9048ad7fcf1d1ad2ab7a2a48db6af5170670baf7ad51271c10ec8ae5a7"
+		},
+		{
+			"archive": "okikio-env-0.0.0.tgz",
+			"sha256": "8bc56d431ac3b36d22a57c6d69839672d36e37d81aee12637cd658fdeb71b9c5"
+		},
+		{
+			"archive": "okikio-failure-0.0.0.tgz",
+			"sha256": "ed6f7c9a6a4decf4bce4695040d308c26eb515e5b09c22adbed71b7ad0cdfff2"
+		},
+		{
+			"archive": "okikio-fault-0.0.0.tgz",
+			"sha256": "a7825f49f2d1c4e2844ac18fdfd7f92834068d6d160061d8a78e6e73ebd289b2"
+		},
+		{
+			"archive": "okikio-hono-0.0.0.tgz",
+			"sha256": "8b20e7f42ea4067664f5b350b41c7a267e507becd81399967140bee9c8860d76"
+		},
+		{
+			"archive": "okikio-html-0.0.0.tgz",
+			"sha256": "f6ec8f2a3f847998cef393cb9332d1091a9b9e713b62cfa5980548a4af753c2a"
+		},
+		{
+			"archive": "okikio-http-0.0.0.tgz",
+			"sha256": "1538b155ef5eab64b47bc1b1785a8c4f56b618d54854ccaf9d7f967e879b0960"
+		},
+		{
+			"archive": "okikio-meter-0.0.0.tgz",
+			"sha256": "6b942de19a9701f64d4e9a04db82af1d405bd63cc437b114b2d0a10d7ebe1486"
+		},
+		{
+			"archive": "okikio-permission-0.0.0.tgz",
+			"sha256": "0e060d034e17de5b24d40daa5c506981fe4073b6c02e047578e51471b427461b"
+		},
+		{
+			"archive": "okikio-pool-0.0.0.tgz",
+			"sha256": "f33237fcf0d66bfde470368d44e98a5a493ec2a3d9b109645aed515ebdc8c6fe"
+		},
+		{
+			"archive": "okikio-process-0.0.0.tgz",
+			"sha256": "35d0d43f2480dbb75ba0dd96e349d0eaaae9be52cb8ffbf053783ab19c3ab03d"
+		},
+		{
+			"archive": "okikio-query-0.0.0.tgz",
+			"sha256": "10f13f790552b60e25598ff27cdba824656ad4dfcd96dbd48639b1ece5268ddf"
+		},
+		{
+			"archive": "okikio-queue-0.0.0.tgz",
+			"sha256": "f9dcdab9fbf5f89cae9667d1f0e316e34ecd40160352b6c7fbe2c83de9f2881f"
+		},
+		{
+			"archive": "okikio-record-0.0.0.tgz",
+			"sha256": "98fb98eddd07921eedfe99628a38c762b312c3ade3a0f4a1874ad5d39e41b6e6"
+		},
+		{
+			"archive": "okikio-requirement-0.0.0.tgz",
+			"sha256": "fc3d3b46306dc35f4f4254757bba91210674a112ac24c60f43b1dee96fa6e932"
+		},
+		{
+			"archive": "okikio-resilience-0.0.0.tgz",
+			"sha256": "fd79960293f9c3c2d7015e09bf2ef4c13cb5ba642e5ad3973b11375cf6c82649"
+		},
+		{
+			"archive": "okikio-resource-0.0.0.tgz",
+			"sha256": "6afff92a3fb5623a419d5dc01e71b9fdc4f7bb7b8f29dec4d74088b206fcc519"
+		},
+		{
+			"archive": "okikio-result-0.0.0.tgz",
+			"sha256": "f923b96d45bdba24c314d3b6b4ad66e0dd8e1379445410d08ca2823a312bdd1b"
+		},
+		{
+			"archive": "okikio-robots-0.0.0.tgz",
+			"sha256": "b010a0d10b05c4a4503d05578c6c704c46a7c2c1d4921f69fcac23d1502d90f2"
+		},
+		{
+			"archive": "okikio-schema-0.0.0.tgz",
+			"sha256": "4a0c6aa7ad1404dd95e40e8b9e87a41649535d98115081e2e6e992c42e3a3e71"
+		},
+		{
+			"archive": "okikio-server-0.0.0.tgz",
+			"sha256": "e505ecfb72b5a27b8a570d643f72e89e9730308e577291deba907ee6a4d01862"
+		},
+		{
+			"archive": "okikio-sitemap-0.0.0.tgz",
+			"sha256": "8d59d3c89265ecd6e9698f90c37d9b053cbf909b191ce6eeffa1311be1a368b1"
+		},
+		{
+			"archive": "okikio-streams-0.0.0.tgz",
+			"sha256": "6e889ac6d4fb5eda5d2471830a9c5232dde62472cffc8117dcc5154324d11bc6"
+		},
+		{
+			"archive": "okikio-task-0.0.0.tgz",
+			"sha256": "ea1bc7d96723aa4a592b51d6090261fdc30f64833f3eb5a30603b967d83df767"
+		},
+		{
+			"archive": "okikio-telemetry-0.0.0.tgz",
+			"sha256": "274ecc066f5612569120b5f1869f01ba976411b74ae203cce069ae9cf1025da0"
+		},
+		{
+			"archive": "okikio-utils-0.0.0.tgz",
+			"sha256": "7ff47b39e4f50db2db5726d182e4ea27f97a87731987d35c30e889cbb70f5f73"
+		},
+		{
+			"archive": "okikio-version-0.0.0.tgz",
+			"sha256": "11de6d41420d45c6f61939d73ea6d2e59525bd65c9eeb72c08674b7542224eb1"
+		},
+		{
+			"archive": "okikio-worker-0.0.0.tgz",
+			"sha256": "3b4af9a30a1a8f597083e6570a9b31b0c7d35c4c77b6f4374a5c989475a5e74f"
+		},
+		{
+			"archive": "okikio-workflow-0.0.0.tgz",
+			"sha256": "c2509426d1d9de2a6d0d56b91c47d1bc2a14b3b2ecd19ec0152a8683cbf6722b"
+		}
+	],
+	"performance": {
+		"measurements": {
+			"lifetimes": {
+				"status": "pass",
+				"createdAt": "2026-10-08T03:08:56.573Z",
+				"runtime": {
+					"deno": "2.9.7",
+					"v8": "15.0.245.2-rusty",
+					"typescript": "6.0.3"
+				},
+				"resourceLimits": {
+					"memory.max": "2147483648",
+					"cpu.max": "200000 100000",
+					"cpuset.cpus.effective": "0-7"
+				},
+				"runs": [
+					{
+						"program": "./lifetimes.bench.ts",
+						"args": [
+							"run",
+							"--no-check",
+							"--v8-flags=--expose-gc",
+							"-A",
+							"file:///work/bench/lifetimes.bench.ts",
+							"--json"
+						],
+						"status": "pass",
+						"elapsedMs": 14618.882590000001,
+						"report": "/evidence/bench-lifetimes/0.json",
+						"stderr": "/evidence/bench-lifetimes/0.stderr"
+					}
+				]
+			},
+			"alternatives": {
+				"status": "pass",
+				"createdAt": "2026-10-08T03:09:11.619Z",
+				"runtime": {
+					"deno": "2.9.7",
+					"v8": "15.0.245.2-rusty",
+					"typescript": "6.0.3"
+				},
+				"resourceLimits": {
+					"memory.max": "2147483648",
+					"cpu.max": "200000 100000",
+					"cpuset.cpus.effective": "0-7"
+				},
+				"runs": [
+					{
+						"program": "./alternatives.bench.ts",
+						"args": [
+							"run",
+							"--no-check",
+							"--v8-flags=--expose-gc",
+							"-A",
+							"file:///work/bench/alternatives.bench.ts",
+							"--json"
+						],
+						"status": "pass",
+						"elapsedMs": 27842.471637,
+						"report": "/evidence/bench-alternatives/0.json",
+						"stderr": "/evidence/bench-alternatives/0.stderr"
+					}
+				]
+			}
+		},
+		"interpretation": "All 17 source preflights and native npm-import preflight passed. Two relevant programs measured in fresh processes. No before/after speedup claim or fixed timing regression threshold; unchanged all-family measurements remain historical."
+	},
+	"coverageLimits": {
+		"emittedSemanticPackages": 15,
+		"emittedImportOnlyPackages": 26,
+		"denoOnlyPackages": 1,
+		"attwProfile": "node16 export-resolution profile; Node 10 support unclaimed",
+		"excludedDocumentationDiagnostics": {
+			"rendererType": 102,
+			"externalDependencyComments": 369
+		},
+		"recovery": "Bundled in-memory stores and replacement owners; persistent process-loss recovery, deployed adapters and cross-machine placement unqualified."
+	},
+	"evidenceDirectory": ".artifacts/issue-1/20261007",
+	"failedAttempts": "Earlier fixture layout and missing no-release intent logs are preserved separately; passing receipts use the final corrected fixture. Strict assertion dependency declaration failure is preserved without weakening artifact checks.",
+	"externalActions": {
+		"hostedCiVerified": false,
+		"pushed": false,
+		"published": false,
+		"remoteIssueClosed": false
+	}
+}
