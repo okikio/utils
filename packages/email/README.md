@@ -1,7 +1,20 @@
 # `@okikio/email`
 
-Normalize and classify email-domain evidence without inventing application policy. Comparing raw addresses or
-maintaining ad hoc domain lists makes casing and subdomain behavior inconsistent.
+A contact import contains the domain `Example.COM`, but another row says `example.com`. You want both spellings to mean
+the same domain before comparing records. `email` normalizes domains and can report known mailbox-provider,
+privacy-relay or disposable-domain evidence. It helps explain a domain; it does not verify the person's identity.
+
+| Input to `normalizeDomain()` | Result        | Meaning                                               |
+| ---------------------------- | ------------- | ----------------------------------------------------- |
+| `Example.COM`                | `example.com` | One spelling for domain comparisons.                  |
+| `@Example.COM`               | `example.com` | A leading `@` is removed.                             |
+| `person@example.com`         | `undefined`   | This operation expects a domain, not a whole address. |
+
+This table describes normalization only. It does not prove that the domain has working mail service, belongs to a
+company, or appears in a classification list.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -16,7 +29,16 @@ Expected output:
 example.com
 ```
 
+The demo turns one mixed-case domain into its lowercase form. Try the other inputs in the table to see the boundary
+between a domain and an address. For email-like text containing addresses, use `extractDomains()` rather than passing
+that text directly to `normalizeDomain()`.
+
 ## Build on the example
+
+- Read a contact export with [CSV](../csv/README.md), then normalize domain fields before de-duplicating or enriching
+  records. Keep each original address where the import needs source evidence.
+- Use [Result](../result/README.md) to carry an explicit “invalid domain” branch. A classification such as privacy relay
+  remains evidence for your product decision; it is not an automatic rejection rule.
 
 Normalize a domain first, then use the supplied classifier or provide your own classification rules. Use the evidence to
 route signup review or data enrichment; do not treat domain classification as identity verification or mailbox
@@ -25,6 +47,39 @@ deliverability. Network checks, domain ownership, consent and product decisions 
 [Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
 variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
 dependencies before running them.
+
+## Try a contact import with explicit classification rules
+
+This supplied CSV has a domain column. CSV reads the rows; Email normalizes each domain and compares it with the rules
+we chose for this demo. The custom list keeps the exercise independent of changes to built-in provider data.
+
+```ts runnable=contact-domains.ts
+import * as csv from '@okikio/csv';
+import * as email from '@okikio/email';
+
+const contacts = csv.parse('Name,Domain\nAda,Example.COM\nLin,temporary.example.invalid\n', { headerRow: 1 });
+const classifier = email.createDomainClassifier({ rules: [], disposableDomains: ['temporary.example.invalid'] });
+for (const row of contacts.rows) {
+	const domain = email.normalizeDomain(row.values[1] ?? '');
+	if (domain === undefined) {
+		console.log(`${row.values[0]}: invalid domain`);
+		continue;
+	}
+	const traits = classifier.classify(domain).evidence.map((entry) => entry.trait);
+	console.log(`${row.values[0]}: ${domain}; ${traits.length === 0 ? 'no listed trait' : traits.join(',')}`);
+}
+```
+
+Expected output:
+
+```text output
+Ada: example.com; no listed trait
+Lin: temporary.example.invalid; disposable
+```
+
+The first row has no matching trait in the supplied list; that does not prove a company mailbox or deliverability. The
+second row matches our explicit disposable list. Change that list to change the classification policy's input, then let
+your application decide whether to accept, flag or reject a contact. This demo makes no network request.
 
 ## Purpose
 

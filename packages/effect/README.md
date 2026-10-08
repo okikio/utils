@@ -1,7 +1,28 @@
 # `@okikio/effect`
 
-Represent an externally visible fact separately from delivery. Logging that a file was saved does not prove an outbox or
-billing ledger accepted that fact.
+After saving a picture, an application may need to announce “asset saved” to an audit trail or another service.
+`@okikio/effect` gives that announcement a validated shape and a stable key, then waits for a configured recipient to
+accept it. The recipient can be an in-memory callback, a queue, or an application-owned outbox.
+
+An **effect definition** names the kind of announcement and its data. An **occurrence** is one particular announcement,
+such as saving `asset-1`. An **emitter** is the live recipient responsible for accepting it. The package does not save
+the picture itself.
+
+```text
+Application saves asset-1
+          |
+          v
+Validate announcement: asset.saved, key save:asset-1
+          |
+          v
+Configured emitter accepts it -> emit() resolves
+```
+
+The visual shows acceptance of an announcement. It does not prove that the picture was saved or that an external
+subscriber has acted on the announcement. Those guarantees depend on the application and emitter.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -34,6 +55,20 @@ Expected output:
 ```text output
 save:asset-1
 ```
+
+## Read the mini-demo
+
+The demo declares an `asset.saved` announcement whose value must contain a string ID. Its emitter appends the occurrence
+key to `accepted`. After `emit()` completes, that array contains `save:asset-1`, which is what you see printed. This is
+a local acceptance demo, not a database or durable delivery demo. Try emitting an ID value that fails the schema to
+observe validation before the recipient accepts it.
+
+- **Send a confirmation after an import:** combine [CSV](../csv/README.md) parsing with an application-owned save, then
+  announce the accepted import through an effect. If save and announcement must commit together, the application needs a
+  transactional outbox; calling two functions in sequence does not create a transaction.
+- **Deliver announcements later:** use the queue-backed outbox described below with [Queue](../queue/README.md). Stable
+  keys support recipient deduplication; only a durable, atomic queue adapter and replay-safe recipient can supply the
+  corresponding restart and duplicate-delivery guarantees.
 
 ## Build on the example
 

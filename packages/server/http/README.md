@@ -1,6 +1,23 @@
 # `@okikio/server/http`
 
-Mount a portable Fetch app while keeping listener ownership with the host.
+If you already know how to return a Web `Response`, you can expose that code through routes without learning the service
+compiler. This package matches methods and paths, runs HTTP middleware and mounts other Fetch applications. Use it for a
+small API, a health route or an embedded application that should run through the same Fetch function in tests and a
+host.
+
+```text
+Request -> outer middleware -> route or mounted Fetch handler -> Response
+                           -> no match -> not-found Response
+HEAD result -> remove body before returning to the caller
+Host listener -> app.fetch(request)  [listener is owned by the host]
+```
+
+Read the first lines as dispatch inside the application. Middleware wraps the selected handler and can add headers or
+map errors when configured. The HEAD policy applies to the final response, including misses and mounts. This package
+matches requests; it does not automatically validate domain input or open a network port.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -21,13 +38,21 @@ Expected output:
 404
 ```
 
+The demo registers GET `/health` with a JSON answer. A HEAD request can use that GET route, so its status is `200`,
+while the application's final HEAD policy suppresses the body. The second request has no route and receives the default
+`404`. The security-header middleware surrounds these requests. The printed statuses demonstrate routing behavior; they
+do not prove that a listener is reachable or that a database is ready.
+
 ## Build on the example
 
-Add mounts, request correlation, CORS or safe exception responses deliberately. HEAD fallback selects GET behavior while
-the runtime suppresses its response body. A Deno or framework adapter owns the network listener.
+For an embedded application below `/tools`, use a mount and choose whether the child should see the original URL or a
+URL with that prefix removed. The default preserves the URL; `requestPath: 'strip-prefix'` makes the child receive a
+relative path while preserving request method, headers, query, body and cancellation signal.
 
-This package provides the Fetch host used by compiled services and manually authored routes. It prepares route matching,
-binds handlers, composes HTTP middleware, and mounts other Fetch handlers.
+For a larger API, mount a [service](../service/README.md) to add declared input and output validation. For an existing
+Hono application, share Fetch middleware through the [Hono adapter](../../hono/README.md). Add `catchErrors()` when you
+want safe exception responses; route creation alone does not install error handling. The host starts and stops the
+listener, and callers must read or cancel streaming response bodies.
 
 ## Start with a prepared route plan
 

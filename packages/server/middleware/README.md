@@ -1,6 +1,22 @@
 # `@okikio/server/middleware`
 
-Declare middleware ordering and context needs so startup can reject a missing producer.
+Authentication should run before code that needs the authenticated actor. If that ordering is hidden in a callback list,
+a missing producer can become a request-time failure. This package describes what each middleware step needs and
+provides, so validation and service compilation can check the plan before traffic arrives. Middleware is code that wraps
+another step in the request flow.
+
+```text
+Authentication step: provides Actor -> available Actor value
+Business step:       requires Actor -> allowed only after Actor is available
+No producer or initial Actor        -> invalid plan
+```
+
+The arrows mean availability in the ordered plan, not proof of authentication. `Actor` is a named slot for a typed
+value; your authentication implementation checks credentials and supplies that value. The plan can verify that the slot
+exists, but it cannot decide whether your authentication provider is correct.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -25,17 +41,23 @@ false
 true
 ```
 
+The demo defines an `Actor` slot containing an `id`, then declares a middleware step that needs it. Validation of
+`[Read]` returns `false` because nothing has supplied that slot. Supplying `[Actor]` as initially available makes the
+second plan valid, so it prints `true`. This checks declarations only: it neither runs authentication nor creates an
+actual actor value. Runtime bindings must still populate the declared values when the service handles a request.
+
 ## Build on the example
 
-Bind runtime behavior with handler(), place it in a declared request lane, and use once() when one exact binding should
-run once per Request. These declarations validate availability and ordering; they do not authenticate an actor.
+For an authenticated account API, bind the authentication producer and the actor reader with `handler()`, declare their
+placement, and let the [service compiler](../service/README.md) validate the combined plan. Use
+[permission requirements](../../permission/README.md) for access decisions rather than treating an available actor value
+as permission to read every record.
 
-Import-safe middleware contracts, typed context definitions, direct runtime handler bindings, deterministic placement
-plans, validation, and documentation.
-
-The package does not own authentication providers, organization repositories, framework applications, request
-validation, requirement-family policy, or resource construction. Those concepts contribute their own definitions and are
-composed by the server compiler.
+For a transaction around one endpoint invocation, choose `aroundOperation` and make resource ownership explicit with
+[resources](../../resource/README.md). Earlier lanes suit whole-request work or work before and after validation. Use
+`once()` when repeated contributions of the same exact binding should run its inner work once for one Request; other
+contributions still continue downstream. This contract middleware is distinct from the simple Fetch middleware in
+[server/http](../http/README.md).
 
 ## Definitions and context
 

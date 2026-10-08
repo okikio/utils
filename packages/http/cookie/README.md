@@ -1,6 +1,20 @@
 # `@okikio/http/cookie`
 
-Declare and validate a cookie once instead of repeating unsafe parsing and security attributes.
+A browser sends cookies as text. Your sign-in code needs to read the right named value, reject an invalid value and send
+updated cookies without erasing other cookie writes. This package keeps the cookie's name, value rule and security
+attributes together in one definition. A definition is a reusable description; it does not store a session.
+
+```text
+Browser sends Cookie -> get/safeGet -> checked token -> application checks session
+Application rotates token -> set -> independent Set-Cookie field -> browser
+```
+
+The first line reads the incoming token. The second writes instructions for the browser to update it. The application
+still decides whether the token identifies a valid session. `secure`, `httpOnly` and `sameSite` describe browser
+behavior; they do not replace authentication or access checks.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -27,10 +41,20 @@ token-1
 1
 ```
 
+The demo defines `__Host-session` as a nonempty string and gives it the attributes used when writing it. `get()` reads
+`token-1` from the incoming header and validates its shape. `set()` appends a separate outgoing cookie for `token-2`.
+The output `1` counts the outgoing `Set-Cookie` fields; it does not count active sessions or prove that either token is
+trusted. A missing cookie returns `undefined`, while `get()` rejects a value that fails the declared rule.
+
 ## Build on the example
 
-Use safeGet() for ordinary invalid-input branches and keep independent Set-Cookie fields. The application must still
-authenticate the token, rotate credentials and decide session expiry.
+For sign-in, read the token in authentication code, look it up in your application's session store, and rotate it only
+after that check succeeds. [Service middleware](../../server/middleware/README.md) can make the checked actor available
+to later code. Use `safeGet()` when invalid cookie input should follow an ordinary rejection branch instead of throwing.
+
+For a response that updates a session and a display preference, append both cookies and carry the resulting headers into
+the [response](../response/README.md). Preserve separate `Set-Cookie` fields through the host or
+[gateway](../../server/gateway/README.md). Your application owns expiry, logout, rotation and session storage.
 
 ## Purpose
 

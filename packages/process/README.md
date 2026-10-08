@@ -1,7 +1,29 @@
 # `@okikio/process`
 
-Own subprocess termination and bounded output with one lifecycle contract across Deno and Node. A raw spawn plus
-scattered listeners can leave descendants alive or report success before output collection settles.
+A media application may need to call an installed converter, or a command-line tool may need another executable's
+output. `@okikio/process` starts that separate program, gathers output within a limit, and owns its shutdown. You get
+one place to await the child's exit and output collection instead of coordinating several listeners yourself.
+
+A **subprocess** is a separate operating-system program. An **adapter** is the small runtime-specific implementation
+that starts it in Deno or Node. The generic package keeps the caller's lifecycle contract the same across those hosts.
+
+```text
+Caller + Context -> chosen adapter -> child program
+                                       |
+                      stdout bytes <---+---> exit status
+                            |                   |
+                      enforce byte limit        |
+                            +--------- join ----+
+                                       |
+                                exec() returns
+```
+
+Read the two output branches together: observing exit alone is not the complete captured-output result. Cancellation
+requests shutdown through the adapter. Descendant handling depends on the selected ownership mode and platform; this is
+not a promise to reap arbitrary grandchildren.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -36,6 +58,20 @@ ready
 `exec()` returns `Promise<ProcessExitType>` after the child and output capture settle. Its `stdout` is a captured
 `Uint8Array`; the final string is `ready`. The operation owns and closes its child handle. Bounded capture failure
 rejects, and the context signal requests termination according to the selected adapter and ownership mode.
+
+## Read the mini-demo
+
+The demo launches the current Deno executable with an instruction to print `ready`. It captures at most 1,024 stdout
+bytes, discards stderr, waits for the child's lifecycle, and decodes those bytes to text. The final line is `ready`. Try
+changing the child's printed text to see that it is subprocess output, not a value returned by an in-process function.
+Deno needs permission to launch the subprocess; the utility does not grant that permission.
+
+- **Convert an uploaded picture:** give the command a [Context](../context/README.md), bound its output, and use
+  [Dispose](../dispose/README.md) for application-owned temporary files. The application still decides which executable
+  and arguments are trusted.
+- **Consume a long-running tool's records:** stream its output through [Streams](../streams/README.md) line framing
+  rather than capturing everything. Use [Telemetry](../telemetry/README.md) to report progress; process exit and joined
+  output remain the terminal evidence.
 
 ## Build on the example
 

@@ -1,6 +1,24 @@
 # `@okikio/server/service`
 
-Compile declared endpoints and concrete handlers before serving requests.
+A route can compile successfully as TypeScript while still be missing its handler, validation rule or database provider
+at startup. This package joins endpoint descriptions with their concrete implementations, checks the resulting service
+and creates a Fetch runtime for it. You gain one place to see what the API accepts, what it can return and which live
+resources its requests may use.
+
+```text
+Endpoint + response descriptions -> service.define
+Exact handler + resource bindings -> service.implement -> compile
+                                                       -> create runtime
+Request -> parse and validate -> declared handler -> validate result -> Response
+Runtime disposal -> finish owned resource cleanup
+```
+
+Definitions describe behavior; implementations supply code and resource factories. `compile()` links them into a checked
+plan before requests arrive. `create()` supplies the live host and starts the service's runtime ownership, without
+opening a listener. An injected host is borrowed; the service owns the resources its runtime constructs.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -30,19 +48,23 @@ Expected output:
 200 true
 ```
 
+The demo describes GET `/health`, puts it under `/api`, and binds that exact endpoint to a handler returning
+`{ ok: true }`. There are no resource factories, so `resource.implementations()` is empty. Compilation links the
+handler, and `create()` makes a runtime with an empty borrowed host. Fetching `/api/health` validates and sends the
+declared result, then reading its JSON prints `200 true`. `await using` disposes the runtime when the scope ends; the
+explicit polyfill imports support the required duration and disposal APIs in environments that need them.
+
 ## Build on the example
 
-Add resources, middleware, requirement interpreters and observers at the host boundary. Compilation rejects missing or
-conflicting contracts. The runtime owns request contexts and borrows the host; await its disposal to join owned resource
-cleanup.
+For an account API, add [endpoint input rules](../endpoint/README.md), a database [resource](../../resource/README.md),
+authentication [middleware](../middleware/README.md) and [permission checks](../../permission/README.md). A resource is
+a declared live client or service used by the handler, with an explicit lifetime. The host supplies actual clients and
+interpreters; declarations alone do not connect to a database or implement authorization.
 
-`@okikio/server/service` compiles one independently deployable HTTP service and creates its framework-neutral Fetch
-runtime. The compiler resolves endpoint contracts, middleware order, resources, requirements, effects, resilience,
-observers, and route ownership before traffic starts.
-
-The package coordinates these parts. It does not implement provider identity, a permission graph, a billing ledger, a
-metrics backend, or a rate-limit store. The application supplies those live capabilities through explicit runtime
-adapters, resources, effect emitters, and observer handlers.
+For a public edge in front of the service, import its definition into a [gateway](../gateway/README.md). For a Hono
+application, mount the runtime through the [Hono adapter](../../hono/README.md). Neither host changes the endpoint's
+input and output rules. Read or cancel response bodies, then await runtime disposal to join owned cleanup. Later
+sections explain requirements, effects, observers and resilience after this basic request flow.
 
 ## Define, implement, compile, create
 

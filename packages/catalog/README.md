@@ -1,7 +1,21 @@
 # `@okikio/catalog`
 
-Keep one canonical set of imported definitions and select subsets without losing exact object identity. A map keyed only
-by strings can silently replace a permission or response with a different same-ID definition.
+Imagine several services share the same definitions for “read an asset” and “write an asset.” A read-only service needs
+just the first definition. `catalog` groups these named definitions and selects a subset while keeping the original
+objects. Think of it as a menu of available contracts, rather than a service that performs them.
+
+The demo makes that distinction visible:
+
+| Question about the read-only selection                   | Answer             | What it means                     |
+| -------------------------------------------------------- | ------------------ | --------------------------------- |
+| Does `asset.read` resolve to the original `Read` object? | `true`             | Selection preserves its identity. |
+| Does the selection contain the original `Write` object?  | `false`            | Write was left out.               |
+| Which named ID remains?                                  | `Read: asset.read` | There is one selected definition. |
+
+This table shows membership, not permission enforcement. Selecting `Read` does not authorize a person to read an asset.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -24,7 +38,16 @@ false
 {"Read":"asset.read"}
 ```
 
+The input is two frozen definitions. `select()` keeps `Read`, and the output checks both what survived and what did not.
+Try selecting both keys to keep both definitions. Creating a different object with the same ID is a conflict when those
+objects are composed; copying its spelling does not make it the same definition.
+
 ## Build on the example
+
+- Group [Failure](../failure/README.md) definitions so a receiver can decode only the expected failures it recognizes.
+  The trusted definitions supply meaning; an incoming string supplies only the lookup ID.
+- Select [Resource](../resource/README.md) definitions for one application deployment. The catalog describes the subset;
+  the resource provider still owns opening and closing live clients.
 
 Use a named catalog for public contracts, select a deployment subset, then compose compatible catalogs. get() resolves a
 stable ID while has() checks the exact imported object. Different objects with the same ID cause a conflict. The

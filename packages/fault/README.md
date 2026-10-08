@@ -1,7 +1,19 @@
 # `@okikio/fault`
 
-Project unexpected errors into bounded diagnostics without retaining the live object or invoking user getters.
-JSON.stringify(Error) usually drops the message; arbitrary coercion can execute application code.
+A provider throws an unexpected error and you need a useful support report. Serializing the raw error often produces
+`{}`, while walking an arbitrary thrown object can encounter cycles or executable getters. `fault` creates bounded plain
+diagnostic data instead of handing the live object to the next component.
+
+| Value in the demo          | Diagnostic projection | What remains local    |
+| -------------------------- | --------------------- | --------------------- |
+| `TypeError` with a message | Name and message      | The live Error object |
+| `includeStack: false`      | No stack field        | Stack trace           |
+
+Read this table as a diagnostic copy, not as recovery from the error. It shows the small example only; depth, entry and
+string limits govern larger inputs. Projection is not secret redaction.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -17,7 +29,16 @@ Expected output:
 {"name":"TypeError","message":"Provider returned an invalid value."}
 ```
 
+The input is a `TypeError`; the output is a JSON object containing its name and message. Change the error's message to
+change the diagnostic text. Turning stack inclusion on can add a runtime-dependent stack trace, so its exact text is not
+a stable application contract.
+
 ## Build on the example
+
+- Project an unexpected exception before adding it to [Telemetry](../telemetry/README.md) or a
+  [Worker](../worker/README.md) diagnostic message. The destination still needs its own exposure and redaction policy.
+- Use [Failure](../failure/README.md) for a declared business reason such as a missing file. Use Fault for unexpected
+  runtime diagnostics; these two values answer different questions.
 
 Use encode() for Worker fault frames or structured telemetry, and message() for a bounded display string. Choose
 explicit depth, entry and string limits for untrusted objects. Native inherited error names survive projection;

@@ -1,7 +1,27 @@
 # `@okikio/worker`
 
-Call a standard Worker with validated, correlated requests instead of a hand-built postMessage listener. Correlation,
-reverse calls, cancellation and shutdown need distinct authority even when messages race.
+An application needs to analyze a large file without putting all of that work in its main JavaScript execution thread. A
+standard Worker runs another module in a separate execution environment. `@okikio/worker` lets the parent call that
+module with validated requests, receive the matching result, and own shutdown without writing its own message protocol.
+
+A **protocol** describes the request and response shapes. **Correlation** matches each response to its request. A Worker
+can provide CPU parallelism when the host supports it; message transfer and setup still have costs, so the small text
+demo teaches the communication boundary rather than demonstrating a speedup.
+
+```text
+Parent module                         Worker module
+open(thread.ts) --------------------> serve(protocol)
+request: "hello" + request ID ------> validate -> convert to capitals
+matching result: "HELLO" <----------- validate response + same request ID
+await using ends -------------------> cooperative stop / bounded termination
+```
+
+Read across each row as a message crossing the boundary, then down as the lifecycle. The Worker owns its local
+execution; the parent owns the handle and shutdown. This diagram omits progress notices and reverse calls, which have
+separate meanings from a terminal response.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -40,6 +60,21 @@ worker.serve({
 	run: (request) => request.toUpperCase(),
 });
 ```
+
+## Read the mini-demo
+
+Save the two modules together. The parent opens `thread.ts`, sends the string `hello`, and awaits the correlated
+response. The Worker validates that input as a string, converts it to capitals, and returns `HELLO`; the parent prints
+it. Both sides agree on string request and response schemas. Try another string, or change both schemas and the
+conversion together when teaching a new request shape. A host must supply the standard Worker contract or an appropriate
+factory.
+
+- **Analyze uploaded files:** combine a [Context](../context/README.md) for cancellation with this protocol for the
+  analysis request. Transferable buffers can move across the boundary when ownership is deliberately transferred;
+  ordinary resource handles and AbortSignals do not become transferable merely by being in a request.
+- **Reuse several analysis threads:** let [Pool](../pool/README.md) own Worker handles and
+  [Concurrency](../concurrency/README.md) limit admitted analysis calls. Add [Queue](../queue/README.md) for pending
+  logical work; the Worker itself supplies neither durable attempts nor cross-machine placement.
 
 ## Build on the example
 

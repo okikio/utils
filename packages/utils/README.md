@@ -1,7 +1,25 @@
 # `@okikio/utils`
 
-Install the suite once while importing only the focused surface a consumer needs. An eager namespace import can
-otherwise pull parsers, adapters and server implementations into a small program.
+An application may need safe result handling, CSV parsing, and cancellation together. `@okikio/utils` lets you declare
+one suite dependency, then import each capability through its own path. It is an installation convenience: the focused
+packages still own their behavior and can also be installed separately.
+
+A **subpath import** names one part of a package, such as `@okikio/utils/result`. A **leaf package** is the
+corresponding focused package, such as `@okikio/result`. The umbrella provides a bridge to it rather than another
+implementation.
+
+| Consumer needs                | Import                 | What it selects            |
+| ----------------------------- | ---------------------- | -------------------------- |
+| Success/failure values        | `@okikio/utils/result` | The focused Result surface |
+| Record keys                   | `@okikio/utils/record` | The focused Record surface |
+| Suite membership              | `@okikio/utils`        | A lightweight inventory    |
+| Every namespace intentionally | `@okikio/utils/all`    | The eager complete facade  |
+
+The table shows import selection, not a promise that any arbitrary bundler removes all unused code. The focused paths
+keep runtime ownership clear; representative built consumers are checked separately as described below.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -17,6 +35,20 @@ Expected output:
 ```text output
 id
 ```
+
+## Read the mini-demo
+
+The mini-demo creates a successful Result containing `{ id: 'asset-1' }`. `unwrap()` retrieves that successful value,
+and `record.keys()` returns its key names, so the final text is `id`. Both utilities are imported through umbrella
+subpaths. Try adding a `name` property to the value to see another key appear; the umbrella does not change either
+utility's semantics. Read [Result](../result/README.md) before unwrapping values whose success is not already known.
+
+- **Build a small import tool:** use [CSV](../csv/README.md), [Streams](../streams/README.md), and
+  [Context](../context/README.md) through their corresponding umbrella subpaths. CSV understands rows, Streams groups
+  them, and Context carries the operation lifetime.
+- **Publish a reusable parser library:** install only the needed [Codec](../codec/README.md) or other focused package
+  when the narrow dependency declaration is useful. Suite installation is optional; consumers retain direct public
+  imports and the same contracts.
 
 ## Build on the example
 

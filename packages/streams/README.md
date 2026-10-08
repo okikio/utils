@@ -1,7 +1,26 @@
 # `@okikio/streams`
 
-Consume asynchronous data with explicit item, byte and line budgets. A successful Array.fromAsync can still exhaust
-memory if the source never ends or one record is enormous.
+A download may contain millions of lines. Reading it all into one array before doing useful work can run out of memory.
+`@okikio/streams` lets you consume pieces as they arrive, split byte chunks into complete lines, and group records into
+limited batches. You can start saving results before the whole input arrives.
+
+A **stream** delivers data incrementally. A **batch** is one bounded group. **Materializing** means collecting the
+entire result in memory. `collect()` accepts optional limits; omitting them leaves collection unbounded, so supply
+limits when the size of the source is unknown.
+
+```text
+Values: a, b, c -> batch(maximumItems: 2) -> [a, b] -> [c]
+
+Byte chunks -> carry partial UTF-8 text / line -> complete lines -> consumer
+                     enforce maximumLineBytes
+```
+
+The first row shows grouping; the second shows framing text that may span chunks. Neither promises that the consumer
+stores nothing: collecting every batch or line still retains the full output. Incremental consumption is the useful path
+for large inputs.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -25,6 +44,18 @@ Expected output:
 `batch()` returns an async iterable of readonly item arrays; `lines()` returns an async iterable of strings.
 `Array.fromAsync()` returns a Promise of a materialized array. The example deliberately collects small finite inputs;
 its output has two groups and two lines. Streaming adapters release owned readers when iteration completes or stops.
+
+## Read the mini-demo
+
+The demo first groups three letters into a pair and a final single-letter batch. It then reads a small response body and
+returns two text lines without their line-ending characters. Both sequences are collected only so their complete output
+can be printed. Try a batch size of `1` to see three groups, or lower `maximumLineBytes` below the length of a line to
+see the byte limit reject that line rather than silently truncate it.
+
+- **Import a large CSV:** consume [CSV](../csv/README.md) rows incrementally, use batches for database writes, and use a
+  [Context](../context/README.md) cancellation signal throughout. The database adapter still owns commit behavior.
+- **Read records from a converter:** let [Process](../process/README.md) own the child and use `lines()` for its byte
+  output. Add [Concurrency](../concurrency/README.md) only where independent downstream work can safely overlap.
 
 ## Build on the example
 
@@ -54,7 +85,8 @@ The package preserves streaming and cancellation unless the caller explicitly ch
   returns the final unterminated line, and can enforce `maximumLineBytes`.
 - `pipe()` sends iterable values to a `WritableStream` with native pressure and cancellation behavior.
 - `batch()` emits bounded immutable groups without materializing the full source.
-- `collect()` materializes a finite source only within explicit item and byte limits.
+- `collect()` materializes a source and enforces any supplied item and byte limits. Without limits, it can retain an
+  arbitrarily large result; it cannot make an infinite source finish.
 
 ```ts
 import * as streams from '@okikio/streams';

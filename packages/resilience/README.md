@@ -1,7 +1,24 @@
 # `@okikio/resilience`
 
-Describe timeout, retry and admission policies as inspectable values before a host applies them. Putting retry loops
-around every call can repeat unsafe side effects and hide who owns the timer or storage.
+A remote service sometimes fails. Retrying can help a read, but retrying a payment can charge someone twice.
+`@okikio/resilience` describes protection rules such as deadlines, retry delays, and request limits as values that a
+runtime can inspect and validate before applying them. You can see the policy without starting a timer or opening a
+store.
+
+A **retry** repeats an attempt. **Idempotency** means repeated attempts for one logical operation do not create unwanted
+duplicate effects; its implementation needs an appropriate owner and storage. A retry policy alone does not provide it.
+
+```text
+Describe policy -> validate against operation safety -> chosen runtime applies
+                          |                                  |
+                      invalid: stop                    attempts / waits / limits
+```
+
+The visual separates configuration from execution. This package calculates and classifies policy; the executing server
+or adapter owns actual waits, cancellation, failure classification, and any shared state.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -30,6 +47,22 @@ Expected output:
 5000
 false
 ```
+
+## Read the mini-demo
+
+The demo asks for retry delays starting at one second, doubling toward a five-second ceiling, with jitter disabled. The
+delay after failed attempt 1 prints `1000` milliseconds; asking for the delay after failed attempt 4 prints the capped
+value `5000`. This is arithmetic, not permission for another attempt: `maximumAttempts` defaults to three, and the
+executing runtime must enforce that count. The final `false` means this retry policy does not validate for an operation
+labelled unsafe without the required safety protection. It makes no network calls. Try a different delay multiplier to
+inspect the calculation before any real operation runs.
+
+- **Protect a report endpoint:** combine policy values with [Service](../server/service/README.md). Its runtime owns
+  server policies; adapter-owned policies need an explicit implementation, such as an application-owned idempotency
+  store.
+- **Wait between background attempts:** use [Workflow](../workflow/README.md) and [Context](../context/README.md) for
+  execution and cancellation. Reuse a logical operation key for replay-safe writes; telemetry about a retry cannot make
+  the write idempotent.
 
 ## Build on the example
 

@@ -1,7 +1,44 @@
 # `@okikio/context`
 
-Give nested work one cancellation signal, deadline, clock and cleanup owner. Passing separate signals and timers through
-every call otherwise makes it easy to outlive the caller or forget a temporary resource.
+Keep a group of operations attached to the person or job that started them. Suppose an import downloads a file, reads
+its rows and saves a draft. When the user cancels the import, those operations should receive the same request to stop.
+Temporary files and open readers still need to be closed.
+
+A context carries that operation's identity, cancellation signal, deadline and cleanup registrations together. It does
+not perform the import. Your functions still return the imported rows or saved draft in the usual way.
+
+## See what a timeout actually returns
+
+Read the branches below as responsibilities of one import, not as steps that run automatically. `timeout()` immediately
+returns a child context. Your import uses its signal and registers cleanup on its owner.
+
+```mermaid
+flowchart TD
+    Parent["Import owner"] --> Child["Child context: 2-second deadline"]
+    Child --> Work["Your function uses the child's signal"]
+    Child --> Cleanup["Registered cleanup"]
+    Deadline["Deadline reached"] --> Abort["Signal asks work to stop"]
+    ParentCancel["Caller cancels"] --> Abort
+    Abort --> Work
+    Exit["Leave await using block"] --> Cleanup
+```
+
+Deadline expiry and parent cancellation request a stop; leaving the owned block joins cleanup. A child also releases its
+deadline wait when disposed. The picture omits the clock implementation and parent listener. It does not imply that a
+timer can forcibly interrupt a synchronous function or undo an accepted save.
+
+| Call                              | You get                              | Use it when                                                      |
+| --------------------------------- | ------------------------------------ | ---------------------------------------------------------------- |
+| `delay(250)`                      | A promise that resolves after a wait | You only need a pause.                                           |
+| `timeout(parent, { seconds: 2 })` | A child owner immediately            | Several operations should share a deadline and cleanup lifetime. |
+| `wait(child, { seconds: 1 })`     | A promise for a context-aware wait   | Waiting should use the child's clock and cancellation.           |
+| `view(owner, fields)`             | A typed view of the same lifetime    | You need extra operation fields without another owner.           |
+
+Read `await` as "wait for a result" and `await using` as "close this owner when the block ends". A context is the
+operation's supporting state, not the operation's answer.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -35,6 +72,16 @@ released
 `create()` and `timeout()` return `Owned` immediately. `operation` contains a signal, deadline, clock, and cleanup
 registration methods. The timeout asks that signal to abort after two seconds, or at the parent's earlier deadline. It
 does not invoke a callback, run a function, return a function's value, or forcibly interrupt JavaScript.
+
+The demo finishes before the timeout expires. `import true` means the child carries the import identity and has a
+deadline. `released` means the registered cleanup ran when the block ended. There is no two-second wait in this example:
+leaving the block cancels the unused deadline wait.
+
+For a file import, combine [CSV](../csv/README.md) for reading rows, [concurrency](../concurrency/README.md) for a
+limited number of active row operations and this child context for their shared stop request. For a background job,
+combine [task](../task/README.md) with context: the task returns the answer, while context controls its local lifetime.
+A [workflow](../workflow/README.md) instead records instruction results; a context alone cannot resume work after a
+crash.
 
 Pass `operation.signal` to work that supports cancellation. Check it between synchronous steps. Leaving the block awaits
 child cleanup and cancels the unused deadline wait; it does not cancel the parent. Expiry aborts the signal, while

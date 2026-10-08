@@ -1,7 +1,20 @@
 # `@okikio/version`
 
-Resolve release evidence by scheme and precision instead of trusting lexical order or whichever detector has the highest
-priority. A coarse version observation should not erase a compatible exact release.
+One detector says a site uses release family `2`; another finds exact release `2.4.6`. You want the more informative
+answer without losing contradictory evidence. `version` interprets observations using a declared numbering scheme, then
+distinguishes a compatible refinement from a conflict. Here a **scheme** means rules such as Semantic Versioning.
+
+| Evidence supplied in the demo      | How precise?    | Role in the answer                                       |
+| ---------------------------------- | --------------- | -------------------------------------------------------- |
+| Header reports `2`, priority 100   | Major family    | Compatible with the exact observation.                   |
+| Asset reports `2.4.6`, priority 20 | Exact release   | Selected as the refinement.                              |
+| Combined output                    | `refined 2.4.6` | Precision wins over the coarse source's higher priority. |
+
+The table shows compatible evidence, not proof that the detector is correct. A conflicting exact version is retained for
+inspection rather than erased by this refinement example.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -21,7 +34,17 @@ Expected output:
 refined 2.4.6
 ```
 
+The demo chooses a Semantic Versioning scheme and supplies two observations. The output says the exact asset evidence
+refines the coarse header evidence. Change the coarse observation to `3` to introduce incompatible evidence instead.
+Your application must still decide which detectors and observations it trusts.
+
 ## Build on the example
+
+- Read version observations from [CSV](../csv/README.md), preserve their source labels, and resolve them as in the
+  runnable evidence example below. Parsing the file and interpreting release numbers are separate jobs.
+- Use [HTML](../html/README.md) or [CSS](../css/README.md) to collect source facts, then let application-specific
+  detectors turn those facts into version candidates. The version package reconciles candidates; it does not detect
+  products.
 
 Start with SemVer evidence, add numeric dotted schemes for vendor formats, and retain conflicting exact candidates for
 review. Compatible refinement takes precedence over source priority. A scheme describes version ordering and

@@ -1,6 +1,21 @@
 # `@okikio/http/response`
 
-Keep a successful representation tied to one schema and attach a safe download name.
+An API may return a saved record, a page of results or a file download. Repeating status codes, body rules and headers
+in every handler makes those answers drift. This package gives each successful answer a reusable description and creates
+individual result values from it. A schema is the executable rule describing the permitted body shape.
+
+```text
+Response definition + result body -> create -> logical result
+Logical result -> service validates -> finalize -> service sends native Response
+Download filename -> attachmentDisposition -> safe Content-Disposition value
+```
+
+The upper flow describes a result before a server writes it to the caller. `finalize()` still returns a plain finalized
+value, not a native `Response`, and it does not replace the service's output validation. The filename flow prepares a
+header value; it does not open a file or grant permission to download it.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -20,11 +35,21 @@ Expected output:
 attachment; filename="quarterly.csv"
 ```
 
+The demo describes a `200` result whose body has a string `id`, then creates the occurrence `{ id: 'asset-1' }`.
+`finalize()` exposes the status and prepared transport metadata, so the first printed line is `200`. Separately,
+`attachmentDisposition()` reduces `reports/quarterly.csv` to the download name `quarterly.csv`. That second line can
+become a `Content-Disposition` header. No file is read and no response body is sent in this mini-demo.
+
 ## Build on the example
 
-Add pagination, repeated headers, conditional responses or byte ranges as the representation needs them. The server
-validates an occurrence against its endpoint declarations and materializes the native Response; a filename header does
-not authorize access to a file.
+For an upload API, declare a saved-record result on an [endpoint](../../server/endpoint/README.md), return it from the
+handler, and let the [service](../../server/service/README.md) validate and materialize it. Declare a
+[problem](../problem/README.md) for expected rejections so success and failure each have a documented shape.
+
+For a CSV export, combine a download response with a safe filename and the [CSV writer](../../csv/README.md). Choose a
+bounded buffered result or an intentional stream according to the export size. For search results, use pagination with
+[request query parsing](../request/README.md). A response body must be read or cancelled by its consumer so stream-owned
+cleanup can finish.
 
 ## Purpose
 

@@ -1,7 +1,20 @@
 # `@okikio/codec`
 
-Describe both directions of a transport conversion together. Independent encoder and decoder functions easily drift when
-an API changes its timestamp format.
+An API sends a date as text, but your application wants a `Date` value for date operations. Later it must send text
+back. A **codec** keeps those two conversion rules together so callers know how to enter and leave the application's
+representation. It checks each direction through the schemas you supply.
+
+```mermaid
+flowchart LR
+    A[Timestamp text from an API] -->|decode schema| B[Date used by your application]
+    B -->|encode schema| C[Timestamp text to send back]
+```
+
+Read left to right for the round trip in the demo. The arrows are value conversions, not network requests. This picture
+omits invalid-input branches and does not promise that every codec preserves the original text spelling.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -26,7 +39,16 @@ For these schemas, `decode()` returns `Promise<Date>` and `encode()` returns `Pr
 with structured schema issues. The resulting Date is a local application value; no transport, timer or resource is
 opened, and the encoded string is the caller-owned wire representation.
 
+The input is `2026-01-01T00:00:00.000Z`. Decoding produces a `Date`; encoding that date produces the printed timestamp.
+Try a different valid timestamp to see the conversion use that value. A text value such as `not-a-date` rejects through
+the decode schema instead of becoming an unchecked application date.
+
 ## Build on the example
+
+- Pair a codec with [HTTP request](../http/request/README.md) parsing when an API field needs an application value. HTTP
+  owns the request body; the codec owns that field's conversion.
+- Use [Schema](../schema/README.md) directly when you only need to check incoming values. Add a codec when a stored or
+  outgoing value also needs a defined reverse conversion.
 
 Use a codec for an HTTP field, queue payload or stored result, then expose it through schema-compatible consumers. Both
 directions validate their own output. Round-trip fidelity depends on your transformations: converting an offset

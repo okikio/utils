@@ -1,6 +1,22 @@
 # `@okikio/http/request`
 
-Read bounded request bytes and preserve query multiplicity before domain validation.
+A search page can ask for several tags, and an import route can receive an unexpectedly large upload. You need to keep
+all the user's values while limiting how much request data enters memory. This package reads and parses Web requests
+before application validation. Its limits govern bytes and HTTP fields; your application's validation rules govern what
+those values mean.
+
+```text
+Repeated query: tag=a&tag=b -> { tag: [a, b] }
+Body stream -> count bytes against budget -> complete Uint8Array -> decode/validate
+                                      over budget -> reject, cancel reader
+```
+
+The query line preserves both choices. The body line admits a complete bounded byte array or rejects the read; it does
+not return a successful partial upload. A byte limit is not a character limit, so non-ASCII text can consume several
+bytes per character.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -18,10 +34,21 @@ Expected output:
 abc
 ```
 
+The query input contains two `tag` fields, and the first output proves that neither was lost. The POST body `abc`
+contains three bytes. `readBody()` accepts those bytes with a budget of three, and `TextDecoder` turns the returned byte
+array back into `abc`. Adding another ASCII byte would exceed this budget. Reading consumes the request body, so choose
+when to read or deliberately clone it before another reader needs it.
+
 ## Build on the example
 
-Choose the body budget before reading, then validate the decoded shape with an endpoint schema. Cancellation and
-one-byte-over-limit cases fail without returning a partial body.
+For a filterable catalogue, parse repeated query values and let an [endpoint](../../server/endpoint/README.md) validate
+which filters and values your search accepts. Pair the result with [pagination responses](../response/README.md) so
+callers can request the next page without losing their filters.
+
+For an import form, choose body and field limits before reading, decode the admitted input, and then validate its shape.
+Use [webhook verification](../webhook/README.md) first when a provider signs the raw bytes. `readBody()` buffers the
+admitted body in memory; use an explicitly designed streaming path for work that must process a large upload
+incrementally. Cancellation and over-limit reads reject rather than returning a partial body.
 
 ## Purpose
 

@@ -1,6 +1,21 @@
 # `@okikio/server/endpoint`
 
-Describe a route from input and response contracts before a handler or provider starts.
+An API route needs more than a URL: callers need to know what they can send, what success looks like and which failures
+are expected. An endpoint definition describes those facts as a reusable value. Keep it with the domain contract so a
+server, client description and gateway can use the same route instead of copying strings and guessing its body shape.
+
+```text
+Definition: GET /health -> declared Healthy result
+           + service prefix /api
+           -> service compiler links exact handler -> runtime serves /api/health
+```
+
+A definition is the description of an operation, not the code that performs it. The handler is linked separately to the
+exact definition. The compiler checks that link before serving traffic. Defining an endpoint starts no server and
+creates no provider connection.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -23,16 +38,22 @@ Expected output:
 /health /api
 ```
 
+The demo first describes a successful health answer containing an `ok` boolean. It then declares GET `/health` and puts
+that endpoint in a service with the prefix `/api`. The printed `/health /api` values are the two authored path
+components. They describe the future `/api/health` route; this demo does not bind a handler or answer a request. The
+[service mini-demo](../service/README.md#run-a-complete-example) continues those exact steps through a real Fetch call.
+
 ## Build on the example
 
-Bind the exact Health definition with endpoint.handler(), then compile its service. Domain schemas remain authoritative
-for coercion and validation; endpoint wire projections describe what clients actually send.
+For an asset API, declare an input rule, a successful [response](../../http/response/README.md) and an expected
+[missing-asset problem](../../http/problem/README.md). Bind the behavior with `endpoint.handler()` and compile it
+through a [service](../service/README.md). The validated values entering that handler can differ from the raw URL or
+JSON when a schema deliberately transforms input.
 
-Import-safe HTTP endpoint contracts, method operations, endpoint groups, direct runtime handler bindings, validation,
-documentation, and OpenAPI projection.
-
-The package describes HTTP behavior without creating a server or importing Hono. Server compilation combines these
-values with middleware, resources, policies, and host runtime implementations.
+For a gateway serving the same API at another origin, import the same service definition into the
+[gateway](../gateway/README.md). For API documentation, use the endpoint/service OpenAPI projection rather than
+maintaining a second route list. Keep schema validation rules distinct from the description of HTTP fields that clients
+send.
 
 ## Authoring model
 

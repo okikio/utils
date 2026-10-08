@@ -1,7 +1,24 @@
 # `@okikio/telemetry`
 
-Report correlated diagnostic events without letting a broken reporter fail the operation. Console messages have no
-shared correlation contract and cannot buffer the useful history preceding a failure.
+An import fails after several steps. A final “failed” message alone cannot tell you which request it belonged to or what
+happened just before the error. `@okikio/telemetry` gives diagnostic events consistent names and shared identifying
+fields, and can retain a limited recent history to show when failure occurs.
+
+A **reporter** receives diagnostic records. A **scope** attaches fields such as `request_id` to related records.
+**Correlation** means using those fields to follow the same work across components. Telemetry observes work; it does not
+decide whether the work succeeded, was authorized, or was durably stored.
+
+```text
+import.started (debug) -> bounded recent-history buffer
+                                    |
+import.failed (error) --------------> flush history + error -> reporter
+```
+
+The visual shows the demo's diagnostic delivery, not control of the import. Reporter failures are isolated from the
+operation, and real applications choose destinations and redaction policy.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -20,6 +37,22 @@ Expected output:
 ```text output
 import.started,import.failed
 ```
+
+## Read the mini-demo
+
+The demo creates an in-memory reporter and a buffer with capacity two. Reporting `import.started` retains useful
+history; reporting `import.failed` flushes that history and the error. The printed names are
+`import.started,import.failed`, and both records carry `request_id: 'request-1'`. Capacity is per correlation key, not a
+total bound on all keys; discard completed keys so a long-lived host does not accumulate them. Try inspecting
+`output.records` after only the debug event to see the distinction between buffered history and delivered records. The
+example does not send anything to a remote logging service.
+
+- **Investigate a thumbnail failure:** observe [Queue](../queue/README.md) attempts and [Worker](../worker/README.md)
+  requests using lifecycle adapters. Shared identifiers connect the diagnostics; the queue claim and Worker result
+  remain the respective authorities.
+- **Trace a web request:** adapt [Service](../server/service/README.md) or [Gateway](../server/gateway/README.md)
+  observer events to a scope. The host chooses LogTape sinks or an OpenTelemetry setup; importing this package does not
+  install a tracing SDK.
 
 ## Build on the example
 
@@ -220,7 +253,7 @@ own their lifecycle events; the adapter only projects those events for diagnosti
 
 ## Lifecycle stream adapters
 
-Queue, Pool, Worker, Process, and process-channel already expose authoritative observable event streams.
+Queue, Pool, Worker, Process, and process-channel already expose observable lifecycle event streams.
 `@okikio/telemetry/lifecycle` supplies callbacks that translate those events without changing their state machines:
 
 ```ts
@@ -267,8 +300,8 @@ using subscription = jobs.events.subscribe((event) => {
 });
 ```
 
-The event stream remains authoritative for queue state. Telemetry remains observational and can fail without changing
-the queue result.
+The queue retains authority for its state and result. Its events and telemetry reports are observations; a missed report
+does not change the queue result.
 
 ## Source guide
 

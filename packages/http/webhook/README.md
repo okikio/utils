@@ -1,6 +1,22 @@
 # `@okikio/http/webhook`
 
-Authenticate the exact received bytes while keeping the original request available to its parser.
+A payment or delivery provider can POST an event to your service. Before acting on it, you need to check that its
+signature matches the exact bytes received. Parsing and rewriting JSON first can change those bytes even when the
+message appears equivalent. This package verifies or signs webhook messages and leaves event processing to your
+application.
+
+```text
+Provider sends headers + exact body bytes
+  -> verify bounded Request clone -> rejected: stop application work
+                                  -> verified: parse original -> apply event once
+```
+
+The signature check reads a bounded clone, so a later parser can still read the original request. The final step belongs
+to the receiving application: signature validity does not make two deliveries of the same event two distinct business
+actions. Store and check the event identity when duplicates would matter.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -21,15 +37,22 @@ Expected output:
 true true
 ```
 
+The demo creates a verifier with a fixed example key, signs `{"ok":true}` as event `event-1`, and uses a fixed
+verification clock that matches the signed timestamp. The first `true` means verification accepted the signed bytes and
+metadata. The second comes from parsing the original request, showing that verification did not consume it. Use
+application-owned secrets and the real clock in deployment; this key and timestamp only make the demo reproducible.
+
 ## Build on the example
 
-The fixed test key and clock make this example reproducible. A real application supplies secrets and replay policy.
-Verify before parsing, then add key rotation and bounded raw-body admission; delivery retries and deduplication belong
-to the receiving service.
+For a provider callback, place verification before JSON validation in
+[service middleware](../../server/middleware/README.md), then let an [endpoint](../../server/endpoint/README.md)
+validate the verified event shape. Reject verification failures before changing domain state. The
+[request package](../request/README.md) explains body admission; set a budget appropriate to your provider's events.
 
-This package signs and verifies HTTP webhook messages without changing the bytes covered by the signature. Route
-registration, subscriptions, retries, queues, and delivery history belong to services or to a future delivery package
-that owns those records.
+For an event that starts background work, record its ID together with the application's accepted work, then use your
+chosen [workflow](../../workflow/README.md) to run it. Design the recording and duplicate check to fit your persistence
+owner. Signature checks, timestamp tolerance and key rotation are not a durable replay store; subscriptions, delivery
+retries and delivery history remain application-owned.
 
 ## Inbound webhooks
 

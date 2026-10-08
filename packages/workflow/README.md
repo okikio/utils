@@ -1,7 +1,40 @@
 # `@okikio/workflow`
 
-Resume a named sequence from recorded instruction completions and send activities to eligible executors. Retrying a long
-function from its first line can repeat expensive work and duplicate an external commit.
+A workflow is a named sequence of jobs whose instruction results can be recorded and reused. Suppose preparing a photo
+means reading its dimensions, creating a preview, and saving the preview's location. If the last step fails, starting
+the whole sequence again can repeat work you already finished.
+
+This package separates the sequence from the code that performs each job. An [activity](../activity/README.md) describes
+one job; the workflow requests those jobs in order. A scheduler consults recorded results and sends new work to an
+executor. An executor is the host that runs the supplied job implementation.
+
+## See the sequence and the record of completed work
+
+Read this diagram from top to bottom. A recorded completion can provide the step's result without another provider call.
+A step without a completion needs the configured dispatch and executor.
+
+```mermaid
+flowchart TD
+    Program["Sequence requests a named step"] --> History["Check recorded instruction completion"]
+    History -->|"Completion exists"| Resume["Give result back to the sequence"]
+    History -->|"New instruction"| Dispatch["Admit job to dispatch"]
+    Dispatch --> Executor["Eligible executor runs an activity attempt"]
+    Executor --> Result["Accept the claim's result"]
+    Result --> Record["Record instruction completion"]
+    Record --> Resume
+    Resume --> Next["Continue with the next step"]
+```
+
+This is the successful path. It omits retry timing, cancellation and stale-claim rejection, which the later sections
+explain. Reusing a result does not rewind the JavaScript process. Durable recovery needs authoritative storage and host
+services: the memory stores in the demo below disappear when their process exits.
+
+Use a regular function for a simple sequence that can start over safely. Use [task](../task/README.md) for an owned
+local operation. Use a workflow when named instruction results, independently executed jobs or controlled replay are
+part of the application's requirements.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -13,42 +46,57 @@ import '@okikio/duration/polyfill';
 import '@okikio/dispose/polyfill';
 import * as activity from '@okikio/activity';
 import * as engine from '@okikio/activity/engine';
+import * as local from '@okikio/activity/local';
 import * as context from '@okikio/context';
+import * as resource from '@okikio/resource';
 import * as dispatch from '@okikio/workflow/dispatch';
 import * as history from '@okikio/workflow/history';
 import * as workflow from '@okikio/workflow';
+import { z } from 'zod';
 
-const TextSchema = Object.freeze({
-	'~standard': Object.freeze({
-		version: 1,
-		vendor: 'example',
-		validate(value: unknown) {
-			return typeof value === 'string' ? { value } : { issues: [{ message: 'Expected text.' }] };
-		},
-	}),
-});
-
+const TextSchema = z.string();
 const Local = engine.define({ id: 'local' });
-const Echo = activity.define({
-	id: 'example.echo',
+const Trim = activity.define({
+	id: 'photo.trim-label',
 	version: '1',
 	input: TextSchema,
 	result: TextSchema,
 	placement: engine.require(Local),
 });
-
-const EchoWorkflow = workflow.define({
-	id: 'example.echo-workflow',
+const Upper = activity.define({
+	id: 'photo.upper-label',
 	version: '1',
 	input: TextSchema,
 	result: TextSchema,
-	activities: [Echo],
+	placement: engine.require(Local),
 });
-const EchoLive = workflow.implement(EchoWorkflow, function* (ctx) {
-	return yield* activity.request(Echo, ctx.input);
+let calls = 0;
+const TrimLive = activity.implement(Trim, {
+	run: (ctx) => {
+		calls++;
+		return ctx.input.trim();
+	},
+});
+const UpperLive = activity.implement(Upper, {
+	run: (ctx) => {
+		calls++;
+		return ctx.input.toUpperCase();
+	},
+});
+const PrepareLabel = workflow.define({
+	id: 'photo.prepare-label',
+	version: '1',
+	input: TextSchema,
+	result: TextSchema,
+	activities: [Trim, Upper],
+});
+const PrepareLabelLive = workflow.implement(PrepareLabel, function* (ctx) {
+	const trimmed = yield* activity.request(Trim, ctx.input);
+	return yield* activity.request(Upper, trimmed);
 });
 
-await using parent = context.create({ id: 'example-parent' });
+await using parent = context.create({ id: 'photo-parent' });
+await using stores = resource.create(resource.implementations(), { ctx: parent, host: {} });
 await using jobs = dispatch.memory();
 await using records = history.memory();
 await using scheduler = workflow.scheduler({
@@ -58,36 +106,55 @@ await using scheduler = workflow.scheduler({
 await using executor = await workflow.executor({
 	dispatch: jobs,
 	engine: Local,
-	hostId: 'example-host',
+	hostId: 'photo-host',
 	capacity: 1,
-	provider: {
-		activities: [Echo],
-		async run(_ctx, attempt) {
-			return Object.freeze({ type: 'success', value: attempt.input });
-		},
-	},
+	provider: local.create({ engine: Local, implementations: [TrimLive, UpperLive], resources: stores }),
 });
-await using run = await workflow.context({
-	definition: EchoWorkflow,
-	runId: 'example-run',
-	input: 'hello',
-	ctx: parent,
-});
-
-console.log(
-	await workflow.run({
-		ctx: run,
-		implementation: EchoLive,
-		scheduler,
-	}),
-); // hello
+for (const pass of ['first run', 'replay']) {
+	await using run = await workflow.context({
+		definition: PrepareLabel,
+		runId: 'photo-label-1',
+		input: ' summer trip ',
+		ctx: parent,
+	});
+	console.log(pass, await workflow.run({ ctx: run, implementation: PrepareLabelLive, scheduler }));
+}
+console.log('implementation calls:', calls);
 ```
 
 Expected output:
 
 ```text output
-hello
+first run SUMMER TRIP
+replay SUMMER TRIP
+implementation calls: 2
 ```
+
+The input has spaces around `summer trip`. The first activity removes the surrounding spaces; the second changes the
+letters to uppercase. `yield* activity.request(...)` asks the scheduler for that step's result before the program
+continues. The functions that change the text live in the activity implementations, not in the scheduler.
+
+The loop then repeats the same run identity, input and program while the same stores remain alive. The replay returns
+the recorded instruction results, so there are two implementation calls across both passes, rather than four. Change the
+title and give it a new `runId` to start a different logical run. Reusing a run's identity with changed instruction data
+is a conflict, not a request to silently replace its recorded work.
+
+The example uses real activity implementations through `local.create()`. It does not simulate a remote computer, save
+records to disk or prove that a remote write happens exactly once. Its empty resource collection is enough because these
+two activities only transform text.
+
+## Apply the same shape to a larger job
+
+| Scenario                  | Named activity steps                                                          | What the application must supply                                         |
+| ------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Prepare a photo           | Inspect dimensions, create preview, save preview location                     | Image tools, storage resources and a duplicate-write policy.             |
+| Import customer records   | Validate a batch, store accepted records, publish import result               | Input limits, authoritative storage and stable commit identities.        |
+| Send work to another host | Request a job, let an eligible executor claim it, receive its accepted result | Shared authoritative dispatch/history and that host's activity provider. |
+
+For resource use, start with
+[the activity save-title demo](../activity/README.md#save-a-photo-title-with-a-supplied-store). For a simpler local
+import, start with [the bounded CSV composition](../../docs/composition.md#import-rows-with-bounded-work). Adding
+workflow is useful when replay and dispatch solve a real problem; it is not necessary just to run two functions.
 
 ## Build on the example
 
@@ -110,9 +177,9 @@ instruction identity, declared external activities, or an explicit stored handof
 
 ## Understand the local host
 
-The first example runs one activity through the process-local reference stores. `workflow.run()` resolves to the
-validated workflow result: here `Promise<string>` containing `hello`. The generator yields a declared request; it does
-not call the provider directly. The executor produces the activity result and the scheduler resumes the generator.
+The first example runs two activities through the process-local reference stores. `workflow.run()` resolves to the
+validated workflow result: here `Promise<string>` containing `SUMMER TRIP`. The generator yields a declared request; it
+does not call the provider directly. The executor produces the activity result and the scheduler resumes the generator.
 
 `await using` closes the run, executor, scheduler and stores in reverse declaration order. Cancellation remains
 cooperative and the owners join cleanup. Both `memory()` stores disappear when their process exits. Read the

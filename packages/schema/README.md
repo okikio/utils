@@ -1,7 +1,20 @@
 # `@okikio/schema`
 
-Use one Standard Schema validation call across validator libraries. Reading a validator-specific result shape in every
-utility otherwise forces consumers to use the same schema engine.
+Configuration arrives as text, but your application needs a valid port number. A **schema** describes which values are
+acceptable and any conversion the validator should apply. `schema` gives consumers one way to call compatible
+validators, so they can use checked values or inspect issues without learning each validator's result format.
+
+| Supplied input      | Rule in the demo                            | Result                                        |
+| ------------------- | ------------------------------------------- | --------------------------------------------- |
+| Text `'8787'`       | Convert to an integer from 1 through 65,535 | Number `8787`                                 |
+| Text `'not-a-port'` | Same rule                                   | Validation issues; `parse()` rejects.         |
+| Number `70000`      | Same rule                                   | Validation issues; outside the allowed range. |
+
+The table describes the chosen port schema. Other schemas can accept different values; this package does not decide
+business rules or make validation equivalent to authorization.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -22,7 +35,16 @@ For this schema, `parse()` returns `Promise<number>` and resolves to `8787`. It 
 when validation reports issues. It performs no I/O and creates no cleanup owner; the caller decides whether to keep that
 rejection exceptional or expose an expected branch.
 
+The demo uses Zod to author the rule, then calls the validator through `schema.parse()`. The output is a number, not the
+input string. Try the invalid inputs in the table to inspect a `SchemaValidationError`, or use `validate()` when issues
+should be returned as an ordinary branch instead of thrown.
+
 ## Build on the example
+
+- Validate text cells from [CSV](../csv/README.md) before importing records. CSV proves how cells are framed; a schema
+  proves the particular fields and transformations you declared.
+- Use [Codec](../codec/README.md) when checked values also need a reverse conversion for storage or an API. Use
+  [Result](../result/README.md) when a consumer must choose explicitly between checked output and rejection.
 
 Start with parse() when invalid input should throw, then use result-oriented validation where a caller needs structured
 issues. Keep coercion in the schema that owns the meaning. JSON Schema projection is a separate capability and can fail

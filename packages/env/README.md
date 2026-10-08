@@ -1,7 +1,21 @@
 # `@okikio/env`
 
-Parse configuration once into typed values and keep secret values out of diagnostics. Reading process.env throughout an
-application spreads defaults, coercion and validation across unrelated code.
+Your service reads its port from configuration. The value arrives as text, but the listener needs a number, and an
+invalid value should be caught before the service starts. `env` keeps the allowed fields, defaults and secret labels in
+one definition, then parses the source you explicitly choose.
+
+```mermaid
+flowchart LR
+    A[Supplied PORT text: 4321] --> B[Declared port rules]
+    B -->|valid| C[Configuration value: number 4321]
+    B -->|invalid| D[Validation diagnostics]
+```
+
+The diagram shows startup configuration checking. The valid branch returns values for your application to use; it does
+not open a listener. It omits merging several sources and handling secrets.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -25,7 +39,16 @@ Expected output:
 fields throw validation diagnostics before host startup. The record source reads only supplied values, so this example
 needs no environment permission and opens no listener.
 
+The demo supplies `{ PORT: '4321' }` without reading your machine's environment. Parsing turns the text into a number,
+so adding one prints `4322`. Try an empty record to use the declared default `8787`; the same addition then gives
+`8788`. A port outside the declared range fails validation.
+
 ## Build on the example
+
+- Parse the listener configuration before starting a [Server](../server/README.md). The executable chooses the source
+  and startup time; reusable packages can export definitions without reading ambient state.
+- Combine [Resource](../resource/README.md) requirements with environment definitions when a database or API client
+  needs credentials. Mark secret fields explicitly and let the provider own its live connection.
 
 Start with a record source for reproducible tests, then merge an explicit runtime source and overrides at the executable
 root. Use secret() for credentials so documentation and diagnostics redact them. Zod, Valibot and Standard Schema

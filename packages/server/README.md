@@ -1,7 +1,25 @@
 # `@okikio/server`
 
-Compose a portable fetch application from route and middleware values. A large if chain mixes routing, exception mapping
-and security headers, making it hard to mount the same service on another host.
+To expose an API, you need to match requests to code, check inputs, return understandable answers and close resources
+when work ends. `@okikio/server` lets you start with a small Fetch application and add declared endpoints and services
+when you need those checks. Fetch is a function that accepts a Web `Request` and returns a `Response`; a network
+listener is a separate host concern.
+
+```text
+Small app: Request -> HTTP routes + middleware -> Response
+
+Declared service: endpoint descriptions + handler implementations
+                    -> compile once -> service Fetch runtime -> Response
+
+Deployment host: opens the listener and calls the chosen Fetch runtime
+```
+
+The small app uses ordinary request and response values. A declared service adds reusable input/output rules and startup
+checks before requests arrive. Compilation links those declarations and implementations; it does not transpile your
+TypeScript, open a port or connect to a database.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -21,16 +39,24 @@ Expected output:
 200 true
 ```
 
+The demo registers one GET route at `/health` and wraps it with security-header middleware. Calling `app.fetch()`
+directly selects that route and returns JSON with `ok: true`. The output `200 true` means the response succeeded and its
+body has the expected flag. The example reads the body completely. It runs without opening a network listener, which
+also makes this shape useful for local tests.
+
 ## Build on the example
 
-Start with Web Request/Response routes, then move stable schemas into endpoint definitions and bind implementations
-through services. A gateway composes host services; an explicit Deno or framework adapter starts the listener.
-Definitions do not create connections. Middleware and response bodies have real ownership and cancellation costs, so
-choose buffering only for bounded payloads.
+For a small health endpoint or embedded tool, begin with [HTTP routes](http/README.md). Add CORS, error mapping or other
+HTTP middleware only where the deployment needs it. For a records API with validated input, declared rejections and a
+shared database, use [endpoint definitions](endpoint/README.md) and a [service runtime](service/README.md), with
+[resources](../resource/README.md) that state who opens and closes the client.
 
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
+For several independently deployed services, use a [gateway](gateway/README.md) to derive forwarding routes from their
+imported definitions. An existing Hono host can use the [Hono adapter](../hono/README.md). In every case the deployment
+host owns listener startup and shutdown; the chosen service runtime owns its own request and resource cleanup.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). Later examples that introduce application-owned clients
+or schemas are composition sketches; supply those dependencies before running them.
 
 ## Purpose
 

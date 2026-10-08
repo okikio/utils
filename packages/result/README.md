@@ -1,7 +1,19 @@
 # `@okikio/result`
 
-Represent an expected success or failure as data and force call sites to choose a branch. Throwing for every missing
-value makes ordinary control flow indistinguishable from an unexpected provider fault.
+A lookup can find an asset or find nothing. Both outcomes are ordinary, and the caller needs to decide what to show.
+`result` puts a value or a reason into a small tagged object so that choice stays visible. A **result** is the answer
+wrapper; it does not perform the lookup or catch exceptions for you.
+
+| Supplied answer              | Operation in the demo          | Displayed outcome |
+| ---------------------------- | ------------------------------ | ----------------- |
+| Success containing `asset-1` | `match()` chooses `ok`         | `loaded asset-1`  |
+| Failure containing `missing` | `getOr()` chooses the fallback | `default`         |
+
+Each row is a separate result, not a retry sequence. A fallback hides that failure from this display deliberately; use
+an explicit branch when the caller needs to see why the lookup failed.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -24,7 +36,16 @@ default
 here a string; `getOr()` returns the chosen value, here `default`. Payloads are borrowed and shallowly wrapped. These
 calls perform no async work, catch no exception and create no cleanup owner.
 
+The demo constructs both answers directly so you can see the two paths. `match()` runs only the callback for the
+selected path; `getOr()` returns the fallback for the missing answer. Change the fallback to `unavailable` to change the
+second line. These operations are immediate and do not launch background work.
+
 ## Build on the example
+
+- Combine [Schema](../schema/README.md) validation with Result when a form or import should return an ordinary “please
+  fix this field” branch. The runnable port example below shows accepted and rejected input.
+- Put a [Failure](../failure/README.md) occurrence inside the failure branch when its reason needs a stable identity
+  across services. Keep unexpected thrown exceptions on an explicit diagnostic path.
 
 Use match() at a consumer that must handle both paths, or getOr()/getOrElse() for an intentional fallback. unwrap()
 turns a failure back into a thrown value when exception flow is appropriate. Result does not define a durable failure

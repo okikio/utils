@@ -1,7 +1,20 @@
 # `@okikio/csv`
 
-Turn a messy spreadsheet export into bounded text rows with header evidence and diagnostics. Splitting on commas loses
-quoted commas, multiline cells, duplicate headers and byte-encoding errors.
+A customer exports contacts from a spreadsheet. One note says “hello, world,” so a simple split on commas turns one cell
+into two. `csv` reads the file's quoting and row structure, keeps cells as text, and gives you column names you can use
+to look up those cells. This is a file reader, not an automatic contact importer.
+
+| Source content           | Parsed view in the demo                                |
+| ------------------------ | ------------------------------------------------------ |
+| Header `Name,Note`       | Column keys `name` and `note`                          |
+| Row `Ada,"hello, world"` | Two cells: `Ada` and `hello, world`                    |
+| Quotes around the note   | CSV framing; the quotes are not part of the cell value |
+
+The table shows one small text file. It omits encoding, header discovery, source diagnostics and streaming limits, which
+matter for larger or less predictable files.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -28,7 +41,17 @@ name,note
 collects the supplied text in memory and owns no reader to dispose. For streaming input, see
 [the complete bounded import](../../docs/composition.md#import-rows-with-bounded-work).
 
+The demo explicitly chooses the first row as the header. Its output first shows normalized column keys, then the two
+cell values in the first data row. Try putting a newline inside the quoted note to keep two lines in one cell. Parsing
+leaves the content as text; it does not decide what a contact record must contain.
+
 ## Build on the example
+
+- Use [Schema](../schema/README.md) to validate each imported row's business meaning after CSV has read its text. A
+  successfully parsed file can still contain an invalid email address or missing required field.
+- Use [Concurrency](../concurrency/README.md) for bounded per-row work in a large import. The
+  [complete import walkthrough](../../docs/composition.md#import-rows-with-bounded-work) shows the reader, validation
+  and work ownership together.
 
 Collect small bounded input with parseBytes(); use parseStream() and fold rows for a large import. Explicit headers
 avoid guessing when an upstream format is known. preserveBlankRows keeps empty source occurrences when reconciliation

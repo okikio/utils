@@ -1,7 +1,23 @@
 # `@okikio/hono`
 
-Reuse framework-neutral HTTP middleware around a Hono application. Reimplementing request correlation and response
-headers inside each framework makes the host contracts drift.
+If your application already uses Hono routes, you can keep them while sharing HTTP behavior with a portable Utils
+service. This adapter wraps Hono Fetch handling with framework-neutral middleware and can mount a compiled Utils service
+in a Hono application. Use it when you want one security-header or error policy without rewriting that policy for each
+host.
+
+```text
+Caller Request -> generic Fetch middleware -> Hono application -> Response
+                                              | native Hono route
+                                              | mounted Utils service route
+Deployment host owns the listener; each service keeps its resource ownership.
+```
+
+The wrapper runs around the Hono application. A mounted service keeps its validated endpoint handlers and cleanup model;
+Hono remains responsible for selecting its registered routes. The adapter does not convert every Hono feature into a
+Utils feature or make the two routers interchangeable.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -23,15 +39,25 @@ Expected output:
 ok nosniff
 ```
 
+The demo keeps `/health` as an ordinary Hono route and installs the adapter's error callback on that app. `hono.fetch()`
+then wraps it with the generic security-header middleware. The response JSON supplies `status: 'ok'`, and the wrapper
+supplies `X-Content-Type-Options: nosniff`, producing `ok nosniff`. This shows one request passing through both owners.
+It does not start a listener or exercise the error path.
+
 ## Build on the example
 
-Start with the adapter around an existing Hono app, then share middleware with a portable service or gateway. Hono still
-owns its route handlers; the utility adapter owns the surrounding fetch composition. Host code starts the network
-listener and configures logging. Read or cancel response bodies so tests and callers release stream ownership.
+For an existing Hono API, use the adapter's Fetch wrapper to share [HTTP middleware](../server/http/README.md) with a
+second service or an embedded tool. Keep Hono-native middleware where it uses Hono-specific context or routing features.
+Configure logging and the network listener in the application host.
 
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
+For a domain API with validated input and declared responses, build a [service](../server/service/README.md) and
+register its routes with `hono.mount()`. Import the same service definition into a
+[gateway](../server/gateway/README.md) when another host needs forwarding routes. Hono still owns route registration
+order, so combine overlapping Hono and mounted routes deliberately. Read or cancel response bodies and dispose the
+service runtime through its own owner.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). Later code with application-owned runtime or middleware
+values is a composition sketch; provide those values before running it.
 
 ## Purpose
 

@@ -3,6 +3,26 @@
 `@okikio/utils` contains generic TypeScript mechanisms shared across Okikio projects. Focused `@okikio/*` packages own
 their implementations; the `@okikio/utils` installation package gives applications one dependency declaration.
 
+If those names are unfamiliar, start with [the illustrated learning path](docs/learn.md). A utility is a reusable piece
+of code for a repeated problem: read a spreadsheet-like file correctly, limit how many jobs run at once, stop work when
+its caller cancels, or check that an API returns the promised answer. Your application still decides what its users want
+to achieve.
+
+Read the picture as three different questions, not a requirement to learn the whole suite:
+
+```mermaid
+flowchart TD
+    Goal["What do you need to achieve?"] --> Values["Read and check values"]
+    Goal --> Work["Run work with limits and cleanup"]
+    Goal --> Jobs["Connect named jobs"]
+    Values --> Input["CSV, schema, query, HTTP"]
+    Work --> Lifetime["Context, concurrency, resource, task"]
+    Jobs --> Sequence["Activity and workflow"]
+```
+
+Choose a small capability first. Reading CSV does not require a workflow, and running one function does not require an
+activity. The learning path shows when another package solves a concrete problem and links to runnable demonstrations.
+
 ## Start with a useful outcome
 
 Parse an import without losing quoted commas or turning text identifiers into numbers. This complete module uses the
@@ -34,9 +54,10 @@ resources, independent execution, or replay. Each package guide starts with a co
 then distinguishes further runnable examples from sketches with application-owned dependencies. Read
 [the example convention](docs/composition.md#read-the-examples) before adapting a larger composition.
 
-When Temporal is missing, use the local [`duration/temporal`](packages/duration/temporal.ts) ponyfill or import the
-explicit [`duration/polyfill`](packages/duration/polyfill.ts) at the executable entry point. That setup enables
-lifecycle timing without requiring a native Temporal host.
+When Temporal is missing, the local [`duration/temporal`](packages/duration/temporal.ts) ponyfill supports directly
+imported date arithmetic without changing globals. Lifecycle utilities currently use global Temporal; import the
+explicit [`duration/polyfill`](packages/duration/polyfill.ts) at the executable entry point when the host lacks it.
+Importing the ponyfill alone does not initialize those lifecycle utilities.
 
 ## Install
 

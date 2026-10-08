@@ -1,7 +1,24 @@
 # `@okikio/capacity`
 
-Reserve several scarce resources together. Separate counters can admit half of a request and leave work holding a
-browser while it waits forever for an upload slot.
+Imagine a video upload needs one browser session and three upload slots. Starting it with only the browser available can
+leave that browser idle while other work waits. `capacity` reserves all the requested slots together, or waits until all
+of them are available. A **lease** is the receipt for that reservation; releasing it returns the slots.
+
+The example has two browsers and four upload slots. These numbers show free slots, not running work:
+
+```text
+                         browsers    uploads
+Before reservation           2          4
+Reserve one job             -1         -3
+While the lease is held      1          1
+After release                2          4
+```
+
+Read each row as a moment in one local pool. The pool counts permission to start work; your application still starts and
+stops the actual browser and upload. This view omits queued requests and cancellation.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -24,7 +41,16 @@ Expected output:
 {"browsers":2,"uploads":4}
 ```
 
+The demo reserves both resources, prints the remaining slots, and releases the lease even if the work fails. The second
+line proves the reservation was returned. Try requesting three browsers from this two-browser pool: the request is
+impossible and rejects rather than waiting forever.
+
 ## Build on the example
+
+- For a bulk file import, use [CSV](../csv/README.md) to read rows and reserve the resources each row needs before
+  starting its work. CSV understands the file; capacity controls admission.
+- For work that the user can cancel, pass a [Context](../context/README.md) to `acquire()` and release the resulting
+  lease in cleanup. Cancellation can stop the wait; it does not itself close a browser you opened.
 
 Use admission for local concurrency, then add units and constraints to describe relationships such as threads per core.
 Reservations are atomic and waiting requests keep FIFO fairness. An impossible request fails before queueing. The caller

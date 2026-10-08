@@ -1,7 +1,27 @@
 # `@okikio/pool`
 
-Reuse a bounded set of expensive resources while retaining explicit lease ownership. Opening a connection for every
-request wastes setup work; sharing one connection without leases can interleave incompatible operations.
+Opening a database connection or browser page can cost more than one operation that uses it. `@okikio/pool` keeps a
+limited set of reusable values and lends one to each caller. When all values are busy, another caller waits instead of
+opening an unlimited number of resources.
+
+A **lease** is a temporary loan. The pool owns the underlying value; the caller owns the lease and returns it after use.
+This prevents two unrelated callers from accidentally using the same value at the same time.
+
+```text
+Pool owns at most 2 connections
+       |
+       +-> acquire -> caller borrows connection -> dispose lease -> idle again
+       |
+       +-> no available value -> caller waits, or acquisition fails
+
+Dispose pool -> finish owned transitions and close its values
+```
+
+This shows borrowing and cleanup, not a database transaction or cross-machine connection broker. The application
+supplies creation, health checks, and closing behavior for the actual resource.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -39,6 +59,19 @@ Expected output:
 borrows the value until its block ends, so the final leased count is zero. Pool disposal closes values through
 `close()`. This example callback has no external handle to close; a real connection implementation must supply that
 cleanup.
+
+## Read the mini-demo
+
+The demo opens the simple value `{ id: 1 }` and borrows it inside the inner block. It prints `1` while the lease is
+active. Leaving that block returns the lease; `stats().leased` then prints `0`. The pool still owns the returned value
+until pool cleanup. Try acquiring another lease after that block to explore reuse without increasing the creation
+counter. The no-op close callback is appropriate only because this demo owns no real external handle.
+
+- **Check many pages with a few browser instances:** combine this pool with [Concurrency](../concurrency/README.md). The
+  mapper limits admitted operations; each operation borrows a browser value from the pool and returns its lease.
+- **Reuse Worker threads for conversions:** create and close [Worker](../worker/README.md) handles through pool
+  callbacks. The pool owns handle lifetimes, the Worker protocol validates requests, and a
+  [Context](../context/README.md) carries cancellation for each acquisition and request.
 
 ## Build on the example
 

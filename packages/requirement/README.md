@@ -1,7 +1,28 @@
 # `@okikio/requirement`
 
-Keep declarations of required capabilities separate from the host that interprets them. Hard-coding a billing or
-permission SDK into each resource makes definitions impossible to inspect without starting that SDK.
+One report may need account access, an enabled export feature, and a quota check. `@okikio/requirement` lets the report
+declare those needs without embedding a particular billing or authorization SDK in its definition. The application
+supplies the code that evaluates each kind of rule when the work reaches it.
+
+A **family** groups rules with the same meaning, such as permission or entitlement. An **interpreter** is host-supplied
+code that evaluates a family. **Declaring** a requirement records a need; **applying** it invokes the interpreter.
+
+```text
+Definition: "needs export.csv"
+               |
+               v
+Active operation -> entitlement interpreter supplied by host
+                             |
+                   accept -> continue
+                   reject / missing interpreter -> operation fails
+```
+
+This shows a rule becoming active. Inspection can describe reachable rules before execution, but inspection does not
+perform admission. An interpreter's successful return must reflect its real policy; a callback that only logs cannot
+secure the operation.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -35,6 +56,19 @@ Expected output:
 ```text output
 export.csv
 ```
+
+## Read the mini-demo
+
+The demo defines the entitlement-family need `export.csv`. Its interpreter copies that ID into `applied`, so after
+`requirement.apply()` the printed value is `export.csv`. This demonstrates routing to the right family, not checking a
+subscription. Remove that interpreter to observe the default rejection of an unsupported active family. Use a real
+policy interpreter before treating successful application as authorization.
+
+- **Require a product feature:** define the label through [Entitlement](../entitlement/README.md), keep its requirement
+  in a [Service](../server/service/README.md) contract, and have the host evaluate the account's access to that feature.
+- **Acquire a protected resource:** attach declared needs to [Resource](../resource/README.md). The requirement
+  mechanism routes active rules; [Permission](../permission/README.md) supplies concrete target checks after the target
+  is known. The resource still owns creation and cleanup, not the policy interpreter.
 
 ## Build on the example
 
@@ -78,7 +112,7 @@ Zanzibar tuple, or a remote authorization service. The application supplies the 
 const ctx = requirement.scope(parent, {
 	interpreters: {
 		permission: permission.interpreter(graphPermissionChecker),
-		entitlement: entitlement.interpreter(entitlementProvider),
+		entitlement: entitlementInterpreter, // supplied by the application
 	},
 	unknown: 'reject',
 });

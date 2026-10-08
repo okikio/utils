@@ -1,7 +1,19 @@
 # `@okikio/robots`
 
-Apply user-agent-specific robots rules with overlap and wildcard semantics. Collecting every Disallow line mixes
-unrelated groups and cannot tell whether a more specific Allow rule wins.
+You are building a crawler and a website's `robots.txt` says to skip private pages but allows its pricing page. `robots`
+reads those instructions and answers whether its local rules allow a particular URL for your crawler's name. The
+crawler's **user agent** is the name used to select the relevant rules.
+
+| Candidate path in the demo | Matching instruction                    | `match()` answer              |
+| -------------------------- | --------------------------------------- | ----------------------------- |
+| `/private/report`          | `Disallow: /private/`                   | `false`: local rules deny it. |
+| `/private/pricing`         | More specific `Allow: /private/pricing` | `true`: local rules allow it. |
+
+The table explains this document's two decisions. An allow decision is not authentication, a successful download or
+permission to ignore other site policies. Fetch errors and cache policy belong to the crawler.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -22,7 +34,16 @@ false
 true
 ```
 
+The demo supplies a policy string and checks two URLs against it. The longer matching pricing rule wins for the second
+URL. Remove that Allow line to make both examples denied by the private-path rule. No website is contacted while these
+checks run.
+
 ## Build on the example
+
+- Use [Sitemap](../sitemap/README.md) to read declared page candidates, then keep only candidates allowed by the local
+  robots policy. The runnable discovery example below shows those two decisions separately.
+- Use a [Context](../context/README.md) cancellation signal for the application's policy fetch, with explicit network
+  and byte budgets. Your application decides what a missing or failed policy response means.
 
 Parse once and check many URLs, then collect declared sitemaps for discovery. Unknown extension records remain available
 for higher-level policy. The parser performs no fetch and does not decide HTTP status, caching or authority rules. The

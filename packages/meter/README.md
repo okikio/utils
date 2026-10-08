@@ -1,7 +1,21 @@
 # `@okikio/meter`
 
-Record a validated usage fact through the same authoritative effect owner as the operation. Incrementing an in-memory
-counter cannot prove a billing or audit sink accepted the measurement.
+A download accepted 2,048 bytes. You want one named usage fact that can later feed an audit or billing system, rather
+than an unexplained counter. `meter` defines what is being measured and records the reading through an explicit effect
+owner. An **effect owner** is the component that accepts responsibility for the fact under its declared delivery policy.
+
+```mermaid
+flowchart LR
+    A[Download measured 2048 bytes] --> B[Meter reading with stable key]
+    B --> C[Effect owner accepts responsibility]
+    C -. application supplies delivery .-> D[Ledger or audit destination]
+```
+
+Solid arrows show the acceptance path used in the demo. The dotted arrow is later application-owned delivery; the
+example's empty emitter supplies no ledger. Acceptance alone does not prove that a billing provider processed a reading.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -32,7 +46,17 @@ Expected output:
 2048
 ```
 
+The demo defines a byte meter, supplies an in-memory accepting owner, and records `2048` with the key
+`download:asset-1`. It then validates the returned reading and prints its value. Change the measurement to `4096` to
+change the output. The owner is disposed at the end; no bill is calculated.
+
 ## Build on the example
+
+- Declare a meter's effect in an [Activity](../activity/README.md) that downloads a file, then let an
+  [Effect](../effect/README.md) owner accept the usage fact. Use a stable key and a sink whose replay policy matches
+  your delivery needs.
+- Use [Capacity](../capacity/README.md) for “may another download start?” and Meter for “what did the download consume?”
+  Admission and usage accounting are different decisions; a measurement does not enforce a quota.
 
 Define a measurement once, record it with a stable idempotency key, then attach attributes for later aggregation. A real
 owner may persist the occurrence to a ledger or outbox. The example owner accepts in memory only; it is not a billing

@@ -1,7 +1,25 @@
 # `@okikio/failure`
 
-Give expected rejection a stable identity and validated data that can cross a process or storage boundary. Catching
-every Error by message makes a renamed sentence change application behavior.
+An asset lookup can legitimately find no asset. Callers need to recognize “missing asset” even if its explanatory
+sentence changes or the answer arrives from another process. `failure` defines that expected reason with a stable ID and
+checked details, then creates individual occurrences of it.
+
+```mermaid
+sequenceDiagram
+    participant A as Sender
+    participant F as Encoded failure data
+    participant B as Receiver
+    A->>F: ID, checked details and message
+    F->>B: Transfer the data
+    B->>B: Find trusted definition and validate details
+    B->>B: Reconstruct local occurrence
+```
+
+The demo encodes and decodes locally to show these steps. The transfer is something your application supplies; this
+package performs no network or storage I/O. Local JavaScript causes do not cross the encoded boundary.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -25,7 +43,16 @@ Expected output:
 true asset-1
 ```
 
+The demo creates a missing-asset occurrence for `asset-1`, then reconstructs it using the trusted `Missing` definition.
+The output means the reconstructed occurrence uses that exact definition and keeps the asset ID. Change the asset ID in
+the input to change the retained details. An unknown failure ID cannot invent a new trusted definition at decode.
+
 ## Build on the example
+
+- Wrap an expected occurrence in [Result](../result/README.md) so a caller handles success and missing asset explicitly.
+  Result chooses the branch; Failure gives the reason its stable meaning.
+- Present that reason through a declared [HTTP problem](../http/problem/README.md) at an API boundary. Keep internal
+  causes and secrets out of public responses and encoded failure data.
 
 Use failures for expected domain outcomes such as missing input or a declined request. Encode at a transport boundary
 and decode against trusted definitions on the receiving side. Unknown identities reject instead of manufacturing

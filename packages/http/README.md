@@ -1,7 +1,27 @@
 # `@okikio/http`
 
-Preserve HTTP syntax and trust decisions before application validation. Collapsing repeated query parameters or
-forwarding incoming credentials blindly changes what the caller asked for and what the next service can see.
+A web request can contain several values with the same name, cookies, credentials and a body that is larger than your
+application can accept. Reading those values carelessly can lose a user's choices or send private headers to another
+service. `@okikio/http` supplies focused tools for reading requests, describing responses and verifying webhook
+messages. You can use one tool with an ordinary Web `Request` or combine them in a service.
+
+HTTP is the exchange between a caller and a server: the caller sends a `Request`, and the server returns a `Response`.
+This package works on those values. Choose the part that matches your task:
+
+```text
+Incoming Request                         Outgoing result
+  query, headers, body -> request tools     success -> response definition
+  named browser cookie -> cookie tools     rejection -> problem definition
+  signed provider event -> webhook tools
+                    application decides what to do
+```
+
+Read the left side as ways to interpret an incoming message and the right side as ways to describe an answer. The
+application connects them with its own decisions. Parsing a token does not authenticate it, and accepting bytes does not
+make their contents valid for your business rules.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -20,16 +40,25 @@ Expected output:
 false application/json
 ```
 
+The first input asks for both `tag=one` and `tag=two`. `parseQuery()` keeps them as an array, so a search page can use
+both filters. The second input names `X-Internal` in the `Connection` header. `forward()` removes that
+connection-specific field while keeping `Accept`, which still tells the next service which response format the caller
+accepts. The two output lines show preserved choices and removal of a field that must not cross the forwarding hop.
+
 ## Build on the example
 
-Use request helpers to bound and parse incoming data, response and problem definitions to declare outputs, and webhook
-helpers to verify exact raw bytes. headers.forward() strips fixed connection fields and fields named by Connection while
-retaining separate Set-Cookie values. request.forwardHeaders() adds credential and host trust policy. The application
-still authenticates actors and decides what credentials may cross an origin.
+For a search API, combine [request parsing](request/README.md) with an [endpoint](../server/endpoint/README.md) that
+validates the allowed filters. Return a [response](response/README.md) for matching records or a declared
+[problem](problem/README.md) for an unsupported filter. This separates the user's exact input from the rules your search
+supports.
 
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
+For a provider callback, use [webhook verification](webhook/README.md) before decoding the event, then pass the verified
+message to your application. For forwarding to another service, choose `request.forwardHeaders()` when credential and
+host policy must accompany connection-header removal. The [gateway](../server/gateway/README.md) composes those
+decisions with route ownership. Neither parsing nor forwarding decides which actor may access a record.
+
+[Choose related utilities by outcome](../../docs/outcomes.md). Later examples with application-owned clients or schemas
+are composition sketches; supply those dependencies before running them.
 
 ## Purpose
 

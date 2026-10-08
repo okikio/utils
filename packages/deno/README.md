@@ -1,7 +1,19 @@
 # `@okikio/deno`
 
-Express Deno permission grants as data and convert them to correctly escaped CLI arguments. Hand-built flags can
-accidentally grant a whole directory or mishandle paths containing commas.
+A media command needs to read `/srv/input` and launch `ffmpeg`. Deno requires the host to choose permissions for those
+operations. `deno/permissions` turns an explicit permission list into CLI arguments, so the command launcher does not
+have to assemble and escape the flags itself. Other submodules cover Deno-specific file, port and signal mechanics.
+
+| Host's choice                 | Argument produced by the demo |
+| ----------------------------- | ----------------------------- |
+| Read files under `/srv/input` | `--allow-read=/srv/input`     |
+| Launch `ffmpeg`               | `--allow-run=ffmpeg`          |
+
+These rows describe the permission arguments to pass to Deno. Producing strings grants no permission to the current
+process and launches no child. The host remains responsible for deciding which grants are appropriate.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -17,7 +29,16 @@ Expected output:
 ["--allow-read=/srv/input","--allow-run=ffmpeg"]
 ```
 
+The input is a permission record with two scoped grants. The output is the exact two-argument array a launcher can use.
+Try replacing the read scope with `true`: the resulting `--allow-read` is a broader grant. Choose scoped grants when the
+executable only needs a known path.
+
 ## Build on the example
+
+- Use permission arguments at a [Process](../process/README.md) host boundary where a Deno executable is launched. The
+  process host owns the launch; these strings describe that executable's grants.
+- Use `deno/signals` with an owned [Context](../context/README.md) for a command that must stop on a process signal. The
+  context's cleanup removes attached listeners when that owner is disposed.
 
 Use permission arguments when launching a child, file helpers for bounded filesystem operations, and port helpers when a
 host needs a listener. These are explicit Deno adapters; portable algorithms belong in the other packages. Grant only
@@ -31,7 +52,9 @@ dependencies before running them.
 
 `@okikio/deno` contains reusable Deno-specific mechanics that do not depend on a product domain.
 
-The current public submodule is `@okikio/deno/permissions`.
+The public submodules are `@okikio/deno/permissions`, `@okikio/deno/file`, `@okikio/deno/port`, and
+`@okikio/deno/signals`, with their contracts in `@okikio/deno/types`. The root export also groups the runtime operations
+as `permissions`, `file`, `port` and `signals` namespaces.
 
 ## Start here
 

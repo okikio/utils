@@ -1,7 +1,31 @@
 # `@okikio/resource`
 
-Create expensive dependencies once, borrow them through declared access and close them at their owner lifetime.
-Hand-built dependency bags make missing implementations, cycles and cleanup ordering hard to detect.
+Share something a job needs without making every function open and close its own copy. For example, ten photo jobs can
+borrow one application-owned storage client instead of opening ten connections. A resource describes that dependency; a
+resource collection creates the supplied implementation when it is first needed and owns its cleanup.
+
+This package does not choose a storage vendor or provide a database. It connects your supplied clients to the jobs that
+declare their use, and makes their lifetimes explicit. Access requirements are checked when a caller borrows a resource.
+
+## Follow one shared dependency
+
+Read the arrows as requests to borrow the same store. The collection opens it lazily, shares the admitted creation, and
+closes the owned store when the collection ends. The two jobs do not close their borrowed copy themselves.
+
+```mermaid
+flowchart LR
+    JobA["Photo job A"] --> Collection["Resource collection"]
+    JobB["Photo job B"] --> Collection
+    Collection --> Store["One supplied store"]
+    Owner["Application closes collection"] --> Cleanup["Store cleanup"]
+    Cleanup --> Store
+```
+
+The picture shows one resource inside one collection. Another collection can own a separate instance. It omits
+dependency ordering and access checks, which are explained below. The collection is not a cross-machine connection pool.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -30,6 +54,21 @@ value:asset-1
 `create()` returns a `ResourceCollection` immediately without opening the store. `get()` returns a Promise of the
 borrowed `{ read(id: string): string }` value, creating it lazily. The collection owns created values and releases them
 at disposal. The caller gets the string `value:asset-1` and must not dispose a borrowed provider independently.
+
+The mini-demo starts with the ID `asset-1`. `Store` describes the operation a caller can use, and `StoreLive` supplies a
+tiny implementation that returns `value:` followed by that ID. `stores.get()` obtains that implementation; `read()`
+produces the printed string. No external file or database is read. Replace the supplied implementation when the same
+call needs to use real storage.
+
+| Situation                                       | Combine                                                                | Useful outcome                                                                                      |
+| ----------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Several photo jobs need the same storage client | Resource + [activity](../activity/README.md)                           | Each job declares its dependency; the collection owns the live client.                              |
+| A local import owns a temporary client          | Resource + [task](../task/README.md) + [context](../context/README.md) | The task borrows the client and its owner releases it after work ends.                              |
+| Different users share one client                | Resource + [permission](../permission/README.md)                       | Check each actor's permitted use, rather than treating the first borrow as permission for everyone. |
+
+See [the complete manifest-saving demo](../../docs/composition.md#share-a-resource-with-a-finite-operation) for a task
+that writes and reads a real in-memory value through a resource. Choose [pool](../pool/README.md) when work needs
+exclusive leases from a limited set of instances rather than shared access to one value.
 
 ## Build on the example
 
@@ -134,8 +173,9 @@ implementation **types** but does not promise that its `implementations` array h
 arguments. Manually, this is the same rule as pushing each implementation into an array only the first time its object
 identity is seen.
 
-The collection disposes acquired resource scopes in reverse acquisition order. Cancelling/disposal also waits for
-in-flight acquisitions so a value that finishes creation late cannot escape ownership.
+Awaited collection disposal closes acquired resource scopes in reverse acquisition order and joins in-flight
+acquisitions, so a value that finishes creation late cannot escape ownership. Context cancellation alone requests a
+stop; it does not await acquisitions or dispose the collection. The caller still owns its awaited disposal.
 
 `@okikio/resource` does not implement databases, browsers, payment systems, or permission engines. Concrete packages
 implement definitions and hosts decide how generic requirements are interpreted.

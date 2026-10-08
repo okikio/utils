@@ -1,7 +1,23 @@
 # `@okikio/sitemap`
 
-Read sitemap, feed and text discovery sources through one record model. Looking for every XML loc element loses source
-kind, alternate links and malformed-document evidence.
+A website provides a list of pages for discovery, sometimes as Sitemap XML, sometimes as a feed or a plain URL list.
+`sitemap` reads those supplied documents into page or child-source records. It saves a collector from writing a
+different URL extractor for each supported format; it does not download the listed pages.
+
+```mermaid
+flowchart LR
+    A[Supplied Sitemap or feed text] --> B[Read records]
+    B --> C[Page URL records]
+    B --> D[Child sitemap records when an index declares them]
+    C -. application chooses .-> E[Candidate pages to visit]
+    D -. application acquires .-> F[More source documents]
+```
+
+The first demo contains only one page record. Child records describe other sources rather than fetching them. Dotted
+arrows are decisions and I/O your application must provide; this view omits format errors and streaming limits.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -20,7 +36,16 @@ Expected output:
 ["https://example.com/guide"]
 ```
 
+The input is a complete XML document containing the guide URL. `locations()` returns that one address, which the demo
+prints as an array. Add another `<url><loc>...</loc></url>` entry to list a second page. A listed URL is a discovery
+candidate, not proof that the page exists or should be crawled.
+
 ## Build on the example
+
+- Get declared Sitemap addresses from [Robots](../robots/README.md), acquire those sources in your application, then
+  apply robots rules to discovered page candidates. The complete local example below uses supplied bytes.
+- Pair streamed discovery with a [Context](../context/README.md) signal and an awaited `onRecord` sink. A slow sink can
+  make the parser wait rather than forcing your application to retain every record at once.
 
 Use locations() when only URLs matter, parse() when provenance and metadata matter, and parseStream() for bounded
 incremental ingestion. Choose standards or lenient policy explicitly for imperfect sources and retain problems for

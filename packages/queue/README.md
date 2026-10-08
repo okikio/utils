@@ -1,7 +1,26 @@
 # `@okikio/queue`
 
-Give queued work an expiring claim and fenced completion. Removing an item from an array loses it when a worker dies;
-leaving it in place without a claim permits concurrent duplicate ownership.
+A thumbnail request needs to wait until a converter is free. If a converter stops halfway through, another one should be
+able to try that request without letting the old converter overwrite a newer result. `@okikio/queue` gives each piece of
+work a stable reference and each attempt a temporary claim, then accepts completion only from the live claim.
+
+A **claim** is permission to work on one queued item until its lease expires. **Fenced completion** means an old claim
+cannot publish over the current owner. The included `memory()` store keeps all of this in the current process;
+restarting the process loses it.
+
+```text
+Add work -> queued -> claim by worker-a -> complete with live claim -> result
+                         |
+                         +-> claim expires -> recover / claim again
+                                                   |
+                                      old worker-a completion rejected
+```
+
+The visual shows logical ownership, not automatic thread creation. The caller runs work and drives the applicable
+recovery operations. Claims prevent stale publication; they cannot undo external side effects already performed.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -33,6 +52,20 @@ RESIZE ASSET
 resolves to live `QueueClaim<string>` values, and `result()` resolves here to the output string `RESIZE ASSET`. The
 producer owns the queue lifetime; the worker must present its live claim when completing. Disposing this reference store
 loses its in-memory records and joins its local waiters.
+
+## Read the mini-demo
+
+The demo adds the text `resize asset`, claims it for `worker-a` for 30 seconds, and completes it with the uppercase
+text. `result(ctx, ref)` reads `RESIZE ASSET` through the stable item reference. The test clock makes time controllable;
+no actual picture is resized and no extra worker thread is started. Try changing the input text to follow the same value
+from admission through its claimed attempt to its final result.
+
+- **Convert many uploads:** use [Workflow](../workflow/README.md) for multi-step execution and a queue for pending work.
+  [Worker](../worker/README.md) or [Process](../process/README.md) can perform the conversion. Durable recovery needs an
+  atomic storage adapter; the memory queue is useful for local operation and simulation.
+- **Accept repeated requests for the same report:** choose a stable admission key from the report's identity and
+  version, then use [Telemetry](../telemetry/README.md) to follow attempts. Reusing a queue key is logical
+  deduplication, not an exactly-once guarantee for arbitrary external writes.
 
 ## Build on the example
 

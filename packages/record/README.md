@@ -1,7 +1,20 @@
 # `@okikio/record`
 
-Inspect plain data records without accidentally invoking hidden getters or trusting inherited configuration. Object.keys
-plus direct reads can execute accessors and silently ignore properties that validation never saw.
+An options object looks like a simple list of names and values. But an object can hide inherited fields, invisible
+properties, or a getter that runs code when read. `record` checks that the object really is an ordinary visible data map
+before a utility lists or snapshots its fields. It checks the container, not the business meaning of each value.
+
+| Container shape                     | `record.assert()` | Why                                                     |
+| ----------------------------------- | ----------------- | ------------------------------------------------------- |
+| `{ host: 'localhost', port: 4321 }` | Accepted          | Visible own string-keyed data fields.                   |
+| An object with a getter for `port`  | Rejected          | Reading a field would execute code.                     |
+| A class instance or hidden property | Rejected          | Enumeration would not prove the intended data contract. |
+
+This is a shape decision table. It does not prove that `port` is a valid port number or that nested values are
+immutable.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -20,7 +33,16 @@ host,port
 host=localhost port=4321
 ```
 
+The demo checks the options object, then prints its exact keys and key/value pairs. Change `port` to `5000` to change
+the second line. Replacing that plain field with a getter makes the shape check fail before `entries()` reads it. Use
+`snapshot()` when the consumer also needs a frozen copy of the accepted outer record.
+
 ## Build on the example
+
+- Check authored field maps before composing [Environment](../env/README.md) or [Codec](../codec/README.md) definitions.
+  This package protects the map's shape; those packages validate or convert the values they own.
+- Use [Schema](../schema/README.md) for external payload meaning. Do not substitute a record-shape check for validation
+  of a request's required fields, ranges or nested structures.
 
 Validate authored options before snapshotting them, then use typed keys and entries to retain exact key/value
 relationships. Use the ordinary Web or JavaScript API when data is already trusted and the stronger record contract adds
@@ -29,6 +51,40 @@ no value. Record inspection does not recursively validate application values or 
 [Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
 variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
 dependencies before running them.
+
+## Try checking structure before checking meaning
+
+An import-safe options map can still contain an invalid value. This mini-demo uses Record for its outer shape and Schema
+for the port's meaning, so each check answers a distinct question.
+
+```ts runnable=checked-options.ts
+import * as record from '@okikio/record';
+import * as schema from '@okikio/schema';
+import { z } from 'zod';
+
+const options = record.snapshot({ host: 'localhost', port: '4321' });
+const PortSchema = z.coerce.number().int().min(1).max(65535);
+const port = await schema.parse(PortSchema, options.port);
+console.log(`${options.host}:${port}`);
+const accessor = Object.defineProperty({}, 'port', {
+	enumerable: true,
+	get() {
+		throw new Error('Must not run.');
+	},
+});
+console.log(record.is(accessor));
+```
+
+Expected output:
+
+```text output
+localhost:4321
+false
+```
+
+The snapshot keeps the supplied plain fields; the schema converts the port text to a valid number. The last check
+rejects the getter-backed shape without running its getter. Change the plain port to `'70000'` to fail the value check
+instead. Snapshotting is shallow: nested objects would still need their own ownership and validation rules.
 
 ## Purpose
 

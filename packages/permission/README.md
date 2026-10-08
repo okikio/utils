@@ -1,7 +1,28 @@
 # `@okikio/permission`
 
-Check exact capabilities and schema-validated targets through an explicit evaluator. A boolean on a context cannot
-express actor-specific checks or distinguish two independently authored same-name permissions.
+Imagine a gallery where anyone can read public pictures, while private pictures need an explicit grant.
+`@okikio/permission` asks a configured policy evaluator whether an action is allowed for a particular target and makes
+that decision available as `true`, `false`, or an error. You avoid scattered checks that accidentally authorize
+different objects under the same action name.
+
+A **permission** names an action, such as `asset.read`. A **target** identifies the object involved. The **checker** is
+application-supplied code that knows the actor and access policy. Declaring a permission does not authenticate anyone or
+restrict the operating system by itself.
+
+```text
+Caller wants asset.read on { id: "public" }
+                  |
+                  v
+Validate target -> configured checker -> true: caller may continue
+                                         false: caller must deny
+                                         error: check did not succeed
+```
+
+This shows one ordinary check. `check()` reports a decision; the application must branch on it, or use `assert()` to
+stop denied work. A missing or broken checker throws rather than silently producing an ordinary denial.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -36,6 +57,20 @@ Expected output:
 true
 false
 ```
+
+## Read the mini-demo
+
+The demo's checker implements one deliberately small rule: an ID equal to `public` is allowed. The two inputs
+`{ id: 'public' }` and `{ id: 'private' }` therefore print `true` and `false`. No login service or database is involved.
+Try another string ID and it remains denied. In a real gallery, the checker must incorporate the authenticated actor and
+the application's complete policy rather than trusting the caller to label an asset public.
+
+- **Protect a download:** define the read action in [Endpoint](../server/endpoint/README.md), bind a checker in the
+  [Service](../server/service/README.md), and assert access after resolving the actual asset. Then deliver bytes through
+  [HTTP Response](../http/response/README.md). A declaration alone does not protect that response.
+- **Filter a search page:** check targets in a batch, return only allowed records, and use
+  [Telemetry](../telemetry/README.md) for diagnostics. Reporter success must never become the authority for permission
+  decisions.
 
 ## Build on the example
 

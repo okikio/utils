@@ -1,7 +1,26 @@
 # `@okikio/task`
 
-Control one process-local operation with cooperative pause, cancellation and joined cleanup. A Promise alone cannot
-request a pause or communicate whether cancellation and resource disposal have finished.
+A user starts an import and then presses Pause or Cancel. A plain Promise represents the final answer, but offers no
+standard control for those buttons or for knowing when cleanup has finished. `@okikio/task` gives one local operation a
+handle for pause, resume, cancellation, and an awaited result that includes its cleanup.
+
+A **checkpoint** is a place where the operation cooperates with pause and cancellation. A task is one live operation in
+the current process; it is not a saved job that can restart on another computer.
+
+```text
+start -> operation runs -> checkpoint -> operation continues -> cleanup -> done
+                              |
+                         pause requested
+                              v
+                           paused -> resume -> next unit of work
+```
+
+This is a common successful lifecycle, with the pause branch at a checkpoint. It omits failure and cancellation paths,
+which also lead through cleanup before terminal settlement. The handle cannot freeze an arbitrary in-flight provider
+call.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -32,6 +51,19 @@ Expected output:
 `start()` returns `Task<number>` immediately. `work.done` is `Promise<number>` and resolves here to `42` after
 registered cleanup runs. A thrown operation or cleanup failure rejects it. The task owns its child context; the caller
 owns the task through `await using`.
+
+## Read the mini-demo
+
+The demo registers cleanup that appends `released`, visits a checkpoint, and returns `42`. Awaiting `work.done` then
+prints the result, the completed status, and the cleanup marker: `42 completed released`. That marker demonstrates that
+cleanup has already run when the successful result is available. To explore pause, use the multi-item example below;
+this immediate operation may finish before an external pause request can be observed.
+
+- **Pause a multi-file import:** place checkpoints between files, use [Streams](../streams/README.md) for incremental
+  input, and pass the task signal into actual I/O. Checkpoints do not interrupt an indivisible database or codec call.
+- **Use an already-open connection:** borrow a [Resource](../resource/README.md) collection or a value leased from
+  [Pool](../pool/README.md). The task owns its local execution and registered cleanup; the outer owner still closes
+  borrowed resources. Use [Workflow](../workflow/README.md) when execution also needs persisted history and recovery.
 
 ## Build on the example
 

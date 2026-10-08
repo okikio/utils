@@ -1,6 +1,22 @@
 # `@okikio/server/gateway`
 
-Derive upstream route ownership from an imported service contract without copying route strings.
+When one public address forwards to several services, copied path lists become stale and incoming cookies can reach an
+unintended origin. This gateway derives its routes from imported service definitions and applies explicit forwarding
+policy. The outcome is one edge Fetch application whose route ownership and credential decisions can be checked before
+traffic starts.
+
+```text
+Imported service /api + endpoint /health -> compile route /api/health
+Caller Request -> gateway route + forwarding policy -> upstream service
+Caller Response <- sanitized upstream response      <- upstream service
+```
+
+The upper line prepares the route without contacting the upstream. The lower lines show request and response forwarding
+after a runtime is created. The gateway controls what crosses that network hop. The upstream service still validates
+domain input and decides whether the actor may perform the operation.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -26,28 +42,23 @@ Expected output:
 /api/health strip
 ```
 
+The demo imports the health endpoint and its `/api` service prefix, then mounts that service at
+`https://upstream.invalid`. Compilation produces `/api/health` without copying that full path into the gateway. The
+output `strip` is the request-cookie policy on the compiled route: incoming browser cookies are not blindly forwarded.
+No upstream request is made in this demo; the `.invalid` origin is an illustrative address, not a deployed service.
+
 ## Build on the example
 
-Compilation does not start the upstream service or fetch the origin. Add credential, timeout and redirect policies
-explicitly before creating the gateway runtime. Service authorization remains with the service; an edge policy does not
-grant domain permissions.
+For a public API in front of an account service and an import service, import each
+[service definition](../service/README.md), choose its origin, and specify credentials, timeouts and redirect rules
+before creating the gateway runtime. Use [request header policy](../../http/request/README.md) when deciding which
+credentials may cross origins; preserve separate [response cookies](../../http/cookie/README.md) when the chosen
+response policy allows them. The gateway's edge authentication does not grant a domain permission inside the service.
 
-Import-driven edge routing and forwarding derived from import-safe service definitions. Compiled service manifests are
-optional drift checks, not route discovery inputs. Gateway definitions do not copy service path strings and do not own
-application requirement interpretation or domain validation. A gateway may authenticate a caller or add a signed
-assertion when its policy declares that edge behavior, but service-level permission, entitlement, meter, quota, consent,
-and future requirement families remain service-owned extensions.
-
-```text
-import-safe service route
-  -> optional compiled-manifest drift check
-  -> exact gateway route ownership
-  -> shallow request guards and credential policy
-  -> optional edge authentication / signed assertion
-  -> sanitized streaming Request
-  -> upstream fetch with manual redirects
-  -> response policy and completion observation
-```
+For a local test, provide a controlled upstream Fetch function and assert both the forwarded request and the returned
+response. For deployment, the host owns the network listener and the gateway runtime owns its contexts and response
+lifetime. The compiler can compare an optional service manifest for drift, but imported service definitions remain the
+route source.
 
 ## Definition
 

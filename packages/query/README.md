@@ -1,8 +1,22 @@
 # `@okikio/query`
 
-Declare an HTTP collection query once and validate its filter, sort, selection and pagination grammar before reaching a
-database. Parsing strings directly into SQL makes hidden fields, unsupported operators and ambiguous list values easy to
-accept.
+A directory page asks for people named Ada and wants only two results. The API needs to understand that request before
+its database adapter runs it. `query` declares which fields, comparisons and page sizes callers may request, then
+returns checked query data. A **query definition** is the allowed search language for one collection.
+
+```mermaid
+flowchart LR
+    A[URL: name Ada and limit 2] --> B[Collection query definition]
+    B -->|valid input| C[Checked filter and page size]
+    B -->|invalid input| D[Validation error]
+    C -. adapter supplied by application .-> E[Database operation]
+```
+
+The demo stops at checked data and its URL round trip. The dotted arrow needs a compatible adapter; parsing a filter
+does not execute it or make a database support that comparison. This view omits sorting and complex filter groups.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -32,7 +46,16 @@ name 2
 Ada
 ```
 
+The demo declares `name` filtering and a default page size of 20. The supplied URL overrides that limit to 2; the first
+line prints the selected field and page size. The second line shows `Ada` survived encoding and parsing again. Remove
+`limit=2` to use the default. Requesting an undeclared filter is a validation failure, not extra database authority.
+
 ## Build on the example
+
+- Parse a collection URL at a [Server endpoint](../server/endpoint/README.md) boundary, then pass the checked query to
+  the application's declared database adapter. Keep adapter capability checks alongside that translation.
+- Use [Schema](../schema/README.md) contracts for field meanings, then use Query for collection-level search grammar. A
+  field's valid values and the operations a client may request on it are separate rules.
 
 Start with flat filters, enable bounded all/any/not groups when the provider supports them, and encode values for
 lossless URL round trips. The tagged wire codec preserves commas, empty text, bigint, dates and negative zero.

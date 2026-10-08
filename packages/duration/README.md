@@ -1,7 +1,22 @@
 # `@okikio/duration`
 
-Convert human-readable Temporal durations to one deterministic numeric value. A month needs a calendar anchor; repeating
-that decision across queues, retries and timeouts produces inconsistent answers.
+A settings screen says “wait 2.5 seconds,” but a timer wants the number `2500`. `@okikio/duration` translates structured
+or text durations into milliseconds and compares two durations consistently. It lets retries, queue leases, and timeout
+configuration share one conversion rule instead of each doing its own arithmetic.
+
+**Temporal** is the JavaScript date-and-time API used for these values. `PT2.5S` is its standard duration text for 2.5
+seconds. A duration describes an amount of time; converting it does not start a timer.
+
+| Input question                     | Answer in the demo   | Meaning                                           |
+| ---------------------------------- | -------------------- | ------------------------------------------------- |
+| How many milliseconds is `PT2.5S`? | `2500`               | 2.5 seconds, expressed in thousandths of a second |
+| Does one month equal 31 days?      | `0` from `compare()` | Equal at this package's fixed January 2000 anchor |
+
+The table shows conversion rules, not a universal rule that every month has 31 days. Calendar units use `2000-01-01` as
+their anchor; billing periods or “next month from today” need their own business date.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -51,6 +66,18 @@ polyfill does not make a workflow store durable.
 `milliseconds()` returns a number immediately, here `2500`; `compare()` returns the ordering value `0` for these
 calendar-anchored inputs. Conversion starts no timer and owns no lifetime. Timer APIs decide independently whether a
 converted duration is allowed and who clears the timer.
+
+## Read the mini-demo
+
+The first demo prints a number a timer API can consume, then prints `0`, meaning the two anchored durations compare as
+equal. Try replacing `PT2.5S` with `PT1S` to get `1000`. For calendar-sensitive work, change the comparison approach
+rather than interpreting that fixed anchor as today's calendar. The local Temporal mini-demo adds 15 minutes to a known
+instant and prints the new instant without installing a global.
+
+- **Give a download a deadline:** use [Context](../context/README.md) to own cancellation and the timer. Duration
+  supplies conversion mechanics; the context decides which durations are acceptable for a deadline.
+- **Plan retry waits:** use [Resilience](../resilience/README.md) to describe delays and retry safety, then let the
+  chosen runtime apply them. A time value does not decide whether repeating a payment or write is safe.
 
 ## Build on the example
 

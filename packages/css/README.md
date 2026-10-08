@@ -1,7 +1,20 @@
 # `@okikio/css`
 
-Extract stylesheet dependencies and feature evidence through a CSS parser. A regular expression cannot reliably
-distinguish a URL token from a quoted string, a comment or a nested rule.
+You are collecting a page's dependencies for an offline copy. Its stylesheet mentions an imported theme and a hero
+image, but those references are buried in CSS text. `css` parses that text and lets you ask for the resources and
+features it contains, without opening a browser.
+
+| Stylesheet fragment in the demo | Extracted fact             | Why it helps                              |
+| ------------------------------- | -------------------------- | ----------------------------------------- |
+| `@import "theme.css"`           | Resource URL `theme.css`   | A collector can find the next stylesheet. |
+| `url("hero.webp")`              | Resource URL `hero.webp`   | A collector can find the image.           |
+| `--accent: blue`                | Custom property `--accent` | An analyzer can inspect theme vocabulary. |
+
+Read each row as evidence from source text. The table does not show resolved addresses, downloaded files, or the styles
+that a browser actually applies.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -20,7 +33,16 @@ Expected output:
 ["--accent"]
 ```
 
+The demo parses one stylesheet once, then asks two questions of it. The first line lists referenced resources; the
+second lists custom-property names. Change `hero.webp` to `banner.webp` to change the corresponding resource evidence.
+The parser does not download either image.
+
 ## Build on the example
+
+- Use [HTML](../html/README.md) to extract a page's inline `<style>` text, then inspect that text with CSS. The runnable
+  composition below shows this without network access.
+- Record the URLs with [CSV](../csv/README.md) for a dependency report. Your application must resolve relative
+  references against the stylesheet's address before scheduling downloads.
 
 Extract URL references first, then collect custom properties, media features and pseudo classes from the same parsed
 stylesheet. References retain source positions for diagnostics. Resolve relative URLs against the stylesheet URL in your

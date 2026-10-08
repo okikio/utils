@@ -1,7 +1,23 @@
 # `@okikio/dispose`
 
-Dispose owned values in a predictable order while preserving both the operation failure and any cleanup failure.
-Hand-written finally blocks often skip later cleanup when one callback throws.
+A file import can open a connection, create a temporary file, and then fail halfway through. Someone still needs to
+close the connection and remove the file. `@okikio/dispose` gives that owner a cleanup list which runs in reverse order,
+even when one cleanup fails. You write the cleanup once instead of repeating it on every return and error path.
+
+A **resource** is something that needs to be released, such as a reader or connection. **Disposal** is its cleanup, not
+necessarily deletion of its data. A **stack** remembers cleanup callbacks in the order you register them.
+
+```text
+Register cleanup:  connection -> temporary file
+Finish or fail:    temporary file -> connection
+                       cleanup runs in reverse order
+```
+
+The visual shows callback order, not when a database commits or when a file becomes durable. The application must supply
+the correct close/delete behavior. Cleanup failures remain visible instead of preventing all later callbacks.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -27,6 +43,20 @@ Expected output:
 ```text output
 temporary file, connection
 ```
+
+## Read the mini-demo
+
+The demo registers two callbacks that append names to a list. `disposeAsync()` awaits cleanup; the last registered
+callback runs first, so you see `temporary file, connection`. No actual file or connection is opened here. Replace those
+callbacks with real resource cleanup to use the same ownership rule. Try reversing the two registrations to see the
+printed order reverse too.
+
+- **Import a CSV file:** combine this stack with [CSV](../csv/README.md) and [Streams](../streams/README.md). The
+  importer owns readers and temporary outputs; parsing owns how bytes become rows. The complete CSV mini-demo below
+  shows that boundary with a small in-memory input.
+- **Run an external converter:** let [Process](../process/README.md) own the child process, and register other
+  application-owned resources alongside it. A disposal stack coordinates cleanup; it does not add process-tree
+  guarantees beyond the selected process adapter.
 
 ## Build on the example
 

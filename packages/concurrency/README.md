@@ -1,7 +1,28 @@
 # `@okikio/concurrency`
 
-Bound active asynchronous work while choosing whether consumers need input order or completion order. Promise.all starts
-every operation immediately and gives cancellation no ownership over admitted siblings.
+Suppose you have 1,000 pictures to download. Starting all 1,000 requests together can overwhelm a server or your
+computer. `@okikio/concurrency` lets you work on a few pictures at a time and start the next one when a place becomes
+available. You choose whether results arrive in the original order or as soon as they finish.
+
+**Concurrency** means several operations are in progress together. While one download waits for the network, another can
+make progress. This package does not create extra CPU threads; use [Worker](../worker/README.md) for work that needs a
+separate Worker runtime.
+
+```text
+Input: first, second, third       maximum active operations: 2
+
+admit first + second -> a place becomes available -> admit third
+          |                                             |
+          +--------------- ordered results -------------+
+                         FIRST, SECOND, THIRD
+```
+
+Read this as admission order, not a measured timeline. The limiter admits at most two mapper calls at once; ordered
+mapping delivers their results in input order even if the second call finishes first. The diagram omits failure cleanup,
+which aborts admitted siblings and waits for them to settle.
+
+For shared terms such as `await` and `await using`, see
+[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 ## Run a complete example
 
@@ -23,6 +44,21 @@ Expected output:
 ```text output
 ["FIRST","SECOND","THIRD"]
 ```
+
+## Read the mini-demo
+
+The mini-demo gives the limiter three words and two available places. Each mapper turns one word into capitals.
+`Array.fromAsync()` consumes the returned sequence and collects the three results, so the printed array preserves
+`first`, `second`, `third` order. The mapper checks its cancellation signal before doing work. This tiny transform
+teaches ordering; it does not demonstrate a CPU speedup. Try `concurrency: 1` to make admission sequential while keeping
+the same output.
+
+Two situations where the pieces fit together:
+
+- **Check a list of links:** use a [Context](../context/README.md) to stop the entire check, this package to cap active
+  fetches, and [Streams](../streams/README.md) to write results in batches rather than retain the whole list.
+- **Convert many pictures:** use [Pool](../pool/README.md) to own reusable Worker handles and this package to admit a
+  bounded number of conversions. The pool owns handles; each conversion still needs a lease and cancellation wiring.
 
 ## Build on the example
 
