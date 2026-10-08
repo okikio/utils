@@ -1,0 +1,6 @@
+flowchart LR
+    A[Supplied Sitemap or feed text] --> B[Read records]
+    B --> C[Page URL records]
+    B --> D[Child sitemap records when an index declares them]
+    C -. application chooses .-> E[Candidate pages to visit]
+    D -. application acquires .-> F[More source documents]

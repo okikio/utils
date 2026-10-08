@@ -12,20 +12,11 @@ not perform the import. Your functions still return the imported rows or saved d
 Read the branches below as responsibilities of one import, not as steps that run automatically. `timeout()` immediately
 returns a child context. Your import uses its signal and registers cleanup on its owner.
 
-```mermaid
-flowchart TD
-    Parent["Import owner"] --> Child["Child context: 2-second deadline"]
-    Child --> Work["Your function uses the child's signal"]
-    Child --> Cleanup["Registered cleanup"]
-    Deadline["Deadline reached"] --> Abort["Signal asks work to stop"]
-    ParentCancel["Caller cancels"] --> Abort
-    Abort --> Work
-    Exit["Leave await using block"] --> Cleanup
-```
+![A context joins the cancellation and cleanup lifetimes of related operations](diagram.png)
 
-Deadline expiry and parent cancellation request a stop; leaving the owned block joins cleanup. A child also releases its
-deadline wait when disposed. The picture omits the clock implementation and parent listener. It does not imply that a
-timer can forcibly interrupt a synchronous function or undo an accepted save.
+[Editable diagram source](diagram.mmd). Deadline expiry and parent cancellation request a stop; leaving the owned block
+joins cleanup. A child also releases its deadline wait when disposed. The picture omits the clock implementation and
+parent listener. It does not imply that a timer can forcibly interrupt a synchronous function or undo an accepted save.
 
 | Call                              | You get                              | Use it when                                                      |
 | --------------------------------- | ------------------------------------ | ---------------------------------------------------------------- |
@@ -39,6 +30,8 @@ operation's supporting state, not the operation's answer.
 
 For shared terms such as `await` and `await using`, see
 [the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
+
+For the exact functions, types and field explanations, read the [generated contract reference](API.md).
 
 ## Run a complete example
 

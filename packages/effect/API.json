@@ -1,0 +1,5060 @@
+{
+	"package": "@okikio/effect",
+	"packageVersion": "0.0.0",
+	"rendererVersion": 2,
+	"modules": {
+		"@okikio/effect": {
+			"module_doc": {
+				"doc": "Represent an externally visible fact separately from delivery. Logging that a file was saved does not prove an outbox or billing ledger accepted that fact.\n\nCreate an occurrence without delivery when staging work, then emit it through an owner that accepts or rejects it. Add a queue-backed emitter when the application needs delayed delivery. Stable keys let an authoritative sink deduplicate retries; the utility cannot make arbitrary external side effects exactly once. Declared effects restrict what a scope may emit, and cancellation after acceptance does not revoke the accepted fact.\n",
+				"tags": [
+					{
+						"kind": "example",
+						"doc": "```ts\nimport '@okikio/duration/polyfill';\nimport '@okikio/dispose/polyfill';\nimport * as context from '@okikio/context';\nimport * as effect from '@okikio/effect';\nimport { z } from 'zod';\nconst Saved = effect.define({ id: 'asset.saved', value: z.object({ id: z.string() }) });\nawait using owner = context.create({ id: 'save' });\nconst accepted: string[] = [];\nconst ctx = effect.scope(owner, {\n  effects: [Saved],\n  emitter: { async emit(_ctx, occurrence) { accepted.push(occurrence.key); } },\n});\nawait effect.emit(ctx, Saved, { id: 'asset-1' }, { key: 'save:asset-1' });\nconsole.log(accepted.join(','));\n```\n"
+					},
+					{
+						"kind": "module"
+					}
+				]
+			},
+			"imports": [
+				{
+					"importedName": "catalogCore",
+					"src": "./packages/catalog/mod.ts",
+					"jsDoc": {
+						"doc": "Represent an externally visible fact separately from delivery. Logging that a file was saved does not prove an outbox or billing ledger accepted that fact.\n\nCreate an occurrence without delivery when staging work, then emit it through an owner that accepts or rejects it. Add a queue-backed emitter when the application needs delayed delivery. Stable keys let an authoritative sink deduplicate retries; the utility cannot make arbitrary external side effects exactly once. Declared effects restrict what a scope may emit, and cancellation after acceptance does not revoke the accepted fact.\n",
+						"tags": [
+							{
+								"kind": "example",
+								"doc": "```ts\nimport '@okikio/duration/polyfill';\nimport '@okikio/dispose/polyfill';\nimport * as context from '@okikio/context';\nimport * as effect from '@okikio/effect';\nimport { z } from 'zod';\nconst Saved = effect.define({ id: 'asset.saved', value: z.object({ id: z.string() }) });\nawait using owner = context.create({ id: 'save' });\nconst accepted: string[] = [];\nconst ctx = effect.scope(owner, {\n  effects: [Saved],\n  emitter: { async emit(_ctx, occurrence) { accepted.push(occurrence.key); } },\n});\nawait effect.emit(ctx, Saved, { id: 'asset-1' }, { key: 'save:asset-1' });\nconsole.log(accepted.join(','));\n```\n"
+							},
+							{
+								"kind": "module"
+							}
+						]
+					}
+				},
+				{
+					"importedName": "CatalogDefinitionInput",
+					"originalName": "DefinitionInput",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "contextCore",
+					"src": "./packages/context/mod.ts"
+				},
+				{
+					"importedName": "Context",
+					"originalName": "Context",
+					"src": "./packages/context/mod.ts"
+				},
+				{
+					"importedName": "schema",
+					"src": "./packages/schema/mod.ts"
+				},
+				{
+					"importedName": "Queue",
+					"originalName": "Queue",
+					"src": "./packages/queue/mod.ts"
+				},
+				{
+					"importedName": "QueueClaim",
+					"originalName": "QueueClaim",
+					"src": "./packages/queue/mod.ts"
+				},
+				{
+					"importedName": "EffectCatalog",
+					"originalName": "EffectCatalog",
+					"src": "./packages/effect/types.ts"
+				},
+				{
+					"importedName": "EffectContext",
+					"originalName": "EffectContext",
+					"src": "./packages/effect/types.ts"
+				},
+				{
+					"importedName": "EffectCreateOptions",
+					"originalName": "EffectCreateOptions",
+					"src": "./packages/effect/types.ts"
+				},
+				{
+					"importedName": "EffectDefinition",
+					"originalName": "EffectDefinition",
+					"src": "./packages/effect/types.ts"
+				},
+				{
+					"importedName": "EffectDrainOptions",
+					"originalName": "EffectDrainOptions",
+					"src": "./packages/effect/types.ts"
+				},
+				{
+					"importedName": "EffectEmitter",
+					"originalName": "EffectEmitter",
+					"src": "./packages/effect/types.ts"
+				},
+				{
+					"importedName": "EffectEncoded",
+					"originalName": "EffectEncoded",
+					"src": "./packages/effect/types.ts"
+				},
+				{
+					"importedName": "EffectHandler",
+					"originalName": "EffectHandler",
+					"src": "./packages/effect/types.ts"
+				},
+				{
+					"importedName": "EffectOccurrence",
+					"originalName": "EffectOccurrence",
+					"src": "./packages/effect/types.ts"
+				},
+				{
+					"importedName": "EffectOptions",
+					"originalName": "EffectOptions",
+					"src": "./packages/effect/types.ts"
+				},
+				{
+					"importedName": "EffectOutbox",
+					"originalName": "EffectOutbox",
+					"src": "./packages/effect/types.ts"
+				},
+				{
+					"importedName": "EffectOutboxOptions",
+					"originalName": "EffectOutboxOptions",
+					"src": "./packages/effect/types.ts"
+				},
+				{
+					"importedName": "EffectReceiptType",
+					"originalName": "EffectReceiptType",
+					"src": "./packages/effect/types.ts"
+				},
+				{
+					"importedName": "EffectRuntime",
+					"originalName": "EffectRuntime",
+					"src": "./packages/effect/types.ts"
+				},
+				{
+					"importedName": "EffectScopeOptions",
+					"originalName": "EffectScopeOptions",
+					"src": "./packages/effect/types.ts"
+				},
+				{
+					"importedName": "EffectSelection",
+					"originalName": "EffectSelection",
+					"src": "./packages/effect/types.ts"
+				},
+				{
+					"importedName": "EffectValue",
+					"originalName": "EffectValue",
+					"src": "./packages/effect/types.ts"
+				},
+				{
+					"importedName": "EffectValueInput",
+					"originalName": "EffectValueInput",
+					"src": "./packages/effect/types.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "UnknownEffectDefinitionError",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 56,
+								"col": 0,
+								"byteIndex": 2205
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Error raised when durable effect data references an unknown trusted definition."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"jsDoc": {
+											"doc": "Create this UnknownEffectDefinitionError from the explicit contract values supplied by its caller."
+										},
+										"hasBody": true,
+										"name": "constructor",
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "id",
+												"optional": false,
+												"tsType": {
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												}
+											}
+										],
+										"location": {
+											"filename": "./packages/effect/mod.ts",
+											"line": 61,
+											"col": 2,
+											"byteIndex": 2469
+										}
+									}
+								],
+								"properties": [
+									{
+										"jsDoc": {
+											"doc": "Stable identity used to correlate this contract or occurrence."
+										},
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										},
+										"readonly": true,
+										"name": "id",
+										"location": {
+											"filename": "./packages/effect/mod.ts",
+											"line": 58,
+											"col": 2,
+											"byteIndex": 2339
+										}
+									}
+								],
+								"extends": "TypeError"
+							}
+						}
+					]
+				},
+				{
+					"name": "UndeclaredEffectError",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 69,
+								"col": 0,
+								"byteIndex": 2724
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Error raised when runtime code emits an effect that was not declared by the execution scope."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"jsDoc": {
+											"doc": "Create one execution error for an undeclared effect announcement."
+										},
+										"hasBody": true,
+										"name": "constructor",
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "definition",
+												"optional": false,
+												"tsType": {
+													"repr": "EffectDefinition",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "EffectDefinition",
+														"resolution": {
+															"kind": "import",
+															"specifier": "./types.ts",
+															"name": "EffectDefinition"
+														}
+													}
+												}
+											}
+										],
+										"location": {
+											"filename": "./packages/effect/mod.ts",
+											"line": 74,
+											"col": 2,
+											"byteIndex": 2966
+										}
+									}
+								],
+								"properties": [
+									{
+										"jsDoc": {
+											"doc": "Exact effect definition that the active execution did not declare."
+										},
+										"tsType": {
+											"repr": "EffectDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectDefinition"
+												}
+											}
+										},
+										"readonly": true,
+										"name": "definition",
+										"location": {
+											"filename": "./packages/effect/mod.ts",
+											"line": 71,
+											"col": 2,
+											"byteIndex": 2851
+										}
+									}
+								],
+								"extends": "Error"
+							}
+						}
+					]
+				},
+				{
+					"name": "MissingEffectEmitterError",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 82,
+								"col": 0,
+								"byteIndex": 3260
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Error raised when effect emission has no configured authoritative owner."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"hasBody": true,
+										"name": "constructor",
+										"params": [],
+										"location": {
+											"filename": "./packages/effect/mod.ts",
+											"line": 83,
+											"col": 2,
+											"byteIndex": 3316
+										}
+									}
+								],
+								"extends": "Error"
+							}
+						}
+					]
+				},
+				{
+					"name": "DuplicateEffectHandlerError",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 90,
+								"col": 0,
+								"byteIndex": 3564
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Error raised when two implementations claim authority for the same effect definition."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"jsDoc": {
+											"doc": "Create one configuration error for duplicate authoritative effect ownership."
+										},
+										"hasBody": true,
+										"name": "constructor",
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "definition",
+												"optional": false,
+												"tsType": {
+													"repr": "EffectDefinition",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "EffectDefinition",
+														"resolution": {
+															"kind": "import",
+															"specifier": "./types.ts",
+															"name": "EffectDefinition"
+														}
+													}
+												}
+											}
+										],
+										"location": {
+											"filename": "./packages/effect/mod.ts",
+											"line": 95,
+											"col": 2,
+											"byteIndex": 3832
+										}
+									}
+								],
+								"properties": [
+									{
+										"jsDoc": {
+											"doc": "Exact effect definition claimed by more than one authoritative handler."
+										},
+										"tsType": {
+											"repr": "EffectDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectDefinition"
+												}
+											}
+										},
+										"readonly": true,
+										"name": "definition",
+										"location": {
+											"filename": "./packages/effect/mod.ts",
+											"line": 92,
+											"col": 2,
+											"byteIndex": 3706
+										}
+									}
+								],
+								"extends": "TypeError"
+							}
+						}
+					]
+				},
+				{
+					"name": "MissingEffectHandlerError",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 103,
+								"col": 0,
+								"byteIndex": 4137
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Error raised when an effect owner has no exact handler for a declared effect."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"jsDoc": {
+											"doc": "Create one execution error for a declared effect with no accepting handler."
+										},
+										"hasBody": true,
+										"name": "constructor",
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "definition",
+												"optional": false,
+												"tsType": {
+													"repr": "EffectDefinition",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "EffectDefinition",
+														"resolution": {
+															"kind": "import",
+															"specifier": "./types.ts",
+															"name": "EffectDefinition"
+														}
+													}
+												}
+											}
+										],
+										"location": {
+											"filename": "./packages/effect/mod.ts",
+											"line": 108,
+											"col": 2,
+											"byteIndex": 4402
+										}
+									}
+								],
+								"properties": [
+									{
+										"jsDoc": {
+											"doc": "Exact declared effect definition for which no authoritative handler exists."
+										},
+										"tsType": {
+											"repr": "EffectDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectDefinition"
+												}
+											}
+										},
+										"readonly": true,
+										"name": "definition",
+										"location": {
+											"filename": "./packages/effect/mod.ts",
+											"line": 105,
+											"col": 2,
+											"byteIndex": 4277
+										}
+									}
+								],
+								"extends": "Error"
+							}
+						}
+					]
+				},
+				{
+					"name": "define",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 116,
+								"col": 0,
+								"byteIndex": 4677
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Define one immutable effect contract that code may announce."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "input",
+										"optional": false,
+										"tsType": {
+											"repr": "EffectOptions",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Id",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Id",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "define",
+																"declaringKind": "function"
+															}
+														}
+													},
+													{
+														"repr": "ValueSchema",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "ValueSchema",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "define",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "EffectOptions",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectOptions"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "EffectDefinition",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Id",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Id",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "define",
+														"declaringKind": "function"
+													}
+												}
+											},
+											{
+												"repr": "ValueSchema",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "ValueSchema",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "define",
+														"declaringKind": "function"
+													}
+												}
+											}
+										],
+										"typeName": "EffectDefinition",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "EffectDefinition"
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Id",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "ValueSchema",
+										"constraint": {
+											"kind": "importType",
+											"value": {
+												"specifier": "./types.ts",
+												"qualifier": "EffectSchema"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "catalog",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 131,
+								"col": 0,
+								"byteIndex": 5160
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create a named immutable effect catalog."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "namespace",
+										"optional": false,
+										"tsType": {
+											"repr": "Namespace",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Namespace",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "catalog",
+													"declaringKind": "function"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "entries",
+										"optional": false,
+										"tsType": {
+											"repr": "Entries",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Entries",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "catalog",
+													"declaringKind": "function"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "EffectCatalog",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Entries",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entries",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "catalog",
+														"declaringKind": "function"
+													}
+												}
+											}
+										],
+										"typeName": "EffectCatalog",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "EffectCatalog"
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Namespace",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "EffectDefinition",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "EffectDefinition",
+																		"resolution": {
+																			"kind": "import",
+																			"specifier": "./types.ts",
+																			"name": "EffectDefinition"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "select",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 142,
+								"col": 0,
+								"byteIndex": 5468
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Select a key-preserving effect catalog subset."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "source",
+										"optional": false,
+										"tsType": {
+											"repr": "EffectCatalog",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Entries",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entries",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "select",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "EffectCatalog",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectCatalog"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "keys",
+										"optional": false,
+										"tsType": {
+											"repr": "Keys",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Keys",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "select",
+													"declaringKind": "function"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "EffectSelection",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"kind": "indexedAccess",
+												"value": {
+													"objType": {
+														"repr": "Entries",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entries",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "select",
+																"declaringKind": "function"
+															}
+														}
+													},
+													"indexType": {
+														"kind": "typeOperator",
+														"value": {
+															"operator": "keyof",
+															"tsType": {
+																"repr": "Entries",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Entries",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "select",
+																		"declaringKind": "function"
+																	}
+																}
+															}
+														}
+													}
+												}
+											},
+											{
+												"repr": "Pick",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"repr": "Entries",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Entries",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "select",
+																	"declaringKind": "function"
+																}
+															}
+														},
+														{
+															"kind": "indexedAccess",
+															"value": {
+																"objType": {
+																	"repr": "Keys",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Keys",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "select",
+																			"declaringKind": "function"
+																		}
+																	}
+																},
+																"indexType": {
+																	"repr": "number",
+																	"kind": "keyword",
+																	"value": "number"
+																}
+															}
+														}
+													],
+													"typeName": "Pick"
+												}
+											}
+										],
+										"typeName": "EffectSelection",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "EffectSelection"
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "EffectDefinition",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "EffectDefinition",
+																		"resolution": {
+																			"kind": "import",
+																			"specifier": "./types.ts",
+																			"name": "EffectDefinition"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									},
+									{
+										"name": "Keys",
+										"constraint": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"kind": "parenthesized",
+														"value": {
+															"kind": "intersection",
+															"value": [
+																{
+																	"kind": "typeOperator",
+																	"value": {
+																		"operator": "keyof",
+																		"tsType": {
+																			"repr": "Entries",
+																			"kind": "typeRef",
+																			"value": {
+																				"typeName": "Entries",
+																				"resolution": {
+																					"kind": "typeParam",
+																					"declaringName": "select",
+																					"declaringKind": "function"
+																				}
+																			}
+																		}
+																	}
+																},
+																{
+																	"repr": "string",
+																	"kind": "keyword",
+																	"value": "string"
+																}
+															]
+														}
+													}
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "compose",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 153,
+								"col": 0,
+								"byteIndex": 5865
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Compose effect definitions, catalogs, selections, and nested arrays."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "rest",
+										"arg": {
+											"kind": "identifier",
+											"name": "input",
+											"optional": false
+										},
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "CatalogDefinitionInput",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "Entry",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Entry",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "compose",
+																			"declaringKind": "function"
+																		}
+																	}
+																}
+															],
+															"typeName": "CatalogDefinitionInput",
+															"resolution": {
+																"kind": "import",
+																"specifier": "@okikio/catalog",
+																"name": "DefinitionInput"
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "readonly",
+										"tsType": {
+											"kind": "array",
+											"value": {
+												"repr": "Entry",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entry",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "compose",
+														"declaringKind": "function"
+													}
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "EffectDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectDefinition"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "create",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 160,
+								"col": 0,
+								"byteIndex": 6114
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create one schema-validated effect occurrence without delivering it."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "definition",
+										"optional": false,
+										"tsType": {
+											"repr": "Effect",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Effect",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "create",
+													"declaringKind": "function"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "EffectValueInput",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Effect",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Effect",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "create",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "EffectValueInput",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectValueInput"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "options",
+										"optional": false,
+										"tsType": {
+											"repr": "EffectCreateOptions",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectCreateOptions",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectCreateOptions"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "Promise",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "EffectOccurrence",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"repr": "Effect",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Effect",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "create",
+																	"declaringKind": "function"
+																}
+															}
+														}
+													],
+													"typeName": "EffectOccurrence",
+													"resolution": {
+														"kind": "import",
+														"specifier": "./types.ts",
+														"name": "EffectOccurrence"
+													}
+												}
+											}
+										],
+										"typeName": "Promise"
+									}
+								},
+								"hasBody": true,
+								"isAsync": true,
+								"typeParams": [
+									{
+										"name": "Effect",
+										"constraint": {
+											"repr": "EffectDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectDefinition"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "scope",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 186,
+								"col": 0,
+								"byteIndex": 7020
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create an unowned effect-aware view of an existing execution context.\n\nThe returned scope borrows the parent context, emitter, and effect\ndeclarations. It creates no hidden registry and owns no cleanup."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "ctx",
+										"optional": false,
+										"tsType": {
+											"repr": "Base",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Base",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "scope",
+													"declaringKind": "function"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "options",
+										"optional": false,
+										"tsType": {
+											"repr": "EffectScopeOptions",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectScopeOptions",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectScopeOptions"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "EffectContext",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Base",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Base",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "scope",
+														"declaringKind": "function"
+													}
+												}
+											}
+										],
+										"typeName": "EffectContext",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "EffectContext"
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Base",
+										"constraint": {
+											"kind": "importType",
+											"value": {
+												"specifier": "@okikio/context",
+												"qualifier": "Context"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "emit",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 204,
+								"col": 0,
+								"byteIndex": 7672
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Emit one already-created occurrence and wait until its exact owner accepts responsibility."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "ctx",
+										"optional": false,
+										"tsType": {
+											"repr": "EffectContext",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectContext",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectContext"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "occurrence",
+										"optional": false,
+										"tsType": {
+											"repr": "EffectOccurrence",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Effect",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Effect",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "emit",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "EffectOccurrence",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectOccurrence"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "Promise",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "EffectOccurrence",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"repr": "Effect",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Effect",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "emit",
+																	"declaringKind": "function"
+																}
+															}
+														}
+													],
+													"typeName": "EffectOccurrence",
+													"resolution": {
+														"kind": "import",
+														"specifier": "./types.ts",
+														"name": "EffectOccurrence"
+													}
+												}
+											}
+										],
+										"typeName": "Promise"
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Effect",
+										"constraint": {
+											"repr": "EffectDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectDefinition"
+												}
+											}
+										}
+									}
+								]
+							}
+						},
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 209,
+								"col": 0,
+								"byteIndex": 7905
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create and emit one occurrence as a convenience for ordinary call sites."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "ctx",
+										"optional": false,
+										"tsType": {
+											"repr": "EffectContext",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectContext",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectContext"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "definition",
+										"optional": false,
+										"tsType": {
+											"repr": "Effect",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Effect",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "emit",
+													"declaringKind": "function"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "EffectValueInput",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Effect",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Effect",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "emit",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "EffectValueInput",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectValueInput"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "options",
+										"optional": false,
+										"tsType": {
+											"repr": "EffectCreateOptions",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectCreateOptions",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectCreateOptions"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "Promise",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "EffectOccurrence",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"repr": "Effect",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Effect",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "emit",
+																	"declaringKind": "function"
+																}
+															}
+														}
+													],
+													"typeName": "EffectOccurrence",
+													"resolution": {
+														"kind": "import",
+														"specifier": "./types.ts",
+														"name": "EffectOccurrence"
+													}
+												}
+											}
+										],
+										"typeName": "Promise"
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Effect",
+										"constraint": {
+											"repr": "EffectDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectDefinition"
+												}
+											}
+										}
+									}
+								]
+							}
+						},
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 216,
+								"col": 0,
+								"byteIndex": 8180
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Execute the emit overload and return the exact accepted occurrence."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "ctx",
+										"optional": false,
+										"tsType": {
+											"repr": "EffectContext",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectContext",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectContext"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "input",
+										"optional": false,
+										"tsType": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "Effect",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Effect",
+														"resolution": {
+															"kind": "typeParam",
+															"declaringName": "emit",
+															"declaringKind": "function"
+														}
+													}
+												},
+												{
+													"repr": "EffectOccurrence",
+													"kind": "typeRef",
+													"value": {
+														"typeParams": [
+															{
+																"repr": "Effect",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Effect",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "emit",
+																		"declaringKind": "function"
+																	}
+																}
+															}
+														],
+														"typeName": "EffectOccurrence",
+														"resolution": {
+															"kind": "import",
+															"specifier": "./types.ts",
+															"name": "EffectOccurrence"
+														}
+													}
+												}
+											]
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": true,
+										"tsType": {
+											"repr": "EffectValueInput",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Effect",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Effect",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "emit",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "EffectValueInput",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectValueInput"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "options",
+										"optional": true,
+										"tsType": {
+											"repr": "EffectCreateOptions",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectCreateOptions",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectCreateOptions"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "Promise",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "EffectOccurrence",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"repr": "Effect",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Effect",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "emit",
+																	"declaringKind": "function"
+																}
+															}
+														}
+													],
+													"typeName": "EffectOccurrence",
+													"resolution": {
+														"kind": "import",
+														"specifier": "./types.ts",
+														"name": "EffectOccurrence"
+													}
+												}
+											}
+										],
+										"typeName": "Promise"
+									}
+								},
+								"hasBody": true,
+								"isAsync": true,
+								"typeParams": [
+									{
+										"name": "Effect",
+										"constraint": {
+											"repr": "EffectDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectDefinition"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "encode",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 256,
+								"col": 0,
+								"byteIndex": 9588
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Encode an occurrence after revalidating its durable value."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "EffectOccurrence",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectOccurrence",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectOccurrence"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "Promise",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "EffectEncoded",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "EffectEncoded",
+													"resolution": {
+														"kind": "import",
+														"specifier": "./types.ts",
+														"name": "EffectEncoded"
+													}
+												}
+											}
+										],
+										"typeName": "Promise"
+									}
+								},
+								"hasBody": true,
+								"isAsync": true
+							}
+						}
+					]
+				},
+				{
+					"name": "decode",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 263,
+								"col": 0,
+								"byteIndex": 9936
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Decode and validate a durable occurrence through trusted exact definitions."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "trusted",
+										"optional": false,
+										"tsType": {
+											"repr": "CatalogDefinitionInput",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Entry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "decode",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "CatalogDefinitionInput",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/catalog",
+													"name": "DefinitionInput"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "Promise",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "EffectOccurrence",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"repr": "Entry",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Entry",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "decode",
+																	"declaringKind": "function"
+																}
+															}
+														}
+													],
+													"typeName": "EffectOccurrence",
+													"resolution": {
+														"kind": "import",
+														"specifier": "./types.ts",
+														"name": "EffectOccurrence"
+													}
+												}
+											}
+										],
+										"typeName": "Promise"
+									}
+								},
+								"hasBody": true,
+								"isAsync": true,
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "EffectDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectDefinition"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "isOccurrence",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 274,
+								"col": 0,
+								"byteIndex": 10564
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return whether a value is an effect occurrence created by this module instance."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										}
+									}
+								],
+								"returnType": {
+									"repr": "value is EffectOccurrence",
+									"kind": "typePredicate",
+									"value": {
+										"param": {
+											"type": "identifier",
+											"name": "value"
+										},
+										"type": {
+											"repr": "EffectOccurrence",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectOccurrence",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectOccurrence"
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "is",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 279,
+								"col": 0,
+								"byteIndex": 10799
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return whether a value is an occurrence of one exact effect definition."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "definition",
+										"optional": false,
+										"tsType": {
+											"repr": "Effect",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Effect",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "is",
+													"declaringKind": "function"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "value is EffectOccurrence",
+									"kind": "typePredicate",
+									"value": {
+										"param": {
+											"type": "identifier",
+											"name": "value"
+										},
+										"type": {
+											"repr": "EffectOccurrence",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Effect",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Effect",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "is",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "EffectOccurrence",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectOccurrence"
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Effect",
+										"constraint": {
+											"repr": "EffectDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectDefinition"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "implement",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 351,
+								"col": 0,
+								"byteIndex": 13879
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Bind one exact effect definition to its authoritative acceptance behavior."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "definition",
+										"optional": false,
+										"tsType": {
+											"repr": "Effect",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Effect",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "implement",
+													"declaringKind": "function"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "accept",
+										"optional": false,
+										"tsType": {
+											"kind": "indexedAccess",
+											"value": {
+												"objType": {
+													"repr": "EffectHandler",
+													"kind": "typeRef",
+													"value": {
+														"typeParams": [
+															{
+																"repr": "Effect",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Effect",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "implement",
+																		"declaringKind": "function"
+																	}
+																}
+															}
+														],
+														"typeName": "EffectHandler",
+														"resolution": {
+															"kind": "import",
+															"specifier": "./types.ts",
+															"name": "EffectHandler"
+														}
+													}
+												},
+												"indexType": {
+													"repr": "accept",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "accept"
+													}
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "EffectHandler",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Effect",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Effect",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "implement",
+														"declaringKind": "function"
+													}
+												}
+											}
+										],
+										"typeName": "EffectHandler",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "EffectHandler"
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Effect",
+										"constraint": {
+											"repr": "EffectDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectDefinition"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "emitter",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 367,
+								"col": 0,
+								"byteIndex": 14456
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create a direct effect emitter from exact handlers.\n\nDirect acceptance runs the handler before `emit()` resolves. Use this form\nwhen producer and effect owner share one process and no durable handoff is\nrequired."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "rest",
+										"arg": {
+											"kind": "identifier",
+											"name": "handlers",
+											"optional": false
+										},
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "EffectHandler",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "EffectHandler",
+															"resolution": {
+																"kind": "import",
+																"specifier": "./types.ts",
+																"name": "EffectHandler"
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "EffectEmitter",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "EffectEmitter",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "EffectEmitter"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "outbox",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 386,
+								"col": 0,
+								"byteIndex": 15164
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create a queue-backed effect outbox.\n\nProducer acceptance occurs when `queue.add()` commits the idempotent outbox\nitem. `drain()` later claims that item and invokes the one exact handler. The\ninjected queue remains caller-owned unless `disposeQueue` is true."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "options",
+										"optional": false,
+										"tsType": {
+											"repr": "EffectOutboxOptions",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectOutboxOptions",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EffectOutboxOptions"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "EffectOutbox",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "EffectOutbox",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "EffectOutbox"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectCatalog",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 511,
+								"col": 2,
+								"byteIndex": 20180
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/effect/types.ts",
+									"line": 108,
+									"col": 0,
+									"byteIndex": 4528
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectContext",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 512,
+								"col": 2,
+								"byteIndex": 20196
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/effect/types.ts",
+									"line": 95,
+									"col": 0,
+									"byteIndex": 4049
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectCreateOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 513,
+								"col": 2,
+								"byteIndex": 20212
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/effect/types.ts",
+									"line": 70,
+									"col": 0,
+									"byteIndex": 3069
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectDefinition",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 514,
+								"col": 2,
+								"byteIndex": 20234
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/effect/types.ts",
+									"line": 23,
+									"col": 0,
+									"byteIndex": 1008
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectDefinitions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 515,
+								"col": 2,
+								"byteIndex": 20253
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/effect/types.ts",
+									"line": 120,
+									"col": 0,
+									"byteIndex": 4943
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectDrainOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 516,
+								"col": 2,
+								"byteIndex": 20273
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/effect/types.ts",
+									"line": 155,
+									"col": 0,
+									"byteIndex": 6786
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectEmitter",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 517,
+								"col": 2,
+								"byteIndex": 20294
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/effect/types.ts",
+									"line": 81,
+									"col": 0,
+									"byteIndex": 3435
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectEncoded",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 518,
+								"col": 2,
+								"byteIndex": 20310
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/effect/types.ts",
+									"line": 60,
+									"col": 0,
+									"byteIndex": 2689
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectHandler",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 519,
+								"col": 2,
+								"byteIndex": 20326
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/effect/types.ts",
+									"line": 123,
+									"col": 0,
+									"byteIndex": 5082
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectOccurrence",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 520,
+								"col": 2,
+								"byteIndex": 20342
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/effect/types.ts",
+									"line": 48,
+									"col": 0,
+									"byteIndex": 2097
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 521,
+								"col": 2,
+								"byteIndex": 20361
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/effect/types.ts",
+									"line": 13,
+									"col": 0,
+									"byteIndex": 471
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectOutbox",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 522,
+								"col": 2,
+								"byteIndex": 20377
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/effect/types.ts",
+									"line": 177,
+									"col": 0,
+									"byteIndex": 7710
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectOutboxOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 523,
+								"col": 2,
+								"byteIndex": 20392
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/effect/types.ts",
+									"line": 139,
+									"col": 0,
+									"byteIndex": 5838
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectReceiptType",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 524,
+								"col": 2,
+								"byteIndex": 20414
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/effect/types.ts",
+									"line": 131,
+									"col": 0,
+									"byteIndex": 5527
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectRuntime",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 525,
+								"col": 2,
+								"byteIndex": 20434
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/effect/types.ts",
+									"line": 87,
+									"col": 0,
+									"byteIndex": 3701
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectScopeOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 526,
+								"col": 2,
+								"byteIndex": 20450
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/effect/types.ts",
+									"line": 100,
+									"col": 0,
+									"byteIndex": 4222
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectSelection",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 527,
+								"col": 2,
+								"byteIndex": 20471
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/effect/types.ts",
+									"line": 114,
+									"col": 0,
+									"byteIndex": 4716
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectValue",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 528,
+								"col": 2,
+								"byteIndex": 20489
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/effect/types.ts",
+									"line": 39,
+									"col": 0,
+									"byteIndex": 1753
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectValueInput",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/mod.ts",
+								"line": 529,
+								"col": 2,
+								"byteIndex": 20503
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/effect/types.ts",
+									"line": 36,
+									"col": 0,
+									"byteIndex": 1592
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		"@okikio/effect/types": {
+			"imports": [
+				{
+					"importedName": "StandardSchemaV1",
+					"originalName": "StandardSchemaV1",
+					"src": "./node_modules/.pnpm/@standard-schema+spec@1.1.0/node_modules/@standard-schema/spec/dist/index.d.ts"
+				},
+				{
+					"importedName": "Catalog",
+					"originalName": "Catalog",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "CatalogEntryIdentity",
+					"originalName": "CatalogEntryIdentity",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "CatalogSelection",
+					"originalName": "CatalogSelection",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "CatalogDefinitionInput",
+					"originalName": "DefinitionInput",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "BaseContext",
+					"originalName": "Context",
+					"src": "./packages/context/mod.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "EffectSchema",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/types.ts",
+								"line": 10,
+								"col": 0,
+								"byteIndex": 330
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Standard Schema contract used to validate one effect value."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "StandardSchemaV1",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Input",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Input",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "EffectSchema",
+														"declaringKind": "typeAlias"
+													}
+												}
+											},
+											{
+												"repr": "Output",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Output",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "EffectSchema",
+														"declaringKind": "typeAlias"
+													}
+												}
+											}
+										],
+										"typeName": "StandardSchemaV1",
+										"resolution": {
+											"kind": "import",
+											"specifier": "@standard-schema/spec",
+											"name": "StandardSchemaV1"
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Input",
+										"default": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										}
+									},
+									{
+										"name": "Output",
+										"default": {
+											"repr": "Input",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Input",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "EffectSchema",
+													"declaringKind": "typeAlias"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/types.ts",
+								"line": 13,
+								"col": 0,
+								"byteIndex": 471
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Options accepted by `effects.define()`."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "id",
+										"jsDoc": {
+											"doc": "Stable effect identity used for declarations, durable envelopes, and handler matching."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 15,
+											"col": 2,
+											"byteIndex": 677
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Id",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Id",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "EffectOptions",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									},
+									{
+										"name": "description",
+										"jsDoc": {
+											"doc": "Human-readable consequence meaning used by documentation and diagnostics."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 17,
+											"col": 2,
+											"byteIndex": 777
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "value",
+										"jsDoc": {
+											"doc": "Schema that validates the concrete consequence data before ownership transfer."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 19,
+											"col": 2,
+											"byteIndex": 896
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "ValueSchema",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ValueSchema",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "EffectOptions",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Id",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										},
+										"default": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "ValueSchema",
+										"constraint": {
+											"repr": "EffectSchema",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectSchema",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										"default": {
+											"repr": "EffectSchema",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectSchema",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectDefinition",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/types.ts",
+								"line": 23,
+								"col": 0,
+								"byteIndex": 1008
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Immutable declaration of one one-way consequence that code may announce."
+							},
+							"kind": "interface",
+							"def": {
+								"extends": [
+									{
+										"repr": "CatalogEntryIdentity",
+										"kind": "typeRef",
+										"value": {
+											"typeName": "CatalogEntryIdentity",
+											"resolution": {
+												"kind": "import",
+												"specifier": "@okikio/catalog",
+												"name": "CatalogEntryIdentity"
+											}
+										}
+									}
+								],
+								"properties": [
+									{
+										"name": "kind",
+										"jsDoc": {
+											"doc": "Stable discriminant for one declared effect contract."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 26,
+											"col": 2,
+											"byteIndex": 1214
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "effect",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "effect"
+											}
+										}
+									},
+									{
+										"name": "id",
+										"jsDoc": {
+											"doc": "Stable effect identity used by emitters, outboxes, and exact handlers."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 28,
+											"col": 2,
+											"byteIndex": 1319
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Id",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Id",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "EffectDefinition",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									},
+									{
+										"name": "description",
+										"jsDoc": {
+											"doc": "Human-readable consequence meaning used by documentation and diagnostics."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 30,
+											"col": 2,
+											"byteIndex": 1419
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "value",
+										"jsDoc": {
+											"doc": "Schema that owns validation of the effect value."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 32,
+											"col": 2,
+											"byteIndex": 1508
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "ValueSchema",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ValueSchema",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "EffectDefinition",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Id",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										},
+										"default": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "ValueSchema",
+										"constraint": {
+											"repr": "EffectSchema",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectSchema",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										"default": {
+											"repr": "EffectSchema",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectSchema",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectValueInput",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/types.ts",
+								"line": 36,
+								"col": 0,
+								"byteIndex": 1592
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Input accepted when creating one occurrence."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "StandardSchemaV1.InferInput",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"kind": "indexedAccess",
+												"value": {
+													"objType": {
+														"repr": "Effect",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Effect",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "EffectValueInput",
+																"declaringKind": "typeAlias"
+															}
+														}
+													},
+													"indexType": {
+														"repr": "value",
+														"kind": "literal",
+														"value": {
+															"kind": "string",
+															"string": "value"
+														}
+													}
+												}
+											}
+										],
+										"typeName": "StandardSchemaV1.InferInput",
+										"resolution": {
+											"kind": "import",
+											"specifier": "@standard-schema/spec",
+											"name": "StandardSchemaV1"
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Effect",
+										"constraint": {
+											"repr": "EffectDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectValue",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/types.ts",
+								"line": 39,
+								"col": 0,
+								"byteIndex": 1753
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Validated value carried by one occurrence."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "StandardSchemaV1.InferOutput",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"kind": "indexedAccess",
+												"value": {
+													"objType": {
+														"repr": "Effect",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Effect",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "EffectValue",
+																"declaringKind": "typeAlias"
+															}
+														}
+													},
+													"indexType": {
+														"repr": "value",
+														"kind": "literal",
+														"value": {
+															"kind": "string",
+															"string": "value"
+														}
+													}
+												}
+											}
+										],
+										"typeName": "StandardSchemaV1.InferOutput",
+										"resolution": {
+											"kind": "import",
+											"specifier": "@standard-schema/spec",
+											"name": "StandardSchemaV1"
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Effect",
+										"constraint": {
+											"repr": "EffectDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectOccurrence",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/types.ts",
+								"line": 48,
+								"col": 0,
+								"byteIndex": 2097
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "One frozen occurrence of a declared effect.\n\nThe caller-owned key identifies the same logical consequence across retries.\nIt must not include an attempt number when a later attempt is retrying the\nsame consequence."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "kind",
+										"jsDoc": {
+											"doc": "Stable discriminant for one concrete consequence occurrence."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 50,
+											"col": 2,
+											"byteIndex": 2255
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "effect-occurrence",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "effect-occurrence"
+											}
+										}
+									},
+									{
+										"name": "definition",
+										"jsDoc": {
+											"doc": "Exact effect definition whose handler must accept this consequence."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 52,
+											"col": 2,
+											"byteIndex": 2368
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Effect",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Effect",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "EffectOccurrence",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									},
+									{
+										"name": "key",
+										"jsDoc": {
+											"doc": "Retry-stable logical identity. A retried attempt reuses the same key for the same consequence."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 54,
+											"col": 2,
+											"byteIndex": 2501
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "value",
+										"jsDoc": {
+											"doc": "Schema-validated consequence data."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 56,
+											"col": 2,
+											"byteIndex": 2567
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "EffectValue",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Effect",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Effect",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "EffectOccurrence",
+																"declaringKind": "interface"
+															}
+														}
+													}
+												],
+												"typeName": "EffectValue",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Effect",
+										"constraint": {
+											"repr": "EffectDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										"default": {
+											"repr": "EffectDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectEncoded",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/types.ts",
+								"line": 60,
+								"col": 0,
+								"byteIndex": 2689
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Durable effect envelope that can cross a process, Worker, queue, or store."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "id",
+										"jsDoc": {
+											"doc": "Stable effect definition ID resolved by the receiving host."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 62,
+											"col": 2,
+											"byteIndex": 2791
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "key",
+										"jsDoc": {
+											"doc": "Retry-stable logical consequence key."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 64,
+											"col": 2,
+											"byteIndex": 2859
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "value",
+										"jsDoc": {
+											"doc": "Cloneable effect value that the receiving definition validates again."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 66,
+											"col": 2,
+											"byteIndex": 2960
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectCreateOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/types.ts",
+								"line": 70,
+								"col": 0,
+								"byteIndex": 3069
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Options accepted by `effects.create()` and the convenience `emit()` form."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "key",
+										"jsDoc": {
+											"doc": "Stable key for this logical consequence within the owning execution."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 72,
+											"col": 2,
+											"byteIndex": 3186
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectEmitter",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/types.ts",
+								"line": 81,
+								"col": 0,
+								"byteIndex": 3435
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Authoritative owner for declared effects when code announces an occurrence.\n\nResolution means the owner accepted responsibility. It does not mean any\ndownstream work triggered by the effect has completed."
+							},
+							"kind": "interface",
+							"def": {
+								"methods": [
+									{
+										"name": "emit",
+										"jsDoc": {
+											"doc": "Accept ownership of one occurrence or reject before ownership transfer completes."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 83,
+											"col": 2,
+											"byteIndex": 3559
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "ctx",
+												"optional": false,
+												"tsType": {
+													"repr": "BaseContext",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "BaseContext",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/context",
+															"name": "Context"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "occurrence",
+												"optional": false,
+												"tsType": {
+													"repr": "EffectOccurrence",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "EffectOccurrence",
+														"resolution": {
+															"kind": "local"
+														}
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "void",
+														"kind": "keyword",
+														"value": "void"
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectRuntime",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/types.ts",
+								"line": 87,
+								"col": 0,
+								"byteIndex": 3701
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Declared-effect state attached to one local execution context."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "emitter",
+										"jsDoc": {
+											"doc": "Authoritative effect owner used by `effects.emit()` in this execution context."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 89,
+											"col": 2,
+											"byteIndex": 3822
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "EffectEmitter",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectEmitter",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "effects",
+										"jsDoc": {
+											"doc": "Exact effect definitions the active code declared it may emit."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 91,
+											"col": 2,
+											"byteIndex": 3928
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "EffectDefinition",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "EffectDefinition",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectContext",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/types.ts",
+								"line": 95,
+								"col": 0,
+								"byteIndex": 4049
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Execution-context view with declared-effect delivery available."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "intersection",
+									"value": [
+										{
+											"repr": "Base",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Base",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "EffectContext",
+													"declaringKind": "typeAlias"
+												}
+											}
+										},
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "effects",
+																	"location": {
+																		"filename": "./packages/effect/types.ts",
+																		"line": 97,
+																		"col": 15,
+																		"byteIndex": 4139
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "EffectRuntime",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "EffectRuntime",
+																			"resolution": {
+																				"kind": "local"
+																			}
+																		}
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									]
+								},
+								"typeParams": [
+									{
+										"name": "Base",
+										"constraint": {
+											"repr": "BaseContext",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "BaseContext",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/context",
+													"name": "Context"
+												}
+											}
+										},
+										"default": {
+											"repr": "BaseContext",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "BaseContext",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/context",
+													"name": "Context"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectScopeOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/types.ts",
+								"line": 100,
+								"col": 0,
+								"byteIndex": 4222
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Options accepted by `effects.scope()`."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "emitter",
+										"jsDoc": {
+											"doc": "Effect owner. Omit only when emission must fail as unconfigured."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 102,
+											"col": 2,
+											"byteIndex": 4334
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "EffectEmitter",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectEmitter",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "effects",
+										"jsDoc": {
+											"doc": "Exact effect definitions that code in this scope can emit."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 104,
+											"col": 2,
+											"byteIndex": 4436
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "CatalogDefinitionInput",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "EffectDefinition",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "EffectDefinition",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												],
+												"typeName": "CatalogDefinitionInput",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/catalog",
+													"name": "DefinitionInput"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectCatalog",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/types.ts",
+								"line": 108,
+								"col": 0,
+								"byteIndex": 4528
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Named effect catalog."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "Catalog",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"kind": "indexedAccess",
+												"value": {
+													"objType": {
+														"repr": "Entries",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entries",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "EffectCatalog",
+																"declaringKind": "typeAlias"
+															}
+														}
+													},
+													"indexType": {
+														"kind": "typeOperator",
+														"value": {
+															"operator": "keyof",
+															"tsType": {
+																"repr": "Entries",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Entries",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "EffectCatalog",
+																		"declaringKind": "typeAlias"
+																	}
+																}
+															}
+														}
+													}
+												}
+											},
+											{
+												"repr": "Entries",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entries",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "EffectCatalog",
+														"declaringKind": "typeAlias"
+													}
+												}
+											}
+										],
+										"typeName": "Catalog",
+										"resolution": {
+											"kind": "import",
+											"specifier": "@okikio/catalog",
+											"name": "Catalog"
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "EffectDefinition",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "EffectDefinition",
+																		"resolution": {
+																			"kind": "local"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectSelection",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/types.ts",
+								"line": 114,
+								"col": 0,
+								"byteIndex": 4716
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Key-preserving effect catalog selection."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "CatalogSelection",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Entry",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entry",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "EffectSelection",
+														"declaringKind": "typeAlias"
+													}
+												}
+											},
+											{
+												"repr": "Entries",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entries",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "EffectSelection",
+														"declaringKind": "typeAlias"
+													}
+												}
+											}
+										],
+										"typeName": "CatalogSelection",
+										"resolution": {
+											"kind": "import",
+											"specifier": "@okikio/catalog",
+											"name": "CatalogSelection"
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "EffectDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "Entry",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Entry",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "EffectSelection",
+																			"declaringKind": "typeAlias"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectDefinitions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/types.ts",
+								"line": 120,
+								"col": 0,
+								"byteIndex": 4943
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Recursive input accepted where effect definitions are declared."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "CatalogDefinitionInput",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "EffectDefinition",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "EffectDefinition",
+													"resolution": {
+														"kind": "local"
+													}
+												}
+											}
+										],
+										"typeName": "CatalogDefinitionInput",
+										"resolution": {
+											"kind": "import",
+											"specifier": "@okikio/catalog",
+											"name": "DefinitionInput"
+										}
+									}
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectHandler",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/types.ts",
+								"line": 123,
+								"col": 0,
+								"byteIndex": 5082
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Exact implementation that accepts one effect definition."
+							},
+							"kind": "interface",
+							"def": {
+								"methods": [
+									{
+										"name": "accept",
+										"jsDoc": {
+											"doc": "Accept one occurrence. Resolution is the authoritative ownership-transfer point."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 127,
+											"col": 2,
+											"byteIndex": 5345
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "ctx",
+												"optional": false,
+												"tsType": {
+													"repr": "BaseContext",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "BaseContext",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/context",
+															"name": "Context"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "occurrence",
+												"optional": false,
+												"tsType": {
+													"repr": "EffectOccurrence",
+													"kind": "typeRef",
+													"value": {
+														"typeParams": [
+															{
+																"repr": "Effect",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Effect",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "EffectHandler",
+																		"declaringKind": "interface"
+																	}
+																}
+															}
+														],
+														"typeName": "EffectOccurrence",
+														"resolution": {
+															"kind": "local"
+														}
+													}
+												}
+											}
+										],
+										"returnType": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "void",
+													"kind": "keyword",
+													"value": "void"
+												},
+												{
+													"repr": "Promise",
+													"kind": "typeRef",
+													"value": {
+														"typeParams": [
+															{
+																"repr": "void",
+																"kind": "keyword",
+																"value": "void"
+															}
+														],
+														"typeName": "Promise"
+													}
+												}
+											]
+										}
+									}
+								],
+								"properties": [
+									{
+										"name": "definition",
+										"jsDoc": {
+											"doc": "Exact effect definition accepted by this handler."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 125,
+											"col": 2,
+											"byteIndex": 5226
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Effect",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Effect",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "EffectHandler",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Effect",
+										"constraint": {
+											"repr": "EffectDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										"default": {
+											"repr": "EffectDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectReceiptType",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/types.ts",
+								"line": 131,
+								"col": 0,
+								"byteIndex": 5527
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Successful terminal receipt stored after an outbox handler accepts one queued effect."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "id",
+										"jsDoc": {
+											"doc": "Stable effect definition ID whose queued occurrence was accepted."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 133,
+											"col": 2,
+											"byteIndex": 5639
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "key",
+										"jsDoc": {
+											"doc": "Retry-stable occurrence key whose downstream ownership is now established."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 135,
+											"col": 2,
+											"byteIndex": 5744
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectOutboxOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/types.ts",
+								"line": 139,
+								"col": 0,
+								"byteIndex": 5838
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Options accepted while creating a queue-backed effect outbox."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "queue",
+										"jsDoc": {
+											"doc": "Queue that durably or locally owns admitted effect occurrences until terminal handling."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 141,
+											"col": 2,
+											"byteIndex": 5974
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "importType",
+											"value": {
+												"specifier": "@okikio/queue",
+												"qualifier": "Queue",
+												"typeParams": [
+													{
+														"repr": "EffectEncoded",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "EffectEncoded",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													},
+													{
+														"repr": "EffectReceiptType",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "EffectReceiptType",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												]
+											}
+										}
+									},
+									{
+										"name": "handlers",
+										"jsDoc": {
+											"doc": "Exact handlers available to accept queued effect definitions."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 143,
+											"col": 2,
+											"byteIndex": 6126
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "EffectHandler",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "EffectHandler",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												}
+											}
+										}
+									},
+									{
+										"name": "maximumAttempts",
+										"jsDoc": {
+											"doc": "Maximum handler attempts before the queued effect enters failed terminal state."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 145,
+											"col": 2,
+											"byteIndex": 6260
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "retryDelay",
+										"jsDoc": {
+											"doc": "Delay applied when an effect handler must retry."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 147,
+											"col": 2,
+											"byteIndex": 6353
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "Temporal.Duration",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.Duration"
+													}
+												},
+												{
+													"repr": "Temporal.DurationLike",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.DurationLike"
+													}
+												},
+												{
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												}
+											]
+										}
+									},
+									{
+										"name": "disposeQueue",
+										"jsDoc": {
+											"doc": "Close the injected queue when the outbox closes. Defaults to false."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 149,
+											"col": 2,
+											"byteIndex": 6504
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "boolean",
+											"kind": "keyword",
+											"value": "boolean"
+										}
+									},
+									{
+										"name": "identity",
+										"jsDoc": {
+											"doc": "Override the stable queue idempotency key derived from context and effect identity."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 151,
+											"col": 2,
+											"byteIndex": 6630
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"kind": "fnOrConstructor",
+											"value": {
+												"constructor": false,
+												"tsType": {
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												},
+												"params": [
+													{
+														"kind": "identifier",
+														"name": "ctx",
+														"optional": false,
+														"tsType": {
+															"repr": "BaseContext",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "BaseContext",
+																"resolution": {
+																	"kind": "import",
+																	"specifier": "@okikio/context",
+																	"name": "Context"
+																}
+															}
+														}
+													},
+													{
+														"kind": "identifier",
+														"name": "occurrence",
+														"optional": false,
+														"tsType": {
+															"repr": "EffectOccurrence",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "EffectOccurrence",
+																"resolution": {
+																	"kind": "local"
+																}
+															}
+														}
+													}
+												]
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectDrainOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/types.ts",
+								"line": 155,
+								"col": 0,
+								"byteIndex": 6786
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Options accepted while draining one bounded batch from an outbox."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "owner",
+										"jsDoc": {
+											"doc": "Claim owner identity used for this drain pass."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 157,
+											"col": 2,
+											"byteIndex": 6880
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "limit",
+										"jsDoc": {
+											"doc": "Maximum queued effects claimed during this pass."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 159,
+											"col": 2,
+											"byteIndex": 6963
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "duration",
+										"jsDoc": {
+											"doc": "Lease duration for each claimed effect while a handler owns it."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 161,
+											"col": 2,
+											"byteIndex": 7061
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "Temporal.Duration",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.Duration"
+													}
+												},
+												{
+													"repr": "Temporal.DurationLike",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.DurationLike"
+													}
+												},
+												{
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												}
+											]
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectDrainResultType",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/types.ts",
+								"line": 165,
+								"col": 0,
+								"byteIndex": 7200
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Outcome counters for one bounded outbox drain operation."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "claimed",
+										"jsDoc": {
+											"doc": "Number of queue items claimed by this drain pass."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 167,
+											"col": 2,
+											"byteIndex": 7300
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "accepted",
+										"jsDoc": {
+											"doc": "Number of effects whose exact handlers accepted ownership."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 169,
+											"col": 2,
+											"byteIndex": 7394
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "retried",
+										"jsDoc": {
+											"doc": "Number of effects returned for another bounded attempt."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 171,
+											"col": 2,
+											"byteIndex": 7486
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "failed",
+										"jsDoc": {
+											"doc": "Number of effects committed as terminal failures after retry exhaustion."
+										},
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 173,
+											"col": 2,
+											"byteIndex": 7594
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "EffectOutbox",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/effect/types.ts",
+								"line": 177,
+								"col": 0,
+								"byteIndex": 7710
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Queue-backed effect owner whose enqueue commit is the producer acceptance point."
+							},
+							"kind": "interface",
+							"def": {
+								"extends": [
+									{
+										"repr": "EffectEmitter",
+										"kind": "typeRef",
+										"value": {
+											"typeName": "EffectEmitter",
+											"resolution": {
+												"kind": "local"
+											}
+										}
+									},
+									{
+										"repr": "AsyncDisposable",
+										"kind": "typeRef",
+										"value": {
+											"typeName": "AsyncDisposable"
+										}
+									}
+								],
+								"methods": [
+									{
+										"name": "drain",
+										"jsDoc": {
+											"doc": "Claim and handle one bounded batch without changing producer acceptance semantics."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 179,
+											"col": 2,
+											"byteIndex": 7873
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "ctx",
+												"optional": false,
+												"tsType": {
+													"repr": "BaseContext",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "BaseContext",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/context",
+															"name": "Context"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "options",
+												"optional": true,
+												"tsType": {
+													"repr": "EffectDrainOptions",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "EffectDrainOptions",
+														"resolution": {
+															"kind": "local"
+														}
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "EffectDrainResultType",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "EffectDrainResultType",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									},
+									{
+										"name": "close",
+										"jsDoc": {
+											"doc": "Stop new outbox work and release resources owned by this outbox."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/effect/types.ts",
+											"line": 181,
+											"col": 2,
+											"byteIndex": 8034
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "reason",
+												"optional": true,
+												"tsType": {
+													"repr": "unknown",
+													"kind": "keyword",
+													"value": "unknown"
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "void",
+														"kind": "keyword",
+														"value": "void"
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				}
+			]
+		}
+	}
+}

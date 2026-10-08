@@ -4,18 +4,15 @@ Your service reads its port from configuration. The value arrives as text, but t
 invalid value should be caught before the service starts. `env` keeps the allowed fields, defaults and secret labels in
 one definition, then parses the source you explicitly choose.
 
-```mermaid
-flowchart LR
-    A[Supplied PORT text: 4321] --> B[Declared port rules]
-    B -->|valid| C[Configuration value: number 4321]
-    B -->|invalid| D[Validation diagnostics]
-```
+![An environment rule converts port text to a checked value or reports a diagnostic](diagram.png)
 
-The diagram shows startup configuration checking. The valid branch returns values for your application to use; it does
-not open a listener. It omits merging several sources and handling secrets.
+[Editable diagram source](diagram.mmd). The diagram shows startup configuration checking. The valid branch returns
+values for your application to use; it does not open a listener. It omits merging several sources and handling secrets.
 
 For shared terms such as `await` and `await using`, see
 [the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
+
+For the exact functions, types and field explanations, read the [generated contract reference](API.md).
 
 ## Run a complete example
 

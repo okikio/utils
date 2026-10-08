@@ -1,0 +1,1828 @@
+{
+	"package": "@okikio/pool",
+	"packageVersion": "0.0.0",
+	"rendererVersion": 2,
+	"modules": {
+		"@okikio/pool": {
+			"module_doc": {
+				"doc": "Reuse a bounded set of expensive resources while retaining explicit lease ownership. Opening a connection for every request wastes setup work; sharing one connection without leases can interleave incompatible operations.\n\nReplace the example value with a database connection, browser page or Worker handle, then configure validation, idle age and acquisition timeout. Release a lease after each use; close the pool at the owning host lifetime. The pool owns created values while callers borrow leased values. A limit controls resource count, not queue-job authority or distributed placement.\n",
+				"tags": [
+					{
+						"kind": "example",
+						"doc": "```ts\nimport '@okikio/duration/polyfill';\nimport '@okikio/dispose/polyfill';\nimport * as context from '@okikio/context';\nimport * as pool from '@okikio/pool';\nawait using ctx = context.create({ id: 'connection-owner' });\nlet opened = 0;\nawait using connections = await pool.create({\n  ctx, maximum: 2, create: () => ({ id: ++opened }), close: () => {},\n});\n{\n  await using lease = await connections.acquire(ctx);\n  console.log(lease.value.id);\n}\nconsole.log(connections.stats().leased);\n```\n"
+					},
+					{
+						"kind": "module"
+					}
+				]
+			},
+			"imports": [
+				{
+					"importedName": "EventBus",
+					"originalName": "EventBus",
+					"src": "https://jsr.io/@okikio/observables/1.4.0/mod.ts",
+					"jsDoc": {
+						"doc": "Reuse a bounded set of expensive resources while retaining explicit lease ownership. Opening a connection for every request wastes setup work; sharing one connection without leases can interleave incompatible operations.\n\nReplace the example value with a database connection, browser page or Worker handle, then configure validation, idle age and acquisition timeout. Release a lease after each use; close the pool at the owning host lifetime. The pool owns created values while callers borrow leased values. A limit controls resource count, not queue-job authority or distributed placement.\n",
+						"tags": [
+							{
+								"kind": "example",
+								"doc": "```ts\nimport '@okikio/duration/polyfill';\nimport '@okikio/dispose/polyfill';\nimport * as context from '@okikio/context';\nimport * as pool from '@okikio/pool';\nawait using ctx = context.create({ id: 'connection-owner' });\nlet opened = 0;\nawait using connections = await pool.create({\n  ctx, maximum: 2, create: () => ({ id: ++opened }), close: () => {},\n});\n{\n  await using lease = await connections.acquire(ctx);\n  console.log(lease.value.id);\n}\nconsole.log(connections.stats().leased);\n```\n"
+							},
+							{
+								"kind": "module"
+							}
+						]
+					}
+				},
+				{
+					"importedName": "context",
+					"src": "./packages/context/mod.ts"
+				},
+				{
+					"importedName": "duration",
+					"src": "./packages/duration/mod.ts"
+				},
+				{
+					"importedName": "Context",
+					"originalName": "Context",
+					"src": "./packages/context/mod.ts"
+				},
+				{
+					"importedName": "Owned",
+					"originalName": "Owned",
+					"src": "./packages/context/mod.ts"
+				},
+				{
+					"importedName": "CreateOptions",
+					"originalName": "CreateOptions",
+					"src": "./packages/pool/types.ts"
+				},
+				{
+					"importedName": "Event",
+					"originalName": "Event",
+					"src": "./packages/pool/types.ts"
+				},
+				{
+					"importedName": "Lease",
+					"originalName": "Lease",
+					"src": "./packages/pool/types.ts"
+				},
+				{
+					"importedName": "Pool",
+					"originalName": "Pool",
+					"src": "./packages/pool/types.ts"
+				},
+				{
+					"importedName": "Stats",
+					"originalName": "Stats",
+					"src": "./packages/pool/types.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "PoolUnavailableError",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/pool/mod.ts",
+								"line": 33,
+								"col": 0,
+								"byteIndex": 1514
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Acquisition attempted while a pool is draining or disposed."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"jsDoc": {
+											"doc": "Create one unavailable error without losing the owner-supplied stop reason."
+										},
+										"hasBody": true,
+										"name": "constructor",
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "state",
+												"optional": false,
+												"tsType": {
+													"kind": "union",
+													"value": [
+														{
+															"repr": "draining",
+															"kind": "literal",
+															"value": {
+																"kind": "string",
+																"string": "draining"
+															}
+														},
+														{
+															"repr": "disposed",
+															"kind": "literal",
+															"value": {
+																"kind": "string",
+																"string": "disposed"
+															}
+														}
+													]
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "reason",
+												"optional": true,
+												"tsType": {
+													"repr": "unknown",
+													"kind": "keyword",
+													"value": "unknown"
+												}
+											}
+										],
+										"location": {
+											"filename": "./packages/pool/mod.ts",
+											"line": 40,
+											"col": 2,
+											"byteIndex": 1842
+										}
+									}
+								],
+								"properties": [
+									{
+										"jsDoc": {
+											"doc": "Lifecycle state that rejected the acquisition."
+										},
+										"tsType": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "draining",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "draining"
+													}
+												},
+												{
+													"repr": "disposed",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "disposed"
+													}
+												}
+											]
+										},
+										"readonly": true,
+										"name": "state",
+										"location": {
+											"filename": "./packages/pool/mod.ts",
+											"line": 35,
+											"col": 2,
+											"byteIndex": 1620
+										}
+									},
+									{
+										"jsDoc": {
+											"doc": "Original drain/disposal reason when the owner supplied one."
+										},
+										"tsType": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										},
+										"readonly": true,
+										"name": "reason",
+										"location": {
+											"filename": "./packages/pool/mod.ts",
+											"line": 37,
+											"col": 2,
+											"byteIndex": 1730
+										}
+									}
+								],
+								"extends": "Error"
+							}
+						}
+					]
+				},
+				{
+					"name": "PoolAcquireTimeoutError",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/pool/mod.ts",
+								"line": 49,
+								"col": 0,
+								"byteIndex": 2137
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Pool acquisition exceeded its configured timeout."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"jsDoc": {
+											"doc": "Create one acquisition-timeout error with the normalized configured duration."
+										},
+										"hasBody": true,
+										"name": "constructor",
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "duration",
+												"optional": false,
+												"tsType": {
+													"repr": "Temporal.Duration",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.Duration"
+													}
+												}
+											}
+										],
+										"location": {
+											"filename": "./packages/pool/mod.ts",
+											"line": 54,
+											"col": 2,
+											"byteIndex": 2390
+										}
+									}
+								],
+								"properties": [
+									{
+										"jsDoc": {
+											"doc": "Configured timeout that elapsed before a value became available."
+										},
+										"tsType": {
+											"repr": "Temporal.Duration",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Temporal.Duration"
+											}
+										},
+										"readonly": true,
+										"name": "duration",
+										"location": {
+											"filename": "./packages/pool/mod.ts",
+											"line": 51,
+											"col": 2,
+											"byteIndex": 2264
+										}
+									}
+								],
+								"extends": "Error"
+							}
+						}
+					]
+				},
+				{
+					"name": "create",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/pool/mod.ts",
+								"line": 133,
+								"col": 0,
+								"byteIndex": 5336
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create a bounded reusable-value pool with explicit ownership and fair acquisition waits.\n\n```text\nacquire(ctx)\n   |\n   +-- idle value -------------------------------> Lease\n   |\n   +-- capacity available -> create(value) ------> Lease\n   |\n   `-- saturated -> FIFO waiter -> release ------> retry acquire\n\nLease.dispose() -> idle queue or close(value)\nLease.invalidate(reason) -> close(value)\nPool.drain() -> stop admission -> wait active transitions -> close idle\n```\n\nThe pool owns every created value. A lease only borrows one value until its\ndisposal either returns a healthy value to the pool or closes it."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "options",
+										"optional": false,
+										"tsType": {
+											"repr": "CreateOptions",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Value",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Value",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "create",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "CreateOptions",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "CreateOptions"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "Promise",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Pool",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"repr": "Value",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Value",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "create",
+																	"declaringKind": "function"
+																}
+															}
+														}
+													],
+													"typeName": "Pool",
+													"resolution": {
+														"kind": "import",
+														"specifier": "./types.ts",
+														"name": "Pool"
+													}
+												}
+											}
+										],
+										"typeName": "Promise"
+									}
+								},
+								"hasBody": true,
+								"isAsync": true,
+								"typeParams": [
+									{
+										"name": "Value"
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "CreateOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/pool/mod.ts",
+								"line": 664,
+								"col": 14,
+								"byteIndex": 24391
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/pool/types.ts",
+									"line": 59,
+									"col": 0,
+									"byteIndex": 2789
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Event",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/pool/mod.ts",
+								"line": 664,
+								"col": 29,
+								"byteIndex": 24406
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/pool/types.ts",
+									"line": 4,
+									"col": 0,
+									"byteIndex": 166
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Lease",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/pool/mod.ts",
+								"line": 664,
+								"col": 36,
+								"byteIndex": 24413
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/pool/types.ts",
+									"line": 33,
+									"col": 0,
+									"byteIndex": 1502
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Pool",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/pool/mod.ts",
+								"line": 664,
+								"col": 43,
+								"byteIndex": 24420
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/pool/types.ts",
+									"line": 45,
+									"col": 0,
+									"byteIndex": 2056
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Stats",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/pool/mod.ts",
+								"line": 664,
+								"col": 49,
+								"byteIndex": 24426
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/pool/types.ts",
+									"line": 15,
+									"col": 0,
+									"byteIndex": 718
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		"@okikio/pool/types": {
+			"imports": [
+				{
+					"importedName": "EventBus",
+					"originalName": "EventBus",
+					"src": "https://jsr.io/@okikio/observables/1.4.0/mod.ts"
+				},
+				{
+					"importedName": "Context",
+					"originalName": "Context",
+					"src": "./packages/context/mod.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "Event",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/pool/types.ts",
+								"line": 4,
+								"col": 0,
+								"byteIndex": 166
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Pool lifecycle event emitted after one state transition."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "type",
+																	"location": {
+																		"filename": "./packages/pool/types.ts",
+																		"line": 5,
+																		"col": 15,
+																		"byteIndex": 200
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "creating",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "string",
+																			"string": "creating"
+																		}
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										},
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "type",
+																	"location": {
+																		"filename": "./packages/pool/types.ts",
+																		"line": 6,
+																		"col": 15,
+																		"byteIndex": 243
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "created",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "string",
+																			"string": "created"
+																		}
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										},
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "type",
+																	"location": {
+																		"filename": "./packages/pool/types.ts",
+																		"line": 7,
+																		"col": 15,
+																		"byteIndex": 285
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "acquired",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "string",
+																			"string": "acquired"
+																		}
+																	}
+																},
+																{
+																	"name": "acquiredAt",
+																	"location": {
+																		"filename": "./packages/pool/types.ts",
+																		"line": 7,
+																		"col": 42,
+																		"byteIndex": 312
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										},
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "type",
+																	"location": {
+																		"filename": "./packages/pool/types.ts",
+																		"line": 8,
+																		"col": 15,
+																		"byteIndex": 357
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "released",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "string",
+																			"string": "released"
+																		}
+																	}
+																},
+																{
+																	"name": "reusable",
+																	"location": {
+																		"filename": "./packages/pool/types.ts",
+																		"line": 8,
+																		"col": 42,
+																		"byteIndex": 384
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "boolean",
+																		"kind": "keyword",
+																		"value": "boolean"
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										},
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "type",
+																	"location": {
+																		"filename": "./packages/pool/types.ts",
+																		"line": 9,
+																		"col": 15,
+																		"byteIndex": 428
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "invalidated",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "string",
+																			"string": "invalidated"
+																		}
+																	}
+																},
+																{
+																	"name": "reason",
+																	"location": {
+																		"filename": "./packages/pool/types.ts",
+																		"line": 9,
+																		"col": 45,
+																		"byteIndex": 458
+																	},
+																	"readonly": true,
+																	"optional": true,
+																	"tsType": {
+																		"repr": "unknown",
+																		"kind": "keyword",
+																		"value": "unknown"
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										},
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "type",
+																	"location": {
+																		"filename": "./packages/pool/types.ts",
+																		"line": 10,
+																		"col": 15,
+																		"byteIndex": 501
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "closed-value",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "string",
+																			"string": "closed-value"
+																		}
+																	}
+																},
+																{
+																	"name": "reason",
+																	"location": {
+																		"filename": "./packages/pool/types.ts",
+																		"line": 10,
+																		"col": 46,
+																		"byteIndex": 532
+																	},
+																	"readonly": true,
+																	"optional": true,
+																	"tsType": {
+																		"repr": "unknown",
+																		"kind": "keyword",
+																		"value": "unknown"
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										},
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "type",
+																	"location": {
+																		"filename": "./packages/pool/types.ts",
+																		"line": 11,
+																		"col": 15,
+																		"byteIndex": 575
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "draining",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "string",
+																			"string": "draining"
+																		}
+																	}
+																},
+																{
+																	"name": "reason",
+																	"location": {
+																		"filename": "./packages/pool/types.ts",
+																		"line": 11,
+																		"col": 42,
+																		"byteIndex": 602
+																	},
+																	"readonly": true,
+																	"optional": true,
+																	"tsType": {
+																		"repr": "unknown",
+																		"kind": "keyword",
+																		"value": "unknown"
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										},
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "type",
+																	"location": {
+																		"filename": "./packages/pool/types.ts",
+																		"line": 12,
+																		"col": 15,
+																		"byteIndex": 645
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "disposed",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "string",
+																			"string": "disposed"
+																		}
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Stats",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/pool/types.ts",
+								"line": 15,
+								"col": 0,
+								"byteIndex": 718
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Current bounded-capacity counters."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "state",
+										"jsDoc": {
+											"doc": "Current owner state; transitions determine whether new work can be admitted."
+										},
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 17,
+											"col": 2,
+											"byteIndex": 829
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "active",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "active"
+													}
+												},
+												{
+													"repr": "draining",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "draining"
+													}
+												},
+												{
+													"repr": "disposed",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "disposed"
+													}
+												}
+											]
+										}
+									},
+									{
+										"name": "minimum",
+										"jsDoc": {
+											"doc": "Configured minimum reusable values retained by the pool."
+										},
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 19,
+											"col": 2,
+											"byteIndex": 947
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "maximum",
+										"jsDoc": {
+											"doc": "Maximum values owned across creation, health checks, leases, return and close transitions."
+										},
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 21,
+											"col": 2,
+											"byteIndex": 1073
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "idle",
+										"jsDoc": {
+											"doc": "Reusable pool values currently available without a live lease."
+										},
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 23,
+											"col": 2,
+											"byteIndex": 1171
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "leased",
+										"jsDoc": {
+											"doc": "Pool values currently owned by borrowers."
+										},
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 25,
+											"col": 2,
+											"byteIndex": 1245
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "creating",
+										"jsDoc": {
+											"doc": "Provider values whose creation has not yet settled."
+										},
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 27,
+											"col": 2,
+											"byteIndex": 1331
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "waiting",
+										"jsDoc": {
+											"doc": "Acquisition callers currently queued for pool capacity."
+										},
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 29,
+											"col": 2,
+											"byteIndex": 1423
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Lease",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/pool/types.ts",
+								"line": 33,
+								"col": 0,
+								"byteIndex": 1502
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Caller-owned borrow of one reusable value."
+							},
+							"kind": "interface",
+							"def": {
+								"extends": [
+									{
+										"repr": "AsyncDisposable",
+										"kind": "typeRef",
+										"value": {
+											"typeName": "AsyncDisposable"
+										}
+									}
+								],
+								"methods": [
+									{
+										"name": "invalidate",
+										"jsDoc": {
+											"doc": "Mark a lease unhealthy without closing it while the borrower still owns it."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 41,
+											"col": 2,
+											"byteIndex": 1962
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "reason",
+												"optional": true,
+												"tsType": {
+													"repr": "unknown",
+													"kind": "keyword",
+													"value": "unknown"
+												}
+											}
+										],
+										"returnType": {
+											"repr": "void",
+											"kind": "keyword",
+											"value": "void"
+										}
+									}
+								],
+								"properties": [
+									{
+										"name": "value",
+										"jsDoc": {
+											"doc": "Value carried by this contract; its schema and owner define the accepted shape."
+										},
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 35,
+											"col": 2,
+											"byteIndex": 1647
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Value",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Value",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "Lease",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									},
+									{
+										"name": "acquiredAt",
+										"jsDoc": {
+											"doc": "Instant when this lease was granted by the owning clock."
+										},
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 37,
+											"col": 2,
+											"byteIndex": 1736
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Temporal.Instant",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Temporal.Instant"
+											}
+										}
+									},
+									{
+										"name": "invalid",
+										"jsDoc": {
+											"doc": "Whether the borrower marked this lease unusable for future reuse."
+										},
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 39,
+											"col": 2,
+											"byteIndex": 1850
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "boolean",
+											"kind": "keyword",
+											"value": "boolean"
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Value"
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Pool",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/pool/types.ts",
+								"line": 45,
+								"col": 0,
+								"byteIndex": 2056
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Bounded process-local owner of reusable values."
+							},
+							"kind": "interface",
+							"def": {
+								"extends": [
+									{
+										"repr": "AsyncDisposable",
+										"kind": "typeRef",
+										"value": {
+											"typeName": "AsyncDisposable"
+										}
+									}
+								],
+								"methods": [
+									{
+										"name": "acquire",
+										"jsDoc": {
+											"doc": "Borrow one value under an owned lease; disposing the lease returns or closes it."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 49,
+											"col": 2,
+											"byteIndex": 2341
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "ctx",
+												"optional": false,
+												"tsType": {
+													"repr": "Context",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Context",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/context",
+															"name": "Context"
+														}
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Lease",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "Value",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Value",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "Pool",
+																			"declaringKind": "interface"
+																		}
+																	}
+																}
+															],
+															"typeName": "Lease",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									},
+									{
+										"name": "stats",
+										"jsDoc": {
+											"doc": "Return an immutable occupancy or progress snapshot without transferring ownership."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 51,
+											"col": 2,
+											"byteIndex": 2479
+										},
+										"params": [],
+										"returnType": {
+											"repr": "Stats",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Stats",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "maintain",
+										"jsDoc": {
+											"doc": "Close idle values older than the configured maximum age while preserving the minimum."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 53,
+											"col": 2,
+											"byteIndex": 2590
+										},
+										"params": [],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "void",
+														"kind": "keyword",
+														"value": "void"
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									},
+									{
+										"name": "drain",
+										"jsDoc": {
+											"doc": "Stop new admission and wait for existing ownership transitions to settle."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 55,
+											"col": 2,
+											"byteIndex": 2700
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "reason",
+												"optional": true,
+												"tsType": {
+													"repr": "unknown",
+													"kind": "keyword",
+													"value": "unknown"
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "void",
+														"kind": "keyword",
+														"value": "void"
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									}
+								],
+								"properties": [
+									{
+										"name": "events",
+										"jsDoc": {
+											"doc": "Observation stream; terminal results and cancellation retain their separate authority."
+										},
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 47,
+											"col": 2,
+											"byteIndex": 2207
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "indexedAccess",
+											"value": {
+												"objType": {
+													"repr": "EventBus",
+													"kind": "typeRef",
+													"value": {
+														"typeParams": [
+															{
+																"repr": "Event",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Event",
+																	"resolution": {
+																		"kind": "local"
+																	}
+																}
+															}
+														],
+														"typeName": "EventBus",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/observables",
+															"name": "EventBus"
+														}
+													}
+												},
+												"indexType": {
+													"repr": "events",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "events"
+													}
+												}
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Value"
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "CreateOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/pool/types.ts",
+								"line": 59,
+								"col": 0,
+								"byteIndex": 2789
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Inputs accepted while creating a pool."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "ctx",
+										"jsDoc": {
+											"doc": "Borrowed execution context for identity, cancellation, deadlines and clock access."
+										},
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 61,
+											"col": 2,
+											"byteIndex": 2921
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Context",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Context",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/context",
+													"name": "Context"
+												}
+											}
+										}
+									},
+									{
+										"name": "minimum",
+										"jsDoc": {
+											"doc": "Minimum reusable values retained by the pool; omitted input defaults to zero."
+										},
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 63,
+											"col": 2,
+											"byteIndex": 3031
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "maximum",
+										"jsDoc": {
+											"doc": "Maximum values owned across creation, health checks, leases, return and close transitions."
+										},
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 65,
+											"col": 2,
+											"byteIndex": 3158
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "maximumIdle",
+										"jsDoc": {
+											"doc": "Largest idle set retained for reuse after leases return."
+										},
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 67,
+											"col": 2,
+											"byteIndex": 3250
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "maximumIdleAge",
+										"jsDoc": {
+											"doc": "Maximum idle age enforced before reuse and by explicit maintenance."
+										},
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 69,
+											"col": 2,
+											"byteIndex": 3358
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "Temporal.Duration",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.Duration"
+													}
+												},
+												{
+													"repr": "Temporal.DurationLike",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.DurationLike"
+													}
+												},
+												{
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												}
+											]
+										}
+									},
+									{
+										"name": "acquireTimeout",
+										"jsDoc": {
+											"doc": "Optional maximum wait for a pool lease; it does not extend the caller deadline."
+										},
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 71,
+											"col": 2,
+											"byteIndex": 3525
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "Temporal.Duration",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.Duration"
+													}
+												},
+												{
+													"repr": "Temporal.DurationLike",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.DurationLike"
+													}
+												},
+												{
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												}
+											]
+										}
+									},
+									{
+										"name": "create",
+										"jsDoc": {
+											"doc": "Create a provider value under the supplied execution lifetime."
+										},
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 73,
+											"col": 2,
+											"byteIndex": 3675
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "fnOrConstructor",
+											"value": {
+												"constructor": false,
+												"tsType": {
+													"kind": "union",
+													"value": [
+														{
+															"repr": "Value",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Value",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "CreateOptions",
+																	"declaringKind": "interface"
+																}
+															}
+														},
+														{
+															"repr": "Promise",
+															"kind": "typeRef",
+															"value": {
+																"typeParams": [
+																	{
+																		"repr": "Value",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "Value",
+																			"resolution": {
+																				"kind": "typeParam",
+																				"declaringName": "CreateOptions",
+																				"declaringKind": "interface"
+																			}
+																		}
+																	}
+																],
+																"typeName": "Promise"
+															}
+														}
+													]
+												},
+												"params": [
+													{
+														"kind": "identifier",
+														"name": "ctx",
+														"optional": false,
+														"tsType": {
+															"repr": "Context",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Context",
+																"resolution": {
+																	"kind": "import",
+																	"specifier": "@okikio/context",
+																	"name": "Context"
+																}
+															}
+														}
+													}
+												]
+											}
+										}
+									},
+									{
+										"name": "check",
+										"jsDoc": {
+											"doc": "Optional health check before reuse; false retires the value before a replacement is created."
+										},
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 75,
+											"col": 2,
+											"byteIndex": 3836
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"kind": "fnOrConstructor",
+											"value": {
+												"constructor": false,
+												"tsType": {
+													"kind": "union",
+													"value": [
+														{
+															"repr": "boolean",
+															"kind": "keyword",
+															"value": "boolean"
+														},
+														{
+															"repr": "Promise",
+															"kind": "typeRef",
+															"value": {
+																"typeParams": [
+																	{
+																		"repr": "boolean",
+																		"kind": "keyword",
+																		"value": "boolean"
+																	}
+																],
+																"typeName": "Promise"
+															}
+														}
+													]
+												},
+												"params": [
+													{
+														"kind": "identifier",
+														"name": "value",
+														"optional": false,
+														"tsType": {
+															"repr": "Value",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Value",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "CreateOptions",
+																	"declaringKind": "interface"
+																}
+															}
+														}
+													}
+												]
+											}
+										}
+									},
+									{
+										"name": "close",
+										"jsDoc": {
+											"doc": "Close one retired provider value; the pool joins this callback before releasing its capacity."
+										},
+										"location": {
+											"filename": "./packages/pool/types.ts",
+											"line": 77,
+											"col": 2,
+											"byteIndex": 4002
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "fnOrConstructor",
+											"value": {
+												"constructor": false,
+												"tsType": {
+													"kind": "union",
+													"value": [
+														{
+															"repr": "void",
+															"kind": "keyword",
+															"value": "void"
+														},
+														{
+															"repr": "Promise",
+															"kind": "typeRef",
+															"value": {
+																"typeParams": [
+																	{
+																		"repr": "void",
+																		"kind": "keyword",
+																		"value": "void"
+																	}
+																],
+																"typeName": "Promise"
+															}
+														}
+													]
+												},
+												"params": [
+													{
+														"kind": "identifier",
+														"name": "value",
+														"optional": false,
+														"tsType": {
+															"repr": "Value",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Value",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "CreateOptions",
+																	"declaringKind": "interface"
+																}
+															}
+														}
+													},
+													{
+														"kind": "identifier",
+														"name": "reason",
+														"optional": true,
+														"tsType": {
+															"repr": "unknown",
+															"kind": "keyword",
+															"value": "unknown"
+														}
+													}
+												]
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Value"
+									}
+								]
+							}
+						}
+					]
+				}
+			]
+		}
+	}
+}

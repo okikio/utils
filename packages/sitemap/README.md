@@ -4,20 +4,16 @@ A website provides a list of pages for discovery, sometimes as Sitemap XML, some
 `sitemap` reads those supplied documents into page or child-source records. It saves a collector from writing a
 different URL extractor for each supported format; it does not download the listed pages.
 
-```mermaid
-flowchart LR
-    A[Supplied Sitemap or feed text] --> B[Read records]
-    B --> C[Page URL records]
-    B --> D[Child sitemap records when an index declares them]
-    C -. application chooses .-> E[Candidate pages to visit]
-    D -. application acquires .-> F[More source documents]
-```
+![Supplied sitemap records give an application page candidates and child sitemap locations](diagram.png)
 
-The first demo contains only one page record. Child records describe other sources rather than fetching them. Dotted
-arrows are decisions and I/O your application must provide; this view omits format errors and streaming limits.
+[Editable diagram source](diagram.mmd). The first demo contains only one page record. Child records describe other
+sources rather than fetching them. Dotted arrows are decisions and I/O your application must provide; this view omits
+format errors and streaming limits.
 
 For shared terms such as `await` and `await using`, see
 [the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
+
+For the exact functions, types and field explanations, read the [generated contract reference](API.md).
 
 ## Run a complete example
 

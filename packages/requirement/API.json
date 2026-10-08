@@ -1,0 +1,3804 @@
+{
+	"package": "@okikio/requirement",
+	"packageVersion": "0.0.0",
+	"rendererVersion": 2,
+	"modules": {
+		"@okikio/requirement": {
+			"module_doc": {
+				"doc": "Keep declarations of required capabilities separate from the host that interprets them. Hard-coding a billing or permission SDK into each resource makes definitions impossible to inspect without starting that SDK.\n\nAttach requirements to definitions, inspect the reachable graph for deployment planning, and apply only the requirements active on the current execution path. Each semantic family owns its interpreter and failures. The example interpreter records admission in memory; replace it with real policy before using it for access control. Missing interpreters reject by default. Scope views borrow their owner context.\n",
+				"tags": [
+					{
+						"kind": "example",
+						"doc": "```ts\nimport '@okikio/duration/polyfill';\nimport '@okikio/dispose/polyfill';\nimport * as context from '@okikio/context';\nimport * as requirement from '@okikio/requirement';\nconst Feature = Object.freeze({ kind: 'entitlement', id: 'export.csv' });\nconst NeedsExport = requirement.define({ family: 'entitlement', action: 'require', definition: Feature });\nawait using owner = context.create({ id: 'export' });\nconst applied: string[] = [];\nconst ctx = requirement.scope(owner, { interpreters: {\n  entitlement: { async apply(_ctx, entries) { applied.push(...entries.map((entry) => entry.definition.id)); } },\n} });\nawait requirement.apply(ctx, [NeedsExport]);\nconsole.log(applied.join(','));\n```\n"
+					},
+					{
+						"kind": "module"
+					}
+				]
+			},
+			"imports": [
+				{
+					"importedName": "compose",
+					"originalName": "compose",
+					"src": "./packages/requirement/definition.ts",
+					"jsDoc": {
+						"doc": "Keep declarations of required capabilities separate from the host that interprets them. Hard-coding a billing or permission SDK into each resource makes definitions impossible to inspect without starting that SDK.\n\nAttach requirements to definitions, inspect the reachable graph for deployment planning, and apply only the requirements active on the current execution path. Each semantic family owns its interpreter and failures. The example interpreter records admission in memory; replace it with real policy before using it for access control. Missing interpreters reject by default. Scope views borrow their owner context.\n",
+						"tags": [
+							{
+								"kind": "example",
+								"doc": "```ts\nimport '@okikio/duration/polyfill';\nimport '@okikio/dispose/polyfill';\nimport * as context from '@okikio/context';\nimport * as requirement from '@okikio/requirement';\nconst Feature = Object.freeze({ kind: 'entitlement', id: 'export.csv' });\nconst NeedsExport = requirement.define({ family: 'entitlement', action: 'require', definition: Feature });\nawait using owner = context.create({ id: 'export' });\nconst applied: string[] = [];\nconst ctx = requirement.scope(owner, { interpreters: {\n  entitlement: { async apply(_ctx, entries) { applied.push(...entries.map((entry) => entry.definition.id)); } },\n} });\nawait requirement.apply(ctx, [NeedsExport]);\nconsole.log(applied.join(','));\n```\n"
+							},
+							{
+								"kind": "module"
+							}
+						]
+					}
+				},
+				{
+					"importedName": "context",
+					"src": "./packages/context/mod.ts"
+				},
+				{
+					"importedName": "RequirementContext",
+					"originalName": "RequirementContext",
+					"src": "./packages/requirement/types.ts"
+				},
+				{
+					"importedName": "RequirementDefinition",
+					"originalName": "RequirementDefinition",
+					"src": "./packages/requirement/types.ts"
+				},
+				{
+					"importedName": "RequirementInput",
+					"originalName": "RequirementInput",
+					"src": "./packages/requirement/types.ts"
+				},
+				{
+					"importedName": "RequirementRuntime",
+					"originalName": "RequirementRuntime",
+					"src": "./packages/requirement/types.ts"
+				},
+				{
+					"importedName": "RequirementScopeOptions",
+					"originalName": "RequirementScopeOptions",
+					"src": "./packages/requirement/types.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "catalog",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/mod.ts",
+								"line": 25,
+								"col": 9,
+								"byteIndex": 1462
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/requirement/definition.ts",
+									"line": 56,
+									"col": 0,
+									"byteIndex": 2294
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "compose",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/mod.ts",
+								"line": 25,
+								"col": 18,
+								"byteIndex": 1471
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/requirement/definition.ts",
+									"line": 92,
+									"col": 0,
+									"byteIndex": 4015
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "define",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/mod.ts",
+								"line": 25,
+								"col": 27,
+								"byteIndex": 1480
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/requirement/definition.ts",
+									"line": 16,
+									"col": 0,
+									"byteIndex": 674
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "document",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/mod.ts",
+								"line": 25,
+								"col": 35,
+								"byteIndex": 1488
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/requirement/definition.ts",
+									"line": 119,
+									"col": 0,
+									"byteIndex": 5193
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "family",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/mod.ts",
+								"line": 25,
+								"col": 45,
+								"byteIndex": 1498
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/requirement/definition.ts",
+									"line": 99,
+									"col": 0,
+									"byteIndex": 4244
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "is",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/mod.ts",
+								"line": 25,
+								"col": 53,
+								"byteIndex": 1506
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/requirement/definition.ts",
+									"line": 110,
+									"col": 0,
+									"byteIndex": 4745
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "UnsupportedRequirementError",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/mod.ts",
+								"line": 36,
+								"col": 0,
+								"byteIndex": 1816
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Error raised when active work reaches a requirement family without an interpreter."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"jsDoc": {
+											"doc": "Create one fail-closed error for an active family with no configured policy."
+										},
+										"hasBody": true,
+										"name": "constructor",
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "family",
+												"optional": false,
+												"tsType": {
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "requirements",
+												"optional": false,
+												"tsType": {
+													"kind": "typeOperator",
+													"value": {
+														"operator": "readonly",
+														"tsType": {
+															"kind": "array",
+															"value": {
+																"repr": "RequirementDefinition",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "RequirementDefinition",
+																	"resolution": {
+																		"kind": "import",
+																		"specifier": "./types.ts",
+																		"name": "RequirementDefinition"
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+										],
+										"location": {
+											"filename": "./packages/requirement/mod.ts",
+											"line": 43,
+											"col": 2,
+											"byteIndex": 2201
+										}
+									}
+								],
+								"properties": [
+									{
+										"jsDoc": {
+											"doc": "Stable requirement family that the current host cannot interpret."
+										},
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										},
+										"readonly": true,
+										"name": "family",
+										"location": {
+											"filename": "./packages/requirement/mod.ts",
+											"line": 38,
+											"col": 2,
+											"byteIndex": 1948
+										}
+									},
+									{
+										"jsDoc": {
+											"doc": "Active requirements that require an explicit interpreter or ignore policy."
+										},
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "RequirementDefinition",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "RequirementDefinition",
+															"resolution": {
+																"kind": "import",
+																"specifier": "./types.ts",
+																"name": "RequirementDefinition"
+															}
+														}
+													}
+												}
+											}
+										},
+										"readonly": true,
+										"name": "requirements",
+										"location": {
+											"filename": "./packages/requirement/mod.ts",
+											"line": 40,
+											"col": 2,
+											"byteIndex": 2057
+										}
+									}
+								],
+								"extends": "Error"
+							}
+						}
+					]
+				},
+				{
+					"name": "scope",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/mod.ts",
+								"line": 58,
+								"col": 0,
+								"byteIndex": 2768
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create a borrowed requirement-aware view of an existing execution context.\n\nUnknown active families reject by default. A test or intentionally permissive\nhost must opt in to `unknown: 'ignore'`; omission never silently disables a\nproduction requirement family."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "ctx",
+										"optional": false,
+										"tsType": {
+											"repr": "Base",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Base",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "scope",
+													"declaringKind": "function"
+												}
+											}
+										}
+									},
+									{
+										"kind": "assign",
+										"left": {
+											"kind": "identifier",
+											"name": "options",
+											"optional": false,
+											"tsType": {
+												"repr": "RequirementScopeOptions",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "RequirementScopeOptions",
+													"resolution": {
+														"kind": "import",
+														"specifier": "./types.ts",
+														"name": "RequirementScopeOptions"
+													}
+												}
+											}
+										},
+										"right": "[UNSUPPORTED]"
+									}
+								],
+								"returnType": {
+									"repr": "RequirementContext",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Base",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Base",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "scope",
+														"declaringKind": "function"
+													}
+												}
+											}
+										],
+										"typeName": "RequirementContext",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "RequirementContext"
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Base",
+										"constraint": {
+											"kind": "importType",
+											"value": {
+												"specifier": "@okikio/context",
+												"qualifier": "Context"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "bind",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/mod.ts",
+								"line": 76,
+								"col": 0,
+								"byteIndex": 3470
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Attach runtime views supplied by configured requirement-family interpreters.\n\nReachable requirements are declaration evidence only. `bind()` never applies\nthem. It lets families such as permissions expose runtime operations for\nlater dynamic checks while `apply()` remains the only activation operation."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "ctx",
+										"optional": false,
+										"tsType": {
+											"repr": "Base",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Base",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "bind",
+													"declaringKind": "function"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "input",
+										"optional": false,
+										"tsType": {
+											"repr": "RequirementInput",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "RequirementInput",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "RequirementInput"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "Base",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "Base",
+										"resolution": {
+											"kind": "typeParam",
+											"declaringName": "bind",
+											"declaringKind": "function"
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Base",
+										"constraint": {
+											"kind": "importType",
+											"value": {
+												"specifier": "@okikio/context",
+												"qualifier": "Context"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "apply",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/mod.ts",
+								"line": 94,
+								"col": 0,
+								"byteIndex": 4168
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Apply requirements that are active at the current execution point.\n\nFamilies are grouped once, then each configured interpreter receives its\nauthored order. An unknown family follows the scope's explicit policy."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "ctx",
+										"optional": false,
+										"tsType": {
+											"kind": "importType",
+											"value": {
+												"specifier": "@okikio/context",
+												"qualifier": "Context"
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "input",
+										"optional": false,
+										"tsType": {
+											"repr": "RequirementInput",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "RequirementInput",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "RequirementInput"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "Promise",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "void",
+												"kind": "keyword",
+												"value": "void"
+											}
+										],
+										"typeName": "Promise"
+									}
+								},
+								"hasBody": true,
+								"isAsync": true
+							}
+						}
+					]
+				},
+				{
+					"name": "RequirementCatalog",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/mod.ts",
+								"line": 148,
+								"col": 2,
+								"byteIndex": 6490
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/requirement/types.ts",
+									"line": 31,
+									"col": 0,
+									"byteIndex": 1262
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "RequirementCatalogOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/mod.ts",
+								"line": 149,
+								"col": 2,
+								"byteIndex": 6511
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/requirement/types.ts",
+									"line": 41,
+									"col": 0,
+									"byteIndex": 1630
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "RequirementContext",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/mod.ts",
+								"line": 150,
+								"col": 2,
+								"byteIndex": 6539
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/requirement/types.ts",
+									"line": 120,
+									"col": 0,
+									"byteIndex": 5150
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "RequirementDefinition",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/mod.ts",
+								"line": 151,
+								"col": 2,
+								"byteIndex": 6560
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/requirement/types.ts",
+									"line": 4,
+									"col": 0,
+									"byteIndex": 252
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "RequirementDocument",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/mod.ts",
+								"line": 152,
+								"col": 2,
+								"byteIndex": 6584
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/requirement/types.ts",
+									"line": 70,
+									"col": 0,
+									"byteIndex": 2725
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "RequirementInput",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/mod.ts",
+								"line": 153,
+								"col": 2,
+								"byteIndex": 6606
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/requirement/types.ts",
+									"line": 49,
+									"col": 0,
+									"byteIndex": 1950
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "RequirementInterpreter",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/mod.ts",
+								"line": 154,
+								"col": 2,
+								"byteIndex": 6625
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/requirement/types.ts",
+									"line": 101,
+									"col": 0,
+									"byteIndex": 4082
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "RequirementOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/mod.ts",
+								"line": 155,
+								"col": 2,
+								"byteIndex": 6650
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/requirement/types.ts",
+									"line": 54,
+									"col": 0,
+									"byteIndex": 2129
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "RequirementPathType",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/mod.ts",
+								"line": 156,
+								"col": 2,
+								"byteIndex": 6671
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/requirement/types.ts",
+									"line": 91,
+									"col": 0,
+									"byteIndex": 3624
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "RequirementRuntime",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/mod.ts",
+								"line": 157,
+								"col": 2,
+								"byteIndex": 6693
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/requirement/types.ts",
+									"line": 112,
+									"col": 0,
+									"byteIndex": 4743
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "RequirementScopeOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/mod.ts",
+								"line": 158,
+								"col": 2,
+								"byteIndex": 6714
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/requirement/types.ts",
+									"line": 125,
+									"col": 0,
+									"byteIndex": 5343
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "UnknownRequirementPolicyType",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/mod.ts",
+								"line": 159,
+								"col": 2,
+								"byteIndex": 6740
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/requirement/types.ts",
+									"line": 109,
+									"col": 0,
+									"byteIndex": 4603
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		"@okikio/requirement/definition": {
+			"imports": [
+				{
+					"importedName": "catalogCore",
+					"src": "./packages/catalog/mod.ts",
+					"jsDoc": {
+						"doc": "Pure requirement declarations; runtime interpretation belongs to the main facade."
+					}
+				},
+				{
+					"importedName": "Catalog",
+					"originalName": "Catalog",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "CatalogEntryIdentity",
+					"originalName": "CatalogEntryIdentity",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "CatalogLike",
+					"originalName": "CatalogLike",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "CatalogSelection",
+					"originalName": "CatalogSelection",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "RequirementCatalog",
+					"originalName": "RequirementCatalog",
+					"src": "./packages/requirement/types.ts"
+				},
+				{
+					"importedName": "RequirementCatalogOptions",
+					"originalName": "RequirementCatalogOptions",
+					"src": "./packages/requirement/types.ts"
+				},
+				{
+					"importedName": "RequirementDefinition",
+					"originalName": "RequirementDefinition",
+					"src": "./packages/requirement/types.ts"
+				},
+				{
+					"importedName": "RequirementDocument",
+					"originalName": "RequirementDocument",
+					"src": "./packages/requirement/types.ts"
+				},
+				{
+					"importedName": "RequirementInput",
+					"originalName": "RequirementInput",
+					"src": "./packages/requirement/types.ts"
+				},
+				{
+					"importedName": "RequirementOptions",
+					"originalName": "RequirementOptions",
+					"src": "./packages/requirement/types.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "define",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/definition.ts",
+								"line": 16,
+								"col": 0,
+								"byteIndex": 674
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Define one immutable requirement without implementing its domain semantics."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "input",
+										"optional": false,
+										"tsType": {
+											"repr": "RequirementOptions",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Family",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Family",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "define",
+																"declaringKind": "function"
+															}
+														}
+													},
+													{
+														"repr": "Action",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Action",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "define",
+																"declaringKind": "function"
+															}
+														}
+													},
+													{
+														"repr": "Entry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "define",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "RequirementOptions",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "RequirementOptions"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "RequirementDefinition",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Family",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Family",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "define",
+														"declaringKind": "function"
+													}
+												}
+											},
+											{
+												"repr": "Action",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Action",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "define",
+														"declaringKind": "function"
+													}
+												}
+											},
+											{
+												"repr": "Entry",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entry",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "define",
+														"declaringKind": "function"
+													}
+												}
+											}
+										],
+										"typeName": "RequirementDefinition",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "RequirementDefinition"
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Family",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "Action",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/catalog",
+													"name": "CatalogEntryIdentity"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "catalog",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/definition.ts",
+								"line": 56,
+								"col": 0,
+								"byteIndex": 2294
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Project one canonical definition catalog into key-preserving requirements.\n\nThe source definition objects remain authoritative. This helper only derives\nthe generic requirement declarations interpreted by the owning family."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "source",
+										"optional": false,
+										"tsType": {
+											"repr": "Catalog",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "indexedAccess",
+														"value": {
+															"objType": {
+																"repr": "Entries",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Entries",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "catalog",
+																		"declaringKind": "function"
+																	}
+																}
+															},
+															"indexType": {
+																"kind": "typeOperator",
+																"value": {
+																	"operator": "keyof",
+																	"tsType": {
+																		"repr": "Entries",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "Entries",
+																			"resolution": {
+																				"kind": "typeParam",
+																				"declaringName": "catalog",
+																				"declaringKind": "function"
+																			}
+																		}
+																	}
+																}
+															}
+														}
+													},
+													{
+														"repr": "Entries",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entries",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "catalog",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "Catalog",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/catalog",
+													"name": "Catalog"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "options",
+										"optional": false,
+										"tsType": {
+											"repr": "RequirementCatalogOptions",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Family",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Family",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "catalog",
+																"declaringKind": "function"
+															}
+														}
+													},
+													{
+														"repr": "Action",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Action",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "catalog",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "RequirementCatalogOptions",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "RequirementCatalogOptions"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "RequirementCatalog",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Family",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Family",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "catalog",
+														"declaringKind": "function"
+													}
+												}
+											},
+											{
+												"repr": "Action",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Action",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "catalog",
+														"declaringKind": "function"
+													}
+												}
+											},
+											{
+												"repr": "Entries",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entries",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "catalog",
+														"declaringKind": "function"
+													}
+												}
+											}
+										],
+										"typeName": "RequirementCatalog",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "RequirementCatalog"
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Family",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "Action",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "CatalogEntryIdentity",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "CatalogEntryIdentity",
+																		"resolution": {
+																			"kind": "import",
+																			"specifier": "@okikio/catalog",
+																			"name": "CatalogEntryIdentity"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						},
+						{
+							"location": {
+								"filename": "./packages/requirement/definition.ts",
+								"line": 65,
+								"col": 0,
+								"byteIndex": 2679
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Project a key-preserving catalog selection into requirements."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "source",
+										"optional": false,
+										"tsType": {
+											"repr": "CatalogSelection",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "SourceEntry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "SourceEntry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "catalog",
+																"declaringKind": "function"
+															}
+														}
+													},
+													{
+														"repr": "Entries",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entries",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "catalog",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "CatalogSelection",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/catalog",
+													"name": "CatalogSelection"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "options",
+										"optional": false,
+										"tsType": {
+											"repr": "RequirementCatalogOptions",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Family",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Family",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "catalog",
+																"declaringKind": "function"
+															}
+														}
+													},
+													{
+														"repr": "Action",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Action",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "catalog",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "RequirementCatalogOptions",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "RequirementCatalogOptions"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "RequirementCatalog",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Family",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Family",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "catalog",
+														"declaringKind": "function"
+													}
+												}
+											},
+											{
+												"repr": "Action",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Action",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "catalog",
+														"declaringKind": "function"
+													}
+												}
+											},
+											{
+												"repr": "Entries",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entries",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "catalog",
+														"declaringKind": "function"
+													}
+												}
+											}
+										],
+										"typeName": "RequirementCatalog",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "RequirementCatalog"
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Family",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "Action",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "SourceEntry",
+										"constraint": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/catalog",
+													"name": "CatalogEntryIdentity"
+												}
+											}
+										}
+									},
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "CatalogEntryIdentity",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "CatalogEntryIdentity",
+																		"resolution": {
+																			"kind": "import",
+																			"specifier": "@okikio/catalog",
+																			"name": "CatalogEntryIdentity"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						},
+						{
+							"location": {
+								"filename": "./packages/requirement/definition.ts",
+								"line": 75,
+								"col": 0,
+								"byteIndex": 3131
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Build the requirement projection after the source catalog shape is statically captured."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "source",
+										"optional": false,
+										"tsType": {
+											"repr": "CatalogLike",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "CatalogEntryIdentity",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "CatalogEntryIdentity",
+															"resolution": {
+																"kind": "import",
+																"specifier": "@okikio/catalog",
+																"name": "CatalogEntryIdentity"
+															}
+														}
+													}
+												],
+												"typeName": "CatalogLike",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/catalog",
+													"name": "CatalogLike"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "options",
+										"optional": false,
+										"tsType": {
+											"repr": "RequirementCatalogOptions",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Family",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Family",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "catalog",
+																"declaringKind": "function"
+															}
+														}
+													},
+													{
+														"repr": "Action",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Action",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "catalog",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "RequirementCatalogOptions",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "RequirementCatalogOptions"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "RequirementCatalog",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Family",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Family",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "catalog",
+														"declaringKind": "function"
+													}
+												}
+											},
+											{
+												"repr": "Action",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Action",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "catalog",
+														"declaringKind": "function"
+													}
+												}
+											},
+											{
+												"repr": "Readonly",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"repr": "Record",
+															"kind": "typeRef",
+															"value": {
+																"typeParams": [
+																	{
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	},
+																	{
+																		"repr": "CatalogEntryIdentity",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "CatalogEntryIdentity",
+																			"resolution": {
+																				"kind": "import",
+																				"specifier": "@okikio/catalog",
+																				"name": "CatalogEntryIdentity"
+																			}
+																		}
+																	}
+																],
+																"typeName": "Record"
+															}
+														}
+													],
+													"typeName": "Readonly"
+												}
+											}
+										],
+										"typeName": "RequirementCatalog",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "RequirementCatalog"
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Family",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "Action",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "compose",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/definition.ts",
+								"line": 92,
+								"col": 0,
+								"byteIndex": 4015
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Compose direct requirements, catalogs, selections, and nested arrays."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "rest",
+										"arg": {
+											"kind": "identifier",
+											"name": "input",
+											"optional": false
+										},
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "RequirementInput",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "Entry",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Entry",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "compose",
+																			"declaringKind": "function"
+																		}
+																	}
+																}
+															],
+															"typeName": "RequirementInput",
+															"resolution": {
+																"kind": "import",
+																"specifier": "./types.ts",
+																"name": "RequirementInput"
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "readonly",
+										"tsType": {
+											"kind": "array",
+											"value": {
+												"repr": "Entry",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entry",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "compose",
+														"declaringKind": "function"
+													}
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "RequirementDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "RequirementDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "RequirementDefinition"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "family",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/definition.ts",
+								"line": 99,
+								"col": 0,
+								"byteIndex": 4244
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return requirements owned by one semantic family."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "input",
+										"optional": false,
+										"tsType": {
+											"repr": "RequirementInput",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Entry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "family",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "RequirementInput",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "RequirementInput"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "familyName",
+										"optional": false,
+										"tsType": {
+											"repr": "Family",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Family",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "family",
+													"declaringKind": "function"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "readonly",
+										"tsType": {
+											"kind": "array",
+											"value": {
+												"repr": "Extract",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"repr": "Entry",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Entry",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "family",
+																	"declaringKind": "function"
+																}
+															}
+														},
+														{
+															"repr": "RequirementDefinition",
+															"kind": "typeRef",
+															"value": {
+																"typeParams": [
+																	{
+																		"repr": "Family",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "Family",
+																			"resolution": {
+																				"kind": "typeParam",
+																				"declaringName": "family",
+																				"declaringKind": "function"
+																			}
+																		}
+																	},
+																	{
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	},
+																	{
+																		"repr": "CatalogEntryIdentity",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "CatalogEntryIdentity",
+																			"resolution": {
+																				"kind": "import",
+																				"specifier": "@okikio/catalog",
+																				"name": "CatalogEntryIdentity"
+																			}
+																		}
+																	}
+																],
+																"typeName": "RequirementDefinition",
+																"resolution": {
+																	"kind": "import",
+																	"specifier": "./types.ts",
+																	"name": "RequirementDefinition"
+																}
+															}
+														}
+													],
+													"typeName": "Extract"
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Family",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "RequirementDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "RequirementDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "RequirementDefinition"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "is",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/definition.ts",
+								"line": 110,
+								"col": 0,
+								"byteIndex": 4745
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return whether a value has the generic requirement protocol."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										}
+									}
+								],
+								"returnType": {
+									"repr": "value is RequirementDefinition",
+									"kind": "typePredicate",
+									"value": {
+										"param": {
+											"type": "identifier",
+											"name": "value"
+										},
+										"type": {
+											"repr": "RequirementDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "RequirementDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "RequirementDefinition"
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "document",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/definition.ts",
+								"line": 119,
+								"col": 0,
+								"byteIndex": 5193
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create deterministic JSON-safe documentation for requirement definitions."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "input",
+										"optional": false,
+										"tsType": {
+											"repr": "RequirementInput",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "RequirementInput",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "RequirementInput"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "readonly",
+										"tsType": {
+											"kind": "array",
+											"value": {
+												"repr": "RequirementDocument",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "RequirementDocument",
+													"resolution": {
+														"kind": "import",
+														"specifier": "./types.ts",
+														"name": "RequirementDocument"
+													}
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				}
+			]
+		},
+		"@okikio/requirement/types": {
+			"imports": [
+				{
+					"importedName": "Catalog",
+					"originalName": "Catalog",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "CatalogEntryIdentity",
+					"originalName": "CatalogEntryIdentity",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "CatalogDefinitionInput",
+					"originalName": "DefinitionInput",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "BaseContext",
+					"originalName": "Context",
+					"src": "./packages/context/mod.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "RequirementDefinition",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/types.ts",
+								"line": 4,
+								"col": 0,
+								"byteIndex": 252
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "One immutable contract contribution attached to another definition."
+							},
+							"kind": "interface",
+							"def": {
+								"extends": [
+									{
+										"repr": "CatalogEntryIdentity",
+										"kind": "typeRef",
+										"value": {
+											"typeName": "CatalogEntryIdentity",
+											"resolution": {
+												"kind": "import",
+												"specifier": "@okikio/catalog",
+												"name": "CatalogEntryIdentity"
+											}
+										}
+									}
+								],
+								"properties": [
+									{
+										"name": "kind",
+										"jsDoc": {
+											"doc": "Stable discriminant for this requirement value."
+										},
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 10,
+											"col": 2,
+											"byteIndex": 508
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "requirement",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "requirement"
+											}
+										}
+									},
+									{
+										"name": "family",
+										"jsDoc": {
+											"doc": "Domain that owns the semantics, such as `permission` or `entitlement`."
+										},
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 12,
+											"col": 2,
+											"byteIndex": 618
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Family",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Family",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "RequirementDefinition",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									},
+									{
+										"name": "action",
+										"jsDoc": {
+											"doc": "Operation interpreted by that domain, such as `require`."
+										},
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 14,
+											"col": 2,
+											"byteIndex": 709
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Action",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Action",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "RequirementDefinition",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									},
+									{
+										"name": "definition",
+										"jsDoc": {
+											"doc": "Exact domain definition referenced by this requirement."
+										},
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 16,
+											"col": 2,
+											"byteIndex": 799
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Entry",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Entry",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "RequirementDefinition",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Family",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										},
+										"default": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "Action",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										},
+										"default": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/catalog",
+													"name": "CatalogEntryIdentity"
+												}
+											}
+										},
+										"default": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/catalog",
+													"name": "CatalogEntryIdentity"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "RequirementCatalogEntries",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/types.ts",
+								"line": 20,
+								"col": 0,
+								"byteIndex": 911
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Key-preserving requirement entries projected from one definition catalog."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "Readonly",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"kind": "mapped",
+												"value": {
+													"readonly": true,
+													"typeParam": {
+														"name": "Key",
+														"constraint": {
+															"kind": "typeOperator",
+															"value": {
+																"operator": "keyof",
+																"tsType": {
+																	"repr": "Entries",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Entries",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "RequirementCatalogEntries",
+																			"declaringKind": "typeAlias"
+																		}
+																	}
+																}
+															}
+														}
+													},
+													"tsType": {
+														"repr": "RequirementDefinition",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "Family",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Family",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "RequirementCatalogEntries",
+																			"declaringKind": "typeAlias"
+																		}
+																	}
+																},
+																{
+																	"repr": "Action",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Action",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "RequirementCatalogEntries",
+																			"declaringKind": "typeAlias"
+																		}
+																	}
+																},
+																{
+																	"kind": "indexedAccess",
+																	"value": {
+																		"objType": {
+																			"repr": "Entries",
+																			"kind": "typeRef",
+																			"value": {
+																				"typeName": "Entries",
+																				"resolution": {
+																					"kind": "typeParam",
+																					"declaringName": "RequirementCatalogEntries",
+																					"declaringKind": "typeAlias"
+																				}
+																			}
+																		},
+																		"indexType": {
+																			"repr": "Key",
+																			"kind": "typeRef",
+																			"value": {
+																				"typeName": "Key",
+																				"resolution": {
+																					"kind": "typeParam"
+																				}
+																			}
+																		}
+																	}
+																}
+															],
+															"typeName": "RequirementDefinition",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												}
+											}
+										],
+										"typeName": "Readonly"
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Family",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "Action",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "CatalogEntryIdentity",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "CatalogEntryIdentity",
+																		"resolution": {
+																			"kind": "import",
+																			"specifier": "@okikio/catalog",
+																			"name": "CatalogEntryIdentity"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "RequirementCatalog",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/types.ts",
+								"line": 31,
+								"col": 0,
+								"byteIndex": 1262
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Named requirement catalog projected from one canonical definition catalog."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "Catalog",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "RequirementDefinition",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"repr": "Family",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Family",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "RequirementCatalog",
+																	"declaringKind": "typeAlias"
+																}
+															}
+														},
+														{
+															"repr": "Action",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Action",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "RequirementCatalog",
+																	"declaringKind": "typeAlias"
+																}
+															}
+														},
+														{
+															"kind": "indexedAccess",
+															"value": {
+																"objType": {
+																	"repr": "Entries",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Entries",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "RequirementCatalog",
+																			"declaringKind": "typeAlias"
+																		}
+																	}
+																},
+																"indexType": {
+																	"kind": "typeOperator",
+																	"value": {
+																		"operator": "keyof",
+																		"tsType": {
+																			"repr": "Entries",
+																			"kind": "typeRef",
+																			"value": {
+																				"typeName": "Entries",
+																				"resolution": {
+																					"kind": "typeParam",
+																					"declaringName": "RequirementCatalog",
+																					"declaringKind": "typeAlias"
+																				}
+																			}
+																		}
+																	}
+																}
+															}
+														}
+													],
+													"typeName": "RequirementDefinition",
+													"resolution": {
+														"kind": "local"
+													}
+												}
+											},
+											{
+												"repr": "RequirementCatalogEntries",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"repr": "Family",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Family",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "RequirementCatalog",
+																	"declaringKind": "typeAlias"
+																}
+															}
+														},
+														{
+															"repr": "Action",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Action",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "RequirementCatalog",
+																	"declaringKind": "typeAlias"
+																}
+															}
+														},
+														{
+															"repr": "Entries",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Entries",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "RequirementCatalog",
+																	"declaringKind": "typeAlias"
+																}
+															}
+														}
+													],
+													"typeName": "RequirementCatalogEntries",
+													"resolution": {
+														"kind": "local"
+													}
+												}
+											}
+										],
+										"typeName": "Catalog",
+										"resolution": {
+											"kind": "import",
+											"specifier": "@okikio/catalog",
+											"name": "Catalog"
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Family",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "Action",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "CatalogEntryIdentity",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "CatalogEntryIdentity",
+																		"resolution": {
+																			"kind": "import",
+																			"specifier": "@okikio/catalog",
+																			"name": "CatalogEntryIdentity"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "RequirementCatalogOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/types.ts",
+								"line": 41,
+								"col": 0,
+								"byteIndex": 1630
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Options used to project one definition catalog into requirement declarations."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "family",
+										"jsDoc": {
+											"doc": "Stable requirement family that owns interpretation."
+										},
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 43,
+											"col": 2,
+											"byteIndex": 1782
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Family",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Family",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "RequirementCatalogOptions",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									},
+									{
+										"name": "action",
+										"jsDoc": {
+											"doc": "Family-specific requirement action."
+										},
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 45,
+											"col": 2,
+											"byteIndex": 1852
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Action",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Action",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "RequirementCatalogOptions",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Family",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "Action",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "RequirementInput",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/types.ts",
+								"line": 49,
+								"col": 0,
+								"byteIndex": 1950
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Recursive input accepted by requirement-consuming definitions."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "CatalogDefinitionInput",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Entry",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entry",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "RequirementInput",
+														"declaringKind": "typeAlias"
+													}
+												}
+											}
+										],
+										"typeName": "CatalogDefinitionInput",
+										"resolution": {
+											"kind": "import",
+											"specifier": "@okikio/catalog",
+											"name": "DefinitionInput"
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "RequirementDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "RequirementDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										"default": {
+											"repr": "RequirementDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "RequirementDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "RequirementOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/types.ts",
+								"line": 54,
+								"col": 0,
+								"byteIndex": 2129
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Options accepted by `requirements.define()`."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "family",
+										"jsDoc": {
+											"doc": "Stable interpreter family that owns runtime meaning for this requirement."
+										},
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 60,
+											"col": 2,
+											"byteIndex": 2338
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Family",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Family",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "RequirementOptions",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									},
+									{
+										"name": "action",
+										"jsDoc": {
+											"doc": "Family-specific operation requested by this requirement contribution."
+										},
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 62,
+											"col": 2,
+											"byteIndex": 2442
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Action",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Action",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "RequirementOptions",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									},
+									{
+										"name": "definition",
+										"jsDoc": {
+											"doc": "Exact import-safe definition bound to this requirement."
+										},
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 64,
+											"col": 2,
+											"byteIndex": 2532
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Entry",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Entry",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "RequirementOptions",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									},
+									{
+										"name": "description",
+										"jsDoc": {
+											"doc": "Human-readable requirement purpose used by documentation and diagnostics."
+										},
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 66,
+											"col": 2,
+											"byteIndex": 2643
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Family",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "Action",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/catalog",
+													"name": "CatalogEntryIdentity"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "RequirementDocument",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/types.ts",
+								"line": 70,
+								"col": 0,
+								"byteIndex": 2725
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "JSON-safe projection of one requirement."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "id",
+										"jsDoc": {
+											"doc": "Stable requirement identity derived from family, action, and exact definition ID."
+										},
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 72,
+											"col": 2,
+											"byteIndex": 2855
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "family",
+										"jsDoc": {
+											"doc": "Stable requirement family safe to expose in generated documentation."
+										},
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 74,
+											"col": 2,
+											"byteIndex": 2954
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "action",
+										"jsDoc": {
+											"doc": "Family-specific action safe to expose in generated documentation."
+										},
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 76,
+											"col": 2,
+											"byteIndex": 3054
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "definition",
+										"jsDoc": {
+											"doc": "Exact import-safe definition bound to this requirement."
+										},
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 78,
+											"col": 2,
+											"byteIndex": 3144
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "definitionKind",
+										"jsDoc": {
+											"doc": "Catalog definition kind attached to the documented requirement target."
+										},
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 80,
+											"col": 2,
+											"byteIndex": 3253
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "description",
+										"jsDoc": {
+											"doc": "Human-readable requirement purpose used by documentation and diagnostics."
+										},
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 82,
+											"col": 2,
+											"byteIndex": 3369
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "RequirementPathType",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/types.ts",
+								"line": 91,
+								"col": 0,
+								"byteIndex": 3624
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Provenance for one statically reachable requirement.\n\nRuntime admission does not automatically apply this value. The path exists\nfor inspection, deployment planning, security review, and documentation."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "requirement",
+										"jsDoc": {
+											"doc": "Exact reachable requirement found along this dependency path."
+										},
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 93,
+											"col": 2,
+											"byteIndex": 3734
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "RequirementDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "RequirementDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "owner",
+										"jsDoc": {
+											"doc": "Temporary owner identity used while this requirement path is claimed."
+										},
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 95,
+											"col": 2,
+											"byteIndex": 3858
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/catalog",
+													"name": "CatalogEntryIdentity"
+												}
+											}
+										}
+									},
+									{
+										"name": "path",
+										"jsDoc": {
+											"doc": "Deterministic or canonical path associated with this requirement path."
+										},
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 97,
+											"col": 2,
+											"byteIndex": 3976
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "CatalogEntryIdentity",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "CatalogEntryIdentity",
+															"resolution": {
+																"kind": "import",
+																"specifier": "@okikio/catalog",
+																"name": "CatalogEntryIdentity"
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "RequirementInterpreter",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/types.ts",
+								"line": 101,
+								"col": 0,
+								"byteIndex": 4082
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Host behavior for one exact requirement family."
+							},
+							"kind": "interface",
+							"def": {
+								"methods": [
+									{
+										"name": "scope",
+										"jsDoc": {
+											"doc": "Attach family-specific runtime views from statically reachable declarations without activating them."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 103,
+											"col": 2,
+											"byteIndex": 4295
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "ctx",
+												"optional": false,
+												"tsType": {
+													"repr": "BaseContext",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "BaseContext",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/context",
+															"name": "Context"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "requirements",
+												"optional": false,
+												"tsType": {
+													"kind": "typeOperator",
+													"value": {
+														"operator": "readonly",
+														"tsType": {
+															"kind": "array",
+															"value": {
+																"repr": "Entry",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Entry",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "RequirementInterpreter",
+																		"declaringKind": "interface"
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+										],
+										"optional": true,
+										"returnType": {
+											"repr": "BaseContext",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "BaseContext",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/context",
+													"name": "Context"
+												}
+											}
+										}
+									},
+									{
+										"name": "apply",
+										"jsDoc": {
+											"doc": "Interpret requirements that became active on the current execution path."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 105,
+											"col": 2,
+											"byteIndex": 4448
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "ctx",
+												"optional": false,
+												"tsType": {
+													"repr": "BaseContext",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "BaseContext",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/context",
+															"name": "Context"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "requirements",
+												"optional": false,
+												"tsType": {
+													"kind": "typeOperator",
+													"value": {
+														"operator": "readonly",
+														"tsType": {
+															"kind": "array",
+															"value": {
+																"repr": "Entry",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Entry",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "RequirementInterpreter",
+																		"declaringKind": "interface"
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "void",
+														"kind": "keyword",
+														"value": "void"
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "RequirementDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "RequirementDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										"default": {
+											"repr": "RequirementDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "RequirementDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "UnknownRequirementPolicyType",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/types.ts",
+								"line": 109,
+								"col": 0,
+								"byteIndex": 4603
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Policy used when active work reaches an unconfigured requirement family."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "reject",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "reject"
+											}
+										},
+										{
+											"repr": "ignore",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "ignore"
+											}
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "RequirementRuntime",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/types.ts",
+								"line": 112,
+								"col": 0,
+								"byteIndex": 4743
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Runtime requirement interpreters attached to one execution context."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "interpreters",
+										"jsDoc": {
+											"doc": "Configured family interpreters keyed by stable requirement family."
+										},
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 114,
+											"col": 2,
+											"byteIndex": 4857
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "string",
+																	"kind": "keyword",
+																	"value": "string"
+																},
+																{
+																	"kind": "union",
+																	"value": [
+																		{
+																			"repr": "RequirementInterpreter",
+																			"kind": "typeRef",
+																			"value": {
+																				"typeName": "RequirementInterpreter",
+																				"resolution": {
+																					"kind": "local"
+																				}
+																			}
+																		},
+																		{
+																			"repr": "undefined",
+																			"kind": "keyword",
+																			"value": "undefined"
+																		}
+																	]
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									},
+									{
+										"name": "unknown",
+										"jsDoc": {
+											"doc": "Explicit policy used when active work reaches an unconfigured requirement family."
+										},
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 116,
+											"col": 2,
+											"byteIndex": 5033
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "UnknownRequirementPolicyType",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "UnknownRequirementPolicyType",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "RequirementContext",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/types.ts",
+								"line": 120,
+								"col": 0,
+								"byteIndex": 5150
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Execution context view that can apply active requirements."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "intersection",
+									"value": [
+										{
+											"repr": "Base",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Base",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "RequirementContext",
+													"declaringKind": "typeAlias"
+												}
+											}
+										},
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "requirements",
+																	"location": {
+																		"filename": "./packages/requirement/types.ts",
+																		"line": 122,
+																		"col": 15,
+																		"byteIndex": 5245
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "RequirementRuntime",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "RequirementRuntime",
+																			"resolution": {
+																				"kind": "local"
+																			}
+																		}
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									]
+								},
+								"typeParams": [
+									{
+										"name": "Base",
+										"constraint": {
+											"repr": "BaseContext",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "BaseContext",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/context",
+													"name": "Context"
+												}
+											}
+										},
+										"default": {
+											"repr": "BaseContext",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "BaseContext",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/context",
+													"name": "Context"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "RequirementScopeOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/requirement/types.ts",
+								"line": 125,
+								"col": 0,
+								"byteIndex": 5343
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Options accepted by `requirements.scope()`."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "interpreters",
+										"jsDoc": {
+											"doc": "Family interpreters available to the newly created requirement scope."
+										},
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 127,
+											"col": 2,
+											"byteIndex": 5465
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "string",
+																	"kind": "keyword",
+																	"value": "string"
+																},
+																{
+																	"kind": "union",
+																	"value": [
+																		{
+																			"repr": "RequirementInterpreter",
+																			"kind": "typeRef",
+																			"value": {
+																				"typeName": "RequirementInterpreter",
+																				"resolution": {
+																					"kind": "local"
+																				}
+																			}
+																		},
+																		{
+																			"repr": "undefined",
+																			"kind": "keyword",
+																			"value": "undefined"
+																		}
+																	]
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									},
+									{
+										"name": "unknown",
+										"jsDoc": {
+											"doc": "Unknown families reject by default. Tests must opt in when they intentionally ignore policy."
+										},
+										"location": {
+											"filename": "./packages/requirement/types.ts",
+											"line": 129,
+											"col": 2,
+											"byteIndex": 5653
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "UnknownRequirementPolicyType",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "UnknownRequirementPolicyType",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				}
+			]
+		}
+	}
+}

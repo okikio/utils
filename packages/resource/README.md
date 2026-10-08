@@ -12,20 +12,16 @@ declare their use, and makes their lifetimes explicit. Access requirements are c
 Read the arrows as requests to borrow the same store. The collection opens it lazily, shares the admitted creation, and
 closes the owned store when the collection ends. The two jobs do not close their borrowed copy themselves.
 
-```mermaid
-flowchart LR
-    JobA["Photo job A"] --> Collection["Resource collection"]
-    JobB["Photo job B"] --> Collection
-    Collection --> Store["One supplied store"]
-    Owner["Application closes collection"] --> Cleanup["Store cleanup"]
-    Cleanup --> Store
-```
+![Two photo jobs borrow one store while its collection owns store cleanup](diagram.png)
 
-The picture shows one resource inside one collection. Another collection can own a separate instance. It omits
-dependency ordering and access checks, which are explained below. The collection is not a cross-machine connection pool.
+[Editable diagram source](diagram.mmd). The picture shows one resource inside one collection. Another collection can own
+a separate instance. It omits dependency ordering and access checks, which are explained below. The collection is not a
+cross-machine connection pool.
 
 For shared terms such as `await` and `await using`, see
 [the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
+
+For the exact functions, types and field explanations, read the [generated contract reference](API.md).
 
 ## Run a complete example
 

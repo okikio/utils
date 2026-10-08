@@ -1,0 +1,304 @@
+{
+	"package": "@okikio/hono",
+	"packageVersion": "0.0.0",
+	"rendererVersion": 2,
+	"modules": {
+		"@okikio/hono": {
+			"module_doc": {
+				"doc": "Reuse framework-neutral HTTP middleware around a Hono application. Reimplementing request correlation and response headers inside each framework makes the host contracts drift.\n\nStart with the adapter around an existing Hono app, then share middleware with a portable service or gateway. Hono still owns its route handlers; the utility adapter owns the surrounding fetch composition. Host code starts the network listener and configures logging. Read or cancel response bodies so tests and callers release stream ownership.\n",
+				"tags": [
+					{
+						"kind": "example",
+						"doc": "```ts\nimport { Hono } from 'hono';\nimport * as hono from '@okikio/hono';\nimport * as http from '@okikio/server/http';\nconst app = new Hono();\napp.get('/health', (ctx) => ctx.json({ status: 'ok' }));\napp.onError(hono.catchErrors());\nconst fetch = hono.fetch(app, [http.securityHeaders()]);\nconst response = await fetch(new Request('https://service.invalid/health'));\nconsole.log((await response.json()).status, response.headers.get('x-content-type-options'));\n```\n"
+					},
+					{
+						"kind": "module"
+					}
+				]
+			},
+			"imports": [
+				{
+					"importedName": "HonoContext",
+					"originalName": "Context",
+					"src": "./node_modules/.pnpm/hono@4.13.5/node_modules/hono/dist/types/index.d.ts",
+					"jsDoc": {
+						"doc": "Reuse framework-neutral HTTP middleware around a Hono application. Reimplementing request correlation and response headers inside each framework makes the host contracts drift.\n\nStart with the adapter around an existing Hono app, then share middleware with a portable service or gateway. Hono still owns its route handlers; the utility adapter owns the surrounding fetch composition. Host code starts the network listener and configures logging. Read or cancel response bodies so tests and callers release stream ownership.\n",
+						"tags": [
+							{
+								"kind": "example",
+								"doc": "```ts\nimport { Hono } from 'hono';\nimport * as hono from '@okikio/hono';\nimport * as http from '@okikio/server/http';\nconst app = new Hono();\napp.get('/health', (ctx) => ctx.json({ status: 'ok' }));\napp.onError(hono.catchErrors());\nconst fetch = hono.fetch(app, [http.securityHeaders()]);\nconst response = await fetch(new Request('https://service.invalid/health'));\nconsole.log((await response.json()).status, response.headers.get('x-content-type-options'));\n```\n"
+							},
+							{
+								"kind": "module"
+							}
+						]
+					}
+				},
+				{
+					"importedName": "Hono",
+					"originalName": "Hono",
+					"src": "./node_modules/.pnpm/hono@4.13.5/node_modules/hono/dist/types/index.d.ts"
+				},
+				{
+					"importedName": "HTTPException",
+					"originalName": "HTTPException",
+					"src": "./node_modules/.pnpm/hono@4.13.5/node_modules/hono/dist/types/http-exception.d.ts"
+				},
+				{
+					"importedName": "http",
+					"src": "./packages/server/http/mod.ts"
+				},
+				{
+					"importedName": "service",
+					"src": "./packages/server/service/mod.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "mount",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/hono/mod.ts",
+								"line": 28,
+								"col": 0,
+								"byteIndex": 1385
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Register every compiled service route on one caller-owned Hono application."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "app",
+										"optional": false,
+										"tsType": {
+											"repr": "Hono",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Hono",
+												"resolution": {
+													"kind": "import",
+													"specifier": "hono",
+													"name": "Hono"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "runtime",
+										"optional": false,
+										"tsType": {
+											"repr": "service.ServiceRuntime",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "service.ServiceRuntime",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/server/service"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "Hono",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "Hono",
+										"resolution": {
+											"kind": "import",
+											"specifier": "hono",
+											"name": "Hono"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "fetch",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/hono/mod.ts",
+								"line": 36,
+								"col": 0,
+								"byteIndex": 1664
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Wrap one Hono application with framework-neutral Fetch middleware."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "app",
+										"optional": false,
+										"tsType": {
+											"repr": "Hono",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Hono",
+												"resolution": {
+													"kind": "import",
+													"specifier": "hono",
+													"name": "Hono"
+												}
+											}
+										}
+									},
+									{
+										"kind": "assign",
+										"left": {
+											"kind": "identifier",
+											"name": "middleware",
+											"optional": false,
+											"tsType": {
+												"kind": "typeOperator",
+												"value": {
+													"operator": "readonly",
+													"tsType": {
+														"kind": "array",
+														"value": {
+															"repr": "http.Middleware",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "http.Middleware",
+																"resolution": {
+																	"kind": "import",
+																	"specifier": "@okikio/server/http"
+																}
+															}
+														}
+													}
+												}
+											}
+										},
+										"right": "[UNSUPPORTED]"
+									}
+								],
+								"returnType": {
+									"repr": "http.Handler",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "http.Handler",
+										"resolution": {
+											"kind": "import",
+											"specifier": "@okikio/server/http"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "catchErrors",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/hono/mod.ts",
+								"line": 41,
+								"col": 0,
+								"byteIndex": 1915
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create a Hono `onError` callback backed by the generic safe error materializer."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "assign",
+										"left": {
+											"kind": "identifier",
+											"name": "options",
+											"optional": false,
+											"tsType": {
+												"repr": "http.ErrorOptions",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "http.ErrorOptions",
+													"resolution": {
+														"kind": "import",
+														"specifier": "@okikio/server/http"
+													}
+												}
+											}
+										},
+										"right": "[UNSUPPORTED]"
+									}
+								],
+								"returnType": {
+									"kind": "fnOrConstructor",
+									"value": {
+										"constructor": false,
+										"tsType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Response",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Response"
+														}
+													}
+												],
+												"typeName": "Promise"
+											}
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "error",
+												"optional": false,
+												"tsType": {
+													"repr": "Error",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Error"
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "ctx",
+												"optional": false,
+												"tsType": {
+													"repr": "HonoContext",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "HonoContext",
+														"resolution": {
+															"kind": "import",
+															"specifier": "hono",
+															"name": "Context"
+														}
+													}
+												}
+											}
+										]
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				}
+			]
+		}
+	}
+}

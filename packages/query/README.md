@@ -4,19 +4,16 @@ A directory page asks for people named Ada and wants only two results. The API n
 its database adapter runs it. `query` declares which fields, comparisons and page sizes callers may request, then
 returns checked query data. A **query definition** is the allowed search language for one collection.
 
-```mermaid
-flowchart LR
-    A[URL: name Ada and limit 2] --> B[Collection query definition]
-    B -->|valid input| C[Checked filter and page size]
-    B -->|invalid input| D[Validation error]
-    C -. adapter supplied by application .-> E[Database operation]
-```
+![URL filters become a checked collection query before an application adapter calls the database](diagram.png)
 
-The demo stops at checked data and its URL round trip. The dotted arrow needs a compatible adapter; parsing a filter
-does not execute it or make a database support that comparison. This view omits sorting and complex filter groups.
+[Editable diagram source](diagram.mmd). The demo stops at checked data and its URL round trip. The dotted arrow needs a
+compatible adapter; parsing a filter does not execute it or make a database support that comparison. This view omits
+sorting and complex filter groups.
 
 For shared terms such as `await` and `await using`, see
 [the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
+
+For the exact functions, types and field explanations, read the [generated contract reference](API.md).
 
 ## Run a complete example
 

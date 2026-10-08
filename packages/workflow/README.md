@@ -13,21 +13,11 @@ executor. An executor is the host that runs the supplied job implementation.
 Read this diagram from top to bottom. A recorded completion can provide the step's result without another provider call.
 A step without a completion needs the configured dispatch and executor.
 
-```mermaid
-flowchart TD
-    Program["Sequence requests a named step"] --> History["Check recorded instruction completion"]
-    History -->|"Completion exists"| Resume["Give result back to the sequence"]
-    History -->|"New instruction"| Dispatch["Admit job to dispatch"]
-    Dispatch --> Executor["Eligible executor runs an activity attempt"]
-    Executor --> Result["Accept the claim's result"]
-    Result --> Record["Record instruction completion"]
-    Record --> Resume
-    Resume --> Next["Continue with the next step"]
-```
+![A workflow reuses recorded completions or asks an activity executor for new results](diagram.png)
 
-This is the successful path. It omits retry timing, cancellation and stale-claim rejection, which the later sections
-explain. Reusing a result does not rewind the JavaScript process. Durable recovery needs authoritative storage and host
-services: the memory stores in the demo below disappear when their process exits.
+[Editable diagram source](diagram.mmd). This is the successful path. It omits retry timing, cancellation and stale-claim
+rejection, which the later sections explain. Reusing a result does not rewind the JavaScript process. Durable recovery
+needs authoritative storage and host services: the memory stores in the demo below disappear when their process exits.
 
 Use a regular function for a simple sequence that can start over safely. Use [task](../task/README.md) for an owned
 local operation. Use a workflow when named instruction results, independently executed jobs or controlled replay are
@@ -35,6 +25,8 @@ part of the application's requirements.
 
 For shared terms such as `await` and `await using`, see
 [the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
+
+For the exact functions, types and field explanations, read the [generated contract reference](API.md).
 
 ## Run a complete example
 

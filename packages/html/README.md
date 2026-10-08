@@ -4,19 +4,16 @@ You have the source of a help page and want its guide link and visible source te
 searchable tree, then lets you select an element and read its attributes or text. You can answer source-document
 questions without starting a browser.
 
-```mermaid
-flowchart LR
-    A[HTML source] --> B[Parsed document tree]
-    B -->|main a href selector| C[Matching link element]
-    C --> D[Address: /guide]
-    C --> E[Text: Read the guide]
-```
+![HTML becomes a document tree from which a selector returns an address and link text](diagram.png)
 
-The branches are two facts from the same link in the demo. A selector is a pattern for choosing elements. This diagram
-omits malformed-markup repair and does not show scripts, layout or browser-rendered content.
+[Editable diagram source](diagram.mmd). The branches are two facts from the same link in the demo. A selector is a
+pattern for choosing elements. This diagram omits malformed-markup repair and does not show scripts, layout or
+browser-rendered content.
 
 For shared terms such as `await` and `await using`, see
 [the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
+
+For the exact functions, types and field explanations, read the [generated contract reference](API.md).
 
 ## Run a complete example
 

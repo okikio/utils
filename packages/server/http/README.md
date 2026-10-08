@@ -19,6 +19,8 @@ matches requests; it does not automatically validate domain input or open a netw
 For shared terms such as `await` and `await using`, see
 [the short glossary](../../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
+For the exact functions, types and field explanations, read the [generated contract reference](../API.md#http).
+
 ## Run a complete example
 
 ```ts runnable

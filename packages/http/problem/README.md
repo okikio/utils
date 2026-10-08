@@ -17,6 +17,8 @@ creating it does not fetch that URL or create a documentation page.
 For shared terms such as `await` and `await using`, see
 [the short glossary](../../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
+For the exact functions, types and field explanations, read the [generated contract reference](../API.md#problem).
+
 ## Run a complete example
 
 ```ts runnable

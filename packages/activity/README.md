@@ -14,24 +14,13 @@ Imagine saving a title for an uploaded photo. The activity checks the submitted 
 it, and checks the returned receipt before giving it to the caller. Read this diagram from top to bottom; the caller,
 activity runner and store are separate participants.
 
-```mermaid
-sequenceDiagram
-    participant Caller as Photo application
-    participant Runner as Activity runner
-    participant Store as Supplied store
-    Caller->>Runner: Run SaveTitle with "Summer trip"
-    Runner->>Runner: Check input and engine identity
-    Runner->>Store: Save "SUMMER TRIP"
-    Store-->>Runner: Return asset-1
-    Runner->>Runner: Check result and finish attempt cleanup
-    Runner-->>Caller: Return the saved ID and label
-```
+![A photo application checks a save job, borrows its supplied store, and receives the saved receipt](diagram.png)
 
-The store does the saving; the activity adds one consistent call contract around it. Resource declarations describe and
-type the job's dependencies; they are not a sandbox for untrusted implementations. This picture shows a successful local
-attempt. A failed input check stops before the implementation runs. Cancellation asks cooperative work to stop; it does
-not undo a write that the store has already accepted. Retries and durable scheduling belong to a host such as
-[workflow](../workflow/README.md), rather than to this direct call.
+[Editable diagram source](diagram.mmd). The store does the saving; the activity adds one consistent call contract around
+it. Resource declarations describe and type the job's dependencies; they are not a sandbox for untrusted
+implementations. This picture shows a successful local attempt. A failed input check stops before the implementation
+runs. Cancellation asks cooperative work to stop; it does not undo a write that the store has already accepted. Retries
+and durable scheduling belong to a host such as [workflow](../workflow/README.md), rather than to this direct call.
 
 The examples use a few names that can otherwise make this small idea feel larger:
 
@@ -46,6 +35,8 @@ The examples use a few names that can otherwise make this small idea feel larger
 
 For shared terms such as `await` and `await using`, see
 [the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
+
+For the exact functions, types and field explanations, read the [generated contract reference](API.md).
 
 ## Run a complete example
 

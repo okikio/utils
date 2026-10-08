@@ -10,18 +10,11 @@ to achieve.
 
 Read the picture as three different questions, not a requirement to learn the whole suite:
 
-```mermaid
-flowchart TD
-    Goal["What do you need to achieve?"] --> Values["Read and check values"]
-    Goal --> Work["Run work with limits and cleanup"]
-    Goal --> Jobs["Connect named jobs"]
-    Values --> Input["CSV, schema, query, HTTP"]
-    Work --> Lifetime["Context, concurrency, resource, task"]
-    Jobs --> Sequence["Activity and workflow"]
-```
+![Choose utilities for reading values, owning work, or connecting named jobs](docs/diagrams/overview.png)
 
-Choose a small capability first. Reading CSV does not require a workflow, and running one function does not require an
-activity. The learning path shows when another package solves a concrete problem and links to runnable demonstrations.
+[Editable diagram source](docs/diagrams/overview.mmd). Choose a small capability first. Reading CSV does not require a
+workflow, and running one function does not require an activity. The learning path shows when another package solves a
+concrete problem and links to runnable demonstrations.
 
 ## Start with a useful outcome
 
@@ -187,6 +180,8 @@ mise run release-check
 Read [`docs/releases.md`](docs/releases.md) for the release workflow.
 
 ## Documentation map
+
+- [Public package contracts](docs/contracts.md) lists every focused package’s generated types, fields and functions.
 
 - [`docs/composition.md`](docs/composition.md) explains package ownership and composition.
 - [`docs/outcomes.md`](docs/outcomes.md) helps select the next capability from a concrete job.

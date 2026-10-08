@@ -1,0 +1,6 @@
+flowchart LR
+    JobA["Photo job A"] --> Collection["Resource collection"]
+    JobB["Photo job B"] --> Collection
+    Collection --> Store["One supplied store"]
+    Owner["Application closes collection"] --> Cleanup["Store cleanup"]
+    Cleanup --> Store

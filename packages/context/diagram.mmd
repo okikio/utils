@@ -1,0 +1,8 @@
+flowchart TD
+    Parent["Import owner"] --> Child["Child context: 2-second deadline"]
+    Child --> Work["Your function uses the child's signal"]
+    Child --> Cleanup["Registered cleanup"]
+    Deadline["Deadline reached"] --> Abort["Signal asks work to stop"]
+    ParentCancel["Caller cancels"] --> Abort
+    Abort --> Work
+    Exit["Leave await using block"] --> Cleanup

@@ -1,0 +1,1430 @@
+{
+	"package": "@okikio/deno",
+	"packageVersion": "0.0.0",
+	"rendererVersion": 2,
+	"modules": {
+		"@okikio/deno": {
+			"module_doc": {
+				"doc": "Express Deno permission grants as data and convert them to correctly escaped CLI arguments. Hand-built flags can accidentally grant a whole directory or mishandle paths containing commas.\n\nUse permission arguments when launching a child, file helpers for bounded filesystem operations, and port helpers when a host needs a listener. These are explicit Deno adapters; portable algorithms belong in the other packages. Grant only the capabilities your executable needs. Building an argument list does not grant the current process a permission.\n",
+				"tags": [
+					{
+						"kind": "example",
+						"doc": "```ts\nimport * as permissions from '@okikio/deno/permissions';\nconst args = permissions.args({ read: ['/srv/input'], run: ['ffmpeg'] });\nconsole.log(JSON.stringify(args));\n```\n"
+					},
+					{
+						"kind": "module"
+					}
+				]
+			},
+			"symbols": [
+				{
+					"name": "PermissionGrant",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/deno/mod.ts",
+								"line": 20,
+								"col": 14,
+								"byteIndex": 1092
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/deno/types.ts",
+									"line": 4,
+									"col": 0,
+									"byteIndex": 266
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "PermissionGrants",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/deno/mod.ts",
+								"line": 20,
+								"col": 31,
+								"byteIndex": 1109
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/deno/types.ts",
+									"line": 7,
+									"col": 0,
+									"byteIndex": 403
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "PermissionName",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/deno/mod.ts",
+								"line": 20,
+								"col": 49,
+								"byteIndex": 1127
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/deno/types.ts",
+									"line": 1,
+									"col": 0,
+									"byteIndex": 80
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "file",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/deno/mod.ts",
+								"line": 14,
+								"col": 7,
+								"byteIndex": 786
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Express Deno permission grants as data and convert them to correctly escaped CLI arguments. Hand-built flags can accidentally grant a whole directory or mishandle paths containing commas.\n\nUse permission arguments when launching a child, file helpers for bounded filesystem operations, and port helpers when a host needs a listener. These are explicit Deno adapters; portable algorithms belong in the other packages. Grant only the capabilities your executable needs. Building an argument list does not grant the current process a permission.\n",
+								"tags": [
+									{
+										"kind": "example",
+										"doc": "```ts\nimport * as permissions from '@okikio/deno/permissions';\nconst args = permissions.args({ read: ['/srv/input'], run: ['ffmpeg'] });\nconsole.log(JSON.stringify(args));\n```\n"
+									},
+									{
+										"kind": "module"
+									}
+								]
+							},
+							"kind": "namespace",
+							"def": {
+								"elements": [
+									{
+										"name": "write",
+										"declarations": [
+											{
+												"location": {
+													"filename": "./packages/deno/mod.ts",
+													"line": 14,
+													"col": 7,
+													"byteIndex": 786
+												},
+												"declarationKind": "export",
+												"jsDoc": {
+													"doc": "Atomically replace one file by writing a same-directory temporary file first.\n\nSame-directory rename keeps the final publication on one filesystem. The\ncaller owns the semantic contract for the bytes; this utility owns only the\ngeneric write/rename cleanup mechanics."
+												},
+												"kind": "reference",
+												"def": {
+													"target": {
+														"filename": "./packages/deno/file.ts",
+														"line": 10,
+														"col": 0,
+														"byteIndex": 417
+													}
+												}
+											}
+										]
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "permissions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/deno/mod.ts",
+								"line": 16,
+								"col": 7,
+								"byteIndex": 894
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Explicit Deno permission descriptors and CLI argument conversion."
+							},
+							"kind": "namespace",
+							"def": {
+								"elements": [
+									{
+										"name": "args",
+										"declarations": [
+											{
+												"location": {
+													"filename": "./packages/deno/mod.ts",
+													"line": 16,
+													"col": 7,
+													"byteIndex": 894
+												},
+												"declarationKind": "export",
+												"jsDoc": {
+													"doc": "Build canonical `--allow-*` arguments for one Deno subprocess.\n\nScoped values are deduplicated without reordering them. Literal commas are\nescaped using Deno's doubled-comma CLI syntax.\n",
+													"tags": [
+														{
+															"kind": "example",
+															"doc": "```ts\nimport * as permissions from '@okikio/deno/permissions';\n\nconst args = permissions.args({\n\tread: true,\n\twrite: ['/srv/output', '/srv/tmp,1'],\n\trun: ['chromium'],\n});\n```"
+														}
+													]
+												},
+												"kind": "reference",
+												"def": {
+													"target": {
+														"filename": "./packages/deno/permissions.ts",
+														"line": 50,
+														"col": 0,
+														"byteIndex": 1072
+													}
+												}
+											}
+										]
+									},
+									{
+										"name": "allow",
+										"declarations": [
+											{
+												"location": {
+													"filename": "./packages/deno/mod.ts",
+													"line": 16,
+													"col": 7,
+													"byteIndex": 894
+												},
+												"declarationKind": "export",
+												"jsDoc": {
+													"doc": "Build one canonical Deno `--allow-*` argument."
+												},
+												"kind": "reference",
+												"def": {
+													"target": {
+														"filename": "./packages/deno/permissions.ts",
+														"line": 61,
+														"col": 0,
+														"byteIndex": 1411
+													}
+												}
+											}
+										]
+									},
+									{
+										"name": "parse",
+										"declarations": [
+											{
+												"location": {
+													"filename": "./packages/deno/mod.ts",
+													"line": 16,
+													"col": 7,
+													"byteIndex": 894
+												},
+												"declarationKind": "export",
+												"jsDoc": {
+													"doc": "Parse permission arguments produced by {@link args} or equivalent Deno CLI syntax.\n\nThe function accepts only `--allow-*` arguments. Pass command options and the\nentrypoint separately so unexpected input cannot be silently ignored."
+												},
+												"kind": "reference",
+												"def": {
+													"target": {
+														"filename": "./packages/deno/permissions.ts",
+														"line": 73,
+														"col": 0,
+														"byteIndex": 1958
+													}
+												}
+											}
+										]
+									},
+									{
+										"name": "encodeList",
+										"declarations": [
+											{
+												"location": {
+													"filename": "./packages/deno/mod.ts",
+													"line": 16,
+													"col": 7,
+													"byteIndex": 894
+												},
+												"declarationKind": "export",
+												"jsDoc": {
+													"doc": "Encode one scoped Deno permission list."
+												},
+												"kind": "reference",
+												"def": {
+													"target": {
+														"filename": "./packages/deno/permissions.ts",
+														"line": 100,
+														"col": 0,
+														"byteIndex": 3016
+													}
+												}
+											}
+										]
+									},
+									{
+										"name": "decodeList",
+										"declarations": [
+											{
+												"location": {
+													"filename": "./packages/deno/mod.ts",
+													"line": 16,
+													"col": 7,
+													"byteIndex": 894
+												},
+												"declarationKind": "export",
+												"jsDoc": {
+													"doc": "Decode one scoped Deno permission list."
+												},
+												"kind": "reference",
+												"def": {
+													"target": {
+														"filename": "./packages/deno/permissions.ts",
+														"line": 107,
+														"col": 0,
+														"byteIndex": 3322
+													}
+												}
+											}
+										]
+									},
+									{
+										"name": "PermissionGrant",
+										"declarations": [
+											{
+												"location": {
+													"filename": "./packages/deno/mod.ts",
+													"line": 16,
+													"col": 7,
+													"byteIndex": 894
+												},
+												"declarationKind": "export",
+												"kind": "reference",
+												"def": {
+													"target": {
+														"filename": "./packages/deno/permissions.ts",
+														"line": 153,
+														"col": 14,
+														"byteIndex": 4745
+													}
+												}
+											}
+										]
+									},
+									{
+										"name": "PermissionGrants",
+										"declarations": [
+											{
+												"location": {
+													"filename": "./packages/deno/mod.ts",
+													"line": 16,
+													"col": 7,
+													"byteIndex": 894
+												},
+												"declarationKind": "export",
+												"kind": "reference",
+												"def": {
+													"target": {
+														"filename": "./packages/deno/permissions.ts",
+														"line": 153,
+														"col": 31,
+														"byteIndex": 4762
+													}
+												}
+											}
+										]
+									},
+									{
+										"name": "PermissionName",
+										"declarations": [
+											{
+												"location": {
+													"filename": "./packages/deno/mod.ts",
+													"line": 16,
+													"col": 7,
+													"byteIndex": 894
+												},
+												"declarationKind": "export",
+												"kind": "reference",
+												"def": {
+													"target": {
+														"filename": "./packages/deno/permissions.ts",
+														"line": 153,
+														"col": 49,
+														"byteIndex": 4780
+													}
+												}
+											}
+										]
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "port",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/deno/mod.ts",
+								"line": 18,
+								"col": 7,
+								"byteIndex": 1009
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Deno TCP port discovery for a short, caller-owned handoff."
+							},
+							"kind": "namespace",
+							"def": {
+								"elements": [
+									{
+										"name": "get",
+										"declarations": [
+											{
+												"location": {
+													"filename": "./packages/deno/mod.ts",
+													"line": 18,
+													"col": 7,
+													"byteIndex": 1009
+												},
+												"declarationKind": "export",
+												"jsDoc": {
+													"doc": "Reserve an unused TCP port long enough to discover its assigned number.\n\nThe listener closes before this function returns. The caller must bind the\nreturned port immediately because another process can claim it afterward.\nUse this only for local child-process handoffs where the caller controls the\nshort interval between discovery and bind."
+												},
+												"kind": "reference",
+												"def": {
+													"target": {
+														"filename": "./packages/deno/port.ts",
+														"line": 8,
+														"col": 0,
+														"byteIndex": 367
+													}
+												}
+											}
+										]
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "signals",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/deno/mod.ts",
+								"line": 19,
+								"col": 7,
+								"byteIndex": 1044
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Deno process-signal integration for owned operation contexts.\n\nThe context remains the lifetime owner. Signal listeners are removed through\nthe context's cleanup stack, so executable roots do not repeat listener\nregistration and `try/finally` cleanup.\n",
+								"tags": [
+									{
+										"kind": "module"
+									}
+								]
+							},
+							"kind": "namespace",
+							"def": {
+								"elements": [
+									{
+										"name": "AttachOptions",
+										"declarations": [
+											{
+												"location": {
+													"filename": "./packages/deno/mod.ts",
+													"line": 19,
+													"col": 7,
+													"byteIndex": 1044
+												},
+												"declarationKind": "export",
+												"jsDoc": {
+													"doc": "Options for attaching process stop signals to one owned context."
+												},
+												"kind": "reference",
+												"def": {
+													"target": {
+														"filename": "./packages/deno/signals.ts",
+														"line": 12,
+														"col": 0,
+														"byteIndex": 405
+													}
+												}
+											}
+										]
+									},
+									{
+										"name": "attach",
+										"declarations": [
+											{
+												"location": {
+													"filename": "./packages/deno/mod.ts",
+													"line": 19,
+													"col": 7,
+													"byteIndex": 1044
+												},
+												"declarationKind": "export",
+												"jsDoc": {
+													"doc": "Attach SIGINT and, by default, SIGTERM to one owned context.\n\nListener cleanup is registered on the same context, so disposing the context\nalways releases the process-global listeners."
+												},
+												"kind": "reference",
+												"def": {
+													"target": {
+														"filename": "./packages/deno/signals.ts",
+														"line": 25,
+														"col": 0,
+														"byteIndex": 844
+													}
+												}
+											}
+										]
+									}
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		"@okikio/deno/file": {
+			"imports": [
+				{
+					"importedName": "basename",
+					"originalName": "basename",
+					"src": "https://jsr.io/@std/path/1.1.6/mod.ts",
+					"jsDoc": {
+						"doc": "Deno filesystem mechanics shared by executable composition roots."
+					}
+				},
+				{
+					"importedName": "dirname",
+					"originalName": "dirname",
+					"src": "https://jsr.io/@std/path/1.1.6/mod.ts",
+					"jsDoc": {
+						"doc": "Deno filesystem mechanics shared by executable composition roots."
+					}
+				},
+				{
+					"importedName": "join",
+					"originalName": "join",
+					"src": "https://jsr.io/@std/path/1.1.6/mod.ts",
+					"jsDoc": {
+						"doc": "Deno filesystem mechanics shared by executable composition roots."
+					}
+				}
+			],
+			"symbols": [
+				{
+					"name": "write",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/deno/file.ts",
+								"line": 10,
+								"col": 0,
+								"byteIndex": 417
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Atomically replace one file by writing a same-directory temporary file first.\n\nSame-directory rename keeps the final publication on one filesystem. The\ncaller owns the semantic contract for the bytes; this utility owns only the\ngeneric write/rename cleanup mechanics."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "path",
+										"optional": false,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "contents",
+										"optional": false,
+										"tsType": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												},
+												{
+													"repr": "Uint8Array",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Uint8Array"
+													}
+												}
+											]
+										}
+									},
+									{
+										"kind": "assign",
+										"left": {
+											"kind": "identifier",
+											"name": "options",
+											"optional": false,
+											"tsType": {
+												"repr": "Readonly",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"kind": "typeLiteral",
+															"value": {
+																"properties": [
+																	{
+																		"name": "signal",
+																		"location": {
+																			"filename": "./packages/deno/file.ts",
+																			"line": 13,
+																			"col": 22,
+																			"byteIndex": 514
+																		},
+																		"optional": true,
+																		"tsType": {
+																			"repr": "AbortSignal",
+																			"kind": "typeRef",
+																			"value": {
+																				"typeName": "AbortSignal"
+																			}
+																		}
+																	}
+																]
+															}
+														}
+													],
+													"typeName": "Readonly"
+												}
+											}
+										},
+										"right": "[UNSUPPORTED]"
+									}
+								],
+								"returnType": {
+									"repr": "Promise",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "void",
+												"kind": "keyword",
+												"value": "void"
+											}
+										],
+										"typeName": "Promise"
+									}
+								},
+								"hasBody": true,
+								"isAsync": true
+							}
+						}
+					]
+				}
+			]
+		},
+		"@okikio/deno/permissions": {
+			"imports": [
+				{
+					"importedName": "PermissionGrant",
+					"originalName": "PermissionGrant",
+					"src": "./packages/deno/types.ts",
+					"jsDoc": {
+						"doc": "Deno permission normalization and command-line permission argument planning.\n\nThe module describes permission requirements. It does not request permissions or mutate the runtime permission state."
+					}
+				},
+				{
+					"importedName": "PermissionGrants",
+					"originalName": "PermissionGrants",
+					"src": "./packages/deno/types.ts",
+					"jsDoc": {
+						"doc": "Deno permission normalization and command-line permission argument planning.\n\nThe module describes permission requirements. It does not request permissions or mutate the runtime permission state."
+					}
+				},
+				{
+					"importedName": "PermissionName",
+					"originalName": "PermissionName",
+					"src": "./packages/deno/types.ts",
+					"jsDoc": {
+						"doc": "Deno permission normalization and command-line permission argument planning.\n\nThe module describes permission requirements. It does not request permissions or mutate the runtime permission state."
+					}
+				}
+			],
+			"symbols": [
+				{
+					"name": "args",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/deno/permissions.ts",
+								"line": 50,
+								"col": 0,
+								"byteIndex": 1072
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Build canonical `--allow-*` arguments for one Deno subprocess.\n\nScoped values are deduplicated without reordering them. Literal commas are\nescaped using Deno's doubled-comma CLI syntax.\n",
+								"tags": [
+									{
+										"kind": "example",
+										"doc": "```ts\nimport * as permissions from '@okikio/deno/permissions';\n\nconst args = permissions.args({\n\tread: true,\n\twrite: ['/srv/output', '/srv/tmp,1'],\n\trun: ['chromium'],\n});\n```"
+									}
+								]
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "grants",
+										"optional": false,
+										"tsType": {
+											"repr": "PermissionGrants",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "PermissionGrants",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "PermissionGrants"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "readonly",
+										"tsType": {
+											"kind": "array",
+											"value": {
+												"repr": "string",
+												"kind": "keyword",
+												"value": "string"
+											}
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "allow",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/deno/permissions.ts",
+								"line": 61,
+								"col": 0,
+								"byteIndex": 1411
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Build one canonical Deno `--allow-*` argument."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "name",
+										"optional": false,
+										"tsType": {
+											"repr": "PermissionName",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "PermissionName",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "PermissionName"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "grant",
+										"optional": false,
+										"tsType": {
+											"repr": "Exclude",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "PermissionGrant",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "PermissionGrant",
+															"resolution": {
+																"kind": "import",
+																"specifier": "./types.ts",
+																"name": "PermissionGrant"
+															}
+														}
+													},
+													{
+														"repr": "false",
+														"kind": "literal",
+														"value": {
+															"kind": "boolean",
+															"boolean": false
+														}
+													}
+												],
+												"typeName": "Exclude"
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "string",
+									"kind": "keyword",
+									"value": "string"
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "parse",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/deno/permissions.ts",
+								"line": 73,
+								"col": 0,
+								"byteIndex": 1958
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Parse permission arguments produced by {@link args} or equivalent Deno CLI syntax.\n\nThe function accepts only `--allow-*` arguments. Pass command options and the\nentrypoint separately so unexpected input cannot be silently ignored."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "input",
+										"optional": false,
+										"tsType": {
+											"repr": "Iterable",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "string",
+														"kind": "keyword",
+														"value": "string"
+													}
+												],
+												"typeName": "Iterable"
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "PermissionGrants",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "PermissionGrants",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "PermissionGrants"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "encodeList",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/deno/permissions.ts",
+								"line": 100,
+								"col": 0,
+								"byteIndex": 3016
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Encode one scoped Deno permission list."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "values",
+										"optional": false,
+										"tsType": {
+											"repr": "Iterable",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "string",
+														"kind": "keyword",
+														"value": "string"
+													}
+												],
+												"typeName": "Iterable"
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "string",
+									"kind": "keyword",
+									"value": "string"
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "decodeList",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/deno/permissions.ts",
+								"line": 107,
+								"col": 0,
+								"byteIndex": 3322
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Decode one scoped Deno permission list."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								],
+								"returnType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "readonly",
+										"tsType": {
+											"kind": "array",
+											"value": {
+												"repr": "string",
+												"kind": "keyword",
+												"value": "string"
+											}
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "PermissionGrant",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/deno/permissions.ts",
+								"line": 153,
+								"col": 14,
+								"byteIndex": 4745
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/deno/types.ts",
+									"line": 4,
+									"col": 0,
+									"byteIndex": 266
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "PermissionGrants",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/deno/permissions.ts",
+								"line": 153,
+								"col": 31,
+								"byteIndex": 4762
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/deno/types.ts",
+									"line": 7,
+									"col": 0,
+									"byteIndex": 403
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "PermissionName",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/deno/permissions.ts",
+								"line": 153,
+								"col": 49,
+								"byteIndex": 4780
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/deno/types.ts",
+									"line": 1,
+									"col": 0,
+									"byteIndex": 80
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		"@okikio/deno/port": {
+			"symbols": [
+				{
+					"name": "get",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/deno/port.ts",
+								"line": 8,
+								"col": 0,
+								"byteIndex": 367
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Reserve an unused TCP port long enough to discover its assigned number.\n\nThe listener closes before this function returns. The caller must bind the\nreturned port immediately because another process can claim it afterward.\nUse this only for local child-process handoffs where the caller controls the\nshort interval between discovery and bind."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "assign",
+										"left": {
+											"kind": "identifier",
+											"name": "hostname",
+											"optional": false,
+											"tsType": {
+												"repr": "string",
+												"kind": "keyword",
+												"value": "string"
+											}
+										},
+										"right": "127.0.0.1"
+									}
+								],
+								"returnType": {
+									"repr": "number",
+									"kind": "keyword",
+									"value": "number"
+								},
+								"hasBody": true
+							}
+						}
+					]
+				}
+			]
+		},
+		"@okikio/deno/signals": {
+			"module_doc": {
+				"doc": "Deno process-signal integration for owned operation contexts.\n\nThe context remains the lifetime owner. Signal listeners are removed through\nthe context's cleanup stack, so executable roots do not repeat listener\nregistration and `try/finally` cleanup.\n",
+				"tags": [
+					{
+						"kind": "module"
+					}
+				]
+			},
+			"imports": [
+				{
+					"importedName": "context",
+					"src": "./packages/context/mod.ts",
+					"jsDoc": {
+						"doc": "Deno process-signal integration for owned operation contexts.\n\nThe context remains the lifetime owner. Signal listeners are removed through\nthe context's cleanup stack, so executable roots do not repeat listener\nregistration and `try/finally` cleanup.\n",
+						"tags": [
+							{
+								"kind": "module"
+							}
+						]
+					}
+				}
+			],
+			"symbols": [
+				{
+					"name": "AttachOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/deno/signals.ts",
+								"line": 12,
+								"col": 0,
+								"byteIndex": 405
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Options for attaching process stop signals to one owned context."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "message",
+										"jsDoc": {
+											"doc": "Human-readable cancellation reason projected into the context."
+										},
+										"location": {
+											"filename": "./packages/deno/signals.ts",
+											"line": 14,
+											"col": 2,
+											"byteIndex": 510
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "term",
+										"jsDoc": {
+											"doc": "Whether SIGTERM should be observed where the runtime supports it."
+										},
+										"location": {
+											"filename": "./packages/deno/signals.ts",
+											"line": 16,
+											"col": 2,
+											"byteIndex": 612
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "boolean",
+											"kind": "keyword",
+											"value": "boolean"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "attach",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/deno/signals.ts",
+								"line": 25,
+								"col": 0,
+								"byteIndex": 844
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Attach SIGINT and, by default, SIGTERM to one owned context.\n\nListener cleanup is registered on the same context, so disposing the context\nalways releases the process-global listeners."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "ctx",
+										"optional": false,
+										"tsType": {
+											"repr": "context.Owned",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "context.Owned",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/context"
+												}
+											}
+										}
+									},
+									{
+										"kind": "assign",
+										"left": {
+											"kind": "identifier",
+											"name": "options",
+											"optional": false,
+											"tsType": {
+												"repr": "AttachOptions",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "AttachOptions",
+													"resolution": {
+														"kind": "local"
+													}
+												}
+											}
+										},
+										"right": "[UNSUPPORTED]"
+									}
+								],
+								"returnType": {
+									"repr": "void",
+									"kind": "keyword",
+									"value": "void"
+								},
+								"hasBody": true
+							}
+						}
+					]
+				}
+			]
+		},
+		"@okikio/deno/types": {
+			"symbols": [
+				{
+					"name": "PermissionName",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/deno/types.ts",
+								"line": 1,
+								"col": 0,
+								"byteIndex": 80
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Deno permission names that can be granted through `--allow-*` CLI flags."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "read",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "read"
+											}
+										},
+										{
+											"repr": "write",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "write"
+											}
+										},
+										{
+											"repr": "net",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "net"
+											}
+										},
+										{
+											"repr": "env",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "env"
+											}
+										},
+										{
+											"repr": "sys",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "sys"
+											}
+										},
+										{
+											"repr": "run",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "run"
+											}
+										},
+										{
+											"repr": "ffi",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "ffi"
+											}
+										},
+										{
+											"repr": "import",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "import"
+											}
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "PermissionGrant",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/deno/types.ts",
+								"line": 4,
+								"col": 0,
+								"byteIndex": 266
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "One permission grant. `true` is unscoped; a list grants only the listed values."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "boolean",
+											"kind": "keyword",
+											"value": "boolean"
+										},
+										{
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "string",
+														"kind": "keyword",
+														"value": "string"
+													}
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "PermissionGrants",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/deno/types.ts",
+								"line": 7,
+								"col": 0,
+								"byteIndex": 403
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Permission grants used when constructing one Deno subprocess command."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "Readonly",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Partial",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"repr": "Record",
+															"kind": "typeRef",
+															"value": {
+																"typeParams": [
+																	{
+																		"repr": "PermissionName",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "PermissionName",
+																			"resolution": {
+																				"kind": "local"
+																			}
+																		}
+																	},
+																	{
+																		"repr": "PermissionGrant",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "PermissionGrant",
+																			"resolution": {
+																				"kind": "local"
+																			}
+																		}
+																	}
+																],
+																"typeName": "Record"
+															}
+														}
+													],
+													"typeName": "Partial"
+												}
+											}
+										],
+										"typeName": "Readonly"
+									}
+								}
+							}
+						}
+					]
+				}
+			]
+		}
+	}
+}

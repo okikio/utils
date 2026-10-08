@@ -1,0 +1,3315 @@
+{
+	"package": "@okikio/resilience",
+	"packageVersion": "0.0.0",
+	"rendererVersion": 2,
+	"modules": {
+		"@okikio/resilience": {
+			"module_doc": {
+				"doc": "Describe timeout, retry and admission policies as inspectable values before a host applies them. Putting retry loops around every call can repeat unsafe side effects and hide who owns the timer or storage.\n\nValidate a policy set first, then let the designated server or adapter enforce it. Retry safety requires idempotency for unsafe operations; a description does not itself create an idempotency store. Supply entropy explicitly for jitter and a clock for actual waits. Body limits, bulkheads and circuit breakers have different owners and lifecycle stages, which the document projection preserves.\n",
+				"tags": [
+					{
+						"kind": "example",
+						"doc": "```ts\nimport '@okikio/duration/polyfill';\nimport '@okikio/dispose/polyfill';\nimport * as resilience from '@okikio/resilience';\nconst retry = resilience.retry({\n  initialDelay: { seconds: 1 }, maximumDelay: { seconds: 5 }, multiplier: 2, jitter: false,\n});\nconsole.log(resilience.retryDelay(retry, 1).milliseconds);\nconsole.log(resilience.retryDelay(retry, 4).milliseconds);\nconsole.log(resilience.validate(retry, { safety: 'unsafe' }).valid);\n```\n"
+					},
+					{
+						"kind": "module"
+					}
+				]
+			},
+			"imports": [
+				{
+					"importedName": "durationCore",
+					"src": "./packages/duration/mod.ts",
+					"jsDoc": {
+						"doc": "Describe timeout, retry and admission policies as inspectable values before a host applies them. Putting retry loops around every call can repeat unsafe side effects and hide who owns the timer or storage.\n\nValidate a policy set first, then let the designated server or adapter enforce it. Retry safety requires idempotency for unsafe operations; a description does not itself create an idempotency store. Supply entropy explicitly for jitter and a clock for actual waits. Body limits, bulkheads and circuit breakers have different owners and lifecycle stages, which the document projection preserves.\n",
+						"tags": [
+							{
+								"kind": "example",
+								"doc": "```ts\nimport '@okikio/duration/polyfill';\nimport '@okikio/dispose/polyfill';\nimport * as resilience from '@okikio/resilience';\nconst retry = resilience.retry({\n  initialDelay: { seconds: 1 }, maximumDelay: { seconds: 5 }, multiplier: 2, jitter: false,\n});\nconsole.log(resilience.retryDelay(retry, 1).milliseconds);\nconsole.log(resilience.retryDelay(retry, 4).milliseconds);\nconsole.log(resilience.validate(retry, { safety: 'unsafe' }).valid);\n```\n"
+							},
+							{
+								"kind": "module"
+							}
+						]
+					}
+				},
+				{
+					"importedName": "BodyLimitPolicy",
+					"originalName": "BodyLimitPolicy",
+					"src": "./packages/resilience/types.ts"
+				},
+				{
+					"importedName": "BulkheadPolicy",
+					"originalName": "BulkheadPolicy",
+					"src": "./packages/resilience/types.ts"
+				},
+				{
+					"importedName": "CircuitBreakerPolicy",
+					"originalName": "CircuitBreakerPolicy",
+					"src": "./packages/resilience/types.ts"
+				},
+				{
+					"importedName": "IdempotencyPolicy",
+					"originalName": "IdempotencyPolicy",
+					"src": "./packages/resilience/types.ts"
+				},
+				{
+					"importedName": "RateLimitPolicy",
+					"originalName": "RateLimitPolicy",
+					"src": "./packages/resilience/types.ts"
+				},
+				{
+					"importedName": "ResilienceDocument",
+					"originalName": "ResilienceDocument",
+					"src": "./packages/resilience/types.ts"
+				},
+				{
+					"importedName": "ResilienceInput",
+					"originalName": "ResilienceInput",
+					"src": "./packages/resilience/types.ts"
+				},
+				{
+					"importedName": "ResilienceOperationSafety",
+					"originalName": "ResilienceOperationSafety",
+					"src": "./packages/resilience/types.ts"
+				},
+				{
+					"importedName": "ResilienceOwner",
+					"originalName": "ResilienceOwner",
+					"src": "./packages/resilience/types.ts"
+				},
+				{
+					"importedName": "ResiliencePolicy",
+					"originalName": "ResiliencePolicy",
+					"src": "./packages/resilience/types.ts"
+				},
+				{
+					"importedName": "ResilienceStage",
+					"originalName": "ResilienceStage",
+					"src": "./packages/resilience/types.ts"
+				},
+				{
+					"importedName": "ResilienceValidationIssue",
+					"originalName": "ResilienceValidationIssue",
+					"src": "./packages/resilience/types.ts"
+				},
+				{
+					"importedName": "ResilienceValidationResult",
+					"originalName": "ResilienceValidationResult",
+					"src": "./packages/resilience/types.ts"
+				},
+				{
+					"importedName": "RetryPolicy",
+					"originalName": "RetryPolicy",
+					"src": "./packages/resilience/types.ts"
+				},
+				{
+					"importedName": "TimeoutPolicy",
+					"originalName": "TimeoutPolicy",
+					"src": "./packages/resilience/types.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "timeout",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 40,
+								"col": 0,
+								"byteIndex": 1561
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Define an absolute request timeout."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "duration",
+										"optional": false,
+										"tsType": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "Temporal.Duration",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.Duration"
+													}
+												},
+												{
+													"repr": "Temporal.DurationLike",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.DurationLike"
+													}
+												},
+												{
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												}
+											]
+										}
+									}
+								],
+								"returnType": {
+									"repr": "TimeoutPolicy",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "TimeoutPolicy",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "TimeoutPolicy"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "idempotent",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 45,
+								"col": 0,
+								"byteIndex": 1830
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Define a request idempotency-key protocol."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "assign",
+										"left": {
+											"kind": "identifier",
+											"name": "options",
+											"optional": false,
+											"tsType": {
+												"repr": "Readonly",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"kind": "typeLiteral",
+															"value": {
+																"properties": [
+																	{
+																		"name": "header",
+																		"location": {
+																			"filename": "./packages/resilience/mod.ts",
+																			"line": 46,
+																			"col": 2,
+																			"byteIndex": 1878
+																		},
+																		"readonly": true,
+																		"optional": true,
+																		"tsType": {
+																			"repr": "string",
+																			"kind": "keyword",
+																			"value": "string"
+																		}
+																	},
+																	{
+																		"name": "required",
+																		"location": {
+																			"filename": "./packages/resilience/mod.ts",
+																			"line": 47,
+																			"col": 2,
+																			"byteIndex": 1905
+																		},
+																		"readonly": true,
+																		"optional": true,
+																		"tsType": {
+																			"repr": "boolean",
+																			"kind": "keyword",
+																			"value": "boolean"
+																		}
+																	},
+																	{
+																		"name": "maximumKeyBytes",
+																		"location": {
+																			"filename": "./packages/resilience/mod.ts",
+																			"line": 48,
+																			"col": 2,
+																			"byteIndex": 1935
+																		},
+																		"readonly": true,
+																		"optional": true,
+																		"tsType": {
+																			"repr": "number",
+																			"kind": "keyword",
+																			"value": "number"
+																		}
+																	},
+																	{
+																		"name": "ttl",
+																		"location": {
+																			"filename": "./packages/resilience/mod.ts",
+																			"line": 49,
+																			"col": 2,
+																			"byteIndex": 1971
+																		},
+																		"readonly": true,
+																		"optional": true,
+																		"tsType": {
+																			"kind": "union",
+																			"value": [
+																				{
+																					"repr": "Temporal.Duration",
+																					"kind": "typeRef",
+																					"value": {
+																						"typeName": "Temporal.Duration"
+																					}
+																				},
+																				{
+																					"repr": "Temporal.DurationLike",
+																					"kind": "typeRef",
+																					"value": {
+																						"typeName": "Temporal.DurationLike"
+																					}
+																				},
+																				{
+																					"repr": "string",
+																					"kind": "keyword",
+																					"value": "string"
+																				}
+																			]
+																		}
+																	}
+																]
+															}
+														}
+													],
+													"typeName": "Readonly"
+												}
+											}
+										},
+										"right": "[UNSUPPORTED]"
+									}
+								],
+								"returnType": {
+									"repr": "IdempotencyPolicy",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "IdempotencyPolicy",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "IdempotencyPolicy"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "retry",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 66,
+								"col": 0,
+								"byteIndex": 2568
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Define bounded automatic retry behavior."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "assign",
+										"left": {
+											"kind": "identifier",
+											"name": "options",
+											"optional": false,
+											"tsType": {
+												"repr": "Readonly",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"kind": "typeLiteral",
+															"value": {
+																"properties": [
+																	{
+																		"name": "maximumAttempts",
+																		"location": {
+																			"filename": "./packages/resilience/mod.ts",
+																			"line": 67,
+																			"col": 2,
+																			"byteIndex": 2611
+																		},
+																		"readonly": true,
+																		"optional": true,
+																		"tsType": {
+																			"repr": "number",
+																			"kind": "keyword",
+																			"value": "number"
+																		}
+																	},
+																	{
+																		"name": "initialDelay",
+																		"location": {
+																			"filename": "./packages/resilience/mod.ts",
+																			"line": 68,
+																			"col": 2,
+																			"byteIndex": 2647
+																		},
+																		"readonly": true,
+																		"optional": true,
+																		"tsType": {
+																			"kind": "union",
+																			"value": [
+																				{
+																					"repr": "Temporal.Duration",
+																					"kind": "typeRef",
+																					"value": {
+																						"typeName": "Temporal.Duration"
+																					}
+																				},
+																				{
+																					"repr": "Temporal.DurationLike",
+																					"kind": "typeRef",
+																					"value": {
+																						"typeName": "Temporal.DurationLike"
+																					}
+																				},
+																				{
+																					"repr": "string",
+																					"kind": "keyword",
+																					"value": "string"
+																				}
+																			]
+																		}
+																	},
+																	{
+																		"name": "maximumDelay",
+																		"location": {
+																			"filename": "./packages/resilience/mod.ts",
+																			"line": 69,
+																			"col": 2,
+																			"byteIndex": 2724
+																		},
+																		"readonly": true,
+																		"optional": true,
+																		"tsType": {
+																			"kind": "union",
+																			"value": [
+																				{
+																					"repr": "Temporal.Duration",
+																					"kind": "typeRef",
+																					"value": {
+																						"typeName": "Temporal.Duration"
+																					}
+																				},
+																				{
+																					"repr": "Temporal.DurationLike",
+																					"kind": "typeRef",
+																					"value": {
+																						"typeName": "Temporal.DurationLike"
+																					}
+																				},
+																				{
+																					"repr": "string",
+																					"kind": "keyword",
+																					"value": "string"
+																				}
+																			]
+																		}
+																	},
+																	{
+																		"name": "multiplier",
+																		"location": {
+																			"filename": "./packages/resilience/mod.ts",
+																			"line": 70,
+																			"col": 2,
+																			"byteIndex": 2801
+																		},
+																		"readonly": true,
+																		"optional": true,
+																		"tsType": {
+																			"repr": "number",
+																			"kind": "keyword",
+																			"value": "number"
+																		}
+																	},
+																	{
+																		"name": "jitter",
+																		"location": {
+																			"filename": "./packages/resilience/mod.ts",
+																			"line": 71,
+																			"col": 2,
+																			"byteIndex": 2832
+																		},
+																		"readonly": true,
+																		"optional": true,
+																		"tsType": {
+																			"repr": "boolean",
+																			"kind": "keyword",
+																			"value": "boolean"
+																		}
+																	},
+																	{
+																		"name": "retryOn",
+																		"location": {
+																			"filename": "./packages/resilience/mod.ts",
+																			"line": 72,
+																			"col": 2,
+																			"byteIndex": 2860
+																		},
+																		"readonly": true,
+																		"optional": true,
+																		"tsType": {
+																			"kind": "typeOperator",
+																			"value": {
+																				"operator": "readonly",
+																				"tsType": {
+																					"kind": "array",
+																					"value": {
+																						"repr": "string",
+																						"kind": "keyword",
+																						"value": "string"
+																					}
+																				}
+																			}
+																		}
+																	}
+																]
+															}
+														}
+													],
+													"typeName": "Readonly"
+												}
+											}
+										},
+										"right": "[UNSUPPORTED]"
+									}
+								],
+								"returnType": {
+									"repr": "RetryPolicy",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "RetryPolicy",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "RetryPolicy"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "retryDelay",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 103,
+								"col": 0,
+								"byteIndex": 4268
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Compute the delay after one failed attempt without allocating a timer.\n\nDurable queues and schedulers can use the same retry-policy math while they\nretain ownership of persistence, clocks, cancellation, and wake-up behavior.\nJittered policies require an explicit unit-interval sample so replay-sensitive\nruntimes can provide deterministic entropy instead of inheriting randomness."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "policy",
+										"optional": false,
+										"tsType": {
+											"repr": "RetryPolicy",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "RetryPolicy",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "RetryPolicy"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "failedAttempt",
+										"optional": false,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"kind": "assign",
+										"left": {
+											"kind": "identifier",
+											"name": "options",
+											"optional": false,
+											"tsType": {
+												"repr": "Readonly",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"kind": "typeLiteral",
+															"value": {
+																"properties": [
+																	{
+																		"name": "jitter",
+																		"location": {
+																			"filename": "./packages/resilience/mod.ts",
+																			"line": 106,
+																			"col": 22,
+																			"byteIndex": 4363
+																		},
+																		"readonly": true,
+																		"optional": true,
+																		"tsType": {
+																			"repr": "number",
+																			"kind": "keyword",
+																			"value": "number"
+																		}
+																	}
+																]
+															}
+														}
+													],
+													"typeName": "Readonly"
+												}
+											}
+										},
+										"right": "[UNSUPPORTED]"
+									}
+								],
+								"returnType": {
+									"repr": "Temporal.Duration",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "Temporal.Duration"
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "circuitBreaker",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 126,
+								"col": 0,
+								"byteIndex": 5145
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Define a circuit breaker around a provider or resource capability."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "assign",
+										"left": {
+											"kind": "identifier",
+											"name": "options",
+											"optional": false,
+											"tsType": {
+												"repr": "Readonly",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"kind": "typeLiteral",
+															"value": {
+																"properties": [
+																	{
+																		"name": "failureThreshold",
+																		"location": {
+																			"filename": "./packages/resilience/mod.ts",
+																			"line": 127,
+																			"col": 2,
+																			"byteIndex": 5197
+																		},
+																		"readonly": true,
+																		"optional": true,
+																		"tsType": {
+																			"repr": "number",
+																			"kind": "keyword",
+																			"value": "number"
+																		}
+																	},
+																	{
+																		"name": "resetAfter",
+																		"location": {
+																			"filename": "./packages/resilience/mod.ts",
+																			"line": 128,
+																			"col": 2,
+																			"byteIndex": 5234
+																		},
+																		"readonly": true,
+																		"optional": true,
+																		"tsType": {
+																			"kind": "union",
+																			"value": [
+																				{
+																					"repr": "Temporal.Duration",
+																					"kind": "typeRef",
+																					"value": {
+																						"typeName": "Temporal.Duration"
+																					}
+																				},
+																				{
+																					"repr": "Temporal.DurationLike",
+																					"kind": "typeRef",
+																					"value": {
+																						"typeName": "Temporal.DurationLike"
+																					}
+																				},
+																				{
+																					"repr": "string",
+																					"kind": "keyword",
+																					"value": "string"
+																				}
+																			]
+																		}
+																	},
+																	{
+																		"name": "halfOpenPermits",
+																		"location": {
+																			"filename": "./packages/resilience/mod.ts",
+																			"line": 129,
+																			"col": 2,
+																			"byteIndex": 5309
+																		},
+																		"readonly": true,
+																		"optional": true,
+																		"tsType": {
+																			"repr": "number",
+																			"kind": "keyword",
+																			"value": "number"
+																		}
+																	}
+																]
+															}
+														}
+													],
+													"typeName": "Readonly"
+												}
+											}
+										},
+										"right": "[UNSUPPORTED]"
+									}
+								],
+								"returnType": {
+									"repr": "CircuitBreakerPolicy",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "CircuitBreakerPolicy",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "CircuitBreakerPolicy"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "bulkhead",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 145,
+								"col": 0,
+								"byteIndex": 5884
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Define bounded concurrent admission and queueing."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "options",
+										"optional": false,
+										"tsType": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "concurrency",
+																	"location": {
+																		"filename": "./packages/resilience/mod.ts",
+																		"line": 147,
+																		"col": 4,
+																		"byteIndex": 5933
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "number",
+																		"kind": "keyword",
+																		"value": "number"
+																	}
+																},
+																{
+																	"name": "queue",
+																	"location": {
+																		"filename": "./packages/resilience/mod.ts",
+																		"line": 148,
+																		"col": 4,
+																		"byteIndex": 5965
+																	},
+																	"readonly": true,
+																	"optional": true,
+																	"tsType": {
+																		"repr": "number",
+																		"kind": "keyword",
+																		"value": "number"
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "BulkheadPolicy",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "BulkheadPolicy",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "BulkheadPolicy"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "rateLimit",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 162,
+								"col": 0,
+								"byteIndex": 6319
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Define request-rate admission."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "options",
+										"optional": false,
+										"tsType": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "limit",
+																	"location": {
+																		"filename": "./packages/resilience/mod.ts",
+																		"line": 164,
+																		"col": 4,
+																		"byteIndex": 6369
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "number",
+																		"kind": "keyword",
+																		"value": "number"
+																	}
+																},
+																{
+																	"name": "window",
+																	"location": {
+																		"filename": "./packages/resilience/mod.ts",
+																		"line": 165,
+																		"col": 4,
+																		"byteIndex": 6395
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"kind": "union",
+																		"value": [
+																			{
+																				"repr": "Temporal.Duration",
+																				"kind": "typeRef",
+																				"value": {
+																					"typeName": "Temporal.Duration"
+																				}
+																			},
+																			{
+																				"repr": "Temporal.DurationLike",
+																				"kind": "typeRef",
+																				"value": {
+																					"typeName": "Temporal.DurationLike"
+																				}
+																			},
+																			{
+																				"repr": "string",
+																				"kind": "keyword",
+																				"value": "string"
+																			}
+																		]
+																	}
+																},
+																{
+																	"name": "key",
+																	"location": {
+																		"filename": "./packages/resilience/mod.ts",
+																		"line": 166,
+																		"col": 4,
+																		"byteIndex": 6466
+																	},
+																	"readonly": true,
+																	"optional": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "RateLimitPolicy",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "RateLimitPolicy",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "RateLimitPolicy"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "bodyLimit",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 180,
+								"col": 0,
+								"byteIndex": 6847
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Define a maximum accepted request-body size."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "bytes",
+										"optional": false,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									}
+								],
+								"returnType": {
+									"repr": "BodyLimitPolicy",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "BodyLimitPolicy",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "BodyLimitPolicy"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "owner",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 186,
+								"col": 0,
+								"byteIndex": 7100
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return which runtime owns the concrete behavior for one policy."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "policy",
+										"optional": false,
+										"tsType": {
+											"repr": "ResiliencePolicy",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResiliencePolicy",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "ResiliencePolicy"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "ResilienceOwner",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "ResilienceOwner",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "ResilienceOwner"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "stage",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 208,
+								"col": 0,
+								"byteIndex": 7713
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return when one policy runs in the service request lifecycle.\n\nRequest policies protect raw request execution. Admission policies run once\nafter validation before application requirements and the handler. Operation\npolicies wrap endpoint execution and can therefore control retry attempts or\ncircuit state."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "policy",
+										"optional": false,
+										"tsType": {
+											"repr": "ResiliencePolicy",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResiliencePolicy",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "ResiliencePolicy"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "ResilienceStage",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "ResilienceStage",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "ResilienceStage"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "compose",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 224,
+								"col": 0,
+								"byteIndex": 8089
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Flatten nested policy inputs while preserving authored order."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "rest",
+										"arg": {
+											"kind": "identifier",
+											"name": "input",
+											"optional": false
+										},
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "ResilienceInput",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "ResilienceInput",
+															"resolution": {
+																"kind": "import",
+																"specifier": "./types.ts",
+																"name": "ResilienceInput"
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "readonly",
+										"tsType": {
+											"kind": "array",
+											"value": {
+												"repr": "ResiliencePolicy",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "ResiliencePolicy",
+													"resolution": {
+														"kind": "import",
+														"specifier": "./types.ts",
+														"name": "ResiliencePolicy"
+													}
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "validate",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 238,
+								"col": 0,
+								"byteIndex": 8531
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Validate and normalize a resilience plan."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "input",
+										"optional": false,
+										"tsType": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "ResilienceInput",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "ResilienceInput",
+														"resolution": {
+															"kind": "import",
+															"specifier": "./types.ts",
+															"name": "ResilienceInput"
+														}
+													}
+												},
+												{
+													"repr": "undefined",
+													"kind": "keyword",
+													"value": "undefined"
+												}
+											]
+										}
+									},
+									{
+										"kind": "assign",
+										"left": {
+											"kind": "identifier",
+											"name": "options",
+											"optional": false,
+											"tsType": {
+												"repr": "Readonly",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"kind": "typeLiteral",
+															"value": {
+																"properties": [
+																	{
+																		"name": "safety",
+																		"location": {
+																			"filename": "./packages/resilience/mod.ts",
+																			"line": 240,
+																			"col": 22,
+																			"byteIndex": 8615
+																		},
+																		"readonly": true,
+																		"optional": true,
+																		"tsType": {
+																			"repr": "ResilienceOperationSafety",
+																			"kind": "typeRef",
+																			"value": {
+																				"typeName": "ResilienceOperationSafety",
+																				"resolution": {
+																					"kind": "import",
+																					"specifier": "./types.ts",
+																					"name": "ResilienceOperationSafety"
+																				}
+																			}
+																		}
+																	}
+																]
+															}
+														}
+													],
+													"typeName": "Readonly"
+												}
+											}
+										},
+										"right": "[UNSUPPORTED]"
+									}
+								],
+								"returnType": {
+									"repr": "ResilienceValidationResult",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "ResilienceValidationResult",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "ResilienceValidationResult"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "is",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 280,
+								"col": 0,
+								"byteIndex": 10108
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return whether a value is a resiliency policy."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										}
+									}
+								],
+								"returnType": {
+									"repr": "value is ResiliencePolicy",
+									"kind": "typePredicate",
+									"value": {
+										"param": {
+											"type": "identifier",
+											"name": "value"
+										},
+										"type": {
+											"repr": "ResiliencePolicy",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResiliencePolicy",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "ResiliencePolicy"
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "document",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 287,
+								"col": 0,
+								"byteIndex": 10398
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create deterministic JSON-safe documentation."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "input",
+										"optional": false,
+										"tsType": {
+											"repr": "ResilienceInput",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResilienceInput",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "ResilienceInput"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "readonly",
+										"tsType": {
+											"kind": "array",
+											"value": {
+												"repr": "ResilienceDocument",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "ResilienceDocument",
+													"resolution": {
+														"kind": "import",
+														"specifier": "./types.ts",
+														"name": "ResilienceDocument"
+													}
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "BodyLimitPolicy",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 391,
+								"col": 2,
+								"byteIndex": 13490
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resilience/types.ts",
+									"line": 90,
+									"col": 0,
+									"byteIndex": 3856
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "BulkheadPolicy",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 392,
+								"col": 2,
+								"byteIndex": 13508
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resilience/types.ts",
+									"line": 64,
+									"col": 0,
+									"byteIndex": 2808
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "CircuitBreakerPolicy",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 393,
+								"col": 2,
+								"byteIndex": 13525
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resilience/types.ts",
+									"line": 50,
+									"col": 0,
+									"byteIndex": 2224
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "IdempotencyPolicy",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 394,
+								"col": 2,
+								"byteIndex": 13548
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resilience/types.ts",
+									"line": 14,
+									"col": 0,
+									"byteIndex": 554
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "RateLimitPolicy",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 395,
+								"col": 2,
+								"byteIndex": 13568
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resilience/types.ts",
+									"line": 76,
+									"col": 0,
+									"byteIndex": 3280
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResilienceDocument",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 396,
+								"col": 2,
+								"byteIndex": 13586
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resilience/types.ts",
+									"line": 138,
+									"col": 0,
+									"byteIndex": 5625
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResilienceInput",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 397,
+								"col": 2,
+								"byteIndex": 13607
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resilience/types.ts",
+									"line": 116,
+									"col": 0,
+									"byteIndex": 4688
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResilienceOperationSafety",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 398,
+								"col": 2,
+								"byteIndex": 13625
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resilience/types.ts",
+									"line": 1,
+									"col": 0,
+									"byteIndex": 67
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResilienceOwner",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 399,
+								"col": 2,
+								"byteIndex": 13653
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resilience/types.ts",
+									"line": 100,
+									"col": 0,
+									"byteIndex": 4225
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResiliencePolicy",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 400,
+								"col": 2,
+								"byteIndex": 13671
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resilience/types.ts",
+									"line": 106,
+									"col": 0,
+									"byteIndex": 4458
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResilienceStage",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 401,
+								"col": 2,
+								"byteIndex": 13690
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resilience/types.ts",
+									"line": 103,
+									"col": 0,
+									"byteIndex": 4351
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResilienceValidationIssue",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 402,
+								"col": 2,
+								"byteIndex": 13708
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resilience/types.ts",
+									"line": 119,
+									"col": 0,
+									"byteIndex": 4805
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResilienceValidationResult",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 403,
+								"col": 2,
+								"byteIndex": 13736
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resilience/types.ts",
+									"line": 133,
+									"col": 0,
+									"byteIndex": 5363
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "RetryPolicy",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 404,
+								"col": 2,
+								"byteIndex": 13765
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resilience/types.ts",
+									"line": 30,
+									"col": 0,
+									"byteIndex": 1248
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "TimeoutPolicy",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/mod.ts",
+								"line": 405,
+								"col": 2,
+								"byteIndex": 13779
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resilience/types.ts",
+									"line": 4,
+									"col": 0,
+									"byteIndex": 182
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		"@okikio/resilience/types": {
+			"symbols": [
+				{
+					"name": "ResilienceOperationSafety",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/types.ts",
+								"line": 1,
+								"col": 0,
+								"byteIndex": 67
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "HTTP method safety class used when validating retry policy."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "safe",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "safe"
+											}
+										},
+										{
+											"repr": "idempotent",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "idempotent"
+											}
+										},
+										{
+											"repr": "unsafe",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "unsafe"
+											}
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "TimeoutPolicy",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/types.ts",
+								"line": 4,
+								"col": 0,
+								"byteIndex": 182
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Absolute request timeout policy."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "kind",
+										"jsDoc": {
+											"doc": "Stable discriminant that selects the documented variant."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 6,
+											"col": 2,
+											"byteIndex": 281
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "resilience",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "resilience"
+											}
+										}
+									},
+									{
+										"name": "type",
+										"jsDoc": {
+											"doc": "Protocol or representation variant selected by this value."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 8,
+											"col": 2,
+											"byteIndex": 378
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "timeout",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "timeout"
+											}
+										}
+									},
+									{
+										"name": "duration",
+										"jsDoc": {
+											"doc": "Lease or operation duration interpreted with the owning clock."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 10,
+											"col": 2,
+											"byteIndex": 476
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Temporal.Duration",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Temporal.Duration"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "IdempotencyPolicy",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/types.ts",
+								"line": 14,
+								"col": 0,
+								"byteIndex": 554
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Request idempotency protocol."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "kind",
+										"jsDoc": {
+											"doc": "Stable discriminant that selects the documented variant."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 16,
+											"col": 2,
+											"byteIndex": 657
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "resilience",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "resilience"
+											}
+										}
+									},
+									{
+										"name": "type",
+										"jsDoc": {
+											"doc": "Protocol or representation variant selected by this value."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 18,
+											"col": 2,
+											"byteIndex": 754
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "idempotency",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "idempotency"
+											}
+										}
+									},
+									{
+										"name": "header",
+										"jsDoc": {
+											"doc": "HTTP header used to carry the caller-controlled idempotency key."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 20,
+											"col": 2,
+											"byteIndex": 858
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "required",
+										"jsDoc": {
+											"doc": "Whether the runtime must reject a request that omits the configured idempotency header."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 22,
+											"col": 2,
+											"byteIndex": 980
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "boolean",
+											"kind": "keyword",
+											"value": "boolean"
+										}
+									},
+									{
+										"name": "maximumKeyBytes",
+										"jsDoc": {
+											"doc": "Maximum UTF-8 bytes accepted for a caller-controlled idempotency key."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 24,
+											"col": 2,
+											"byteIndex": 1087
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "ttl",
+										"jsDoc": {
+											"doc": "Optional lifetime selected by the caller."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 26,
+											"col": 2,
+											"byteIndex": 1172
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "Temporal.Duration",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Temporal.Duration"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "RetryPolicy",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/types.ts",
+								"line": 30,
+								"col": 0,
+								"byteIndex": 1248
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Bounded automatic retry policy."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "kind",
+										"jsDoc": {
+											"doc": "Stable discriminant that selects the documented variant."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 32,
+											"col": 2,
+											"byteIndex": 1345
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "resilience",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "resilience"
+											}
+										}
+									},
+									{
+										"name": "type",
+										"jsDoc": {
+											"doc": "Protocol or representation variant selected by this value."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 34,
+											"col": 2,
+											"byteIndex": 1442
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "retry",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "retry"
+											}
+										}
+									},
+									{
+										"name": "maximumAttempts",
+										"jsDoc": {
+											"doc": "Total attempt budget, including the initial attempt."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 36,
+											"col": 2,
+											"byteIndex": 1528
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "initialDelay",
+										"jsDoc": {
+											"doc": "Initial retry delay before growth, jitter and maximum bounds are applied."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 38,
+											"col": 2,
+											"byteIndex": 1645
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Temporal.Duration",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Temporal.Duration"
+											}
+										}
+									},
+									{
+										"name": "maximumDelay",
+										"jsDoc": {
+											"doc": "Upper bound for the retry delay after applying the selected policy."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 40,
+											"col": 2,
+											"byteIndex": 1764
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Temporal.Duration",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Temporal.Duration"
+											}
+										}
+									},
+									{
+										"name": "multiplier",
+										"jsDoc": {
+											"doc": "Growth factor applied to retry delays before the maximum delay bound."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 42,
+											"col": 2,
+											"byteIndex": 1885
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "jitter",
+										"jsDoc": {
+											"doc": "Randomized delay policy; tests can provide deterministic randomness."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 44,
+											"col": 2,
+											"byteIndex": 1992
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "boolean",
+											"kind": "keyword",
+											"value": "boolean"
+										}
+									},
+									{
+										"name": "retryOn",
+										"jsDoc": {
+											"doc": "Optional stable failure codes that the runtime may retry; this list is not a callback."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 46,
+											"col": 2,
+											"byteIndex": 2114
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "string",
+														"kind": "keyword",
+														"value": "string"
+													}
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "CircuitBreakerPolicy",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/types.ts",
+								"line": 50,
+								"col": 0,
+								"byteIndex": 2224
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Circuit-breaker policy around a provider/resource capability."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "kind",
+										"jsDoc": {
+											"doc": "Stable discriminant that selects the documented variant."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 52,
+											"col": 2,
+											"byteIndex": 2330
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "resilience",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "resilience"
+											}
+										}
+									},
+									{
+										"name": "type",
+										"jsDoc": {
+											"doc": "Protocol or representation variant selected by this value."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 54,
+											"col": 2,
+											"byteIndex": 2427
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "circuit-breaker",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "circuit-breaker"
+											}
+										}
+									},
+									{
+										"name": "failureThreshold",
+										"jsDoc": {
+											"doc": "Failure count that opens the circuit under this policy."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 56,
+											"col": 2,
+											"byteIndex": 2526
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "resetAfter",
+										"jsDoc": {
+											"doc": "Time before an open circuit admits a half-open trial."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 58,
+											"col": 2,
+											"byteIndex": 2624
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Temporal.Duration",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Temporal.Duration"
+											}
+										}
+									},
+									{
+										"name": "halfOpenPermits",
+										"jsDoc": {
+											"doc": "Maximum trial calls admitted while the circuit is half-open."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 60,
+											"col": 2,
+											"byteIndex": 2734
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "BulkheadPolicy",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/types.ts",
+								"line": 64,
+								"col": 0,
+								"byteIndex": 2808
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Concurrency-admission policy."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "kind",
+										"jsDoc": {
+											"doc": "Stable discriminant that selects the documented variant."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 66,
+											"col": 2,
+											"byteIndex": 2908
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "resilience",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "resilience"
+											}
+										}
+									},
+									{
+										"name": "type",
+										"jsDoc": {
+											"doc": "Protocol or representation variant selected by this value."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 68,
+											"col": 2,
+											"byteIndex": 3005
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "bulkhead",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "bulkhead"
+											}
+										}
+									},
+									{
+										"name": "concurrency",
+										"jsDoc": {
+											"doc": "Maximum concurrent operations admitted by the bulkhead owner."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 70,
+											"col": 2,
+											"byteIndex": 3103
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "queue",
+										"jsDoc": {
+											"doc": "Maximum operations that may wait when bulkhead concurrency is exhausted."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 72,
+											"col": 2,
+											"byteIndex": 3215
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "RateLimitPolicy",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/types.ts",
+								"line": 76,
+								"col": 0,
+								"byteIndex": 3280
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Request-rate admission policy."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "kind",
+										"jsDoc": {
+											"doc": "Stable discriminant that selects the documented variant."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 78,
+											"col": 2,
+											"byteIndex": 3381
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "resilience",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "resilience"
+											}
+										}
+									},
+									{
+										"name": "type",
+										"jsDoc": {
+											"doc": "Protocol or representation variant selected by this value."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 80,
+											"col": 2,
+											"byteIndex": 3478
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "rate-limit",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "rate-limit"
+											}
+										}
+									},
+									{
+										"name": "limit",
+										"jsDoc": {
+											"doc": "Explicit caller-selected upper bound for this operation."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 82,
+											"col": 2,
+											"byteIndex": 3573
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "window",
+										"jsDoc": {
+											"doc": "Rate-limit accounting interval enforced by the designated runtime adapter."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 84,
+											"col": 2,
+											"byteIndex": 3681
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Temporal.Duration",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Temporal.Duration"
+											}
+										}
+									},
+									{
+										"name": "key",
+										"jsDoc": {
+											"doc": "Stable lookup or correlation key within the owning contract."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 86,
+											"col": 2,
+											"byteIndex": 3787
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "BodyLimitPolicy",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/types.ts",
+								"line": 90,
+								"col": 0,
+								"byteIndex": 3856
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Maximum accepted request-body size."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "kind",
+										"jsDoc": {
+											"doc": "Stable discriminant that selects the documented variant."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 92,
+											"col": 2,
+											"byteIndex": 3957
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "resilience",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "resilience"
+											}
+										}
+									},
+									{
+										"name": "type",
+										"jsDoc": {
+											"doc": "Protocol or representation variant selected by this value."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 94,
+											"col": 2,
+											"byteIndex": 4054
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "body-limit",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "body-limit"
+											}
+										}
+									},
+									{
+										"name": "bytes",
+										"jsDoc": {
+											"doc": "Maximum request-body size in bytes."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 96,
+											"col": 2,
+											"byteIndex": 4128
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ResilienceOwner",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/types.ts",
+								"line": 100,
+								"col": 0,
+								"byteIndex": 4225
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Runtime owner responsible for executing one resilience policy."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "server",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "server"
+											}
+										},
+										{
+											"repr": "adapter",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "adapter"
+											}
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResilienceStage",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/types.ts",
+								"line": 103,
+								"col": 0,
+								"byteIndex": 4351
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Request lifecycle stage where one resilience policy takes effect."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "request",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "request"
+											}
+										},
+										{
+											"repr": "admission",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "admission"
+											}
+										},
+										{
+											"repr": "operation",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "operation"
+											}
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResiliencePolicy",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/types.ts",
+								"line": 106,
+								"col": 0,
+								"byteIndex": 4458
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Any static resiliency policy."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "TimeoutPolicy",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "TimeoutPolicy",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										{
+											"repr": "IdempotencyPolicy",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "IdempotencyPolicy",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										{
+											"repr": "RetryPolicy",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "RetryPolicy",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										{
+											"repr": "CircuitBreakerPolicy",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CircuitBreakerPolicy",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										{
+											"repr": "BulkheadPolicy",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "BulkheadPolicy",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										{
+											"repr": "RateLimitPolicy",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "RateLimitPolicy",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										{
+											"repr": "BodyLimitPolicy",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "BodyLimitPolicy",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResilienceInput",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/types.ts",
+								"line": 116,
+								"col": 0,
+								"byteIndex": 4688
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Recursive authoring input accepted by resiliency fields."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "ResiliencePolicy",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResiliencePolicy",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										{
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "ResilienceInput",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "ResilienceInput",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												}
+											}
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResilienceValidationIssue",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/types.ts",
+								"line": 119,
+								"col": 0,
+								"byteIndex": 4805
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Deterministic validation issue."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "code",
+										"jsDoc": {
+											"doc": "Stable machine-readable reason that callers can inspect without matching message text."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 121,
+											"col": 2,
+											"byteIndex": 4946
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "invalid-policy",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "invalid-policy"
+													}
+												},
+												{
+													"repr": "duplicate-policy",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "duplicate-policy"
+													}
+												},
+												{
+													"repr": "conflicting-policy",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "conflicting-policy"
+													}
+												},
+												{
+													"repr": "unsafe-retry",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "unsafe-retry"
+													}
+												}
+											]
+										}
+									},
+									{
+										"name": "message",
+										"jsDoc": {
+											"doc": "Human-readable explanation; use the stable code or discriminant for program decisions."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 127,
+											"col": 2,
+											"byteIndex": 5146
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "policy",
+										"jsDoc": {
+											"doc": "Explicit caller-selected policy; generic mechanics do not choose product decisions."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 129,
+											"col": 2,
+											"byteIndex": 5265
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "ResiliencePolicy",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResiliencePolicy",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ResilienceValidationResult",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/types.ts",
+								"line": 133,
+								"col": 0,
+								"byteIndex": 5363
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Validation result for one composed resiliency plan."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "valid",
+																	"location": {
+																		"filename": "./packages/resilience/types.ts",
+																		"line": 134,
+																		"col": 15,
+																		"byteIndex": 5418
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "true",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "boolean",
+																			"boolean": true
+																		}
+																	}
+																},
+																{
+																	"name": "policies",
+																	"location": {
+																		"filename": "./packages/resilience/types.ts",
+																		"line": 134,
+																		"col": 37,
+																		"byteIndex": 5440
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"kind": "typeOperator",
+																		"value": {
+																			"operator": "readonly",
+																			"tsType": {
+																				"kind": "array",
+																				"value": {
+																					"repr": "ResiliencePolicy",
+																					"kind": "typeRef",
+																					"value": {
+																						"typeName": "ResiliencePolicy",
+																						"resolution": {
+																							"kind": "local"
+																						}
+																					}
+																				}
+																			}
+																		}
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										},
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "valid",
+																	"location": {
+																		"filename": "./packages/resilience/types.ts",
+																		"line": 135,
+																		"col": 15,
+																		"byteIndex": 5504
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "false",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "boolean",
+																			"boolean": false
+																		}
+																	}
+																},
+																{
+																	"name": "issues",
+																	"location": {
+																		"filename": "./packages/resilience/types.ts",
+																		"line": 135,
+																		"col": 38,
+																		"byteIndex": 5527
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"kind": "typeOperator",
+																		"value": {
+																			"operator": "readonly",
+																			"tsType": {
+																				"kind": "array",
+																				"value": {
+																					"repr": "ResilienceValidationIssue",
+																					"kind": "typeRef",
+																					"value": {
+																						"typeName": "ResilienceValidationIssue",
+																						"resolution": {
+																							"kind": "local"
+																						}
+																					}
+																				}
+																			}
+																		}
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResilienceDocument",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resilience/types.ts",
+								"line": 138,
+								"col": 0,
+								"byteIndex": 5625
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "JSON-safe policy documentation."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "type",
+										"jsDoc": {
+											"doc": "Protocol or representation variant selected by this value."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 140,
+											"col": 2,
+											"byteIndex": 5731
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "indexedAccess",
+											"value": {
+												"objType": {
+													"repr": "ResiliencePolicy",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "ResiliencePolicy",
+														"resolution": {
+															"kind": "local"
+														}
+													}
+												},
+												"indexType": {
+													"repr": "type",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "type"
+													}
+												}
+											}
+										}
+									},
+									{
+										"name": "owner",
+										"jsDoc": {
+											"doc": "Runtime owner responsible for executing the policy."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 142,
+											"col": 2,
+											"byteIndex": 5833
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "ResilienceOwner",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResilienceOwner",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "stage",
+										"jsDoc": {
+											"doc": "Request lifecycle stage where the policy takes effect."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 144,
+											"col": 2,
+											"byteIndex": 5930
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "ResilienceStage",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResilienceStage",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "configuration",
+										"jsDoc": {
+											"doc": "JSON-safe policy settings projected for documentation; projection does not enforce them."
+										},
+										"location": {
+											"filename": "./packages/resilience/types.ts",
+											"line": 146,
+											"col": 2,
+											"byteIndex": 6061
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "string",
+																	"kind": "keyword",
+																	"value": "string"
+																},
+																{
+																	"kind": "union",
+																	"value": [
+																		{
+																			"repr": "string",
+																			"kind": "keyword",
+																			"value": "string"
+																		},
+																		{
+																			"repr": "number",
+																			"kind": "keyword",
+																			"value": "number"
+																		},
+																		{
+																			"repr": "boolean",
+																			"kind": "keyword",
+																			"value": "boolean"
+																		},
+																		{
+																			"kind": "typeOperator",
+																			"value": {
+																				"operator": "readonly",
+																				"tsType": {
+																					"kind": "array",
+																					"value": {
+																						"repr": "string",
+																						"kind": "keyword",
+																						"value": "string"
+																					}
+																				}
+																			}
+																		}
+																	]
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				}
+			]
+		}
+	}
+}

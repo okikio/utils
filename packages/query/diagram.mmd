@@ -1,0 +1,5 @@
+flowchart LR
+    A[URL: name Ada and limit 2] --> B[Collection query definition]
+    B -->|valid input| C[Checked filter and page size]
+    B -->|invalid input| D[Validation error]
+    C -. adapter supplied by application .-> E[Database operation]

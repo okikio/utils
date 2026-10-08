@@ -1,0 +1,783 @@
+{
+	"package": "@okikio/record",
+	"packageVersion": "0.0.0",
+	"rendererVersion": 2,
+	"modules": {
+		"@okikio/record": {
+			"module_doc": {
+				"doc": "Inspect plain data records without accidentally invoking hidden getters or trusting inherited configuration. Object.keys plus direct reads can execute accessors and silently ignore properties that validation never saw.\n\nValidate authored options before snapshotting them, then use typed keys and entries to retain exact key/value relationships. Use the ordinary Web or JavaScript API when data is already trusted and the stronger record contract adds no value. Record inspection does not recursively validate application values or make external objects immutable.\n",
+				"tags": [
+					{
+						"kind": "example",
+						"doc": "```ts\nimport * as record from '@okikio/record';\nconst options = { host: 'localhost', port: 4321 } as const;\nrecord.assert(options, 'server options');\nconsole.log(record.keys(options).join(','));\nconsole.log(record.entries(options).map(([key, value]) => `${key}=${value}`).join(' '));\n```\n"
+					},
+					{
+						"kind": "module"
+					}
+				]
+			},
+			"imports": [
+				{
+					"importedName": "Entry",
+					"originalName": "Entry",
+					"src": "./packages/record/types.ts",
+					"jsDoc": {
+						"doc": "Inspect plain data records without accidentally invoking hidden getters or trusting inherited configuration. Object.keys plus direct reads can execute accessors and silently ignore properties that validation never saw.\n\nValidate authored options before snapshotting them, then use typed keys and entries to retain exact key/value relationships. Use the ordinary Web or JavaScript API when data is already trusted and the stronger record contract adds no value. Record inspection does not recursively validate application values or make external objects immutable.\n",
+						"tags": [
+							{
+								"kind": "example",
+								"doc": "```ts\nimport * as record from '@okikio/record';\nconst options = { host: 'localhost', port: 4321 } as const;\nrecord.assert(options, 'server options');\nconsole.log(record.keys(options).join(','));\nconsole.log(record.entries(options).map(([key, value]) => `${key}=${value}`).join(' '));\n```\n"
+							},
+							{
+								"kind": "module"
+							}
+						]
+					}
+				}
+			],
+			"symbols": [
+				{
+					"name": "is",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/record/mod.ts",
+								"line": 19,
+								"col": 0,
+								"byteIndex": 1088
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return whether a value is a plain object or null-prototype record containing only own enumerable string data properties."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										}
+									}
+								],
+								"returnType": {
+									"repr": "value is Readonly",
+									"kind": "typePredicate",
+									"value": {
+										"param": {
+											"type": "identifier",
+											"name": "value"
+										},
+										"type": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "string",
+																	"kind": "keyword",
+																	"value": "string"
+																},
+																{
+																	"repr": "unknown",
+																	"kind": "keyword",
+																	"value": "unknown"
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "assert",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/record/mod.ts",
+								"line": 30,
+								"col": 0,
+								"byteIndex": 1690
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Reject values whose type-visible properties cannot be preserved by ordinary record enumeration."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "Value",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Value",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "assert",
+													"declaringKind": "function"
+												}
+											}
+										}
+									},
+									{
+										"kind": "assign",
+										"left": {
+											"kind": "identifier",
+											"name": "name",
+											"optional": false,
+											"tsType": {
+												"repr": "string",
+												"kind": "keyword",
+												"value": "string"
+											}
+										},
+										"right": "record"
+									}
+								],
+								"returnType": {
+									"repr": "asserts value is ",
+									"kind": "typePredicate",
+									"value": {
+										"asserts": true,
+										"param": {
+											"type": "identifier",
+											"name": "value"
+										},
+										"type": {
+											"kind": "intersection",
+											"value": [
+												{
+													"repr": "Value",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Value",
+														"resolution": {
+															"kind": "typeParam",
+															"declaringName": "assert",
+															"declaringKind": "function"
+														}
+													}
+												},
+												{
+													"repr": "Readonly",
+													"kind": "typeRef",
+													"value": {
+														"typeParams": [
+															{
+																"repr": "Record",
+																"kind": "typeRef",
+																"value": {
+																	"typeParams": [
+																		{
+																			"repr": "string",
+																			"kind": "keyword",
+																			"value": "string"
+																		},
+																		{
+																			"repr": "unknown",
+																			"kind": "keyword",
+																			"value": "unknown"
+																		}
+																	],
+																	"typeName": "Record"
+																}
+															}
+														],
+														"typeName": "Readonly"
+													}
+												}
+											]
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Value"
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "keys",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/record/mod.ts",
+								"line": 50,
+								"col": 0,
+								"byteIndex": 2648
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return exact own string keys after validating that no type-visible key can be omitted."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "RecordType",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "RecordType",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "keys",
+													"declaringKind": "function"
+												}
+											}
+										}
+									},
+									{
+										"kind": "assign",
+										"left": {
+											"kind": "identifier",
+											"name": "name",
+											"optional": false,
+											"tsType": {
+												"repr": "string",
+												"kind": "keyword",
+												"value": "string"
+											}
+										},
+										"right": "record"
+									}
+								],
+								"returnType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "readonly",
+										"tsType": {
+											"kind": "array",
+											"value": {
+												"repr": "Extract",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"kind": "typeOperator",
+															"value": {
+																"operator": "keyof",
+																"tsType": {
+																	"repr": "RecordType",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "RecordType",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "keys",
+																			"declaringKind": "function"
+																		}
+																	}
+																}
+															}
+														},
+														{
+															"repr": "string",
+															"kind": "keyword",
+															"value": "string"
+														}
+													],
+													"typeName": "Extract"
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "RecordType",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "string",
+																	"kind": "keyword",
+																	"value": "string"
+																},
+																{
+																	"repr": "unknown",
+																	"kind": "keyword",
+																	"value": "unknown"
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "entries",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/record/mod.ts",
+								"line": 59,
+								"col": 0,
+								"byteIndex": 3018
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return exact own string entries after validating the authoring record shape."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "RecordType",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "RecordType",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "entries",
+													"declaringKind": "function"
+												}
+											}
+										}
+									},
+									{
+										"kind": "assign",
+										"left": {
+											"kind": "identifier",
+											"name": "name",
+											"optional": false,
+											"tsType": {
+												"repr": "string",
+												"kind": "keyword",
+												"value": "string"
+											}
+										},
+										"right": "record"
+									}
+								],
+								"returnType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "readonly",
+										"tsType": {
+											"kind": "array",
+											"value": {
+												"repr": "Entry",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"repr": "RecordType",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "RecordType",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "entries",
+																	"declaringKind": "function"
+																}
+															}
+														}
+													],
+													"typeName": "Entry",
+													"resolution": {
+														"kind": "import",
+														"specifier": "./types.ts",
+														"name": "Entry"
+													}
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "RecordType",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "string",
+																	"kind": "keyword",
+																	"value": "string"
+																},
+																{
+																	"repr": "unknown",
+																	"kind": "keyword",
+																	"value": "unknown"
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "snapshot",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/record/mod.ts",
+								"line": 69,
+								"col": 0,
+								"byteIndex": 3439
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create a frozen null-prototype snapshot without dropping any validated record property."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "RecordType",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "RecordType",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "snapshot",
+													"declaringKind": "function"
+												}
+											}
+										}
+									},
+									{
+										"kind": "assign",
+										"left": {
+											"kind": "identifier",
+											"name": "name",
+											"optional": false,
+											"tsType": {
+												"repr": "string",
+												"kind": "keyword",
+												"value": "string"
+											}
+										},
+										"right": "record"
+									}
+								],
+								"returnType": {
+									"repr": "RecordType",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "RecordType",
+										"resolution": {
+											"kind": "typeParam",
+											"declaringName": "snapshot",
+											"declaringKind": "function"
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "RecordType",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "string",
+																	"kind": "keyword",
+																	"value": "string"
+																},
+																{
+																	"repr": "unknown",
+																	"kind": "keyword",
+																	"value": "unknown"
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Entry",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/record/mod.ts",
+								"line": 81,
+								"col": 14,
+								"byteIndex": 3893
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/record/types.ts",
+									"line": 1,
+									"col": 0,
+									"byteIndex": 66
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		"@okikio/record/types": {
+			"symbols": [
+				{
+					"name": "Entry",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/record/types.ts",
+								"line": 1,
+								"col": 0,
+								"byteIndex": 66
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "One exact string-keyed entry from a validated data record."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "indexedAccess",
+									"value": {
+										"objType": {
+											"kind": "mapped",
+											"value": {
+												"readonly": true,
+												"typeParam": {
+													"name": "Key",
+													"constraint": {
+														"repr": "Extract",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"kind": "typeOperator",
+																	"value": {
+																		"operator": "keyof",
+																		"tsType": {
+																			"repr": "RecordType",
+																			"kind": "typeRef",
+																			"value": {
+																				"typeName": "RecordType",
+																				"resolution": {
+																					"kind": "typeParam",
+																					"declaringName": "Entry",
+																					"declaringKind": "typeAlias"
+																				}
+																			}
+																		}
+																	}
+																},
+																{
+																	"repr": "string",
+																	"kind": "keyword",
+																	"value": "string"
+																}
+															],
+															"typeName": "Extract"
+														}
+													}
+												},
+												"tsType": {
+													"kind": "typeOperator",
+													"value": {
+														"operator": "readonly",
+														"tsType": {
+															"kind": "tuple",
+															"value": [
+																{
+																	"repr": "Key",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Key",
+																		"resolution": {
+																			"kind": "typeParam"
+																		}
+																	}
+																},
+																{
+																	"kind": "indexedAccess",
+																	"value": {
+																		"objType": {
+																			"repr": "RecordType",
+																			"kind": "typeRef",
+																			"value": {
+																				"typeName": "RecordType",
+																				"resolution": {
+																					"kind": "typeParam",
+																					"declaringName": "Entry",
+																					"declaringKind": "typeAlias"
+																				}
+																			}
+																		},
+																		"indexType": {
+																			"repr": "Key",
+																			"kind": "typeRef",
+																			"value": {
+																				"typeName": "Key",
+																				"resolution": {
+																					"kind": "typeParam"
+																				}
+																			}
+																		}
+																	}
+																}
+															]
+														}
+													}
+												}
+											}
+										},
+										"indexType": {
+											"repr": "Extract",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeOperator",
+														"value": {
+															"operator": "keyof",
+															"tsType": {
+																"repr": "RecordType",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "RecordType",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "Entry",
+																		"declaringKind": "typeAlias"
+																	}
+																}
+															}
+														}
+													},
+													{
+														"repr": "string",
+														"kind": "keyword",
+														"value": "string"
+													}
+												],
+												"typeName": "Extract"
+											}
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "RecordType",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "string",
+																	"kind": "keyword",
+																	"value": "string"
+																},
+																{
+																	"repr": "unknown",
+																	"kind": "keyword",
+																	"value": "unknown"
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				}
+			]
+		}
+	}
+}

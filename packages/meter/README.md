@@ -4,18 +4,16 @@ A download accepted 2,048 bytes. You want one named usage fact that can later fe
 than an unexplained counter. `meter` defines what is being measured and records the reading through an explicit effect
 owner. An **effect owner** is the component that accepts responsibility for the fact under its declared delivery policy.
 
-```mermaid
-flowchart LR
-    A[Download measured 2048 bytes] --> B[Meter reading with stable key]
-    B --> C[Effect owner accepts responsibility]
-    C -. application supplies delivery .-> D[Ledger or audit destination]
-```
+![An accepted byte measurement becomes a keyed reading delivered by an application-supplied destination](diagram.png)
 
-Solid arrows show the acceptance path used in the demo. The dotted arrow is later application-owned delivery; the
-example's empty emitter supplies no ledger. Acceptance alone does not prove that a billing provider processed a reading.
+[Editable diagram source](diagram.mmd). Solid arrows show the acceptance path used in the demo. The dotted arrow is
+later application-owned delivery; the example's empty emitter supplies no ledger. Acceptance alone does not prove that a
+billing provider processed a reading.
 
 For shared terms such as `await` and `await using`, see
 [the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
+
+For the exact functions, types and field explanations, read the [generated contract reference](API.md).
 
 ## Run a complete example
 

@@ -1,0 +1,7 @@
+flowchart TD
+    Goal["What do you need to achieve?"] --> Values["Read and check values"]
+    Goal --> Work["Run work with limits and cleanup"]
+    Goal --> Jobs["Connect named jobs"]
+    Values --> Input["CSV, schema, query, HTTP"]
+    Work --> Lifetime["Context, concurrency, resource, task"]
+    Jobs --> Sequence["Activity and workflow"]

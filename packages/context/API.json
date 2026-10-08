@@ -1,0 +1,3187 @@
+{
+	"package": "@okikio/context",
+	"packageVersion": "0.0.0",
+	"rendererVersion": 2,
+	"modules": {
+		"@okikio/context": {
+			"module_doc": {
+				"doc": "Give nested work one cancellation signal, deadline, clock and cleanup owner. Passing separate signals and timers through every call otherwise makes it easy to outlive the caller or forget a temporary resource.\n\nStart with create(), derive a child deadline for an expensive operation, and register cleanup on the context that owns it. Use view() or family scopes to attach capabilities without inventing a new lifetime. Snapshots carry identity and deadline across a transport; they do not carry resources or cancellation listeners. TestClock lets tests advance logical time without assuming a fast machine.\n",
+				"tags": [
+					{
+						"kind": "example",
+						"doc": "```ts\nimport '@okikio/duration/polyfill';\nimport '@okikio/dispose/polyfill';\nimport * as context from '@okikio/context';\nconst clock = new context.TestClock();\nawait using parent = context.create({ id: 'import', clock });\nawait using child = context.timeout(parent, { seconds: 2 });\nconst waiting = context.wait(child, { seconds: 1 });\nclock.advance({ seconds: 1 });\nawait waiting;\nconsole.log(context.remaining(child)?.milliseconds);\n```\n"
+					},
+					{
+						"kind": "module"
+					}
+				]
+			},
+			"imports": [
+				{
+					"importedName": "standardDelay",
+					"originalName": "delay",
+					"src": "https://jsr.io/@std/async/1.5.0/delay.ts",
+					"jsDoc": {
+						"doc": "Give nested work one cancellation signal, deadline, clock and cleanup owner. Passing separate signals and timers through every call otherwise makes it easy to outlive the caller or forget a temporary resource.\n\nStart with create(), derive a child deadline for an expensive operation, and register cleanup on the context that owns it. Use view() or family scopes to attach capabilities without inventing a new lifetime. Snapshots carry identity and deadline across a transport; they do not carry resources or cancellation listeners. TestClock lets tests advance logical time without assuming a fast machine.\n",
+						"tags": [
+							{
+								"kind": "example",
+								"doc": "```ts\nimport '@okikio/duration/polyfill';\nimport '@okikio/dispose/polyfill';\nimport * as context from '@okikio/context';\nconst clock = new context.TestClock();\nawait using parent = context.create({ id: 'import', clock });\nawait using child = context.timeout(parent, { seconds: 2 });\nconst waiting = context.wait(child, { seconds: 1 });\nclock.advance({ seconds: 1 });\nawait waiting;\nconsole.log(context.remaining(child)?.milliseconds);\n```\n"
+							},
+							{
+								"kind": "module"
+							}
+						]
+					}
+				},
+				{
+					"importedName": "durationCore",
+					"src": "./packages/duration/mod.ts"
+				},
+				{
+					"importedName": "ChildOptions",
+					"originalName": "ChildOptions",
+					"src": "./packages/context/types.ts"
+				},
+				{
+					"importedName": "Clock",
+					"originalName": "Clock",
+					"src": "./packages/context/types.ts"
+				},
+				{
+					"importedName": "Context",
+					"originalName": "Context",
+					"src": "./packages/context/types.ts"
+				},
+				{
+					"importedName": "CreateOptions",
+					"originalName": "CreateOptions",
+					"src": "./packages/context/types.ts"
+				},
+				{
+					"importedName": "Owned",
+					"originalName": "Owned",
+					"src": "./packages/context/types.ts"
+				},
+				{
+					"importedName": "RestoreOptions",
+					"originalName": "RestoreOptions",
+					"src": "./packages/context/types.ts"
+				},
+				{
+					"importedName": "Snapshot",
+					"originalName": "Snapshot",
+					"src": "./packages/context/types.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "ContextCancelledError",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 29,
+								"col": 0,
+								"byteIndex": 1561
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Error raised when a context has been cancelled."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"jsDoc": {
+											"doc": "Create this ContextCancelledError from the explicit contract values supplied by its caller."
+										},
+										"hasBody": true,
+										"name": "constructor",
+										"params": [
+											{
+												"kind": "assign",
+												"left": {
+													"kind": "identifier",
+													"name": "reason",
+													"optional": false,
+													"tsType": {
+														"repr": "unknown",
+														"kind": "keyword",
+														"value": "unknown"
+													}
+												},
+												"right": "undefined"
+											}
+										],
+										"location": {
+											"filename": "./packages/context/mod.ts",
+											"line": 34,
+											"col": 2,
+											"byteIndex": 1824
+										}
+									}
+								],
+								"properties": [
+									{
+										"jsDoc": {
+											"doc": "Caller or runtime reason retained for cancellation or failure diagnostics."
+										},
+										"tsType": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										},
+										"readonly": true,
+										"name": "reason",
+										"location": {
+											"filename": "./packages/context/mod.ts",
+											"line": 31,
+											"col": 2,
+											"byteIndex": 1696
+										}
+									}
+								],
+								"extends": "Error"
+							}
+						}
+					]
+				},
+				{
+					"name": "ContextDeadlineExceededError",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 42,
+								"col": 0,
+								"byteIndex": 2082
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Error raised when a context deadline has elapsed."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"jsDoc": {
+											"doc": "Create this ContextDeadlineExceededError from the explicit contract values supplied by its caller."
+										},
+										"hasBody": true,
+										"name": "constructor",
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "deadline",
+												"optional": false,
+												"tsType": {
+													"repr": "Temporal.Instant",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.Instant"
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "observedAt",
+												"optional": false,
+												"tsType": {
+													"repr": "Temporal.Instant",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.Instant"
+													}
+												}
+											}
+										],
+										"location": {
+											"filename": "./packages/context/mod.ts",
+											"line": 49,
+											"col": 2,
+											"byteIndex": 2468
+										}
+									}
+								],
+								"properties": [
+									{
+										"jsDoc": {
+											"doc": "Latest permitted completion instant; serialized contexts use ISO timestamp text."
+										},
+										"tsType": {
+											"repr": "Temporal.Instant",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Temporal.Instant"
+											}
+										},
+										"readonly": true,
+										"name": "deadline",
+										"location": {
+											"filename": "./packages/context/mod.ts",
+											"line": 44,
+											"col": 2,
+											"byteIndex": 2230
+										}
+									},
+									{
+										"jsDoc": {
+											"doc": "Instant when this observation was recorded."
+										},
+										"tsType": {
+											"repr": "Temporal.Instant",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Temporal.Instant"
+											}
+										},
+										"readonly": true,
+										"name": "observedAt",
+										"location": {
+											"filename": "./packages/context/mod.ts",
+											"line": 46,
+											"col": 2,
+											"byteIndex": 2320
+										}
+									}
+								],
+								"extends": "Error"
+							}
+						}
+					]
+				},
+				{
+					"name": "cancelled",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 58,
+								"col": 0,
+								"byteIndex": 2838
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return whether a reason represents explicit context cancellation or deadline expiry."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										}
+									}
+								],
+								"returnType": {
+									"repr": "boolean",
+									"kind": "keyword",
+									"value": "boolean"
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "SystemClock",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 63,
+								"col": 13,
+								"byteIndex": 3089
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Clock backed by the runtime's native Temporal implementation and timer queue."
+							},
+							"kind": "variable",
+							"def": {
+								"kind": "const"
+							}
+						}
+					]
+				},
+				{
+					"name": "TestClock",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 79,
+								"col": 0,
+								"byteIndex": 3486
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Mutable deterministic clock intended for tests and simulations."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"jsDoc": {
+											"doc": "Create this TestClock from the explicit contract values supplied by its caller."
+										},
+										"hasBody": true,
+										"name": "constructor",
+										"params": [
+											{
+												"kind": "assign",
+												"left": {
+													"kind": "identifier",
+													"name": "initial",
+													"optional": false,
+													"tsType": {
+														"kind": "union",
+														"value": [
+															{
+																"repr": "Temporal.Instant",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Temporal.Instant"
+																}
+															},
+															{
+																"repr": "string",
+																"kind": "keyword",
+																"value": "string"
+															}
+														]
+													}
+												},
+												"right": "2000-01-01T00:00:00Z"
+											}
+										],
+										"location": {
+											"filename": "./packages/context/mod.ts",
+											"line": 84,
+											"col": 2,
+											"byteIndex": 3696
+										}
+									}
+								],
+								"methods": [
+									{
+										"jsDoc": {
+											"doc": "Return the current deterministic instant."
+										},
+										"name": "now",
+										"kind": "method",
+										"functionDef": {
+											"params": [],
+											"returnType": {
+												"repr": "Temporal.Instant",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Temporal.Instant"
+												}
+											},
+											"hasBody": true
+										},
+										"location": {
+											"filename": "./packages/context/mod.ts",
+											"line": 89,
+											"col": 2,
+											"byteIndex": 3864
+										}
+									},
+									{
+										"jsDoc": {
+											"doc": "Wait until deterministic time advances by the requested milliseconds."
+										},
+										"name": "sleep",
+										"kind": "method",
+										"functionDef": {
+											"params": [
+												{
+													"kind": "identifier",
+													"name": "milliseconds",
+													"optional": false,
+													"tsType": {
+														"repr": "number",
+														"kind": "keyword",
+														"value": "number"
+													}
+												},
+												{
+													"kind": "identifier",
+													"name": "signal",
+													"optional": true,
+													"tsType": {
+														"repr": "AbortSignal",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "AbortSignal"
+														}
+													}
+												}
+											],
+											"returnType": {
+												"repr": "Promise",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"repr": "void",
+															"kind": "keyword",
+															"value": "void"
+														}
+													],
+													"typeName": "Promise"
+												}
+											},
+											"hasBody": true
+										},
+										"location": {
+											"filename": "./packages/context/mod.ts",
+											"line": 94,
+											"col": 2,
+											"byteIndex": 3997
+										}
+									},
+									{
+										"jsDoc": {
+											"doc": "Set deterministic time and release sleepers whose target is now due."
+										},
+										"name": "set",
+										"kind": "method",
+										"functionDef": {
+											"params": [
+												{
+													"kind": "identifier",
+													"name": "instant",
+													"optional": false,
+													"tsType": {
+														"kind": "union",
+														"value": [
+															{
+																"repr": "Temporal.Instant",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Temporal.Instant"
+																}
+															},
+															{
+																"repr": "string",
+																"kind": "keyword",
+																"value": "string"
+															}
+														]
+													}
+												}
+											],
+											"returnType": {
+												"repr": "void",
+												"kind": "keyword",
+												"value": "void"
+											},
+											"hasBody": true
+										},
+										"location": {
+											"filename": "./packages/context/mod.ts",
+											"line": 120,
+											"col": 2,
+											"byteIndex": 5053
+										}
+									},
+									{
+										"jsDoc": {
+											"doc": "Advance deterministic time and release sleepers whose target is now due."
+										},
+										"name": "advance",
+										"kind": "method",
+										"functionDef": {
+											"params": [
+												{
+													"kind": "identifier",
+													"name": "duration",
+													"optional": false,
+													"tsType": {
+														"kind": "union",
+														"value": [
+															{
+																"repr": "Temporal.Duration",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Temporal.Duration"
+																}
+															},
+															{
+																"repr": "Temporal.DurationLike",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Temporal.DurationLike"
+																}
+															},
+															{
+																"repr": "string",
+																"kind": "keyword",
+																"value": "string"
+															}
+														]
+													}
+												}
+											],
+											"returnType": {
+												"repr": "Temporal.Instant",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Temporal.Instant"
+												}
+											},
+											"hasBody": true
+										},
+										"location": {
+											"filename": "./packages/context/mod.ts",
+											"line": 126,
+											"col": 2,
+											"byteIndex": 5241
+										}
+									}
+								],
+								"implements": [
+									{
+										"repr": "Clock",
+										"kind": "typeRef",
+										"value": {
+											"typeName": "Clock",
+											"resolution": {
+												"kind": "import",
+												"specifier": "./types.ts",
+												"name": "Clock"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "create",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 140,
+								"col": 0,
+								"byteIndex": 5651
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create one independently owned context."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "options",
+										"optional": false,
+										"tsType": {
+											"repr": "CreateOptions",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CreateOptions",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "CreateOptions"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "Owned",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "Owned",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "Owned"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "child",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 203,
+								"col": 0,
+								"byteIndex": 8066
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Derive a child context that inherits identity, cancellation, and the parent deadline."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "parent",
+										"optional": false,
+										"tsType": {
+											"repr": "Context",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Context",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "Context"
+												}
+											}
+										}
+									},
+									{
+										"kind": "assign",
+										"left": {
+											"kind": "identifier",
+											"name": "options",
+											"optional": false,
+											"tsType": {
+												"repr": "ChildOptions",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "ChildOptions",
+													"resolution": {
+														"kind": "import",
+														"specifier": "./types.ts",
+														"name": "ChildOptions"
+													}
+												}
+											}
+										},
+										"right": "[UNSUPPORTED]"
+									}
+								],
+								"returnType": {
+									"repr": "Owned",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "Owned",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "Owned"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "deadline",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 222,
+								"col": 0,
+								"byteIndex": 8958
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Derive a child with an absolute deadline that cannot exceed its parent's deadline."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "parent",
+										"optional": false,
+										"tsType": {
+											"repr": "Context",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Context",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "Context"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "Temporal.Instant",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Temporal.Instant"
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "Owned",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "Owned",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "Owned"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "timeout",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 242,
+								"col": 0,
+								"byteIndex": 9881
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Start a deadline wait and return the owner of a child operation.\n\nLike a timer, the wait becomes due after the supplied duration. Its action is\nto abort the child's signal; this function does not run a callback or await\nwork. Pass the signal to cooperative I/O and check it between synchronous\nsteps. The inherited clock controls the wait, and an earlier parent deadline\nstill wins.\n\nThe returned `Owned` context needs `await using` or explicit awaited disposal.\nDisposal cancels the deadline wait, removes the parent listener, and releases\nchild-owned resources. Deadline expiry alone does not dispose those resources,\nand disposing this child does not cancel its parent.\n",
+								"tags": [
+									{
+										"kind": "return",
+										"doc": "A child context immediately, not a Promise for the operation's value."
+									}
+								]
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "parent",
+										"optional": false,
+										"tsType": {
+											"repr": "Context",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Context",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "Context"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "duration",
+										"optional": false,
+										"tsType": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "Temporal.DurationLike",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.DurationLike"
+													}
+												},
+												{
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												}
+											]
+										}
+									}
+								],
+								"returnType": {
+									"repr": "Owned",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "Owned",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "Owned"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "view",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 261,
+								"col": 0,
+								"byteIndex": 10878
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create a typed view that adds runtime-local fields without creating a new lifetime.\n\nThe view retains the source context's cancellation and ownership identity. It is\nuseful when a focused utility adds one execution capability, such as permissions\nor declared effects, while another utility adds a different typed view to the\nsame operation. Views can be nested safely.\n\nStable Context properties cannot be replaced at compile time, and no property\nalready present on the concrete runtime value can be replaced at runtime. The\nruntime check is necessary because generic composition helpers cannot always\nprove whether an earlier view added the same extension key. Use `child()` when\nwork needs a new independently owned cancellation and cleanup lifetime."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "base",
+										"optional": false,
+										"tsType": {
+											"repr": "Base",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Base",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "view",
+													"declaringKind": "function"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "extension",
+										"optional": false,
+										"tsType": {
+											"kind": "intersection",
+											"value": [
+												{
+													"repr": "Extension",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Extension",
+														"resolution": {
+															"kind": "typeParam",
+															"declaringName": "view",
+															"declaringKind": "function"
+														}
+													}
+												},
+												{
+													"kind": "mapped",
+													"value": {
+														"readonly": true,
+														"typeParam": {
+															"name": "Key",
+															"constraint": {
+																"repr": "Extract",
+																"kind": "typeRef",
+																"value": {
+																	"typeParams": [
+																		{
+																			"kind": "typeOperator",
+																			"value": {
+																				"operator": "keyof",
+																				"tsType": {
+																					"repr": "Extension",
+																					"kind": "typeRef",
+																					"value": {
+																						"typeName": "Extension",
+																						"resolution": {
+																							"kind": "typeParam",
+																							"declaringName": "view",
+																							"declaringKind": "function"
+																						}
+																					}
+																				}
+																			}
+																		},
+																		{
+																			"kind": "typeOperator",
+																			"value": {
+																				"operator": "keyof",
+																				"tsType": {
+																					"repr": "Context",
+																					"kind": "typeRef",
+																					"value": {
+																						"typeName": "Context",
+																						"resolution": {
+																							"kind": "import",
+																							"specifier": "./types.ts",
+																							"name": "Context"
+																						}
+																					}
+																				}
+																			}
+																		}
+																	],
+																	"typeName": "Extract"
+																}
+															}
+														},
+														"tsType": {
+															"repr": "never",
+															"kind": "keyword",
+															"value": "never"
+														}
+													}
+												}
+											]
+										}
+									}
+								],
+								"returnType": {
+									"kind": "intersection",
+									"value": [
+										{
+											"repr": "Base",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Base",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "view",
+													"declaringKind": "function"
+												}
+											}
+										},
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Extension",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Extension",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "view",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									]
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Base",
+										"constraint": {
+											"repr": "Context",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Context",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "Context"
+												}
+											}
+										}
+									},
+									{
+										"name": "Extension",
+										"constraint": {
+											"repr": "object",
+											"kind": "keyword",
+											"value": "object"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "cancel",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 274,
+								"col": 0,
+								"byteIndex": 11473
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Cancel an owned context or a view of that owned context. Repeated cancellation is harmless."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "Owned",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Owned",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "Owned"
+												}
+											}
+										}
+									},
+									{
+										"kind": "assign",
+										"left": {
+											"kind": "identifier",
+											"name": "reason",
+											"optional": false,
+											"tsType": {
+												"repr": "unknown",
+												"kind": "keyword",
+												"value": "unknown"
+											}
+										},
+										"right": "[UNSUPPORTED]"
+									}
+								],
+								"returnType": {
+									"repr": "void",
+									"kind": "keyword",
+									"value": "void"
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "check",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 281,
+								"col": 0,
+								"byteIndex": 11844
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Throw the appropriate cancellation or deadline error when work must stop."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "Pick",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Context",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Context",
+															"resolution": {
+																"kind": "import",
+																"specifier": "./types.ts",
+																"name": "Context"
+															}
+														}
+													},
+													{
+														"kind": "union",
+														"value": [
+															{
+																"repr": "clock",
+																"kind": "literal",
+																"value": {
+																	"kind": "string",
+																	"string": "clock"
+																}
+															},
+															{
+																"repr": "deadline",
+																"kind": "literal",
+																"value": {
+																	"kind": "string",
+																	"string": "deadline"
+																}
+															},
+															{
+																"repr": "signal",
+																"kind": "literal",
+																"value": {
+																	"kind": "string",
+																	"string": "signal"
+																}
+															}
+														]
+													}
+												],
+												"typeName": "Pick"
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "void",
+									"kind": "keyword",
+									"value": "void"
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "cause",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 295,
+								"col": 0,
+								"byteIndex": 12448
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return the cancellation reason without changing control flow."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "Pick",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Context",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Context",
+															"resolution": {
+																"kind": "import",
+																"specifier": "./types.ts",
+																"name": "Context"
+															}
+														}
+													},
+													{
+														"repr": "signal",
+														"kind": "literal",
+														"value": {
+															"kind": "string",
+															"string": "signal"
+														}
+													}
+												],
+												"typeName": "Pick"
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "unknown",
+									"kind": "keyword",
+									"value": "unknown"
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "remaining",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 300,
+								"col": 0,
+								"byteIndex": 12647
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return the non-negative time remaining before the deadline."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "Pick",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Context",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Context",
+															"resolution": {
+																"kind": "import",
+																"specifier": "./types.ts",
+																"name": "Context"
+															}
+														}
+													},
+													{
+														"kind": "union",
+														"value": [
+															{
+																"repr": "clock",
+																"kind": "literal",
+																"value": {
+																	"kind": "string",
+																	"string": "clock"
+																}
+															},
+															{
+																"repr": "deadline",
+																"kind": "literal",
+																"value": {
+																	"kind": "string",
+																	"string": "deadline"
+																}
+															}
+														]
+													}
+												],
+												"typeName": "Pick"
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "Temporal.Duration",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Temporal.Duration"
+											}
+										},
+										{
+											"repr": "undefined",
+											"kind": "keyword",
+											"value": "undefined"
+										}
+									]
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "wait",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 312,
+								"col": 0,
+								"byteIndex": 13188
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Wait for a context-scoped duration.\n\nThis is the context-aware convenience form of `delay()`. It observes the\ncontext before and after the timer, converts context cancellation into the\ncontext error model, and never hides an elapsed deadline."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "ctx",
+										"optional": false,
+										"tsType": {
+											"repr": "Pick",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Context",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Context",
+															"resolution": {
+																"kind": "import",
+																"specifier": "./types.ts",
+																"name": "Context"
+															}
+														}
+													},
+													{
+														"kind": "union",
+														"value": [
+															{
+																"repr": "clock",
+																"kind": "literal",
+																"value": {
+																	"kind": "string",
+																	"string": "clock"
+																}
+															},
+															{
+																"repr": "deadline",
+																"kind": "literal",
+																"value": {
+																	"kind": "string",
+																	"string": "deadline"
+																}
+															},
+															{
+																"repr": "signal",
+																"kind": "literal",
+																"value": {
+																	"kind": "string",
+																	"string": "signal"
+																}
+															}
+														]
+													}
+												],
+												"typeName": "Pick"
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "duration",
+										"optional": false,
+										"tsType": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "Temporal.Duration",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.Duration"
+													}
+												},
+												{
+													"repr": "Temporal.DurationLike",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.DurationLike"
+													}
+												},
+												{
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												}
+											]
+										}
+									}
+								],
+								"returnType": {
+									"repr": "Promise",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "void",
+												"kind": "keyword",
+												"value": "void"
+											}
+										],
+										"typeName": "Promise"
+									}
+								},
+								"hasBody": true,
+								"isAsync": true
+							}
+						}
+					]
+				},
+				{
+					"name": "waitFor",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 334,
+								"col": 0,
+								"byteIndex": 13874
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Wait for one external cooperative gate while the context remains cancellable.\n\n`listen` owns the external gate and returns the cleanup that removes its\nresume callback. This helper owns the context abort listener and removes both\nlisteners when either path settles. It does not cancel work outside the gate."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "ctx",
+										"optional": false,
+										"tsType": {
+											"repr": "Pick",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Context",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Context",
+															"resolution": {
+																"kind": "import",
+																"specifier": "./types.ts",
+																"name": "Context"
+															}
+														}
+													},
+													{
+														"repr": "signal",
+														"kind": "literal",
+														"value": {
+															"kind": "string",
+															"string": "signal"
+														}
+													}
+												],
+												"typeName": "Pick"
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "listen",
+										"optional": false,
+										"tsType": {
+											"kind": "fnOrConstructor",
+											"value": {
+												"constructor": false,
+												"tsType": {
+													"kind": "fnOrConstructor",
+													"value": {
+														"constructor": false,
+														"tsType": {
+															"repr": "void",
+															"kind": "keyword",
+															"value": "void"
+														},
+														"params": []
+													}
+												},
+												"params": [
+													{
+														"kind": "identifier",
+														"name": "resume",
+														"optional": false,
+														"tsType": {
+															"kind": "fnOrConstructor",
+															"value": {
+																"constructor": false,
+																"tsType": {
+																	"repr": "void",
+																	"kind": "keyword",
+																	"value": "void"
+																},
+																"params": []
+															}
+														}
+													}
+												]
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "Promise",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "void",
+												"kind": "keyword",
+												"value": "void"
+											}
+										],
+										"typeName": "Promise"
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "settles",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 370,
+								"col": 0,
+								"byteIndex": 15055
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return whether a value settles before the supplied clock reaches a duration.\n\nSettlement includes fulfillment and rejection. This helper does not cancel the\nvalue when time expires. It only cancels its own clock wait, so a host can\ncontinue its existing shutdown or cleanup policy after a `false` result."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "PromiseLike",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "unknown",
+														"kind": "keyword",
+														"value": "unknown"
+													}
+												],
+												"typeName": "PromiseLike"
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "milliseconds",
+										"optional": false,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"kind": "assign",
+										"left": {
+											"kind": "identifier",
+											"name": "clock",
+											"optional": false,
+											"tsType": {
+												"repr": "Pick",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"repr": "Clock",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Clock",
+																"resolution": {
+																	"kind": "import",
+																	"specifier": "./types.ts",
+																	"name": "Clock"
+																}
+															}
+														},
+														{
+															"repr": "sleep",
+															"kind": "literal",
+															"value": {
+																"kind": "string",
+																"string": "sleep"
+															}
+														}
+													],
+													"typeName": "Pick"
+												}
+											}
+										},
+										"right": "SystemClock"
+									}
+								],
+								"returnType": {
+									"repr": "Promise",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "boolean",
+												"kind": "keyword",
+												"value": "boolean"
+											}
+										],
+										"typeName": "Promise"
+									}
+								},
+								"hasBody": true,
+								"isAsync": true
+							}
+						}
+					]
+				},
+				{
+					"name": "delay",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 395,
+								"col": 0,
+								"byteIndex": 15805
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Delay for a bounded number of milliseconds using `@std/async/delay`.\n\nPassing an `AbortSignal` is equivalent to calling\n`@std/async/delay(milliseconds, { signal })`. An `AbortController` is a\nconvenience accepted by this utility and is normalized to its signal."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "milliseconds",
+										"optional": false,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "cancellation",
+										"optional": true,
+										"tsType": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "AbortSignal",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "AbortSignal"
+													}
+												},
+												{
+													"repr": "AbortController",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "AbortController"
+													}
+												}
+											]
+										}
+									}
+								],
+								"returnType": {
+									"repr": "Promise",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "void",
+												"kind": "keyword",
+												"value": "void"
+											}
+										],
+										"typeName": "Promise"
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "snapshot",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 417,
+								"col": 0,
+								"byteIndex": 16785
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create a serializable context snapshot. Cancellation is intentionally not serialized."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "Context",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Context",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "Context"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "Snapshot",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "Snapshot",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "Snapshot"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "restore",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 429,
+								"col": 0,
+								"byteIndex": 17337
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Restore a snapshot into a new local context and cancellation controller."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "Snapshot",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Snapshot",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "Snapshot"
+												}
+											}
+										}
+									},
+									{
+										"kind": "assign",
+										"left": {
+											"kind": "identifier",
+											"name": "options",
+											"optional": false,
+											"tsType": {
+												"repr": "RestoreOptions",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "RestoreOptions",
+													"resolution": {
+														"kind": "import",
+														"specifier": "./types.ts",
+														"name": "RestoreOptions"
+													}
+												}
+											}
+										},
+										"right": "[UNSUPPORTED]"
+									}
+								],
+								"returnType": {
+									"repr": "Owned",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "Owned",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "Owned"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "combineSignals",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 458,
+								"col": 0,
+								"byteIndex": 18546
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Compose cancellation signals for an unowned view."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "signals",
+										"optional": false,
+										"tsType": {
+											"repr": "Iterable",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "union",
+														"value": [
+															{
+																"repr": "AbortSignal",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "AbortSignal"
+																}
+															},
+															{
+																"repr": "undefined",
+																"kind": "keyword",
+																"value": "undefined"
+															}
+														]
+													}
+												],
+												"typeName": "Iterable"
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "AbortSignal",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "AbortSignal"
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "ChildOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 567,
+								"col": 2,
+								"byteIndex": 22741
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/context/types.ts",
+									"line": 93,
+									"col": 0,
+									"byteIndex": 4512
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Clock",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 568,
+								"col": 2,
+								"byteIndex": 22756
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/context/types.ts",
+									"line": 1,
+									"col": 0,
+									"byteIndex": 82
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Context",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 569,
+								"col": 2,
+								"byteIndex": 22764
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/context/types.ts",
+									"line": 37,
+									"col": 0,
+									"byteIndex": 1662
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "CreateOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 570,
+								"col": 2,
+								"byteIndex": 22774
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/context/types.ts",
+									"line": 73,
+									"col": 0,
+									"byteIndex": 3508
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Owned",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 571,
+								"col": 2,
+								"byteIndex": 22790
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/context/types.ts",
+									"line": 67,
+									"col": 0,
+									"byteIndex": 3254
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Resources",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 572,
+								"col": 2,
+								"byteIndex": 22798
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/context/types.ts",
+									"line": 57,
+									"col": 0,
+									"byteIndex": 2689
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "RestoreOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 573,
+								"col": 2,
+								"byteIndex": 22810
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/context/types.ts",
+									"line": 99,
+									"col": 0,
+									"byteIndex": 4762
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Snapshot",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/mod.ts",
+								"line": 574,
+								"col": 2,
+								"byteIndex": 22827
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/context/types.ts",
+									"line": 14,
+									"col": 0,
+									"byteIndex": 557
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		"@okikio/context/types": {
+			"symbols": [
+				{
+					"name": "Clock",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/types.ts",
+								"line": 1,
+								"col": 0,
+								"byteIndex": 82
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Provider-neutral clock used by requests, activities, workflows, and tests."
+							},
+							"kind": "interface",
+							"def": {
+								"methods": [
+									{
+										"name": "now",
+										"jsDoc": {
+											"doc": "Return the current absolute instant."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 3,
+											"col": 2,
+											"byteIndex": 153
+										},
+										"params": [],
+										"returnType": {
+											"repr": "Temporal.Instant",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Temporal.Instant"
+											}
+										}
+									},
+									{
+										"name": "sleep",
+										"jsDoc": {
+											"doc": "Wait for a bounded duration using the same time source as `now()`."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 5,
+											"col": 2,
+											"byteIndex": 254
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "milliseconds",
+												"optional": false,
+												"tsType": {
+													"repr": "number",
+													"kind": "keyword",
+													"value": "number"
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "signal",
+												"optional": true,
+												"tsType": {
+													"repr": "AbortSignal",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "AbortSignal"
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "void",
+														"kind": "keyword",
+														"value": "void"
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Snapshot",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/types.ts",
+								"line": 14,
+								"col": 0,
+								"byteIndex": 557
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Serializable identity and timing data for one operation context.\n\nA snapshot can cross a queue, process, or Worker message. Cancellation does\nnot cross with it. The receiving host creates a new local `AbortSignal`."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "id",
+										"jsDoc": {
+											"doc": "Stable identity of the operation represented by this context."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 16,
+											"col": 2,
+											"byteIndex": 656
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "traceId",
+										"jsDoc": {
+											"doc": "Optional trace correlation identity; it does not authorize the operation."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 18,
+											"col": 2,
+											"byteIndex": 760
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "deploymentId",
+										"jsDoc": {
+											"doc": "Optional host deployment identity carried with the operation."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 20,
+											"col": 2,
+											"byteIndex": 858
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "idempotencyKey",
+										"jsDoc": {
+											"doc": "Caller-owned identity for repeated work; a receiving provider must enforce its idempotency policy."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 22,
+											"col": 2,
+											"byteIndex": 998
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "startedAt",
+										"jsDoc": {
+											"doc": "Start instant captured by the owning clock, or its serialized ISO timestamp."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 24,
+											"col": 2,
+											"byteIndex": 1118
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "deadline",
+										"jsDoc": {
+											"doc": "Latest permitted completion instant; serialized contexts use ISO timestamp text."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 26,
+											"col": 2,
+											"byteIndex": 1236
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Context",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/types.ts",
+								"line": 37,
+								"col": 0,
+								"byteIndex": 1662
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Cancellation, deadline, identity, and clock carried through one operation.\n\n`id` names the current operation. The caller decides what the operation is,\nsuch as an HTTP request, activity job, queue claim, workflow run, or process\ncommand. Protocol-specific code can keep a more specific name such as\n`requestId` and copy that value into `id` when it creates the context."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "id",
+										"jsDoc": {
+											"doc": "Stable identity of the operation represented by this context."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 39,
+											"col": 2,
+											"byteIndex": 1760
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "traceId",
+										"jsDoc": {
+											"doc": "Optional trace correlation identity; it does not authorize the operation."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 41,
+											"col": 2,
+											"byteIndex": 1864
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "deploymentId",
+										"jsDoc": {
+											"doc": "Optional host deployment identity carried with the operation."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 43,
+											"col": 2,
+											"byteIndex": 1962
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "idempotencyKey",
+										"jsDoc": {
+											"doc": "Caller-owned identity for repeated work; a receiving provider must enforce its idempotency policy."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 45,
+											"col": 2,
+											"byteIndex": 2102
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "startedAt",
+										"jsDoc": {
+											"doc": "Start instant captured by the owning clock, or its serialized ISO timestamp."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 47,
+											"col": 2,
+											"byteIndex": 2222
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Temporal.Instant",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Temporal.Instant"
+											}
+										}
+									},
+									{
+										"name": "deadline",
+										"jsDoc": {
+											"doc": "Latest permitted completion instant; serialized contexts use ISO timestamp text."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 49,
+											"col": 2,
+											"byteIndex": 2350
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "Temporal.Instant",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.Instant"
+													}
+												},
+												{
+													"repr": "undefined",
+													"kind": "keyword",
+													"value": "undefined"
+												}
+											]
+										}
+									},
+									{
+										"name": "signal",
+										"jsDoc": {
+											"doc": "Cancellation signal supplied by the operation lifetime owner."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 51,
+											"col": 2,
+											"byteIndex": 2471
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "AbortSignal",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "AbortSignal"
+											}
+										}
+									},
+									{
+										"name": "clock",
+										"jsDoc": {
+											"doc": "Clock used for operation time and waits; tests can supply a logical clock."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 53,
+											"col": 2,
+											"byteIndex": 2585
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Clock",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Clock",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Resources",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/types.ts",
+								"line": 57,
+								"col": 0,
+								"byteIndex": 2689
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Standard resource ownership operations available on one owned context."
+							},
+							"kind": "interface",
+							"def": {
+								"methods": [
+									{
+										"name": "use",
+										"jsDoc": {
+											"doc": "Add an already disposable value to this context's lifetime."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 59,
+											"col": 2,
+											"byteIndex": 2787
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "value",
+												"optional": false,
+												"tsType": {
+													"repr": "Value",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Value",
+														"resolution": {
+															"kind": "typeParam",
+															"declaringName": "use",
+															"declaringKind": "method"
+														}
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Value",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Value",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "use",
+													"declaringKind": "method"
+												}
+											}
+										},
+										"typeParams": [
+											{
+												"name": "Value",
+												"constraint": {
+													"kind": "union",
+													"value": [
+														{
+															"repr": "Disposable",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Disposable"
+															}
+														},
+														{
+															"repr": "AsyncDisposable",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "AsyncDisposable"
+															}
+														},
+														{
+															"repr": "null",
+															"kind": "keyword",
+															"value": "null"
+														},
+														{
+															"repr": "undefined",
+															"kind": "keyword",
+															"value": "undefined"
+														}
+													]
+												}
+											}
+										]
+									},
+									{
+										"name": "adopt",
+										"jsDoc": {
+											"doc": "Add an arbitrary value with an explicit asynchronous or synchronous disposer."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 61,
+											"col": 2,
+											"byteIndex": 2963
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "value",
+												"optional": false,
+												"tsType": {
+													"repr": "Value",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Value",
+														"resolution": {
+															"kind": "typeParam",
+															"declaringName": "adopt",
+															"declaringKind": "method"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "dispose",
+												"optional": false,
+												"tsType": {
+													"kind": "fnOrConstructor",
+													"value": {
+														"constructor": false,
+														"tsType": {
+															"kind": "union",
+															"value": [
+																{
+																	"repr": "void",
+																	"kind": "keyword",
+																	"value": "void"
+																},
+																{
+																	"repr": "PromiseLike",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeParams": [
+																			{
+																				"repr": "void",
+																				"kind": "keyword",
+																				"value": "void"
+																			}
+																		],
+																		"typeName": "PromiseLike"
+																	}
+																}
+															]
+														},
+														"params": [
+															{
+																"kind": "identifier",
+																"name": "value",
+																"optional": false,
+																"tsType": {
+																	"repr": "Value",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Value",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "adopt",
+																			"declaringKind": "method"
+																		}
+																	}
+																}
+															}
+														]
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Value",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Value",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "adopt",
+													"declaringKind": "method"
+												}
+											}
+										},
+										"typeParams": [
+											{
+												"name": "Value"
+											}
+										]
+									},
+									{
+										"name": "defer",
+										"jsDoc": {
+											"doc": "Add cleanup that runs when this context closes."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 63,
+											"col": 2,
+											"byteIndex": 3108
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "dispose",
+												"optional": false,
+												"tsType": {
+													"kind": "fnOrConstructor",
+													"value": {
+														"constructor": false,
+														"tsType": {
+															"kind": "union",
+															"value": [
+																{
+																	"repr": "void",
+																	"kind": "keyword",
+																	"value": "void"
+																},
+																{
+																	"repr": "PromiseLike",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeParams": [
+																			{
+																				"repr": "void",
+																				"kind": "keyword",
+																				"value": "void"
+																			}
+																		],
+																		"typeName": "PromiseLike"
+																	}
+																}
+															]
+														},
+														"params": []
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "void",
+											"kind": "keyword",
+											"value": "void"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Owned",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/types.ts",
+								"line": 67,
+								"col": 0,
+								"byteIndex": 3254
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Independently owned context with deterministic cancellation and resource cleanup."
+							},
+							"kind": "interface",
+							"def": {
+								"extends": [
+									{
+										"repr": "Context",
+										"kind": "typeRef",
+										"value": {
+											"typeName": "Context",
+											"resolution": {
+												"kind": "local"
+											}
+										}
+									},
+									{
+										"repr": "Resources",
+										"kind": "typeRef",
+										"value": {
+											"typeName": "Resources",
+											"resolution": {
+												"kind": "local"
+											}
+										}
+									},
+									{
+										"repr": "AsyncDisposable",
+										"kind": "typeRef",
+										"value": {
+											"typeName": "AsyncDisposable"
+										}
+									}
+								],
+								"properties": [
+									{
+										"name": "closed",
+										"jsDoc": {
+											"doc": "Resolves after the context and every resource it owns have been disposed."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 69,
+											"col": 2,
+											"byteIndex": 3406
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "void",
+														"kind": "keyword",
+														"value": "void"
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "CreateOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/types.ts",
+								"line": 73,
+								"col": 0,
+								"byteIndex": 3508
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Inputs accepted while creating one owned operation context."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "id",
+										"jsDoc": {
+											"doc": "Stable identity of the operation represented by the new context."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 75,
+											"col": 2,
+											"byteIndex": 3615
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "traceId",
+										"jsDoc": {
+											"doc": "Optional trace correlation identity; it does not authorize the operation."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 77,
+											"col": 2,
+											"byteIndex": 3719
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "deploymentId",
+										"jsDoc": {
+											"doc": "Optional host deployment identity carried with the operation."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 79,
+											"col": 2,
+											"byteIndex": 3817
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "idempotencyKey",
+										"jsDoc": {
+											"doc": "Caller-owned identity for repeated work; a receiving provider must enforce its idempotency policy."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 81,
+											"col": 2,
+											"byteIndex": 3957
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "startedAt",
+										"jsDoc": {
+											"doc": "Start instant captured by the owning clock, or its serialized ISO timestamp."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 83,
+											"col": 2,
+											"byteIndex": 4077
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "Temporal.Instant",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Temporal.Instant"
+											}
+										}
+									},
+									{
+										"name": "deadline",
+										"jsDoc": {
+											"doc": "Latest permitted completion instant; serialized contexts use ISO timestamp text."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 85,
+											"col": 2,
+											"byteIndex": 4206
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "Temporal.Instant",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Temporal.Instant"
+											}
+										}
+									},
+									{
+										"name": "signal",
+										"jsDoc": {
+											"doc": "Cancellation signal supplied by the operation lifetime owner."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 87,
+											"col": 2,
+											"byteIndex": 4315
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "AbortSignal",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "AbortSignal"
+											}
+										}
+									},
+									{
+										"name": "clock",
+										"jsDoc": {
+											"doc": "Clock used for operation time and waits; tests can supply a logical clock."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 89,
+											"col": 2,
+											"byteIndex": 4430
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "Clock",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Clock",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ChildOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/types.ts",
+								"line": 93,
+								"col": 0,
+								"byteIndex": 4512
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Inputs accepted while deriving a child context."
+							},
+							"kind": "interface",
+							"def": {
+								"extends": [
+									{
+										"repr": "Partial",
+										"kind": "typeRef",
+										"value": {
+											"typeParams": [
+												{
+													"repr": "Omit",
+													"kind": "typeRef",
+													"value": {
+														"typeParams": [
+															{
+																"repr": "CreateOptions",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "CreateOptions",
+																	"resolution": {
+																		"kind": "local"
+																	}
+																}
+															},
+															{
+																"repr": "startedAt",
+																"kind": "literal",
+																"value": {
+																	"kind": "string",
+																	"string": "startedAt"
+																}
+															}
+														],
+														"typeName": "Omit"
+													}
+												}
+											],
+											"typeName": "Partial"
+										}
+									}
+								],
+								"properties": [
+									{
+										"name": "id",
+										"jsDoc": {
+											"doc": "Override the inherited operation identity for a new nested operation."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 95,
+											"col": 2,
+											"byteIndex": 4673
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "RestoreOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/context/types.ts",
+								"line": 99,
+								"col": 0,
+								"byteIndex": 4762
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Inputs accepted while restoring a serializable snapshot."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "signal",
+										"jsDoc": {
+											"doc": "Cancellation signal supplied by the operation lifetime owner."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 101,
+											"col": 2,
+											"byteIndex": 4867
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "AbortSignal",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "AbortSignal"
+											}
+										}
+									},
+									{
+										"name": "clock",
+										"jsDoc": {
+											"doc": "Clock used for operation time and waits; tests can supply a logical clock."
+										},
+										"location": {
+											"filename": "./packages/context/types.ts",
+											"line": 103,
+											"col": 2,
+											"byteIndex": 4982
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "Clock",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Clock",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				}
+			]
+		}
+	}
+}

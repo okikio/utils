@@ -4,17 +4,16 @@ An API sends a date as text, but your application wants a `Date` value for date 
 back. A **codec** keeps those two conversion rules together so callers know how to enter and leave the application's
 representation. It checks each direction through the schemas you supply.
 
-```mermaid
-flowchart LR
-    A[Timestamp text from an API] -->|decode schema| B[Date used by your application]
-    B -->|encode schema| C[Timestamp text to send back]
-```
+![A codec converts a wire timestamp to a Date and converts it back for transport](diagram.png)
 
-Read left to right for the round trip in the demo. The arrows are value conversions, not network requests. This picture
-omits invalid-input branches and does not promise that every codec preserves the original text spelling.
+[Editable diagram source](diagram.mmd). Read left to right for the round trip in the demo. The arrows are value
+conversions, not network requests. This picture omits invalid-input branches and does not promise that every codec
+preserves the original text spelling.
 
 For shared terms such as `await` and `await using`, see
 [the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
+
+For the exact functions, types and field explanations, read the [generated contract reference](API.md).
 
 ## Run a complete example
 

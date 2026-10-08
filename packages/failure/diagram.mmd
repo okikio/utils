@@ -1,0 +1,8 @@
+sequenceDiagram
+    participant A as Sender
+    participant F as Encoded failure data
+    participant B as Receiver
+    A->>F: ID, checked details and message
+    F->>B: Transfer the data
+    B->>B: Find trusted definition and validate details
+    B->>B: Reconstruct local occurrence

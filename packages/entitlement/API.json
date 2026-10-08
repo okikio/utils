@@ -1,0 +1,1287 @@
+{
+	"package": "@okikio/entitlement",
+	"packageVersion": "0.0.0",
+	"rendererVersion": 2,
+	"modules": {
+		"@okikio/entitlement": {
+			"module_doc": {
+				"doc": "Declare which paid or enabled feature an operation requires without coupling its definition to a billing provider. Scattered plan-name comparisons otherwise make the same feature mean different things in different services.\n\nAttach the requirement to a resource, activity or endpoint, then configure an entitlement interpreter at the application root. The definition documents a required capability; it does not itself allow access. Unknown requirement families reject unless the owner explicitly chooses another policy. Use exact imported definitions so billing policy and runtime admission describe the same feature.\n",
+				"tags": [
+					{
+						"kind": "example",
+						"doc": "```ts\nimport * as entitlement from '@okikio/entitlement';\nimport * as requirement from '@okikio/requirement';\nconst Export = entitlement.define({ id: 'export.csv', description: 'Export rows as CSV.' });\nconsole.log(requirement.document(entitlement.require(Export))[0]?.definition);\n```\n"
+					},
+					{
+						"kind": "module"
+					}
+				]
+			},
+			"imports": [
+				{
+					"importedName": "catalogCore",
+					"src": "./packages/catalog/mod.ts",
+					"jsDoc": {
+						"doc": "Declare which paid or enabled feature an operation requires without coupling its definition to a billing provider. Scattered plan-name comparisons otherwise make the same feature mean different things in different services.\n\nAttach the requirement to a resource, activity or endpoint, then configure an entitlement interpreter at the application root. The definition documents a required capability; it does not itself allow access. Unknown requirement families reject unless the owner explicitly chooses another policy. Use exact imported definitions so billing policy and runtime admission describe the same feature.\n",
+						"tags": [
+							{
+								"kind": "example",
+								"doc": "```ts\nimport * as entitlement from '@okikio/entitlement';\nimport * as requirement from '@okikio/requirement';\nconst Export = entitlement.define({ id: 'export.csv', description: 'Export rows as CSV.' });\nconsole.log(requirement.document(entitlement.require(Export))[0]?.definition);\n```\n"
+							},
+							{
+								"kind": "module"
+							}
+						]
+					}
+				},
+				{
+					"importedName": "CatalogDefinitionInput",
+					"originalName": "DefinitionInput",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "requirement",
+					"src": "./packages/requirement/mod.ts"
+				},
+				{
+					"importedName": "EntitlementCatalog",
+					"originalName": "EntitlementCatalog",
+					"src": "./packages/entitlement/types.ts"
+				},
+				{
+					"importedName": "EntitlementDefinition",
+					"originalName": "EntitlementDefinition",
+					"src": "./packages/entitlement/types.ts"
+				},
+				{
+					"importedName": "EntitlementOptions",
+					"originalName": "EntitlementOptions",
+					"src": "./packages/entitlement/types.ts"
+				},
+				{
+					"importedName": "EntitlementRequirement",
+					"originalName": "EntitlementRequirement",
+					"src": "./packages/entitlement/types.ts"
+				},
+				{
+					"importedName": "EntitlementSelection",
+					"originalName": "EntitlementSelection",
+					"src": "./packages/entitlement/types.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "define",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/entitlement/mod.ts",
+								"line": 27,
+								"col": 0,
+								"byteIndex": 1350
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Define one immutable entitlement contract."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "input",
+										"optional": false,
+										"tsType": {
+											"repr": "EntitlementOptions",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EntitlementOptions",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EntitlementOptions"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "EntitlementDefinition",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "EntitlementDefinition",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "EntitlementDefinition"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "catalog",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/entitlement/mod.ts",
+								"line": 33,
+								"col": 0,
+								"byteIndex": 1568
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create a named immutable entitlement catalog."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "namespace",
+										"optional": false,
+										"tsType": {
+											"repr": "Namespace",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Namespace",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "catalog",
+													"declaringKind": "function"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "entries",
+										"optional": false,
+										"tsType": {
+											"repr": "Entries",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Entries",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "catalog",
+													"declaringKind": "function"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "EntitlementCatalog",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Entries",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entries",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "catalog",
+														"declaringKind": "function"
+													}
+												}
+											}
+										],
+										"typeName": "EntitlementCatalog",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "EntitlementCatalog"
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Namespace",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "EntitlementDefinition",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "EntitlementDefinition",
+																		"resolution": {
+																			"kind": "import",
+																			"specifier": "./types.ts",
+																			"name": "EntitlementDefinition"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "select",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/entitlement/mod.ts",
+								"line": 44,
+								"col": 0,
+								"byteIndex": 1891
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Select a key-preserving entitlement catalog subset."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "source",
+										"optional": false,
+										"tsType": {
+											"repr": "EntitlementCatalog",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Entries",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entries",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "select",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "EntitlementCatalog",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EntitlementCatalog"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "keys",
+										"optional": false,
+										"tsType": {
+											"repr": "Keys",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Keys",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "select",
+													"declaringKind": "function"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "EntitlementSelection",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"kind": "indexedAccess",
+												"value": {
+													"objType": {
+														"repr": "Entries",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entries",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "select",
+																"declaringKind": "function"
+															}
+														}
+													},
+													"indexType": {
+														"kind": "typeOperator",
+														"value": {
+															"operator": "keyof",
+															"tsType": {
+																"repr": "Entries",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Entries",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "select",
+																		"declaringKind": "function"
+																	}
+																}
+															}
+														}
+													}
+												}
+											},
+											{
+												"repr": "Pick",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"repr": "Entries",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Entries",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "select",
+																	"declaringKind": "function"
+																}
+															}
+														},
+														{
+															"kind": "indexedAccess",
+															"value": {
+																"objType": {
+																	"repr": "Keys",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Keys",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "select",
+																			"declaringKind": "function"
+																		}
+																	}
+																},
+																"indexType": {
+																	"repr": "number",
+																	"kind": "keyword",
+																	"value": "number"
+																}
+															}
+														}
+													],
+													"typeName": "Pick"
+												}
+											}
+										],
+										"typeName": "EntitlementSelection",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "EntitlementSelection"
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "EntitlementDefinition",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "EntitlementDefinition",
+																		"resolution": {
+																			"kind": "import",
+																			"specifier": "./types.ts",
+																			"name": "EntitlementDefinition"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									},
+									{
+										"name": "Keys",
+										"constraint": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"kind": "parenthesized",
+														"value": {
+															"kind": "intersection",
+															"value": [
+																{
+																	"kind": "typeOperator",
+																	"value": {
+																		"operator": "keyof",
+																		"tsType": {
+																			"repr": "Entries",
+																			"kind": "typeRef",
+																			"value": {
+																				"typeName": "Entries",
+																				"resolution": {
+																					"kind": "typeParam",
+																					"declaringName": "select",
+																					"declaringKind": "function"
+																				}
+																			}
+																		}
+																	}
+																},
+																{
+																	"repr": "string",
+																	"kind": "keyword",
+																	"value": "string"
+																}
+															]
+														}
+													}
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "compose",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/entitlement/mod.ts",
+								"line": 55,
+								"col": 0,
+								"byteIndex": 2308
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Compose entitlement definitions, catalogs, selections, and nested arrays."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "rest",
+										"arg": {
+											"kind": "identifier",
+											"name": "input",
+											"optional": false
+										},
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "CatalogDefinitionInput",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "Entry",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Entry",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "compose",
+																			"declaringKind": "function"
+																		}
+																	}
+																}
+															],
+															"typeName": "CatalogDefinitionInput",
+															"resolution": {
+																"kind": "import",
+																"specifier": "@okikio/catalog",
+																"name": "DefinitionInput"
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "readonly",
+										"tsType": {
+											"kind": "array",
+											"value": {
+												"repr": "Entry",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entry",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "compose",
+														"declaringKind": "function"
+													}
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "EntitlementDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EntitlementDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EntitlementDefinition"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "require",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/entitlement/mod.ts",
+								"line": 62,
+								"col": 0,
+								"byteIndex": 2562
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Contribute the `require` requirement for one entitlement definition."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "definition",
+										"optional": false,
+										"tsType": {
+											"repr": "EntitlementDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EntitlementDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "EntitlementDefinition"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "EntitlementRequirement",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "EntitlementRequirement",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "EntitlementRequirement"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "EntitlementCatalog",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/entitlement/mod.ts",
+								"line": 71,
+								"col": 2,
+								"byteIndex": 2913
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/entitlement/types.ts",
+									"line": 26,
+									"col": 0,
+									"byteIndex": 931
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EntitlementDefinition",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/entitlement/mod.ts",
+								"line": 72,
+								"col": 2,
+								"byteIndex": 2934
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/entitlement/types.ts",
+									"line": 17,
+									"col": 0,
+									"byteIndex": 561
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EntitlementDefinitions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/entitlement/mod.ts",
+								"line": 73,
+								"col": 2,
+								"byteIndex": 2958
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/entitlement/types.ts",
+									"line": 38,
+									"col": 0,
+									"byteIndex": 1347
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EntitlementOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/entitlement/mod.ts",
+								"line": 74,
+								"col": 2,
+								"byteIndex": 2983
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/entitlement/types.ts",
+									"line": 9,
+									"col": 0,
+									"byteIndex": 257
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EntitlementRequirement",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/entitlement/mod.ts",
+								"line": 75,
+								"col": 2,
+								"byteIndex": 3004
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/entitlement/types.ts",
+									"line": 23,
+									"col": 0,
+									"byteIndex": 787
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EntitlementSelection",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/entitlement/mod.ts",
+								"line": 76,
+								"col": 2,
+								"byteIndex": 3029
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/entitlement/types.ts",
+									"line": 32,
+									"col": 0,
+									"byteIndex": 1134
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		"@okikio/entitlement/types": {
+			"imports": [
+				{
+					"importedName": "Catalog",
+					"originalName": "Catalog",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "CatalogEntryIdentity",
+					"originalName": "CatalogEntryIdentity",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "CatalogSelection",
+					"originalName": "CatalogSelection",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "CatalogDefinitionInput",
+					"originalName": "DefinitionInput",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "RequirementDefinition",
+					"originalName": "RequirementDefinition",
+					"src": "./packages/requirement/mod.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "EntitlementOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/entitlement/types.ts",
+								"line": 9,
+								"col": 0,
+								"byteIndex": 257
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "EntitlementDefinitions accepted by `define()`."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "id",
+										"jsDoc": {
+											"doc": "Stable entitlement identity used for correlation, lookup, or durable records."
+										},
+										"location": {
+											"filename": "./packages/entitlement/types.ts",
+											"line": 11,
+											"col": 2,
+											"byteIndex": 382
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "description",
+										"jsDoc": {
+											"doc": "Human-readable entitlement purpose used by documentation and diagnostics."
+										},
+										"location": {
+											"filename": "./packages/entitlement/types.ts",
+											"line": 13,
+											"col": 2,
+											"byteIndex": 486
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "EntitlementDefinition",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/entitlement/types.ts",
+								"line": 17,
+								"col": 0,
+								"byteIndex": 561
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Immutable entitlement definition."
+							},
+							"kind": "interface",
+							"def": {
+								"extends": [
+									{
+										"repr": "CatalogEntryIdentity",
+										"kind": "typeRef",
+										"value": {
+											"typeName": "CatalogEntryIdentity",
+											"resolution": {
+												"kind": "import",
+												"specifier": "@okikio/catalog",
+												"name": "CatalogEntryIdentity"
+											}
+										}
+									}
+								],
+								"properties": [
+									{
+										"name": "kind",
+										"jsDoc": {
+											"doc": "Stable discriminant for this entitlement value."
+										},
+										"location": {
+											"filename": "./packages/entitlement/types.ts",
+											"line": 19,
+											"col": 2,
+											"byteIndex": 688
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "entitlement",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "entitlement"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "EntitlementRequirement",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/entitlement/types.ts",
+								"line": 23,
+								"col": 0,
+								"byteIndex": 787
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Entitlement requirement contributed to another definition."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "RequirementDefinition",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "entitlement",
+												"kind": "literal",
+												"value": {
+													"kind": "string",
+													"string": "entitlement"
+												}
+											},
+											{
+												"repr": "require",
+												"kind": "literal",
+												"value": {
+													"kind": "string",
+													"string": "require"
+												}
+											},
+											{
+												"repr": "EntitlementDefinition",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "EntitlementDefinition",
+													"resolution": {
+														"kind": "local"
+													}
+												}
+											}
+										],
+										"typeName": "RequirementDefinition",
+										"resolution": {
+											"kind": "import",
+											"specifier": "@okikio/requirement",
+											"name": "RequirementDefinition"
+										}
+									}
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EntitlementCatalog",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/entitlement/types.ts",
+								"line": 26,
+								"col": 0,
+								"byteIndex": 931
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Named entitlement catalog."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "Catalog",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"kind": "indexedAccess",
+												"value": {
+													"objType": {
+														"repr": "Entries",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entries",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "EntitlementCatalog",
+																"declaringKind": "typeAlias"
+															}
+														}
+													},
+													"indexType": {
+														"kind": "typeOperator",
+														"value": {
+															"operator": "keyof",
+															"tsType": {
+																"repr": "Entries",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Entries",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "EntitlementCatalog",
+																		"declaringKind": "typeAlias"
+																	}
+																}
+															}
+														}
+													}
+												}
+											},
+											{
+												"repr": "Entries",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entries",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "EntitlementCatalog",
+														"declaringKind": "typeAlias"
+													}
+												}
+											}
+										],
+										"typeName": "Catalog",
+										"resolution": {
+											"kind": "import",
+											"specifier": "@okikio/catalog",
+											"name": "Catalog"
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "EntitlementDefinition",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "EntitlementDefinition",
+																		"resolution": {
+																			"kind": "local"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "EntitlementSelection",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/entitlement/types.ts",
+								"line": 32,
+								"col": 0,
+								"byteIndex": 1134
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Key-preserving entitlement catalog selection."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "CatalogSelection",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Entry",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entry",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "EntitlementSelection",
+														"declaringKind": "typeAlias"
+													}
+												}
+											},
+											{
+												"repr": "Entries",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entries",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "EntitlementSelection",
+														"declaringKind": "typeAlias"
+													}
+												}
+											}
+										],
+										"typeName": "CatalogSelection",
+										"resolution": {
+											"kind": "import",
+											"specifier": "@okikio/catalog",
+											"name": "CatalogSelection"
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "EntitlementDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EntitlementDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "Entry",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Entry",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "EntitlementSelection",
+																			"declaringKind": "typeAlias"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "EntitlementDefinitions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/entitlement/types.ts",
+								"line": 38,
+								"col": 0,
+								"byteIndex": 1347
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Recursive entitlement definition input."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "CatalogDefinitionInput",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "EntitlementDefinition",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "EntitlementDefinition",
+													"resolution": {
+														"kind": "local"
+													}
+												}
+											}
+										],
+										"typeName": "CatalogDefinitionInput",
+										"resolution": {
+											"kind": "import",
+											"specifier": "@okikio/catalog",
+											"name": "DefinitionInput"
+										}
+									}
+								}
+							}
+						}
+					]
+				}
+			]
+		}
+	}
+}

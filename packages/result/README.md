@@ -15,6 +15,8 @@ an explicit branch when the caller needs to see why the lookup failed.
 For shared terms such as `await` and `await using`, see
 [the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
+For the exact functions, types and field explanations, read the [generated contract reference](API.md).
+
 ## Run a complete example
 
 ```ts runnable

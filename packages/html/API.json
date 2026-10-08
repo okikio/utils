@@ -1,0 +1,1139 @@
+{
+	"package": "@okikio/html",
+	"packageVersion": "0.0.0",
+	"rendererVersion": 2,
+	"modules": {
+		"@okikio/html": {
+			"module_doc": {
+				"doc": "Parse imperfect HTML and query it through one consistent tree adapter. A selector library and a parser with incompatible trees can silently return no matches even when the element exists.\n\nSelect elements for discovery, read attributes and text, then inspect source locations for evidence or rewriting. Resolve relative URLs against the fetched page URL in your application. Parsing does not run scripts or fetch subresources. The parsed tree is process-local data; share a serializable projection with a Worker rather than treating DOM identity as a wire contract.\n",
+				"tags": [
+					{
+						"kind": "example",
+						"doc": "```ts\nimport * as html from '@okikio/html';\nconst page = html.parse('<main><a href=\"/guide\">Read the guide</a></main>');\nconst link = html.selectOne(page.document, 'main a[href]');\nconsole.log(link === null ? 'missing' : html.attribute(link, 'href'));\nconsole.log(link === null ? 'missing' : html.text(link));\n```\n"
+					},
+					{
+						"kind": "module"
+					}
+				]
+			},
+			"imports": [
+				{
+					"importedName": "matchesCss",
+					"originalName": "is",
+					"src": "./node_modules/.pnpm/css-select@7.0.0/node_modules/css-select/dist/index.d.ts",
+					"jsDoc": {
+						"doc": "Parse imperfect HTML and query it through one consistent tree adapter. A selector library and a parser with incompatible trees can silently return no matches even when the element exists.\n\nSelect elements for discovery, read attributes and text, then inspect source locations for evidence or rewriting. Resolve relative URLs against the fetched page URL in your application. Parsing does not run scripts or fetch subresources. The parsed tree is process-local data; share a serializable projection with a Worker rather than treating DOM identity as a wire contract.\n",
+						"tags": [
+							{
+								"kind": "example",
+								"doc": "```ts\nimport * as html from '@okikio/html';\nconst page = html.parse('<main><a href=\"/guide\">Read the guide</a></main>');\nconst link = html.selectOne(page.document, 'main a[href]');\nconsole.log(link === null ? 'missing' : html.attribute(link, 'href'));\nconsole.log(link === null ? 'missing' : html.text(link));\n```\n"
+							},
+							{
+								"kind": "module"
+							}
+						]
+					}
+				},
+				{
+					"importedName": "selectCssAll",
+					"originalName": "selectAll",
+					"src": "./node_modules/.pnpm/css-select@7.0.0/node_modules/css-select/dist/index.d.ts",
+					"jsDoc": {
+						"doc": "Parse imperfect HTML and query it through one consistent tree adapter. A selector library and a parser with incompatible trees can silently return no matches even when the element exists.\n\nSelect elements for discovery, read attributes and text, then inspect source locations for evidence or rewriting. Resolve relative URLs against the fetched page URL in your application. Parsing does not run scripts or fetch subresources. The parsed tree is process-local data; share a serializable projection with a Worker rather than treating DOM identity as a wire contract.\n",
+						"tags": [
+							{
+								"kind": "example",
+								"doc": "```ts\nimport * as html from '@okikio/html';\nconst page = html.parse('<main><a href=\"/guide\">Read the guide</a></main>');\nconst link = html.selectOne(page.document, 'main a[href]');\nconsole.log(link === null ? 'missing' : html.attribute(link, 'href'));\nconsole.log(link === null ? 'missing' : html.text(link));\n```\n"
+							},
+							{
+								"kind": "module"
+							}
+						]
+					}
+				},
+				{
+					"importedName": "selectCssOne",
+					"originalName": "selectOne",
+					"src": "./node_modules/.pnpm/css-select@7.0.0/node_modules/css-select/dist/index.d.ts",
+					"jsDoc": {
+						"doc": "Parse imperfect HTML and query it through one consistent tree adapter. A selector library and a parser with incompatible trees can silently return no matches even when the element exists.\n\nSelect elements for discovery, read attributes and text, then inspect source locations for evidence or rewriting. Resolve relative URLs against the fetched page URL in your application. Parsing does not run scripts or fetch subresources. The parsed tree is process-local data; share a serializable projection with a Worker rather than treating DOM identity as a wire contract.\n",
+						"tags": [
+							{
+								"kind": "example",
+								"doc": "```ts\nimport * as html from '@okikio/html';\nconst page = html.parse('<main><a href=\"/guide\">Read the guide</a></main>');\nconst link = html.selectOne(page.document, 'main a[href]');\nconsole.log(link === null ? 'missing' : html.attribute(link, 'href'));\nconsole.log(link === null ? 'missing' : html.text(link));\n```\n"
+							},
+							{
+								"kind": "module"
+							}
+						]
+					}
+				},
+				{
+					"importedName": "AnyNode",
+					"originalName": "AnyNode",
+					"src": "./node_modules/.pnpm/domhandler@6.0.1/node_modules/domhandler/dist/index.d.ts"
+				},
+				{
+					"importedName": "Document",
+					"originalName": "Document",
+					"src": "./node_modules/.pnpm/domhandler@6.0.1/node_modules/domhandler/dist/index.d.ts"
+				},
+				{
+					"importedName": "Element",
+					"originalName": "Element",
+					"src": "./node_modules/.pnpm/domhandler@6.0.1/node_modules/domhandler/dist/index.d.ts"
+				},
+				{
+					"importedName": "isTag",
+					"originalName": "isTag",
+					"src": "./node_modules/.pnpm/domhandler@6.0.1/node_modules/domhandler/dist/index.d.ts"
+				},
+				{
+					"importedName": "textContent",
+					"originalName": "textContent",
+					"src": "./node_modules/.pnpm/domutils@4.0.2/node_modules/domutils/dist/index.d.ts"
+				},
+				{
+					"importedName": "parseHtml",
+					"originalName": "parse",
+					"src": "./node_modules/.pnpm/parse5@8.0.1/node_modules/parse5/dist/index.d.ts"
+				},
+				{
+					"importedName": "ParserError",
+					"originalName": "ParserError",
+					"src": "./node_modules/.pnpm/parse5@8.0.1/node_modules/parse5/dist/index.d.ts"
+				},
+				{
+					"importedName": "Token",
+					"originalName": "Token",
+					"src": "./node_modules/.pnpm/parse5@8.0.1/node_modules/parse5/dist/index.d.ts"
+				},
+				{
+					"importedName": "adapter",
+					"originalName": "adapter",
+					"src": "./node_modules/.pnpm/parse5-htmlparser2-tree-adapter@8.0.1/node_modules/parse5-htmlparser2-tree-adapter/dist/index.d.ts"
+				},
+				{
+					"importedName": "Htmlparser2TreeAdapterMap",
+					"originalName": "Htmlparser2TreeAdapterMap",
+					"src": "./node_modules/.pnpm/parse5-htmlparser2-tree-adapter@8.0.1/node_modules/parse5-htmlparser2-tree-adapter/dist/index.d.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "ParseProblem",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/html/mod.ts",
+								"line": 23,
+								"col": 0,
+								"byteIndex": 1415
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "One HTML parser problem with source coordinates when parse5 provides them."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "code",
+										"jsDoc": {
+											"doc": "Stable machine-readable reason that callers can inspect without matching message text."
+										},
+										"location": {
+											"filename": "./packages/html/mod.ts",
+											"line": 25,
+											"col": 2,
+											"byteIndex": 1543
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "startLine",
+										"jsDoc": {
+											"doc": "Starting line in the original source."
+										},
+										"location": {
+											"filename": "./packages/html/mod.ts",
+											"line": 27,
+											"col": 2,
+											"byteIndex": 1613
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "startColumn",
+										"jsDoc": {
+											"doc": "Starting column in the original source."
+										},
+										"location": {
+											"filename": "./packages/html/mod.ts",
+											"line": 29,
+											"col": 2,
+											"byteIndex": 1691
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "startOffset",
+										"jsDoc": {
+											"doc": "Start offset in the original source."
+										},
+										"location": {
+											"filename": "./packages/html/mod.ts",
+											"line": 31,
+											"col": 2,
+											"byteIndex": 1768
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "endLine",
+										"jsDoc": {
+											"doc": "Ending line in the original source."
+										},
+										"location": {
+											"filename": "./packages/html/mod.ts",
+											"line": 33,
+											"col": 2,
+											"byteIndex": 1844
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "endColumn",
+										"jsDoc": {
+											"doc": "Ending column in the original source."
+										},
+										"location": {
+											"filename": "./packages/html/mod.ts",
+											"line": 35,
+											"col": 2,
+											"byteIndex": 1918
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "endOffset",
+										"jsDoc": {
+											"doc": "Exclusive end offset in the original source."
+										},
+										"location": {
+											"filename": "./packages/html/mod.ts",
+											"line": 37,
+											"col": 2,
+											"byteIndex": 2001
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ParsedDocument",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/html/mod.ts",
+								"line": 41,
+								"col": 0,
+								"byteIndex": 2098
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "WHATWG-parsed source HTML plus non-fatal parser problems."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "document",
+										"jsDoc": {
+											"doc": "Parsed htmlparser2-compatible document root; selectors inspect this same tree."
+										},
+										"location": {
+											"filename": "./packages/html/mod.ts",
+											"line": 43,
+											"col": 2,
+											"byteIndex": 2220
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Document",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Document",
+												"resolution": {
+													"kind": "import",
+													"specifier": "domhandler",
+													"name": "Document"
+												}
+											}
+										}
+									},
+									{
+										"name": "problems",
+										"jsDoc": {
+											"doc": "Non-fatal parse5 observations retained with their source locations."
+										},
+										"location": {
+											"filename": "./packages/html/mod.ts",
+											"line": 45,
+											"col": 2,
+											"byteIndex": 2326
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "ParseProblem",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "ParseProblem",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Node",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/html/mod.ts",
+								"line": 49,
+								"col": 0,
+								"byteIndex": 2420
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Any parsed htmlparser2-compatible node."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "AnyNode",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "AnyNode",
+										"resolution": {
+											"kind": "import",
+											"specifier": "domhandler",
+											"name": "AnyNode"
+										}
+									}
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "HtmlDocument",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/html/mod.ts",
+								"line": 51,
+								"col": 0,
+								"byteIndex": 2482
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Parsed HTML document root."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "Document",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "Document",
+										"resolution": {
+											"kind": "import",
+											"specifier": "domhandler",
+											"name": "Document"
+										}
+									}
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "HtmlElement",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/html/mod.ts",
+								"line": 53,
+								"col": 0,
+								"byteIndex": 2552
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Parsed HTML element node."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "Element",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "Element",
+										"resolution": {
+											"kind": "import",
+											"specifier": "domhandler",
+											"name": "Element"
+										}
+									}
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "parse",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/html/mod.ts",
+								"line": 74,
+								"col": 0,
+								"byteIndex": 3211
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Parse source HTML with parse5's WHATWG parser and retain source locations.\n\nThe returned document uses the htmlparser2 tree shape so CSS selectors can be\nevaluated without reparsing the source through a second HTML parser.\n",
+								"tags": [
+									{
+										"kind": "example",
+										"doc": "```ts\nimport * as html from '@okikio/html';\n\nconst parsed = html.parse('<main><a href=\"/pricing\">Pricing</a></main>');\nconst link = html.selectOne(parsed.document, 'a[href]');\nif (link) console.log(html.attribute(link, 'href'));\n```"
+									}
+								]
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "source",
+										"optional": false,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								],
+								"returnType": {
+									"repr": "ParsedDocument",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "ParsedDocument",
+										"resolution": {
+											"kind": "local"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "selectAll",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/html/mod.ts",
+								"line": 87,
+								"col": 0,
+								"byteIndex": 3591
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return all descendants that match a CSS selector."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "root",
+										"optional": false,
+										"tsType": {
+											"repr": "Node",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Node",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "selector",
+										"optional": false,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								],
+								"returnType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "readonly",
+										"tsType": {
+											"kind": "array",
+											"value": {
+												"repr": "HtmlElement",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "HtmlElement",
+													"resolution": {
+														"kind": "local"
+													}
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "selectOne",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/html/mod.ts",
+								"line": 92,
+								"col": 0,
+								"byteIndex": 3778
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return the first descendant that matches a CSS selector."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "root",
+										"optional": false,
+										"tsType": {
+											"repr": "Node",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Node",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "selector",
+										"optional": false,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								],
+								"returnType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "HtmlElement",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "HtmlElement",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										{
+											"repr": "null",
+											"kind": "keyword",
+											"value": "null"
+										}
+									]
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "matches",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/html/mod.ts",
+								"line": 97,
+								"col": 0,
+								"byteIndex": 3954
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return whether an element matches a CSS selector."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "element",
+										"optional": false,
+										"tsType": {
+											"repr": "HtmlElement",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "HtmlElement",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "selector",
+										"optional": false,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								],
+								"returnType": {
+									"repr": "boolean",
+									"kind": "keyword",
+									"value": "boolean"
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "attribute",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/html/mod.ts",
+								"line": 102,
+								"col": 0,
+								"byteIndex": 4151
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Get one attribute without exposing the parser's attribute storage shape."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "element",
+										"optional": false,
+										"tsType": {
+											"repr": "HtmlElement",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "HtmlElement",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "name",
+										"optional": false,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								],
+								"returnType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										},
+										{
+											"repr": "null",
+											"kind": "keyword",
+											"value": "null"
+										}
+									]
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "hasAttribute",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/html/mod.ts",
+								"line": 107,
+								"col": 0,
+								"byteIndex": 4402
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return whether an element contains an attribute, including an empty attribute."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "element",
+										"optional": false,
+										"tsType": {
+											"repr": "HtmlElement",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "HtmlElement",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "name",
+										"optional": false,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								],
+								"returnType": {
+									"repr": "boolean",
+									"kind": "keyword",
+									"value": "boolean"
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "text",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/html/mod.ts",
+								"line": 112,
+								"col": 0,
+								"byteIndex": 4605
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return normalized descendant text according to the parsed source tree."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "node",
+										"optional": false,
+										"tsType": {
+											"repr": "Node",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Node",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "string",
+									"kind": "keyword",
+									"value": "string"
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "children",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/html/mod.ts",
+								"line": 117,
+								"col": 0,
+								"byteIndex": 4757
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return direct child elements, excluding text, comments, and directives."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "element",
+										"optional": false,
+										"tsType": {
+											"repr": "HtmlElement",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "HtmlElement",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "readonly",
+										"tsType": {
+											"kind": "array",
+											"value": {
+												"repr": "HtmlElement",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "HtmlElement",
+													"resolution": {
+														"kind": "local"
+													}
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "parent",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/html/mod.ts",
+								"line": 122,
+								"col": 0,
+								"byteIndex": 4930
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return the nearest parent element, if one exists."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "element",
+										"optional": false,
+										"tsType": {
+											"repr": "HtmlElement",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "HtmlElement",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "HtmlElement",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "HtmlElement",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										{
+											"repr": "null",
+											"kind": "keyword",
+											"value": "null"
+										}
+									]
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "previous",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/html/mod.ts",
+								"line": 132,
+								"col": 0,
+								"byteIndex": 5210
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return the previous element sibling, ignoring text and comment nodes."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "element",
+										"optional": false,
+										"tsType": {
+											"repr": "HtmlElement",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "HtmlElement",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "HtmlElement",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "HtmlElement",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										{
+											"repr": "null",
+											"kind": "keyword",
+											"value": "null"
+										}
+									]
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "tagName",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/html/mod.ts",
+								"line": 142,
+								"col": 0,
+								"byteIndex": 5457
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return the lower-case source tag name."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "element",
+										"optional": false,
+										"tsType": {
+											"repr": "HtmlElement",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "HtmlElement",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "string",
+									"kind": "keyword",
+									"value": "string"
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "location",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/html/mod.ts",
+								"line": 147,
+								"col": 0,
+								"byteIndex": 5611
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return parse5 source coordinates for a parsed node."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "node",
+										"optional": false,
+										"tsType": {
+											"repr": "Node",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Node",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "Token.Location",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Token.Location",
+												"resolution": {
+													"kind": "import",
+													"specifier": "parse5",
+													"name": "Token"
+												}
+											}
+										},
+										{
+											"repr": "Token.ElementLocation",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Token.ElementLocation",
+												"resolution": {
+													"kind": "import",
+													"specifier": "parse5",
+													"name": "Token"
+												}
+											}
+										},
+										{
+											"repr": "undefined",
+											"kind": "keyword",
+											"value": "undefined"
+										}
+									]
+								},
+								"hasBody": true
+							}
+						}
+					]
+				}
+			]
+		}
+	}
+}

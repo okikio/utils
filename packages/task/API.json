@@ -1,0 +1,1052 @@
+{
+	"package": "@okikio/task",
+	"packageVersion": "0.0.0",
+	"rendererVersion": 2,
+	"modules": {
+		"@okikio/task": {
+			"module_doc": {
+				"doc": "Control one process-local operation with cooperative pause, cancellation and joined cleanup. A Promise alone cannot request a pause or communicate whether cancellation and resource disposal have finished.\n\nAdd checkpoints between indivisible provider calls so pause requests have a place to take effect. Pass the context signal into I/O for cancellation. done owns the terminal value and cleanup failure; disposal joins pending cleanup. A task is one local lifetime, while a workflow can create many tasks during retries or replay. Do not use a task status as evidence of durable external acceptance.\n",
+				"tags": [
+					{
+						"kind": "example",
+						"doc": "```ts\nimport '@okikio/duration/polyfill';\nimport '@okikio/dispose/polyfill';\nimport * as task from '@okikio/task';\nconst cleanup: string[] = [];\nawait using work = task.start(async (ctx) => {\n  ctx.defer(() => { cleanup.push('released'); });\n  await ctx.checkpoint();\n  return 42;\n}, { id: 'local-operation' });\nconsole.log(await work.done, work.status, cleanup.join(','));\n```\n"
+					},
+					{
+						"kind": "module"
+					}
+				]
+			},
+			"imports": [
+				{
+					"importedName": "context",
+					"src": "./packages/context/mod.ts",
+					"jsDoc": {
+						"doc": "Control one process-local operation with cooperative pause, cancellation and joined cleanup. A Promise alone cannot request a pause or communicate whether cancellation and resource disposal have finished.\n\nAdd checkpoints between indivisible provider calls so pause requests have a place to take effect. Pass the context signal into I/O for cancellation. done owns the terminal value and cleanup failure; disposal joins pending cleanup. A task is one local lifetime, while a workflow can create many tasks during retries or replay. Do not use a task status as evidence of durable external acceptance.\n",
+						"tags": [
+							{
+								"kind": "example",
+								"doc": "```ts\nimport '@okikio/duration/polyfill';\nimport '@okikio/dispose/polyfill';\nimport * as task from '@okikio/task';\nconst cleanup: string[] = [];\nawait using work = task.start(async (ctx) => {\n  ctx.defer(() => { cleanup.push('released'); });\n  await ctx.checkpoint();\n  return 42;\n}, { id: 'local-operation' });\nconsole.log(await work.done, work.status, cleanup.join(','));\n```\n"
+							},
+							{
+								"kind": "module"
+							}
+						]
+					}
+				},
+				{
+					"importedName": "requirements",
+					"src": "./packages/requirement/mod.ts"
+				},
+				{
+					"importedName": "resource",
+					"src": "./packages/resource/mod.ts"
+				},
+				{
+					"importedName": "ResourceDefinition",
+					"originalName": "ResourceDefinition",
+					"src": "./packages/resource/mod.ts"
+				},
+				{
+					"importedName": "Task",
+					"originalName": "Task",
+					"src": "./packages/task/types.ts"
+				},
+				{
+					"importedName": "TaskContext",
+					"originalName": "TaskContext",
+					"src": "./packages/task/types.ts"
+				},
+				{
+					"importedName": "TaskOptions",
+					"originalName": "TaskOptions",
+					"src": "./packages/task/types.ts"
+				},
+				{
+					"importedName": "TaskStatusType",
+					"originalName": "TaskStatusType",
+					"src": "./packages/task/types.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "start",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/task/mod.ts",
+								"line": 42,
+								"col": 0,
+								"byteIndex": 1911
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Start one process-local Task.\n\nThe Task owns its child context and values registered through that context.\nIt borrows an optional resource collection. Pausing is cooperative: an\nindivisible provider call can finish before the next `checkpoint()` waits."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "run",
+										"optional": false,
+										"tsType": {
+											"kind": "fnOrConstructor",
+											"value": {
+												"constructor": false,
+												"tsType": {
+													"kind": "union",
+													"value": [
+														{
+															"repr": "Value",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Value",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "start",
+																	"declaringKind": "function"
+																}
+															}
+														},
+														{
+															"repr": "Promise",
+															"kind": "typeRef",
+															"value": {
+																"typeParams": [
+																	{
+																		"repr": "Value",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "Value",
+																			"resolution": {
+																				"kind": "typeParam",
+																				"declaringName": "start",
+																				"declaringKind": "function"
+																			}
+																		}
+																	}
+																],
+																"typeName": "Promise"
+															}
+														}
+													]
+												},
+												"params": [
+													{
+														"kind": "identifier",
+														"name": "ctx",
+														"optional": false,
+														"tsType": {
+															"repr": "TaskContext",
+															"kind": "typeRef",
+															"value": {
+																"typeParams": [
+																	{
+																		"repr": "Allowed",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "Allowed",
+																			"resolution": {
+																				"kind": "typeParam",
+																				"declaringName": "start",
+																				"declaringKind": "function"
+																			}
+																		}
+																	}
+																],
+																"typeName": "TaskContext",
+																"resolution": {
+																	"kind": "import",
+																	"specifier": "./types.ts",
+																	"name": "TaskContext"
+																}
+															}
+														}
+													}
+												]
+											}
+										}
+									},
+									{
+										"kind": "assign",
+										"left": {
+											"kind": "identifier",
+											"name": "options",
+											"optional": false,
+											"tsType": {
+												"repr": "TaskOptions",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"repr": "Allowed",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Allowed",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "start",
+																	"declaringKind": "function"
+																}
+															}
+														}
+													],
+													"typeName": "TaskOptions",
+													"resolution": {
+														"kind": "import",
+														"specifier": "./types.ts",
+														"name": "TaskOptions"
+													}
+												}
+											}
+										},
+										"right": "[UNSUPPORTED]"
+									}
+								],
+								"returnType": {
+									"repr": "Task",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Value",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Value",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "start",
+														"declaringKind": "function"
+													}
+												}
+											}
+										],
+										"typeName": "Task",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "Task"
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Value"
+									},
+									{
+										"name": "Allowed",
+										"constraint": {
+											"repr": "ResourceDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/resource",
+													"name": "ResourceDefinition"
+												}
+											}
+										},
+										"default": {
+											"repr": "never",
+											"kind": "keyword",
+											"value": "never"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Task",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/task/mod.ts",
+								"line": 176,
+								"col": 14,
+								"byteIndex": 5783
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/task/types.ts",
+									"line": 31,
+									"col": 0,
+									"byteIndex": 1698
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "TaskContext",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/task/mod.ts",
+								"line": 176,
+								"col": 20,
+								"byteIndex": 5789
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/task/types.ts",
+									"line": 8,
+									"col": 0,
+									"byteIndex": 500
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "TaskOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/task/mod.ts",
+								"line": 176,
+								"col": 33,
+								"byteIndex": 5802
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/task/types.ts",
+									"line": 17,
+									"col": 0,
+									"byteIndex": 973
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "TaskStatusType",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/task/mod.ts",
+								"line": 176,
+								"col": 46,
+								"byteIndex": 5815
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/task/types.ts",
+									"line": 5,
+									"col": 0,
+									"byteIndex": 321
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		"@okikio/task/types": {
+			"imports": [
+				{
+					"importedName": "BaseContext",
+					"originalName": "Context",
+					"src": "./packages/context/mod.ts"
+				},
+				{
+					"importedName": "OwnedResources",
+					"originalName": "Resources",
+					"src": "./packages/context/mod.ts"
+				},
+				{
+					"importedName": "RequirementContext",
+					"originalName": "RequirementContext",
+					"src": "./packages/requirement/mod.ts"
+				},
+				{
+					"importedName": "RequirementRuntime",
+					"originalName": "RequirementRuntime",
+					"src": "./packages/requirement/mod.ts"
+				},
+				{
+					"importedName": "ResourceCollection",
+					"originalName": "ResourceCollection",
+					"src": "./packages/resource/mod.ts"
+				},
+				{
+					"importedName": "ResourceDefinition",
+					"originalName": "ResourceDefinition",
+					"src": "./packages/resource/mod.ts"
+				},
+				{
+					"importedName": "ResourceValue",
+					"originalName": "ResourceValue",
+					"src": "./packages/resource/mod.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "TaskStatusType",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/task/types.ts",
+								"line": 5,
+								"col": 0,
+								"byteIndex": 321
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Lifecycle state of one process-local Task."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "running",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "running"
+											}
+										},
+										{
+											"repr": "pausing",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "pausing"
+											}
+										},
+										{
+											"repr": "paused",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "paused"
+											}
+										},
+										{
+											"repr": "cancelling",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "cancelling"
+											}
+										},
+										{
+											"repr": "completed",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "completed"
+											}
+										},
+										{
+											"repr": "failed",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "failed"
+											}
+										},
+										{
+											"repr": "cancelled",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "cancelled"
+											}
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "TaskContext",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/task/types.ts",
+								"line": 8,
+								"col": 0,
+								"byteIndex": 500
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Context supplied to one process-local Task operation."
+							},
+							"kind": "interface",
+							"def": {
+								"extends": [
+									{
+										"repr": "RequirementContext",
+										"kind": "typeRef",
+										"value": {
+											"typeParams": [
+												{
+													"repr": "BaseContext",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "BaseContext",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/context",
+															"name": "Context"
+														}
+													}
+												}
+											],
+											"typeName": "RequirementContext",
+											"resolution": {
+												"kind": "import",
+												"specifier": "@okikio/requirement",
+												"name": "RequirementContext"
+											}
+										}
+									},
+									{
+										"repr": "OwnedResources",
+										"kind": "typeRef",
+										"value": {
+											"typeName": "OwnedResources",
+											"resolution": {
+												"kind": "import",
+												"specifier": "@okikio/context",
+												"name": "Resources"
+											}
+										}
+									}
+								],
+								"methods": [
+									{
+										"name": "get",
+										"jsDoc": {
+											"doc": "Borrow one allowed resource under the current Task's active requirements."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/task/types.ts",
+											"line": 11,
+											"col": 2,
+											"byteIndex": 715
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "definition",
+												"optional": false,
+												"tsType": {
+													"repr": "Resource",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Resource",
+														"resolution": {
+															"kind": "typeParam",
+															"declaringName": "get",
+															"declaringKind": "method"
+														}
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "ResourceValue",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "Resource",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Resource",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "get",
+																			"declaringKind": "method"
+																		}
+																	}
+																}
+															],
+															"typeName": "ResourceValue",
+															"resolution": {
+																"kind": "import",
+																"specifier": "@okikio/resource",
+																"name": "ResourceValue"
+															}
+														}
+													}
+												],
+												"typeName": "Promise"
+											}
+										},
+										"typeParams": [
+											{
+												"name": "Resource",
+												"constraint": {
+													"repr": "Allowed",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Allowed",
+														"resolution": {
+															"kind": "typeParam",
+															"declaringName": "TaskContext",
+															"declaringKind": "interface"
+														}
+													}
+												}
+											}
+										]
+									},
+									{
+										"name": "checkpoint",
+										"jsDoc": {
+											"doc": "Wait at one cooperative pause point and always recheck cancellation before returning."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/task/types.ts",
+											"line": 13,
+											"col": 2,
+											"byteIndex": 897
+										},
+										"params": [],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "void",
+														"kind": "keyword",
+														"value": "void"
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Allowed",
+										"constraint": {
+											"repr": "ResourceDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/resource",
+													"name": "ResourceDefinition"
+												}
+											}
+										},
+										"default": {
+											"repr": "never",
+											"kind": "keyword",
+											"value": "never"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "TaskOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/task/types.ts",
+								"line": 17,
+								"col": 0,
+								"byteIndex": 973
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Options accepted by `tasks.start()`."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "id",
+										"jsDoc": {
+											"doc": "Optional stable local identity used for correlation inside the parent execution."
+										},
+										"location": {
+											"filename": "./packages/task/types.ts",
+											"line": 19,
+											"col": 2,
+											"byteIndex": 1138
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "ctx",
+										"jsDoc": {
+											"doc": "Borrowed parent execution context. The Task creates its own child cancellation lifetime."
+										},
+										"location": {
+											"filename": "./packages/task/types.ts",
+											"line": 21,
+											"col": 2,
+											"byteIndex": 1258
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "BaseContext",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "BaseContext",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/context",
+													"name": "Context"
+												}
+											}
+										}
+									},
+									{
+										"name": "resources",
+										"jsDoc": {
+											"doc": "Borrowed resource collection. The Task never disposes the collection."
+										},
+										"location": {
+											"filename": "./packages/task/types.ts",
+											"line": 23,
+											"col": 2,
+											"byteIndex": 1365
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "ResourceCollection",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceCollection",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/resource",
+													"name": "ResourceCollection"
+												}
+											}
+										}
+									},
+									{
+										"name": "allowed",
+										"jsDoc": {
+											"doc": "Definitions the Task is allowed to borrow from the collection."
+										},
+										"location": {
+											"filename": "./packages/task/types.ts",
+											"line": 25,
+											"col": 2,
+											"byteIndex": 1478
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "Allowed",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Allowed",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "TaskOptions",
+																"declaringKind": "interface"
+															}
+														}
+													}
+												}
+											}
+										}
+									},
+									{
+										"name": "requirements",
+										"jsDoc": {
+											"doc": "Requirement interpreters inherited by resource use inside this Task."
+										},
+										"location": {
+											"filename": "./packages/task/types.ts",
+											"line": 27,
+											"col": 2,
+											"byteIndex": 1595
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "RequirementRuntime",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "RequirementRuntime",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/requirement",
+													"name": "RequirementRuntime"
+												}
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Allowed",
+										"constraint": {
+											"repr": "ResourceDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/resource",
+													"name": "ResourceDefinition"
+												}
+											}
+										},
+										"default": {
+											"repr": "never",
+											"kind": "keyword",
+											"value": "never"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Task",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/task/types.ts",
+								"line": 31,
+								"col": 0,
+								"byteIndex": 1698
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "One process-local structured execution lifetime."
+							},
+							"kind": "interface",
+							"def": {
+								"extends": [
+									{
+										"repr": "AsyncDisposable",
+										"kind": "typeRef",
+										"value": {
+											"typeName": "AsyncDisposable"
+										}
+									}
+								],
+								"methods": [
+									{
+										"name": "pause",
+										"jsDoc": {
+											"doc": "Request a cooperative pause and resolve when the Task reaches a checkpoint or becomes terminal."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/task/types.ts",
+											"line": 39,
+											"col": 2,
+											"byteIndex": 2157
+										},
+										"params": [],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "void",
+														"kind": "keyword",
+														"value": "void"
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									},
+									{
+										"name": "resume",
+										"jsDoc": {
+											"doc": "Release the current pause generation."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/task/types.ts",
+											"line": 41,
+											"col": 2,
+											"byteIndex": 2228
+										},
+										"params": [],
+										"returnType": {
+											"repr": "void",
+											"kind": "keyword",
+											"value": "void"
+										}
+									},
+									{
+										"name": "cancel",
+										"jsDoc": {
+											"doc": "Cancel active work and resolve after its owned cleanup has stopped."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/task/types.ts",
+											"line": 43,
+											"col": 2,
+											"byteIndex": 2321
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "reason",
+												"optional": true,
+												"tsType": {
+													"repr": "unknown",
+													"kind": "keyword",
+													"value": "unknown"
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "void",
+														"kind": "keyword",
+														"value": "void"
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									}
+								],
+								"properties": [
+									{
+										"name": "done",
+										"jsDoc": {
+											"doc": "Terminal authority for the operation result."
+										},
+										"location": {
+											"filename": "./packages/task/types.ts",
+											"line": 33,
+											"col": 2,
+											"byteIndex": 1807
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Value",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Value",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "Task",
+																"declaringKind": "interface"
+															}
+														}
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									},
+									{
+										"name": "signal",
+										"jsDoc": {
+											"doc": "Abort signal for the Task-owned local execution lifetime."
+										},
+										"location": {
+											"filename": "./packages/task/types.ts",
+											"line": 35,
+											"col": 2,
+											"byteIndex": 1905
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "AbortSignal",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "AbortSignal"
+											}
+										}
+									},
+									{
+										"name": "status",
+										"jsDoc": {
+											"doc": "Current synchronous lifecycle snapshot. `done` remains terminal authority."
+										},
+										"location": {
+											"filename": "./packages/task/types.ts",
+											"line": 37,
+											"col": 2,
+											"byteIndex": 2019
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "TaskStatusType",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "TaskStatusType",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Value"
+									}
+								]
+							}
+						}
+					]
+				}
+			]
+		}
+	}
+}

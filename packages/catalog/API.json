@@ -1,0 +1,5062 @@
+{
+	"package": "@okikio/catalog",
+	"packageVersion": "0.0.0",
+	"rendererVersion": 2,
+	"modules": {
+		"@okikio/catalog": {
+			"module_doc": {
+				"doc": "Keep one canonical set of imported definitions and select subsets without losing exact object identity. A map keyed only by strings can silently replace a permission or response with a different same-ID definition.\n\nUse a named catalog for public contracts, select a deployment subset, then compose compatible catalogs. get() resolves a stable ID while has() checks the exact imported object. Different objects with the same ID cause a conflict. The immutable catalog does not own a runtime connection or globally register its definitions.\n",
+				"tags": [
+					{
+						"kind": "example",
+						"doc": "```ts\nimport * as catalog from '@okikio/catalog';\nconst Read = Object.freeze({ id: 'asset.read', kind: 'permission' });\nconst Write = Object.freeze({ id: 'asset.write', kind: 'permission' });\nconst Assets = catalog.create('assets', { Read, Write });\nconst ReadOnly = catalog.select(Assets, ['Read']);\nconsole.log(catalog.get(ReadOnly, 'asset.read') === Read);\nconsole.log(catalog.has(ReadOnly, Write));\nconsole.log(JSON.stringify(catalog.ids(ReadOnly)));\n```\n"
+					},
+					{
+						"kind": "module"
+					}
+				]
+			},
+			"imports": [
+				{
+					"importedName": "fault",
+					"src": "./packages/fault/mod.ts",
+					"jsDoc": {
+						"doc": "Keep one canonical set of imported definitions and select subsets without losing exact object identity. A map keyed only by strings can silently replace a permission or response with a different same-ID definition.\n\nUse a named catalog for public contracts, select a deployment subset, then compose compatible catalogs. get() resolves a stable ID while has() checks the exact imported object. Different objects with the same ID cause a conflict. The immutable catalog does not own a runtime connection or globally register its definitions.\n",
+						"tags": [
+							{
+								"kind": "example",
+								"doc": "```ts\nimport * as catalog from '@okikio/catalog';\nconst Read = Object.freeze({ id: 'asset.read', kind: 'permission' });\nconst Write = Object.freeze({ id: 'asset.write', kind: 'permission' });\nconst Assets = catalog.create('assets', { Read, Write });\nconst ReadOnly = catalog.select(Assets, ['Read']);\nconsole.log(catalog.get(ReadOnly, 'asset.read') === Read);\nconsole.log(catalog.has(ReadOnly, Write));\nconsole.log(JSON.stringify(catalog.ids(ReadOnly)));\n```\n"
+							},
+							{
+								"kind": "module"
+							}
+						]
+					}
+				},
+				{
+					"importedName": "Catalog",
+					"originalName": "Catalog",
+					"src": "./packages/catalog/types.ts"
+				},
+				{
+					"importedName": "CatalogDocument",
+					"originalName": "CatalogDocument",
+					"src": "./packages/catalog/types.ts"
+				},
+				{
+					"importedName": "CatalogEntryDocument",
+					"originalName": "CatalogEntryDocument",
+					"src": "./packages/catalog/types.ts"
+				},
+				{
+					"importedName": "CatalogEntryIdentity",
+					"originalName": "CatalogEntryIdentity",
+					"src": "./packages/catalog/types.ts"
+				},
+				{
+					"importedName": "CatalogIds",
+					"originalName": "CatalogIds",
+					"src": "./packages/catalog/types.ts"
+				},
+				{
+					"importedName": "CatalogLike",
+					"originalName": "CatalogLike",
+					"src": "./packages/catalog/types.ts"
+				},
+				{
+					"importedName": "CatalogMetadata",
+					"originalName": "CatalogMetadata",
+					"src": "./packages/catalog/types.ts"
+				},
+				{
+					"importedName": "CatalogSelection",
+					"originalName": "CatalogSelection",
+					"src": "./packages/catalog/types.ts"
+				},
+				{
+					"importedName": "CatalogSelectionMetadata",
+					"originalName": "CatalogSelectionMetadata",
+					"src": "./packages/catalog/types.ts"
+				},
+				{
+					"importedName": "CatalogValidationIssue",
+					"originalName": "CatalogValidationIssue",
+					"src": "./packages/catalog/types.ts"
+				},
+				{
+					"importedName": "CatalogValidationResult",
+					"originalName": "CatalogValidationResult",
+					"src": "./packages/catalog/types.ts"
+				},
+				{
+					"importedName": "DefinitionInput",
+					"originalName": "DefinitionInput",
+					"src": "./packages/catalog/types.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "CatalogConflictError",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 40,
+								"col": 0,
+								"byteIndex": 1609
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Error raised when different definitions reuse one stable catalog identifier."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"jsDoc": {
+											"doc": "Create this CatalogConflictError from the explicit contract values supplied by its caller."
+										},
+										"hasBody": true,
+										"name": "constructor",
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "id",
+												"optional": false,
+												"tsType": {
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "first",
+												"optional": false,
+												"tsType": {
+													"repr": "CatalogEntryIdentity",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "CatalogEntryIdentity",
+														"resolution": {
+															"kind": "import",
+															"specifier": "./types.ts",
+															"name": "CatalogEntryIdentity"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "second",
+												"optional": false,
+												"tsType": {
+													"repr": "CatalogEntryIdentity",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "CatalogEntryIdentity",
+														"resolution": {
+															"kind": "import",
+															"specifier": "./types.ts",
+															"name": "CatalogEntryIdentity"
+														}
+													}
+												}
+											}
+										],
+										"location": {
+											"filename": "./packages/catalog/mod.ts",
+											"line": 49,
+											"col": 2,
+											"byteIndex": 2069
+										}
+									}
+								],
+								"properties": [
+									{
+										"jsDoc": {
+											"doc": "Stable identity used to correlate this contract or occurrence."
+										},
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										},
+										"readonly": true,
+										"name": "id",
+										"location": {
+											"filename": "./packages/catalog/mod.ts",
+											"line": 42,
+											"col": 2,
+											"byteIndex": 1731
+										}
+									},
+									{
+										"jsDoc": {
+											"doc": "First operand or observation retained in this ordered pair."
+										},
+										"tsType": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "CatalogEntryIdentity"
+												}
+											}
+										},
+										"readonly": true,
+										"name": "first",
+										"location": {
+											"filename": "./packages/catalog/mod.ts",
+											"line": 44,
+											"col": 2,
+											"byteIndex": 1821
+										}
+									},
+									{
+										"jsDoc": {
+											"doc": "Second operand or observation retained in this ordered pair."
+										},
+										"tsType": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "CatalogEntryIdentity"
+												}
+											}
+										},
+										"readonly": true,
+										"name": "second",
+										"location": {
+											"filename": "./packages/catalog/mod.ts",
+											"line": 46,
+											"col": 2,
+											"byteIndex": 1929
+										}
+									}
+								],
+								"extends": "Error"
+							}
+						}
+					]
+				},
+				{
+					"name": "CatalogSelectionError",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 59,
+								"col": 0,
+								"byteIndex": 2430
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Error raised when a selection references a key that does not exist."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"jsDoc": {
+											"doc": "Create this CatalogSelectionError from the explicit contract values supplied by its caller."
+										},
+										"hasBody": true,
+										"name": "constructor",
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "namespace",
+												"optional": false,
+												"tsType": {
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "key",
+												"optional": false,
+												"tsType": {
+													"repr": "PropertyKey",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "PropertyKey"
+													}
+												}
+											}
+										],
+										"location": {
+											"filename": "./packages/catalog/mod.ts",
+											"line": 66,
+											"col": 2,
+											"byteIndex": 2768
+										}
+									}
+								],
+								"properties": [
+									{
+										"jsDoc": {
+											"doc": "Catalog namespace that groups these exact entries."
+										},
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										},
+										"readonly": true,
+										"name": "namespace",
+										"location": {
+											"filename": "./packages/catalog/mod.ts",
+											"line": 61,
+											"col": 2,
+											"byteIndex": 2541
+										}
+									},
+									{
+										"jsDoc": {
+											"doc": "Stable lookup or correlation key within the owning contract."
+										},
+										"tsType": {
+											"repr": "PropertyKey",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "PropertyKey"
+											}
+										},
+										"readonly": true,
+										"name": "key",
+										"location": {
+											"filename": "./packages/catalog/mod.ts",
+											"line": 63,
+											"col": 2,
+											"byteIndex": 2639
+										}
+									}
+								],
+								"extends": "Error"
+							}
+						}
+					]
+				},
+				{
+					"name": "create",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 80,
+								"col": 0,
+								"byteIndex": 3191
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create an immutable record-shaped catalog for a domain namespace.\n\nDomain packages normally wrap this helper behind APIs such as\n`problem.catalog()` or `resource.catalog()`."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "namespace",
+										"optional": false,
+										"tsType": {
+											"repr": "Namespace",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Namespace",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "create",
+													"declaringKind": "function"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "entries",
+										"optional": false,
+										"tsType": {
+											"repr": "Entries",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Entries",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "create",
+													"declaringKind": "function"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "Catalog",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"kind": "indexedAccess",
+												"value": {
+													"objType": {
+														"repr": "Entries",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entries",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "create",
+																"declaringKind": "function"
+															}
+														}
+													},
+													"indexType": {
+														"kind": "typeOperator",
+														"value": {
+															"operator": "keyof",
+															"tsType": {
+																"repr": "Entries",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Entries",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "create",
+																		"declaringKind": "function"
+																	}
+																}
+															}
+														}
+													}
+												}
+											},
+											{
+												"repr": "Entries",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entries",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "create",
+														"declaringKind": "function"
+													}
+												}
+											}
+										],
+										"typeName": "Catalog",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "Catalog"
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Namespace",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "CatalogEntryIdentity",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "CatalogEntryIdentity",
+																		"resolution": {
+																			"kind": "import",
+																			"specifier": "./types.ts",
+																			"name": "CatalogEntryIdentity"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "is",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 127,
+								"col": 0,
+								"byteIndex": 4772
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return whether a value is a catalog or catalog selection."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										}
+									}
+								],
+								"returnType": {
+									"repr": "value is CatalogLike",
+									"kind": "typePredicate",
+									"value": {
+										"param": {
+											"type": "identifier",
+											"name": "value"
+										},
+										"type": {
+											"repr": "CatalogLike",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogLike",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "CatalogLike"
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "isRoot",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 132,
+								"col": 0,
+								"byteIndex": 4936
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return whether a value is a named source catalog."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										}
+									}
+								],
+								"returnType": {
+									"repr": "value is Catalog",
+									"kind": "typePredicate",
+									"value": {
+										"param": {
+											"type": "identifier",
+											"name": "value"
+										},
+										"type": {
+											"repr": "Catalog",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Catalog",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "Catalog"
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "isSelection",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 137,
+								"col": 0,
+								"byteIndex": 5135
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return whether a value is a catalog selection."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										}
+									}
+								],
+								"returnType": {
+									"repr": "value is CatalogSelection",
+									"kind": "typePredicate",
+									"value": {
+										"param": {
+											"type": "identifier",
+											"name": "value"
+										},
+										"type": {
+											"repr": "CatalogSelection",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogSelection",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "CatalogSelection"
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "metadata",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 142,
+								"col": 0,
+								"byteIndex": 5354
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return hidden metadata for a named source catalog."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "Catalog",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Entry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "metadata",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "Catalog",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "Catalog"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "CatalogMetadata",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Entry",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entry",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "metadata",
+														"declaringKind": "function"
+													}
+												}
+											}
+										],
+										"typeName": "CatalogMetadata",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "CatalogMetadata"
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "CatalogEntryIdentity"
+												}
+											}
+										}
+									}
+								]
+							}
+						},
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 144,
+								"col": 0,
+								"byteIndex": 5518
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return hidden metadata for a catalog selection."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "CatalogSelection",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Entry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "metadata",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "CatalogSelection",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "CatalogSelection"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "CatalogSelectionMetadata",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Entry",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entry",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "metadata",
+														"declaringKind": "function"
+													}
+												}
+											}
+										],
+										"typeName": "CatalogSelectionMetadata",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "CatalogSelectionMetadata"
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "CatalogEntryIdentity"
+												}
+											}
+										}
+									}
+								]
+							}
+						},
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 148,
+								"col": 0,
+								"byteIndex": 5734
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return hidden metadata when the precise catalog kind is not statically known."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "CatalogLike",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Entry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "metadata",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "CatalogLike",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "CatalogLike"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "CatalogMetadata",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Entry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "metadata",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "CatalogMetadata",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "CatalogMetadata"
+												}
+											}
+										},
+										{
+											"repr": "CatalogSelectionMetadata",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Entry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "metadata",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "CatalogSelectionMetadata",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "CatalogSelectionMetadata"
+												}
+											}
+										}
+									]
+								},
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "CatalogEntryIdentity"
+												}
+											}
+										}
+									}
+								]
+							}
+						},
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 152,
+								"col": 0,
+								"byteIndex": 5964
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Read hidden metadata after runtime narrowing of a catalog or selection."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "CatalogLike",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogLike",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "CatalogLike"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "CatalogMetadata",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogMetadata",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "CatalogMetadata"
+												}
+											}
+										},
+										{
+											"repr": "CatalogSelectionMetadata",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogSelectionMetadata",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "CatalogSelectionMetadata"
+												}
+											}
+										}
+									]
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "values",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 164,
+								"col": 0,
+								"byteIndex": 6480
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Flatten direct values, nested arrays, catalogs, and selections.\n\nThe exact same object is deduplicated. Different objects sharing an ID are\nrejected because stable IDs represent identity rather than semantic equality."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "input",
+										"optional": false,
+										"tsType": {
+											"repr": "DefinitionInput",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Entry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "values",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "DefinitionInput",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "DefinitionInput"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "readonly",
+										"tsType": {
+											"kind": "array",
+											"value": {
+												"repr": "Entry",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entry",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "values",
+														"declaringKind": "function"
+													}
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "CatalogEntryIdentity"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "has",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 185,
+								"col": 0,
+								"byteIndex": 7128
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return whether one exact definition object belongs to a catalog or selection."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "source",
+										"optional": false,
+										"tsType": {
+											"repr": "CatalogLike",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Entry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "has",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "CatalogLike",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "CatalogLike"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "entry",
+										"optional": false,
+										"tsType": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										}
+									}
+								],
+								"returnType": {
+									"repr": "entry is Entry",
+									"kind": "typePredicate",
+									"value": {
+										"param": {
+											"type": "identifier",
+											"name": "entry"
+										},
+										"type": {
+											"repr": "Entry",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Entry",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "has",
+													"declaringKind": "function"
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "CatalogEntryIdentity"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "get",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 190,
+								"col": 0,
+								"byteIndex": 7435
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Resolve one stable identifier back to its exact trusted definition object."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "input",
+										"optional": false,
+										"tsType": {
+											"repr": "DefinitionInput",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Entry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "get",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "DefinitionInput",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "DefinitionInput"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "id",
+										"optional": false,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								],
+								"returnType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "Entry",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Entry",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "get",
+													"declaringKind": "function"
+												}
+											}
+										},
+										{
+											"repr": "undefined",
+											"kind": "keyword",
+											"value": "undefined"
+										}
+									]
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "CatalogEntryIdentity"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ids",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 199,
+								"col": 0,
+								"byteIndex": 7811
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Project stable definition identifiers while preserving the source catalog keys."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "source",
+										"optional": false,
+										"tsType": {
+											"repr": "Catalog",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "indexedAccess",
+														"value": {
+															"objType": {
+																"repr": "Entries",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Entries",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "ids",
+																		"declaringKind": "function"
+																	}
+																}
+															},
+															"indexType": {
+																"kind": "typeOperator",
+																"value": {
+																	"operator": "keyof",
+																	"tsType": {
+																		"repr": "Entries",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "Entries",
+																			"resolution": {
+																				"kind": "typeParam",
+																				"declaringName": "ids",
+																				"declaringKind": "function"
+																			}
+																		}
+																	}
+																}
+															}
+														}
+													},
+													{
+														"repr": "Entries",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entries",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "ids",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "Catalog",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "Catalog"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "CatalogIds",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Entries",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entries",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "ids",
+														"declaringKind": "function"
+													}
+												}
+											}
+										],
+										"typeName": "CatalogIds",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "CatalogIds"
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "CatalogEntryIdentity",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "CatalogEntryIdentity",
+																		"resolution": {
+																			"kind": "import",
+																			"specifier": "./types.ts",
+																			"name": "CatalogEntryIdentity"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						},
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 203,
+								"col": 0,
+								"byteIndex": 8068
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Project stable definition identifiers from a key-preserving catalog selection."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "source",
+										"optional": false,
+										"tsType": {
+											"repr": "CatalogSelection",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Entry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "ids",
+																"declaringKind": "function"
+															}
+														}
+													},
+													{
+														"repr": "Entries",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entries",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "ids",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "CatalogSelection",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "CatalogSelection"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "CatalogIds",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Entries",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entries",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "ids",
+														"declaringKind": "function"
+													}
+												}
+											}
+										],
+										"typeName": "CatalogIds",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "CatalogIds"
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "CatalogEntryIdentity"
+												}
+											}
+										}
+									},
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "Entry",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Entry",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "ids",
+																			"declaringKind": "function"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						},
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 208,
+								"col": 0,
+								"byteIndex": 8332
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Build the immutable identifier projection after catalog-kind narrowing."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "source",
+										"optional": false,
+										"tsType": {
+											"repr": "CatalogLike",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogLike",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "CatalogLike"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "Readonly",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Record",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"repr": "string",
+															"kind": "keyword",
+															"value": "string"
+														},
+														{
+															"repr": "string",
+															"kind": "keyword",
+															"value": "string"
+														}
+													],
+													"typeName": "Record"
+												}
+											}
+										],
+										"typeName": "Readonly"
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "select",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 224,
+								"col": 0,
+								"byteIndex": 8868
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Select an immutable key-preserving subset from a source catalog."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "source",
+										"optional": false,
+										"tsType": {
+											"repr": "Catalog",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "indexedAccess",
+														"value": {
+															"objType": {
+																"repr": "Entries",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Entries",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "select",
+																		"declaringKind": "function"
+																	}
+																}
+															},
+															"indexType": {
+																"kind": "typeOperator",
+																"value": {
+																	"operator": "keyof",
+																	"tsType": {
+																		"repr": "Entries",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "Entries",
+																			"resolution": {
+																				"kind": "typeParam",
+																				"declaringName": "select",
+																				"declaringKind": "function"
+																			}
+																		}
+																	}
+																}
+															}
+														}
+													},
+													{
+														"repr": "Entries",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entries",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "select",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "Catalog",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "Catalog"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "keys",
+										"optional": false,
+										"tsType": {
+											"repr": "Keys",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Keys",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "select",
+													"declaringKind": "function"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "CatalogSelection",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"kind": "indexedAccess",
+												"value": {
+													"objType": {
+														"repr": "Entries",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entries",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "select",
+																"declaringKind": "function"
+															}
+														}
+													},
+													"indexType": {
+														"kind": "typeOperator",
+														"value": {
+															"operator": "keyof",
+															"tsType": {
+																"repr": "Entries",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Entries",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "select",
+																		"declaringKind": "function"
+																	}
+																}
+															}
+														}
+													}
+												}
+											},
+											{
+												"repr": "Pick",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"repr": "Entries",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Entries",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "select",
+																	"declaringKind": "function"
+																}
+															}
+														},
+														{
+															"kind": "indexedAccess",
+															"value": {
+																"objType": {
+																	"repr": "Keys",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Keys",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "select",
+																			"declaringKind": "function"
+																		}
+																	}
+																},
+																"indexType": {
+																	"repr": "number",
+																	"kind": "keyword",
+																	"value": "number"
+																}
+															}
+														}
+													],
+													"typeName": "Pick"
+												}
+											}
+										],
+										"typeName": "CatalogSelection",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "CatalogSelection"
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "CatalogEntryIdentity",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "CatalogEntryIdentity",
+																		"resolution": {
+																			"kind": "import",
+																			"specifier": "./types.ts",
+																			"name": "CatalogEntryIdentity"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									},
+									{
+										"name": "Keys",
+										"constraint": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"kind": "parenthesized",
+														"value": {
+															"kind": "intersection",
+															"value": [
+																{
+																	"kind": "typeOperator",
+																	"value": {
+																		"operator": "keyof",
+																		"tsType": {
+																			"repr": "Entries",
+																			"kind": "typeRef",
+																			"value": {
+																				"typeName": "Entries",
+																				"resolution": {
+																					"kind": "typeParam",
+																					"declaringName": "select",
+																					"declaringKind": "function"
+																				}
+																			}
+																		}
+																	}
+																},
+																{
+																	"repr": "string",
+																	"kind": "keyword",
+																	"value": "string"
+																}
+															]
+														}
+													}
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "compose",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 267,
+								"col": 0,
+								"byteIndex": 10400
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Compose definition inputs into a deterministic immutable entry list."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "rest",
+										"arg": {
+											"kind": "identifier",
+											"name": "inputs",
+											"optional": false
+										},
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "DefinitionInput",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "Entry",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Entry",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "compose",
+																			"declaringKind": "function"
+																		}
+																	}
+																}
+															],
+															"typeName": "DefinitionInput",
+															"resolution": {
+																"kind": "import",
+																"specifier": "./types.ts",
+																"name": "DefinitionInput"
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "readonly",
+										"tsType": {
+											"kind": "array",
+											"value": {
+												"repr": "Entry",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entry",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "compose",
+														"declaringKind": "function"
+													}
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "CatalogEntryIdentity"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "validate",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 274,
+								"col": 0,
+								"byteIndex": 10609
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Validate a definition input without throwing."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "input",
+										"optional": false,
+										"tsType": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										}
+									}
+								],
+								"returnType": {
+									"repr": "CatalogValidationResult",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "CatalogValidationResult",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "CatalogValidationResult"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "document",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 319,
+								"col": 0,
+								"byteIndex": 12080
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create a JSON-safe deterministic projection for documentation and manifests."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "input",
+										"optional": false,
+										"tsType": {
+											"repr": "DefinitionInput",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "CatalogEntryIdentity",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "CatalogEntryIdentity",
+															"resolution": {
+																"kind": "import",
+																"specifier": "./types.ts",
+																"name": "CatalogEntryIdentity"
+															}
+														}
+													}
+												],
+												"typeName": "DefinitionInput",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "DefinitionInput"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "CatalogDocument",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "CatalogDocument",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "CatalogDocument"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "Catalog",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 615,
+								"col": 2,
+								"byteIndex": 20370
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/catalog/types.ts",
+									"line": 73,
+									"col": 0,
+									"byteIndex": 3363
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "CatalogDocument",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 616,
+								"col": 2,
+								"byteIndex": 20380
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/catalog/types.ts",
+									"line": 126,
+									"col": 0,
+									"byteIndex": 5614
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "CatalogEntryDocument",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 617,
+								"col": 2,
+								"byteIndex": 20398
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/catalog/types.ts",
+									"line": 114,
+									"col": 0,
+									"byteIndex": 5139
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "CatalogEntryIdentity",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 618,
+								"col": 2,
+								"byteIndex": 20421
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/catalog/types.ts",
+									"line": 1,
+									"col": 0,
+									"byteIndex": 72
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "CatalogEntryValue",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 619,
+								"col": 2,
+								"byteIndex": 20444
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/catalog/types.ts",
+									"line": 31,
+									"col": 0,
+									"byteIndex": 1286
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "CatalogIds",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 620,
+								"col": 2,
+								"byteIndex": 20464
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/catalog/types.ts",
+									"line": 90,
+									"col": 0,
+									"byteIndex": 4218
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "CatalogLike",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 621,
+								"col": 2,
+								"byteIndex": 20477
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/catalog/types.ts",
+									"line": 85,
+									"col": 0,
+									"byteIndex": 3994
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "CatalogMetadata",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 622,
+								"col": 2,
+								"byteIndex": 20491
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/catalog/types.ts",
+									"line": 36,
+									"col": 0,
+									"byteIndex": 1483
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "CatalogSelection",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 623,
+								"col": 2,
+								"byteIndex": 20509
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/catalog/types.ts",
+									"line": 79,
+									"col": 0,
+									"byteIndex": 3678
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "CatalogSelectionMetadata",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 624,
+								"col": 2,
+								"byteIndex": 20528
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/catalog/types.ts",
+									"line": 52,
+									"col": 0,
+									"byteIndex": 2282
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "CatalogValidationIssue",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 625,
+								"col": 2,
+								"byteIndex": 20555
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/catalog/types.ts",
+									"line": 136,
+									"col": 0,
+									"byteIndex": 6058
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "CatalogValidationResult",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 626,
+								"col": 2,
+								"byteIndex": 20580
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/catalog/types.ts",
+									"line": 150,
+									"col": 0,
+									"byteIndex": 6770
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "DefinitionEntry",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 627,
+								"col": 2,
+								"byteIndex": 20606
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/catalog/types.ts",
+									"line": 103,
+									"col": 0,
+									"byteIndex": 4670
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "DefinitionInput",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 628,
+								"col": 2,
+								"byteIndex": 20624
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/catalog/types.ts",
+									"line": 97,
+									"col": 0,
+									"byteIndex": 4451
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ValuedCatalogEntry",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/mod.ts",
+								"line": 629,
+								"col": 2,
+								"byteIndex": 20642
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/catalog/types.ts",
+									"line": 20,
+									"col": 0,
+									"byteIndex": 870
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		"@okikio/catalog/types": {
+			"symbols": [
+				{
+					"name": "CatalogEntryIdentity",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/types.ts",
+								"line": 1,
+								"col": 0,
+								"byteIndex": 72
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Stable identity required by values that participate in catalogs."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "id",
+										"jsDoc": {
+											"doc": "Globally unique stable identifier for the definition."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 3,
+											"col": 2,
+											"byteIndex": 175
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "kind",
+										"jsDoc": {
+											"doc": "Domain discriminator such as `problem`, `resource`, or `permission`."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 5,
+											"col": 2,
+											"byteIndex": 274
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "description",
+										"jsDoc": {
+											"doc": "Human-readable explanation used by generated documentation."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 7,
+											"col": 2,
+											"byteIndex": 366
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "catalogEntryValue",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/types.ts",
+								"line": 11,
+								"col": 21,
+								"byteIndex": 504
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Phantom symbol used to retain the value represented by a static definition."
+							},
+							"kind": "variable",
+							"def": {
+								"tsType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "unique",
+										"tsType": {
+											"repr": "symbol",
+											"kind": "keyword",
+											"value": "symbol"
+										}
+									}
+								},
+								"kind": "const"
+							}
+						}
+					]
+				},
+				{
+					"name": "ValuedCatalogEntry",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/types.ts",
+								"line": 20,
+								"col": 0,
+								"byteIndex": 870
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Generic catalog entry whose static definition represents a concrete runtime value.\n\nThe property is type-only; definition objects do not gain an enumerable runtime\nfield. Domain packages such as resources use this protocol so portable\ncontracts can retain value inference without importing a runtime adapter."
+							},
+							"kind": "interface",
+							"def": {
+								"extends": [
+									{
+										"repr": "CatalogEntryIdentity",
+										"kind": "typeRef",
+										"value": {
+											"typeName": "CatalogEntryIdentity",
+											"resolution": {
+												"kind": "local"
+											}
+										}
+									}
+								],
+								"properties": [
+									{
+										"name": "kind",
+										"jsDoc": {
+											"doc": "Stable discriminant that selects the documented variant."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 25,
+											"col": 2,
+											"byteIndex": 1055
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Kind",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Kind",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "ValuedCatalogEntry",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									},
+									{
+										"name": "catalogEntryValue",
+										"jsDoc": {
+											"doc": "Compile-time value inference carried by this catalog entry; it is not an acquired resource."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 27,
+											"col": 2,
+											"byteIndex": 1177
+										},
+										"readonly": true,
+										"computed": true,
+										"tsType": {
+											"repr": "Value",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Value",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "ValuedCatalogEntry",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Kind",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										},
+										"default": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "Value",
+										"default": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "CatalogEntryValue",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/types.ts",
+								"line": 31,
+								"col": 0,
+								"byteIndex": 1286
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Concrete runtime value represented by a valued catalog entry."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "conditional",
+									"value": {
+										"checkType": {
+											"repr": "Entry",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Entry",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "CatalogEntryValue",
+													"declaringKind": "typeAlias"
+												}
+											}
+										},
+										"extendsType": {
+											"repr": "ValuedCatalogEntry",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "string",
+														"kind": "keyword",
+														"value": "string"
+													},
+													{
+														"kind": "infer",
+														"value": {
+															"typeParam": {
+																"name": "Value"
+															}
+														}
+													}
+												],
+												"typeName": "ValuedCatalogEntry",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										"trueType": {
+											"repr": "Value",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Value"
+											}
+										},
+										"falseType": {
+											"repr": "never",
+											"kind": "keyword",
+											"value": "never"
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "ValuedCatalogEntry",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ValuedCatalogEntry",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "CatalogMetadata",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/types.ts",
+								"line": 36,
+								"col": 0,
+								"byteIndex": 1483
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Metadata retained for an immutable named catalog."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "type",
+										"jsDoc": {
+											"doc": "Protocol or representation variant selected by this value."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 38,
+											"col": 2,
+											"byteIndex": 1645
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "catalog",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "catalog"
+											}
+										}
+									},
+									{
+										"name": "namespace",
+										"jsDoc": {
+											"doc": "Catalog namespace that groups these exact entries."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 40,
+											"col": 2,
+											"byteIndex": 1731
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "keys",
+										"jsDoc": {
+											"doc": "Catalog keys in their stable authored order."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 42,
+											"col": 2,
+											"byteIndex": 1813
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "string",
+														"kind": "keyword",
+														"value": "string"
+													}
+												}
+											}
+										}
+									},
+									{
+										"name": "entries",
+										"jsDoc": {
+											"doc": "Exact entry objects in the order of the retained catalog keys."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 44,
+											"col": 2,
+											"byteIndex": 1919
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "Entry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "CatalogMetadata",
+																"declaringKind": "interface"
+															}
+														}
+													}
+												}
+											}
+										}
+									},
+									{
+										"name": "keyByEntry",
+										"jsDoc": {
+											"doc": "Reverse lookup from an exact catalog entry object to its authored key."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 46,
+											"col": 2,
+											"byteIndex": 2035
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "ReadonlyMap",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Entry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "CatalogMetadata",
+																"declaringKind": "interface"
+															}
+														}
+													},
+													{
+														"repr": "string",
+														"kind": "keyword",
+														"value": "string"
+													}
+												],
+												"typeName": "ReadonlyMap"
+											}
+										}
+									},
+									{
+										"name": "entryById",
+										"jsDoc": {
+											"doc": "Lookup from a stable ID to the exact registered catalog entry."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 48,
+											"col": 2,
+											"byteIndex": 2156
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "ReadonlyMap",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "string",
+														"kind": "keyword",
+														"value": "string"
+													},
+													{
+														"repr": "Entry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "CatalogMetadata",
+																"declaringKind": "interface"
+															}
+														}
+													}
+												],
+												"typeName": "ReadonlyMap"
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										"default": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "CatalogSelectionMetadata",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/types.ts",
+								"line": 52,
+								"col": 0,
+								"byteIndex": 2282
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Metadata retained for an immutable selection from a source catalog."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "type",
+										"jsDoc": {
+											"doc": "Protocol or representation variant selected by this value."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 54,
+											"col": 2,
+											"byteIndex": 2453
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "selection",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "selection"
+											}
+										}
+									},
+									{
+										"name": "namespace",
+										"jsDoc": {
+											"doc": "Catalog namespace that groups these exact entries."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 56,
+											"col": 2,
+											"byteIndex": 2541
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "source",
+										"jsDoc": {
+											"doc": "Source representation or provenance retained alongside the interpreted value."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 58,
+											"col": 2,
+											"byteIndex": 2656
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Catalog",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Entry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "CatalogSelectionMetadata",
+																"declaringKind": "interface"
+															}
+														}
+													}
+												],
+												"typeName": "Catalog",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "keys",
+										"jsDoc": {
+											"doc": "Catalog keys in their stable authored order."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 60,
+											"col": 2,
+											"byteIndex": 2743
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "string",
+														"kind": "keyword",
+														"value": "string"
+													}
+												}
+											}
+										}
+									},
+									{
+										"name": "entries",
+										"jsDoc": {
+											"doc": "Exact entry objects in the order of the retained catalog keys."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 62,
+											"col": 2,
+											"byteIndex": 2849
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "Entry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "CatalogSelectionMetadata",
+																"declaringKind": "interface"
+															}
+														}
+													}
+												}
+											}
+										}
+									},
+									{
+										"name": "keyByEntry",
+										"jsDoc": {
+											"doc": "Reverse lookup from an exact catalog entry object to its authored key."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 64,
+											"col": 2,
+											"byteIndex": 2965
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "ReadonlyMap",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Entry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "CatalogSelectionMetadata",
+																"declaringKind": "interface"
+															}
+														}
+													},
+													{
+														"repr": "string",
+														"kind": "keyword",
+														"value": "string"
+													}
+												],
+												"typeName": "ReadonlyMap"
+											}
+										}
+									},
+									{
+										"name": "entryById",
+										"jsDoc": {
+											"doc": "Lookup from a stable ID to the exact registered catalog entry."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 66,
+											"col": 2,
+											"byteIndex": 3086
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "ReadonlyMap",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "string",
+														"kind": "keyword",
+														"value": "string"
+													},
+													{
+														"repr": "Entry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "CatalogSelectionMetadata",
+																"declaringKind": "interface"
+															}
+														}
+													}
+												],
+												"typeName": "ReadonlyMap"
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										"default": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Catalog",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/types.ts",
+								"line": 73,
+								"col": 0,
+								"byteIndex": 3363
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Record-shaped immutable catalog with hidden compile-time identity."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "intersection",
+									"value": [
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Entries",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entries",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "Catalog",
+																"declaringKind": "typeAlias"
+															}
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										},
+										{
+											"repr": "CatalogBrand",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Entry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "Catalog",
+																"declaringKind": "typeAlias"
+															}
+														}
+													}
+												],
+												"typeName": "CatalogBrand",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									]
+								},
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										"default": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "CatalogEntryIdentity",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "CatalogEntryIdentity",
+																		"resolution": {
+																			"kind": "local"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										},
+										"default": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "string",
+																	"kind": "keyword",
+																	"value": "string"
+																},
+																{
+																	"repr": "Entry",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Entry",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "Catalog",
+																			"declaringKind": "typeAlias"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "CatalogSelection",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/types.ts",
+								"line": 79,
+								"col": 0,
+								"byteIndex": 3678
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Record-shaped immutable catalog selection with hidden compile-time identity."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "intersection",
+									"value": [
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Entries",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entries",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "CatalogSelection",
+																"declaringKind": "typeAlias"
+															}
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										},
+										{
+											"repr": "CatalogSelectionBrand",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Entry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "CatalogSelection",
+																"declaringKind": "typeAlias"
+															}
+														}
+													}
+												],
+												"typeName": "CatalogSelectionBrand",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									]
+								},
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										"default": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "CatalogEntryIdentity",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "CatalogEntryIdentity",
+																		"resolution": {
+																			"kind": "local"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										},
+										"default": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "string",
+																	"kind": "keyword",
+																	"value": "string"
+																},
+																{
+																	"repr": "Entry",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Entry",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "CatalogSelection",
+																			"declaringKind": "typeAlias"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "CatalogLike",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/types.ts",
+								"line": 85,
+								"col": 0,
+								"byteIndex": 3994
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Any catalog-like value accepted by generic catalog helpers."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "CatalogBrand",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Entry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "CatalogLike",
+																"declaringKind": "typeAlias"
+															}
+														}
+													}
+												],
+												"typeName": "CatalogBrand",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										{
+											"repr": "CatalogSelectionBrand",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Entry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "CatalogLike",
+																"declaringKind": "typeAlias"
+															}
+														}
+													}
+												],
+												"typeName": "CatalogSelectionBrand",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									]
+								},
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										"default": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "CatalogIds",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/types.ts",
+								"line": 90,
+								"col": 0,
+								"byteIndex": 4218
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Key-preserving stable identifiers projected from one catalog or selection."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "Readonly",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"kind": "mapped",
+												"value": {
+													"readonly": true,
+													"typeParam": {
+														"name": "Key",
+														"constraint": {
+															"kind": "typeOperator",
+															"value": {
+																"operator": "keyof",
+																"tsType": {
+																	"repr": "Entries",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Entries",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "CatalogIds",
+																			"declaringKind": "typeAlias"
+																		}
+																	}
+																}
+															}
+														}
+													},
+													"tsType": {
+														"kind": "indexedAccess",
+														"value": {
+															"objType": {
+																"kind": "indexedAccess",
+																"value": {
+																	"objType": {
+																		"repr": "Entries",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "Entries",
+																			"resolution": {
+																				"kind": "typeParam",
+																				"declaringName": "CatalogIds",
+																				"declaringKind": "typeAlias"
+																			}
+																		}
+																	},
+																	"indexType": {
+																		"repr": "Key",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "Key",
+																			"resolution": {
+																				"kind": "typeParam"
+																			}
+																		}
+																	}
+																}
+															},
+															"indexType": {
+																"repr": "id",
+																"kind": "literal",
+																"value": {
+																	"kind": "string",
+																	"string": "id"
+																}
+															}
+														}
+													}
+												}
+											}
+										],
+										"typeName": "Readonly"
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "CatalogEntryIdentity",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "CatalogEntryIdentity",
+																		"resolution": {
+																			"kind": "local"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "DefinitionInput",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/types.ts",
+								"line": 97,
+								"col": 0,
+								"byteIndex": 4451
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Recursive input accepted by definition-consuming fields."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "Entry",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Entry",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "DefinitionInput",
+													"declaringKind": "typeAlias"
+												}
+											}
+										},
+										{
+											"repr": "CatalogLike",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Entry",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entry",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "DefinitionInput",
+																"declaringKind": "typeAlias"
+															}
+														}
+													}
+												],
+												"typeName": "CatalogLike",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										{
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "DefinitionInput",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "Entry",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Entry",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "DefinitionInput",
+																			"declaringKind": "typeAlias"
+																		}
+																	}
+																}
+															],
+															"typeName": "DefinitionInput",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												}
+											}
+										}
+									]
+								},
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "DefinitionEntry",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/types.ts",
+								"line": 103,
+								"col": 0,
+								"byteIndex": 4670
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Entry union represented by one direct, nested, catalog, or selection input."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "conditional",
+									"value": {
+										"checkType": {
+											"kind": "indexedAccess",
+											"value": {
+												"objType": {
+													"repr": "Depth",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Depth",
+														"resolution": {
+															"kind": "typeParam",
+															"declaringName": "DefinitionEntry",
+															"declaringKind": "typeAlias"
+														}
+													}
+												},
+												"indexType": {
+													"repr": "length",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "length"
+													}
+												}
+											}
+										},
+										"extendsType": {
+											"repr": "8",
+											"kind": "literal",
+											"value": {
+												"kind": "number",
+												"number": 8
+											}
+										},
+										"trueType": {
+											"repr": "Extract",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Input",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Input",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "DefinitionEntry",
+																"declaringKind": "typeAlias"
+															}
+														}
+													},
+													{
+														"repr": "CatalogEntryIdentity",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "CatalogEntryIdentity",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												],
+												"typeName": "Extract"
+											}
+										},
+										"falseType": {
+											"kind": "conditional",
+											"value": {
+												"checkType": {
+													"repr": "Input",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Input",
+														"resolution": {
+															"kind": "typeParam",
+															"declaringName": "DefinitionEntry",
+															"declaringKind": "typeAlias"
+														}
+													}
+												},
+												"extendsType": {
+													"kind": "typeOperator",
+													"value": {
+														"operator": "readonly",
+														"tsType": {
+															"kind": "array",
+															"value": {
+																"kind": "parenthesized",
+																"value": {
+																	"kind": "infer",
+																	"value": {
+																		"typeParam": {
+																			"name": "Item"
+																		}
+																	}
+																}
+															}
+														}
+													}
+												},
+												"trueType": {
+													"repr": "DefinitionEntry",
+													"kind": "typeRef",
+													"value": {
+														"typeParams": [
+															{
+																"repr": "Item",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Item"
+																}
+															},
+															{
+																"kind": "typeOperator",
+																"value": {
+																	"operator": "readonly",
+																	"tsType": {
+																		"kind": "tuple",
+																		"value": [
+																			{
+																				"kind": "rest",
+																				"value": {
+																					"repr": "Depth",
+																					"kind": "typeRef",
+																					"value": {
+																						"typeName": "Depth",
+																						"resolution": {
+																							"kind": "typeParam",
+																							"declaringName": "DefinitionEntry",
+																							"declaringKind": "typeAlias"
+																						}
+																					}
+																				}
+																			},
+																			{
+																				"repr": "unknown",
+																				"kind": "keyword",
+																				"value": "unknown"
+																			}
+																		]
+																	}
+																}
+															}
+														],
+														"typeName": "DefinitionEntry",
+														"resolution": {
+															"kind": "local"
+														}
+													}
+												},
+												"falseType": {
+													"kind": "conditional",
+													"value": {
+														"checkType": {
+															"repr": "Input",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Input",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "DefinitionEntry",
+																	"declaringKind": "typeAlias"
+																}
+															}
+														},
+														"extendsType": {
+															"repr": "CatalogBrand",
+															"kind": "typeRef",
+															"value": {
+																"typeParams": [
+																	{
+																		"kind": "infer",
+																		"value": {
+																			"typeParam": {
+																				"name": "Entry"
+																			}
+																		}
+																	}
+																],
+																"typeName": "CatalogBrand",
+																"resolution": {
+																	"kind": "local"
+																}
+															}
+														},
+														"trueType": {
+															"repr": "Entry",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Entry"
+															}
+														},
+														"falseType": {
+															"kind": "conditional",
+															"value": {
+																"checkType": {
+																	"repr": "Input",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Input",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "DefinitionEntry",
+																			"declaringKind": "typeAlias"
+																		}
+																	}
+																},
+																"extendsType": {
+																	"repr": "CatalogSelectionBrand",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeParams": [
+																			{
+																				"kind": "infer",
+																				"value": {
+																					"typeParam": {
+																						"name": "Entry"
+																					}
+																				}
+																			}
+																		],
+																		"typeName": "CatalogSelectionBrand",
+																		"resolution": {
+																			"kind": "local"
+																		}
+																	}
+																},
+																"trueType": {
+																	"repr": "Entry",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Entry"
+																	}
+																},
+																"falseType": {
+																	"kind": "conditional",
+																	"value": {
+																		"checkType": {
+																			"repr": "Input",
+																			"kind": "typeRef",
+																			"value": {
+																				"typeName": "Input",
+																				"resolution": {
+																					"kind": "typeParam",
+																					"declaringName": "DefinitionEntry",
+																					"declaringKind": "typeAlias"
+																				}
+																			}
+																		},
+																		"extendsType": {
+																			"repr": "CatalogEntryIdentity",
+																			"kind": "typeRef",
+																			"value": {
+																				"typeName": "CatalogEntryIdentity",
+																				"resolution": {
+																					"kind": "local"
+																				}
+																			}
+																		},
+																		"trueType": {
+																			"repr": "Input",
+																			"kind": "typeRef",
+																			"value": {
+																				"typeName": "Input",
+																				"resolution": {
+																					"kind": "typeParam",
+																					"declaringName": "DefinitionEntry",
+																					"declaringKind": "typeAlias"
+																				}
+																			}
+																		},
+																		"falseType": {
+																			"repr": "never",
+																			"kind": "keyword",
+																			"value": "never"
+																		}
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Input"
+									},
+									{
+										"name": "Depth",
+										"constraint": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "unknown",
+														"kind": "keyword",
+														"value": "unknown"
+													}
+												}
+											}
+										},
+										"default": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "tuple",
+													"value": []
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "CatalogEntryDocument",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/types.ts",
+								"line": 114,
+								"col": 0,
+								"byteIndex": 5139
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "JSON-safe description of one catalog entry."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "key",
+										"jsDoc": {
+											"doc": "Stable lookup or correlation key within the owning contract."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 116,
+											"col": 2,
+											"byteIndex": 5249
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "id",
+										"jsDoc": {
+											"doc": "Stable identity used to correlate this contract or occurrence."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 118,
+											"col": 2,
+											"byteIndex": 5343
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "kind",
+										"jsDoc": {
+											"doc": "Stable discriminant that selects the documented variant."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 120,
+											"col": 2,
+											"byteIndex": 5430
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "description",
+										"jsDoc": {
+											"doc": "Caller-authored purpose used in documentation and diagnostics."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 122,
+											"col": 2,
+											"byteIndex": 5525
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "CatalogDocument",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/types.ts",
+								"line": 126,
+								"col": 0,
+								"byteIndex": 5614
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "JSON-safe projection of a catalog or selection."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "type",
+										"jsDoc": {
+											"doc": "Protocol or representation variant selected by this value."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 128,
+											"col": 2,
+											"byteIndex": 5717
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "catalog",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "catalog"
+													}
+												},
+												{
+													"repr": "selection",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "selection"
+													}
+												},
+												{
+													"repr": "composition",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "composition"
+													}
+												}
+											]
+										}
+									},
+									{
+										"name": "namespace",
+										"jsDoc": {
+											"doc": "Catalog namespace that groups these exact entries."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 130,
+											"col": 2,
+											"byteIndex": 5833
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "entries",
+										"jsDoc": {
+											"doc": "Exact entry objects in the order of the retained catalog keys."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 132,
+											"col": 2,
+											"byteIndex": 5934
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "CatalogEntryDocument",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "CatalogEntryDocument",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "CatalogValidationIssue",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/types.ts",
+								"line": 136,
+								"col": 0,
+								"byteIndex": 6058
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Validation issue produced while inspecting a definition input."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "code",
+										"jsDoc": {
+											"doc": "Stable machine-readable reason that callers can inspect without matching message text."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 138,
+											"col": 2,
+											"byteIndex": 6196
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "invalid-entry",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "invalid-entry"
+													}
+												},
+												{
+													"repr": "duplicate-id",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "duplicate-id"
+													}
+												},
+												{
+													"repr": "empty-id",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "empty-id"
+													}
+												},
+												{
+													"repr": "empty-kind",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "empty-kind"
+													}
+												}
+											]
+										}
+									},
+									{
+										"name": "message",
+										"jsDoc": {
+											"doc": "Human-readable explanation; use the stable code or discriminant for program decisions."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 140,
+											"col": 2,
+											"byteIndex": 6369
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "id",
+										"jsDoc": {
+											"doc": "Stable identity used to correlate this contract or occurrence."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 142,
+											"col": 2,
+											"byteIndex": 6467
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "first",
+										"jsDoc": {
+											"doc": "First operand or observation retained in this ordered pair."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 144,
+											"col": 2,
+											"byteIndex": 6558
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "second",
+										"jsDoc": {
+											"doc": "Second operand or observation retained in this ordered pair."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 146,
+											"col": 2,
+											"byteIndex": 6667
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "CatalogValidationResult",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/types.ts",
+								"line": 150,
+								"col": 0,
+								"byteIndex": 6770
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Deterministic validation result for a catalog input."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "union",
+									"value": [
+										{
+											"kind": "typeLiteral",
+											"value": {
+												"properties": [
+													{
+														"name": "valid",
+														"location": {
+															"filename": "./packages/catalog/types.ts",
+															"line": 151,
+															"col": 6,
+															"byteIndex": 6813
+														},
+														"readonly": true,
+														"tsType": {
+															"repr": "true",
+															"kind": "literal",
+															"value": {
+																"kind": "boolean",
+																"boolean": true
+															}
+														}
+													},
+													{
+														"name": "entries",
+														"location": {
+															"filename": "./packages/catalog/types.ts",
+															"line": 151,
+															"col": 28,
+															"byteIndex": 6835
+														},
+														"readonly": true,
+														"tsType": {
+															"kind": "typeOperator",
+															"value": {
+																"operator": "readonly",
+																"tsType": {
+																	"kind": "array",
+																	"value": {
+																		"repr": "CatalogEntryIdentity",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "CatalogEntryIdentity",
+																			"resolution": {
+																				"kind": "local"
+																			}
+																		}
+																	}
+																}
+															}
+														}
+													}
+												]
+											}
+										},
+										{
+											"kind": "typeLiteral",
+											"value": {
+												"properties": [
+													{
+														"name": "valid",
+														"location": {
+															"filename": "./packages/catalog/types.ts",
+															"line": 152,
+															"col": 6,
+															"byteIndex": 6892
+														},
+														"readonly": true,
+														"tsType": {
+															"repr": "false",
+															"kind": "literal",
+															"value": {
+																"kind": "boolean",
+																"boolean": false
+															}
+														}
+													},
+													{
+														"name": "issues",
+														"location": {
+															"filename": "./packages/catalog/types.ts",
+															"line": 152,
+															"col": 29,
+															"byteIndex": 6915
+														},
+														"readonly": true,
+														"tsType": {
+															"kind": "typeOperator",
+															"value": {
+																"operator": "readonly",
+																"tsType": {
+																	"kind": "array",
+																	"value": {
+																		"repr": "CatalogValidationIssue",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "CatalogValidationIssue",
+																			"resolution": {
+																				"kind": "local"
+																			}
+																		}
+																	}
+																}
+															}
+														}
+													}
+												]
+											}
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "CatalogBrand",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/types.ts",
+								"line": 155,
+								"col": 0,
+								"byteIndex": 7023
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Compile-time brand carried by catalog values."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "catalogBrand",
+										"jsDoc": {
+											"doc": "Hidden compile-time catalog identity; it is not an acquired resource value."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 157,
+											"col": 2,
+											"byteIndex": 7176
+										},
+										"readonly": true,
+										"computed": true,
+										"tsType": {
+											"repr": "Entry",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Entry",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "CatalogBrand",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "CatalogSelectionBrand",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/types.ts",
+								"line": 161,
+								"col": 0,
+								"byteIndex": 7268
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Compile-time brand carried by catalog selections."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "catalogSelectionBrand",
+										"jsDoc": {
+											"doc": "Hidden compile-time selection identity preserving exact catalog entry inference."
+										},
+										"location": {
+											"filename": "./packages/catalog/types.ts",
+											"line": 163,
+											"col": 2,
+											"byteIndex": 7435
+										},
+										"readonly": true,
+										"computed": true,
+										"tsType": {
+											"repr": "Entry",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Entry",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "CatalogSelectionBrand",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "CatalogEntryIdentity",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "CatalogEntryIdentity",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "catalogBrand",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/types.ts",
+								"line": 69,
+								"col": 6,
+								"byteIndex": 3143
+							},
+							"declarationKind": "private",
+							"kind": "variable",
+							"def": {
+								"tsType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "unique",
+										"tsType": {
+											"repr": "symbol",
+											"kind": "keyword",
+											"value": "symbol"
+										}
+									}
+								},
+								"kind": "const"
+							}
+						}
+					]
+				},
+				{
+					"name": "catalogSelectionBrand",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/catalog/types.ts",
+								"line": 70,
+								"col": 6,
+								"byteIndex": 3209
+							},
+							"declarationKind": "private",
+							"kind": "variable",
+							"def": {
+								"tsType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "unique",
+										"tsType": {
+											"repr": "symbol",
+											"kind": "keyword",
+											"value": "symbol"
+										}
+									}
+								},
+								"kind": "const"
+							}
+						}
+					]
+				}
+			]
+		}
+	}
+}

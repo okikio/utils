@@ -1,0 +1,10 @@
+sequenceDiagram
+    participant Caller as Photo application
+    participant Runner as Activity runner
+    participant Store as Supplied store
+    Caller->>Runner: Run SaveTitle with "Summer trip"
+    Runner->>Runner: Check input and engine identity
+    Runner->>Store: Save "SUMMER TRIP"
+    Store-->>Runner: Return asset-1
+    Runner->>Runner: Check result and finish attempt cleanup
+    Runner-->>Caller: Return the saved ID and label

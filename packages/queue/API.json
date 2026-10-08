@@ -1,0 +1,4840 @@
+{
+	"package": "@okikio/queue",
+	"packageVersion": "0.0.0",
+	"rendererVersion": 2,
+	"modules": {
+		"@okikio/queue": {
+			"module_doc": {
+				"doc": "Give queued work an expiring claim and fenced completion. Removing an item from an array loses it when a worker dies; leaving it in place without a claim permits concurrent duplicate ownership.\n\nStart with FIFO convenience for a small local producer, then use explicit claims for multiple executors, priority or expiry recovery. Renewal extends an attempt; completion must present the exact live claim. Expired claims can be recovered and stale owners cannot replace the result. memory() loses all state when the process exits. A storage adapter must make admission, claiming and fenced completion atomic for durable or distributed work.\n",
+				"tags": [
+					{
+						"kind": "example",
+						"doc": "```ts\nimport '@okikio/duration/polyfill';\nimport '@okikio/dispose/polyfill';\nimport * as context from '@okikio/context';\nimport * as queue from '@okikio/queue';\nconst clock = new context.TestClock();\nawait using ctx = context.create({ id: 'queue-owner', clock });\nawait using jobs = queue.memory<string, string>({ clock });\nconst ref = await jobs.add(ctx, 'resize asset');\nconst [claim] = await jobs.claim(ctx, { owner: 'worker-a', duration: { seconds: 30 } });\nif (claim === undefined) throw new Error('No work was available.');\nawait jobs.complete(ctx, claim, claim.value.toUpperCase());\nconsole.log(await jobs.result(ctx, ref));\n```\n"
+					},
+					{
+						"kind": "module"
+					}
+				]
+			},
+			"imports": [
+				{
+					"importedName": "EventBus",
+					"originalName": "EventBus",
+					"src": "https://jsr.io/@okikio/observables/1.4.0/mod.ts",
+					"jsDoc": {
+						"doc": "Give queued work an expiring claim and fenced completion. Removing an item from an array loses it when a worker dies; leaving it in place without a claim permits concurrent duplicate ownership.\n\nStart with FIFO convenience for a small local producer, then use explicit claims for multiple executors, priority or expiry recovery. Renewal extends an attempt; completion must present the exact live claim. Expired claims can be recovered and stale owners cannot replace the result. memory() loses all state when the process exits. A storage adapter must make admission, claiming and fenced completion atomic for durable or distributed work.\n",
+						"tags": [
+							{
+								"kind": "example",
+								"doc": "```ts\nimport '@okikio/duration/polyfill';\nimport '@okikio/dispose/polyfill';\nimport * as context from '@okikio/context';\nimport * as queue from '@okikio/queue';\nconst clock = new context.TestClock();\nawait using ctx = context.create({ id: 'queue-owner', clock });\nawait using jobs = queue.memory<string, string>({ clock });\nconst ref = await jobs.add(ctx, 'resize asset');\nconst [claim] = await jobs.claim(ctx, { owner: 'worker-a', duration: { seconds: 30 } });\nif (claim === undefined) throw new Error('No work was available.');\nawait jobs.complete(ctx, claim, claim.value.toUpperCase());\nconsole.log(await jobs.result(ctx, ref));\n```\n"
+							},
+							{
+								"kind": "module"
+							}
+						]
+					}
+				},
+				{
+					"importedName": "duration",
+					"src": "./packages/duration/mod.ts"
+				},
+				{
+					"importedName": "context",
+					"src": "./packages/context/mod.ts"
+				},
+				{
+					"importedName": "Context",
+					"originalName": "Context",
+					"src": "./packages/context/mod.ts"
+				},
+				{
+					"importedName": "EncodedFailure",
+					"originalName": "Encoded",
+					"src": "./packages/failure/mod.ts"
+				},
+				{
+					"importedName": "MemoryQueueOptions",
+					"originalName": "MemoryQueueOptions",
+					"src": "./packages/queue/types.ts"
+				},
+				{
+					"importedName": "Queue",
+					"originalName": "Queue",
+					"src": "./packages/queue/types.ts"
+				},
+				{
+					"importedName": "QueueAddOptions",
+					"originalName": "QueueAddOptions",
+					"src": "./packages/queue/types.ts"
+				},
+				{
+					"importedName": "QueueClaim",
+					"originalName": "QueueClaim",
+					"src": "./packages/queue/types.ts"
+				},
+				{
+					"importedName": "QueueClaimOptions",
+					"originalName": "QueueClaimOptions",
+					"src": "./packages/queue/types.ts"
+				},
+				{
+					"importedName": "QueueEventType",
+					"originalName": "QueueEventType",
+					"src": "./packages/queue/types.ts"
+				},
+				{
+					"importedName": "QueueRef",
+					"originalName": "QueueRef",
+					"src": "./packages/queue/types.ts"
+				},
+				{
+					"importedName": "QueueRetryOptions",
+					"originalName": "QueueRetryOptions",
+					"src": "./packages/queue/types.ts"
+				},
+				{
+					"importedName": "QueueStats",
+					"originalName": "QueueStats",
+					"src": "./packages/queue/types.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "fifo",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/mod.ts",
+								"line": 41,
+								"col": 9,
+								"byteIndex": 1800
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/queue/fifo.ts",
+									"line": 30,
+									"col": 0,
+									"byteIndex": 929
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueClosedError",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/mod.ts",
+								"line": 44,
+								"col": 0,
+								"byteIndex": 1891
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Operation attempted after a queue stopped accepting work."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"jsDoc": {
+											"doc": "Create a queue-closed error with the stored closure reason."
+										},
+										"hasBody": true,
+										"name": "constructor",
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "reason",
+												"optional": true,
+												"tsType": {
+													"repr": "unknown",
+													"kind": "keyword",
+													"value": "unknown"
+												}
+											}
+										],
+										"location": {
+											"filename": "./packages/queue/mod.ts",
+											"line": 49,
+											"col": 2,
+											"byteIndex": 2109
+										}
+									}
+								],
+								"properties": [
+									{
+										"jsDoc": {
+											"doc": "Reason recorded when the queue closed, if the caller supplied one."
+										},
+										"tsType": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										},
+										"readonly": true,
+										"name": "reason",
+										"location": {
+											"filename": "./packages/queue/mod.ts",
+											"line": 46,
+											"col": 2,
+											"byteIndex": 2013
+										}
+									}
+								],
+								"extends": "Error"
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueCapacityError",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/mod.ts",
+								"line": 57,
+								"col": 0,
+								"byteIndex": 2337
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Queue active-item capacity was exhausted."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"jsDoc": {
+											"doc": "Create a capacity error that records the configured active-item limit."
+										},
+										"hasBody": true,
+										"name": "constructor",
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "capacity",
+												"optional": false,
+												"tsType": {
+													"repr": "number",
+													"kind": "keyword",
+													"value": "number"
+												}
+											}
+										],
+										"location": {
+											"filename": "./packages/queue/mod.ts",
+											"line": 62,
+											"col": 2,
+											"byteIndex": 2556
+										}
+									}
+								],
+								"properties": [
+									{
+										"jsDoc": {
+											"doc": "Active-item capacity that rejected the new admission."
+										},
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										},
+										"readonly": true,
+										"name": "capacity",
+										"location": {
+											"filename": "./packages/queue/mod.ts",
+											"line": 59,
+											"col": 2,
+											"byteIndex": 2448
+										}
+									}
+								],
+								"extends": "Error"
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueItemNotFoundError",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/mod.ts",
+								"line": 70,
+								"col": 0,
+								"byteIndex": 2782
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "A queue reference does not identify a known item."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"jsDoc": {
+											"doc": "Create an item-not-found error for one stable item id."
+										},
+										"hasBody": true,
+										"name": "constructor",
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "itemId",
+												"optional": false,
+												"tsType": {
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												}
+											}
+										],
+										"location": {
+											"filename": "./packages/queue/mod.ts",
+											"line": 75,
+											"col": 2,
+											"byteIndex": 2973
+										}
+									}
+								],
+								"properties": [
+									{
+										"jsDoc": {
+											"doc": "Unknown item id supplied by the caller."
+										},
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										},
+										"readonly": true,
+										"name": "itemId",
+										"location": {
+											"filename": "./packages/queue/mod.ts",
+											"line": 72,
+											"col": 2,
+											"byteIndex": 2883
+										}
+									}
+								],
+								"extends": "Error"
+							}
+						}
+					]
+				},
+				{
+					"name": "StaleClaimError",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/mod.ts",
+								"line": 83,
+								"col": 0,
+								"byteIndex": 3194
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "A queue claim no longer owns the referenced item."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"jsDoc": {
+											"doc": "Create a stale-claim error for one item id and claim id pair."
+										},
+										"hasBody": true,
+										"name": "constructor",
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "itemId",
+												"optional": false,
+												"tsType": {
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "claimId",
+												"optional": false,
+												"tsType": {
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												}
+											}
+										],
+										"location": {
+											"filename": "./packages/queue/mod.ts",
+											"line": 90,
+											"col": 2,
+											"byteIndex": 3477
+										}
+									}
+								],
+								"properties": [
+									{
+										"jsDoc": {
+											"doc": "Stable item id that the stale claim tried to mutate."
+										},
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										},
+										"readonly": true,
+										"name": "itemId",
+										"location": {
+											"filename": "./packages/queue/mod.ts",
+											"line": 85,
+											"col": 2,
+											"byteIndex": 3301
+										}
+									},
+									{
+										"jsDoc": {
+											"doc": "QueueClaim id that no longer owns the item."
+										},
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										},
+										"readonly": true,
+										"name": "claimId",
+										"location": {
+											"filename": "./packages/queue/mod.ts",
+											"line": 87,
+											"col": 2,
+											"byteIndex": 3379
+										}
+									}
+								],
+								"extends": "Error"
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueItemFailedError",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/mod.ts",
+								"line": 99,
+								"col": 0,
+								"byteIndex": 3784
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Result wait failed because the queue item reached a failed state."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"jsDoc": {
+											"doc": "Create a result error that exposes the encoded item failure."
+										},
+										"hasBody": true,
+										"name": "constructor",
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "itemId",
+												"optional": false,
+												"tsType": {
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "failure",
+												"optional": false,
+												"tsType": {
+													"repr": "EncodedFailure",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "EncodedFailure",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/failure",
+															"name": "Encoded"
+														}
+													}
+												}
+											}
+										],
+										"location": {
+											"filename": "./packages/queue/mod.ts",
+											"line": 106,
+											"col": 2,
+											"byteIndex": 4073
+										}
+									}
+								],
+								"properties": [
+									{
+										"jsDoc": {
+											"doc": "Stable item id that reached failed terminal state."
+										},
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										},
+										"readonly": true,
+										"name": "itemId",
+										"location": {
+											"filename": "./packages/queue/mod.ts",
+											"line": 101,
+											"col": 2,
+											"byteIndex": 3894
+										}
+									},
+									{
+										"jsDoc": {
+											"doc": "Encoded failure committed for the item."
+										},
+										"tsType": {
+											"repr": "EncodedFailure",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EncodedFailure",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/failure",
+													"name": "Encoded"
+												}
+											}
+										},
+										"readonly": true,
+										"name": "failure",
+										"location": {
+											"filename": "./packages/queue/mod.ts",
+											"line": 103,
+											"col": 2,
+											"byteIndex": 3968
+										}
+									}
+								],
+								"extends": "Error"
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueItemCancelledError",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/mod.ts",
+								"line": 115,
+								"col": 0,
+								"byteIndex": 4362
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Result wait failed because the queue item was cancelled."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"jsDoc": {
+											"doc": "Create a result error that exposes the stored cancellation reason."
+										},
+										"hasBody": true,
+										"name": "constructor",
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "itemId",
+												"optional": false,
+												"tsType": {
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "reason",
+												"optional": true,
+												"tsType": {
+													"repr": "unknown",
+													"kind": "keyword",
+													"value": "unknown"
+												}
+											}
+										],
+										"location": {
+											"filename": "./packages/queue/mod.ts",
+											"line": 122,
+											"col": 2,
+											"byteIndex": 4666
+										}
+									}
+								],
+								"properties": [
+									{
+										"jsDoc": {
+											"doc": "Stable item id that reached cancelled terminal state."
+										},
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										},
+										"readonly": true,
+										"name": "itemId",
+										"location": {
+											"filename": "./packages/queue/mod.ts",
+											"line": 117,
+											"col": 2,
+											"byteIndex": 4478
+										}
+									},
+									{
+										"jsDoc": {
+											"doc": "Optional cancellation reason recorded on the item."
+										},
+										"tsType": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										},
+										"readonly": true,
+										"name": "reason",
+										"location": {
+											"filename": "./packages/queue/mod.ts",
+											"line": 119,
+											"col": 2,
+											"byteIndex": 4563
+										}
+									}
+								],
+								"extends": "Error"
+							}
+						}
+					]
+				},
+				{
+					"name": "memory",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/mod.ts",
+								"line": 217,
+								"col": 0,
+								"byteIndex": 7696
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create a process-local queue that implements the same ownership contract as durable adapters.\n\nState stays in local process memory.\nOwnership rules match the stronger queue model that durable adapters must\nalso follow.\n\nEach worker receives a claim with an owner, an attempt number, and an expiry\ntime.\nLater mutations must prove that the claim still owns the item.\n\nThree identities stay separate:\n- item identity: the stable reference returned from `add()`;\n- claim identity: the temporary lease returned from `claim()`;\n- terminal outcome: completed output, encoded failure, or cancellation.\n\nOne caller can add work.\nAnother caller can process work.\nA third caller can wait for the final result.\nNo caller needs shared mutable state.\n\n```text\nadd(input)\n   |\n   v\nready --claim(owner, lease)--> claimed\n  ^                              |\n  |                              +-- complete(output) --> completed\n  |                              +-- fail(failure) -----> failed\n  |                              +-- cancel(reason) ----> cancelled\n  `---------- retry(delay) <-----+\n\nexpired claim -> ready for a new owner\nstale owner   -> completion is rejected\n```\n\nThe memory queue keeps claim identity, expiry, and stale-owner rules that\ndurable adapters also need."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "assign",
+										"left": {
+											"kind": "identifier",
+											"name": "options",
+											"optional": false,
+											"tsType": {
+												"repr": "MemoryQueueOptions",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "MemoryQueueOptions",
+													"resolution": {
+														"kind": "import",
+														"specifier": "./types.ts",
+														"name": "MemoryQueueOptions"
+													}
+												}
+											}
+										},
+										"right": "[UNSUPPORTED]"
+									}
+								],
+								"returnType": {
+									"repr": "Queue",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Input",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Input",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "memory",
+														"declaringKind": "function"
+													}
+												}
+											},
+											{
+												"repr": "Output",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Output",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "memory",
+														"declaringKind": "function"
+													}
+												}
+											}
+										],
+										"typeName": "Queue",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "Queue"
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Input"
+									},
+									{
+										"name": "Output"
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Context",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/mod.ts",
+								"line": 820,
+								"col": 2,
+								"byteIndex": 30211
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/context/types.ts",
+									"line": 37,
+									"col": 0,
+									"byteIndex": 1662
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EncodedFailure",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/mod.ts",
+								"line": 821,
+								"col": 2,
+								"byteIndex": 30221
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/failure/types.ts",
+									"line": 45,
+									"col": 0,
+									"byteIndex": 1929
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "FifoQueue",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/mod.ts",
+								"line": 822,
+								"col": 2,
+								"byteIndex": 30238
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/queue/types.ts",
+									"line": 341,
+									"col": 0,
+									"byteIndex": 12364
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "FifoQueueOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/mod.ts",
+								"line": 823,
+								"col": 2,
+								"byteIndex": 30250
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/queue/types.ts",
+									"line": 138,
+									"col": 0,
+									"byteIndex": 4585
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "MemoryQueueOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/mod.ts",
+								"line": 824,
+								"col": 2,
+								"byteIndex": 30269
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/queue/types.ts",
+									"line": 361,
+									"col": 0,
+									"byteIndex": 13360
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Queue",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/mod.ts",
+								"line": 825,
+								"col": 2,
+								"byteIndex": 30290
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/queue/types.ts",
+									"line": 233,
+									"col": 0,
+									"byteIndex": 8095
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueAddOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/mod.ts",
+								"line": 826,
+								"col": 2,
+								"byteIndex": 30298
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/queue/types.ts",
+									"line": 50,
+									"col": 0,
+									"byteIndex": 1792
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueClaim",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/mod.ts",
+								"line": 827,
+								"col": 2,
+								"byteIndex": 30316
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/queue/types.ts",
+									"line": 28,
+									"col": 0,
+									"byteIndex": 956
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueClaimHandle",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/mod.ts",
+								"line": 828,
+								"col": 2,
+								"byteIndex": 30329
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/queue/types.ts",
+									"line": 310,
+									"col": 0,
+									"byteIndex": 10956
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueClaimOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/mod.ts",
+								"line": 829,
+								"col": 2,
+								"byteIndex": 30348
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/queue/types.ts",
+									"line": 81,
+									"col": 0,
+									"byteIndex": 2846
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueEventType",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/mod.ts",
+								"line": 830,
+								"col": 2,
+								"byteIndex": 30368
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/queue/types.ts",
+									"line": 178,
+									"col": 0,
+									"byteIndex": 5923
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueRef",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/mod.ts",
+								"line": 831,
+								"col": 2,
+								"byteIndex": 30385
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/queue/types.ts",
+									"line": 15,
+									"col": 0,
+									"byteIndex": 564
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueRetryOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/mod.ts",
+								"line": 832,
+								"col": 2,
+								"byteIndex": 30396
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/queue/types.ts",
+									"line": 152,
+									"col": 0,
+									"byteIndex": 5104
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueStats",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/mod.ts",
+								"line": 833,
+								"col": 2,
+								"byteIndex": 30416
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/queue/types.ts",
+									"line": 207,
+									"col": 0,
+									"byteIndex": 7044
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueTakeOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/mod.ts",
+								"line": 834,
+								"col": 2,
+								"byteIndex": 30429
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/queue/types.ts",
+									"line": 119,
+									"col": 0,
+									"byteIndex": 4028
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueWaitStateType",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/mod.ts",
+								"line": 835,
+								"col": 2,
+								"byteIndex": 30448
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/queue/types.ts",
+									"line": 225,
+									"col": 0,
+									"byteIndex": 7818
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		"@okikio/queue/fifo": {
+			"imports": [
+				{
+					"importedName": "contextCore",
+					"src": "./packages/context/mod.ts"
+				},
+				{
+					"importedName": "Context",
+					"originalName": "Context",
+					"src": "./packages/context/mod.ts"
+				},
+				{
+					"importedName": "EncodedFailure",
+					"originalName": "Encoded",
+					"src": "./packages/failure/mod.ts"
+				},
+				{
+					"importedName": "FifoQueue",
+					"originalName": "FifoQueue",
+					"src": "./packages/queue/types.ts"
+				},
+				{
+					"importedName": "FifoQueueOptions",
+					"originalName": "FifoQueueOptions",
+					"src": "./packages/queue/types.ts"
+				},
+				{
+					"importedName": "Queue",
+					"originalName": "Queue",
+					"src": "./packages/queue/types.ts"
+				},
+				{
+					"importedName": "QueueAddOptions",
+					"originalName": "QueueAddOptions",
+					"src": "./packages/queue/types.ts"
+				},
+				{
+					"importedName": "QueueClaim",
+					"originalName": "QueueClaim",
+					"src": "./packages/queue/types.ts"
+				},
+				{
+					"importedName": "QueueClaimHandle",
+					"originalName": "QueueClaimHandle",
+					"src": "./packages/queue/types.ts"
+				},
+				{
+					"importedName": "QueueClaimOptions",
+					"originalName": "QueueClaimOptions",
+					"src": "./packages/queue/types.ts"
+				},
+				{
+					"importedName": "QueueRef",
+					"originalName": "QueueRef",
+					"src": "./packages/queue/types.ts"
+				},
+				{
+					"importedName": "QueueRetryOptions",
+					"originalName": "QueueRetryOptions",
+					"src": "./packages/queue/types.ts"
+				},
+				{
+					"importedName": "QueueTakeOptions",
+					"originalName": "QueueTakeOptions",
+					"src": "./packages/queue/types.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "fifo",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/fifo.ts",
+								"line": 30,
+								"col": 0,
+								"byteIndex": 929
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create a FIFO-friendly adapter over a claimed-work queue.\n\nThe adapter keeps the same queue rules under the hood.\nThe public surface becomes smaller for callers that want one item at a time.\n`take()` wraps `claim({ limit: 1 })`.\nEach taken item wraps `complete()`, `fail()`, `retry()`, and `renew()`.\n\nThe adapter owns one internal context.\nCallers can use FIFO-style queue calls without passing `ctx` through each\nstep. Recovery, expiry, stale-claim rejection, and result waiting still come\nfrom the underlying claimed-work queue."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "queue",
+										"optional": false,
+										"tsType": {
+											"repr": "Queue",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Input",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Input",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "fifo",
+																"declaringKind": "function"
+															}
+														}
+													},
+													{
+														"repr": "Output",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Output",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "fifo",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "Queue",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "Queue"
+												}
+											}
+										}
+									},
+									{
+										"kind": "assign",
+										"left": {
+											"kind": "identifier",
+											"name": "options",
+											"optional": false,
+											"tsType": {
+												"repr": "FifoQueueOptions",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "FifoQueueOptions",
+													"resolution": {
+														"kind": "import",
+														"specifier": "./types.ts",
+														"name": "FifoQueueOptions"
+													}
+												}
+											}
+										},
+										"right": "[UNSUPPORTED]"
+									}
+								],
+								"returnType": {
+									"repr": "FifoQueue",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Input",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Input",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "fifo",
+														"declaringKind": "function"
+													}
+												}
+											},
+											{
+												"repr": "Output",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Output",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "fifo",
+														"declaringKind": "function"
+													}
+												}
+											}
+										],
+										"typeName": "FifoQueue",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "FifoQueue"
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Input"
+									},
+									{
+										"name": "Output"
+									}
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		"@okikio/queue/types": {
+			"imports": [
+				{
+					"importedName": "EventBus",
+					"originalName": "EventBus",
+					"src": "https://jsr.io/@okikio/observables/1.4.0/mod.ts"
+				},
+				{
+					"importedName": "Context",
+					"originalName": "Context",
+					"src": "./packages/context/mod.ts"
+				},
+				{
+					"importedName": "EncodedFailure",
+					"originalName": "Encoded",
+					"src": "./packages/failure/mod.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "Context",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/types.ts",
+								"line": 4,
+								"col": 14,
+								"byteIndex": 182
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/context/types.ts",
+									"line": 37,
+									"col": 0,
+									"byteIndex": 1662
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "EncodedFailure",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/types.ts",
+								"line": 5,
+								"col": 14,
+								"byteIndex": 230
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/failure/types.ts",
+									"line": 45,
+									"col": 0,
+									"byteIndex": 1929
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueRef",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/types.ts",
+								"line": 15,
+								"col": 0,
+								"byteIndex": 564
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Stable reference to one logical queue item.\n\n`QueueRef` identifies one item across the whole lifecycle.\nRetries, re-claims, and terminal result lookup all use the same id.\n`QueueClaim` uses a different id because one item can have many ownership\nattempts."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "id",
+										"jsDoc": {
+											"doc": "Stable logical item identity returned from `add()`."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 17,
+											"col": 2,
+											"byteIndex": 653
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueClaim",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/types.ts",
+								"line": 28,
+								"col": 0,
+								"byteIndex": 956
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Temporary ownership token for one queue item.\n\nA claim gives one worker the right to act on a queued item for a limited\ntime.\nOperations such as `complete()`, `fail()`, `retry()`, and `renew()` use the\nclaim to prove that the caller still owns the item."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "id",
+										"jsDoc": {
+											"doc": "Unique identity for the current claim attempt."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 30,
+											"col": 2,
+											"byteIndex": 1049
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "itemId",
+										"jsDoc": {
+											"doc": "Stable logical item identity that the claim currently owns."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 32,
+											"col": 2,
+											"byteIndex": 1139
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "owner",
+										"jsDoc": {
+											"doc": "Worker or runtime identity that currently owns the claim."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 34,
+											"col": 2,
+											"byteIndex": 1231
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "value",
+										"jsDoc": {
+											"doc": "Input value carried by the claimed work item."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 36,
+											"col": 2,
+											"byteIndex": 1310
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Value",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Value",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "QueueClaim",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									},
+									{
+										"name": "attempt",
+										"jsDoc": {
+											"doc": "Attempt count for the logical item. The first successful claim is `1`."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 38,
+											"col": 2,
+											"byteIndex": 1413
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "claimedAt",
+										"jsDoc": {
+											"doc": "Instant when the queue granted the ownership attempt."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 40,
+											"col": 2,
+											"byteIndex": 1502
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Temporal.Instant",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Temporal.Instant"
+											}
+										}
+									},
+									{
+										"name": "expiresAt",
+										"jsDoc": {
+											"doc": "Instant when the claim expires and the queue may offer the item again."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 42,
+											"col": 2,
+											"byteIndex": 1620
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Temporal.Instant",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Temporal.Instant"
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Value"
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueAddOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/types.ts",
+								"line": 50,
+								"col": 0,
+								"byteIndex": 1792
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Options used while adding one queue item.\n\nThe options control idempotency, claim order, and delayed availability."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "key",
+										"jsDoc": {
+											"doc": "Optional stable key used for idempotent admission.\n\nIf another item already owns the key, `add()` returns that item's `QueueRef`\ninstead of creating a duplicate logical item. The queue does not compare the\nnew input with the retained input. The caller must therefore derive the key\nfrom the complete logical work identity, including an input/version\nfingerprint when changed input must represent different work."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 60,
+											"col": 2,
+											"byteIndex": 2277
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "priority",
+										"jsDoc": {
+											"doc": "QueueClaim priority. Higher values are claimed first.\n\nEqual priority falls back to FIFO insertion order."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 66,
+											"col": 2,
+											"byteIndex": 2428
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "availableAt",
+										"jsDoc": {
+											"doc": "Earliest instant when the item may be claimed.\n\nOmit the field to make the item immediately eligible."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 72,
+											"col": 2,
+											"byteIndex": 2580
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "Temporal.Instant",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Temporal.Instant"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueClaimOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/types.ts",
+								"line": 81,
+								"col": 0,
+								"byteIndex": 2846
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Options used while claiming available items.\n\nQueueClaim options control who owns the lease, how many items may be claimed, how\nlong the lease lasts, and whether the caller waits for future eligibility."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "ref",
+										"jsDoc": {
+											"doc": "Optional stable item reference to claim exactly one known logical item.\n\nDurable schedulers use this after idempotent admission so replay can\nreattach to the same job instead of taking unrelated queued work. When\nsupplied, `limit` must be one."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 89,
+											"col": 2,
+											"byteIndex": 3157
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "QueueRef",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "QueueRef",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "owner",
+										"jsDoc": {
+											"doc": "Explicit owner identity for the claim.\n\nIf omitted, the queue uses `ctx.id` from the provided context."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 95,
+											"col": 2,
+											"byteIndex": 3307
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "limit",
+										"jsDoc": {
+											"doc": "Maximum number of items to claim in one operation."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 97,
+											"col": 2,
+											"byteIndex": 3392
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "duration",
+										"jsDoc": {
+											"doc": "Lease duration for each claimed item.\n\nWhen the duration expires, the queue may return the item to `queued` state."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 103,
+											"col": 2,
+											"byteIndex": 3554
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "Temporal.Duration",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.Duration"
+													}
+												},
+												{
+													"repr": "Temporal.DurationLike",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.DurationLike"
+													}
+												},
+												{
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												}
+											]
+										}
+									},
+									{
+										"name": "wait",
+										"jsDoc": {
+											"doc": "Wait for future eligibility instead of returning an empty result immediately.\n\nThe wait ends when work becomes claimable, the context is cancelled, or the\nqueue closes."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 110,
+											"col": 2,
+											"byteIndex": 3821
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "boolean",
+											"kind": "keyword",
+											"value": "boolean"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueTakeOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/types.ts",
+								"line": 119,
+								"col": 0,
+								"byteIndex": 4028
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Options used while taking the next FIFO-visible item.\n\n`take()` always claims at most one item. The remaining options mirror the\nsingle-item part of `claim()`."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "duration",
+										"jsDoc": {
+											"doc": "Lease duration for the taken item.\n\nWhen the duration expires, the queue may return the item to `queued` state."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 125,
+											"col": 2,
+											"byteIndex": 4198
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "Temporal.Duration",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.Duration"
+													}
+												},
+												{
+													"repr": "Temporal.DurationLike",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.DurationLike"
+													}
+												},
+												{
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												}
+											]
+										}
+									},
+									{
+										"name": "wait",
+										"jsDoc": {
+											"doc": "Wait for future eligibility instead of returning `undefined` immediately."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 129,
+											"col": 2,
+											"byteIndex": 4359
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "boolean",
+											"kind": "keyword",
+											"value": "boolean"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "FifoQueueOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/types.ts",
+								"line": 138,
+								"col": 0,
+								"byteIndex": 4585
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Inputs accepted while creating a FIFO-friendly queue adapter.\n\nThe adapter owns one internal context so callers do not need to pass `ctx`\nthrough ordinary FIFO-style queue calls."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "id",
+										"jsDoc": {
+											"doc": "Stable identity used by the adapter-owned context."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 140,
+											"col": 2,
+											"byteIndex": 4681
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "signal",
+										"jsDoc": {
+											"doc": "Optional parent cancellation signal for the adapter-owned context."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 142,
+											"col": 2,
+											"byteIndex": 4779
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "AbortSignal",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "AbortSignal"
+											}
+										}
+									},
+									{
+										"name": "clock",
+										"jsDoc": {
+											"doc": "Clock used by the adapter-owned context when a custom clock is needed."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 144,
+											"col": 2,
+											"byteIndex": 4890
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"kind": "indexedAccess",
+											"value": {
+												"objType": {
+													"repr": "Context",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Context",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/context",
+															"name": "Context"
+														}
+													}
+												},
+												"indexType": {
+													"repr": "clock",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "clock"
+													}
+												}
+											}
+										}
+									},
+									{
+										"name": "owner",
+										"jsDoc": {
+											"doc": "Optional explicit claim owner used for `take()` calls."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 146,
+											"col": 2,
+											"byteIndex": 4989
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueRetryOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/types.ts",
+								"line": 152,
+								"col": 0,
+								"byteIndex": 5104
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Options used while returning claimed work to the queue for a later attempt."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "delay",
+										"jsDoc": {
+											"doc": "Relative delay before the retried item becomes claimable again.\n\nUse the field for backoff. Do not combine it with `availableAt`."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 158,
+											"col": 2,
+											"byteIndex": 5293
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "Temporal.Duration",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.Duration"
+													}
+												},
+												{
+													"repr": "Temporal.DurationLike",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.DurationLike"
+													}
+												},
+												{
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												}
+											]
+										}
+									},
+									{
+										"name": "availableAt",
+										"jsDoc": {
+											"doc": "Absolute instant when the retried item becomes claimable again.\n\nUse the field when the caller already knows the next wake-up instant."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 164,
+											"col": 2,
+											"byteIndex": 5519
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "Temporal.Instant",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Temporal.Instant"
+											}
+										}
+									},
+									{
+										"name": "priority",
+										"jsDoc": {
+											"doc": "Optional priority override applied when the item re-enters `queued` state."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 168,
+											"col": 2,
+											"byteIndex": 5650
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueEventType",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/types.ts",
+								"line": 178,
+								"col": 0,
+								"byteIndex": 5923
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Authoritative queue event emitted after one committed state change.\n\nThe events describe committed queue state.\nObservers, diagnostics, and higher-level orchestration can use the event\nstream as a stable lifecycle feed."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "type",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 179,
+																		"col": 15,
+																		"byteIndex": 5966
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "added",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "string",
+																			"string": "added"
+																		}
+																	}
+																},
+																{
+																	"name": "itemId",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 179,
+																		"col": 39,
+																		"byteIndex": 5990
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																},
+																{
+																	"name": "key",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 179,
+																		"col": 64,
+																		"byteIndex": 6015
+																	},
+																	"readonly": true,
+																	"optional": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										},
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "type",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 182,
+																		"col": 6,
+																		"byteIndex": 6060
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "claimed",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "string",
+																			"string": "claimed"
+																		}
+																	}
+																},
+																{
+																	"name": "itemId",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 183,
+																		"col": 6,
+																		"byteIndex": 6089
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																},
+																{
+																	"name": "claimId",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 184,
+																		"col": 6,
+																		"byteIndex": 6117
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																},
+																{
+																	"name": "owner",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 185,
+																		"col": 6,
+																		"byteIndex": 6146
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																},
+																{
+																	"name": "attempt",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 186,
+																		"col": 6,
+																		"byteIndex": 6173
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "number",
+																		"kind": "keyword",
+																		"value": "number"
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										},
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "type",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 190,
+																		"col": 6,
+																		"byteIndex": 6223
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "renewed",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "string",
+																			"string": "renewed"
+																		}
+																	}
+																},
+																{
+																	"name": "itemId",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 190,
+																		"col": 32,
+																		"byteIndex": 6249
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																},
+																{
+																	"name": "claimId",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 190,
+																		"col": 57,
+																		"byteIndex": 6274
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																},
+																{
+																	"name": "expiresAt",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 190,
+																		"col": 83,
+																		"byteIndex": 6300
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										},
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "type",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 192,
+																		"col": 15,
+																		"byteIndex": 6346
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "completed",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "string",
+																			"string": "completed"
+																		}
+																	}
+																},
+																{
+																	"name": "itemId",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 192,
+																		"col": 43,
+																		"byteIndex": 6374
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																},
+																{
+																	"name": "claimId",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 192,
+																		"col": 68,
+																		"byteIndex": 6399
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										},
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "type",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 193,
+																		"col": 15,
+																		"byteIndex": 6441
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "failed",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "string",
+																			"string": "failed"
+																		}
+																	}
+																},
+																{
+																	"name": "itemId",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 193,
+																		"col": 40,
+																		"byteIndex": 6466
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																},
+																{
+																	"name": "claimId",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 193,
+																		"col": 65,
+																		"byteIndex": 6491
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																},
+																{
+																	"name": "failureId",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 193,
+																		"col": 91,
+																		"byteIndex": 6517
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										},
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "type",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 195,
+																		"col": 6,
+																		"byteIndex": 6564
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "retried",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "string",
+																			"string": "retried"
+																		}
+																	}
+																},
+																{
+																	"name": "itemId",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 195,
+																		"col": 32,
+																		"byteIndex": 6590
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																},
+																{
+																	"name": "claimId",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 195,
+																		"col": 57,
+																		"byteIndex": 6615
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																},
+																{
+																	"name": "availableAt",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 195,
+																		"col": 83,
+																		"byteIndex": 6641
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										},
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "type",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 197,
+																		"col": 15,
+																		"byteIndex": 6689
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "cancelled",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "string",
+																			"string": "cancelled"
+																		}
+																	}
+																},
+																{
+																	"name": "itemId",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 197,
+																		"col": 43,
+																		"byteIndex": 6717
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										},
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "type",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 198,
+																		"col": 15,
+																		"byteIndex": 6758
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "claim-expired",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "string",
+																			"string": "claim-expired"
+																		}
+																	}
+																},
+																{
+																	"name": "itemId",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 198,
+																		"col": 47,
+																		"byteIndex": 6790
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																},
+																{
+																	"name": "claimId",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 198,
+																		"col": 72,
+																		"byteIndex": 6815
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										},
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "type",
+																	"location": {
+																		"filename": "./packages/queue/types.ts",
+																		"line": 199,
+																		"col": 15,
+																		"byteIndex": 6857
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "closed",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "string",
+																			"string": "closed"
+																		}
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueStats",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/types.ts",
+								"line": 207,
+								"col": 0,
+								"byteIndex": 7044
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Snapshot counters for current queue state.\n\nThe counters expose queue occupancy and waiter pressure.\nThe mutable item table stays private."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "queued",
+										"jsDoc": {
+											"doc": "Number of items currently waiting in `queued` state."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 209,
+											"col": 2,
+											"byteIndex": 7136
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "claimed",
+										"jsDoc": {
+											"doc": "Number of items currently owned by active claims."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 211,
+											"col": 2,
+											"byteIndex": 7220
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "completed",
+										"jsDoc": {
+											"doc": "Number of items that reached successful terminal state."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 213,
+											"col": 2,
+											"byteIndex": 7311
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "failed",
+										"jsDoc": {
+											"doc": "Number of items that reached failed terminal state."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 215,
+											"col": 2,
+											"byteIndex": 7400
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "cancelled",
+										"jsDoc": {
+											"doc": "Number of items that reached cancelled terminal state."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 217,
+											"col": 2,
+											"byteIndex": 7489
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "waitingClaims",
+										"jsDoc": {
+											"doc": "Number of callers currently blocked in `claim({ wait: true })`."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 219,
+											"col": 2,
+											"byteIndex": 7590
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "waitingResults",
+										"jsDoc": {
+											"doc": "Number of callers currently blocked in `result(ref)`."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 221,
+											"col": 2,
+											"byteIndex": 7685
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueWaitStateType",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/types.ts",
+								"line": 225,
+								"col": 0,
+								"byteIndex": 7818
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "State returned after waiting for one exact logical item to change scheduling eligibility."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "claimable",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "claimable"
+											}
+										},
+										{
+											"repr": "terminal",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "terminal"
+											}
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Queue",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/types.ts",
+								"line": 233,
+								"col": 0,
+								"byteIndex": 8095
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "At-least-once work transport with explicit claim ownership.\n\nA queue admits work, leases work to owners, blocks stale claims, and keeps\nstable item identity until callers observe a terminal result."
+							},
+							"kind": "interface",
+							"def": {
+								"extends": [
+									{
+										"repr": "AsyncDisposable",
+										"kind": "typeRef",
+										"value": {
+											"typeName": "AsyncDisposable"
+										}
+									}
+								],
+								"methods": [
+									{
+										"name": "add",
+										"jsDoc": {
+											"doc": "Add one logical work item and return its stable reference."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 241,
+											"col": 2,
+											"byteIndex": 8371
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "ctx",
+												"optional": false,
+												"tsType": {
+													"repr": "Context",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Context",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/context",
+															"name": "Context"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "input",
+												"optional": false,
+												"tsType": {
+													"repr": "Input",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Input",
+														"resolution": {
+															"kind": "typeParam",
+															"declaringName": "Queue",
+															"declaringKind": "interface"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "options",
+												"optional": true,
+												"tsType": {
+													"repr": "QueueAddOptions",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "QueueAddOptions",
+														"resolution": {
+															"kind": "local"
+														}
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "QueueRef",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "QueueRef",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									},
+									{
+										"name": "claim",
+										"jsDoc": {
+											"doc": "QueueClaim up to `limit` eligible items for temporary ownership."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 245,
+											"col": 2,
+											"byteIndex": 8530
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "ctx",
+												"optional": false,
+												"tsType": {
+													"repr": "Context",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Context",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/context",
+															"name": "Context"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "options",
+												"optional": true,
+												"tsType": {
+													"repr": "QueueClaimOptions",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "QueueClaimOptions",
+														"resolution": {
+															"kind": "local"
+														}
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeOperator",
+														"value": {
+															"operator": "readonly",
+															"tsType": {
+																"kind": "array",
+																"value": {
+																	"repr": "QueueClaim",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeParams": [
+																			{
+																				"repr": "Input",
+																				"kind": "typeRef",
+																				"value": {
+																					"typeName": "Input",
+																					"resolution": {
+																						"kind": "typeParam",
+																						"declaringName": "Queue",
+																						"declaringKind": "interface"
+																					}
+																				}
+																			}
+																		],
+																		"typeName": "QueueClaim",
+																		"resolution": {
+																			"kind": "local"
+																		}
+																	}
+																}
+															}
+														}
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									},
+									{
+										"name": "wait",
+										"jsDoc": {
+											"doc": "Wait until one exact logical item can be claimed or has already settled.\n\nThe call takes no ownership. Schedulers can use it after releasing scarce\nprovider capacity, then retry placement and claiming without holding a\nprocess, Worker, or remote-host slot during queue backoff."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 253,
+											"col": 2,
+											"byteIndex": 8927
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "ctx",
+												"optional": false,
+												"tsType": {
+													"repr": "Context",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Context",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/context",
+															"name": "Context"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "ref",
+												"optional": false,
+												"tsType": {
+													"repr": "QueueRef",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "QueueRef",
+														"resolution": {
+															"kind": "local"
+														}
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "QueueWaitStateType",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "QueueWaitStateType",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									},
+									{
+										"name": "complete",
+										"jsDoc": {
+											"doc": "Commit successful output for the current claim owner."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 257,
+											"col": 2,
+											"byteIndex": 9060
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "ctx",
+												"optional": false,
+												"tsType": {
+													"repr": "Context",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Context",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/context",
+															"name": "Context"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "claim",
+												"optional": false,
+												"tsType": {
+													"repr": "QueueClaim",
+													"kind": "typeRef",
+													"value": {
+														"typeParams": [
+															{
+																"repr": "Input",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Input",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "Queue",
+																		"declaringKind": "interface"
+																	}
+																}
+															}
+														],
+														"typeName": "QueueClaim",
+														"resolution": {
+															"kind": "local"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "output",
+												"optional": false,
+												"tsType": {
+													"repr": "Output",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Output",
+														"resolution": {
+															"kind": "typeParam",
+															"declaringName": "Queue",
+															"declaringKind": "interface"
+														}
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "void",
+														"kind": "keyword",
+														"value": "void"
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									},
+									{
+										"name": "fail",
+										"jsDoc": {
+											"doc": "Commit a declared failure for the current claim owner."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 261,
+											"col": 2,
+											"byteIndex": 9211
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "ctx",
+												"optional": false,
+												"tsType": {
+													"repr": "Context",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Context",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/context",
+															"name": "Context"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "claim",
+												"optional": false,
+												"tsType": {
+													"repr": "QueueClaim",
+													"kind": "typeRef",
+													"value": {
+														"typeParams": [
+															{
+																"repr": "Input",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Input",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "Queue",
+																		"declaringKind": "interface"
+																	}
+																}
+															}
+														],
+														"typeName": "QueueClaim",
+														"resolution": {
+															"kind": "local"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "value",
+												"optional": false,
+												"tsType": {
+													"repr": "EncodedFailure",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "EncodedFailure",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/failure",
+															"name": "Encoded"
+														}
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "void",
+														"kind": "keyword",
+														"value": "void"
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									},
+									{
+										"name": "retry",
+										"jsDoc": {
+											"doc": "Return the claimed item to the queue for another attempt."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 265,
+											"col": 2,
+											"byteIndex": 9368
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "ctx",
+												"optional": false,
+												"tsType": {
+													"repr": "Context",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Context",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/context",
+															"name": "Context"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "claim",
+												"optional": false,
+												"tsType": {
+													"repr": "QueueClaim",
+													"kind": "typeRef",
+													"value": {
+														"typeParams": [
+															{
+																"repr": "Input",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Input",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "Queue",
+																		"declaringKind": "interface"
+																	}
+																}
+															}
+														],
+														"typeName": "QueueClaim",
+														"resolution": {
+															"kind": "local"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "options",
+												"optional": true,
+												"tsType": {
+													"repr": "QueueRetryOptions",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "QueueRetryOptions",
+														"resolution": {
+															"kind": "local"
+														}
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "void",
+														"kind": "keyword",
+														"value": "void"
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									},
+									{
+										"name": "cancel",
+										"jsDoc": {
+											"doc": "Cancel one logical item by producer reference or by the current live claim.\n\nA `QueueRef` is producer authority. It cancels the logical item regardless\nof whether a consumer currently owns a claim. A `QueueClaim` is consumer\nauthority. It is validated before cancellation, so an expired consumer\ncannot cancel a newer attempt after its lease is lost."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 277,
+											"col": 2,
+											"byteIndex": 9903
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "ctx",
+												"optional": false,
+												"tsType": {
+													"repr": "Context",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Context",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/context",
+															"name": "Context"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "owner",
+												"optional": false,
+												"tsType": {
+													"kind": "union",
+													"value": [
+														{
+															"repr": "QueueRef",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "QueueRef",
+																"resolution": {
+																	"kind": "local"
+																}
+															}
+														},
+														{
+															"repr": "QueueClaim",
+															"kind": "typeRef",
+															"value": {
+																"typeParams": [
+																	{
+																		"repr": "Input",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "Input",
+																			"resolution": {
+																				"kind": "typeParam",
+																				"declaringName": "Queue",
+																				"declaringKind": "interface"
+																			}
+																		}
+																	}
+																],
+																"typeName": "QueueClaim",
+																"resolution": {
+																	"kind": "local"
+																}
+															}
+														}
+													]
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "reason",
+												"optional": true,
+												"tsType": {
+													"repr": "unknown",
+													"kind": "keyword",
+													"value": "unknown"
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "void",
+														"kind": "keyword",
+														"value": "void"
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									},
+									{
+										"name": "result",
+										"jsDoc": {
+											"doc": "Wait for one item to reach terminal state without taking ownership."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 281,
+											"col": 2,
+											"byteIndex": 10078
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "ctx",
+												"optional": false,
+												"tsType": {
+													"repr": "Context",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Context",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/context",
+															"name": "Context"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "ref",
+												"optional": false,
+												"tsType": {
+													"repr": "QueueRef",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "QueueRef",
+														"resolution": {
+															"kind": "local"
+														}
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Output",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Output",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "Queue",
+																"declaringKind": "interface"
+															}
+														}
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									},
+									{
+										"name": "renew",
+										"jsDoc": {
+											"doc": "Extend the expiry time of the current claim owner."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 285,
+											"col": 2,
+											"byteIndex": 10198
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "ctx",
+												"optional": false,
+												"tsType": {
+													"repr": "Context",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Context",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/context",
+															"name": "Context"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "claim",
+												"optional": false,
+												"tsType": {
+													"repr": "QueueClaim",
+													"kind": "typeRef",
+													"value": {
+														"typeParams": [
+															{
+																"repr": "Input",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Input",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "Queue",
+																		"declaringKind": "interface"
+																	}
+																}
+															}
+														],
+														"typeName": "QueueClaim",
+														"resolution": {
+															"kind": "local"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "duration",
+												"optional": false,
+												"tsType": {
+													"kind": "union",
+													"value": [
+														{
+															"repr": "Temporal.Duration",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Temporal.Duration"
+															}
+														},
+														{
+															"repr": "Temporal.DurationLike",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Temporal.DurationLike"
+															}
+														},
+														{
+															"repr": "string",
+															"kind": "keyword",
+															"value": "string"
+														}
+													]
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "QueueClaim",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "Input",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Input",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "Queue",
+																			"declaringKind": "interface"
+																		}
+																	}
+																}
+															],
+															"typeName": "QueueClaim",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									},
+									{
+										"name": "stats",
+										"jsDoc": {
+											"doc": "Return an authoritative snapshot of queue counts and local waiter pressure.\n\nThe operation is asynchronous because durable providers may need to read\nshared storage before they can report cross-process queue state."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 296,
+											"col": 2,
+											"byteIndex": 10586
+										},
+										"params": [],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "QueueStats",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "QueueStats",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									},
+									{
+										"name": "close",
+										"jsDoc": {
+											"doc": "Close the queue and reject blocked waiters."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 300,
+											"col": 2,
+											"byteIndex": 10675
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "reason",
+												"optional": true,
+												"tsType": {
+													"repr": "unknown",
+													"kind": "keyword",
+													"value": "unknown"
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "void",
+														"kind": "keyword",
+														"value": "void"
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									}
+								],
+								"properties": [
+									{
+										"name": "events",
+										"jsDoc": {
+											"doc": "QueueEventType stream that reports authoritative queue state changes."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 237,
+											"col": 2,
+											"byteIndex": 8244
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "indexedAccess",
+											"value": {
+												"objType": {
+													"repr": "EventBus",
+													"kind": "typeRef",
+													"value": {
+														"typeParams": [
+															{
+																"repr": "QueueEventType",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "QueueEventType",
+																	"resolution": {
+																		"kind": "local"
+																	}
+																}
+															}
+														],
+														"typeName": "EventBus",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/observables",
+															"name": "EventBus"
+														}
+													}
+												},
+												"indexType": {
+													"repr": "events",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "events"
+													}
+												}
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Input"
+									},
+									{
+										"name": "Output"
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "QueueClaimHandle",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/types.ts",
+								"line": 310,
+								"col": 0,
+								"byteIndex": 10956
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Caller-owned handle for one FIFO-visible item.\n\nThe handle wraps one underlying queue claim. The caller can complete, fail,\nretry, or renew the item without passing the claim object back into queue\nmethods manually."
+							},
+							"kind": "interface",
+							"def": {
+								"extends": [
+									{
+										"repr": "AsyncDisposable",
+										"kind": "typeRef",
+										"value": {
+											"typeName": "AsyncDisposable"
+										}
+									}
+								],
+								"methods": [
+									{
+										"name": "complete",
+										"jsDoc": {
+											"doc": "Commit successful output for the taken item."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 326,
+											"col": 2,
+											"byteIndex": 11691
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "output",
+												"optional": false,
+												"tsType": {
+													"repr": "Output",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Output",
+														"resolution": {
+															"kind": "typeParam",
+															"declaringName": "QueueClaimHandle",
+															"declaringKind": "interface"
+														}
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "void",
+														"kind": "keyword",
+														"value": "void"
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									},
+									{
+										"name": "fail",
+										"jsDoc": {
+											"doc": "Commit a declared failure for the taken item."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 328,
+											"col": 2,
+											"byteIndex": 11787
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "value",
+												"optional": false,
+												"tsType": {
+													"repr": "EncodedFailure",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "EncodedFailure",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/failure",
+															"name": "Encoded"
+														}
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "void",
+														"kind": "keyword",
+														"value": "void"
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									},
+									{
+										"name": "retry",
+										"jsDoc": {
+											"doc": "Return the taken item to the queue for another attempt."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 330,
+											"col": 2,
+											"byteIndex": 11896
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "options",
+												"optional": true,
+												"tsType": {
+													"repr": "QueueRetryOptions",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "QueueRetryOptions",
+														"resolution": {
+															"kind": "local"
+														}
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "void",
+														"kind": "keyword",
+														"value": "void"
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									},
+									{
+										"name": "renew",
+										"jsDoc": {
+											"doc": "Extend the expiry time of the taken item and return the renewed handle."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 332,
+											"col": 2,
+											"byteIndex": 12028
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "duration",
+												"optional": false,
+												"tsType": {
+													"kind": "union",
+													"value": [
+														{
+															"repr": "Temporal.Duration",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Temporal.Duration"
+															}
+														},
+														{
+															"repr": "Temporal.DurationLike",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Temporal.DurationLike"
+															}
+														},
+														{
+															"repr": "string",
+															"kind": "keyword",
+															"value": "string"
+														}
+													]
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "QueueClaimHandle",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "Input",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Input",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "QueueClaimHandle",
+																			"declaringKind": "interface"
+																		}
+																	}
+																},
+																{
+																	"repr": "Output",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Output",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "QueueClaimHandle",
+																			"declaringKind": "interface"
+																		}
+																	}
+																}
+															],
+															"typeName": "QueueClaimHandle",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									}
+								],
+								"properties": [
+									{
+										"name": "id",
+										"jsDoc": {
+											"doc": "Unique identity for the current claim attempt."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 312,
+											"col": 2,
+											"byteIndex": 11087
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "itemId",
+										"jsDoc": {
+											"doc": "Stable logical item identity for the taken item."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 314,
+											"col": 2,
+											"byteIndex": 11166
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "owner",
+										"jsDoc": {
+											"doc": "Task or runtime identity that currently owns the item."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 316,
+											"col": 2,
+											"byteIndex": 11255
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "value",
+										"jsDoc": {
+											"doc": "Input value carried by the taken item."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 318,
+											"col": 2,
+											"byteIndex": 11327
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Input",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Input",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "QueueClaimHandle",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									},
+									{
+										"name": "attempt",
+										"jsDoc": {
+											"doc": "Attempt count for the logical item. The first successful take is `1`."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 320,
+											"col": 2,
+											"byteIndex": 11429
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "claimedAt",
+										"jsDoc": {
+											"doc": "Instant when the queue granted the current take."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 322,
+											"col": 2,
+											"byteIndex": 11513
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Temporal.Instant",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Temporal.Instant"
+											}
+										}
+									},
+									{
+										"name": "expiresAt",
+										"jsDoc": {
+											"doc": "Instant when the current take expires."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 324,
+											"col": 2,
+											"byteIndex": 11599
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Temporal.Instant",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Temporal.Instant"
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Input"
+									},
+									{
+										"name": "Output"
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "FifoQueue",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/types.ts",
+								"line": 341,
+								"col": 0,
+								"byteIndex": 12364
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "FIFO-friendly adapter over the claimed-work queue.\n\nThe adapter keeps the same recovery and ownership rules under the hood, but\nexposes a smaller surface for callers that want one-at-a-time queue usage."
+							},
+							"kind": "interface",
+							"def": {
+								"extends": [
+									{
+										"repr": "AsyncDisposable",
+										"kind": "typeRef",
+										"value": {
+											"typeName": "AsyncDisposable"
+										}
+									}
+								],
+								"methods": [
+									{
+										"name": "add",
+										"jsDoc": {
+											"doc": "Add one logical work item and return its stable reference."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 345,
+											"col": 2,
+											"byteIndex": 12632
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "input",
+												"optional": false,
+												"tsType": {
+													"repr": "Input",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Input",
+														"resolution": {
+															"kind": "typeParam",
+															"declaringName": "FifoQueue",
+															"declaringKind": "interface"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "options",
+												"optional": true,
+												"tsType": {
+													"repr": "QueueAddOptions",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "QueueAddOptions",
+														"resolution": {
+															"kind": "local"
+														}
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "QueueRef",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "QueueRef",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									},
+									{
+										"name": "take",
+										"jsDoc": {
+											"doc": "Take the next eligible item or wait for one item when configured."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 347,
+											"col": 2,
+											"byteIndex": 12772
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "options",
+												"optional": true,
+												"tsType": {
+													"repr": "QueueTakeOptions",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "QueueTakeOptions",
+														"resolution": {
+															"kind": "local"
+														}
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "union",
+														"value": [
+															{
+																"repr": "QueueClaimHandle",
+																"kind": "typeRef",
+																"value": {
+																	"typeParams": [
+																		{
+																			"repr": "Input",
+																			"kind": "typeRef",
+																			"value": {
+																				"typeName": "Input",
+																				"resolution": {
+																					"kind": "typeParam",
+																					"declaringName": "FifoQueue",
+																					"declaringKind": "interface"
+																				}
+																			}
+																		},
+																		{
+																			"repr": "Output",
+																			"kind": "typeRef",
+																			"value": {
+																				"typeName": "Output",
+																				"resolution": {
+																					"kind": "typeParam",
+																					"declaringName": "FifoQueue",
+																					"declaringKind": "interface"
+																				}
+																			}
+																		}
+																	],
+																	"typeName": "QueueClaimHandle",
+																	"resolution": {
+																		"kind": "local"
+																	}
+																}
+															},
+															{
+																"repr": "undefined",
+																"kind": "keyword",
+																"value": "undefined"
+															}
+														]
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									},
+									{
+										"name": "cancel",
+										"jsDoc": {
+											"doc": "Cancel the logical item by stable reference."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 349,
+											"col": 2,
+											"byteIndex": 12914
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "ref",
+												"optional": false,
+												"tsType": {
+													"repr": "QueueRef",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "QueueRef",
+														"resolution": {
+															"kind": "local"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "reason",
+												"optional": true,
+												"tsType": {
+													"repr": "unknown",
+													"kind": "keyword",
+													"value": "unknown"
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "void",
+														"kind": "keyword",
+														"value": "void"
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									},
+									{
+										"name": "result",
+										"jsDoc": {
+											"doc": "Wait for one item to reach terminal state without taking ownership."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 351,
+											"col": 2,
+											"byteIndex": 13047
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "ref",
+												"optional": false,
+												"tsType": {
+													"repr": "QueueRef",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "QueueRef",
+														"resolution": {
+															"kind": "local"
+														}
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Output",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Output",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "FifoQueue",
+																"declaringKind": "interface"
+															}
+														}
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									},
+									{
+										"name": "stats",
+										"jsDoc": {
+											"doc": "Return an authoritative snapshot of queue counts and local waiter pressure."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 353,
+											"col": 2,
+											"byteIndex": 13172
+										},
+										"params": [],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "QueueStats",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "QueueStats",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									},
+									{
+										"name": "close",
+										"jsDoc": {
+											"doc": "Close the queue and reject blocked waiters."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 355,
+											"col": 2,
+											"byteIndex": 13255
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "reason",
+												"optional": true,
+												"tsType": {
+													"repr": "unknown",
+													"kind": "keyword",
+													"value": "unknown"
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "void",
+														"kind": "keyword",
+														"value": "void"
+													}
+												],
+												"typeName": "Promise"
+											}
+										}
+									}
+								],
+								"properties": [
+									{
+										"name": "events",
+										"jsDoc": {
+											"doc": "QueueEventType stream that reports authoritative queue state changes."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 343,
+											"col": 2,
+											"byteIndex": 12511
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "indexedAccess",
+											"value": {
+												"objType": {
+													"repr": "EventBus",
+													"kind": "typeRef",
+													"value": {
+														"typeParams": [
+															{
+																"repr": "QueueEventType",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "QueueEventType",
+																	"resolution": {
+																		"kind": "local"
+																	}
+																}
+															}
+														],
+														"typeName": "EventBus",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/observables",
+															"name": "EventBus"
+														}
+													}
+												},
+												"indexType": {
+													"repr": "events",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "events"
+													}
+												}
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Input"
+									},
+									{
+										"name": "Output"
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "MemoryQueueOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/queue/types.ts",
+								"line": 361,
+								"col": 0,
+								"byteIndex": 13360
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Inputs accepted by the process-local memory queue."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "capacity",
+										"jsDoc": {
+											"doc": "Maximum number of active items.\n\nActive means `queued` or `claimed`. Terminal items do not consume the\ncapacity."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 368,
+											"col": 2,
+											"byteIndex": 13537
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "clock",
+										"jsDoc": {
+											"doc": "Clock used for delayed availability, expiry, and renewals."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 370,
+											"col": 2,
+											"byteIndex": 13633
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"kind": "indexedAccess",
+											"value": {
+												"objType": {
+													"repr": "Context",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Context",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/context",
+															"name": "Context"
+														}
+													}
+												},
+												"indexType": {
+													"repr": "clock",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "clock"
+													}
+												}
+											}
+										}
+									},
+									{
+										"name": "id",
+										"jsDoc": {
+											"doc": "Optional id generator for both item ids and claim ids.\n\nTests often supply a deterministic generator so claim sequences stay easy to\nassert."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 377,
+											"col": 2,
+											"byteIndex": 13835
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"kind": "fnOrConstructor",
+											"value": {
+												"constructor": false,
+												"tsType": {
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												},
+												"params": []
+											}
+										}
+									},
+									{
+										"name": "defaultClaimDuration",
+										"jsDoc": {
+											"doc": "Default claim lease duration used when `claim()` receives no explicit\nduration."
+										},
+										"location": {
+											"filename": "./packages/queue/types.ts",
+											"line": 382,
+											"col": 2,
+											"byteIndex": 13962
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "Temporal.Duration",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.Duration"
+													}
+												},
+												{
+													"repr": "Temporal.DurationLike",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Temporal.DurationLike"
+													}
+												},
+												{
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												}
+											]
+										}
+									}
+								]
+							}
+						}
+					]
+				}
+			]
+		}
+	}
+}

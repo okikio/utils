@@ -16,6 +16,8 @@ behavior; they do not replace authentication or access checks.
 For shared terms such as `await` and `await using`, see
 [the short glossary](../../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
+For the exact functions, types and field explanations, read the [generated contract reference](../API.md#cookie).
+
 ## Run a complete example
 
 ```ts runnable

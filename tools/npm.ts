@@ -44,6 +44,9 @@ if (mode === 'member') {
 	if (selected.length !== 1) throw new Error('Select one supported npm member for isolated emission.');
 	for (const [name, source] of selected) {
 		const stage = resolve(output, name);
+		const documents = (await readdir(resolve(root, 'packages', name))).filter((file) =>
+			['API.md', 'API.json', 'diagram.png', 'diagram.mmd'].includes(file)
+		);
 		await mkdir(resolve(stage, 'src'), { recursive: true });
 		await symlink(resolve(root, 'packages', name, 'node_modules'), resolve(stage, 'node_modules'), 'dir');
 		await cp(resolve(root, 'packages', name), resolve(stage, 'src'), {
@@ -72,7 +75,7 @@ if (mode === 'member') {
 		const manifest: Manifest = {
 			...source,
 			exports: exports as Manifest['exports'],
-			files: ['dist', 'README.md', 'LICENSE'],
+			files: ['dist', 'README.md', 'LICENSE', ...documents],
 			engines: { node: '>=26.10.0' },
 		};
 		delete manifest.devDependencies;
@@ -108,6 +111,9 @@ if (mode === 'member') {
 		await writeFile(resolve(stage, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 		await cp(resolve(root, 'LICENSE'), resolve(stage, 'LICENSE'));
 		await cp(resolve(root, 'packages', name, 'README.md'), resolve(stage, 'README.md'));
+		for (const document of documents) {
+			await cp(resolve(root, 'packages', name, document), resolve(stage, document));
+		}
 		await writeFile(
 			resolve(stage, 'tsconfig.json'),
 			JSON.stringify({

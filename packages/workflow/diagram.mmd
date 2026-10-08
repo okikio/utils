@@ -1,0 +1,9 @@
+flowchart TD
+    Program["Sequence requests a named step"] --> History["Check recorded instruction completion"]
+    History -->|"Completion exists"| Resume["Give result back to the sequence"]
+    History -->|"New instruction"| Dispatch["Admit job to dispatch"]
+    Dispatch --> Executor["Eligible executor runs an activity attempt"]
+    Executor --> Result["Accept the claim's result"]
+    Result --> Record["Record instruction completion"]
+    Record --> Resume
+    Resume --> Next["Continue with the next step"]

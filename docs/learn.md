@@ -40,15 +40,11 @@ and asks a scheduler for each result. Its configured history can reuse a recorde
 workflow demo, the second pass reuses both text transformations. Memory history remains local to that process; a crash
 recovery system needs authoritative storage and additional host services.
 
-```mermaid
-flowchart TD
-    Simple["One local text transformation"] --> Function["Call a regular function"]
-    Save["One checked save job"] --> Activity["Activity borrows a supplied resource"]
-    Sequence["Several named jobs with recorded results"] --> Workflow["Workflow requests activities through a scheduler"]
-```
+![Choose a regular function, an activity, or a workflow to match the required outcome](diagrams/learn.png)
 
-Read each row as a different requirement. The arrows identify an appropriate programming model, not automatic promotion
-through three levels. Do not add the third level when the first level already solves the problem.
+[Editable diagram source](diagrams/learn.mmd). Read each row as a different requirement. The arrows identify an
+appropriate programming model, not automatic promotion through three levels. Do not add the third level when the first
+level already solves the problem.
 
 The separate pieces keep the familiar input-to-output relationship visible:
 
@@ -58,6 +54,9 @@ The separate pieces keep the familiar input-to-output relationship visible:
 | Save activity | A title and declared access to a store     | A checked receipt from one attempt.                                                      |
 | Workflow      | A run input and an exact program           | A result assembled from recorded or newly completed instructions.                        |
 | Context       | An operation identity and lifetime options | Supporting cancellation, deadline and cleanup state. It does not return the saved photo. |
+
+The [contract index](contracts.md) links to every package’s exact exported functions, types and field explanations. Use
+the examples to see what a call achieves, then use the reference to inspect the values it accepts and returns.
 
 ## Read the small amount of code you need
 

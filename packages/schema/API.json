@@ -1,0 +1,1181 @@
+{
+	"package": "@okikio/schema",
+	"packageVersion": "0.0.0",
+	"rendererVersion": 2,
+	"modules": {
+		"@okikio/schema": {
+			"module_doc": {
+				"doc": "Use one Standard Schema validation call across validator libraries. Reading a validator-specific result shape in every utility otherwise forces consumers to use the same schema engine.\n\nStart with parse() when invalid input should throw, then use result-oriented validation where a caller needs structured issues. Keep coercion in the schema that owns the meaning. JSON Schema projection is a separate capability and can fail for values that have no faithful wire representation. Import a validator adapter explicitly; the generic validation core does not silently choose one.\n",
+				"tags": [
+					{
+						"kind": "example",
+						"doc": "```ts\nimport * as schema from '@okikio/schema';\nimport { z } from 'zod';\nconst PortSchema = z.coerce.number().int().min(1).max(65535);\nconsole.log(await schema.parse(PortSchema, '8787'));\n```\n"
+					},
+					{
+						"kind": "module"
+					}
+				]
+			},
+			"imports": [
+				{
+					"importedName": "StandardSchemaV1",
+					"originalName": "StandardSchemaV1",
+					"src": "./node_modules/.pnpm/@standard-schema+spec@1.1.0/node_modules/@standard-schema/spec/dist/index.d.ts",
+					"jsDoc": {
+						"doc": "Use one Standard Schema validation call across validator libraries. Reading a validator-specific result shape in every utility otherwise forces consumers to use the same schema engine.\n\nStart with parse() when invalid input should throw, then use result-oriented validation where a caller needs structured issues. Keep coercion in the schema that owns the meaning. JSON Schema projection is a separate capability and can fail for values that have no faithful wire representation. Import a validator adapter explicitly; the generic validation core does not silently choose one.\n",
+						"tags": [
+							{
+								"kind": "example",
+								"doc": "```ts\nimport * as schema from '@okikio/schema';\nimport { z } from 'zod';\nconst PortSchema = z.coerce.number().int().min(1).max(65535);\nconsole.log(await schema.parse(PortSchema, '8787'));\n```\n"
+							},
+							{
+								"kind": "module"
+							}
+						]
+					}
+				},
+				{
+					"importedName": "Failure",
+					"originalName": "Failure",
+					"src": "./packages/schema/types.ts"
+				},
+				{
+					"importedName": "Schema",
+					"originalName": "Schema",
+					"src": "./packages/schema/types.ts"
+				},
+				{
+					"importedName": "Success",
+					"originalName": "Success",
+					"src": "./packages/schema/types.ts"
+				},
+				{
+					"importedName": "ValidationResult",
+					"originalName": "ValidationResult",
+					"src": "./packages/schema/types.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "SchemaValidationError",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/schema/mod.ts",
+								"line": 20,
+								"col": 0,
+								"byteIndex": 1053
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Error raised when a value does not satisfy a Standard Schema contract."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"jsDoc": {
+											"doc": "Create this SchemaValidationError from the explicit contract values supplied by its caller."
+										},
+										"hasBody": true,
+										"name": "constructor",
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "issues",
+												"optional": false,
+												"tsType": {
+													"kind": "typeOperator",
+													"value": {
+														"operator": "readonly",
+														"tsType": {
+															"kind": "array",
+															"value": {
+																"repr": "StandardSchemaV1.Issue",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "StandardSchemaV1.Issue",
+																	"resolution": {
+																		"kind": "import",
+																		"specifier": "@standard-schema/spec",
+																		"name": "StandardSchemaV1"
+																	}
+																}
+															}
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "message",
+												"optional": true,
+												"tsType": {
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												}
+											}
+										],
+										"location": {
+											"filename": "./packages/schema/mod.ts",
+											"line": 25,
+											"col": 2,
+											"byteIndex": 1365
+										}
+									}
+								],
+								"properties": [
+									{
+										"jsDoc": {
+											"doc": "Structured rejection details; branch on their codes or paths rather than explanation wording."
+										},
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "StandardSchemaV1.Issue",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "StandardSchemaV1.Issue",
+															"resolution": {
+																"kind": "import",
+																"specifier": "@standard-schema/spec",
+																"name": "StandardSchemaV1"
+															}
+														}
+													}
+												}
+											}
+										},
+										"readonly": true,
+										"name": "issues",
+										"location": {
+											"filename": "./packages/schema/mod.ts",
+											"line": 22,
+											"col": 2,
+											"byteIndex": 1211
+										}
+									}
+								],
+								"extends": "TypeError"
+							}
+						}
+					]
+				},
+				{
+					"name": "is",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/schema/mod.ts",
+								"line": 39,
+								"col": 0,
+								"byteIndex": 1866
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return whether a value implements Standard Schema V1."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										}
+									}
+								],
+								"returnType": {
+									"repr": "value is Schema",
+									"kind": "typePredicate",
+									"value": {
+										"param": {
+											"type": "identifier",
+											"name": "value"
+										},
+										"type": {
+											"repr": "Schema",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Schema",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "Schema"
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "validate",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/schema/mod.ts",
+								"line": 49,
+								"col": 0,
+								"byteIndex": 2421
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Validate an unknown value and normalize the Standard Schema result."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "definition",
+										"optional": false,
+										"tsType": {
+											"repr": "Schema",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Input",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Input",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "validate",
+																"declaringKind": "function"
+															}
+														}
+													},
+													{
+														"repr": "Output",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Output",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "validate",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "Schema",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "Schema"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										}
+									}
+								],
+								"returnType": {
+									"repr": "Promise",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "ValidationResult",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"repr": "Output",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Output",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "validate",
+																	"declaringKind": "function"
+																}
+															}
+														}
+													],
+													"typeName": "ValidationResult",
+													"resolution": {
+														"kind": "import",
+														"specifier": "./types.ts",
+														"name": "ValidationResult"
+													}
+												}
+											}
+										],
+										"typeName": "Promise"
+									}
+								},
+								"hasBody": true,
+								"isAsync": true,
+								"typeParams": [
+									{
+										"name": "Input"
+									},
+									{
+										"name": "Output"
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "parse",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/schema/mod.ts",
+								"line": 60,
+								"col": 0,
+								"byteIndex": 2816
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Validate an unknown value or throw {@link SchemaValidationError}."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "definition",
+										"optional": false,
+										"tsType": {
+											"repr": "Schema",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Input",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Input",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "parse",
+																"declaringKind": "function"
+															}
+														}
+													},
+													{
+														"repr": "Output",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Output",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "parse",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "Schema",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "Schema"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										}
+									}
+								],
+								"returnType": {
+									"repr": "Promise",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Output",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Output",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "parse",
+														"declaringKind": "function"
+													}
+												}
+											}
+										],
+										"typeName": "Promise"
+									}
+								},
+								"hasBody": true,
+								"isAsync": true,
+								"typeParams": [
+									{
+										"name": "Input"
+									},
+									{
+										"name": "Output"
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "assert",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/schema/mod.ts",
+								"line": 70,
+								"col": 0,
+								"byteIndex": 3150
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Assert that a value implements Standard Schema V1."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										}
+									},
+									{
+										"kind": "assign",
+										"left": {
+											"kind": "identifier",
+											"name": "name",
+											"optional": false,
+											"tsType": {
+												"repr": "string",
+												"kind": "keyword",
+												"value": "string"
+											}
+										},
+										"right": "schema"
+									}
+								],
+								"returnType": {
+									"repr": "asserts value is Schema",
+									"kind": "typePredicate",
+									"value": {
+										"asserts": true,
+										"param": {
+											"type": "identifier",
+											"name": "value"
+										},
+										"type": {
+											"repr": "Schema",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Schema",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "Schema"
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "prefixIssues",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/schema/mod.ts",
+								"line": 75,
+								"col": 0,
+								"byteIndex": 3404
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Prefix validation issue paths while preserving vendor-specific issue fields."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "issues",
+										"optional": false,
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "StandardSchemaV1.Issue",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "StandardSchemaV1.Issue",
+															"resolution": {
+																"kind": "import",
+																"specifier": "@standard-schema/spec",
+																"name": "StandardSchemaV1"
+															}
+														}
+													}
+												}
+											}
+										}
+									},
+									{
+										"kind": "rest",
+										"arg": {
+											"kind": "identifier",
+											"name": "path",
+											"optional": false
+										},
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "PropertyKey",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "PropertyKey"
+														}
+													}
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "readonly",
+										"tsType": {
+											"kind": "array",
+											"value": {
+												"repr": "StandardSchemaV1.Issue",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "StandardSchemaV1.Issue",
+													"resolution": {
+														"kind": "import",
+														"specifier": "@standard-schema/spec",
+														"name": "StandardSchemaV1"
+													}
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "Failure",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/schema/mod.ts",
+								"line": 105,
+								"col": 14,
+								"byteIndex": 4157
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/schema/types.ts",
+									"line": 15,
+									"col": 0,
+									"byteIndex": 728
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Input",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/schema/mod.ts",
+								"line": 105,
+								"col": 23,
+								"byteIndex": 4166
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/schema/types.ts",
+									"line": 6,
+									"col": 0,
+									"byteIndex": 281
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Output",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/schema/mod.ts",
+								"line": 105,
+								"col": 30,
+								"byteIndex": 4173
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/schema/types.ts",
+									"line": 9,
+									"col": 0,
+									"byteIndex": 439
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Schema",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/schema/mod.ts",
+								"line": 105,
+								"col": 38,
+								"byteIndex": 4181
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/schema/types.ts",
+									"line": 3,
+									"col": 0,
+									"byteIndex": 135
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Success",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/schema/mod.ts",
+								"line": 105,
+								"col": 46,
+								"byteIndex": 4189
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/schema/types.ts",
+									"line": 12,
+									"col": 0,
+									"byteIndex": 583
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ValidationResult",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/schema/mod.ts",
+								"line": 105,
+								"col": 55,
+								"byteIndex": 4198
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/schema/types.ts",
+									"line": 18,
+									"col": 0,
+									"byteIndex": 870
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		"@okikio/schema/types": {
+			"imports": [
+				{
+					"importedName": "StandardSchemaV1",
+					"originalName": "StandardSchemaV1",
+					"src": "./node_modules/.pnpm/@standard-schema+spec@1.1.0/node_modules/@standard-schema/spec/dist/index.d.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "Schema",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/schema/types.ts",
+								"line": 3,
+								"col": 0,
+								"byteIndex": 135
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Standard Schema contract accepted by reusable utility packages."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "StandardSchemaV1",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Input",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Input",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "Schema",
+														"declaringKind": "typeAlias"
+													}
+												}
+											},
+											{
+												"repr": "Output",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Output",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "Schema",
+														"declaringKind": "typeAlias"
+													}
+												}
+											}
+										],
+										"typeName": "StandardSchemaV1",
+										"resolution": {
+											"kind": "import",
+											"specifier": "@standard-schema/spec",
+											"name": "StandardSchemaV1"
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Input",
+										"default": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										}
+									},
+									{
+										"name": "Output",
+										"default": {
+											"repr": "Input",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Input",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "Schema",
+													"declaringKind": "typeAlias"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Input",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/schema/types.ts",
+								"line": 6,
+								"col": 0,
+								"byteIndex": 281
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Input type accepted by a Standard Schema contract."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "StandardSchemaV1.InferInput",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Definition",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Definition",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "Input",
+														"declaringKind": "typeAlias"
+													}
+												}
+											}
+										],
+										"typeName": "StandardSchemaV1.InferInput",
+										"resolution": {
+											"kind": "import",
+											"specifier": "@standard-schema/spec",
+											"name": "StandardSchemaV1"
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Definition",
+										"constraint": {
+											"repr": "Schema",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Schema",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Output",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/schema/types.ts",
+								"line": 9,
+								"col": 0,
+								"byteIndex": 439
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Validated output type produced by a Standard Schema contract."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "StandardSchemaV1.InferOutput",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Definition",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Definition",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "Output",
+														"declaringKind": "typeAlias"
+													}
+												}
+											}
+										],
+										"typeName": "StandardSchemaV1.InferOutput",
+										"resolution": {
+											"kind": "import",
+											"specifier": "@standard-schema/spec",
+											"name": "StandardSchemaV1"
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Definition",
+										"constraint": {
+											"repr": "Schema",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Schema",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Success",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/schema/types.ts",
+								"line": 12,
+								"col": 0,
+								"byteIndex": 583
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Successful Standard Schema validation result."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "Readonly",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"kind": "typeLiteral",
+												"value": {
+													"properties": [
+														{
+															"name": "value",
+															"location": {
+																"filename": "./packages/schema/types.ts",
+																"line": 12,
+																"col": 40,
+																"byteIndex": 623
+															},
+															"readonly": true,
+															"tsType": {
+																"repr": "Value",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Value",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "Success",
+																		"declaringKind": "typeAlias"
+																	}
+																}
+															}
+														},
+														{
+															"name": "issues",
+															"location": {
+																"filename": "./packages/schema/types.ts",
+																"line": 12,
+																"col": 63,
+																"byteIndex": 646
+															},
+															"readonly": true,
+															"optional": true,
+															"tsType": {
+																"repr": "undefined",
+																"kind": "keyword",
+																"value": "undefined"
+															}
+														}
+													]
+												}
+											}
+										],
+										"typeName": "Readonly"
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Value"
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Failure",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/schema/types.ts",
+								"line": 15,
+								"col": 0,
+								"byteIndex": 728
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Failed Standard Schema validation result."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "Readonly",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"kind": "typeLiteral",
+												"value": {
+													"properties": [
+														{
+															"name": "issues",
+															"location": {
+																"filename": "./packages/schema/types.ts",
+																"line": 15,
+																"col": 33,
+																"byteIndex": 761
+															},
+															"readonly": true,
+															"tsType": {
+																"kind": "typeOperator",
+																"value": {
+																	"operator": "readonly",
+																	"tsType": {
+																		"kind": "array",
+																		"value": {
+																			"repr": "StandardSchemaV1.Issue",
+																			"kind": "typeRef",
+																			"value": {
+																				"typeName": "StandardSchemaV1.Issue",
+																				"resolution": {
+																					"kind": "import",
+																					"specifier": "@standard-schema/spec",
+																					"name": "StandardSchemaV1"
+																				}
+																			}
+																		}
+																	}
+																}
+															}
+														}
+													]
+												}
+											}
+										],
+										"typeName": "Readonly"
+									}
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ValidationResult",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/schema/types.ts",
+								"line": 18,
+								"col": 0,
+								"byteIndex": 870
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Validation result normalized by this package."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "Success",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Value",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Value",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "ValidationResult",
+																"declaringKind": "typeAlias"
+															}
+														}
+													}
+												],
+												"typeName": "Success",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										{
+											"repr": "Failure",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Failure",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									]
+								},
+								"typeParams": [
+									{
+										"name": "Value"
+									}
+								]
+							}
+						}
+					]
+				}
+			]
+		}
+	}
+}

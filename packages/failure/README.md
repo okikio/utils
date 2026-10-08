@@ -4,22 +4,16 @@ An asset lookup can legitimately find no asset. Callers need to recognize “mis
 sentence changes or the answer arrives from another process. `failure` defines that expected reason with a stable ID and
 checked details, then creates individual occurrences of it.
 
-```mermaid
-sequenceDiagram
-    participant A as Sender
-    participant F as Encoded failure data
-    participant B as Receiver
-    A->>F: ID, checked details and message
-    F->>B: Transfer the data
-    B->>B: Find trusted definition and validate details
-    B->>B: Reconstruct local occurrence
-```
+![A declared failure travels as checked data and is reconstructed by the receiver](diagram.png)
 
-The demo encodes and decodes locally to show these steps. The transfer is something your application supplies; this
-package performs no network or storage I/O. Local JavaScript causes do not cross the encoded boundary.
+[Editable diagram source](diagram.mmd). The demo encodes and decodes locally to show these steps. The transfer is
+something your application supplies; this package performs no network or storage I/O. Local JavaScript causes do not
+cross the encoded boundary.
 
 For shared terms such as `await` and `await using`, see
 [the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
+
+For the exact functions, types and field explanations, read the [generated contract reference](API.md).
 
 ## Run a complete example
 

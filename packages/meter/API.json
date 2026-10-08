@@ -1,0 +1,1724 @@
+{
+	"package": "@okikio/meter",
+	"packageVersion": "0.0.0",
+	"rendererVersion": 2,
+	"modules": {
+		"@okikio/meter": {
+			"module_doc": {
+				"doc": "Record a validated usage fact through the same authoritative effect owner as the operation. Incrementing an in-memory counter cannot prove a billing or audit sink accepted the measurement.\n\nDefine a measurement once, record it with a stable idempotency key, then attach attributes for later aggregation. A real owner may persist the occurrence to a ledger or outbox. The example owner accepts in memory only; it is not a billing backend. Meter definitions describe units and aggregation, while application policy decides pricing and entitlement.\n",
+				"tags": [
+					{
+						"kind": "example",
+						"doc": "```ts\nimport '@okikio/duration/polyfill';\nimport '@okikio/dispose/polyfill';\nimport * as context from '@okikio/context';\nimport * as effect from '@okikio/effect';\nimport * as meter from '@okikio/meter';\nimport { MeterReadingSchema } from '@okikio/meter';\nimport * as schema from '@okikio/schema';\nconst Bytes = meter.define({ id: 'download.bytes', unit: 'byte', aggregation: 'sum' });\nawait using owner = context.create({ id: 'download' });\nconst ctx = effect.scope(owner, {\n  effects: [meter.effect(Bytes)], emitter: { async emit() {} },\n});\nconst occurrence = await meter.record(ctx, Bytes, 2048, { key: 'download:asset-1' });\nconsole.log((await schema.parse(MeterReadingSchema, occurrence.value)).value);\n```\n"
+					},
+					{
+						"kind": "module"
+					}
+				]
+			},
+			"imports": [
+				{
+					"importedName": "catalogCore",
+					"src": "./packages/catalog/mod.ts",
+					"jsDoc": {
+						"doc": "Record a validated usage fact through the same authoritative effect owner as the operation. Incrementing an in-memory counter cannot prove a billing or audit sink accepted the measurement.\n\nDefine a measurement once, record it with a stable idempotency key, then attach attributes for later aggregation. A real owner may persist the occurrence to a ledger or outbox. The example owner accepts in memory only; it is not a billing backend. Meter definitions describe units and aggregation, while application policy decides pricing and entitlement.\n",
+						"tags": [
+							{
+								"kind": "example",
+								"doc": "```ts\nimport '@okikio/duration/polyfill';\nimport '@okikio/dispose/polyfill';\nimport * as context from '@okikio/context';\nimport * as effect from '@okikio/effect';\nimport * as meter from '@okikio/meter';\nimport { MeterReadingSchema } from '@okikio/meter';\nimport * as schema from '@okikio/schema';\nconst Bytes = meter.define({ id: 'download.bytes', unit: 'byte', aggregation: 'sum' });\nawait using owner = context.create({ id: 'download' });\nconst ctx = effect.scope(owner, {\n  effects: [meter.effect(Bytes)], emitter: { async emit() {} },\n});\nconst occurrence = await meter.record(ctx, Bytes, 2048, { key: 'download:asset-1' });\nconsole.log((await schema.parse(MeterReadingSchema, occurrence.value)).value);\n```\n"
+							},
+							{
+								"kind": "module"
+							}
+						]
+					}
+				},
+				{
+					"importedName": "CatalogDefinitionInput",
+					"originalName": "DefinitionInput",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "EffectContext",
+					"originalName": "EffectContext",
+					"src": "./packages/effect/mod.ts"
+				},
+				{
+					"importedName": "EffectOccurrence",
+					"originalName": "EffectOccurrence",
+					"src": "./packages/effect/mod.ts"
+				},
+				{
+					"importedName": "effects",
+					"src": "./packages/effect/mod.ts"
+				},
+				{
+					"importedName": "MeterReadingSchema",
+					"originalName": "MeterReadingSchema",
+					"src": "./packages/meter/schema.ts"
+				},
+				{
+					"importedName": "MeterCatalog",
+					"originalName": "MeterCatalog",
+					"src": "./packages/meter/types.ts"
+				},
+				{
+					"importedName": "MeterDefinition",
+					"originalName": "MeterDefinition",
+					"src": "./packages/meter/types.ts"
+				},
+				{
+					"importedName": "MeterOptions",
+					"originalName": "MeterOptions",
+					"src": "./packages/meter/types.ts"
+				},
+				{
+					"importedName": "MeterReadingType",
+					"originalName": "MeterReadingType",
+					"src": "./packages/meter/types.ts"
+				},
+				{
+					"importedName": "MeterRecordOptions",
+					"originalName": "MeterRecordOptions",
+					"src": "./packages/meter/types.ts"
+				},
+				{
+					"importedName": "MeterSelection",
+					"originalName": "MeterSelection",
+					"src": "./packages/meter/types.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "define",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/meter/mod.ts",
+								"line": 40,
+								"col": 0,
+								"byteIndex": 1866
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Define one immutable meter contract without starting a measurement sink."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "input",
+										"optional": false,
+										"tsType": {
+											"repr": "MeterOptions",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "MeterOptions",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "MeterOptions"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "MeterDefinition",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "MeterDefinition",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "MeterDefinition"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "catalog",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/meter/mod.ts",
+								"line": 51,
+								"col": 0,
+								"byteIndex": 2268
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create a named immutable meter catalog."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "namespace",
+										"optional": false,
+										"tsType": {
+											"repr": "Namespace",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Namespace",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "catalog",
+													"declaringKind": "function"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "entries",
+										"optional": false,
+										"tsType": {
+											"repr": "Entries",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Entries",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "catalog",
+													"declaringKind": "function"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "MeterCatalog",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Entries",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entries",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "catalog",
+														"declaringKind": "function"
+													}
+												}
+											}
+										],
+										"typeName": "MeterCatalog",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "MeterCatalog"
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Namespace",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "MeterDefinition",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "MeterDefinition",
+																		"resolution": {
+																			"kind": "import",
+																			"specifier": "./types.ts",
+																			"name": "MeterDefinition"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "select",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/meter/mod.ts",
+								"line": 62,
+								"col": 0,
+								"byteIndex": 2573
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Select a key-preserving meter catalog subset."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "source",
+										"optional": false,
+										"tsType": {
+											"repr": "MeterCatalog",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Entries",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entries",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "select",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "MeterCatalog",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "MeterCatalog"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "keys",
+										"optional": false,
+										"tsType": {
+											"repr": "Keys",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Keys",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "select",
+													"declaringKind": "function"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "MeterSelection",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"kind": "indexedAccess",
+												"value": {
+													"objType": {
+														"repr": "Entries",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entries",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "select",
+																"declaringKind": "function"
+															}
+														}
+													},
+													"indexType": {
+														"kind": "typeOperator",
+														"value": {
+															"operator": "keyof",
+															"tsType": {
+																"repr": "Entries",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Entries",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "select",
+																		"declaringKind": "function"
+																	}
+																}
+															}
+														}
+													}
+												}
+											},
+											{
+												"repr": "Pick",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"repr": "Entries",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Entries",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "select",
+																	"declaringKind": "function"
+																}
+															}
+														},
+														{
+															"kind": "indexedAccess",
+															"value": {
+																"objType": {
+																	"repr": "Keys",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Keys",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "select",
+																			"declaringKind": "function"
+																		}
+																	}
+																},
+																"indexType": {
+																	"repr": "number",
+																	"kind": "keyword",
+																	"value": "number"
+																}
+															}
+														}
+													],
+													"typeName": "Pick"
+												}
+											}
+										],
+										"typeName": "MeterSelection",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "MeterSelection"
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "MeterDefinition",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "MeterDefinition",
+																		"resolution": {
+																			"kind": "import",
+																			"specifier": "./types.ts",
+																			"name": "MeterDefinition"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									},
+									{
+										"name": "Keys",
+										"constraint": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"kind": "parenthesized",
+														"value": {
+															"kind": "intersection",
+															"value": [
+																{
+																	"kind": "typeOperator",
+																	"value": {
+																		"operator": "keyof",
+																		"tsType": {
+																			"repr": "Entries",
+																			"kind": "typeRef",
+																			"value": {
+																				"typeName": "Entries",
+																				"resolution": {
+																					"kind": "typeParam",
+																					"declaringName": "select",
+																					"declaringKind": "function"
+																				}
+																			}
+																		}
+																	}
+																},
+																{
+																	"repr": "string",
+																	"kind": "keyword",
+																	"value": "string"
+																}
+															]
+														}
+													}
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "compose",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/meter/mod.ts",
+								"line": 70,
+								"col": 0,
+								"byteIndex": 2961
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Compose meter definitions, catalogs, selections, and nested arrays."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "rest",
+										"arg": {
+											"kind": "identifier",
+											"name": "input",
+											"optional": false
+										},
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "CatalogDefinitionInput",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "Entry",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Entry",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "compose",
+																			"declaringKind": "function"
+																		}
+																	}
+																}
+															],
+															"typeName": "CatalogDefinitionInput",
+															"resolution": {
+																"kind": "import",
+																"specifier": "@okikio/catalog",
+																"name": "DefinitionInput"
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "readonly",
+										"tsType": {
+											"kind": "array",
+											"value": {
+												"repr": "Entry",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entry",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "compose",
+														"declaringKind": "function"
+													}
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "MeterDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "MeterDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "MeterDefinition"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "effect",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/meter/mod.ts",
+								"line": 77,
+								"col": 0,
+								"byteIndex": 3211
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Return the exact declared effect definition used to record this meter."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "definition",
+										"optional": false,
+										"tsType": {
+											"repr": "MeterDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "MeterDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "MeterDefinition"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "importType",
+									"value": {
+										"specifier": "@okikio/effect",
+										"qualifier": "EffectDefinition"
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "record",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/meter/mod.ts",
+								"line": 89,
+								"col": 0,
+								"byteIndex": 3663
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Record one measurement as an effect announcement.\n\nThe occurrence time comes from the execution context clock, not ambient\n`Date.now()`, so tests and replay-aware hosts can control time consistently.\nResolution means the effect owner accepted responsibility for the fact."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "ctx",
+										"optional": false,
+										"tsType": {
+											"repr": "EffectContext",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectContext",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/effect",
+													"name": "EffectContext"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "definition",
+										"optional": false,
+										"tsType": {
+											"repr": "MeterDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "MeterDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "MeterDefinition"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "value",
+										"optional": false,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "options",
+										"optional": false,
+										"tsType": {
+											"repr": "MeterRecordOptions",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "MeterRecordOptions",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "MeterRecordOptions"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "Promise",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "EffectOccurrence",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "EffectOccurrence",
+													"resolution": {
+														"kind": "import",
+														"specifier": "@okikio/effect",
+														"name": "EffectOccurrence"
+													}
+												}
+											}
+										],
+										"typeName": "Promise"
+									}
+								},
+								"hasBody": true,
+								"isAsync": true
+							}
+						}
+					]
+				},
+				{
+					"name": "MeterCatalog",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/meter/mod.ts",
+								"line": 123,
+								"col": 2,
+								"byteIndex": 4961
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/meter/types.ts",
+									"line": 43,
+									"col": 0,
+									"byteIndex": 1674
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "MeterDefinition",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/meter/mod.ts",
+								"line": 124,
+								"col": 2,
+								"byteIndex": 4976
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/meter/types.ts",
+									"line": 21,
+									"col": 0,
+									"byteIndex": 756
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "MeterDefinitions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/meter/mod.ts",
+								"line": 125,
+								"col": 2,
+								"byteIndex": 4994
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/meter/types.ts",
+									"line": 55,
+									"col": 0,
+									"byteIndex": 2083
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "MeterOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/meter/mod.ts",
+								"line": 126,
+								"col": 2,
+								"byteIndex": 5013
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/meter/types.ts",
+									"line": 9,
+									"col": 0,
+									"byteIndex": 239
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "MeterReadingType",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/meter/schema.ts",
+								"line": 3,
+								"col": 0,
+								"byteIndex": 162
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Runtime measurement validated before it enters an effect occurrence."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "value",
+										"jsDoc": {
+											"doc": "Value carried by this contract; its schema and owner define the accepted shape."
+										},
+										"location": {
+											"filename": "./packages/meter/schema.ts",
+											"line": 5,
+											"col": 2,
+											"byteIndex": 287
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									},
+									{
+										"name": "at",
+										"jsDoc": {
+											"doc": "Observation instant supplied by the owning clock."
+										},
+										"location": {
+											"filename": "./packages/meter/schema.ts",
+											"line": 7,
+											"col": 2,
+											"byteIndex": 370
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "attributes",
+										"jsDoc": {
+											"doc": "Additional caller-owned metadata carried beside the primary value."
+										},
+										"location": {
+											"filename": "./packages/meter/schema.ts",
+											"line": 9,
+											"col": 2,
+											"byteIndex": 467
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "string",
+																	"kind": "keyword",
+																	"value": "string"
+																},
+																{
+																	"kind": "union",
+																	"value": [
+																		{
+																			"repr": "string",
+																			"kind": "keyword",
+																			"value": "string"
+																		},
+																		{
+																			"repr": "number",
+																			"kind": "keyword",
+																			"value": "number"
+																		},
+																		{
+																			"repr": "boolean",
+																			"kind": "keyword",
+																			"value": "boolean"
+																		}
+																	]
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "MeterRecordOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/meter/mod.ts",
+								"line": 128,
+								"col": 2,
+								"byteIndex": 5047
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/meter/types.ts",
+									"line": 35,
+									"col": 0,
+									"byteIndex": 1350
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "MeterSelection",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/meter/mod.ts",
+								"line": 129,
+								"col": 2,
+								"byteIndex": 5068
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/meter/types.ts",
+									"line": 49,
+									"col": 0,
+									"byteIndex": 1859
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "MeterReadingSchema",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/meter/schema.ts",
+								"line": 35,
+								"col": 13,
+								"byteIndex": 1427
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Standard Schema contract for one accepted meter fact.\n\nThe meter package only needs a small stable wire contract, so it does not\npull a validator implementation into production. Applications remain free to\nuse Zod, Valibot, ArkType, or any other Standard Schema implementation."
+							},
+							"kind": "variable",
+							"def": {
+								"kind": "const"
+							}
+						}
+					]
+				}
+			]
+		},
+		"@okikio/meter/types": {
+			"imports": [
+				{
+					"importedName": "Catalog",
+					"originalName": "Catalog",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "CatalogEntryIdentity",
+					"originalName": "CatalogEntryIdentity",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "CatalogSelection",
+					"originalName": "CatalogSelection",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "CatalogDefinitionInput",
+					"originalName": "DefinitionInput",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "EffectDefinition",
+					"originalName": "EffectDefinition",
+					"src": "./packages/effect/mod.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "MeterOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/meter/types.ts",
+								"line": 9,
+								"col": 0,
+								"byteIndex": 239
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Options accepted by `meters.define()`."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "id",
+										"jsDoc": {
+											"doc": "Stable measurement identity used by effect definitions and downstream metric consumers."
+										},
+										"location": {
+											"filename": "./packages/meter/types.ts",
+											"line": 11,
+											"col": 2,
+											"byteIndex": 368
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "description",
+										"jsDoc": {
+											"doc": "Human-readable meter purpose used by documentation and diagnostics."
+										},
+										"location": {
+											"filename": "./packages/meter/types.ts",
+											"line": 13,
+											"col": 2,
+											"byteIndex": 466
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "unit",
+										"jsDoc": {
+											"doc": "Unit represented by one recorded measurement value."
+										},
+										"location": {
+											"filename": "./packages/meter/types.ts",
+											"line": 15,
+											"col": 2,
+											"byteIndex": 558
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "aggregation",
+										"jsDoc": {
+											"doc": "Suggested aggregation meaning for downstream metric consumers."
+										},
+										"location": {
+											"filename": "./packages/meter/types.ts",
+											"line": 17,
+											"col": 2,
+											"byteIndex": 654
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "MeterDefinition",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/meter/types.ts",
+								"line": 21,
+								"col": 0,
+								"byteIndex": 756
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Immutable meter contract and its declared effect definition."
+							},
+							"kind": "interface",
+							"def": {
+								"extends": [
+									{
+										"repr": "CatalogEntryIdentity",
+										"kind": "typeRef",
+										"value": {
+											"typeName": "CatalogEntryIdentity",
+											"resolution": {
+												"kind": "import",
+												"specifier": "@okikio/catalog",
+												"name": "CatalogEntryIdentity"
+											}
+										}
+									}
+								],
+								"properties": [
+									{
+										"name": "kind",
+										"jsDoc": {
+											"doc": "Stable discriminant for this meter value."
+										},
+										"location": {
+											"filename": "./packages/meter/types.ts",
+											"line": 23,
+											"col": 2,
+											"byteIndex": 871
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "meter",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "meter"
+											}
+										}
+									},
+									{
+										"name": "description",
+										"jsDoc": {
+											"doc": "Human-readable meter purpose used by documentation and diagnostics."
+										},
+										"location": {
+											"filename": "./packages/meter/types.ts",
+											"line": 25,
+											"col": 2,
+											"byteIndex": 972
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "unit",
+										"jsDoc": {
+											"doc": "Unit represented by each fact recorded for this meter."
+										},
+										"location": {
+											"filename": "./packages/meter/types.ts",
+											"line": 27,
+											"col": 2,
+											"byteIndex": 1067
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "aggregation",
+										"jsDoc": {
+											"doc": "Suggested downstream aggregation meaning retained as static metadata."
+										},
+										"location": {
+											"filename": "./packages/meter/types.ts",
+											"line": 29,
+											"col": 2,
+											"byteIndex": 1170
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "effect",
+										"jsDoc": {
+											"doc": "Effect declared for runtimes that record one measurement."
+										},
+										"location": {
+											"filename": "./packages/meter/types.ts",
+											"line": 31,
+											"col": 2,
+											"byteIndex": 1268
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "EffectDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EffectDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/effect",
+													"name": "EffectDefinition"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "MeterRecordOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/meter/types.ts",
+								"line": 35,
+								"col": 0,
+								"byteIndex": 1350
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Input accepted by `meters.record()`."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "key",
+										"jsDoc": {
+											"doc": "Caller-stable key used for deterministic identity or keyed coordination."
+										},
+										"location": {
+											"filename": "./packages/meter/types.ts",
+											"line": 37,
+											"col": 2,
+											"byteIndex": 1470
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "attributes",
+										"jsDoc": {
+											"doc": "Additional bounded dimensions attached to the recorded meter fact."
+										},
+										"location": {
+											"filename": "./packages/meter/types.ts",
+											"line": 39,
+											"col": 2,
+											"byteIndex": 1568
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "string",
+																	"kind": "keyword",
+																	"value": "string"
+																},
+																{
+																	"kind": "union",
+																	"value": [
+																		{
+																			"repr": "string",
+																			"kind": "keyword",
+																			"value": "string"
+																		},
+																		{
+																			"repr": "number",
+																			"kind": "keyword",
+																			"value": "number"
+																		},
+																		{
+																			"repr": "boolean",
+																			"kind": "keyword",
+																			"value": "boolean"
+																		}
+																	]
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "MeterCatalog",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/meter/types.ts",
+								"line": 43,
+								"col": 0,
+								"byteIndex": 1674
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Named meter catalog."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "Catalog",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"kind": "indexedAccess",
+												"value": {
+													"objType": {
+														"repr": "Entries",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entries",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "MeterCatalog",
+																"declaringKind": "typeAlias"
+															}
+														}
+													},
+													"indexType": {
+														"kind": "typeOperator",
+														"value": {
+															"operator": "keyof",
+															"tsType": {
+																"repr": "Entries",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Entries",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "MeterCatalog",
+																		"declaringKind": "typeAlias"
+																	}
+																}
+															}
+														}
+													}
+												}
+											},
+											{
+												"repr": "Entries",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entries",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "MeterCatalog",
+														"declaringKind": "typeAlias"
+													}
+												}
+											}
+										],
+										"typeName": "Catalog",
+										"resolution": {
+											"kind": "import",
+											"specifier": "@okikio/catalog",
+											"name": "Catalog"
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "MeterDefinition",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "MeterDefinition",
+																		"resolution": {
+																			"kind": "local"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "MeterSelection",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/meter/types.ts",
+								"line": 49,
+								"col": 0,
+								"byteIndex": 1859
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Key-preserving meter catalog selection."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "CatalogSelection",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Entry",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entry",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "MeterSelection",
+														"declaringKind": "typeAlias"
+													}
+												}
+											},
+											{
+												"repr": "Entries",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entries",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "MeterSelection",
+														"declaringKind": "typeAlias"
+													}
+												}
+											}
+										],
+										"typeName": "CatalogSelection",
+										"resolution": {
+											"kind": "import",
+											"specifier": "@okikio/catalog",
+											"name": "CatalogSelection"
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "MeterDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "MeterDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "Entry",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Entry",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "MeterSelection",
+																			"declaringKind": "typeAlias"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "MeterDefinitions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/meter/types.ts",
+								"line": 55,
+								"col": 0,
+								"byteIndex": 2083
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Recursive input accepted where meter definitions are declared."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "CatalogDefinitionInput",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "MeterDefinition",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "MeterDefinition",
+													"resolution": {
+														"kind": "local"
+													}
+												}
+											}
+										],
+										"typeName": "CatalogDefinitionInput",
+										"resolution": {
+											"kind": "import",
+											"specifier": "@okikio/catalog",
+											"name": "DefinitionInput"
+										}
+									}
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "MeterReadingType",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/meter/types.ts",
+								"line": 57,
+								"col": 14,
+								"byteIndex": 2170
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/meter/schema.ts",
+									"line": 3,
+									"col": 0,
+									"byteIndex": 162
+								}
+							}
+						}
+					]
+				}
+			]
+		}
+	}
+}

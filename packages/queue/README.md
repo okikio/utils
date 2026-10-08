@@ -22,6 +22,8 @@ recovery operations. Claims prevent stale publication; they cannot undo external
 For shared terms such as `await` and `await using`, see
 [the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
+For the exact functions, types and field explanations, read the [generated contract reference](API.md).
+
 ## Run a complete example
 
 The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native

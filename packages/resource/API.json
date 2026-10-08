@@ -1,0 +1,7012 @@
+{
+	"package": "@okikio/resource",
+	"packageVersion": "0.0.0",
+	"rendererVersion": 2,
+	"modules": {
+		"@okikio/resource": {
+			"module_doc": {
+				"doc": "Create expensive dependencies once, borrow them through declared access and close them at their owner lifetime. Hand-built dependency bags make missing implementations, cycles and cleanup ordering hard to detect.\n\nAdd dependency declarations when one resource needs another, validate implementation coverage before startup, and scope access to the exact resources an activity may use. Collections own created values; callers borrow them and must not close them individually. Acquisition requirements apply at creation, while actor-specific use requirements are checked on public borrowing. Remote work must reconstruct its local resources rather than serialize live clients.\n",
+				"tags": [
+					{
+						"kind": "example",
+						"doc": "```ts\nimport '@okikio/duration/polyfill';\nimport '@okikio/dispose/polyfill';\nimport * as context from '@okikio/context';\nimport * as resource from '@okikio/resource';\nconst Store = resource.define<{ read(id: string): string }>()({ id: 'store', description: 'Read one stored value.' });\nconst StoreLive = resource.implement(Store, { create: () => ({ read: (id) => `value:${id}` }) });\nawait using ctx = context.create({ id: 'store-owner' });\nawait using stores = resource.create(resource.implementations(StoreLive), { ctx, host: {} });\nconst store = await stores.get(ctx, Store);\nconsole.log(store.read('asset-1'));\n```\n"
+					},
+					{
+						"kind": "module"
+					}
+				]
+			},
+			"imports": [
+				{
+					"importedName": "recordCore",
+					"src": "./packages/record/mod.ts",
+					"jsDoc": {
+						"doc": "Create expensive dependencies once, borrow them through declared access and close them at their owner lifetime. Hand-built dependency bags make missing implementations, cycles and cleanup ordering hard to detect.\n\nAdd dependency declarations when one resource needs another, validate implementation coverage before startup, and scope access to the exact resources an activity may use. Collections own created values; callers borrow them and must not close them individually. Acquisition requirements apply at creation, while actor-specific use requirements are checked on public borrowing. Remote work must reconstruct its local resources rather than serialize live clients.\n",
+						"tags": [
+							{
+								"kind": "example",
+								"doc": "```ts\nimport '@okikio/duration/polyfill';\nimport '@okikio/dispose/polyfill';\nimport * as context from '@okikio/context';\nimport * as resource from '@okikio/resource';\nconst Store = resource.define<{ read(id: string): string }>()({ id: 'store', description: 'Read one stored value.' });\nconst StoreLive = resource.implement(Store, { create: () => ({ read: (id) => `value:${id}` }) });\nawait using ctx = context.create({ id: 'store-owner' });\nawait using stores = resource.create(resource.implementations(StoreLive), { ctx, host: {} });\nconst store = await stores.get(ctx, Store);\nconsole.log(store.read('asset-1'));\n```\n"
+							},
+							{
+								"kind": "module"
+							}
+						]
+					}
+				},
+				{
+					"importedName": "catalogCore",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "Catalog",
+					"originalName": "Catalog",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "CatalogEntryIdentity",
+					"originalName": "CatalogEntryIdentity",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "CatalogSelection",
+					"originalName": "CatalogSelection",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "CatalogDefinitionInput",
+					"originalName": "DefinitionInput",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "context",
+					"src": "./packages/context/mod.ts"
+				},
+				{
+					"importedName": "requirement",
+					"src": "./packages/requirement/mod.ts"
+				},
+				{
+					"importedName": "EnvironmentRequirement",
+					"originalName": "EnvironmentRequirement",
+					"src": "./packages/env/mod.ts"
+				},
+				{
+					"importedName": "ResourceCollection",
+					"originalName": "ResourceCollection",
+					"src": "./packages/resource/types.ts"
+				},
+				{
+					"importedName": "ResourceCollectionOptions",
+					"originalName": "ResourceCollectionOptions",
+					"src": "./packages/resource/types.ts"
+				},
+				{
+					"importedName": "ResourceCreateArgumentsAny",
+					"originalName": "ResourceCreateArgumentsAny",
+					"src": "./packages/resource/types.ts"
+				},
+				{
+					"importedName": "ResourceDefinition",
+					"originalName": "ResourceDefinition",
+					"src": "./packages/resource/types.ts"
+				},
+				{
+					"importedName": "ResourceDependencies",
+					"originalName": "ResourceDependencies",
+					"src": "./packages/resource/types.ts"
+				},
+				{
+					"importedName": "ResourceDocument",
+					"originalName": "ResourceDocument",
+					"src": "./packages/resource/types.ts"
+				},
+				{
+					"importedName": "ResourceImplementation",
+					"originalName": "ResourceImplementation",
+					"src": "./packages/resource/types.ts"
+				},
+				{
+					"importedName": "ResourceImplementationAny",
+					"originalName": "ResourceImplementationAny",
+					"src": "./packages/resource/types.ts"
+				},
+				{
+					"importedName": "ResourceImplementationOptions",
+					"originalName": "ResourceImplementationOptions",
+					"src": "./packages/resource/types.ts"
+				},
+				{
+					"importedName": "ResourceImplementationSet",
+					"originalName": "ResourceImplementationSet",
+					"src": "./packages/resource/types.ts"
+				},
+				{
+					"importedName": "ResourceOptions",
+					"originalName": "ResourceOptions",
+					"src": "./packages/resource/types.ts"
+				},
+				{
+					"importedName": "ResourceValidationIssue",
+					"originalName": "ResourceValidationIssue",
+					"src": "./packages/resource/types.ts"
+				},
+				{
+					"importedName": "ResourceValidationResult",
+					"originalName": "ResourceValidationResult",
+					"src": "./packages/resource/types.ts"
+				},
+				{
+					"importedName": "ResourceValue",
+					"originalName": "ResourceValue",
+					"src": "./packages/resource/types.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "DefinitionConflictError",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 56,
+								"col": 0,
+								"byteIndex": 2609
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Error raised when two distinct definitions reuse one stable resource ID."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"jsDoc": {
+											"doc": "Create this DefinitionConflictError from the explicit contract values supplied by its caller."
+										},
+										"hasBody": true,
+										"name": "constructor",
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "id",
+												"optional": false,
+												"tsType": {
+													"repr": "string",
+													"kind": "keyword",
+													"value": "string"
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "first",
+												"optional": false,
+												"tsType": {
+													"repr": "ResourceDefinition",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "ResourceDefinition",
+														"resolution": {
+															"kind": "import",
+															"specifier": "./types.ts",
+															"name": "ResourceDefinition"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "second",
+												"optional": false,
+												"tsType": {
+													"repr": "ResourceDefinition",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "ResourceDefinition",
+														"resolution": {
+															"kind": "import",
+															"specifier": "./types.ts",
+															"name": "ResourceDefinition"
+														}
+													}
+												}
+											}
+										],
+										"location": {
+											"filename": "./packages/resource/mod.ts",
+											"line": 65,
+											"col": 2,
+											"byteIndex": 3071
+										}
+									}
+								],
+								"properties": [
+									{
+										"jsDoc": {
+											"doc": "Stable identity used to correlate this contract or occurrence."
+										},
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										},
+										"readonly": true,
+										"name": "id",
+										"location": {
+											"filename": "./packages/resource/mod.ts",
+											"line": 58,
+											"col": 2,
+											"byteIndex": 2734
+										}
+									},
+									{
+										"jsDoc": {
+											"doc": "First operand or observation retained in this ordered pair."
+										},
+										"tsType": {
+											"repr": "ResourceDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "ResourceDefinition"
+												}
+											}
+										},
+										"readonly": true,
+										"name": "first",
+										"location": {
+											"filename": "./packages/resource/mod.ts",
+											"line": 60,
+											"col": 2,
+											"byteIndex": 2824
+										}
+									},
+									{
+										"jsDoc": {
+											"doc": "Second operand or observation retained in this ordered pair."
+										},
+										"tsType": {
+											"repr": "ResourceDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "ResourceDefinition"
+												}
+											}
+										},
+										"readonly": true,
+										"name": "second",
+										"location": {
+											"filename": "./packages/resource/mod.ts",
+											"line": 62,
+											"col": 2,
+											"byteIndex": 2930
+										}
+									}
+								],
+								"extends": "Error"
+							}
+						}
+					]
+				},
+				{
+					"name": "ImplementationConflictError",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 75,
+								"col": 0,
+								"byteIndex": 3444
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Error raised when a collection receives two implementations for one definition."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"jsDoc": {
+											"doc": "Create this ImplementationConflictError from the explicit contract values supplied by its caller."
+										},
+										"hasBody": true,
+										"name": "constructor",
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "definition",
+												"optional": false,
+												"tsType": {
+													"repr": "ResourceDefinition",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "ResourceDefinition",
+														"resolution": {
+															"kind": "import",
+															"specifier": "./types.ts",
+															"name": "ResourceDefinition"
+														}
+													}
+												}
+											}
+										],
+										"location": {
+											"filename": "./packages/resource/mod.ts",
+											"line": 80,
+											"col": 2,
+											"byteIndex": 3763
+										}
+									}
+								],
+								"properties": [
+									{
+										"jsDoc": {
+											"doc": "Exact declared contract object; an independently authored same-name object is not the same declaration."
+										},
+										"tsType": {
+											"repr": "ResourceDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "ResourceDefinition"
+												}
+											}
+										},
+										"readonly": true,
+										"name": "definition",
+										"location": {
+											"filename": "./packages/resource/mod.ts",
+											"line": 77,
+											"col": 2,
+											"byteIndex": 3614
+										}
+									}
+								],
+								"extends": "Error"
+							}
+						}
+					]
+				},
+				{
+					"name": "MissingImplementationError",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 88,
+								"col": 0,
+								"byteIndex": 4060
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Error raised when a reachable resource definition has no implementation."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"jsDoc": {
+											"doc": "Create this MissingImplementationError from the explicit contract values supplied by its caller."
+										},
+										"hasBody": true,
+										"name": "constructor",
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "definition",
+												"optional": false,
+												"tsType": {
+													"repr": "ResourceDefinition",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "ResourceDefinition",
+														"resolution": {
+															"kind": "import",
+															"specifier": "./types.ts",
+															"name": "ResourceDefinition"
+														}
+													}
+												}
+											},
+											{
+												"kind": "assign",
+												"left": {
+													"kind": "identifier",
+													"name": "requiredBy",
+													"optional": false,
+													"tsType": {
+														"kind": "typeOperator",
+														"value": {
+															"operator": "readonly",
+															"tsType": {
+																"kind": "array",
+																"value": {
+																	"repr": "ResourceDefinition",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "ResourceDefinition",
+																		"resolution": {
+																			"kind": "import",
+																			"specifier": "./types.ts",
+																			"name": "ResourceDefinition"
+																		}
+																	}
+																}
+															}
+														}
+													}
+												},
+												"right": "[UNSUPPORTED]"
+											}
+										],
+										"location": {
+											"filename": "./packages/resource/mod.ts",
+											"line": 95,
+											"col": 2,
+											"byteIndex": 4522
+										}
+									}
+								],
+								"properties": [
+									{
+										"jsDoc": {
+											"doc": "Exact declared contract object; an independently authored same-name object is not the same declaration."
+										},
+										"tsType": {
+											"repr": "ResourceDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "ResourceDefinition"
+												}
+											}
+										},
+										"readonly": true,
+										"name": "definition",
+										"location": {
+											"filename": "./packages/resource/mod.ts",
+											"line": 90,
+											"col": 2,
+											"byteIndex": 4229
+										}
+									},
+									{
+										"jsDoc": {
+											"doc": "Definitions that require the missing resource, used to explain the dependency path."
+										},
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "ResourceDefinition",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "ResourceDefinition",
+															"resolution": {
+																"kind": "import",
+																"specifier": "./types.ts",
+																"name": "ResourceDefinition"
+															}
+														}
+													}
+												}
+											}
+										},
+										"readonly": true,
+										"name": "requiredBy",
+										"location": {
+											"filename": "./packages/resource/mod.ts",
+											"line": 92,
+											"col": 2,
+											"byteIndex": 4363
+										}
+									}
+								],
+								"extends": "Error"
+							}
+						}
+					]
+				},
+				{
+					"name": "DependencyCycleError",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 107,
+								"col": 0,
+								"byteIndex": 5038
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Error raised for a cycle in the static resource dependency graph."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"jsDoc": {
+											"doc": "Create this DependencyCycleError from the explicit contract values supplied by its caller."
+										},
+										"hasBody": true,
+										"name": "constructor",
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "path",
+												"optional": false,
+												"tsType": {
+													"kind": "typeOperator",
+													"value": {
+														"operator": "readonly",
+														"tsType": {
+															"kind": "array",
+															"value": {
+																"repr": "ResourceDefinition",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "ResourceDefinition",
+																	"resolution": {
+																		"kind": "import",
+																		"specifier": "./types.ts",
+																		"name": "ResourceDefinition"
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+										],
+										"location": {
+											"filename": "./packages/resource/mod.ts",
+											"line": 112,
+											"col": 2,
+											"byteIndex": 5304
+										}
+									}
+								],
+								"properties": [
+									{
+										"jsDoc": {
+											"doc": "Source, route or expression path used to locate this value."
+										},
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "ResourceDefinition",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "ResourceDefinition",
+															"resolution": {
+																"kind": "import",
+																"specifier": "./types.ts",
+																"name": "ResourceDefinition"
+															}
+														}
+													}
+												}
+											}
+										},
+										"readonly": true,
+										"name": "path",
+										"location": {
+											"filename": "./packages/resource/mod.ts",
+											"line": 109,
+											"col": 2,
+											"byteIndex": 5157
+										}
+									}
+								],
+								"extends": "Error"
+							}
+						}
+					]
+				},
+				{
+					"name": "CollectionDisposedError",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 120,
+								"col": 0,
+								"byteIndex": 5601
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Error raised when a disposing or disposed collection is used."
+							},
+							"kind": "class",
+							"def": {
+								"constructors": [
+									{
+										"hasBody": true,
+										"name": "constructor",
+										"params": [],
+										"location": {
+											"filename": "./packages/resource/mod.ts",
+											"line": 121,
+											"col": 2,
+											"byteIndex": 5655
+										}
+									}
+								],
+								"extends": "Error"
+							}
+						}
+					]
+				},
+				{
+					"name": "define",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 133,
+								"col": 0,
+								"byteIndex": 6028
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Define a provider-neutral resource when only static metadata is needed.\n\nUse the curried overload, `resource.define<ResourceValue>()({...})`, when dependent\nimplementations need the concrete resource value type."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "input",
+										"optional": false,
+										"tsType": {
+											"repr": "ResourceOptions",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Dependencies",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Dependencies",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "define",
+																"declaringKind": "function"
+															}
+														}
+													},
+													{
+														"repr": "ResourceEnvironment",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "ResourceEnvironment",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "define",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "ResourceOptions",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "ResourceOptions"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "ResourceDefinition",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "unknown",
+												"kind": "keyword",
+												"value": "unknown"
+											},
+											{
+												"repr": "Dependencies",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Dependencies",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "define",
+														"declaringKind": "function"
+													}
+												}
+											},
+											{
+												"repr": "ResourceEnvironment",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "ResourceEnvironment",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "define",
+														"declaringKind": "function"
+													}
+												}
+											}
+										],
+										"typeName": "ResourceDefinition",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "ResourceDefinition"
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Dependencies",
+										"constraint": {
+											"repr": "ResourceDependencies",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDependencies",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "ResourceDependencies"
+												}
+											}
+										},
+										"default": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "string",
+																	"kind": "keyword",
+																	"value": "string"
+																},
+																{
+																	"repr": "never",
+																	"kind": "keyword",
+																	"value": "never"
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									},
+									{
+										"name": "ResourceEnvironment",
+										"constraint": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "EnvironmentRequirement",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "EnvironmentRequirement",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/env",
+															"name": "EnvironmentRequirement"
+														}
+													}
+												},
+												{
+													"repr": "undefined",
+													"kind": "keyword",
+													"value": "undefined"
+												}
+											]
+										},
+										"default": {
+											"repr": "undefined",
+											"kind": "keyword",
+											"value": "undefined"
+										}
+									}
+								]
+							}
+						},
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 140,
+								"col": 0,
+								"byteIndex": 6416
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Define a resource with an explicit concrete value contract."
+							},
+							"kind": "function",
+							"def": {
+								"params": [],
+								"returnType": {
+									"kind": "fnOrConstructor",
+									"value": {
+										"constructor": false,
+										"tsType": {
+											"repr": "ResourceDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "ResourceValue",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "ResourceValue",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "define",
+																"declaringKind": "function"
+															}
+														}
+													},
+													{
+														"repr": "Dependencies",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Dependencies",
+															"resolution": {
+																"kind": "typeParam"
+															}
+														}
+													},
+													{
+														"repr": "ResourceEnvironment",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "ResourceEnvironment",
+															"resolution": {
+																"kind": "typeParam"
+															}
+														}
+													}
+												],
+												"typeName": "ResourceDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "ResourceDefinition"
+												}
+											}
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "input",
+												"optional": false,
+												"tsType": {
+													"repr": "ResourceOptions",
+													"kind": "typeRef",
+													"value": {
+														"typeParams": [
+															{
+																"repr": "Dependencies",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Dependencies",
+																	"resolution": {
+																		"kind": "typeParam"
+																	}
+																}
+															},
+															{
+																"repr": "ResourceEnvironment",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "ResourceEnvironment",
+																	"resolution": {
+																		"kind": "typeParam"
+																	}
+																}
+															}
+														],
+														"typeName": "ResourceOptions",
+														"resolution": {
+															"kind": "import",
+															"specifier": "./types.ts",
+															"name": "ResourceOptions"
+														}
+													}
+												}
+											}
+										],
+										"typeParams": [
+											{
+												"name": "Dependencies",
+												"constraint": {
+													"repr": "ResourceDependencies",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "ResourceDependencies",
+														"resolution": {
+															"kind": "import",
+															"specifier": "./types.ts",
+															"name": "ResourceDependencies"
+														}
+													}
+												},
+												"default": {
+													"repr": "Readonly",
+													"kind": "typeRef",
+													"value": {
+														"typeParams": [
+															{
+																"repr": "Record",
+																"kind": "typeRef",
+																"value": {
+																	"typeParams": [
+																		{
+																			"repr": "string",
+																			"kind": "keyword",
+																			"value": "string"
+																		},
+																		{
+																			"repr": "never",
+																			"kind": "keyword",
+																			"value": "never"
+																		}
+																	],
+																	"typeName": "Record"
+																}
+															}
+														],
+														"typeName": "Readonly"
+													}
+												}
+											},
+											{
+												"name": "ResourceEnvironment",
+												"constraint": {
+													"kind": "union",
+													"value": [
+														{
+															"repr": "EnvironmentRequirement",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "EnvironmentRequirement",
+																"resolution": {
+																	"kind": "import",
+																	"specifier": "@okikio/env",
+																	"name": "EnvironmentRequirement"
+																}
+															}
+														},
+														{
+															"repr": "undefined",
+															"kind": "keyword",
+															"value": "undefined"
+														}
+													]
+												},
+												"default": {
+													"repr": "undefined",
+													"kind": "keyword",
+													"value": "undefined"
+												}
+											}
+										]
+									}
+								},
+								"typeParams": [
+									{
+										"name": "ResourceValue"
+									}
+								]
+							}
+						},
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 147,
+								"col": 0,
+								"byteIndex": 6840
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create the direct or curried resource-definition authoring function."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "input",
+										"optional": true,
+										"tsType": {
+											"repr": "ResourceOptions",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "ResourceDependencies",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "ResourceDependencies",
+															"resolution": {
+																"kind": "import",
+																"specifier": "./types.ts",
+																"name": "ResourceDependencies"
+															}
+														}
+													},
+													{
+														"kind": "union",
+														"value": [
+															{
+																"repr": "EnvironmentRequirement",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "EnvironmentRequirement",
+																	"resolution": {
+																		"kind": "import",
+																		"specifier": "@okikio/env",
+																		"name": "EnvironmentRequirement"
+																	}
+																}
+															},
+															{
+																"repr": "undefined",
+																"kind": "keyword",
+																"value": "undefined"
+															}
+														]
+													}
+												],
+												"typeName": "ResourceOptions",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "ResourceOptions"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "ResourceDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "ResourceDefinition"
+												}
+											}
+										},
+										{
+											"kind": "parenthesized",
+											"value": {
+												"kind": "fnOrConstructor",
+												"value": {
+													"constructor": false,
+													"tsType": {
+														"repr": "ResourceDefinition",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "ResourceDefinition",
+															"resolution": {
+																"kind": "import",
+																"specifier": "./types.ts",
+																"name": "ResourceDefinition"
+															}
+														}
+													},
+													"params": [
+														{
+															"kind": "identifier",
+															"name": "input",
+															"optional": false,
+															"tsType": {
+																"repr": "ResourceOptions",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "ResourceOptions",
+																	"resolution": {
+																		"kind": "import",
+																		"specifier": "./types.ts",
+																		"name": "ResourceOptions"
+																	}
+																}
+															}
+														}
+													]
+												}
+											}
+										}
+									]
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "catalog",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 186,
+								"col": 0,
+								"byteIndex": 8615
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create a named immutable resource catalog."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "namespace",
+										"optional": false,
+										"tsType": {
+											"repr": "Namespace",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Namespace",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "catalog",
+													"declaringKind": "function"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "entries",
+										"optional": false,
+										"tsType": {
+											"repr": "Entries",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Entries",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "catalog",
+													"declaringKind": "function"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "Catalog",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"kind": "indexedAccess",
+												"value": {
+													"objType": {
+														"repr": "Entries",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entries",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "catalog",
+																"declaringKind": "function"
+															}
+														}
+													},
+													"indexType": {
+														"kind": "typeOperator",
+														"value": {
+															"operator": "keyof",
+															"tsType": {
+																"repr": "Entries",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Entries",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "catalog",
+																		"declaringKind": "function"
+																	}
+																}
+															}
+														}
+													}
+												}
+											},
+											{
+												"repr": "Entries",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entries",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "catalog",
+														"declaringKind": "function"
+													}
+												}
+											}
+										],
+										"typeName": "Catalog",
+										"resolution": {
+											"kind": "import",
+											"specifier": "@okikio/catalog",
+											"name": "Catalog"
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Namespace",
+										"constraint": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "ResourceDefinition",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "ResourceDefinition",
+																		"resolution": {
+																			"kind": "import",
+																			"specifier": "./types.ts",
+																			"name": "ResourceDefinition"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "select",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 194,
+								"col": 0,
+								"byteIndex": 8943
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Select an immutable key-preserving resource subset."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "source",
+										"optional": false,
+										"tsType": {
+											"repr": "Catalog",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "indexedAccess",
+														"value": {
+															"objType": {
+																"repr": "Entries",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Entries",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "select",
+																		"declaringKind": "function"
+																	}
+																}
+															},
+															"indexType": {
+																"kind": "typeOperator",
+																"value": {
+																	"operator": "keyof",
+																	"tsType": {
+																		"repr": "Entries",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "Entries",
+																			"resolution": {
+																				"kind": "typeParam",
+																				"declaringName": "select",
+																				"declaringKind": "function"
+																			}
+																		}
+																	}
+																}
+															}
+														}
+													},
+													{
+														"repr": "Entries",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entries",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "select",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "Catalog",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/catalog",
+													"name": "Catalog"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "keys",
+										"optional": false,
+										"tsType": {
+											"repr": "Keys",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Keys",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "select",
+													"declaringKind": "function"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "CatalogSelection",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"kind": "indexedAccess",
+												"value": {
+													"objType": {
+														"repr": "Entries",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Entries",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "select",
+																"declaringKind": "function"
+															}
+														}
+													},
+													"indexType": {
+														"kind": "typeOperator",
+														"value": {
+															"operator": "keyof",
+															"tsType": {
+																"repr": "Entries",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Entries",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "select",
+																		"declaringKind": "function"
+																	}
+																}
+															}
+														}
+													}
+												}
+											},
+											{
+												"repr": "Pick",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"repr": "Entries",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Entries",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "select",
+																	"declaringKind": "function"
+																}
+															}
+														},
+														{
+															"kind": "indexedAccess",
+															"value": {
+																"objType": {
+																	"repr": "Keys",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Keys",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "select",
+																			"declaringKind": "function"
+																		}
+																	}
+																},
+																"indexType": {
+																	"repr": "number",
+																	"kind": "keyword",
+																	"value": "number"
+																}
+															}
+														}
+													],
+													"typeName": "Pick"
+												}
+											}
+										],
+										"typeName": "CatalogSelection",
+										"resolution": {
+											"kind": "import",
+											"specifier": "@okikio/catalog",
+											"name": "CatalogSelection"
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Entries",
+										"constraint": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "PropertyKey",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "PropertyKey"
+																	}
+																},
+																{
+																	"repr": "ResourceDefinition",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "ResourceDefinition",
+																		"resolution": {
+																			"kind": "import",
+																			"specifier": "./types.ts",
+																			"name": "ResourceDefinition"
+																		}
+																	}
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									},
+									{
+										"name": "Keys",
+										"constraint": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"kind": "parenthesized",
+														"value": {
+															"kind": "intersection",
+															"value": [
+																{
+																	"kind": "typeOperator",
+																	"value": {
+																		"operator": "keyof",
+																		"tsType": {
+																			"repr": "Entries",
+																			"kind": "typeRef",
+																			"value": {
+																				"typeName": "Entries",
+																				"resolution": {
+																					"kind": "typeParam",
+																					"declaringName": "select",
+																					"declaringKind": "function"
+																				}
+																			}
+																		}
+																	}
+																},
+																{
+																	"repr": "string",
+																	"kind": "keyword",
+																	"value": "string"
+																}
+															]
+														}
+													}
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "compose",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 205,
+								"col": 0,
+								"byteIndex": 9363
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Compose resource definitions, catalogs, selections, and nested arrays."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "rest",
+										"arg": {
+											"kind": "identifier",
+											"name": "inputs",
+											"optional": false
+										},
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "CatalogDefinitionInput",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "Entry",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Entry",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "compose",
+																			"declaringKind": "function"
+																		}
+																	}
+																}
+															],
+															"typeName": "CatalogDefinitionInput",
+															"resolution": {
+																"kind": "import",
+																"specifier": "@okikio/catalog",
+																"name": "DefinitionInput"
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "readonly",
+										"tsType": {
+											"kind": "array",
+											"value": {
+												"repr": "Entry",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Entry",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "compose",
+														"declaringKind": "function"
+													}
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Entry",
+										"constraint": {
+											"repr": "ResourceDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "ResourceDefinition"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "implement",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 212,
+								"col": 0,
+								"byteIndex": 9616
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Bind one host-specific constructor to one exact resource definition."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "definition",
+										"optional": false,
+										"tsType": {
+											"repr": "Resource",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Resource",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "implement",
+													"declaringKind": "function"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "input",
+										"optional": false,
+										"tsType": {
+											"repr": "ResourceImplementationOptions",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Resource",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Resource",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "implement",
+																"declaringKind": "function"
+															}
+														}
+													},
+													{
+														"repr": "Value",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Value",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "implement",
+																"declaringKind": "function"
+															}
+														}
+													},
+													{
+														"repr": "Host",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Host",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "implement",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "ResourceImplementationOptions",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "ResourceImplementationOptions"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "ResourceImplementation",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Resource",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Resource",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "implement",
+														"declaringKind": "function"
+													}
+												}
+											},
+											{
+												"repr": "Value",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Value",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "implement",
+														"declaringKind": "function"
+													}
+												}
+											},
+											{
+												"repr": "Host",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Host",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "implement",
+														"declaringKind": "function"
+													}
+												}
+											}
+										],
+										"typeName": "ResourceImplementation",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "ResourceImplementation"
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Resource",
+										"constraint": {
+											"repr": "ResourceDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "ResourceDefinition"
+												}
+											}
+										}
+									},
+									{
+										"name": "Value",
+										"constraint": {
+											"repr": "ResourceValue",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Resource",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Resource",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "implement",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "ResourceValue",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "ResourceValue"
+												}
+											}
+										}
+									},
+									{
+										"name": "Host",
+										"default": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "implementations",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 231,
+								"col": 0,
+								"byteIndex": 10405
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Assemble an explicit, import-safe universe of resource implementations.\n\nRepeating the same implementation object is harmless. A different\nimplementation for the same exact definition is rejected."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "rest",
+										"arg": {
+											"kind": "identifier",
+											"name": "input",
+											"optional": false
+										},
+										"tsType": {
+											"repr": "Implementations",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Implementations",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "implementations",
+													"declaringKind": "function"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "ResourceImplementationSet",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Implementations",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Implementations",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "implementations",
+														"declaringKind": "function"
+													}
+												}
+											}
+										],
+										"typeName": "ResourceImplementationSet",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "ResourceImplementationSet"
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Implementations",
+										"constraint": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "ResourceImplementationAny",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "ResourceImplementationAny",
+															"resolution": {
+																"kind": "import",
+																"specifier": "./types.ts",
+																"name": "ResourceImplementationAny"
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "validate",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 262,
+								"col": 0,
+								"byteIndex": 11747
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Validate a definition graph and, when supplied, implementation coverage."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "input",
+										"optional": false,
+										"tsType": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "CatalogDefinitionInput",
+													"kind": "typeRef",
+													"value": {
+														"typeParams": [
+															{
+																"repr": "ResourceDefinition",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "ResourceDefinition",
+																	"resolution": {
+																		"kind": "import",
+																		"specifier": "./types.ts",
+																		"name": "ResourceDefinition"
+																	}
+																}
+															}
+														],
+														"typeName": "CatalogDefinitionInput",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/catalog",
+															"name": "DefinitionInput"
+														}
+													}
+												},
+												{
+													"repr": "ResourceImplementationSet",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "ResourceImplementationSet",
+														"resolution": {
+															"kind": "import",
+															"specifier": "./types.ts",
+															"name": "ResourceImplementationSet"
+														}
+													}
+												}
+											]
+										}
+									}
+								],
+								"returnType": {
+									"repr": "ResourceValidationResult",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "ResourceValidationResult",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "ResourceValidationResult"
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "document",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 301,
+								"col": 0,
+								"byteIndex": 13298
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create deterministic, JSON-safe documentation for a resource graph."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "input",
+										"optional": false,
+										"tsType": {
+											"repr": "CatalogDefinitionInput",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "ResourceDefinition",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "ResourceDefinition",
+															"resolution": {
+																"kind": "import",
+																"specifier": "./types.ts",
+																"name": "ResourceDefinition"
+															}
+														}
+													}
+												],
+												"typeName": "CatalogDefinitionInput",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/catalog",
+													"name": "DefinitionInput"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "implementationSet",
+										"optional": true,
+										"tsType": {
+											"repr": "ResourceImplementationSet",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceImplementationSet",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "ResourceImplementationSet"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "readonly",
+										"tsType": {
+											"kind": "array",
+											"value": {
+												"repr": "ResourceDocument",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "ResourceDocument",
+													"resolution": {
+														"kind": "import",
+														"specifier": "./types.ts",
+														"name": "ResourceDocument"
+													}
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "manifest",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 337,
+								"col": 13,
+								"byteIndex": 14984
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Alias for `resource.document()` when generating deployment or operator manifests."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "input",
+										"optional": false,
+										"tsType": {
+											"repr": "CatalogDefinitionInput",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "ResourceDefinition",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "ResourceDefinition",
+															"resolution": {
+																"kind": "import",
+																"specifier": "./types.ts",
+																"name": "ResourceDefinition"
+															}
+														}
+													}
+												],
+												"typeName": "CatalogDefinitionInput",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/catalog",
+													"name": "DefinitionInput"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "implementationSet",
+										"optional": true,
+										"tsType": {
+											"repr": "ResourceImplementationSet",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceImplementationSet",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "ResourceImplementationSet"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "readonly",
+										"tsType": {
+											"kind": "array",
+											"value": {
+												"repr": "ResourceDocument",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "ResourceDocument",
+													"resolution": {
+														"kind": "import",
+														"specifier": "./types.ts",
+														"name": "ResourceDocument"
+													}
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "reachable",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 340,
+								"col": 0,
+								"byteIndex": 15083
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Collect every statically reachable requirement from a resource graph."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "input",
+										"optional": false,
+										"tsType": {
+											"repr": "CatalogDefinitionInput",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "ResourceDefinition",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "ResourceDefinition",
+															"resolution": {
+																"kind": "import",
+																"specifier": "./types.ts",
+																"name": "ResourceDefinition"
+															}
+														}
+													}
+												],
+												"typeName": "CatalogDefinitionInput",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/catalog",
+													"name": "DefinitionInput"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "readonly",
+										"tsType": {
+											"kind": "array",
+											"value": {
+												"kind": "importType",
+												"value": {
+													"specifier": "@okikio/requirement",
+													"qualifier": "RequirementDefinition"
+												}
+											}
+										}
+									}
+								},
+								"hasBody": true
+							}
+						}
+					]
+				},
+				{
+					"name": "scope",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 355,
+								"col": 0,
+								"byteIndex": 15755
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Bind one resource collection to the current execution context.\n\nEvery `get()` applies the exact resource definition's direct requirements\nbefore borrowing the collection-owned value. This keeps actor authority at\nuse time even when the underlying value is cached and shared."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "collection",
+										"optional": false,
+										"tsType": {
+											"repr": "ResourceCollection",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceCollection",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "ResourceCollection"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "ctx",
+										"optional": false,
+										"tsType": {
+											"kind": "importType",
+											"value": {
+												"specifier": "@okikio/context",
+												"qualifier": "Context"
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "allowed",
+										"optional": true,
+										"tsType": {
+											"repr": "CatalogDefinitionInput",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Allowed",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Allowed",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "scope",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "CatalogDefinitionInput",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/catalog",
+													"name": "DefinitionInput"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"kind": "importType",
+									"value": {
+										"specifier": "./types.ts",
+										"qualifier": "ResourceResolver",
+										"typeParams": [
+											{
+												"repr": "Allowed",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Allowed",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "scope",
+														"declaringKind": "function"
+													}
+												}
+											}
+										]
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Allowed",
+										"constraint": {
+											"repr": "ResourceDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDefinition",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "ResourceDefinition"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "create",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 377,
+								"col": 0,
+								"byteIndex": 16682
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Create one independently owned, lazy resource collection."
+							},
+							"kind": "function",
+							"def": {
+								"params": [
+									{
+										"kind": "identifier",
+										"name": "implementationSet",
+										"optional": false,
+										"tsType": {
+											"repr": "ResourceImplementationSet",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceImplementationSet",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "ResourceImplementationSet"
+												}
+											}
+										}
+									},
+									{
+										"kind": "identifier",
+										"name": "options",
+										"optional": false,
+										"tsType": {
+											"repr": "ResourceCollectionOptions",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Host",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Host",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "create",
+																"declaringKind": "function"
+															}
+														}
+													}
+												],
+												"typeName": "ResourceCollectionOptions",
+												"resolution": {
+													"kind": "import",
+													"specifier": "./types.ts",
+													"name": "ResourceCollectionOptions"
+												}
+											}
+										}
+									}
+								],
+								"returnType": {
+									"repr": "ResourceCollection",
+									"kind": "typeRef",
+									"value": {
+										"typeName": "ResourceCollection",
+										"resolution": {
+											"kind": "import",
+											"specifier": "./types.ts",
+											"name": "ResourceCollection"
+										}
+									}
+								},
+								"hasBody": true,
+								"typeParams": [
+									{
+										"name": "Host"
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceCollection",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 809,
+								"col": 2,
+								"byteIndex": 32503
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resource/types.ts",
+									"line": 205,
+									"col": 0,
+									"byteIndex": 10886
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceCollectionOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 810,
+								"col": 2,
+								"byteIndex": 32524
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resource/types.ts",
+									"line": 185,
+									"col": 0,
+									"byteIndex": 9781
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceCreateArguments",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 811,
+								"col": 2,
+								"byteIndex": 32552
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resource/types.ts",
+									"line": 105,
+									"col": 0,
+									"byteIndex": 5679
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceCreateArgumentsAny",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 812,
+								"col": 2,
+								"byteIndex": 32578
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resource/types.ts",
+									"line": 141,
+									"col": 0,
+									"byteIndex": 7604
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceCreateContext",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 813,
+								"col": 2,
+								"byteIndex": 32607
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resource/types.ts",
+									"line": 102,
+									"col": 0,
+									"byteIndex": 5519
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceDefinition",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 814,
+								"col": 2,
+								"byteIndex": 32631
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resource/types.ts",
+									"line": 36,
+									"col": 0,
+									"byteIndex": 1765
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceDependencies",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 815,
+								"col": 2,
+								"byteIndex": 32652
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resource/types.ts",
+									"line": 17,
+									"col": 0,
+									"byteIndex": 952
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceDependencyValues",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 816,
+								"col": 2,
+								"byteIndex": 32675
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resource/types.ts",
+									"line": 88,
+									"col": 0,
+									"byteIndex": 4667
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceDocument",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 817,
+								"col": 2,
+								"byteIndex": 32702
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resource/types.ts",
+									"line": 254,
+									"col": 0,
+									"byteIndex": 12826
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceDocumentation",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 818,
+								"col": 2,
+								"byteIndex": 32721
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resource/types.ts",
+									"line": 28,
+									"col": 0,
+									"byteIndex": 1460
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceEnvironment",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 819,
+								"col": 2,
+								"byteIndex": 32745
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resource/types.ts",
+									"line": 93,
+									"col": 0,
+									"byteIndex": 4907
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceHealth",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 820,
+								"col": 2,
+								"byteIndex": 32767
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resource/types.ts",
+									"line": 20,
+									"col": 0,
+									"byteIndex": 1112
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceImplementation",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 821,
+								"col": 2,
+								"byteIndex": 32784
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resource/types.ts",
+									"line": 119,
+									"col": 0,
+									"byteIndex": 6487
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceImplementationAny",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 822,
+								"col": 2,
+								"byteIndex": 32809
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resource/types.ts",
+									"line": 160,
+									"col": 0,
+									"byteIndex": 8584
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceImplementationOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 823,
+								"col": 2,
+								"byteIndex": 32837
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resource/types.ts",
+									"line": 133,
+									"col": 0,
+									"byteIndex": 7113
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceImplementationSet",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 824,
+								"col": 2,
+								"byteIndex": 32869
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resource/types.ts",
+									"line": 170,
+									"col": 0,
+									"byteIndex": 9124
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 825,
+								"col": 2,
+								"byteIndex": 32897
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resource/types.ts",
+									"line": 62,
+									"col": 0,
+									"byteIndex": 3290
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceResolver",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 826,
+								"col": 2,
+								"byteIndex": 32915
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resource/types.ts",
+									"line": 197,
+									"col": 0,
+									"byteIndex": 10398
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceValidationIssue",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 827,
+								"col": 2,
+								"byteIndex": 32934
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resource/types.ts",
+									"line": 213,
+									"col": 0,
+									"byteIndex": 11363
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceValidationResult",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 828,
+								"col": 2,
+								"byteIndex": 32960
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resource/types.ts",
+									"line": 239,
+									"col": 0,
+									"byteIndex": 12120
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceValue",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/mod.ts",
+								"line": 829,
+								"col": 2,
+								"byteIndex": 32987
+							},
+							"declarationKind": "export",
+							"kind": "reference",
+							"def": {
+								"target": {
+									"filename": "./packages/resource/types.ts",
+									"line": 85,
+									"col": 0,
+									"byteIndex": 4501
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		"@okikio/resource/types": {
+			"imports": [
+				{
+					"importedName": "CatalogEntryIdentity",
+					"originalName": "CatalogEntryIdentity",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "CatalogEntryValue",
+					"originalName": "CatalogEntryValue",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "CatalogDefinitionInput",
+					"originalName": "DefinitionInput",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "ValuedCatalogEntry",
+					"originalName": "ValuedCatalogEntry",
+					"src": "./packages/catalog/mod.ts"
+				},
+				{
+					"importedName": "Context",
+					"originalName": "Context",
+					"src": "./packages/context/mod.ts"
+				},
+				{
+					"importedName": "Owned",
+					"originalName": "Owned",
+					"src": "./packages/context/mod.ts"
+				},
+				{
+					"importedName": "Resources",
+					"originalName": "Resources",
+					"src": "./packages/context/mod.ts"
+				},
+				{
+					"importedName": "RequirementContext",
+					"originalName": "RequirementContext",
+					"src": "./packages/requirement/mod.ts"
+				},
+				{
+					"importedName": "RequirementRuntime",
+					"originalName": "RequirementRuntime",
+					"src": "./packages/requirement/mod.ts"
+				},
+				{
+					"importedName": "RequirementDefinition",
+					"originalName": "RequirementDefinition",
+					"src": "./packages/requirement/mod.ts"
+				},
+				{
+					"importedName": "RequirementDocument",
+					"originalName": "RequirementDocument",
+					"src": "./packages/requirement/mod.ts"
+				},
+				{
+					"importedName": "RequirementInput",
+					"originalName": "RequirementInput",
+					"src": "./packages/requirement/mod.ts"
+				},
+				{
+					"importedName": "EnvironmentFields",
+					"originalName": "EnvironmentFields",
+					"src": "./packages/env/mod.ts"
+				},
+				{
+					"importedName": "EnvironmentRequirement",
+					"originalName": "EnvironmentRequirement",
+					"src": "./packages/env/mod.ts"
+				},
+				{
+					"importedName": "InferEnvironmentFields",
+					"originalName": "InferEnvironmentFields",
+					"src": "./packages/env/mod.ts"
+				}
+			],
+			"symbols": [
+				{
+					"name": "ResourceDependencies",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 17,
+								"col": 0,
+								"byteIndex": 952
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "A keyed record of direct resource dependencies."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "Readonly",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Record",
+												"kind": "typeRef",
+												"value": {
+													"typeParams": [
+														{
+															"repr": "string",
+															"kind": "keyword",
+															"value": "string"
+														},
+														{
+															"repr": "ResourceDefinition",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "ResourceDefinition",
+																"resolution": {
+																	"kind": "local"
+																}
+															}
+														}
+													],
+													"typeName": "Record"
+												}
+											}
+										],
+										"typeName": "Readonly"
+									}
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceHealth",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 20,
+								"col": 0,
+								"byteIndex": 1112
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Optional health metadata included in generated resource documentation."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "description",
+										"jsDoc": {
+											"doc": "Human-readable resource health purpose used by documentation and diagnostics."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 22,
+											"col": 2,
+											"byteIndex": 1233
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "timeoutMilliseconds",
+										"jsDoc": {
+											"doc": "Maximum health-check duration suggested to hosts that interpret this metadata."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 24,
+											"col": 2,
+											"byteIndex": 1352
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "number",
+											"kind": "keyword",
+											"value": "number"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceDocumentation",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 28,
+								"col": 0,
+								"byteIndex": 1460
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Optional external documentation for a resource definition."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "url",
+										"jsDoc": {
+											"doc": "Canonical external documentation URL for this resource contract."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 30,
+											"col": 2,
+											"byteIndex": 1575
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "notes",
+										"jsDoc": {
+											"doc": "Additional integration notes that do not affect resource behavior."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 32,
+											"col": 2,
+											"byteIndex": 1674
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceDefinition",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 36,
+								"col": 0,
+								"byteIndex": 1765
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Static, import-safe provider-neutral resource contract."
+							},
+							"kind": "interface",
+							"def": {
+								"extends": [
+									{
+										"repr": "ValuedCatalogEntry",
+										"kind": "typeRef",
+										"value": {
+											"typeParams": [
+												{
+													"repr": "resource",
+													"kind": "literal",
+													"value": {
+														"kind": "string",
+														"string": "resource"
+													}
+												},
+												{
+													"repr": "ResourceValue",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "ResourceValue",
+														"resolution": {
+															"kind": "typeParam",
+															"declaringName": "ResourceDefinition",
+															"declaringKind": "interface"
+														}
+													}
+												}
+											],
+											"typeName": "ValuedCatalogEntry",
+											"resolution": {
+												"kind": "import",
+												"specifier": "@okikio/catalog",
+												"name": "ValuedCatalogEntry"
+											}
+										}
+									}
+								],
+								"properties": [
+									{
+										"name": "description",
+										"jsDoc": {
+											"doc": "Human-readable resource purpose used by documentation and diagnostics."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 42,
+											"col": 2,
+											"byteIndex": 2139
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "dependencies",
+										"jsDoc": {
+											"doc": "Keyed direct resource dependencies borrowed while creating this resource."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 44,
+											"col": 2,
+											"byteIndex": 2252
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Dependencies",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Dependencies",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "ResourceDefinition",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									},
+									{
+										"name": "environment",
+										"jsDoc": {
+											"doc": "Optional environment requirement parsed before this resource is acquired."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 46,
+											"col": 2,
+											"byteIndex": 2372
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "EnvironmentRequirement_",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EnvironmentRequirement_",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "ResourceDefinition",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									},
+									{
+										"name": "requirements",
+										"jsDoc": {
+											"doc": "Requirements owned directly by this resource; reachable dependency requirements remain separate."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 48,
+											"col": 2,
+											"byteIndex": 2526
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "RequirementDefinition",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "RequirementDefinition",
+															"resolution": {
+																"kind": "import",
+																"specifier": "@okikio/requirement",
+																"name": "RequirementDefinition"
+															}
+														}
+													}
+												}
+											}
+										}
+									},
+									{
+										"name": "failures",
+										"jsDoc": {
+											"doc": "Expected failure definitions or data declared by this resource."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 50,
+											"col": 2,
+											"byteIndex": 2656
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "CatalogDefinitionInput",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "CatalogEntryIdentity",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "CatalogEntryIdentity",
+															"resolution": {
+																"kind": "import",
+																"specifier": "@okikio/catalog",
+																"name": "CatalogEntryIdentity"
+															}
+														}
+													}
+												],
+												"typeName": "CatalogDefinitionInput",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/catalog",
+													"name": "DefinitionInput"
+												}
+											}
+										}
+									},
+									{
+										"name": "health",
+										"jsDoc": {
+											"doc": "Optional health-check metadata exposed to hosts and generated documentation."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 52,
+											"col": 2,
+											"byteIndex": 2808
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "ResourceHealth",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceHealth",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "documentation",
+										"jsDoc": {
+											"doc": "Optional external documentation metadata for this resource."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 54,
+											"col": 2,
+											"byteIndex": 2911
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "ResourceDocumentation",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDocumentation",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "resourceDependenciesType",
+										"jsDoc": {
+											"doc": "Type-only dependency marker. The symbol has no author-supplied runtime value."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 56,
+											"col": 2,
+											"byteIndex": 3046
+										},
+										"readonly": true,
+										"computed": true,
+										"tsType": {
+											"repr": "Dependencies",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Dependencies",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "ResourceDefinition",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									},
+									{
+										"name": "resourceEnvironmentType",
+										"jsDoc": {
+											"doc": "Type-only environment marker. The symbol has no author-supplied runtime value."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 58,
+											"col": 2,
+											"byteIndex": 3185
+										},
+										"readonly": true,
+										"computed": true,
+										"tsType": {
+											"repr": "EnvironmentRequirement_",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EnvironmentRequirement_",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "ResourceDefinition",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "ResourceValue",
+										"default": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										}
+									},
+									{
+										"name": "Dependencies",
+										"constraint": {
+											"repr": "ResourceDependencies",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDependencies",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										"default": {
+											"repr": "ResourceDependencies",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDependencies",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "EnvironmentRequirement_",
+										"constraint": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "EnvironmentRequirement",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "EnvironmentRequirement",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/env",
+															"name": "EnvironmentRequirement"
+														}
+													}
+												},
+												{
+													"repr": "undefined",
+													"kind": "keyword",
+													"value": "undefined"
+												}
+											]
+										},
+										"default": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "EnvironmentRequirement",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "EnvironmentRequirement",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/env",
+															"name": "EnvironmentRequirement"
+														}
+													}
+												},
+												{
+													"repr": "undefined",
+													"kind": "keyword",
+													"value": "undefined"
+												}
+											]
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 62,
+								"col": 0,
+								"byteIndex": 3290
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Input accepted by {@link define}."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "id",
+										"jsDoc": {
+											"doc": "Stable capability identity used by dependency graphs, implementations, and documentation."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 67,
+											"col": 2,
+											"byteIndex": 3586
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "description",
+										"jsDoc": {
+											"doc": "Human-readable resource purpose used by documentation and diagnostics."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 69,
+											"col": 2,
+											"byteIndex": 3687
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "dependencies",
+										"jsDoc": {
+											"doc": "Keyed direct dependencies required to create the resource."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 71,
+											"col": 2,
+											"byteIndex": 3785
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "Dependencies",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Dependencies",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "ResourceOptions",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									},
+									{
+										"name": "environment",
+										"jsDoc": {
+											"doc": "Optional environment requirement for resource acquisition."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 73,
+											"col": 2,
+											"byteIndex": 3891
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "EnvironmentRequirement_",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "EnvironmentRequirement_",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "ResourceOptions",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									},
+									{
+										"name": "requirements",
+										"jsDoc": {
+											"doc": "Requirements owned directly by this resource; reachable dependency requirements remain separate."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 75,
+											"col": 2,
+											"byteIndex": 4045
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "RequirementInput",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "RequirementInput",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/requirement",
+													"name": "RequirementInput"
+												}
+											}
+										}
+									},
+									{
+										"name": "failures",
+										"jsDoc": {
+											"doc": "Expected failure definitions or data declared by this resource."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 77,
+											"col": 2,
+											"byteIndex": 4160
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "CatalogDefinitionInput",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "CatalogEntryIdentity",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "CatalogEntryIdentity",
+															"resolution": {
+																"kind": "import",
+																"specifier": "@okikio/catalog",
+																"name": "CatalogEntryIdentity"
+															}
+														}
+													}
+												],
+												"typeName": "CatalogDefinitionInput",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/catalog",
+													"name": "DefinitionInput"
+												}
+											}
+										}
+									},
+									{
+										"name": "health",
+										"jsDoc": {
+											"doc": "Optional health metadata documented for the resource."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 79,
+											"col": 2,
+											"byteIndex": 4289
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "ResourceHealth",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceHealth",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "documentation",
+										"jsDoc": {
+											"doc": "Optional external documentation associated with the resource."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 81,
+											"col": 2,
+											"byteIndex": 4394
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "ResourceDocumentation",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDocumentation",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Dependencies",
+										"constraint": {
+											"repr": "ResourceDependencies",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDependencies",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										"default": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "string",
+																	"kind": "keyword",
+																	"value": "string"
+																},
+																{
+																	"repr": "never",
+																	"kind": "keyword",
+																	"value": "never"
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									},
+									{
+										"name": "EnvironmentRequirement_",
+										"constraint": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "EnvironmentRequirement",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "EnvironmentRequirement",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/env",
+															"name": "EnvironmentRequirement"
+														}
+													}
+												},
+												{
+													"repr": "undefined",
+													"kind": "keyword",
+													"value": "undefined"
+												}
+											]
+										},
+										"default": {
+											"repr": "undefined",
+											"kind": "keyword",
+											"value": "undefined"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceValue",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 85,
+								"col": 0,
+								"byteIndex": 4501
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Concrete value carried by a resource definition."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"repr": "CatalogEntryValue",
+									"kind": "typeRef",
+									"value": {
+										"typeParams": [
+											{
+												"repr": "Resource",
+												"kind": "typeRef",
+												"value": {
+													"typeName": "Resource",
+													"resolution": {
+														"kind": "typeParam",
+														"declaringName": "ResourceValue",
+														"declaringKind": "typeAlias"
+													}
+												}
+											}
+										],
+										"typeName": "CatalogEntryValue",
+										"resolution": {
+											"kind": "import",
+											"specifier": "@okikio/catalog",
+											"name": "CatalogEntryValue"
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Resource",
+										"constraint": {
+											"repr": "ResourceDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceDependencyValues",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 88,
+								"col": 0,
+								"byteIndex": 4667
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Direct dependency values supplied to a resource implementation."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "mapped",
+									"value": {
+										"readonly": true,
+										"typeParam": {
+											"name": "Key",
+											"constraint": {
+												"kind": "typeOperator",
+												"value": {
+													"operator": "keyof",
+													"tsType": {
+														"repr": "Dependencies",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Dependencies",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "ResourceDependencyValues",
+																"declaringKind": "typeAlias"
+															}
+														}
+													}
+												}
+											}
+										},
+										"tsType": {
+											"repr": "ResourceValue",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "indexedAccess",
+														"value": {
+															"objType": {
+																"repr": "Dependencies",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Dependencies",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "ResourceDependencyValues",
+																		"declaringKind": "typeAlias"
+																	}
+																}
+															},
+															"indexType": {
+																"repr": "Key",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Key",
+																	"resolution": {
+																		"kind": "typeParam"
+																	}
+																}
+															}
+														}
+													}
+												],
+												"typeName": "ResourceValue",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Dependencies",
+										"constraint": {
+											"repr": "ResourceDependencies",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDependencies",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceEnvironment",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 93,
+								"col": 0,
+								"byteIndex": 4907
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Parsed direct environment values supplied to a resource implementation."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "conditional",
+									"value": {
+										"checkType": {
+											"repr": "Requirement",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Requirement",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "ResourceEnvironment",
+													"declaringKind": "typeAlias"
+												}
+											}
+										},
+										"extendsType": {
+											"repr": "EnvironmentRequirement",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "infer",
+														"value": {
+															"typeParam": {
+																"name": "Fields",
+																"constraint": {
+																	"repr": "EnvironmentFields",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "EnvironmentFields",
+																		"resolution": {
+																			"kind": "import",
+																			"specifier": "@okikio/env",
+																			"name": "EnvironmentFields"
+																		}
+																	}
+																}
+															}
+														}
+													}
+												],
+												"typeName": "EnvironmentRequirement",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/env",
+													"name": "EnvironmentRequirement"
+												}
+											}
+										},
+										"trueType": {
+											"repr": "InferEnvironmentFields",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Fields",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Fields"
+														}
+													}
+												],
+												"typeName": "InferEnvironmentFields",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/env",
+													"name": "InferEnvironmentFields"
+												}
+											}
+										},
+										"falseType": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "string",
+																	"kind": "keyword",
+																	"value": "string"
+																},
+																{
+																	"repr": "never",
+																	"kind": "keyword",
+																	"value": "never"
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Requirement",
+										"constraint": {
+											"kind": "union",
+											"value": [
+												{
+													"repr": "EnvironmentRequirement",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "EnvironmentRequirement",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/env",
+															"name": "EnvironmentRequirement"
+														}
+													}
+												},
+												{
+													"repr": "undefined",
+													"kind": "keyword",
+													"value": "undefined"
+												}
+											]
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceEnvironmentRequirement",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 98,
+								"col": 0,
+								"byteIndex": 5233
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Exact environment requirement retained by one resource definition generic."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "conditional",
+									"value": {
+										"checkType": {
+											"repr": "Resource",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Resource",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "ResourceEnvironmentRequirement",
+													"declaringKind": "typeAlias"
+												}
+											}
+										},
+										"extendsType": {
+											"repr": "ResourceDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "infer",
+														"value": {
+															"typeParam": {
+																"name": "_Value"
+															}
+														}
+													},
+													{
+														"kind": "infer",
+														"value": {
+															"typeParam": {
+																"name": "_Dependencies"
+															}
+														}
+													},
+													{
+														"kind": "infer",
+														"value": {
+															"typeParam": {
+																"name": "Requirement"
+															}
+														}
+													}
+												],
+												"typeName": "ResourceDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										"trueType": {
+											"repr": "Requirement",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Requirement"
+											}
+										},
+										"falseType": {
+											"repr": "undefined",
+											"kind": "keyword",
+											"value": "undefined"
+										}
+									}
+								},
+								"typeParams": [
+									{
+										"name": "Resource",
+										"constraint": {
+											"repr": "ResourceDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceCreateContext",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 102,
+								"col": 0,
+								"byteIndex": 5519
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Borrowed execution scope supplied while creating one concrete resource value."
+							},
+							"kind": "interface",
+							"def": {
+								"extends": [
+									{
+										"repr": "RequirementContext",
+										"kind": "typeRef",
+										"value": {
+											"typeParams": [
+												{
+													"repr": "Context",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Context",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/context",
+															"name": "Context"
+														}
+													}
+												}
+											],
+											"typeName": "RequirementContext",
+											"resolution": {
+												"kind": "import",
+												"specifier": "@okikio/requirement",
+												"name": "RequirementContext"
+											}
+										}
+									},
+									{
+										"repr": "Resources",
+										"kind": "typeRef",
+										"value": {
+											"typeName": "Resources",
+											"resolution": {
+												"kind": "import",
+												"specifier": "@okikio/context",
+												"name": "Resources"
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceCreateArguments",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 105,
+								"col": 0,
+								"byteIndex": 5679
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Arguments supplied while creating one concrete resource value."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "definition",
+										"jsDoc": {
+											"doc": "Exact import-safe definition bound to this resource create arguments."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 107,
+											"col": 2,
+											"byteIndex": 5844
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Resource",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Resource",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "ResourceCreateArguments",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									},
+									{
+										"name": "dependencies",
+										"jsDoc": {
+											"doc": "Already-acquired direct dependency values borrowed by this resource creation."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 109,
+											"col": 2,
+											"byteIndex": 5962
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "ResourceDependencyValues",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "indexedAccess",
+														"value": {
+															"objType": {
+																"repr": "Resource",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Resource",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "ResourceCreateArguments",
+																		"declaringKind": "interface"
+																	}
+																}
+															},
+															"indexType": {
+																"repr": "dependencies",
+																"kind": "literal",
+																"value": {
+																	"kind": "string",
+																	"string": "dependencies"
+																}
+															}
+														}
+													}
+												],
+												"typeName": "ResourceDependencyValues",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "environment",
+										"jsDoc": {
+											"doc": "Parsed environment values owned by the declared environment requirement."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 111,
+											"col": 2,
+											"byteIndex": 6119
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "ResourceEnvironment",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "ResourceEnvironmentRequirement",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "Resource",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Resource",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "ResourceCreateArguments",
+																			"declaringKind": "interface"
+																		}
+																	}
+																}
+															],
+															"typeName": "ResourceEnvironmentRequirement",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												],
+												"typeName": "ResourceEnvironment",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "host",
+										"jsDoc": {
+											"doc": "Host-specific borrowed value supplied by the composition root."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 113,
+											"col": 2,
+											"byteIndex": 6276
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Host",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Host",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "ResourceCreateArguments",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									},
+									{
+										"name": "ctx",
+										"jsDoc": {
+											"doc": "Borrowed parent execution context for this resource create arguments."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 115,
+											"col": 2,
+											"byteIndex": 6376
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "ResourceCreateContext",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceCreateContext",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Resource",
+										"constraint": {
+											"repr": "ResourceDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "Host"
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceImplementation",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 119,
+								"col": 0,
+								"byteIndex": 6487
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Host-specific implementation for one exact resource definition."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "definition",
+										"jsDoc": {
+											"doc": "Exact import-safe definition bound to this resource implementation."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 125,
+											"col": 2,
+											"byteIndex": 6719
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Resource",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Resource",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "ResourceImplementation",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									},
+									{
+										"name": "requirements",
+										"jsDoc": {
+											"doc": "Infrastructure requirements applied once for each concrete acquisition."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 127,
+											"col": 2,
+											"byteIndex": 6831
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "RequirementDefinition",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "RequirementDefinition",
+															"resolution": {
+																"kind": "import",
+																"specifier": "@okikio/requirement",
+																"name": "RequirementDefinition"
+															}
+														}
+													}
+												}
+											}
+										}
+									},
+									{
+										"name": "create",
+										"jsDoc": {
+											"doc": "Acquire the concrete resource value inside the resource-owned cleanup scope."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 129,
+											"col": 2,
+											"byteIndex": 6974
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "fnOrConstructor",
+											"value": {
+												"constructor": false,
+												"tsType": {
+													"kind": "union",
+													"value": [
+														{
+															"repr": "Value",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Value",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "ResourceImplementation",
+																	"declaringKind": "interface"
+																}
+															}
+														},
+														{
+															"repr": "Promise",
+															"kind": "typeRef",
+															"value": {
+																"typeParams": [
+																	{
+																		"repr": "Value",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "Value",
+																			"resolution": {
+																				"kind": "typeParam",
+																				"declaringName": "ResourceImplementation",
+																				"declaringKind": "interface"
+																			}
+																		}
+																	}
+																],
+																"typeName": "Promise"
+															}
+														}
+													]
+												},
+												"params": [
+													{
+														"kind": "identifier",
+														"name": "args",
+														"optional": false,
+														"tsType": {
+															"repr": "ResourceCreateArguments",
+															"kind": "typeRef",
+															"value": {
+																"typeParams": [
+																	{
+																		"repr": "Resource",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "Resource",
+																			"resolution": {
+																				"kind": "typeParam",
+																				"declaringName": "ResourceImplementation",
+																				"declaringKind": "interface"
+																			}
+																		}
+																	},
+																	{
+																		"repr": "Host",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "Host",
+																			"resolution": {
+																				"kind": "typeParam",
+																				"declaringName": "ResourceImplementation",
+																				"declaringKind": "interface"
+																			}
+																		}
+																	}
+																],
+																"typeName": "ResourceCreateArguments",
+																"resolution": {
+																	"kind": "local"
+																}
+															}
+														}
+													}
+												]
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Resource",
+										"constraint": {
+											"repr": "ResourceDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										"default": {
+											"repr": "ResourceDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "Value",
+										"default": {
+											"repr": "ResourceValue",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Resource",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "Resource",
+															"resolution": {
+																"kind": "typeParam",
+																"declaringName": "ResourceImplementation",
+																"declaringKind": "interface"
+															}
+														}
+													}
+												],
+												"typeName": "ResourceValue",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "Host",
+										"default": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceImplementationOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 133,
+								"col": 0,
+								"byteIndex": 7113
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Input accepted by {@link implement}."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "requirements",
+										"jsDoc": {
+											"doc": "Infrastructure requirements for this implementation, separate from per-use definition requirements."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 135,
+											"col": 2,
+											"byteIndex": 7321
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "RequirementInput",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "RequirementInput",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/requirement",
+													"name": "RequirementInput"
+												}
+											}
+										}
+									},
+									{
+										"name": "create",
+										"jsDoc": {
+											"doc": "Acquire one concrete value for the exact resource definition."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 137,
+											"col": 2,
+											"byteIndex": 7434
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "fnOrConstructor",
+											"value": {
+												"constructor": false,
+												"tsType": {
+													"kind": "union",
+													"value": [
+														{
+															"repr": "Value",
+															"kind": "typeRef",
+															"value": {
+																"typeName": "Value",
+																"resolution": {
+																	"kind": "typeParam",
+																	"declaringName": "ResourceImplementationOptions",
+																	"declaringKind": "interface"
+																}
+															}
+														},
+														{
+															"repr": "Promise",
+															"kind": "typeRef",
+															"value": {
+																"typeParams": [
+																	{
+																		"repr": "Value",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "Value",
+																			"resolution": {
+																				"kind": "typeParam",
+																				"declaringName": "ResourceImplementationOptions",
+																				"declaringKind": "interface"
+																			}
+																		}
+																	}
+																],
+																"typeName": "Promise"
+															}
+														}
+													]
+												},
+												"params": [
+													{
+														"kind": "identifier",
+														"name": "args",
+														"optional": false,
+														"tsType": {
+															"repr": "ResourceCreateArguments",
+															"kind": "typeRef",
+															"value": {
+																"typeParams": [
+																	{
+																		"repr": "Resource",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "Resource",
+																			"resolution": {
+																				"kind": "typeParam",
+																				"declaringName": "ResourceImplementationOptions",
+																				"declaringKind": "interface"
+																			}
+																		}
+																	},
+																	{
+																		"repr": "Host",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "Host",
+																			"resolution": {
+																				"kind": "typeParam",
+																				"declaringName": "ResourceImplementationOptions",
+																				"declaringKind": "interface"
+																			}
+																		}
+																	}
+																],
+																"typeName": "ResourceCreateArguments",
+																"resolution": {
+																	"kind": "local"
+																}
+															}
+														}
+													}
+												]
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Resource",
+										"constraint": {
+											"repr": "ResourceDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "Value"
+									},
+									{
+										"name": "Host"
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceCreateArgumentsAny",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 141,
+								"col": 0,
+								"byteIndex": 7604
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Runtime arguments shared by heterogeneous resource implementations."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "definition",
+										"jsDoc": {
+											"doc": "Exact import-safe definition bound to this resource create arguments any."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 143,
+											"col": 2,
+											"byteIndex": 7733
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "ResourceDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "dependencies",
+										"jsDoc": {
+											"doc": "Runtime-erased direct dependency values for heterogeneous resource creation."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 145,
+											"col": 2,
+											"byteIndex": 7860
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "string",
+																	"kind": "keyword",
+																	"value": "string"
+																},
+																{
+																	"repr": "unknown",
+																	"kind": "keyword",
+																	"value": "unknown"
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									},
+									{
+										"name": "environment",
+										"jsDoc": {
+											"doc": "Runtime-erased parsed environment values for heterogeneous resource creation."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 147,
+											"col": 2,
+											"byteIndex": 8005
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "string",
+																	"kind": "keyword",
+																	"value": "string"
+																},
+																{
+																	"repr": "unknown",
+																	"kind": "keyword",
+																	"value": "unknown"
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									},
+									{
+										"name": "host",
+										"jsDoc": {
+											"doc": "Runtime-erased host value supplied by the composition root."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 149,
+											"col": 2,
+											"byteIndex": 8131
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "unknown",
+											"kind": "keyword",
+											"value": "unknown"
+										}
+									},
+									{
+										"name": "ctx",
+										"jsDoc": {
+											"doc": "Borrowed parent execution context for this resource create arguments any."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 151,
+											"col": 2,
+											"byteIndex": 8238
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "ResourceCreateContext",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceCreateContext",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceFactoryAny",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 155,
+								"col": 0,
+								"byteIndex": 8365
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Runtime-erased resource constructor retained in an explicit implementation set."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "indexedAccess",
+									"value": {
+										"objType": {
+											"kind": "typeLiteral",
+											"value": {
+												"methods": [
+													{
+														"name": "bivarianceHack",
+														"kind": "method",
+														"location": {
+															"filename": "./packages/resource/types.ts",
+															"line": 156,
+															"col": 2,
+															"byteIndex": 8401
+														},
+														"params": [
+															{
+																"kind": "identifier",
+																"name": "args",
+																"optional": false,
+																"tsType": {
+																	"repr": "ResourceCreateArgumentsAny",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "ResourceCreateArgumentsAny",
+																		"resolution": {
+																			"kind": "local"
+																		}
+																	}
+																}
+															}
+														],
+														"returnType": {
+															"kind": "union",
+															"value": [
+																{
+																	"repr": "unknown",
+																	"kind": "keyword",
+																	"value": "unknown"
+																},
+																{
+																	"repr": "Promise",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeParams": [
+																			{
+																				"repr": "unknown",
+																				"kind": "keyword",
+																				"value": "unknown"
+																			}
+																		],
+																		"typeName": "Promise"
+																	}
+																}
+															]
+														}
+													}
+												]
+											}
+										},
+										"indexType": {
+											"repr": "bivarianceHack",
+											"kind": "literal",
+											"value": {
+												"kind": "string",
+												"string": "bivarianceHack"
+											}
+										}
+									}
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceImplementationAny",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 160,
+								"col": 0,
+								"byteIndex": 8584
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Runtime-erased resource implementation stored in heterogeneous collections."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "definition",
+										"jsDoc": {
+											"doc": "Exact import-safe definition bound to this resource implementation any."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 162,
+											"col": 2,
+											"byteIndex": 8710
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "ResourceDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "requirements",
+										"jsDoc": {
+											"doc": "Requirements owned directly by this resource implementation any; reachable dependency requirements remain separate."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 164,
+											"col": 2,
+											"byteIndex": 8876
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "RequirementDefinition",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "RequirementDefinition",
+															"resolution": {
+																"kind": "import",
+																"specifier": "@okikio/requirement",
+																"name": "RequirementDefinition"
+															}
+														}
+													}
+												}
+											}
+										}
+									},
+									{
+										"name": "create",
+										"jsDoc": {
+											"doc": "Runtime-erased resource factory retained by an explicit implementation set."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 166,
+											"col": 2,
+											"byteIndex": 9018
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "ResourceFactoryAny",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceFactoryAny",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceImplementationSet",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 170,
+								"col": 0,
+								"byteIndex": 9124
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Import-safe explicit universe of resource implementations."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "implementations",
+										"jsDoc": {
+											"doc": "Explicit immutable implementations available to this collection.\n\nThe element union remains precise, but this is intentionally not the exact\ninput tuple. `resource.implementations()` deduplicates repeated references,\nso promising the input tuple length would make indexes appear to exist when\nthe runtime set contains fewer entries."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 181,
+											"col": 2,
+											"byteIndex": 9641
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"kind": "indexedAccess",
+														"value": {
+															"objType": {
+																"repr": "Implementations",
+																"kind": "typeRef",
+																"value": {
+																	"typeName": "Implementations",
+																	"resolution": {
+																		"kind": "typeParam",
+																		"declaringName": "ResourceImplementationSet",
+																		"declaringKind": "interface"
+																	}
+																}
+															},
+															"indexType": {
+																"repr": "number",
+																"kind": "keyword",
+																"value": "number"
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Implementations",
+										"constraint": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "ResourceImplementationAny",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "ResourceImplementationAny",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												}
+											}
+										},
+										"default": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "ResourceImplementationAny",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "ResourceImplementationAny",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceCollectionOptions",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 185,
+								"col": 0,
+								"byteIndex": 9781
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Options used to create one independently owned resource collection."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "environment",
+										"jsDoc": {
+											"doc": "Raw environment values used to satisfy declared resource environment requirements."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 187,
+											"col": 2,
+											"byteIndex": 9924
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "Record",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "string",
+																	"kind": "keyword",
+																	"value": "string"
+																},
+																{
+																	"repr": "unknown",
+																	"kind": "keyword",
+																	"value": "unknown"
+																}
+															],
+															"typeName": "Record"
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									},
+									{
+										"name": "host",
+										"jsDoc": {
+											"doc": "Host-specific borrowed value exposed to resource implementations."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 189,
+											"col": 2,
+											"byteIndex": 10057
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Host",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Host",
+												"resolution": {
+													"kind": "typeParam",
+													"declaringName": "ResourceCollectionOptions",
+													"declaringKind": "interface"
+												}
+											}
+										}
+									},
+									{
+										"name": "ctx",
+										"jsDoc": {
+											"doc": "Borrowed parent execution context for this resource collection."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 191,
+											"col": 2,
+											"byteIndex": 10151
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "Owned",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "Owned",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/context",
+													"name": "Owned"
+												}
+											}
+										}
+									},
+									{
+										"name": "requirements",
+										"jsDoc": {
+											"doc": "Host interpreters used only for implementation-acquisition requirements."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 193,
+											"col": 2,
+											"byteIndex": 10254
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "RequirementRuntime",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "RequirementRuntime",
+												"resolution": {
+													"kind": "import",
+													"specifier": "@okikio/requirement",
+													"name": "RequirementRuntime"
+												}
+											}
+										}
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Host"
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceResolver",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 197,
+								"col": 0,
+								"byteIndex": 10398
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Resource resolver narrowed to one current execution context and allowed definition union."
+							},
+							"kind": "interface",
+							"def": {
+								"methods": [
+									{
+										"name": "has",
+										"jsDoc": {
+											"doc": "Return whether the supplied exact definition has an implementation."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 199,
+											"col": 2,
+											"byteIndex": 10568
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "definition",
+												"optional": false,
+												"tsType": {
+													"repr": "Resource",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Resource",
+														"resolution": {
+															"kind": "typeParam",
+															"declaringName": "has",
+															"declaringKind": "method"
+														}
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "boolean",
+											"kind": "keyword",
+											"value": "boolean"
+										},
+										"typeParams": [
+											{
+												"name": "Resource",
+												"constraint": {
+													"repr": "Allowed",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Allowed",
+														"resolution": {
+															"kind": "typeParam",
+															"declaringName": "ResourceResolver",
+															"declaringKind": "interface"
+														}
+													}
+												}
+											}
+										]
+									},
+									{
+										"name": "get",
+										"jsDoc": {
+											"doc": "Apply per-use requirements, then lazily acquire or borrow the value."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 201,
+											"col": 2,
+											"byteIndex": 10708
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "definition",
+												"optional": false,
+												"tsType": {
+													"repr": "Resource",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Resource",
+														"resolution": {
+															"kind": "typeParam",
+															"declaringName": "get",
+															"declaringKind": "method"
+														}
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "ResourceValue",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "Resource",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Resource",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "get",
+																			"declaringKind": "method"
+																		}
+																	}
+																}
+															],
+															"typeName": "ResourceValue",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												],
+												"typeName": "Promise"
+											}
+										},
+										"typeParams": [
+											{
+												"name": "Resource",
+												"constraint": {
+													"repr": "Allowed",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Allowed",
+														"resolution": {
+															"kind": "typeParam",
+															"declaringName": "ResourceResolver",
+															"declaringKind": "interface"
+														}
+													}
+												}
+											}
+										]
+									}
+								],
+								"typeParams": [
+									{
+										"name": "Allowed",
+										"constraint": {
+											"repr": "ResourceDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										},
+										"default": {
+											"repr": "ResourceDefinition",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDefinition",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceCollection",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 205,
+								"col": 0,
+								"byteIndex": 10886
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Live resource owner. Every public borrow supplies the current execution context."
+							},
+							"kind": "interface",
+							"def": {
+								"extends": [
+									{
+										"repr": "AsyncDisposable",
+										"kind": "typeRef",
+										"value": {
+											"typeName": "AsyncDisposable"
+										}
+									}
+								],
+								"methods": [
+									{
+										"name": "has",
+										"jsDoc": {
+											"doc": "Return whether an exact resource definition has a configured implementation."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 207,
+											"col": 2,
+											"byteIndex": 11034
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "definition",
+												"optional": false,
+												"tsType": {
+													"repr": "Resource",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Resource",
+														"resolution": {
+															"kind": "typeParam",
+															"declaringName": "has",
+															"declaringKind": "method"
+														}
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "boolean",
+											"kind": "keyword",
+											"value": "boolean"
+										},
+										"typeParams": [
+											{
+												"name": "Resource",
+												"constraint": {
+													"repr": "ResourceDefinition",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "ResourceDefinition",
+														"resolution": {
+															"kind": "local"
+														}
+													}
+												}
+											}
+										]
+									},
+									{
+										"name": "get",
+										"jsDoc": {
+											"doc": "Apply per-use requirements, then return the lazily acquired value for the exact definition."
+										},
+										"kind": "method",
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 209,
+											"col": 2,
+											"byteIndex": 11208
+										},
+										"params": [
+											{
+												"kind": "identifier",
+												"name": "ctx",
+												"optional": false,
+												"tsType": {
+													"repr": "Context",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Context",
+														"resolution": {
+															"kind": "import",
+															"specifier": "@okikio/context",
+															"name": "Context"
+														}
+													}
+												}
+											},
+											{
+												"kind": "identifier",
+												"name": "definition",
+												"optional": false,
+												"tsType": {
+													"repr": "Resource",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "Resource",
+														"resolution": {
+															"kind": "typeParam",
+															"declaringName": "get",
+															"declaringKind": "method"
+														}
+													}
+												}
+											}
+										],
+										"returnType": {
+											"repr": "Promise",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"repr": "ResourceValue",
+														"kind": "typeRef",
+														"value": {
+															"typeParams": [
+																{
+																	"repr": "Resource",
+																	"kind": "typeRef",
+																	"value": {
+																		"typeName": "Resource",
+																		"resolution": {
+																			"kind": "typeParam",
+																			"declaringName": "get",
+																			"declaringKind": "method"
+																		}
+																	}
+																}
+															],
+															"typeName": "ResourceValue",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												],
+												"typeName": "Promise"
+											}
+										},
+										"typeParams": [
+											{
+												"name": "Resource",
+												"constraint": {
+													"repr": "ResourceDefinition",
+													"kind": "typeRef",
+													"value": {
+														"typeName": "ResourceDefinition",
+														"resolution": {
+															"kind": "local"
+														}
+													}
+												}
+											}
+										]
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceValidationIssue",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 213,
+								"col": 0,
+								"byteIndex": 11363
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Resource graph validation issue."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "code",
+																	"location": {
+																		"filename": "./packages/resource/types.ts",
+																		"line": 216,
+																		"col": 6,
+																		"byteIndex": 11421
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "duplicate-definition-id",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "string",
+																			"string": "duplicate-definition-id"
+																		}
+																	}
+																},
+																{
+																	"name": "message",
+																	"location": {
+																		"filename": "./packages/resource/types.ts",
+																		"line": 217,
+																		"col": 6,
+																		"byteIndex": 11466
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																},
+																{
+																	"name": "id",
+																	"location": {
+																		"filename": "./packages/resource/types.ts",
+																		"line": 218,
+																		"col": 6,
+																		"byteIndex": 11495
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																},
+																{
+																	"name": "first",
+																	"location": {
+																		"filename": "./packages/resource/types.ts",
+																		"line": 219,
+																		"col": 6,
+																		"byteIndex": 11519
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "ResourceDefinition",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "ResourceDefinition",
+																			"resolution": {
+																				"kind": "local"
+																			}
+																		}
+																	}
+																},
+																{
+																	"name": "second",
+																	"location": {
+																		"filename": "./packages/resource/types.ts",
+																		"line": 220,
+																		"col": 6,
+																		"byteIndex": 11558
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "ResourceDefinition",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "ResourceDefinition",
+																			"resolution": {
+																				"kind": "local"
+																			}
+																		}
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										},
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "code",
+																	"location": {
+																		"filename": "./packages/resource/types.ts",
+																		"line": 224,
+																		"col": 6,
+																		"byteIndex": 11619
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "duplicate-implementation",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "string",
+																			"string": "duplicate-implementation"
+																		}
+																	}
+																},
+																{
+																	"name": "message",
+																	"location": {
+																		"filename": "./packages/resource/types.ts",
+																		"line": 224,
+																		"col": 49,
+																		"byteIndex": 11662
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																},
+																{
+																	"name": "definition",
+																	"location": {
+																		"filename": "./packages/resource/types.ts",
+																		"line": 224,
+																		"col": 75,
+																		"byteIndex": 11688
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "ResourceDefinition",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "ResourceDefinition",
+																			"resolution": {
+																				"kind": "local"
+																			}
+																		}
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										},
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "code",
+																	"location": {
+																		"filename": "./packages/resource/types.ts",
+																		"line": 228,
+																		"col": 6,
+																		"byteIndex": 11753
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "missing-implementation",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "string",
+																			"string": "missing-implementation"
+																		}
+																	}
+																},
+																{
+																	"name": "message",
+																	"location": {
+																		"filename": "./packages/resource/types.ts",
+																		"line": 229,
+																		"col": 6,
+																		"byteIndex": 11797
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																},
+																{
+																	"name": "definition",
+																	"location": {
+																		"filename": "./packages/resource/types.ts",
+																		"line": 230,
+																		"col": 6,
+																		"byteIndex": 11826
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "ResourceDefinition",
+																		"kind": "typeRef",
+																		"value": {
+																			"typeName": "ResourceDefinition",
+																			"resolution": {
+																				"kind": "local"
+																			}
+																		}
+																	}
+																},
+																{
+																	"name": "requiredBy",
+																	"location": {
+																		"filename": "./packages/resource/types.ts",
+																		"line": 231,
+																		"col": 6,
+																		"byteIndex": 11870
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"kind": "typeOperator",
+																		"value": {
+																			"operator": "readonly",
+																			"tsType": {
+																				"kind": "array",
+																				"value": {
+																					"repr": "ResourceDefinition",
+																					"kind": "typeRef",
+																					"value": {
+																						"typeName": "ResourceDefinition",
+																						"resolution": {
+																							"kind": "local"
+																						}
+																					}
+																				}
+																			}
+																		}
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										},
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "code",
+																	"location": {
+																		"filename": "./packages/resource/types.ts",
+																		"line": 235,
+																		"col": 6,
+																		"byteIndex": 11946
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "dependency-cycle",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "string",
+																			"string": "dependency-cycle"
+																		}
+																	}
+																},
+																{
+																	"name": "message",
+																	"location": {
+																		"filename": "./packages/resource/types.ts",
+																		"line": 235,
+																		"col": 41,
+																		"byteIndex": 11981
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "string",
+																		"kind": "keyword",
+																		"value": "string"
+																	}
+																},
+																{
+																	"name": "path",
+																	"location": {
+																		"filename": "./packages/resource/types.ts",
+																		"line": 235,
+																		"col": 67,
+																		"byteIndex": 12007
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"kind": "typeOperator",
+																		"value": {
+																			"operator": "readonly",
+																			"tsType": {
+																				"kind": "array",
+																				"value": {
+																					"repr": "ResourceDefinition",
+																					"kind": "typeRef",
+																					"value": {
+																						"typeName": "ResourceDefinition",
+																						"resolution": {
+																							"kind": "local"
+																						}
+																					}
+																				}
+																			}
+																		}
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceValidationResult",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 239,
+								"col": 0,
+								"byteIndex": 12120
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "Deterministic validation result for a resource graph."
+							},
+							"kind": "typeAlias",
+							"def": {
+								"tsType": {
+									"kind": "union",
+									"value": [
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "valid",
+																	"location": {
+																		"filename": "./packages/resource/types.ts",
+																		"line": 240,
+																		"col": 15,
+																		"byteIndex": 12173
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "true",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "boolean",
+																			"boolean": true
+																		}
+																	}
+																},
+																{
+																	"name": "definitions",
+																	"location": {
+																		"filename": "./packages/resource/types.ts",
+																		"line": 240,
+																		"col": 37,
+																		"byteIndex": 12195
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"kind": "typeOperator",
+																		"value": {
+																			"operator": "readonly",
+																			"tsType": {
+																				"kind": "array",
+																				"value": {
+																					"repr": "ResourceDefinition",
+																					"kind": "typeRef",
+																					"value": {
+																						"typeName": "ResourceDefinition",
+																						"resolution": {
+																							"kind": "local"
+																						}
+																					}
+																				}
+																			}
+																		}
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										},
+										{
+											"repr": "Readonly",
+											"kind": "typeRef",
+											"value": {
+												"typeParams": [
+													{
+														"kind": "typeLiteral",
+														"value": {
+															"properties": [
+																{
+																	"name": "valid",
+																	"location": {
+																		"filename": "./packages/resource/types.ts",
+																		"line": 241,
+																		"col": 15,
+																		"byteIndex": 12264
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"repr": "false",
+																		"kind": "literal",
+																		"value": {
+																			"kind": "boolean",
+																			"boolean": false
+																		}
+																	}
+																},
+																{
+																	"name": "issues",
+																	"location": {
+																		"filename": "./packages/resource/types.ts",
+																		"line": 241,
+																		"col": 38,
+																		"byteIndex": 12287
+																	},
+																	"readonly": true,
+																	"tsType": {
+																		"kind": "typeOperator",
+																		"value": {
+																			"operator": "readonly",
+																			"tsType": {
+																				"kind": "array",
+																				"value": {
+																					"repr": "ResourceValidationIssue",
+																					"kind": "typeRef",
+																					"value": {
+																						"typeName": "ResourceValidationIssue",
+																						"resolution": {
+																							"kind": "local"
+																						}
+																					}
+																				}
+																			}
+																		}
+																	}
+																}
+															]
+														}
+													}
+												],
+												"typeName": "Readonly"
+											}
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceEnvironmentDocumentType",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 244,
+								"col": 0,
+								"byteIndex": 12422
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "JSON-safe explanation of one environment field required by a resource."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "key",
+										"jsDoc": {
+											"doc": "Environment field key expected by the owning resource requirement."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 246,
+											"col": 2,
+											"byteIndex": 12549
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "reason",
+										"jsDoc": {
+											"doc": "Human-readable reason the resource needs this environment field."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 248,
+											"col": 2,
+											"byteIndex": 12645
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "requirementId",
+										"jsDoc": {
+											"doc": "Stable environment-requirement ID that owns this field."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 250,
+											"col": 2,
+											"byteIndex": 12735
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "ResourceDocument",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 254,
+								"col": 0,
+								"byteIndex": 12826
+							},
+							"declarationKind": "export",
+							"jsDoc": {
+								"doc": "JSON-safe projection of one resource definition."
+							},
+							"kind": "interface",
+							"def": {
+								"properties": [
+									{
+										"name": "id",
+										"jsDoc": {
+											"doc": "Stable capability identity used by dependency graphs, implementations, and documentation."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 256,
+											"col": 2,
+											"byteIndex": 12961
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "description",
+										"jsDoc": {
+											"doc": "Human-readable resource purpose used by documentation and diagnostics."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 258,
+											"col": 2,
+											"byteIndex": 13062
+										},
+										"readonly": true,
+										"tsType": {
+											"repr": "string",
+											"kind": "keyword",
+											"value": "string"
+										}
+									},
+									{
+										"name": "dependencies",
+										"jsDoc": {
+											"doc": "Stable IDs of resources required directly by this definition."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 260,
+											"col": 2,
+											"byteIndex": 13163
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "string",
+														"kind": "keyword",
+														"value": "string"
+													}
+												}
+											}
+										}
+									},
+									{
+										"name": "transitiveDependencies",
+										"jsDoc": {
+											"doc": "Stable IDs reachable through the complete resource dependency graph."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 262,
+											"col": 2,
+											"byteIndex": 13283
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "string",
+														"kind": "keyword",
+														"value": "string"
+													}
+												}
+											}
+										}
+									},
+									{
+										"name": "environment",
+										"jsDoc": {
+											"doc": "Environment fields required directly by this resource and their owning requirement."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 264,
+											"col": 2,
+											"byteIndex": 13428
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "ResourceEnvironmentDocumentType",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "ResourceEnvironmentDocumentType",
+															"resolution": {
+																"kind": "local"
+															}
+														}
+													}
+												}
+											}
+										}
+									},
+									{
+										"name": "requirements",
+										"jsDoc": {
+											"doc": "Requirements owned directly by this resource; reachable dependency requirements remain separate."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 266,
+											"col": 2,
+											"byteIndex": 13600
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "RequirementDocument",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "RequirementDocument",
+															"resolution": {
+																"kind": "import",
+																"specifier": "@okikio/requirement",
+																"name": "RequirementDocument"
+															}
+														}
+													}
+												}
+											}
+										}
+									},
+									{
+										"name": "reachableRequirements",
+										"jsDoc": {
+											"doc": "Requirements reachable through this resource and its dependency graph with provenance."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 268,
+											"col": 2,
+											"byteIndex": 13751
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "RequirementDocument",
+														"kind": "typeRef",
+														"value": {
+															"typeName": "RequirementDocument",
+															"resolution": {
+																"kind": "import",
+																"specifier": "@okikio/requirement",
+																"name": "RequirementDocument"
+															}
+														}
+													}
+												}
+											}
+										}
+									},
+									{
+										"name": "failures",
+										"jsDoc": {
+											"doc": "Expected failure definitions or data declared by this resource."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 270,
+											"col": 2,
+											"byteIndex": 13888
+										},
+										"readonly": true,
+										"tsType": {
+											"kind": "typeOperator",
+											"value": {
+												"operator": "readonly",
+												"tsType": {
+													"kind": "array",
+													"value": {
+														"repr": "string",
+														"kind": "keyword",
+														"value": "string"
+													}
+												}
+											}
+										}
+									},
+									{
+										"name": "implementationAvailable",
+										"jsDoc": {
+											"doc": "Whether the inspected implementation set can acquire this resource definition."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 272,
+											"col": 2,
+											"byteIndex": 14014
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "boolean",
+											"kind": "keyword",
+											"value": "boolean"
+										}
+									},
+									{
+										"name": "health",
+										"jsDoc": {
+											"doc": "Optional health metadata copied into deterministic documentation."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 274,
+											"col": 2,
+											"byteIndex": 14133
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "ResourceHealth",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceHealth",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									},
+									{
+										"name": "documentation",
+										"jsDoc": {
+											"doc": "Optional external documentation metadata copied into deterministic documentation."
+										},
+										"location": {
+											"filename": "./packages/resource/types.ts",
+											"line": 276,
+											"col": 2,
+											"byteIndex": 14258
+										},
+										"readonly": true,
+										"optional": true,
+										"tsType": {
+											"repr": "ResourceDocumentation",
+											"kind": "typeRef",
+											"value": {
+												"typeName": "ResourceDocumentation",
+												"resolution": {
+													"kind": "local"
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "resourceDependenciesType",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 12,
+								"col": 6,
+								"byteIndex": 615
+							},
+							"declarationKind": "private",
+							"jsDoc": {
+								"doc": "Private phantom key that preserves a resource definition's dependency type without runtime data."
+							},
+							"kind": "variable",
+							"def": {
+								"tsType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "unique",
+										"tsType": {
+											"repr": "symbol",
+											"kind": "keyword",
+											"value": "symbol"
+										}
+									}
+								},
+								"kind": "const"
+							}
+						}
+					]
+				},
+				{
+					"name": "resourceEnvironmentType",
+					"declarations": [
+						{
+							"location": {
+								"filename": "./packages/resource/types.ts",
+								"line": 14,
+								"col": 6,
+								"byteIndex": 812
+							},
+							"declarationKind": "private",
+							"jsDoc": {
+								"doc": "Private phantom key that preserves a resource definition's environment type without runtime data."
+							},
+							"kind": "variable",
+							"def": {
+								"tsType": {
+									"kind": "typeOperator",
+									"value": {
+										"operator": "unique",
+										"tsType": {
+											"repr": "symbol",
+											"kind": "keyword",
+											"value": "symbol"
+										}
+									}
+								},
+								"kind": "const"
+							}
+						}
+					]
+				}
+			]
+		}
+	}
+}

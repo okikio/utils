@@ -203,7 +203,9 @@ function attempt<Activity extends ActivityDefinition>(
  *
  * The attempt validates input/result schemas, applies direct active
  * requirements, exposes every statically reachable permission only for later
- * explicit checks, narrows resource access, and disposes attempt-owned values.
+ * explicit checks, provides typed resource access, and disposes attempt-owned values.
+ * Resource declarations constrain the TypeScript dependency model. They do not
+ * sandbox untrusted implementation code at runtime.
  */
 export async function run<Activity extends ActivityDefinition>(
 	options: ActivityRunOptions<Activity>,
