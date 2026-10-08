@@ -9,10 +9,7 @@ one definition, then parses the source you explicitly choose.
 [Editable diagram source](diagram.mmd). The diagram shows startup configuration checking. The valid branch returns
 values for your application to use; it does not open a listener. It omits merging several sources and handling secrets.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
+The [full API reference](API.md) includes field metadata, source and definition contracts.
 
 ## Run a complete example
 
@@ -23,22 +20,59 @@ const Service = env.define({
 	PORT: z.coerce.number().int().min(1).max(65535).default(8787).describe('TCP port used by the service.'),
 });
 const values = Service.parseSync(env.record({ PORT: '4321' }));
-console.log(values.PORT + 1);
+console.log('Listen on port', values.PORT);
 ```
 
 Expected output:
 
 ```text output
-4322
+Listen on port 4321
 ```
 
 `parseSync()` returns the inferred configuration object immediately: here `{ PORT: number }` with PORT `4321`. Invalid
 fields throw validation diagnostics before host startup. The record source reads only supplied values, so this example
 needs no environment permission and opens no listener.
 
-The demo supplies `{ PORT: '4321' }` without reading your machine's environment. Parsing turns the text into a number,
-so adding one prints `4322`. Try an empty record to use the declared default `8787`; the same addition then gives
-`8788`. A port outside the declared range fails validation.
+The demo supplies `{ PORT: '4321' }` without reading your machine's environment. Parsing turns the text into a number
+you can pass to a listener. Try an empty record to use the declared default `8787`. A port outside the declared range
+fails validation.
+
+## Apply a test override to normal startup configuration
+
+A source is just an object with `get(name)`. Use supplied records first so precedence is visible without access to the
+machine's environment. The resulting configuration is a normal object you can pass to existing code.
+
+```ts runnable=startup-config.ts
+import { define, merge, record } from '@okikio/env/zod';
+import { z } from 'zod';
+
+const Service = define({
+	HOST: z.string().default('localhost').describe('Address on which the service listens.'),
+	PORT: z.coerce.number().int().min(1).max(65535).default(8787).describe('Port on which the service listens.'),
+});
+const source = merge(record({ HOST: '127.0.0.1', PORT: '8787' }), record({ PORT: '4321' }));
+const config = Service.parseSync(source);
+console.log(`http://${config.HOST}:${config.PORT}`);
+```
+
+```text output
+http://127.0.0.1:4321
+```
+
+| Part                | Contract                                                                  | Responsibility                                                                                      |
+| ------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Source              | `get(key: string): string \| undefined`                                   | Supplies raw text; an absent value can use a default.                                               |
+| `record(values)`    | String/undefined map → source snapshot                                    | Captures your supplied values without reading ambient state.                                        |
+| `merge(...sources)` | Sources → source                                                          | Reads from last to first; `undefined` falls through, while an empty string overrides.               |
+| Definition          | `parse(source): Promise<typed values>`; `parseSync(source): typed values` | Runs declared validators. Invalid fields throw `EnvironmentError`; async validators need `parse()`. |
+
+Under the hood, the definition retains its named fields and metadata. Parsing asks the selected source for each field,
+passes the raw value to that field's validator and collects issues before returning values. The record source snapshots
+into a `Map`, so names such as `__proto__` remain ordinary keys.
+
+The split is deliberate: a reusable library can describe its settings without reading your environment at import time.
+The executable decides when to parse and which overrides apply. Mark credentials with `secret()` for redacted package
+diagnostics; your code still receives the actual credential and must control where it is logged.
 
 ## Build on the example
 
@@ -47,31 +81,12 @@ so adding one prints `4322`. Try an empty record to use the declared default `87
 - Combine [Resource](../resource/README.md) requirements with environment definitions when a database or API client
   needs credentials. Mark secret fields explicitly and let the provider own its live connection.
 
-Start with a record source for reproducible tests, then merge an explicit runtime source and overrides at the executable
-root. Use secret() for credentials so documentation and diagnostics redact them. Zod, Valibot and Standard Schema
-adapters are optional imports; the generic configuration core does not choose a validator or read environment variables
-until a source is used.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
-
-## Purpose
-
-`@okikio/env` separates environment definitions from environment sources. A definition owns validation, documentation,
-and secret classification. A source owns the raw strings available to one host.
-
 ## How it fits
 
 Concrete packages define the environment fields they need. An executable host selects raw sources and parses those
 definitions during startup. Importing a definition never reads ambient process state.
 
-`@okikio/env` keeps two related responsibilities separate:
-
-1. an **environment definition** describes, validates, documents, and classifies values;
-2. an **environment source** supplies the raw strings available to one host.
-
-They meet only when a host parses a definition:
+Metadata can describe the port for deployment tooling, while `secret()` labels a credential:
 
 ```ts
 import * as env from '@okikio/env/zod';
@@ -132,7 +147,7 @@ site.
 useful at deployment and startup checks when an operator needs to see which canonical keys are required and why without
 printing the corresponding secret values.
 
-## Start here
+## Author metadata with your validator
 
 ### Zod
 
@@ -323,5 +338,5 @@ Start with this README, then use the source in this order when you need more det
 3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
 4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
-separate hand-written API reference.
+The [generated API reference](API.md) lists every public function and type. These examples teach the common paths and
+the design decisions behind those contracts.

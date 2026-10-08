@@ -8,6 +8,47 @@ Start with a regular function when that is all you need. Activities become usefu
 locations need the same rules: what input is accepted, what result comes back, which dependencies are available, and
 what should stop when the caller cancels. You declare those rules once and attach the actual function separately.
 
+## Begin with the ordinary function
+
+An activity implementation still performs ordinary work. For example, this complete function prepares a photo title:
+
+```ts runnable=plain-title.ts
+function prepareTitle(title: string): string {
+	return title.trim().toUpperCase();
+}
+console.log(prepareTitle(' summer trip '));
+```
+
+```text output
+SUMMER TRIP
+```
+
+That transformation needs no activity. Wrap a function when callers need a named input/result contract, checked
+dependencies, or the same operation on a different execution host. The transformation remains inside your function; the
+activity runner supplies the checks and lifetime around it.
+
+The three main calls have different jobs:
+
+| Call or contract                                            | What it contains or returns                                                              | What actually runs                                                       |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `define()` → `ActivityDefinition`                           | ID, version, input/result schemas, placement, and optional dependencies/failures/effects | Declaration only; no job starts.                                         |
+| `implement(definition, { run })` → `ActivityImplementation` | The exact definition and your function                                                   | Registration only; the function has not been called.                     |
+| `run(options)` → `Promise<ActivityResult<Activity>>`        | A result inferred from the definition's result schema                                    | One checked local attempt with supplied input and dependencies.          |
+| `ActivityContext` supplied to `run`                         | Typed `input`, `signal`, job ID, attempt number, `get()`, checkpoint and cleanup methods | Your function uses this state; it still returns its normal result value. |
+
+The result schema determines the Promise's value type. Changing a definition's input schema changes the implementation's
+typed `ctx.input`. Keeping those schemas on one definition prevents separate callers and remote hosts from quietly
+drifting into different versions of the same job.
+
+Underneath a direct `run()`, the runner checks engine and attempt identity, validates input, and creates an owned child
+context. It adds the declared resource/permission/effect views, applies admission requirements, calls your function,
+validates its result, and awaits attempt cleanup. Invalid input never reaches the function. Schemas may be asynchronous,
+so the outward result is a Promise even when your function returns a string immediately.
+
+The caller still supplies a resource collection and engine identity. That setup costs more than a direct function call;
+it becomes useful when the same rules must survive a change of caller or execution location. It does not launch a remote
+host or make an external write durable by itself.
+
 ## Follow one job from input to result
 
 Imagine saving a title for an uploaded photo. The activity checks the submitted title, asks the supplied store to save
@@ -181,51 +222,12 @@ The workflow guide runs two real activity implementations through a local provid
 host. Sharing dispatch and history across computers needs authoritative adapters; drawing an engine in a diagram does
 not supply that infrastructure.
 
-## Build on the example
-
-Start with a direct local attempt, then register the same definition with a workflow executor. Add resource declarations
-when the operation needs a browser or storage client; add permission requirements and effects when it changes
-authoritative state. The activity owns its attempt context and borrows the collection. A Worker or process provider
-changes execution location; it does not move live closures, sockets or promises. Dispatch and storage adapters still own
-durable placement, leases and recovery.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
-
-`@okikio/activity` defines externally meaningful work. Definitions are immutable and import-safe. They describe what one
-activity accepts, returns, can fail with, can emit, requires, and where it can run. They do not open a provider or start
-work.
-
-```ts
-import * as activity from '@okikio/activity';
-import * as engine from '@okikio/activity/engine';
-import * as effect from '@okikio/effect';
-import * as permission from '@okikio/permission';
-
-const Browser = engine.define({ id: 'browser' });
-
-const Download = activity.define({
-	id: 'media.download',
-	version: '1',
-	input: DownloadInputSchema,
-	result: DownloadResultSchema,
-	placement: engine.require(Browser),
-	resources: [Http, Storage],
-	requirements: [permission.require(ReadSource)],
-	effects: [DownloadCommitted],
-});
-```
-
-Definitions keep direct requirements separate from requirements that are only reachable through resource dependencies.
-Runtime admission applies direct active requirements. Reachable permissions remain available for later dynamic checks.
-
-## Start here
+## Request a job from a workflow
 
 `activity.request()` creates one serializable workflow operation. It does not execute the implementation.
 
 ```ts
-const saved = yield * activity.request(Download, input);
+const uppercase = yield * activity.request(Upper, 'hello');
 ```
 
 `activity.try()` creates the same request but converts only declared activity failures into `@okikio/result`. Unexpected
@@ -235,6 +237,11 @@ faults and cancellation still escape.
 
 `activity.run()` executes one exact implementation in the current host. A host supplies the engine identity, input,
 parent context, resource collection, job identity, attempt number, and optional permission/effect services.
+
+The complete local calls above supply every dependency. The following larger composition sketch instead assumes your
+application declares a `Download` activity with `Http` and `Storage` resources, a `ReadSource` permission, and a
+`DownloadCommitted` effect. It also supplies `openWriter()`. Its input includes `url` and `id`; those are application
+contracts rather than additional exports from this package.
 
 ```ts
 const DownloadLive = activity.implement(Download, {
@@ -362,8 +369,7 @@ Start with this README, then use the source in this order when you need more det
    `process.ts` and `worker.ts` retain their separate host startup, transport, and shutdown behavior.
 5. Read other internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
-separate hand-written API reference.
+Use this README for scenarios and design decisions, and [API.md](API.md) for the source-derived exported contracts.
 
 ## Unexpected runtime diagnostics
 

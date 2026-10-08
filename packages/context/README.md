@@ -1,104 +1,171 @@
 # `@okikio/context`
 
-Keep a group of operations attached to the person or job that started them. Suppose an import downloads a file, reads
-its rows and saves a draft. When the user cancels the import, those operations should receive the same request to stop.
-Temporary files and open readers still need to be closed.
+Give a download a deadline, pass its stop signal to `fetch`, and release its timer when the download finishes. Your code
+still calls `fetch`, awaits a `Response`, and returns text. You can use this package without activities, resources,
+tasks, or workflows.
 
-A context carries that operation's identity, cancellation signal, deadline and cleanup registrations together. It does
-not perform the import. Your functions still return the imported rows or saved draft in the usual way.
+A **context** is an object carried alongside that work: an ID, an `AbortSignal`, a clock, and an optional deadline. An
+**owned context** also has cleanup methods. It is supporting state for your function, not the function's answer.
 
-## See what a timeout actually returns
+## Download text with a two-second budget
 
-Read the branches below as responsibilities of one import, not as steps that run automatically. `timeout()` immediately
-returns a child context. Your import uses its signal and registers cleanup on its owner.
+This complete example uses real `fetch`. The `data:` URL keeps the demo offline; replace it with an HTTPS URL in your
+application. For that URL, the host must permit network access.
 
-![A context joins the cancellation and cleanup lifetimes of related operations](diagram.png)
-
-[Editable diagram source](diagram.mmd). Deadline expiry and parent cancellation request a stop; leaving the owned block
-joins cleanup. A child also releases its deadline wait when disposed. The picture omits the clock implementation and
-parent listener. It does not imply that a timer can forcibly interrupt a synchronous function or undo an accepted save.
-
-| Call                              | You get                              | Use it when                                                      |
-| --------------------------------- | ------------------------------------ | ---------------------------------------------------------------- |
-| `delay(250)`                      | A promise that resolves after a wait | You only need a pause.                                           |
-| `timeout(parent, { seconds: 2 })` | A child owner immediately            | Several operations should share a deadline and cleanup lifetime. |
-| `wait(child, { seconds: 1 })`     | A promise for a context-aware wait   | Waiting should use the child's clock and cancellation.           |
-| `view(owner, fields)`             | A typed view of the same lifetime    | You need extra operation fields without another owner.           |
-
-Read `await` as "wait for a result" and `await using` as "close this owner when the block ends". A context is the
-operation's supporting state, not the operation's answer.
-
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
-
-## Run a complete example
-
-A timeout starts the familiar clock wait, but returns the owner of a child operation rather than a timer ID or a Promise
-for work. This complete example registers cleanup and shows when it runs:
-
-```ts runnable
+```ts runnable=download-text.ts
 import '@okikio/duration/polyfill';
 import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 
-const cleanup: string[] = [];
-{
-	await using parent = context.create({ id: 'import' });
-	await using operation = context.timeout(parent, { seconds: 2 });
-	operation.defer(() => {
-		cleanup.push('released');
-	});
-	console.log(operation.id, operation.deadline !== undefined);
+async function downloadText(url: string): Promise<string> {
+	await using request = context.create({ id: 'download-text' });
+	await using download = context.timeout(request, { seconds: 2 });
+	const response = await fetch(url, { signal: download.signal });
+	if (!response.ok) throw new Error(`Download failed: HTTP ${response.status}`);
+	return await response.text();
 }
-console.log(cleanup.join(','));
-```
 
-Expected output:
+console.log(await downloadText('data:text/plain,Hello%20Ada'));
+```
 
 ```text output
-import true
-released
+Hello Ada
 ```
 
-`create()` and `timeout()` return `Owned` immediately. `operation` contains a signal, deadline, clock, and cleanup
-registration methods. The timeout asks that signal to abort after two seconds, or at the parent's earlier deadline. It
-does not invoke a callback, run a function, return a function's value, or forcibly interrupt JavaScript.
+There are two different results here. `context.timeout()` returns `download` **immediately**. `fetch()` returns a
+`Promise<Response>`. `response.text()` reads the body and returns a `Promise<string>`. The budget remains active during
+both the request and body read because both are inside the block.
 
-The demo finishes before the timeout expires. `import true` means the child carries the import identity and has a
-deadline. `released` means the registered cleanup ran when the block ended. There is no two-second wait in this example:
-leaving the block cancels the unused deadline wait.
+`await using` means “when this block ends, await this object's cleanup,” including when a call throws. Here it releases
+the child's deadline wait and parent listener, then closes the parent. Finishing early does not wait out the two
+seconds. The setup imports install Temporal and disposal APIs only if the host lacks them; ordinary context imports
+install no globals. Try `Hello%20Grace` as the input text: the output becomes `Hello Grace`.
 
-For a file import, combine [CSV](../csv/README.md) for reading rows, [concurrency](../concurrency/README.md) for a
-limited number of active row operations and this child context for their shared stop request. For a background job,
-combine [task](../task/README.md) with context: the task returns the answer, while context controls its local lifetime.
-A [workflow](../workflow/README.md) instead records instruction results; a context alone cannot resume work after a
-crash.
+An HTTP error is handled by the explicit `response.ok` check; a network error or abort rejects the Fetch promise.
+Context does not convert every provider's errors into a new result format.
 
-Pass `operation.signal` to work that supports cancellation. Check it between synchronous steps. Leaving the block awaits
-child cleanup and cancels the unused deadline wait; it does not cancel the parent. Expiry aborts the signal, while
-disposal releases registered resources. Those are separate actions: expiry does not automatically dispose the child. The
-caller still owns `await using` or explicit awaited disposal.
+## What `timeout()` builds underneath
 
-A manual equivalent needs an AbortController, a parent abort listener, a deadline timer, and a cleanup stack, then must
-remove the listener and cancel the timer when work finishes. Use `context.delay()` for only a delay; `context.timeout()`
-is useful when nested work also needs one cancellation and cleanup lifetime.
+The public signature returns an owner, not a Promise for work:
 
-## Build on the example
+```ts
+timeout(parent: Context, duration: Temporal.DurationLike | string): Owned
+```
 
-Start with create(), derive a child deadline for an expensive operation, and register cleanup on the context that owns
-it. Use view() or family scopes to attach capabilities without inventing a new lifetime. Snapshots carry identity and
-deadline across a transport; they do not carry resources or cancellation listeners. TestClock lets tests advance logical
-time without assuming a fast machine.
+These are selected fields from the real contracts. Optional tracing fields and less-used operations are omitted:
 
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
+- **`Context` carries the operation.** `id: string` names it; `signal: AbortSignal` asks it to stop; `clock: Clock`
+  supplies time; `deadline?: Temporal.Instant` is the optional latest allowed instant.
+- **`Clock` supplies time and waiting.** `now(): Temporal.Instant` reads the time.
+  `sleep(milliseconds, signal?): Promise<void>` waits using that same time source.
+- **`Owned` adds cleanup.** `defer(fn)` registers a callback, `use(value)` registers a disposable value, and
+  `adopt(value, disposer)` registers a value with its close function. `[Symbol.asyncDispose]()` starts awaited disposal;
+  `closed: Promise<void>` resolves after cleanup and the deadline wait finish.
 
-## Observe deadline time without waiting on the machine
+Read the normal path left to right. The lower branch explains expiry; cleanup belongs to the caller in either case.
 
-Use `TestClock` when demonstrating or testing expiry. Both the deadline and the wait use the same logical clock:
+```text
+timeout(request, { seconds: 2 })
+    compute deadline -> create child -> return child immediately
+                              |
+                              +-> child.signal -> fetch -> read body -> return text
+                              |
+                              +-> clock sleep -> deadline reached -> abort child.signal
+
+function exits, successfully or with an error
+    -> dispose child -> unlink parent + stop deadline wait + run registered cleanup
+```
+
+The simplified construction is:
+
+1. Read `parent.clock.now()` and add the requested duration.
+2. Choose the earlier of that instant and the parent's deadline. A child cannot extend its parent's budget.
+3. Create a new `AbortController` and `AsyncDisposableStack`, inheriting the parent's ID and clock.
+4. Link parent cancellation to the child and start a cancellable wait through the inherited clock.
+5. When the deadline is observed, abort the child's signal with `ContextDeadlineExceededError`.
+6. On disposal, unlink the parent, abort unfinished child work, run registered cleanup in reverse registration order,
+   and join the deadline wait before resolving `closed`.
+
+Long deadlines use bounded clock waits and recheck the absolute deadline. The diagram omits those timer slices and
+tracing. It does not imply that JavaScript can be forcibly interrupted or that accepted writes are rolled back.
+
+The design keeps the signal passed to `fetch`, the observed deadline, and the cleanup owner together. Separate timers
+make it easy for a nested helper to start a fresh budget after its caller's budget is almost exhausted, or leave a timer
+alive after success. Deadline inheritance prevents the first mistake; disposal prevents the second.
+
+For one isolated `fetch` that only needs a stop signal, `AbortSignal.timeout(2000)` may be sufficient. Context becomes
+useful when calls share identity, a remaining budget, cancellation, or cleanup. The cost is an owner you must close,
+plus listener and timer state. Expiry aborts the signal; it does not dispose registered resources by itself.
+
+## Use familiar `try/finally` instead of `await using`
+
+The cleanup syntax can look unfamiliar even when the work is ordinary JavaScript. This complete version has the same
+successful output and explicitly awaits both owners' disposal:
+
+```ts runnable=download-finally.ts
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as context from '@okikio/context';
+
+const request = context.create({ id: 'download-text' });
+try {
+	const download = context.timeout(request, { seconds: 2 });
+	try {
+		const response = await fetch('data:text/plain,Hello%20Ada', { signal: download.signal });
+		if (!response.ok) throw new Error(`Download failed: HTTP ${response.status}`);
+		console.log(await response.text());
+	} finally {
+		await download[Symbol.asyncDispose]();
+	}
+} finally {
+	await request[Symbol.asyncDispose]();
+}
+```
+
+```text output
+Hello Ada
+```
+
+`await using` expresses this responsibility more briefly and uses the language's combined-error rules when work and
+cleanup both fail. Hand-written `finally` needs its own combined-error policy if retaining both errors matters.
+
+## Share cancellation across two downloads
+
+If a screen already owns a controller, pass its signal into the parent. Both downloads use the same child budget;
+`Promise.all` starts the familiar parallel calls. Context does not start or parallelize them.
+
+```ts runnable=two-downloads.ts
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as context from '@okikio/context';
+
+const screen = new AbortController();
+await using request = context.create({ id: 'profile-screen', signal: screen.signal });
+await using downloads = context.timeout(request, { seconds: 2 });
+async function read(url: string): Promise<string> {
+	const response = await fetch(url, { signal: downloads.signal });
+	if (!response.ok) throw new Error(`Download failed: HTTP ${response.status}`);
+	return await response.text();
+}
+const [name, city] = await Promise.all([read('data:text/plain,Ada'), read('data:text/plain,Toronto')]);
+console.log(`${name} lives in ${city}`);
+screen.abort(new Error('The screen was closed.'));
+console.log(downloads.signal.aborted);
+```
+
+```text output
+Ada lives in Toronto
+true
+```
+
+The abort follows the completed reads, so the demo proves signal propagation rather than interruption of an active
+request. In a UI, the same `screen.abort()` call belongs in its close action. Disposing a child never aborts its parent.
+`Promise.all` does not cancel its other input when one fails; use the bounded concurrency package when you need its
+sibling-cancellation and joining contract.
+
+## Observe expiry without relying on network timing
+
+`TestClock` moves logical time directly. This exercises the actual deadline check without a slow server or sleep:
 
 ```ts runnable=logical-time.ts
 import '@okikio/duration/polyfill';
@@ -106,184 +173,71 @@ import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 
 const clock = new context.TestClock();
-await using parent = context.create({ id: 'import', clock });
-await using child = context.timeout(parent, { seconds: 2 });
-const waiting = context.wait(child, { seconds: 1 });
-clock.advance({ seconds: 1 });
-await waiting;
-console.log(context.remaining(child)?.milliseconds);
+await using request = context.create({ id: 'download', clock });
+await using download = context.timeout(request, { seconds: 2 });
+clock.advance({ seconds: 2 });
+await Promise.resolve();
+try {
+	await fetch('data:text/plain,Too%20late', { signal: download.signal });
+} catch (error) {
+	console.log(error instanceof context.ContextDeadlineExceededError);
+}
 ```
 
 ```text output
-1000
+true
 ```
 
-`wait()` returns `Promise<void>` and rejects on cancellation or expiry. `remaining()` only reads deadline state and
-returns a Temporal duration or `undefined`; it starts no timer. The child still needs disposal even after the wait
-settles. For actual bounded import work, see
-[the complete composition](../../docs/composition.md#import-rows-with-bounded-work).
+Advancing the clock releases its deadline wait. The next microtask lets that wait abort the signal before Fetch starts;
+Fetch then rejects with the deadline reason. No active network request or machine-time sleep is involved. `check()`
+reads the deadline and signal and throws when work must stop. Use it between synchronous chunks. `wait(ctx,
+duration)`
+checks before and after sleeping through the context's clock. `delay(milliseconds)` is a plain pause; `remaining(ctx)`
+reads the budget without starting a timer. None returns your download's answer.
 
-## Purpose
+## Add a field without creating another lifetime
 
-`@okikio/context` carries the local execution state that many runtime operations need: identity, cancellation,
-deadlines, trace identity, idempotency identity, and a clock.
+A helper may need the user's language alongside its signal. `view()` adds a typed field while sharing the original
+cancellation and cleanup responsibility:
 
-The package is intentionally small. It does not schedule work, own a queue, resolve declared capability resources, or
-provide parallel execution. An owned context does contain one `AsyncDisposableStack` so code running inside an already
-established execution scope can attach values whose lifetime belongs to that scope.
-
-## How it fits
-
-A service request, queue operation, activity job, workflow run, process action, or Worker request can all receive a
-context.
-
-The generic identity is `ctx.id`. The caller decides what the ID represents. For example, an HTTP service copies its
-request ID into the request context. An activity creates a child context whose ID is the activity job ID.
-
-A serializable snapshot can cross a queue, process, or Worker message. The receiving runtime restores a new local
-`AbortController`. Cancellation and live owned resources are never serialized.
-
-## Runtime views
-
-`context.view()` adds typed runtime-local fields without creating a new execution lifetime. The returned object retains
-the source context's cancellation and ownership identity, so focused utilities can compose typed runtime views safely:
-
-```ts
+```ts runnable=language-view.ts
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 
-const permissionCtx = permission.scope(ctx, permissionOptions);
-const operationCtx = effect.scope(permissionCtx, effectOptions);
+await using request = context.create({ id: 'greeting' });
+const localized = context.view(request, { language: 'fr' as const });
+console.log(localized.language, localized.signal === request.signal);
 ```
 
-The second view still contains the permission runtime. Cancelling a view of an owned context cancels the same underlying
-owner. A view cannot replace an existing property. Use `context.child()` when work needs a new independently owned
-cancellation and cleanup lifetime.
-
-## Ownership
-
-`context.create()` and `context.child()` return owned contexts. The caller must dispose the returned value.
-
-Asynchronous disposal:
-
-- cancels the clock-owned deadline wait;
-- removes the parent abort listener;
-- aborts unfinished local work;
-- disposes values registered through `use()`, `adopt()`, and `defer()` in standard LIFO order;
-- resolves `closed` after cleanup finishes.
-
-Because owned cleanup can be asynchronous, an owned context implements `AsyncDisposable`, not synchronous `Disposable`.
-Use `await using` or await `Symbol.asyncDispose` when the caller owns the context.
-
-A child can shorten a deadline. It cannot extend its parent deadline. A child links cancellation to its parent, but it
-is still an independently owned scope unless another owner explicitly adopts it.
-
-Timing has three levels. `context.delay(milliseconds, signalOrController?)` is a thin convenience over
-`@std/async/delay`. `context.wait(ctx, duration)` uses `ctx.clock.sleep()` so the same clock controls both observed time
-and waiting, then adds context cancellation/deadline checks around that wait.
-`context.settles(value, milliseconds, clock?)` reports whether a value settles before a clock duration without
-cancelling the value. `SystemClock` uses the runtime timer queue; `TestClock` resolves sleepers only when `advance()` or
-`set()` reaches their target.
-
-```ts
-await context.delay(250);
-await context.delay(250, controller);
-await context.wait(ctx, { seconds: 2 });
-const stopped = await context.settles(child.closed, 5_000);
+```text output
+fr true
 ```
 
-The manual equivalent of `context.delay(250, signal)` is `delay(250, { signal })` from `@std/async/delay`. Use the
-context form only when the wait belongs to an operation context.
+Its return type is `Base & Readonly<Extension>`: existing fields plus the new fields. The implementation copies and
+freezes the view, rejects replacement of existing properties, and records its relationship to the original owner. It
+creates no controller, timer, or cleanup stack. Other packages call similar additions a **scope** when they add
+permissions or resource access. There is no `context.scope()` export: `child()` creates a lifetime; `view()` adds
+fields.
 
-## External gates
+## Register cleanup and choose the next capability
 
-`context.waitFor(ctx, listen)` waits for a cooperative in-memory gate. The `listen` callback receives `resume()` and
-returns cleanup that removes it. The context owns cancellation and listener cleanup. The gate owner still decides what
-resumes work.
+Use `defer(() => closeTemporaryFile())` for a supplied cleanup callback, `use(disposable)` for an already disposable
+object, or `adopt(value, disposer)` when a value needs a supplied close function. Cancellation requests a stop; disposal
+runs cleanup. The application decides which owner closes each resource.
 
-Use this for a local queue, protocol pause, or resource availability gate. Do not use it for elapsed time. Use
-`context.wait()` when a duration is the reason to wait, and use a workflow instruction when a wait must survive a
-restart.
+| You need                                                  | Next step                                                                                                                  |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Several downloads with limits and joined sibling failures | Pass the context signal into [Concurrency](../concurrency/README.md).                                                      |
+| Pause, resume, cancel, and await one live import          | [Task](../task/README.md) returns a control handle and result promise.                                                     |
+| Send identity and deadline through a message              | `snapshot()` produces IDs and timestamps; `restore()` creates a new local owner. Signals and resources are not serialized. |
+| Resume named work using recorded completions              | [Workflow](../workflow/README.md) owns instruction history; context alone has no restart record.                           |
 
-## Start here
+The illustrated ownership view shows the same parent/child split. Read the branches as responsibilities of the child,
+not additional work launched by `timeout()`:
 
-The following code gives one activity job its own local identity while it keeps the parent deadline and cancellation
-signal.
+![Parent cancellation and a child deadline feed its stop signal while disposal closes its owned resources](diagram.png)
 
-```typescript
-await using job = context.child(parent, { id: jobId });
-context.check(job);
-await context.wait(job, { milliseconds: 100 });
-
-job.defer(async () => {
-	await flushAttemptLog();
-});
-```
-
-## Progressive usage
-
-Read [complete compositions](../../docs/composition.md) for a bounded CSV import, allowed-page discovery and a
-resource-backed operation. Each example names its result and owner. Use [the outcome guide](../../docs/outcomes.md) to
-choose additional mechanisms when the application needs them.
-
-## Ownership diagram
-
-```text
-parent Context
-    |
-    +-- context.child() / timeout()
-    |       |
-    |       +--> child AbortController
-    |       +--> shorter-or-equal clock deadline wait
-    |       +--> parent abort listener
-    |       `--> child AsyncDisposableStack
-    |
-    `-- parent cancellation propagates to child
-
-Snapshot
-    | ids + timestamps only
-    v
-serialized seam
-    |
-    `--> restore() -> new local AbortController
-```
-
-## Convenience and the manual equivalent
-
-| Convenience                                    | Manual equivalent                                                                                                                                             | Concrete value                                              |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `context.child()`                              | create an `AbortController`, link the parent signal, clamp the deadline, schedule the deadline through the inherited clock, and own an `AsyncDisposableStack` | one child lifetime with deterministic cleanup               |
-| `context.wait(ctx, duration)`                  | check cancellation/deadline, wait through `ctx.clock.sleep()`, then check again                                                                               | deterministic clocks control both observed time and wake-up |
-| `context.waitFor(ctx, listen)`                 | register one external resume callback, remove it on resume or cancellation, and retain context cancellation semantics                                         | cooperative gates do not leak callbacks                     |
-| `context.settles(value, milliseconds, clock?)` | race one value against a clock wait and cancel only the losing clock wait                                                                                     | host cleanup can keep its own shutdown policy               |
-| `snapshot()` / `restore()`                     | serialize IDs/timestamps only and create a fresh local controller on the other side                                                                           | serializable identity without serializing live resources    |
-
-`@okikio/context` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics with
-AbortController, AbortSignal, Temporal, AsyncDisposableStack, and @std/async/delay.
-
-The utility adds one shared identity/deadline/clock model and makes owned cleanup explicit.
-
-## Cancellation, clocks, and diagnostics
-
-The basic examples use `check()`, `wait()`, and `delay()`. These exports cover the rest of the local operation model:
-
-- `cancel()` cancels an owned context explicitly.
-- `cancelled()` distinguishes context cancellation and deadline errors from ordinary failures.
-- `cause()` returns the normalized cancellation/deadline cause after a signal stops.
-- `remaining()` reports the remaining deadline duration without starting a timer.
-- `waitFor()` waits for an external cooperative gate and removes its callback after settlement.
-- `settles()` reports whether a value settled before a clock duration without cancelling that value.
-- `combineSignals()` combines borrowed signals when an integration needs one signal.
-- `SystemClock` is the normal real-time clock; `TestClock` is deterministic test time and deterministic sleeping.
-- `ContextCancelledError` and `ContextDeadlineExceededError` distinguish explicit cancellation from deadline expiry.
-
-## Source guide
-
-Start with this README, then use the source in this order when you need more detail:
-
-1. `mod.ts` shows the supported runtime operations and the composition shape.
-2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
-4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
-
-The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
-separate hand-written API reference.
+Its [editable source](diagram.mmd) omits timer implementation details. The [generated contracts](API.md) list every
+option and field. To trace these calls, read [timeout/child/create](mod.ts), [Context/Owned/Clock](types.ts), and
+[the deadline cases](mod.test.ts).

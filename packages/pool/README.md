@@ -20,12 +20,7 @@ Dispose pool -> finish owned transitions and close its values
 This shows borrowing and cleanup, not a database transaction or cross-machine connection broker. The application
 supplies creation, health checks, and closing behavior for the actual resource.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
-
-## Run a complete example
+## Borrow a value and return it for reuse
 
 The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
 implementation is preserved.
@@ -47,6 +42,10 @@ await using connections = await pool.create({
 	await using lease = await connections.acquire(ctx);
 	console.log(lease.value.id);
 }
+{
+	await using lease = await connections.acquire(ctx);
+	console.log(lease.value.id, opened);
+}
 console.log(connections.stats().leased);
 ```
 
@@ -54,6 +53,7 @@ Expected output:
 
 ```text output
 1
+1 1
 0
 ```
 
@@ -64,10 +64,56 @@ cleanup.
 
 ## Read the mini-demo
 
-The demo opens the simple value `{ id: 1 }` and borrows it inside the inner block. It prints `1` while the lease is
-active. Leaving that block returns the lease; `stats().leased` then prints `0`. The pool still owns the returned value
-until pool cleanup. Try acquiring another lease after that block to explore reuse without increasing the creation
-counter. The no-op close callback is appropriate only because this demo owns no real external handle.
+The first borrow prints ID `1`. The second borrow prints `1 1`: it uses the same retained value, and only one value has
+been created. After both blocks, the leased count is zero. The no-op close callback is appropriate only because this
+demo owns no real external handle.
+
+The Context passed here is the owner's cancellation signal, clock, and cleanup lifetime. An acquisition can use another
+caller Context so one cancelled request stops waiting without cancelling the pool. `await using lease` returns the value
+at the end of that block. `await using connections` closes retained values at the end of the pool's block.
+
+| Contract               | Fields or methods that matter first                                                                  |
+| ---------------------- | ---------------------------------------------------------------------------------------------------- |
+| `CreateOptions<Value>` | `ctx`, `maximum`, `create(ctx): Value \| Promise<Value>`, and `close(value): void \| Promise<void>`. |
+| `Pool<Value>`          | `acquire(ctx): Promise<Lease<Value>>`, `stats()`, and `drain(): Promise<void>`.                      |
+| `Lease<Value>`         | `value`, `acquiredAt`, `invalid`, and `invalidate(reason)`, plus async disposal.                     |
+
+The pool keeps idle values, current leases, creation/closing transitions, and a FIFO waiter list. Acquisition first
+tries an idle value, checks it if configured, and creates another value only when the total owned count permits it.
+Lease disposal returns a healthy value to idle or closes an invalid value. A borrower should call `invalidate()` after a
+failure only when that failure makes the underlying connection unsafe to reuse; an ordinary missing database row does
+not necessarily mean a broken connection. The [contract reference](API.md) explains optional age and wait limits.
+
+## Reuse a decoding session while keeping ordinary string results
+
+This session has a normal method taking bytes and returning text. Pooling a cheap `TextDecoder` is only a small
+ownership demonstration; a production pool should justify its setup and bookkeeping costs with a resource worth reusing.
+
+```ts runnable=decode-session.ts
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as context from '@okikio/context';
+import * as pool from '@okikio/pool';
+await using owner = context.create({ id: 'text-reader' });
+await using sessions = await pool.create({
+	ctx: owner,
+	maximum: 1,
+	create: () => new TextDecoder(),
+	close: () => {},
+});
+for (const bytes of [new Uint8Array([65, 100, 97]), new Uint8Array([76, 105, 110])]) {
+	await using lease = await sessions.acquire(owner);
+	console.log(lease.value.decode(bytes));
+}
+```
+
+```text output
+Ada
+Lin
+```
+
+Replace the factory, close callback, and ordinary call on `lease.value` to use a database connection or browser page.
+The lease rule stays the same; the resource API and returned values stay familiar.
 
 - **Check many pages with a few browser instances:** combine this pool with [Concurrency](../concurrency/README.md). The
   mapper limits admitted operations; each operation borrows a browser value from the pool and returns its lease.
@@ -82,26 +128,6 @@ and acquisition timeout. Release a lease after each use; close the pool at the o
 created values while callers borrow leased values. A limit controls resource count, not queue-job authority or
 distributed placement.
 
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
-
-## Purpose
-
-`@okikio/pool` owns a bounded set of reusable values and lends them through explicit disposable leases.
-
-Use it for resources that are expensive to create but safe to reuse, such as connections or host-specific runtime
-objects. A domain package should still name the actual resource it pools. For example, a browser package can build a
-`BrowserProcessPool` on top of this generic primitive.
-
-## How it fits
-
-`@okikio/context` supplies cancellation, deadlines, identity, and time. `@okikio/pool` uses that context while values
-wait, are created, are checked, and are returned.
-
-The package does not know how to create a browser, database connection, or provider client. The caller supplies
-`create`, `check`, and `close` behavior.
-
 ## Ownership and admission
 
 The pool enforces minimum and maximum size, optional idle limits, idle age, and acquisition timeout. Acquisition is FIFO
@@ -115,28 +141,6 @@ closes that value instead of leaking it.
 
 Draining stops new acquisition, waits for active leases, and closes retained values. Close failures are collected
 without leaving waiters asleep forever.
-
-## Start here
-
-```ts
-import * as pool from '@okikio/pool';
-
-await using connections = await pool.create({
-	ctx,
-	maximum: 8,
-	create: createConnection,
-	close: closeConnection,
-});
-
-await using lease = await connections.acquire(ctx);
-await useConnection(lease.value);
-```
-
-## Progressive usage
-
-Read [complete compositions](../../docs/composition.md) for a bounded CSV import, allowed-page discovery and a
-resource-backed operation. Each example names its result and owner. Use [the outcome guide](../../docs/outcomes.md) to
-choose additional mechanisms when the application needs them.
 
 ## Drain is a lifecycle barrier
 
@@ -231,5 +235,4 @@ Start with this README, then use the source in this order when you need more det
 3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
 4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
-separate hand-written API reference.
+Read the [generated API reference](API.md) for the complete exported contracts and field descriptions.

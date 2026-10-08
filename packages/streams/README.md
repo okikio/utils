@@ -19,10 +19,7 @@ The first row shows grouping; the second shows framing text that may span chunks
 stores nothing: collecting every batch or line still retains the full output. Incremental consumption is the useful path
 for large inputs.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
+The [full API reference](API.md) includes adapter options, cancellation and limit error fields.
 
 ## Run a complete example
 
@@ -47,6 +44,44 @@ Expected output:
 `Array.fromAsync()` returns a Promise of a materialized array. The example deliberately collects small finite inputs;
 its output has two groups and two lines. Streaming adapters release owned readers when iteration completes or stops.
 
+## Save lines in small groups using an ordinary loop
+
+`for await` is the asynchronous version of a normal `for` loop: it waits for the next value before entering the body.
+Here a local response supplies lines, and the sink is an ordinary array. Replace the sink with an awaited database write
+when integrating the same flow into an importer.
+
+```ts runnable=line-batches.ts
+import { batch, lines } from '@okikio/streams';
+
+const response = new Response('Ada\nLin\nGrace\n');
+if (response.body === null) throw new Error('Missing response body.');
+const saved: string[][] = [];
+for await (const group of batch(lines(response.body, { maximumLineBytes: 64 }), { maximumItems: 2 })) {
+	saved.push([...group]);
+}
+console.log(JSON.stringify(saved));
+```
+
+```text output
+[["Ada","Lin"],["Grace"]]
+```
+
+| Call                                   | Contract                                                       | Retained data and ownership                                                                                                 |
+| -------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `lines(bytes, options?)`               | `ReadableStream<Uint8Array>` → async iterable of strings       | Frames one line from byte chunks; enforce `maximumLineBytes` for unknown input.                                             |
+| `batch(values, options)`               | Iterable or async iterable → async iterable of readonly arrays | Retains the current bounded group; requires an item or byte bound. Object byte accounting uses your `size(value)` function. |
+| `collect(values, options?)`            | Iterable or async iterable → `Promise<readonly Value[]>`       | Retains all accepted values. Without limits it is unbounded; exceeded bounds throw `StreamLimitError`.                      |
+| `iterable(stream, { preventCancel? })` | Web stream → async iterable                                    | Releases its reader; early exit also cancels the source unless `preventCancel` is true.                                     |
+
+One level deeper: `lines()` carries byte pieces until it finds a newline, enforcing the byte bound before joining and
+decoding them. That preserves multibyte characters split across chunks. `batch()` counts items and bytes, then yields a
+frozen group before beginning the next group. The consumer controls when iteration resumes.
+
+This design lets ordinary loops share correct framing and bounds without a background pipeline runtime. Bounds govern
+the adapter's buffer, not every downstream sink: `saved` deliberately collects all results above. For a large source,
+write each group to its destination and avoid retaining it. Cancellation is cooperative; pass its signal to the source
+operation too, because a signal cannot make arbitrary blocked I/O finish by itself.
+
 ## Read the mini-demo
 
 The demo first groups three letters into a pair and a final single-letter batch. It then reads a small response body and
@@ -61,52 +96,8 @@ see the byte limit reject that line rather than silently truncate it.
 
 ## Build on the example
 
-Batch for database writes, fold streams without collecting, and use bounded collect() only when a finite materialized
-result is needed. Pass cancellation into the source operation as well as the adapter. Early iteration exit cancels owned
-Web streams unless preventCancel explicitly keeps borrowed ownership. Byte estimates for object batches are caller
-policy; line framing counts actual encoded bytes.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
-
-## Purpose
-
-`@okikio/streams` contains project-neutral adapters between Web Streams and iterables. It also owns bounded collection,
-batching, and UTF-8 line framing.
-
-The package preserves streaming and cancellation unless the caller explicitly chooses materialization through
-`collect()`.
-
-## Start here
-
-- `readable()` adapts an iterable to `ReadableStream`.
-- `iterable()` adapts a `ReadableStream` to an async iterable and cancels the source when the consumer stops early
-  unless `preventCancel` is set.
-- `lines()` frames a byte stream into UTF-8 lines. It handles UTF-8 sequences split across chunks, removes CR before LF,
-  returns the final unterminated line, and can enforce `maximumLineBytes`.
-- `pipe()` sends iterable values to a `WritableStream` with native pressure and cancellation behavior.
-- `batch()` emits bounded immutable groups without materializing the full source.
-- `collect()` materializes a source and enforces any supplied item and byte limits. Without limits, it can retain an
-  arbitrarily large result; it cannot make an infinite source finish.
-
-```ts
-import * as streams from '@okikio/streams';
-
-const response = await fetch('https://service.invalid/events');
-if (response.body === null) throw new Error('Response has no body.');
-
-for await (
-	const line of streams.lines(response.body, {
-		maximumLineBytes: 64 * 1024,
-	})
-) {
-	consume(line);
-}
-```
-
-`lines()` counts UTF-8 bytes before decoding. This makes the limit meaningful for process IPC even when one character
-spans several byte chunks.
+`readable()` adapts iterable values to a Web `ReadableStream`; `pipe()` sends them to a `WritableStream` and lets native
+stream pressure control progress. Use these when a destination already accepts Web Streams.
 
 ## Batch without materializing the source
 
@@ -173,5 +164,5 @@ Start with this README, then use the source in this order when you need more det
 3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
 4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
-separate hand-written API reference.
+The [generated API reference](API.md) lists every public function and type. These examples teach the common paths and
+the design decisions behind those contracts.

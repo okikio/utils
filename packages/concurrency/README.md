@@ -21,12 +21,7 @@ Read this as admission order, not a measured timeline. The limiter admits at mos
 mapping delivers their results in input order even if the second call finishes first. The diagram omits failure cleanup,
 which aborts admitted siblings and waits for them to settle.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
-
-## Run a complete example
+## Keep a report in its original order
 
 ```ts runnable
 import { mapPooledOrdered } from '@okikio/concurrency';
@@ -55,6 +50,55 @@ The mini-demo gives the limiter three words and two available places. Each mappe
 teaches ordering; it does not demonstrate a CPU speedup. Try `concurrency: 1` to make admission sequential while keeping
 the same output.
 
+`mapPooledOrdered()` returns an `AsyncIterable<R>`, which means a sequence you consume with ordinary `for await`. Your
+mapper still returns `Promise<R>`; the utility neither wraps each result nor asks you to learn a new result language.
+`Array.fromAsync()` is convenient for small inputs. For a large report, write each yielded value instead of keeping the
+whole report in an array.
+
+| Part of the input contract               | Meaning                                                                 |
+| ---------------------------------------- | ----------------------------------------------------------------------- |
+| `items: Iterable<T> \| AsyncIterable<T>` | An array, generator, or incremental input source.                       |
+| `concurrency: number`                    | A positive integer bounding admitted mapper calls.                      |
+| `map(item, { signal }): Promise<R>`      | Your usual asynchronous operation, with a signal to forward to its I/O. |
+| `signal?: AbortSignal`                   | Optional caller cancellation for the whole batch.                       |
+
+The ordered mapper retains a bounded list of admitted Promises. It waits for the first position, yields that result, and
+fills the free position from the source. A later result can be ready while an earlier one is still running. This design
+preserves report order without launching every operation at once. The unordered variant delivers completed results
+through a bounded channel when order does not matter.
+
+## Fetch several documents with two requests at a time
+
+This is the same `fetch()` and `response.text()` you would use for one document. Only admission and result order change.
+The data URLs contain the documents locally, so the example needs no server or network access. Replace them with your
+application's HTTP URLs to keep the same call shape.
+
+```ts runnable=fetch-documents.ts
+import { mapPooledOrdered } from '@okikio/concurrency';
+const documents = ['data:text/plain,first%20document', 'data:text/plain,second%20document'];
+for await (
+	const text of mapPooledOrdered({
+		items: documents,
+		concurrency: 2,
+		async map(url, { signal }) {
+			const response = await fetch(url, { signal });
+			if (!response.ok) throw new Error(`Document request failed: ${response.status}`);
+			return await response.text();
+		},
+	})
+) {
+	console.log(text);
+}
+```
+
+```text output
+first document
+second document
+```
+
+Forwarding the supplied signal matters: it lets a failed request cancel admitted sibling fetches. This small local
+example proves the call shape and output order, not HTTP throughput or a performance gain.
+
 Two situations where the pieces fit together:
 
 - **Check a list of links:** use a [Context](../context/README.md) to stop the entire check, this package to cap active
@@ -79,10 +123,6 @@ Ordered mapping also closes its input iterator. If that source cleanup fails, ad
 cleanup failure alone is rethrown unchanged. If both the operation and source cleanup fail, you receive an
 `AggregateError` whose `errors` array contains the operation failure first and cleanup failure second; `cause` retains
 the operation failure. This keeps both failures available to your logger or error handler.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
 
 ## Purpose
 
@@ -213,3 +253,5 @@ which operations are safe to run in parallel.
 1. `bounded.ts` owns bounded mapping and sibling-cancellation behavior.
 2. `channel.ts` owns the bounded hand-off state machine.
 3. `*.test.ts` files cover failure, cancellation, early consumer exit, ordering, capacity, and acknowledgement behavior.
+
+Read the [generated API reference](API.md) for complete mapping and channel contracts.

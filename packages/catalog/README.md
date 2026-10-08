@@ -14,10 +14,7 @@ The demo makes that distinction visible:
 
 This table shows membership, not permission enforcement. Selecting `Read` does not authorize a person to read an asset.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
+The examples and compact contracts below stand on their own. The [full API reference](API.md) lists every export.
 
 ## Run a complete example
 
@@ -44,6 +41,28 @@ The input is two frozen definitions. `select()` keeps `Read`, and the output che
 Try selecting both keys to keep both definitions. Creating a different object with the same ID is a conflict when those
 objects are composed; copying its spelling does not make it the same definition.
 
+## What those three calls do
+
+You can use `Assets.Read` like any ordinary object property. The extra behavior is in the checks and lookups, not in a
+new execution language. These are the contracts used above:
+
+| Call or value                            | Input and output                                     | Rule to remember                                                                  |
+| ---------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Entry                                    | `{ id: string, kind: string, description?: string }` | Your package creates and owns this object.                                        |
+| `create(namespace, entries)`             | Named entry map → frozen catalog with the same keys  | Invalid entries and conflicting IDs throw. Entries are borrowed, not deep-frozen. |
+| `select(catalog, keys)`                  | Catalog + key list → frozen subset                   | Unknown keys throw; selected entries keep object identity.                        |
+| `get(input, id)` / `has(catalog, entry)` | ID → entry or `undefined`; exact object → boolean    | Matching an ID and matching an imported object answer different questions.        |
+
+Under the hood, `create()` does three things:
+
+1. It checks each definition's `id` and `kind`, and rejects different objects that reuse an ID.
+2. It copies the named properties into a frozen outer object. The definitions themselves stay the same objects.
+3. It retains private maps for ID lookup and object membership. `select()` builds the same maps for the chosen subset.
+
+This design lets separate packages agree on one imported definition. A plain string cannot prove that two callers mean
+the same contract. There is no global registration or permission enforcement here; authorization still needs an
+application decision.
+
 ## Build on the example
 
 - Group [Failure](../failure/README.md) definitions so a receiver can decode only the expected failures it recognizes.
@@ -51,22 +70,9 @@ objects are composed; copying its spelling does not make it the same definition.
 - Select [Resource](../resource/README.md) definitions for one application deployment. The catalog describes the subset;
   the resource provider still owns opening and closing live clients.
 
-Use a named catalog for public contracts, select a deployment subset, then compose compatible catalogs. get() resolves a
-stable ID while has() checks the exact imported object. Different objects with the same ID cause a conflict. The
-immutable catalog does not own a runtime connection or globally register its definitions.
+## Combine definitions from several sources
 
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
-
-## Purpose
-
-`@okikio/catalog` groups immutable definitions without creating a global registry. It is useful when a package has
-several named definitions and needs a stable way to compose, select, inspect, or document them.
-
-## Start here
-
-Create a catalog from definitions you already own:
+`compose()` returns one deterministic list. Here one source is a catalog selection and the other is a direct definition:
 
 ```ts
 import * as catalog from '@okikio/catalog';
@@ -79,18 +85,6 @@ const Problems = catalog.create('problems', {
 	InvalidInput,
 });
 
-console.log(catalog.values(Problems));
-// [NotFound, InvalidInput]
-```
-
-Nothing is registered globally. `Problems` is only a frozen object plus the metadata needed to preserve identity and
-deterministic order.
-
-## Select and compose definitions
-
-Selections preserve the original objects and their source keys:
-
-```ts
 const PublicProblems = catalog.select(Problems, ['NotFound'] as const);
 const EffectiveProblems = catalog.compose(PublicProblems, InvalidInput);
 

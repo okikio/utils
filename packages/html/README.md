@@ -10,10 +10,7 @@ questions without starting a browser.
 pattern for choosing elements. This diagram omits malformed-markup repair and does not show scripts, layout or
 browser-rendered content.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
+The [full API reference](API.md) describes traversal helpers, tree types and source locations.
 
 ## Run a complete example
 
@@ -36,29 +33,48 @@ The demo supplies a page fragment with one link. The selector finds it, then the
 text. Remove the link from the input to take the demo's `missing` branch. A relative address such as `/guide` still
 needs the page's base URL before it can become an absolute download target.
 
+## Make a link report with ordinary array methods
+
+The selected nodes are useful evidence, but your report can be plain data. This keeps parser objects local and produces
+an array that can be JSON-encoded or sent to another thread.
+
+```ts runnable=link-report.ts
+import { attribute, parse, selectAll, text } from '@okikio/html';
+
+const pageUrl = 'https://example.com/help/';
+const page = parse('<main><a href="../guide">Read <strong>the guide</strong></a><a href="/pricing">Pricing</a></main>');
+const links = selectAll(page.document, 'main a[href]').map((link) => ({
+	label: text(link).trim(),
+	url: new URL(attribute(link, 'href') ?? '', pageUrl).href,
+}));
+console.log(JSON.stringify(links));
+```
+
+```text output
+[{"label":"Read the guide","url":"https://example.com/guide"},{"label":"Pricing","url":"https://example.com/pricing"}]
+```
+
+| Call or value                             | Contract                                      | What to expect                                                                                                    |
+| ----------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `parse(source)`                           | String → `{ document, problems }` immediately | A parsed tree and non-fatal parser observations, not a browser document.                                          |
+| `selectOne(root, selector)`               | Node + CSS selector → `HtmlElement \| null`   | Check for a missing element before reading it. Invalid selector syntax can throw.                                 |
+| `selectAll(root, selector)`               | Node + CSS selector → readonly element array  | Ordinary array methods can project the result into your data.                                                     |
+| `attribute(element, name)` / `text(node)` | String or `null` / string                     | An empty attribute is `''`; a missing one is `null`. Text follows source-tree descendants, not screen visibility. |
+
+One level deeper: parse5 applies HTML parsing and repair rules, using an adapter that creates the tree shape css-select
+expects. Selectors and text helpers inspect that same tree; they do not parse the markup again. Source locations are
+retained for diagnostics, although nodes inserted by repair can lack a location.
+
+This design centralizes the parser/selector agreement. It lets you inspect imperfect markup without starting a browser,
+but scripts are not run and hidden elements still contribute source text. Use browser automation when the answer depends
+on layout or code executed by the page.
+
 ## Build on the example
 
 - Extract inline stylesheet text and pass it to [CSS](../css/README.md) to find referenced images and fonts. The
   runnable composition below uses both parsers on supplied source.
 - Check discovered page URLs with [Robots](../robots/README.md) before a crawler schedules work. Your application still
   fetches pages and decides how to handle unavailable policy files.
-
-Select elements for discovery, read attributes and text, then inspect source locations for evidence or rewriting.
-Resolve relative URLs against the fetched page URL in your application. Parsing does not run scripts or fetch
-subresources. The parsed tree is process-local data; share a serializable projection with a Worker rather than treating
-DOM identity as a wire contract.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
-
-## Purpose
-
-`@okikio/html` parses HTML and exposes a small traversal API for selectors, attributes, text, element relationships, and
-source locations. It keeps HTML syntax work independent from browser execution and product-specific extraction.
-
-Use it when the input is HTML source and the question can be answered from the parsed document. Use a browser when the
-answer depends on scripts, layout, computed styles, navigation, or other runtime behavior.
 
 ## The ordinary problem
 

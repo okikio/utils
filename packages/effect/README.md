@@ -21,12 +21,7 @@ Configured emitter accepts it -> emit() resolves
 The visual shows acceptance of an announcement. It does not prove that the picture was saved or that an external
 subscriber has acted on the announcement. Those guarantees depend on the application and emitter.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
-
-## Run a complete example
+## Give a save announcement an explicit recipient
 
 The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
 implementation is preserved.
@@ -65,6 +60,55 @@ key to `accepted`. After `emit()` completes, that array contains `save:asset-1`,
 a local acceptance demo, not a database or durable delivery demo. Try emitting an ID value that fails the schema to
 observe validation before the recipient accepts it.
 
+The names describe three ordinary JavaScript values. `define()` returns metadata containing an ID and schema. `create()`
+returns a Promise of a checked record. `emit()` awaits a supplied callback and returns the accepted record. There is no
+separate computation language to run.
+
+This is the part of the occurrence contract relevant to the demo:
+
+```text
+occurrence
+  kind:       "effect-occurrence"
+  definition: Saved                 the exact object passed to define()
+  key:        "save:asset-1"         this logical save, across retries
+  value:      { id: "asset-1" }      the schema-validated payload
+```
+
+`effect.scope(owner, options)` attaches the allowed definitions and emitter to a borrowed view of `owner`. In this
+README a Context is simply the operation's cancellation signal, clock, identity, and cleanup owner. The view shares that
+lifetime; it does not start work or add a second owner. `await using owner` releases the owner's cleanup when its block
+ends.
+
+On `emit()`, the utility checks cancellation and exact declaration membership, validates a newly supplied payload, and
+awaits `emitter.emit(ctx, occurrence)`. The emitter's successful return is the handoff point. This split lets you keep
+the same declaration while changing a local callback to a persistent outbox. The emitter, rather than the producer's
+call syntax, determines what acceptance guarantees.
+
+Read the [generated API reference](API.md) for the complete definition, occurrence, emitter, and outbox contracts.
+
+## Prepare a notification record before deciding how to send it
+
+You can use just definition and occurrence creation. This example prepares a checked email request without a Context,
+queue, or SMTP client. It does not deliver email; the returned record is ready for an application-owned recipient.
+
+```ts runnable=prepare-email.ts
+import * as effect from '@okikio/effect';
+import { z } from 'zod';
+const Email = effect.define({
+	id: 'receipt.email',
+	value: z.object({ address: z.email(), orderId: z.string() }),
+});
+const notification = await effect.create(Email, {
+	address: 'customer@example.com',
+	orderId: 'order-7',
+}, { key: 'order-7:receipt' });
+console.log(notification.key, notification.value.orderId);
+```
+
+```text output
+order-7:receipt order-7
+```
+
 - **Send a confirmation after an import:** combine [CSV](../csv/README.md) parsing with an application-owned save, then
   announce the accepted import through an effect. If save and announcement must commit together, the application needs a
   transactional outbox; calling two functions in sequence does not create a transaction.
@@ -78,10 +122,6 @@ Create an occurrence without delivery when staging work, then emit it through an
 queue-backed emitter when the application needs delayed delivery. Stable keys let an authoritative sink deduplicate
 retries; the utility cannot make arbitrary external side effects exactly once. Declared effects restrict what a scope
 may emit, and cancellation after acceptance does not revoke the accepted fact.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
 
 `@okikio/effect` lets code declare and announce externally observable side effects without coupling the declaration to a
 queue, database, workflow engine, or provider SDK.

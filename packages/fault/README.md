@@ -12,10 +12,7 @@ diagnostic data instead of handing the live object to the next component.
 Read this table as a diagnostic copy, not as recovery from the error. It shows the small example only; depth, entry and
 string limits govern larger inputs. Projection is not secret redaction.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
+The [full API reference](API.md) lists projection options and diagnostic value types.
 
 ## Run a complete example
 
@@ -35,6 +32,46 @@ The input is a `TypeError`; the output is a JSON object containing its name and 
 change the diagnostic text. Turning stack inclusion on can add a runtime-dependent stack trace, so its exact text is not
 a stable application contract.
 
+## Build a support response from an ordinary exception
+
+You can keep using `try` and `catch`. Project the caught value only at the boundary where it becomes a diagnostic. This
+local response example shows that boundary without running a server.
+
+```ts runnable=support-response.ts
+import { encode, message } from '@okikio/fault';
+
+try {
+	JSON.parse('{broken');
+} catch {
+	const error = new Error('The settings file is not valid JSON.', { cause: 'invalid-json' });
+	const response = Response.json({ problem: encode(error, { includeStack: false }) }, { status: 400 });
+	console.log(response.status);
+	console.log(message(error));
+	console.log(await response.text());
+}
+```
+
+```text output
+400
+The settings file is not valid JSON.
+{"problem":{"name":"Error","message":"The settings file is not valid JSON.","cause":"invalid-json"}}
+```
+
+| Call or option             | Contract                                                                | Consequence                                                                                        |
+| -------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `encode(value, options?)`  | Unknown value → JSON-safe `FaultValue`                                  | Produces primitives or frozen diagnostic containers; never returns the original object.            |
+| `FaultValue`               | String, finite number, boolean, null, or arrays/records of those values | Unsupported or truncated values become readable markers.                                           |
+| Limits                     | `maximumDepth`, `maximumEntries`, `maximumStringLength`                 | Bound nesting, entries per container and each string. They are not a total serialized byte budget. |
+| `message(value, options?)` | Unknown value → bounded string                                          | Uses the safe projection with stack inclusion off, not arbitrary `toString()` methods.             |
+
+Under the hood, projection follows own property descriptors. Data properties are copied; accessors become `[accessor]`
+instead of being called. A set tracks the current object path to mark cycles, and limits stop deeper or larger
+traversal. Errors get a specific name/message/cause projection because those useful fields are often non-enumerable.
+
+This is diagnostic copying, not error recovery or secret removal. The response above uses an application-owned safe
+message and cause. Do not publish raw provider errors just because they are now serializable. Proxy traps can still
+execute during inspection; this is not a sandbox for hostile JavaScript objects.
+
 ## Build on the example
 
 - Project an unexpected exception before adding it to [Telemetry](../telemetry/README.md) or a
@@ -42,46 +79,17 @@ a stable application contract.
 - Use [Failure](../failure/README.md) for a declared business reason such as a missing file. Use Fault for unexpected
   runtime diagnostics; these two values answer different questions.
 
-Use encode() for Worker fault frames or structured telemetry, and message() for a bounded display string. Choose
-explicit depth, entry and string limits for untrusted objects. Native inherited error names survive projection;
-accessor-backed properties become markers. Stack inclusion defaults to true and can be disabled and custom stack
-formatting is excluded. Bounded output still needs application-specific redaction.
+## Expected failures and unexpected diagnostics
 
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
-
-## Purpose
-
-`@okikio/fault` turns arbitrary thrown or diagnostic runtime values into bounded, cloneable, JSON-safe diagnostic data.
-
-It solves a different problem from `@okikio/failure`:
+A declared business failure and a runtime diagnostic answer different questions:
 
 ```text
 @okikio/failure   expected domain failure with a stable declared ID and schema
 @okikio/fault     unexpected/diagnostic runtime value that must cross a safe seam
 ```
 
-## Start here
-
-```ts
-import * as fault from '@okikio/fault';
-
-try {
-	await provider.call();
-} catch (error) {
-	const diagnostic = fault.encode(error, { includeStack: false });
-	const message = fault.message(error);
-	await channel.send({ type: 'fault', message, diagnostic });
-}
-```
-
-`message()` is the convenience form when a log, observer, or wrapper `Error` needs one bounded human-readable string. It
-uses the same safe projection and never calls an arbitrary object's `toString()`.
-
-`encode()` never returns the original `Error`, object, function, symbol, or `bigint`. It creates a frozen diagnostic
-projection that can be cloned or encoded as JSON. Use `fault.isRecord(diagnostic)` when a transport needs the record
-form without asserting away arrays or primitive diagnostics.
+Use `fault.isRecord(diagnostic)` when a transport needs the record form without asserting away arrays or primitive
+diagnostics.
 
 ## Why not `JSON.stringify(error)`?
 
@@ -140,4 +148,4 @@ classify expected application failures.
 3. `mod.test.ts` stresses cycles, accessors, custom objects, and limits.
 4. `type.test.ts` locks the public TypeScript surface.
 
-The README is the primary user documentation. There is no separate hand-written API reference to keep in sync.
+The [generated API reference](API.md) lists every public function, option and diagnostic type.

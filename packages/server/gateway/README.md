@@ -15,12 +15,7 @@ The upper line prepares the route without contacting the upstream. The lower lin
 after a runtime is created. The gateway controls what crosses that network hop. The upstream service still validates
 domain input and decides whether the actor may perform the operation.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](../API.md#gateway).
-
-## Run a complete example
+## Forward a health request with a controlled upstream
 
 ```ts runnable
 import '@okikio/duration/polyfill';
@@ -28,26 +23,62 @@ import '@okikio/dispose/polyfill';
 import * as endpoint from '@okikio/server/endpoint';
 import * as response from '@okikio/http/response';
 import * as service from '@okikio/server/service';
+import * as gateway from '@okikio/server/gateway';
 import { z } from 'zod';
 const Healthy = response.ok(z.object({ ok: z.boolean() }), { id: 'health.ok', description: 'Service health.' });
 const Health = endpoint.get({ id: 'health.read', path: '/health', responses: [Healthy] });
 const Api = service.define({ id: 'health-api', path: '/api', endpoints: [Health] });
-import * as gateway from '@okikio/server/gateway';
 const Edge = gateway.define({ id: 'edge', services: [gateway.mount(Api, { origin: 'https://upstream.invalid' })] });
 const compiled = gateway.compile(Edge);
 console.log(compiled.routes[0]?.path, compiled.routes[0]?.credentials.requestCookies);
+const runtime = gateway.create(compiled, {
+	requestId: () => 'demo-request',
+	fetch: async (input, init) => {
+		const incoming = new Request(input, init);
+		return Response.json({ path: new URL(incoming.url).pathname, cookie: incoming.headers.has('cookie') });
+	},
+});
+const outgoing = await runtime.fetch(
+	new Request('https://public.invalid/api/health', {
+		headers: { cookie: 'session=private' },
+	}),
+);
+console.log(outgoing.status, await outgoing.text());
 ```
 
 Expected output:
 
 ```text output
 /api/health strip
+200 {"path":"/api/health","cookie":false}
 ```
 
 The demo imports the health endpoint and its `/api` service prefix, then mounts that service at
 `https://upstream.invalid`. Compilation produces `/api/health` without copying that full path into the gateway. The
 output `strip` is the request-cookie policy on the compiled route: incoming browser cookies are not blindly forwarded.
-No upstream request is made in this demo; the `.invalid` origin is an illustrative address, not a deployed service.
+The injected Fetch function answers locally and reports what reached it: the imported route path and no caller cookie.
+Reading the returned body completes this request. No network connection is made; the `.invalid` origin is only route
+metadata in this example.
+
+## What the gateway compiles and what it forwards
+
+| Value                                        | Important contents                                                             | Meaning                                                              |
+| -------------------------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| `GatewayMount` from `mount(Api, { origin })` | Exact service definition and upstream origin                                   | A route source, not a running service                                |
+| `GatewayDefinition`                          | Mounts, policies, observers                                                    | Import-safe description of the public edge                           |
+| `CompiledGateway`                            | Resolved routes, credential/redirect/body/timeout policy, route plan, manifest | Checked data prepared before requests arrive                         |
+| `GatewayRuntime`                             | `fetch(request): Promise<Response>`                                            | Live request forwarding; starts no listener                          |
+| `CreateGatewayOptions.fetch`                 | Native Fetch-compatible function                                               | Upstream transport, replaceable for local tests or a controlled host |
+
+At runtime, the gateway matches the method/path, removes untrusted forwarding fields, evaluates declared edge adapters,
+applies credential policy, rebuilds the target URL and calls the upstream Fetch function with the request signal. It
+sanitizes response headers and carries cancellation through the response body. With a total timeout, the timer remains
+active until that body completes, rather than ending when headers arrive.
+
+Compilation does not verify the upstream's business logic or start it. The design shares route descriptions while
+keeping a trust boundary at each hop: the gateway owns forwarding policy, and the origin owns domain validation and
+authorization. Use an in-process `http.mount()` when the other Fetch handler is local and no network hop is needed. See
+the [full gateway contracts](../API.md#gateway) for policies and injected adapters.
 
 ## Build on the example
 

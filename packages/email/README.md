@@ -13,10 +13,7 @@ privacy-relay or disposable-domain evidence. It helps explain a domain; it does 
 This table describes normalization only. It does not prove that the domain has working mail service, belongs to a
 company, or appears in a classification list.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
+The [full API reference](API.md) describes classification rules and row-extraction evidence.
 
 ## Run a complete example
 
@@ -35,20 +32,41 @@ The demo turns one mixed-case domain into its lowercase form. Try the other inpu
 between a domain and an address. For email-like text containing addresses, use `extractDomains()` rather than passing
 that text directly to `normalizeDomain()`.
 
+## Compare two imports without changing their evidence
+
+This is ordinary array processing with a normalization step. Invalid domain cells are excluded here by explicit
+application choice; you could instead retain them for a correction screen.
+
+```ts runnable=unique-domains.ts
+import { normalizeDomain } from '@okikio/email';
+
+const cells = ['Example.COM', '@example.com', 'support.example.com', 'not a domain'];
+const normalized = cells.map(normalizeDomain).filter((domain) => domain !== undefined);
+console.log(JSON.stringify([...new Set(normalized)]));
+```
+
+```text output
+["example.com","support.example.com"]
+```
+
+| Call or value                      | Contract                                                                 | Meaning                                                                                        |
+| ---------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `normalizeDomain(text)`            | String → normalized ASCII hostname or `undefined`                        | Expects a domain; never strips `www.`.                                                         |
+| `normalizeHostname(text)`          | Website or hostname → normalized hostname or `undefined`                 | Can read a URL and removes a leading `www.`. This is a different input policy.                 |
+| `createDomainClassifier(options?)` | Rules and disposable domain list → frozen object with `classify(domain)` | Supplying each option replaces that default dataset.                                           |
+| Classification                     | `{ domain, evidence: readonly EmailDomainEvidence[] }`                   | Each item names a trait, matched domain, matching rule and source. Several traits may coexist. |
+
+Under the hood, normalization trims framing, uses `URL` for international hostname conversion, then checks DNS label
+shape. Classification checks exact or whole-label suffix rules and walks parent labels against the disposable list. It
+collects every supported trait instead of collapsing them into “good” or “bad.” This design lets signup review, contact
+enrichment and analytics use the same evidence with different policies. No operation checks a mailbox or DNS.
+
 ## Build on the example
 
 - Read a contact export with [CSV](../csv/README.md), then normalize domain fields before de-duplicating or enriching
   records. Keep each original address where the import needs source evidence.
 - Use [Result](../result/README.md) to carry an explicit “invalid domain” branch. A classification such as privacy relay
   remains evidence for your product decision; it is not an automatic rejection rule.
-
-Normalize a domain first, then use the supplied classifier or provide your own classification rules. Use the evidence to
-route signup review or data enrichment; do not treat domain classification as identity verification or mailbox
-deliverability. Network checks, domain ownership, consent and product decisions belong to your application.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
 
 ## Try a contact import with explicit classification rules
 
@@ -82,23 +100,6 @@ Lin: temporary.example.invalid; disposable
 The first row has no matching trait in the supplied list; that does not prove a company mailbox or deliverability. The
 second row matches our explicit disposable list. Change that list to change the classification policy's input, then let
 your application decide whether to accept, flag or reject a contact. This demo makes no network request.
-
-## Purpose
-
-`@okikio/email` normalizes email domains and returns independent evidence about public mailbox providers, privacy
-relays, and disposable domains. It performs no network, DNS, filesystem, database, or framework I/O.
-
-## Start here
-
-```ts
-import * as email from '@okikio/email';
-
-const domain = email.normalizeDomain('Example.COM');
-const evidence = domain === undefined ? undefined : email.DEFAULT_DOMAIN_CLASSIFIER.classify(domain);
-```
-
-The classifier returns evidence. It does not decide whether a product should accept, reject, or de-prioritize the
-address.
 
 ## Inject a caller-owned classification set
 
@@ -195,5 +196,5 @@ Start with this README, then use the source in this order when you need more det
 3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
 4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
-separate hand-written API reference.
+The [generated API reference](API.md) lists every public function and type. These examples teach the common paths and
+the design decisions behind those contracts.

@@ -18,12 +18,7 @@ The small app uses ordinary request and response values. A declared service adds
 checks before requests arrive. Compilation links those declarations and implementations; it does not transpile your
 TypeScript, open a port or connect to a database.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
-
-## Run a complete example
+## Return JSON from a small API
 
 ```ts runnable
 import * as http from '@okikio/server/http';
@@ -46,6 +41,28 @@ directly selects that route and returns JSON with `ok: true`. The output `200 tr
 body has the expected flag. The example reads the body completely. It runs without opening a network listener, which
 also makes this shape useful for local tests.
 
+## Start with the level your application needs
+
+| Need                                                  | Smallest useful entry                | Function or value you work with                                 |
+| ----------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------- |
+| Return a response from a route                        | `server/http`                        | `(request: Request) => Response \| Promise<Response>`           |
+| Check input/output and share API descriptions         | `server/endpoint` + `server/service` | Endpoint definition, typed handler binding, compiled service    |
+| Check that middleware values exist in the right order | `server/middleware`                  | `requires`/`provides` declarations and ordinary async callbacks |
+| Forward declared routes to other origins              | `server/gateway`                     | Compiled route/policy data and `(request) => Promise<Response>` |
+
+There is no need to learn all four levels to use the first example. A route callback can contain familiar `if`,
+`await fetch(...)` and `Response.json(...)` code. A service adds checks around the same application work.
+
+One level deeper, `http.create()` snapshots route metadata, prepares matching tables and wraps the selected handler in
+the requested middleware. A service compiler goes further: it joins imported definitions with exact handler/resource
+bindings, rejects inconsistent graphs, and prepares per-operation parsing and result plans. Creating the runtime makes
+an owned, lazy resource collection. The first request that borrows a resource acquires it; unused resources need not
+open at all. The network listener stays with the host in both cases.
+
+The design keeps static API descriptions independent from live database connections and from a particular router. It
+costs a few more setup lines when you choose a declared service, but catches missing bindings before traffic and lets
+the same descriptions feed a gateway or OpenAPI. The [full contracts](API.md) document each layer separately.
+
 ## Build on the example
 
 For a small health endpoint or embedded tool, begin with [HTTP routes](http/README.md). Add CORS, error mapping or other
@@ -60,15 +77,7 @@ host owns listener startup and shutdown; the chosen service runtime owns its own
 [Choose related utilities by outcome](../../docs/outcomes.md). Later examples that introduce application-owned clients
 or schemas are composition sketches; supply those dependencies before running them.
 
-## Purpose
-
-`@okikio/server` composes HTTP application definitions into executable services and gateways.
-
-It owns endpoint, middleware, service, and gateway composition. HTTP protocol parsing and representation live in
-`@okikio/http`. Framework adapters are separate utilities, so core server consumers do not import or install a routing
-framework.
-
-## Start here
+## The same small route written by hand
 
 A Fetch service can always be written manually:
 
@@ -97,7 +106,7 @@ A composition root follows this sequence:
 import definitions and implementations
   -> compile the selected graph
   -> reject missing or conflicting contracts
-  -> create owned runtime resources
+  -> create the runtime's lazy resource owner
   -> serve requests
   -> dispose the runtime
 ```
@@ -105,7 +114,7 @@ import definitions and implementations
 `service.compile()` verifies the imported service graph and derives its route, resource, response, problem, and policy
 plans.
 
-`service.create()` creates owned resources and a framework-neutral Fetch runtime for a compiled service. The runtime
+`service.create()` creates a resource owner and a framework-neutral Fetch runtime for a compiled service. The runtime
 exposes its exact routes plus a native `Request -> Response` entry point. It does not import Hono.
 
 `@okikio/server/http` owns optional host behavior such as routing, liveness, readiness, safe error completion, request
@@ -132,26 +141,36 @@ Hono part of the service compiler or core server runtime.
 
 ## Larger service composition
 
-```ts
+The complete version below serves the same familiar health response, this time with a reusable checked body rule:
+
+```ts runnable=declared-service.ts
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
 import * as endpoint from '@okikio/server/endpoint';
 import * as service from '@okikio/server/service';
+import * as response from '@okikio/http/response';
+import { z } from 'zod';
 
-const Health = endpoint.define({
-	id: 'health',
-	path: '/health',
-	operations: {
-		get: endpoint.operation({
-			operationId: 'health.get',
-			responses: [OkResponse],
-		}),
-	},
+const Healthy = response.ok(z.object({ ok: z.boolean() }), {
+	id: 'health.ok',
+	description: 'Service health.',
 });
+const Health = endpoint.get({
+	id: 'health.read',
+	path: '/health',
+	responses: [Healthy],
+});
+const Api = service.define({ id: 'api', path: '/', endpoints: [Health] });
+const implementation = service.implement(Api, {
+	endpoints: [endpoint.handler(Health, () => response.create(Healthy, { ok: true }))],
+});
+await using runtime = service.create(service.compile(implementation), { host: {} });
+const outgoing = await runtime.fetch(new Request('https://service.invalid/health'));
+console.log(outgoing.status, await outgoing.text());
+```
 
-const Api = service.define({ id: 'api', endpoints: [Health] });
-const compiled = service.compile(Api);
-const runtime = await service.create(compiled, { implementations });
-
-const response = await runtime.fetch(new Request('https://service.invalid/health'));
+```text output
+200 {"ok":true}
 ```
 
 Definitions remain import-safe. Runtime construction is where resources and host behavior are supplied. Generic built-in
@@ -186,32 +205,11 @@ Use these packages for protocol values:
 
 The server package consumes those values. It does not redefine them.
 
-## Progressive usage
-
-Read [complete compositions](../../docs/composition.md) for a bounded CSV import, allowed-page discovery and a
-resource-backed operation. Each example names its result and owner. Use [the outcome guide](../../docs/outcomes.md) to
-choose additional mechanisms when the application needs them.
-
 ## Security-header configuration is ordinary data
 
 `server.http.securityHeaders()` accepts a plain/null-prototype options record. Accessor, hidden, inherited, and
 symbol-backed configuration is rejected before header values are read, including the `additional` header map. This keeps
 static security policy deterministic and visible in the object being reviewed.
-
-## Convenience and the manual equivalent
-
-| Convenience                               | Manual equivalent                                                                                                                        | Concrete value                                                        |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `endpoint.define()` + `service.compile()` | validate endpoint authoring records, compile routes, inputs, resources, problems, and handlers into one immutable runtime model yourself | definitions and runtime wiring cannot silently drift                  |
-| `server.http.*` middleware                | write request IDs, CORS, timing, security headers, access logs, completion hooks, and option snapshotting independently                  | one Web `Request`/`Response` policy layer                             |
-| `gateway.create()`                        | match routes, bound request bodies, rebuild trusted forwarding metadata, proxy, and normalize faults manually                            | one generic service gateway without product-specific headers baked in |
-
-`@okikio/server` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics by matching routes,
-parsing Request values, validating schemas, acquiring resources, calling handlers, mapping problems and constructing
-Response values.
-
-The utility compiles those generic contracts into a Fetch runtime. Framework adapters remain separate, and service
-definitions remain import-safe.
 
 ## Framework problem catalogs
 
@@ -222,24 +220,5 @@ The root module exports two neutral framework problem sets:
 
 Product-specific problem namespaces remain application composition, not generic server defaults.
 
-## Source guide
-
-Start with this README, then use the source in this order when you need more detail:
-
-1. `mod.ts` shows the supported runtime operations and the composition shape.
-2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
-4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
-
-The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
-separate hand-written API reference.
-
-## Compiled service
-
-`service.compile()` prepares the stable information that request handling needs: effective operations, a handler-free
-route plan, operation execution plans, resource and requirement information, and a JSON-safe manifest. The Fetch runtime
-reads this prepared state instead of rebuilding the same route and policy information for every request.
-
-The compiler remains independent of Hono and MCP. Request-local mutable values belong to `middleware.context()`.
-Longer-lived session and provider capabilities belong to explicit resources. Read
-[`../../docs/server.md`](../../docs/server.md) for the compiler and request-lifecycle model.
+Read [the service lifecycle guide](../../docs/server.md) when you need the complete compiler, middleware and resource
+ownership model.

@@ -17,12 +17,7 @@ Describe policy -> validate against operation safety -> chosen runtime applies
 The visual separates configuration from execution. This package calculates and classifies policy; the executing server
 or adapter owns actual waits, cancellation, failure classification, and any shared state.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
-
-## Run a complete example
+## Inspect retry delays before doing any work
 
 The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
 implementation is preserved.
@@ -59,6 +54,75 @@ executing runtime must enforce that count. The final `false` means this retry po
 labelled unsafe without the required safety protection. It makes no network calls. Try a different delay multiplier to
 inspect the calculation before any real operation runs.
 
+The policy is a frozen configuration object with this contract:
+
+```text
+RetryPolicy
+  kind: "resilience"
+  type: "retry"
+  maximumAttempts: number          includes the first attempt
+  initialDelay: Temporal.Duration
+  maximumDelay: Temporal.Duration
+  multiplier: number
+  jitter: boolean
+  retryOn?: string[]               labels the executing runtime must interpret
+```
+
+`retry()` normalizes duration input and validates the settings. `retryDelay(policy, failedAttempt)` calculates a
+`Temporal.Duration`: start at `initialDelay`, multiply for later failures, cap the delay, and apply a supplied jitter
+sample when enabled. It starts no timer and does not decide whether that error deserves a retry. The executing owner
+still checks the attempt budget, classifies failures, waits, and forwards cancellation to the operation. This keeps the
+same policy inspectable in a service manifest and usable by a queue's persisted wake-up scheduler. The
+[contract reference](API.md) covers the other policy shapes.
+
+## Keep an ordinary async read inside an explicit retry loop
+
+This simulated read fails once with a known temporary error, then returns text. The application owns the loop and uses
+the policy for its attempt limit and delay. A one-millisecond configured delay keeps the demo short; there is no
+elapsed-time assertion. In production, choose a realistic delay and signal, and retry only failures your operation can
+safely repeat.
+
+```ts runnable=retry-read.ts
+import '@okikio/duration/polyfill';
+import * as resilience from '@okikio/resilience';
+import { setTimeout as wait } from 'node:timers/promises';
+class TemporaryError extends Error {}
+const policy = resilience.retry({
+	maximumAttempts: 2,
+	initialDelay: { milliseconds: 1 },
+	maximumDelay: { milliseconds: 1 },
+	jitter: false,
+});
+let attempts = 0;
+async function read(): Promise<string> {
+	attempts++;
+	if (attempts === 1) throw new TemporaryError('Try the read again.');
+	return 'Report ready';
+}
+async function readWithRetry(signal: AbortSignal): Promise<string> {
+	for (let attempt = 1;; attempt++) {
+		signal.throwIfAborted();
+		try {
+			return await read();
+		} catch (error) {
+			if (!(error instanceof TemporaryError) || attempt >= policy.maximumAttempts) throw error;
+			await wait(resilience.retryDelay(policy, attempt).total('milliseconds'), undefined, { signal });
+		}
+	}
+}
+console.log(await readWithRetry(new AbortController().signal));
+console.log(attempts);
+```
+
+```text output
+Report ready
+2
+```
+
+The signal stops this loop or its wait. The local `read()` has no pending I/O to cancel; a real fetch must also receive
+that signal. The result remains `Promise<string>`. A server adapter can own this repeated-attempt loop instead when you
+need consistent endpoint retry behavior, but a policy object alone never retries anything.
+
 - **Protect a report endpoint:** combine policy values with [Service](../server/service/README.md). Its runtime owns
   server policies; adapter-owned policies need an explicit implementation, such as an application-owned idempotency
   store.
@@ -72,10 +136,6 @@ Validate a policy set first, then let the designated server or adapter enforce i
 unsafe operations; a description does not itself create an idempotency store. Supply entropy explicitly for jitter and a
 clock for actual waits. Body limits, bulkheads and circuit breakers have different owners and lifecycle stages, which
 the document projection preserves.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
 
 `@okikio/resilience` defines import-safe policies for request protection and failure handling. Policy definitions
 contain configuration only. They do not start timers, create distributed counters, open stores, or change circuit state

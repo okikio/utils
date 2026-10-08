@@ -14,12 +14,7 @@ The upper flow describes a result before a server writes it to the caller. `fina
 value, not a native `Response`, and it does not replace the service's output validation. The filename flow prepares a
 header value; it does not open a file or grant permission to download it.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](../API.md#response).
-
-## Run a complete example
+## Return a saved record and name a download
 
 ```ts runnable
 import * as response from '@okikio/http/response';
@@ -27,6 +22,8 @@ import { z } from 'zod';
 const Saved = response.ok(z.object({ id: z.string() }), { id: 'asset.saved', description: 'Saved asset.' });
 const value = response.finalize(response.create(Saved, { id: 'asset-1' }));
 console.log(value.status);
+const outgoing = Response.json(value.body, { status: value.status, headers: response.toHeaders(value.headers) });
+console.log(await outgoing.text());
 console.log(response.attachmentDisposition('reports/quarterly.csv'));
 ```
 
@@ -34,13 +31,35 @@ Expected output:
 
 ```text output
 200
+{"id":"asset-1"}
 attachment; filename="quarterly.csv"
 ```
 
 The demo describes a `200` result whose body has a string `id`, then creates the occurrence `{ id: 'asset-1' }`.
-`finalize()` exposes the status and prepared transport metadata, so the first printed line is `200`. Separately,
-`attachmentDisposition()` reduces `reports/quarterly.csv` to the download name `quarterly.csv`. That second line can
-become a `Content-Disposition` header. No file is read and no response body is sent in this mini-demo.
+`finalize()` exposes the status, body and prepared transport metadata. The next line turns those values into an ordinary
+`Response` and reads its JSON text. Separately, `attachmentDisposition()` reduces `reports/quarterly.csv` to the
+download name `quarterly.csv`. That second line can become a `Content-Disposition` header. No file or network connection
+is opened in this mini-demo.
+
+## Definition, occurrence, native response
+
+These are three different values. Keeping them separate lets the same contract describe many individual responses:
+
+| Value                                                       | Representative fields                                      | Purpose                                                                     |
+| ----------------------------------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `ResponseDefinition` from `ok(schema, options)`             | `id`, `status`, `schema`, `mode`, `contentType`, `headers` | Reusable rule for a class of successful answers                             |
+| `ResponseResult` from `create(Saved, body)`                 | Readonly `[body, status, headers]` tuple                   | One answer, with hidden metadata retaining the exact definition             |
+| `FinalizedResponseResult` from `finalize(result, options?)` | `{ definition, body, status, headers }`                    | Request-aware representation, including configured envelopes and pagination |
+| Web `Response`                                              | `status`, native `Headers`, readable `body`                | Transport value the caller can consume                                      |
+
+`create()` merges fixed and occurrence headers and records the definition association in a `WeakMap`; it does not run
+the body schema. `finalize()` applies presentation policy, such as pagination links using the public URL; it also does
+not run that schema. In the example the body is known locally. A service checks unknown handler output against the
+declared schema before materialization. A manual host must perform that validation itself when needed.
+
+This separation avoids baking one framework's response object into the API contract. It also gives TypeScript the exact
+declared body type at construction. Use native `Response.json()` directly when no shared response contract is needed.
+The [full contracts](../API.md#response) include the less common empty, redirect, pagination and streaming modes.
 
 ## Build on the example
 
@@ -52,16 +71,6 @@ For a CSV export, combine a download response with a safe filename and the [CSV 
 bounded buffered result or an intentional stream according to the export size. For search results, use pagination with
 [request query parsing](../request/README.md). A response body must be read or cancelled by its consumer so stream-owned
 cleanup can finish.
-
-## Purpose
-
-`@okikio/http/response` defines successful HTTP representations and creates immutable logical response results.
-
-A response definition records the stable ID, HTTP status, body schema, content type, headers, examples, envelope policy,
-pagination policy, and response mode. The package does not import Hono. A server adapter performs final framework
-materialization.
-
-RFC 9457 error representations live in the neighboring `@okikio/http/problem` package.
 
 ## Response flow
 

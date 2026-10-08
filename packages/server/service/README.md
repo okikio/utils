@@ -17,12 +17,7 @@ Definitions describe behavior; implementations supply code and resource factorie
 plan before requests arrive. `create()` supplies the live host and starts the service's runtime ownership, without
 opening a listener. An injected host is borrowed; the service owns the resources its runtime constructs.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](../API.md#service).
-
-## Run a complete example
+## Serve a checked JSON answer
 
 ```ts runnable
 import '@okikio/duration/polyfill';
@@ -34,10 +29,8 @@ import { z } from 'zod';
 const Healthy = response.ok(z.object({ ok: z.boolean() }), { id: 'health.ok', description: 'Service health.' });
 const Health = endpoint.get({ id: 'health.read', path: '/health', responses: [Healthy] });
 const Api = service.define({ id: 'health-api', path: '/api', endpoints: [Health] });
-import * as resource from '@okikio/resource';
 const live = service.implement(Api, {
 	endpoints: [endpoint.handler(Health, () => response.create(Healthy, { ok: true }))],
-	resources: resource.implementations(),
 });
 await using runtime = service.create(service.compile(live), { host: {} });
 const result = await runtime.fetch(new Request('https://service.invalid/api/health'));
@@ -51,12 +44,91 @@ Expected output:
 ```
 
 The demo describes GET `/health`, puts it under `/api`, and binds that exact endpoint to a handler returning
-`{ ok: true }`. There are no resource factories, so `resource.implementations()` is empty. Compilation links the
-handler, and `create()` makes a runtime with an empty borrowed host. Fetching `/api/health` validates and sends the
-declared result, then reading its JSON prints `200 true`. `await using` disposes the runtime when the scope ends; the
-explicit polyfill imports support the required duration and disposal APIs in environments that need them.
+`{ ok: true }`. This example uses no external resources, so none need to be supplied. Compilation links the handler, and
+`create()` makes a runtime with an empty borrowed host. Fetching `/api/health` validates and sends the declared result,
+then reading its JSON prints `200 true`. `await using` disposes the runtime when the scope ends; the explicit polyfill
+imports support the required duration and disposal APIs in environments that need them.
+
+## Why four setup calls?
+
+The calls separate reusable API facts from live application behavior. Each produces a concrete value:
+
+| Call                                                     | Value returned          | Work done now                                                                                           |
+| -------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------- |
+| `define({ id, path?, endpoints, ... })`                  | `ServiceDefinition`     | Snapshots the API description; starts no work                                                           |
+| `implement(Api, { endpoints, middleware?, resources? })` | `ServiceImplementation` | Associates exact definitions with callbacks/factories                                                   |
+| `compile(implementation)`                                | `CompiledService`       | Checks the graph and prepares routes, operation plans and a JSON-safe manifest                          |
+| `create(compiled, { host, ... })`                        | `ServiceRuntime`        | Creates an owned context/resource collection and exposes `fetch`, `routes`, `resources`, async disposal |
+
+The `host` is an application-supplied object that handlers and factories borrow. The runtime does not close borrowed
+host values. Its resource collection acquires declared resources lazily, shares in-flight acquisition and owns the
+values it creates. Await runtime disposal to finish that collection's cleanup. `await using` is the compact JavaScript
+syntax for calling and awaiting `Symbol.asyncDispose` at scope exit.
+
+### One request, one level deeper
+
+For the health example, the runtime matches `/api/health`, creates the request lifetime, runs the configured middleware
+lanes, parses any declared inputs, invokes the linked callback, checks that the result belongs to `Healthy`, validates
+the body, and constructs a Web `Response`. Reading the response completes its body lifetime and releases request-owned
+state. Returning headers alone does not mean a streaming body has finished.
+
+With `json: z.object({ title: z.string() })` on a POST endpoint, the callback receives a typed `input.json.title` only
+after byte limits, JSON parsing and schema validation. With an undeclared or invalid handler result, the runtime returns
+its framework problem response rather than silently sending that value. Host adapters provide real authentication,
+requirements and resilience behavior; the compiler does not invent those implementations.
+
+This design lets one API definition feed request validation, output validation, OpenAPI and gateway routing. If a single
+local function with a native response meets your need, start with [plain HTTP routes](../http/README.md) instead. The
+[full service contracts](../API.md#service) show the optional parts.
 
 ## Build on the example
+
+### Save a note with a typed input
+
+This complete example uses normal string operations in the callback. The service checks the JSON before the callback
+runs, so `input.json.title` is inferred as a string. The same route rejects a numeric title with `400`:
+
+```ts runnable=save-note.ts
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as endpoint from '@okikio/server/endpoint';
+import * as service from '@okikio/server/service';
+import * as response from '@okikio/http/response';
+import { z } from 'zod';
+
+const Saved = response.ok(z.object({ title: z.string() }), { id: 'note.saved', description: 'Saved note title.' });
+const Save = endpoint.post({
+	id: 'note.save',
+	path: '/notes',
+	json: z.object({ title: z.string().min(1) }),
+	responses: [Saved],
+});
+const Api = service.define({ id: 'notes', path: '/', endpoints: [Save] });
+const implementation = service.implement(Api, {
+	endpoints: [endpoint.handler(Save, ({ input }) => response.create(Saved, { title: input.json.title.trim() }))],
+});
+await using runtime = service.create(service.compile(implementation), { host: {} });
+for (const title of [' First note ', 42]) {
+	const outgoing = await runtime.fetch(
+		new Request('https://service.invalid/notes', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ title }),
+		}),
+	);
+	const body = await outgoing.json();
+	console.log(outgoing.status, body.title);
+}
+```
+
+```text output
+200 First note
+400 Invalid request
+```
+
+The first `title` is the saved body field; the second is the framework problem's human-readable title. The output
+validation schema also checks the returned success body. This demonstration trims text rather than writing storage;
+replace that one callback operation with application work and declare any resources it borrows.
 
 For an account API, add [endpoint input rules](../endpoint/README.md), a database [resource](../../resource/README.md),
 authentication [middleware](../middleware/README.md) and [permission checks](../../permission/README.md). A resource is
@@ -71,7 +143,7 @@ sections explain requirements, effects, observers and resilience after this basi
 ## Define, implement, compile, create
 
 A service has four separate steps. Definitions stay import-safe. Implementations bind runtime behavior. Compilation
-resolves the complete service graph. Runtime creation acquires service resources and returns a Fetch handler.
+resolves the complete service graph. Runtime creation installs a lazy resource owner and returns a Fetch handler.
 
 ```typescript
 const EnrichmentService = service.define({
@@ -137,24 +209,6 @@ endpoint/data contract because its parsing and generated documentation have diff
 
 A future capability that does not fit one of these mechanisms should define its own contract and lifecycle explicitly.
 The compiler can then add that extension class without turning all extensions into one generic runtime object.
-
-### Adding a new extension class
-
-Before adding a service-level field, determine whether an existing mechanism has the required semantics. A new graph
-authorization provider is a permission interpreter. A new usage sink is an effect owner. A new metrics exporter is an
-observer handler. A new cache or database client is a resource.
-
-Add a new extension class only when those semantics are insufficient. The new class should provide:
-
-- an import-safe definition or contract
-- a composition rule across service, policy, group, path, and operation when those locations are relevant
-- compiler validation and provenance
-- deterministic manifest/documentation data
-- one explicit runtime ownership model
-- tests for ordering, failure, cancellation, and missing runtime behavior
-
-Do not add an arbitrary callback to `adapters` only to avoid defining the semantics. Runtime adapters execute
-compiler-known contracts. They do not replace the compiler's contract model.
 
 ## Runtime adapters and request values
 

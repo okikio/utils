@@ -16,12 +16,7 @@ Read the first lines as dispatch inside the application. Middleware wraps the se
 map errors when configured. The HEAD policy applies to the final response, including misses and mounts. This package
 matches requests; it does not automatically validate domain input or open a network port.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](../API.md#http).
-
-## Run a complete example
+## Answer a health request without starting a server
 
 ```ts runnable
 import * as http from '@okikio/server/http';
@@ -44,6 +39,53 @@ The demo registers GET `/health` with a JSON answer. A HEAD request can use that
 while the application's final HEAD policy suppresses the body. The second request has no route and receives the default
 `404`. The security-header middleware surrounds these requests. The printed statuses demonstrate routing behavior; they
 do not prove that a listener is reachable or that a database is ready.
+
+## A handler is an ordinary JavaScript function
+
+The two central public types are small enough to show in full:
+
+```ts
+type Handler = (request: Request) => Response | Promise<Response>;
+type Middleware = (request: Request, next: Handler) => Response | Promise<Response>;
+```
+
+A route binds a method and path to a `Handler`. Middleware receives the request and a function for calling the next
+step. It can inspect the answer with normal `await`, change headers, return early or throw. For example, this complete
+API adds a version header with no middleware-specific expression language:
+
+```ts runnable=http-middleware.ts
+import { create, route } from '@okikio/server/http';
+import type { Middleware } from '@okikio/server/http';
+
+const version: Middleware = async (request, next) => {
+	const response = await next(request);
+	response.headers.set('x-api-version', '1');
+	return response;
+};
+const app = create({
+	routes: [route('GET', '/greeting', () => new Response('Hello!'))],
+	middleware: [version],
+});
+const outgoing = await app.fetch(new Request('https://service.invalid/greeting'));
+console.log(await outgoing.text(), outgoing.headers.get('x-api-version'));
+```
+
+```text output
+Hello! 1
+```
+
+The middleware above can change the response because this route created mutable headers. An upstream Fetch response may
+have immutable headers; use `withHeaders()` to copy them when wrapping such a response.
+
+`create()` snapshots routes, prepares static/dynamic matching and binds the handlers once. It wraps dispatch in the
+middleware array's order. The first middleware enters first and returns last; each layer may call `next(request)` at
+most once. A second call rejects before a second route invocation. At request time the application selects an exact
+route, then a prefix mount, then the not-found handler. Its final HEAD step cancels any unused body and returns the
+status and headers without a body.
+
+That design separates routing from business validation. Adopt this layer for normal Fetch handlers; adopt a compiled
+service only when reusable input/output/resource contracts justify it. The [full contracts](../API.md#http) list routing
+and optional host middleware.
 
 ## Build on the example
 

@@ -10,10 +10,7 @@ returns checked query data. A **query definition** is the allowed search languag
 compatible adapter; parsing a filter does not execute it or make a database support that comparison. This view omits
 sorting and complex filter groups.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
+The [full API reference](API.md) includes operators, normalized query shapes and adapter capabilities.
 
 ## Run a complete example
 
@@ -47,22 +44,59 @@ The demo declares `name` filtering and a default page size of 20. The supplied U
 line prints the selected field and page size. The second line shows `Ada` survived encoding and parsing again. Remove
 `limit=2` to use the default. Requesting an undeclared filter is a validation failure, not extra database authority.
 
+## Apply a small checked search to an ordinary array
+
+A definition is reusable configuration. Its result is data you can inspect with `if`, `filter()` and `slice()`. This
+local adapter deliberately supports only equality on `name`; it rejects any comparison it cannot implement faithfully.
+
+```ts runnable=directory-search.ts
+import * as query from '@okikio/query';
+import { z } from 'zod';
+
+const Search = query.define({
+	fields: { name: query.field(z.string()) },
+	filters: { name: [query.eq] },
+	pagination: query.offset({ defaultLimit: 20 }),
+});
+const checked = await Search.parse(new URLSearchParams('filter[name]=Ada&limit=1'));
+const people = [{ name: 'Ada' }, { name: 'Lin' }];
+const matches = people.filter((person) =>
+	checked.filters.every((filter) => {
+		if (filter.field !== 'name' || filter.operator !== 'eq') throw new Error('Unsupported comparison.');
+		return person.name === filter.value;
+	})
+);
+if (checked.pagination.kind !== 'offset') throw new Error('This adapter supports offset pages only.');
+const { offset, limit } = checked.pagination;
+console.log(JSON.stringify(matches.slice(offset, offset + limit)));
+```
+
+```text output
+[{"name":"Ada"}]
+```
+
+| Part                  | Contract                                                           | What remains your job                                                                                         |
+| --------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| Field                 | `query.field(StandardSchema, options?)`                            | Declares a value validator and whether a field can be sorted or selected.                                     |
+| `Search.parse(input)` | URL parameters or plain query data → `Promise<QueryValue>`         | Invalid grammar or values reject with `QueryValidationError`. No data source is searched.                     |
+| `QueryValue`          | `{ filter?, filters, order, fields, pagination }`                  | Implement the declared semantics in an adapter. `filters` is a conjunction view and throws for ANY/NOT trees. |
+| Offset page           | `{ kind: 'offset', limit: number, offset: number, source, page? }` | Zero-based window. Bounds were checked; the adapter still applies it.                                         |
+
+Under the hood, `define()` snapshots field permissions, operators and budgets. Parsing normalizes input keys, validates
+filter operands with their field schemas, then checks sorts, selected fields and pagination. It returns that checked
+description rather than SQL or database-specific calls.
+
+The separation lets the same search contract serve an in-memory list or a database without letting client text choose
+arbitrary fields. A full provider adapter should call `validateAdapter()` against its capabilities and honor sorting,
+projection and Boolean groups. The small adapter above promises only its explicitly declared equality and offset flow;
+do not reuse it for a richer definition without extending those checks.
+
 ## Build on the example
 
 - Parse a collection URL at a [Server endpoint](../server/endpoint/README.md) boundary, then pass the checked query to
   the application's declared database adapter. Keep adapter capability checks alongside that translation.
 - Use [Schema](../schema/README.md) contracts for field meanings, then use Query for collection-level search grammar. A
   field's valid values and the operations a client may request on it are separate rules.
-
-Start with flat filters, enable bounded all/any/not groups when the provider supports them, and encode values for
-lossless URL round trips. The tagged wire codec preserves commas, empty text, bigint, dates and negative zero.
-normalize() produces canonical query data; it does not run a query. Adapters must explicitly declare capabilities and
-fail closed for unsupported groups. Preserve opaque cursors with a trusted codec rather than interpreting arbitrary
-client strings.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
 
 ## Before and after: express alternatives without losing literal values
 
@@ -110,24 +144,15 @@ Schema projection.
 | Expression depth including leaves |       8 |
 | Siblings in a Boolean group       |     100 |
 
-## Purpose
-
-`@okikio/query` defines storage-neutral collection queries for filters, sorting, sparse fieldsets, and bounded
-pagination. It validates and normalizes public query input but does not execute a database query.
-
 ## How it fits
 
 HTTP request parsing can produce a normalized query value from this package. A concrete database adapter then translates
 the value into Drizzle, ClickHouse, SPARQL, or another native query language and rejects unsupported semantics.
 
-Storage-neutral public collection-query definitions for filtering, sorting, sparse fieldsets, bounded pagination,
-validation, encoding, documentation, and provider capability checks.
+Cursor signing and verification need a separate trusted codec. The query contract describes pagination; it does not
+authenticate cursor tokens or construct HTTP responses.
 
-The package does not execute database queries, construct HTTP responses, or implement cursor cryptography.
-Drizzle/PostgreSQL, ClickHouse, SPARQL, and Supabase adapters translate the normalized query value into their native
-query language and must declare which semantics they can honor.
-
-## Start here
+## Declare public fields and supported comparisons
 
 ```ts
 import * as query from '@okikio/query';
@@ -303,8 +328,8 @@ Start with this README, then use the source in this order when you need more det
 3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
 4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
-separate hand-written API reference.
+The [generated API reference](API.md) lists every public function and type. These examples teach the common paths and
+the design decisions behind those contracts.
 
 ## Validation shape versus wire shape
 

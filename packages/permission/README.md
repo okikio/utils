@@ -21,12 +21,7 @@ Validate target -> configured checker -> true: caller may continue
 This shows one ordinary check. `check()` reports a decision; the application must branch on it, or use `assert()` to
 stop denied work. A missing or broken checker throws rather than silently producing an ordinary denial.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
-
-## Run a complete example
+## Ask whether a picture can be read
 
 The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
 implementation is preserved.
@@ -67,6 +62,68 @@ The demo's checker implements one deliberately small rule: an ID equal to `publi
 Try another string ID and it remains denied. In a real gallery, the checker must incorporate the authenticated actor and
 the application's complete policy rather than trusting the caller to label an asset public.
 
+The familiar application code is still `if (await permission.check(...)) { ... }`. The extra definitions make the
+question consistent across callers and validate the target before evaluating policy. A Context here is the caller's
+operation identity, cancellation signal, clock, and cleanup owner. `permission.scope()` borrows that lifetime and
+attaches the allowed actions and checker; it does not log in a user or start a separate runtime.
+
+| Contract                                 | What crosses the boundary                                                                      |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `PermissionDefinition`                   | A stable `id`, optional target schema, and `kind: 'permission'`.                               |
+| `PermissionRequest`                      | The exact `definition` and its schema-validated `target`.                                      |
+| `PermissionChecker.check(ctx, requests)` | Returns one decision for every request, in matching order.                                     |
+| `PermissionDecision`                     | `{ allowed: true }`, `{ allowed: false }`, or `{ error }`, with optional denial/allow reasons. |
+| `permission.check()`                     | `Promise<boolean>`; target, declaration, or checker failures reject.                           |
+| `permission.assert()`                    | `Promise<void>`; denial rejects before protected work continues.                               |
+
+Under the hood, a check verifies that the exact action was declared, validates its target, collects the atomic
+questions, enforces `maximumChecks`, calls the checker, and evaluates the returned decisions. The batch interface lets a
+database-backed checker evaluate a page of assets together. The package owns valid questions and decision shape; the
+application owns who the actor is and what its policy means. The [contract reference](API.md) covers expressions such as
+`all()` and `any()` when one boolean question is no longer enough.
+
+## Use that decision in an ordinary HTTP response
+
+This complete version demonstrates the actual protected outcome. An allowed request returns the file text; a denied
+request returns status 403. It uses the standard `Response` class and starts no HTTP listener.
+
+```ts runnable=protected-response.ts
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as context from '@okikio/context';
+import * as permission from '@okikio/permission';
+import { z } from 'zod';
+const TargetSchema = z.object({ id: z.string() });
+const Read = permission.define({ id: 'asset.read', target: TargetSchema });
+const grants = new Set(['photo-1']);
+await using owner = context.create({ id: 'asset-download' });
+const ctx = permission.scope(owner, {
+	permissions: [Read],
+	checker: {
+		maximumChecks: 10,
+		async check(_ctx, requests) {
+			return requests.map((entry) => ({ allowed: grants.has(TargetSchema.parse(entry.target).id) }));
+		},
+	},
+});
+async function download(id: string): Promise<Response> {
+	if (!await permission.check(ctx, Read, { id })) return new Response('Forbidden', { status: 403 });
+	return new Response(`Contents of ${id}`);
+}
+const allowed = await download('photo-1');
+const denied = await download('photo-2');
+console.log(allowed.status, await allowed.text());
+console.log(denied.status, await denied.text());
+```
+
+```text output
+200 Contents of photo-1
+403 Forbidden
+```
+
+The grants are local policy data for this example. In a service, build them from trusted actor and object information;
+letting a request choose its own grants would defeat the check. The utility cannot repair an incorrect policy.
+
 - **Protect a download:** define the read action in [Endpoint](../server/endpoint/README.md), bind a checker in the
   [Service](../server/service/README.md), and assert access after resolving the actual asset. Then deliver bytes through
   [HTTP Response](../http/response/README.md). A declaration alone does not protect that response.
@@ -80,10 +137,6 @@ Start with one target, combine all()/any() expressions, then provide a provider-
 Declare reachable permissions for inspection but explicitly check the current target on each active path. Unknown or
 undeclared definitions fail closed. This example evaluator implements a tiny public-asset rule; it does not authenticate
 the caller or authorize every possible asset.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
 
 ## Purpose
 
@@ -237,5 +290,4 @@ Start with this README, then use the source in this order when you need more det
 3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
 4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
-separate hand-written API reference.
+Read the [generated API reference](API.md) for the complete exported contracts and field descriptions.

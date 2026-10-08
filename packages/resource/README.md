@@ -18,12 +18,7 @@ closes the owned store when the collection ends. The two jobs do not close their
 a separate instance. It omits dependency ordering and access checks, which are explained below. The collection is not a
 cross-machine connection pool.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
-
-## Run a complete example
+## Supply a storage client to an operation
 
 The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
 implementation is preserved.
@@ -56,6 +51,66 @@ tiny implementation that returns `value:` followed by that ID. `stores.get()` ob
 produces the printed string. No external file or database is read. Replace the supplied implementation when the same
 call needs to use real storage.
 
+The curried call `resource.define<Value>()({ id, description })` separates the TypeScript value type from the runtime
+metadata. The first parentheses tell the compiler what a consumer will receive. The second create a definition; they do
+not connect to storage. `implement()` binds that exact definition to a factory, and `create()` owns the factories' live
+values. The [contract reference](API.md) gives the full generic signatures; the local model is:
+
+```text
+ResourceDefinition<Value>       names the dependency and the value callers may use
+ResourceImplementation         { definition, create(arguments) }
+ResourceCollection             { get(ctx, definition): Promise<Value>, has(definition) }
+```
+
+On the first `get()`, the collection checks the borrower's direct use requirements, resolves dependencies, and calls the
+factory. Concurrent borrowers of the same definition share the pending creation. A later `get()` rechecks its caller's
+requirements before returning the retained value. Factories can register cleanup through their supplied `ctx.defer()`,
+`ctx.adopt()`, or `ctx.use()`; returned disposable values are adopted when not already registered. This makes the
+collection the cleanup owner while a consumer only borrows the client. A borrowed Context supplies the consumer's
+cancellation and identity; `await using stores` closes the collection when its block ends.
+
+## Save a value once and read it from another operation
+
+The next example uses a real in-memory Map. Two borrowers receive the same Map, and the factory runs once. Leaving the
+collection's block clears it through the registered cleanup, making the ownership visible in the final line.
+
+```ts runnable=shared-store.ts
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as context from '@okikio/context';
+import * as resource from '@okikio/resource';
+const Store = resource.define<Map<string, string>>()({ id: 'notes', description: 'Share saved notes.' });
+let opened = 0;
+const retained = new Map<string, string>();
+const StoreLive = resource.implement(Store, {
+	create({ ctx }) {
+		opened++;
+		ctx.defer(() => retained.clear());
+		return retained;
+	},
+});
+await using owner = context.create({ id: 'note-owner' });
+{
+	await using stores = resource.create(resource.implementations(StoreLive), { ctx: owner, host: {} });
+	const writer = await stores.get(owner, Store);
+	writer.set('note-1', 'Remember the photo');
+	const reader = await stores.get(owner, Store);
+	console.log(reader.get('note-1'));
+	console.log(writer === reader, opened);
+}
+console.log(retained.size);
+```
+
+```text output
+Remember the photo
+true 1
+0
+```
+
+The Map is shared within this collection. A different collection has a different lifetime; whether its factory creates a
+different Map is application policy. The example closes in-memory state only. A database factory should register its
+actual client-close operation and leave persistent records according to the database's own contract.
+
 | Situation                                       | Combine                                                                | Useful outcome                                                                                      |
 | ----------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | Several photo jobs need the same storage client | Resource + [activity](../activity/README.md)                           | Each job declares its dependency; the collection owns the live client.                              |
@@ -73,17 +128,11 @@ access to the exact resources an activity may use. Collections own created value
 close them individually. Acquisition requirements apply at creation, while actor-specific use requirements are checked
 on public borrowing. Remote work must reconstruct its local resources rather than serialize live clients.
 
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
+## Declare a dependency and its access requirements
 
-`@okikio/resource` defines provider-neutral capabilities and creates lazily acquired collections of concrete
-implementations. Definitions describe the complete resource graph. They do not connect to providers or storage at import
-time.
-
-## Start here
-
-A resource can declare dependencies, environment requirements, failures, health metadata, and generic requirements.
+A resource can declare dependencies, environment requirements, failures, health metadata, and generic requirements. The
+following sketch assumes application-owned `StorageClient`, `MediaClient`, and permission definitions. The complete Map
+example above needs none of those dependencies.
 
 ```ts
 import * as resource from '@okikio/resource';
@@ -212,5 +261,4 @@ Start with this README, then use the source in this order when you need more det
 3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
 4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
-separate hand-written API reference.
+Read the [generated API reference](API.md) for the complete exported contracts and field descriptions.

@@ -17,12 +17,7 @@ After release                2          4
 Read each row as a moment in one local pool. The pool counts permission to start work; your application still starts and
 stops the actual browser and upload. This view omits queued requests and cancellation.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
-
-## Run a complete example
+## Reserve room for one upload
 
 ```ts runnable
 import * as capacity from '@okikio/capacity';
@@ -47,6 +42,52 @@ The demo reserves both resources, prints the remaining slots, and releases the l
 line proves the reservation was returned. Try requesting three browsers from this two-browser pool: the request is
 impossible and rejects rather than waiting forever.
 
+The inputs and outputs are ordinary objects. The important contract is the reservation between them:
+
+| Call                                    | What you receive                           | What you own                                                     |
+| --------------------------------------- | ------------------------------------------ | ---------------------------------------------------------------- |
+| `create({ uploads: 4 })`                | An `Admission` with fixed named limits     | One process-local counter set; it opens no upload connection.    |
+| `acquire(host, { uploads: 1 }, signal)` | `Promise<AdmissionLease>`                  | One reservation after the Promise resolves.                      |
+| `lease.release()`                       | `void`                                     | Returns that reservation exactly once, including repeated calls. |
+| `snapshot(host)`                        | Limits, availability, and `queuedRequests` | A snapshot, not permission to begin work.                        |
+
+Under the hood, `acquire()` validates non-negative integer counts, checks that the request can ever fit, then either
+subtracts all requested counts or adds one waiter to a FIFO list. `release()` restores counts and tries the head waiter
+again. No browser or upload is started on your behalf. Keeping admission separate lets the same limits protect a
+`fetch()`, a database write, or a child process without changing those operations' normal return values.
+
+## Cancel a wait without cancelling the current upload
+
+Here the only upload slot is already reserved. Cancelling the second caller removes its wait; it leaves the first
+reservation intact. A native `AbortController` is sufficient, so this path requires no additional utility.
+
+```ts runnable=cancel-wait.ts
+import * as capacity from '@okikio/capacity';
+const uploads = capacity.create({ uploads: 1 });
+const first = await capacity.acquire(uploads, { uploads: 1 });
+const cancellation = new AbortController();
+const stopped = new Error('The user left the upload page.');
+const waiting = capacity.acquire(uploads, { uploads: 1 }, cancellation.signal);
+cancellation.abort(stopped);
+try {
+	await waiting;
+} catch (error) {
+	console.log(error === stopped, capacity.available(uploads).uploads);
+} finally {
+	first.release();
+}
+console.log(capacity.available(uploads).uploads);
+```
+
+```text output
+true 0
+1
+```
+
+The first line says the cancelled caller received its exact cause and the held slot is still unavailable. The second
+line says the first caller returned the slot. To stop an upload already running, pass its cancellation signal into the
+actual `fetch()` as well; cancelling admission alone cannot stop external work.
+
 ## Build on the example
 
 - For a bulk file import, use [CSV](../csv/README.md) to read rows and reserve the resources each row needs before
@@ -58,10 +99,6 @@ Use admission for local concurrency, then add units and constraints to describe 
 Reservations are atomic and waiting requests keep FIFO fairness. An impossible request fails before queueing. The caller
 must release each lease and cancel waits when it no longer needs work. These counters govern one process; a cluster
 needs an authoritative distributed adapter.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
 
 ## Purpose
 
@@ -161,8 +198,7 @@ Start with this README, then use the source in this order when you need more det
 3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
 4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
-separate hand-written API reference.
+Read the [generated API reference](API.md) for the complete exported contracts and field descriptions.
 
 ## Validator interoperability
 

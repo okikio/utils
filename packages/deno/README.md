@@ -12,12 +12,7 @@ have to assemble and escape the flags itself. Other submodules cover Deno-specif
 These rows describe the permission arguments to pass to Deno. Producing strings grants no permission to the current
 process and launches no child. The host remains responsible for deciding which grants are appropriate.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
-
-## Run a complete example
+## Build permissions for a media command
 
 ```ts runnable
 import * as permissions from '@okikio/deno/permissions';
@@ -35,6 +30,32 @@ The input is a permission record with two scoped grants. The output is the exact
 Try replacing the read scope with `true`: the resulting `--allow-read` is a broader grant. Choose scoped grants when the
 executable only needs a known path.
 
+## The small contracts behind the Deno adapters
+
+| Entry                                     | Receives → returns                                   | Work and owner                                                                               |
+| ----------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `permissions.args(grants)`                | `PermissionGrants` → readonly string array           | Encodes a plan; does not request permissions                                                 |
+| `permissions.parse(arguments)`            | Iterable of `--allow-*` strings → `PermissionGrants` | Rejects unsupported flags and merges repeated grants                                         |
+| `file.write(path, contents, { signal? })` | Path plus text/bytes → `Promise<void>`               | Owns a same-directory temporary file until rename/cleanup                                    |
+| `port.get(hostname?)`                     | Hostname → port number                               | Opens a temporary listener on port zero, reads its assigned port, closes it before returning |
+| `signals.attach(ctx, options?)`           | Owned Context → `void`                               | Attaches process stop listeners; that context owns removing them                             |
+
+`PermissionGrants` is an ordinary partial record. Its keys are `read`, `write`, `net`, `env`, `sys`, `run`, `ffi` and
+`import`. Each value is `true` for an unscoped grant, `false`/absent for no grant, or a readonly string array of scopes.
+`args()` visits a fixed key order, deduplicates each list and doubles literal commas before joining scopes. This is why
+two launchers can share the same grant model without having to implement CLI quoting independently.
+
+For example, a launcher can pass `permissions.args({ read: ['./input'] })` as part of
+`new Deno.Command(Deno.execPath(), { args: ['run', ...grants, 'import.ts'] })`. Constructing `Deno.Command` describes
+the command; `spawn()` or `output()` is the later action that starts it. The host chooses grants and owns the child
+process.
+
+The other adapters have limits worth knowing before composing them. `file.write()` checks abort before work and before
+rename; it does not interrupt an already-running filesystem call or promise crash durability. `port.get()` reports a
+port that was free, not a reservation that stays held. Another process can bind it after return. Signal listeners are
+process-wide and are installed only when you explicitly call `attach()`. File, port and signal operations need the
+corresponding Deno runtime and permissions. See the [full adapter contracts](API.md).
+
 ## Build on the example
 
 - Use permission arguments at a [Process](../process/README.md) host boundary where a Deno executable is launched. The
@@ -50,15 +71,11 @@ the capabilities your executable needs. Building an argument list does not grant
 variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
 dependencies before running them.
 
-## Purpose
-
-`@okikio/deno` contains reusable Deno-specific mechanics that do not depend on a product domain.
-
 The public submodules are `@okikio/deno/permissions`, `@okikio/deno/file`, `@okikio/deno/port`, and
 `@okikio/deno/signals`, with their contracts in `@okikio/deno/types`. The root export also groups the runtime operations
 as `permissions`, `file`, `port` and `signals` namespaces.
 
-## Start here
+## Scoped arguments and comma escaping
 
 Import the submodule as a namespace:
 
@@ -97,27 +114,3 @@ instead of being silently ignored.
 
 This package constructs permission arguments. It does not decide which permissions a particular executable should
 receive. That policy stays with the executable owner.
-
-## Convenience and the manual equivalent
-
-| Convenience           | Manual equivalent                                                                                     | Concrete value                              |
-| --------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| `permissions.args()`  | sort permission names, merge repeated scopes, escape values, and emit the exact `--allow-*` arguments | deterministic Deno CLI permission arguments |
-| `permissions.parse()` | tokenize Deno permission arguments and reconstruct normalized grants manually                         | one reversible permission vocabulary        |
-
-`@okikio/deno` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics with Deno.permissions
-and Deno.Command permission flags directly.
-
-The utility keeps permission names, grants, argument encoding, ordering, and merging deterministic.
-
-## Source guide
-
-Start with this README, then use the source in this order when you need more detail:
-
-1. `mod.ts` shows the supported runtime operations and the composition shape.
-2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
-4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
-
-The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
-separate hand-written API reference.

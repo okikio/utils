@@ -8,6 +8,21 @@ of code for a repeated problem: read a spreadsheet-like file correctly, limit ho
 its caller cancels, or check that an API returns the promised answer. Your application still decides what its users want
 to achieve.
 
+You can start with one direct import and ordinary JavaScript. A parser returns data; an async operation returns a
+Promise; an iterable lets you use a loop. Some packages also return a control or cleanup object. Those are separate
+roles:
+
+| Familiar job                                                 | First capability                                | What comes back                                                                             |
+| ------------------------------------------------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Read a contact export                                        | `csv.parse(text, options)`                      | An ordinary document object containing columns and rows.                                    |
+| Fetch with a caller's time budget                            | `context.timeout(parent, duration)`             | A child object whose `signal` you pass to normal `fetch`. Fetch still returns the Response. |
+| Normalize many rows without starting every operation at once | `mapPooledOrdered({ items, concurrency, map })` | An async iterable of your mapper's return values.                                           |
+| Pause an import between records                              | `task.start(async (ctx) => ...)`                | A control handle; its `done` Promise carries your function's result.                        |
+
+Each [package README](docs/contracts.md) teaches its own call contracts and the ordinary mechanisms underneath before
+larger compositions. You do not need to read the root guide to use a focused package. Start from the output you need,
+then add a lifetime, dependency declaration, or recorded workflow only when it solves another concrete problem.
+
 Read the picture as three different questions, not a requirement to learn the whole suite:
 
 ![Choose utilities for reading values, owning work, or connecting named jobs](docs/diagrams/overview.png)

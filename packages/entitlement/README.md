@@ -16,12 +16,7 @@ access.
 
 Read the table as separate responsibilities. Creating the first two values does not perform the final policy check.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
-
-## Run a complete example
+## Name the feature that an export needs
 
 ```ts runnable
 import * as entitlement from '@okikio/entitlement';
@@ -43,6 +38,68 @@ The mini-demo creates an export feature, turns it into a requirement, and prints
 printed description of the requirement changes with it. An application must supply the policy interpreter before using
 this metadata to gate real work.
 
+The package's small data contracts explain the two calls:
+
+```text
+Export
+  kind:        "entitlement"
+  id:          "export.csv"
+  description: "Export rows as CSV."
+
+entitlement.require(Export)
+  kind:       "requirement"
+  family:     "entitlement"       selects the host's policy interpreter
+  action:     "require"
+  definition: Export              retains the exact feature object
+```
+
+`define()` checks the ID and freezes the metadata. `require()` creates a requirement pointing at that same object; it
+performs no account lookup. Separating these steps allows a documentation tool to list required features without logging
+into a billing system, while the running application can use its current account policy.
+
+## Check feature access before returning a CSV download
+
+Here the familiar goal is to return an exported row. The application's `enabled` set represents the features supplied by
+its account policy. The host callback checks every active requirement before constructing the response. Removing
+`Export.id` from the set makes `requirement.apply()` reject and prevents the download from being produced.
+
+```ts runnable=export-csv.ts
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as context from '@okikio/context';
+import * as entitlement from '@okikio/entitlement';
+import * as requirement from '@okikio/requirement';
+const Export = entitlement.define({ id: 'export.csv' });
+const enabled = new Set([Export.id]);
+await using owner = context.create({ id: 'account-export' });
+const ctx = requirement.scope(owner, {
+	interpreters: {
+		entitlement: {
+			async apply(_ctx, entries) {
+				for (const entry of entries) {
+					if (!enabled.has(entry.definition.id)) throw new Error('This account cannot export CSV.');
+				}
+			},
+		},
+	},
+});
+await requirement.apply(ctx, [entitlement.require(Export)]);
+const download = new Response('name,asset\nAda,photo.png\n', {
+	headers: { 'content-type': 'text/csv' },
+});
+console.log((await download.text()).trim());
+```
+
+```text output
+name,asset
+Ada,photo.png
+```
+
+`requirement.scope()` borrows the owner's cancellation lifetime and attaches the policy callback. `apply()` returns
+`Promise<void>`: successful completion means the callback accepted the active requirements. `Response` remains the
+normal Web API response. The CSV is a fixed fixture; an application must encode its real rows correctly. This local
+example implements feature policy, not authentication or a billing-provider integration.
+
 - **Gate a report export:** attach the requirement to a [Service](../server/service/README.md) operation and supply an
   entitlement-family interpreter through [Requirement](../requirement/README.md). That interpreter can query the
   application's subscription or feature store; this package supplies no billing-provider interpreter.
@@ -57,36 +114,13 @@ the application root. The definition documents a required capability; it does no
 requirement families reject unless the owner explicitly chooses another policy. Use exact imported definitions so
 billing policy and runtime admission describe the same feature.
 
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
+## Group features for a report
 
-## Purpose
-
-`@okikio/entitlement` defines provider-neutral capability-access metadata. It does not know about plans, subscriptions,
-billing databases, feature flags, or the actor that is making a request.
-
-Use it when several packages need to refer to the same capability by stable identity and a host will decide whether that
-capability is available.
-
-## Start here
-
-```ts
-import * as entitlement from '@okikio/entitlement';
-
-export const ExportCsv = entitlement.define({
-	id: 'export.csv',
-	description: 'Allows CSV export.',
-});
-```
-
-`define()` validates the stable ID and freezes the definition. It does not check any user or account.
-
-Group related definitions when callers need selection by key:
+Group related definitions when callers need selection by key. This continues the first example's `Export` definition:
 
 ```ts
 export const Features = entitlement.catalog('features', {
-	ExportCsv,
+	ExportCsv: Export,
 	BulkImport: entitlement.define({ id: 'import.bulk' }),
 });
 
@@ -98,7 +132,7 @@ export const ExportFeatures = entitlement.select(Features, ['ExportCsv']);
 `entitlement.require()` converts one entitlement definition into a generic `@okikio/requirement` value:
 
 ```ts
-const required = entitlement.require(ExportCsv);
+const required = entitlement.require(Export);
 ```
 
 A service, resource, or another definition can retain that requirement. The host's requirement interpreter decides how
@@ -140,4 +174,4 @@ utilities.
 2. `types.ts` defines the immutable values.
 3. `mod.test.ts`, when present, is the executable behavior reference.
 
-The README is the primary user documentation; there is intentionally no separate hand-written API reference.
+Read the [generated API reference](API.md) for the complete exported contracts and field descriptions.

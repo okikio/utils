@@ -21,12 +21,7 @@ This shows a rule becoming active. Inspection can describe reachable rules befor
 perform admission. An interpreter's successful return must reflect its real policy; a callback that only logs cannot
 secure the operation.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
-
-## Run a complete example
+## Check an application's upload rule
 
 The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
 implementation is preserved.
@@ -36,35 +31,59 @@ import '@okikio/duration/polyfill';
 import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as requirement from '@okikio/requirement';
-const Feature = Object.freeze({ kind: 'entitlement', id: 'export.csv' });
-const NeedsExport = requirement.define({ family: 'entitlement', action: 'require', definition: Feature });
-await using owner = context.create({ id: 'export' });
-const applied: string[] = [];
+const Size = Object.freeze({ kind: 'upload-rule', id: 'upload.maximum-bytes', maximum: 1024 });
+const NeedsSmallUpload = requirement.define({ family: 'upload', action: 'require', definition: Size });
+const bytes = new Uint8Array([1, 2, 3]);
+await using owner = context.create({ id: 'upload' });
 const ctx = requirement.scope(owner, {
 	interpreters: {
-		entitlement: {
+		upload: {
 			async apply(_ctx, entries) {
-				applied.push(...entries.map((entry) => entry.definition.id));
+				for (const entry of entries) {
+					if (entry.definition !== Size) throw new Error('Unknown upload rule.');
+					if (bytes.byteLength > Size.maximum) throw new Error('The upload is too large.');
+				}
 			},
 		},
 	},
 });
-await requirement.apply(ctx, [NeedsExport]);
-console.log(applied.join(','));
+await requirement.apply(ctx, [NeedsSmallUpload]);
+console.log(`Upload admitted: ${bytes.byteLength} bytes`);
 ```
 
 Expected output:
 
 ```text output
-export.csv
+Upload admitted: 3 bytes
 ```
 
-## Read the mini-demo
+The example has an actual rule: the upload must contain at most 1,024 bytes. The three-byte fixture passes. Replace it
+with `new Uint8Array(1025)` and `apply()` rejects before the "admitted" line. The callback owns that size check; the
+utility owns routing and the default rejection when a family has no interpreter. No file is written or uploaded.
 
-The demo defines the entitlement-family need `export.csv`. Its interpreter copies that ID into `applied`, so after
-`requirement.apply()` the printed value is `export.csv`. This demonstrates routing to the right family, not checking a
-subscription. Remove that interpreter to observe the default rejection of an unsupported active family. Use a real
-policy interpreter before treating successful application as authorization.
+These are the small contracts being connected:
+
+```text
+RequirementDefinition
+  kind:       "requirement"
+  family:     "upload"               chooses the interpreter
+  action:     "require"              chooses this family's operation
+  definition: Size                   exact application-owned rule object
+
+RequirementInterpreter
+  apply(ctx, requirements): Promise<void>
+  scope?(ctx, requirements): Context  optional attachment of runtime operations
+```
+
+`define()` records the rule; it does not execute the callback. `scope()` attaches callbacks to a borrowed Context view.
+A Context is the operation's identity, signal, clock, and cleanup lifetime, not a policy engine. `apply()` groups active
+requirements by family, calls the configured interpreter for each group, and returns `Promise<void>` when they all
+accept. An interpreter rejects by throwing. A static declaration or `bind()` call does not activate a check.
+
+This is deliberately a small protocol instead of a fixed set of billing and security APIs. Your application can add an
+upload rule without teaching the requirement package about file sizes. An entitlement interpreter can use a subscription
+database while a permission interpreter uses object grants. The [contract reference](API.md) includes the inspection
+shapes that describe those needs without running them.
 
 - **Require a product feature:** define the label through [Entitlement](../entitlement/README.md), keep its requirement
   in a [Service](../server/service/README.md) contract, and have the host evaluate the account's access to that feature.
@@ -76,12 +95,8 @@ policy interpreter before treating successful application as authorization.
 
 Attach requirements to definitions, inspect the reachable graph for deployment planning, and apply only the requirements
 active on the current execution path. Each semantic family owns its interpreter and failures. The example interpreter
-records admission in memory; replace it with real policy before using it for access control. Missing interpreters reject
-by default. Scope views borrow their owner context.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
+checks one local byte limit; replace that policy when the host has different rules. Missing interpreters reject by
+default. Scope views borrow their owner context.
 
 `@okikio/requirement` is the open policy-family mechanism used by the service compiler. A requirement says that one
 exact domain rule can become active. The requirement package preserves identity, family, action, reachability, and

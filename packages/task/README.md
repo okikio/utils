@@ -24,7 +24,55 @@ For shared terms such as `await` and `await using`, see
 
 For the exact functions, types and field explanations, read the [generated contract reference](API.md).
 
-## Run a complete example
+## Give an ordinary import a result and a pause button
+
+An async function can still do the work. Here the input is three contact names and the output is three normalized names.
+`start()` adds a control handle around that function. `await using` closes that handle when its block ends, including
+after a thrown error.
+
+```ts runnable=normalize-contacts.ts
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as task from '@okikio/task';
+
+const names = [' Ada ', 'Grace ', ' Linus'];
+await using work = task.start(async (ctx) => {
+	const saved: string[] = [];
+	for (const name of names) {
+		await ctx.checkpoint();
+		saved.push(name.trim());
+	}
+	return saved;
+}, { id: 'contact-import' });
+await work.pause();
+work.resume();
+console.log((await work.done).join(', '));
+```
+
+```text output
+Ada, Grace, Linus
+```
+
+The initial checkpoint gives the immediate pause request a place to be observed. `pause()` resolves once a checkpoint
+acknowledges it or the operation finishes. `resume()` releases the gate; `done` carries the result after cleanup. For a
+real import, replace the array push with your database call and pass `ctx.signal` to its cancellation option.
+
+| Contract      | Ordinary JavaScript shape                                                                      | Responsibility                                                  |
+| ------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Work function | `(ctx: TaskContext) => Value \| Promise<Value>`                                                | Perform work and return its answer. Here `Value` is `string[]`. |
+| `Task<Value>` | `done: Promise<Value>`, `signal: AbortSignal`, `status`, `pause()`, `resume()`, `cancel()`     | Let the caller control and await one operation.                 |
+| `TaskContext` | Context fields, cleanup registration, `checkpoint(): Promise<void>`, optional declared `get()` | Let work cooperate and borrow supplied resources.               |
+
+Underneath `start()`, the package creates an owned context, a pause gate, and a terminal promise. A checkpoint checks
+cancellation, waits on the gate if pause was requested, and checks cancellation again. When work settles, the task
+releases pause waiters, disposes its context, and only then settles `done`. Receiving the answer therefore also means
+task-owned cleanup has completed.
+
+This keeps control state beside a familiar async function, instead of passing separate pause promises, controllers, and
+cleanup stacks through each loop. Control remains cooperative: an uninterrupted provider call must finish or observe its
+signal itself. A Task does not save progress for a later process.
+
+## Observe cleanup before the result
 
 The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
 implementation is preserved.
@@ -66,44 +114,6 @@ this immediate operation may finish before an external pause request can be obse
 - **Use an already-open connection:** borrow a [Resource](../resource/README.md) collection or a value leased from
   [Pool](../pool/README.md). The task owns its local execution and registered cleanup; the outer owner still closes
   borrowed resources. Use [Workflow](../workflow/README.md) when execution also needs persisted history and recovery.
-
-## Build on the example
-
-Add checkpoints between indivisible provider calls so pause requests have a place to take effect. Pass the context
-signal into I/O for cancellation. done owns the terminal value and cleanup failure; disposal joins pending cleanup. A
-task is one local lifetime, while a workflow can create many tasks during retries or replay. Do not use a task status as
-evidence of durable external acceptance.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
-
-## Purpose
-
-`@okikio/task` owns one finite process-local operation with a child Context, cooperative pause points, cancellation,
-borrowed resources, and deterministic cleanup.
-
-Use a Task when the caller needs to pause, resume, cancel, or await one live operation. A Task is not a queue item,
-workflow run, subprocess, or Worker request. Those abstractions can create Tasks internally, but their durable or
-external identity belongs to their own utility.
-
-## Start here
-
-Create one finite operation and await its terminal `done` Promise:
-
-```ts
-import * as task from '@okikio/task';
-
-await using operation = task.start(async (ctx) => {
-	await ctx.checkpoint();
-	return await loadValue(ctx.signal);
-});
-
-const value = await operation.done;
-```
-
-The Task owns the child Context it creates for the operation. Disposing the Task uses the same cancellation path as
-`cancel()` and waits for Task-owned cleanup.
 
 ## Pause and resume
 
@@ -189,4 +199,4 @@ It deliberately does not create durable identity, retry state, queue claims, or 
 3. `mod.test.ts` shows cancellation, pause generations, cleanup, and resource borrowing as executable examples.
 4. Read `@okikio/context` and `@okikio/resource` when you need the ownership model behind the Task context.
 
-The README is the primary user documentation.
+Use this README for scenarios and design decisions, and [API.md](API.md) for the source-derived exported contracts.

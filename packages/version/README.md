@@ -13,10 +13,7 @@ distinguishes a compatible refinement from a conflict. Here a **scheme** means r
 The table shows compatible evidence, not proof that the detector is correct. A conflicting exact version is retained for
 inspection rather than erased by this refinement example.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
+The [full API reference](API.md) includes scheme methods, evidence shapes and conflict reasons.
 
 ## Run a complete example
 
@@ -40,6 +37,42 @@ The demo chooses a Semantic Versioning scheme and supplies two observations. The
 refines the coarse header evidence. Change the coarse observation to `3` to introduce incompatible evidence instead.
 Your application must still decide which detectors and observations it trusts.
 
+## Keep contradictory observations in a report
+
+Resolving evidence is different from sorting releases or choosing the newest one. This example ranks two exact
+observations and still records the disagreement for review.
+
+```ts runnable=conflicting-evidence.ts
+import { createVersionSchemeCatalog, resolveVersionCandidates, semanticVersionScheme } from '@okikio/version';
+
+const schemes = createVersionSchemeCatalog([semanticVersionScheme]);
+const answer = resolveVersionCandidates([
+	{ value: '2.4.6', schemeId: 'semver', source: 'asset', sourcePriority: 100 },
+	{ value: '2.5.0', schemeId: 'semver', source: 'header', sourcePriority: 20 },
+], schemes);
+console.log(answer.status, answer.selected?.value, answer.conflicts.length);
+```
+
+```text output
+conflicted 2.4.6 1
+```
+
+| Value or operation                              | Contract                                                                      | Responsibility                                                                                |
+| ----------------------------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Candidate                                       | `{ value, schemeId, source, sourcePriority, confidence?, evidenceId? }`       | Your detector supplies the observation and evidence strength.                                 |
+| Scheme                                          | `{ id, description, parse, isEquivalent, isRefinement, compareReleaseOrder }` | Defines how a numbering convention is interpreted; `parse()` can return `undefined`.          |
+| `resolveVersionCandidates(candidates, catalog)` | Candidate array → `VersionResolution` immediately                             | Returns `status`, optional `selected`, parsed `candidates`, `rejectedValues` and `conflicts`. |
+| Parsed value                                    | `{ schemeId, rawValue, normalizedValue, precision, release, ...qualifiers }`  | Keeps original spelling beside interpreted release components.                                |
+
+Under the hood, resolution looks up each candidate's scheme, records unparseable values, removes duplicate evidence keys
+and ranks the remaining candidates. Precision outranks source priority; confidence contributes to the score. It then
+compares alternatives with the selected candidate using scheme equivalence and refinement rules, retaining incompatible
+observations as conflicts.
+
+That is why a more precise `2.4.6` can refine `2`, while the newer-looking `2.5.0` does not silently replace strong
+contradictory evidence. Schemes keep vendor numbering separate from SemVer assumptions. The package reconciles what
+detectors reported; it cannot establish whether those detectors are trustworthy.
+
 ## Build on the example
 
 - Read version observations from [CSV](../csv/README.md), preserve their source labels, and resolve them as in the
@@ -47,22 +80,6 @@ Your application must still decide which detectors and observations it trusts.
 - Use [HTML](../html/README.md) or [CSS](../css/README.md) to collect source facts, then let application-specific
   detectors turn those facts into version candidates. The version package reconciles candidates; it does not detect
   products.
-
-Start with SemVer evidence, add numeric dotted schemes for vendor formats, and retain conflicting exact candidates for
-review. Compatible refinement takes precedence over source priority. A scheme describes version ordering and
-compatibility; it does not discover the software or establish that an observed version is trustworthy.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
-
-## Purpose
-
-`@okikio/version` parses and reconciles software-version evidence without pretending that every product follows Semantic
-Versioning.
-
-It separates a _version scheme_ from an observed _version candidate_. A scheme owns parsing, equivalence, refinement,
-and release ordering. Resolution then combines compatible evidence while retaining real conflicts.
 
 ## The ordinary problem
 

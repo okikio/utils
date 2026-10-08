@@ -8,6 +8,33 @@ The package READMEs have three layers. Their opening story and visual explain th
 TypeScript. The mini-demo supplies real input and shows the result. Later sections explain the contracts and limits you
 need when putting that demo into an application.
 
+## Read the return value before learning the machinery
+
+The code can feel unfamiliar when a definition, a running operation, and a cleanup owner look like the same kind of
+call. Ask what each call returns. That tells you how to use it with normal JavaScript:
+
+| Return shape           | Familiar way to use it                                     | Example                                                                          |
+| ---------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Plain value            | Assign it and read its fields.                             | `csv.parse()` returns columns and rows.                                          |
+| `Promise<Value>`       | `await` it to get the result.                              | `response.text()` returns the downloaded text.                                   |
+| `AsyncIterable<Value>` | Read one result per `for await` iteration.                 | Bounded mapping returns your mapper's values.                                    |
+| Owned object           | Keep it for a block and await its disposal.                | `context.timeout()` gives `fetch` a signal and owns the deadline wait.           |
+| Definition             | Supply it to an implementation or runner.                  | An activity definition describes schemas; declaring it does not perform the job. |
+| Workflow operation     | Yield it from the program to obtain a recorded completion. | `activity.request()` describes a job for the scheduler.                          |
+
+There is still an ordinary function doing useful work. A context carries its supporting state. A task adds a control
+handle. An activity checks a named call contract. A workflow records instruction completions. Start with the smallest of
+these that meets the requirement.
+
+For example, [Context's download demo](../packages/context/README.md#download-text-with-a-two-second-budget) calls real
+`fetch`, reads text, and returns `Promise<string>`. The context supplies a signal; it does not become the response or
+require a special HTTP abstraction. Its next section shows the controller, clock wait, and cleanup stack underneath. The
+guide also expresses disposal with familiar `try/finally` before asking you to adopt `await using`.
+
+This is a reading pattern, not a proposed replacement API: **familiar job → usable result → supporting contract →
+mechanics and tradeoff → optional composition**. Keeping those roles visible makes it possible to learn one package
+without first learning the suite's vocabulary.
+
 ## Choose a first demonstration
 
 | You want to achieve                                               | Try                                                                                                | What you can observe                                                        |

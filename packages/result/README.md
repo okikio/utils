@@ -1,46 +1,60 @@
 # `@okikio/result`
 
-A lookup can find an asset or find nothing. Both outcomes are ordinary, and the caller needs to decide what to show.
+A lookup can find a contact or find nothing. Both outcomes are ordinary, and the caller needs to decide what to show.
 `result` puts a value or a reason into a small tagged object so that choice stays visible. A **result** is the answer
 wrapper; it does not perform the lookup or catch exceptions for you.
 
-| Supplied answer              | Operation in the demo          | Displayed outcome |
-| ---------------------------- | ------------------------------ | ----------------- |
-| Success containing `asset-1` | `match()` chooses `ok`         | `loaded asset-1`  |
-| Failure containing `missing` | `getOr()` chooses the fallback | `default`         |
+| Lookup                  | Returned branch                       | Displayed outcome         |
+| ----------------------- | ------------------------------------- | ------------------------- |
+| Contact `ada` exists    | `{ ok: true, value: 'Ada Lovelace' }` | `Hello, Ada Lovelace.`    |
+| Contact `lin` is absent | `{ ok: false, failure: 'not-found' }` | `Contact lin: not-found.` |
 
-Each row is a separate result, not a retry sequence. A fallback hides that failure from this display deliberately; use
-an explicit branch when the caller needs to see why the lookup failed.
+The [full API reference](API.md) includes branch helpers and fallback contracts.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
+## Look up a contact and show the answer
 
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
-
-## Run a complete example
+Start with an ordinary function and a `Map`. Return a result when “not found” is a normal answer, then use an ordinary
+`if` statement to choose the display. The package does not require callback chains.
 
 ```ts runnable
-import * as result from '@okikio/result';
-const found = result.ok('asset-1');
-const missing = result.fail('missing');
-console.log(result.match(found, { ok: (id) => `loaded ${id}`, failure: (reason) => `failed ${reason}` }));
-console.log(result.getOr(missing as result.Result<string, string>, 'default'));
+import { fail, ok } from '@okikio/result';
+import type { Result } from '@okikio/result';
+
+const contacts = new Map([['ada', 'Ada Lovelace']]);
+function findContact(id: string): Result<string, 'not-found'> {
+	const name = contacts.get(id);
+	return name === undefined ? fail('not-found') : ok(name);
+}
+for (const id of ['ada', 'lin']) {
+	const answer = findContact(id);
+	if (answer.ok) console.log(`Hello, ${answer.value}.`);
+	else console.log(`Contact ${id}: ${answer.failure}.`);
+}
 ```
 
 Expected output:
 
 ```text output
-loaded asset-1
-default
+Hello, Ada Lovelace.
+Contact lin: not-found.
 ```
 
-`ok()` and `fail()` return frozen discriminated wrappers immediately. `match()` returns the selected callback value,
-here a string; `getOr()` returns the chosen value, here `default`. Payloads are borrowed and shallowly wrapped. These
-calls perform no async work, catch no exception and create no cleanup owner.
+TypeScript follows the `answer.ok` check. Inside the first branch, it exposes the contact's `value`; inside the second,
+it exposes the exact `'not-found'` reason. Adding another contact changes the data, not the control-flow language.
 
-The demo constructs both answers directly so you can see the two paths. `match()` runs only the callback for the
-selected path; `getOr()` returns the fallback for the missing answer. Change the fallback to `unavailable` to change the
-second line. These operations are immediate and do not launch background work.
+| Call or value                    | Contract                                                       | What happens                                                                               |
+| -------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `Result<Value, Reason>`          | `{ ok: true, value: Value } \| { ok: false, failure: Reason }` | A two-branch data shape; neither branch is a Promise.                                      |
+| `ok(value)` / `fail(reason)`     | Payload → frozen branch wrapper                                | Payload identity is preserved; nested payloads are not deep-frozen.                        |
+| `match(answer, { ok, failure })` | Result + two callbacks → selected callback's return value      | Calls only one callback. It does not catch callback exceptions or await returned Promises. |
+| `unwrap(answer)`                 | Value on success; throws the exact failure on failure          | Choose this when exception control flow is appropriate.                                    |
+
+One level deeper: the constructors call `Object.freeze()` on those small wrappers. Branch helpers check the `ok` field
+and read either `value` or `failure`. There is no scheduler, automatic retry or hidden exception conversion.
+
+Keeping failure as data makes a normal absence visible in the function's return type. Unexpected exceptions can still
+throw. Use `getOr()` for an explicit fallback or `getOrElse()` when creating that fallback should happen only on
+failure.
 
 ## Build on the example
 
@@ -48,21 +62,6 @@ second line. These operations are immediate and do not launch background work.
   fix this field” branch. The runnable port example below shows accepted and rejected input.
 - Put a [Failure](../failure/README.md) occurrence inside the failure branch when its reason needs a stable identity
   across services. Keep unexpected thrown exceptions on an explicit diagnostic path.
-
-Use match() at a consumer that must handle both paths, or getOr()/getOrElse() for an intentional fallback. unwrap()
-turns a failure back into a thrown value when exception flow is appropriate. Result does not define a durable failure
-identity, retry policy or HTTP status; compose it with those packages when needed.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
-
-## Purpose
-
-`@okikio/result` provides a small frozen success-or-failure wrapper for expected caller branching.
-
-Use it when failure is a normal branch that the caller should inspect. Do not use it to define failure identity,
-validation, serialization, HTTP status, or retry policy.
 
 ## How it fits
 
@@ -76,37 +75,33 @@ The wrapper is shallowly immutable. `ok()` and `fail()` freeze the discriminated
 supplied `value` or `failure`. They do not deep-freeze caller-owned objects, functions, collections, or errors. If a
 payload must itself be immutable, its producer owns that contract.
 
-## Start here
-
-```typescript
-import * as result from '@okikio/result';
-
-const value = result.fail(validationFailure);
-
-if (result.isFailure(value)) {
-	return value.failure;
-}
-```
-
 ## Transform or provide a fallback
 
-```ts
-const message = result.match(value, {
-	ok: (item) => `loaded ${item}`,
-	failure: (reason) => `unavailable: ${reason}`,
-});
+`match()` is convenient when both branches produce one display value. A fallback is a separate application choice: this
+example accepts a blank name as a normal failure, then deliberately supplies a guest display name.
 
-const item = result.getOr(value, 'default');
-const lazyItem = result.getOrElse(value, () => loadDefault());
+```ts runnable=display-fallback.ts
+import { fail, getOr, getOrElse, match, ok } from '@okikio/result';
+import type { Result } from '@okikio/result';
+
+function readName(text: string): Result<string, 'blank-name'> {
+	const name = text.trim();
+	return name.length === 0 ? fail('blank-name') : ok(name);
+}
+const answer = readName(' ');
+console.log(match(answer, { ok: (name) => `Hello, ${name}.`, failure: () => 'Please enter your name.' }));
+console.log(getOr(answer, 'Guest'));
+console.log(getOrElse(answer, () => 'Visitor'));
 ```
 
-`getOr()` accepts a fallback value. `getOrElse()` accepts a lazy fallback factory. Keeping those operations separate
-matters when the result value itself is a function:
-
-```ts
-const handler = result.getOr(failedHandler, fallbackHandler); // returns the function
-const lazy = result.getOrElse(failedHandler, () => fallbackHandler); // runs only the outer factory
+```text output
+Please enter your name.
+Guest
+Visitor
 ```
+
+`getOr()` accepts the fallback value itself. `getOrElse()` calls a fallback factory only for a failure. Keeping them
+separate also matters when the result contains a function: `getOr()` returns that function without calling it.
 
 The manual equivalent is simply `value.ok ? value.value : fallback`, or the same branch with `fallback()` when lazy
 creation is useful. The utility does not guess whether a function is data or a callback.
@@ -184,5 +179,5 @@ Start with this README, then use the source in this order when you need more det
 3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
 4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
-separate hand-written API reference.
+The [generated API reference](API.md) lists every public function and type. These examples teach the common paths and
+the design decisions behind those contracts.

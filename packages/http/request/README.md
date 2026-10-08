@@ -15,12 +15,7 @@ The query line preserves both choices. The body line admits a complete bounded b
 not return a successful partial upload. A byte limit is not a character limit, so non-ASCII text can consume several
 bytes per character.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](../API.md#request).
-
-## Run a complete example
+## Read search filters and a small upload
 
 ```ts runnable
 import * as request from '@okikio/http/request';
@@ -41,6 +36,59 @@ contains three bytes. `readBody()` accepts those bytes with a budget of three, a
 array back into `abc`. Adding another ASCII byte would exceed this budget. Reading consumes the request body, so choose
 when to read or deliberately clone it before another reader needs it.
 
+## The values and limits behind these calls
+
+| Call                            | Returns                                                                    | Important boundary                                                                                        |
+| ------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `parseQuery(search, options?)`  | `WireRecord`: readonly string keys, string or readonly string-array values | Decodes transport text; does not convert `"true"` to a boolean                                            |
+| `readBody(incoming, options?)`  | `Promise<Uint8Array>`                                                      | Buffers all admitted bytes; consumes the body once                                                        |
+| `parseJson(incoming, options?)` | `Promise<unknown>`                                                         | Requires a JSON content type, bounded bytes and valid UTF-8/JSON; your schema checks the resulting object |
+| `parseForm(incoming, options?)` | `Promise<FormWireRecord>`                                                  | Keeps text, `File` values and repeated fields; applies body and field-count limits                        |
+
+`maximumBodyBytes` is an override on `RequestParsingOptions`; omitted limits use the package's bounded defaults. Choose
+an explicit budget for the route's job rather than using the default as an application policy. See the
+[complete option fields](../API.md#request).
+
+Under the hood, `readBody()` checks `Content-Length` when framing allows it, takes a body reader, and counts each
+chunk's `byteLength`. A declared length does not bypass that actual count. At success it copies the chunks into one
+`Uint8Array`. At overflow or abort it cancels the reader, waits for cancellation, and releases the lock. This is why the
+function is useful for small JSON/uploads but is not a streaming processor for multi-gigabyte files.
+
+If a header/content-type/declared-length check rejects before reading starts, the helper has not taken a body reader.
+The surrounding transport still owns that unread body. Once a reader is taken, the helper owns releasing its lock and
+joining any cancellation it starts.
+
+### Turn a JSON request into a familiar response
+
+The reader does the byte and syntax work; the ordinary `if` decides whether this application accepts the value:
+
+```ts runnable=request-json.ts
+import { parseJson } from '@okikio/http/request';
+
+async function save(incoming: Request): Promise<Response> {
+	const input = await parseJson(incoming, { maximumBodyBytes: 1024 });
+	if (typeof input !== 'object' || input === null || !('title' in input) || typeof input.title !== 'string') {
+		return Response.json({ error: 'A title is required.' }, { status: 400 });
+	}
+	return Response.json({ title: input.title.trim() });
+}
+
+const incoming = new Request('https://service.invalid/notes', {
+	method: 'POST',
+	headers: { 'content-type': 'application/json' },
+	body: '{"title":"  First note  "}',
+});
+console.log(await (await save(incoming)).text());
+```
+
+```text output
+{"title":"First note"}
+```
+
+Malformed or oversized input rejects the parsing call. For expected transport failures, branch on
+`RequestTransportError.issues[*].code`, such as `body-too-large`, rather than matching its message. Decide at the host
+whether to convert those failures to HTTP responses; the reader does not silently return partial or invalid data.
+
 ## Build on the example
 
 For a filterable catalogue, parse repeated query values and let an [endpoint](../../server/endpoint/README.md) validate
@@ -51,16 +99,6 @@ For an import form, choose body and field limits before reading, decode the admi
 Use [webhook verification](../webhook/README.md) first when a provider signs the raw bytes. `readBody()` buffers the
 admitted body in memory; use an explicitly designed streaming path for work that must process a large upload
 incrementally. Cancellation and over-limit reads reject rather than returning a partial body.
-
-## Purpose
-
-`@okikio/http/request` parses and sanitizes an untrusted Web `Request` before a service gives values to
-endpoint-specific schemas or domain code.
-
-The package preserves protocol details that are easy to lose accidentally: repeated values, exact raw bytes, forwarding
-trust, bounded inputs, credential redaction, content negotiation, trace correlation, and request-owned memoized work.
-
-It does not authenticate credentials, authorize actors, apply tenant policy, or compile a database query.
 
 ## Request flow
 

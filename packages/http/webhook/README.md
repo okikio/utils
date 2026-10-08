@@ -15,12 +15,7 @@ The signature check reads a bounded clone, so a later parser can still read the 
 to the receiving application: signature validity does not make two deliveries of the same event two distinct business
 actions. Store and check the event identity when duplicates would matter.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](../API.md#webhook).
-
-## Run a complete example
+## Check a signed event before reading its JSON
 
 ```ts runnable
 import * as webhook from '@okikio/http/webhook';
@@ -43,6 +38,27 @@ The demo creates a verifier with a fixed example key, signs `{"ok":true}` as eve
 verification clock that matches the signed timestamp. The first `true` means verification accepted the signed bytes and
 metadata. The second comes from parsing the original request, showing that verification did not consume it. Use
 application-owned secrets and the real clock in deployment; this key and timestamp only make the demo reproducible.
+
+## The contract beneath verification
+
+| Call or value                                 | Contract                                                                     | Why it exists                                                            |
+| --------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `standard.create(options)`                    | Reusable signer/verifier; application supplies one secret or a rotation list | Keeps protocol and key policy together without owning an HTTP route      |
+| `sign({ id, body, timestamp? })`              | `Promise` of `webhook-id`, `webhook-timestamp`, `webhook-signature` headers  | Signs exactly the bytes the sender will transmit                         |
+| `WebhookVerifier.verify(input)`               | Receives `{ body: Uint8Array, headers: Headers, now: Date }`                 | Allows a protocol adapter to operate on the same raw-input contract      |
+| `verifyRequest(incoming, verifier, options?)` | `Promise<WebhookVerificationResult>`                                         | Reads a bounded clone and invokes that verifier                          |
+| Successful result                             | `{ ok: true, id, timestamp, version, keyIndex }`                             | Identifies the authenticated message and accepted key                    |
+| Rejected result                               | `{ ok: false, code }`                                                        | Gives a stable reason such as `invalid-signature` or `timestamp-too-old` |
+
+For Standard Webhooks v1 the signed input is `id + "." + timestamp + "." + exact body bytes`. Verification checks the
+header syntax and timestamp window, bounds the number of signatures and keys, then verifies HMAC-SHA256 through Web
+Crypto. That is why parsing JSON first is unsafe: changing whitespace changes the signed bytes.
+
+`verifyRequest()` translates body admission failures into rejection codes, but unexpected reader or verifier faults
+reject its promise. Treat `ok: false` as an authentication decision and a thrown failure as a separate operational
+failure. The clone keeps the original body available, but cloning is not free: a stream tee can retain bytes for the
+other reader. The configured byte budget bounds this verification read, not every upstream transport allocation. See the
+[full contracts](../API.md#webhook) for the available codes and options.
 
 ## Build on the example
 

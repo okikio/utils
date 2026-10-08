@@ -13,10 +13,7 @@ validators, so they can use checked values or inspect issues without learning ea
 The table describes the chosen port schema. Other schemas can accept different values; this package does not decide
 business rules or make validation equivalent to authorization.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
+The [full API reference](API.md) includes validation branches, issue paths and schema inference.
 
 ## Run a complete example
 
@@ -41,55 +38,48 @@ The demo uses Zod to author the rule, then calls the validator through `schema.p
 input string. Try the invalid inputs in the table to inspect a `SchemaValidationError`, or use `validate()` when issues
 should be returned as an ordinary branch instead of thrown.
 
+## Show a useful form-validation branch
+
+Most forms need a normal “please correct this field” answer. `validate()` returns that branch as data, so you can use
+`if` instead of exception handling. Only the validator authoring below uses Zod-specific syntax.
+
+```ts runnable=port-form.ts
+import { validate } from '@okikio/schema';
+import { z } from 'zod';
+
+const PortSchema = z.coerce.number().int().min(1).max(65535);
+for (const text of ['4321', '70000']) {
+	const checked = await validate(PortSchema, text);
+	if (checked.issues !== undefined) console.log(`Please correct port ${text}.`);
+	else console.log(`Start on port ${checked.value}.`);
+}
+```
+
+```text output
+Start on port 4321.
+Please correct port 70000.
+```
+
+| Call or value                   | Contract                                                    | Boundary                                                                               |
+| ------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Schema                          | Object with `'~standard': { version: 1, vendor, validate }` | A Standard Schema V1 validator owns accepted values and transformations.               |
+| `validate(schema, input)`       | Unknown input → `Promise<{ value } \| { issues }>`          | Issues are an ordinary branch. A validator that itself throws still rejects.           |
+| `parse(schema, input)`          | Unknown input → `Promise<typed output>`                     | Same validation; reported issues become `SchemaValidationError` with an `issues` list. |
+| `prefixIssues(issues, ...path)` | Issues + path segments → prefixed issue list                | Keeps nested error locations when larger objects compose validators.                   |
+
+One level deeper: the package checks the Standard Schema protocol, calls the schema's `validate()` function and awaits
+its answer. It then freezes a small value or issue wrapper. `parse()` builds on that same call and throws only when
+issues were reported. It does not inspect Zod internals or deep-freeze the returned application value.
+
+This protocol-based design lets utilities share validation without forcing the whole application to use one validator
+library. Coercion, defaults and field rules stay in the schema, where the field's meaning is known.
+
 ## Build on the example
 
 - Validate text cells from [CSV](../csv/README.md) before importing records. CSV proves how cells are framed; a schema
   proves the particular fields and transformations you declared.
 - Use [Codec](../codec/README.md) when checked values also need a reverse conversion for storage or an API. Use
   [Result](../result/README.md) when a consumer must choose explicitly between checked output and rejection.
-
-Start with parse() when invalid input should throw, then use result-oriented validation where a caller needs structured
-issues. Keep coercion in the schema that owns the meaning. JSON Schema projection is a separate capability and can fail
-for values that have no faithful wire representation. Import a validator adapter explicitly; the generic validation core
-does not silently choose one.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
-
-## Purpose
-
-`@okikio/schema` provides the small Standard Schema operations shared by the other generic utilities.
-
-It recognizes Standard Schema V1 contracts, validates values, parses typed outputs, throws one structured
-`SchemaValidationError`, and prefixes issue paths when a larger composed value reports nested validation failures.
-
-## Start here
-
-```ts
-import * as schema from '@okikio/schema';
-import { z } from 'zod';
-
-const PortSchema = z.coerce.number().int().min(1).max(65535);
-const port = await schema.parse(PortSchema, '8787');
-```
-
-The same call works with any Standard Schema V1 validator. The package does not inspect Zod internals.
-
-## Inspect issues without throwing
-
-```ts
-const checked = await schema.validate(PortSchema, 'not-a-port');
-
-if ('issues' in checked) {
-	for (const issue of checked.issues) console.error(issue.message);
-} else {
-	console.log(checked.value);
-}
-```
-
-Use `validate()` when issues are part of normal caller control flow. Use `parse()` when invalid input should throw
-`SchemaValidationError`.
 
 ## How it fits
 
@@ -165,8 +155,8 @@ Start with this README, then use the source in this order when you need more det
 3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
 4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
-separate hand-written API reference.
+The [generated API reference](API.md) lists every public function and type. These examples teach the common paths and
+the design decisions behind those contracts.
 
 ## Standard JSON Schema
 

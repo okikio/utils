@@ -16,12 +16,7 @@ Finish or fail:    temporary file -> connection
 The visual shows callback order, not when a database commits or when a file becomes durable. The application must supply
 the correct close/delete behavior. Cleanup failures remain visible instead of preventing all later callbacks.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
-
-## Run a complete example
+## Run cleanup even after an operation fails
 
 Direct imports give this lifetime its own stack without installing or replacing global constructors. This example also
 works when the host's stack globals are absent.
@@ -53,6 +48,27 @@ callback runs first, so you see `temporary file, connection`. No actual file or 
 callbacks with real resource cleanup to use the same ownership rule. Try reversing the two registrations to see the
 printed order reverse too.
 
+The familiar version is `try { await work(); } finally { await cleanup(); }`. A stack keeps that rule when several
+resources are acquired along the way. Register a cleanup immediately after acquiring its value so a later failure cannot
+bypass it.
+
+| Stack method             | Contract                                             | Use it for                                                                |
+| ------------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------- |
+| `defer(callback)`        | Register a callback; return `void`.                  | Cleanup that needs no separate returned value.                            |
+| `adopt(value, callback)` | Return the same value and register its cleanup.      | A reader with `cancel()` and `releaseLock()`, or a client with `close()`. |
+| `use(value)`             | Return the same value and use its disposal protocol. | A value with `[Symbol.asyncDispose]()` or `[Symbol.dispose]()`.           |
+| `disposeAsync()`         | Return `Promise<void>` after all callbacks finish.   | The owner reaches success, failure, or cancellation cleanup.              |
+
+An async stack keeps one list of cleanup functions. It marks itself disposed before taking functions from the end,
+awaits each asynchronous cleanup, and retains cleanup failures while continuing through the list. A synchronous
+`[Symbol.dispose]()` fallback follows the standard synchronous contract: use `adopt()` or `defer()` if that callback
+actually returns a Promise that must be awaited. The separation prevents silently treating a synchronous protocol as an
+asynchronous one.
+
+`await using stack = new AsyncDisposableStack()` asks the language to call disposal when the block ends, including when
+it throws. Explicit `try/finally` with `disposeAsync()` expresses the same ownership on hosts where that syntax is
+unavailable. Neither form cancels a pending operation automatically; register the appropriate abort or close action.
+
 - **Import a CSV file:** combine this stack with [CSV](../csv/README.md) and [Streams](../streams/README.md). The
   importer owns readers and temporary outputs; parsing owns how bytes become rows. The complete CSV mini-demo below
   shows that boundary with a small in-memory input.
@@ -66,10 +82,6 @@ Import from the package root or `@okikio/dispose/ponyfill` for a local owner. Us
 `await using` when the engine implements the standard disposal protocol. The explicit `@okikio/dispose/polyfill` entry
 installs only missing global constructors and symbols. Cleanup runs in reverse registration order even after failure,
 including a thrown `undefined`. Register only owned resources.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
 
 ## Purpose
 
@@ -211,7 +223,7 @@ provider requires a different contract.
 - `ponyfill.test.ts` verifies ownership, awaited cleanup, and failure behavior.
 - `mod.test.ts` verifies the explicit global entry.
 
-The README is the primary user documentation.
+Read the [generated API reference](API.md) for the complete stack methods and disposal protocol contracts.
 
 The [language disposal contract](https://tc39.es/ecma262/multipage/abstract-operations.html#sec-getdisposemethod)
 rejects a non-callable asynchronous method even when a synchronous method exists. The synchronous fallback discards its

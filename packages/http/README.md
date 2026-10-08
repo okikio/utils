@@ -20,12 +20,7 @@ Read the left side as ways to interpret an incoming message and the right side a
 application connects them with its own decisions. Parsing a token does not authenticate it, and accepting bytes does not
 make their contents valid for your business rules.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
-
-## Run a complete example
+## Keep every search filter, remove private forwarding headers
 
 ```ts runnable
 import * as request from '@okikio/http/request';
@@ -47,6 +42,46 @@ both filters. The second input names `X-Internal` in the `Connection` header. `f
 connection-specific field while keeping `Accept`, which still tells the next service which response format the caller
 accepts. The two output lines show preserved choices and removal of a field that must not cross the forwarding hop.
 
+You can use those values in an ordinary handler. This complete example needs no router, schema, execution context or
+network connection:
+
+```ts runnable=http-search.ts
+import { parseQuery } from '@okikio/http/request';
+
+function search(incoming: Request): Response {
+	const query = parseQuery(new URL(incoming.url).search);
+	const tags = query.tag === undefined ? [] : typeof query.tag === 'string' ? [query.tag] : query.tag;
+	return Response.json({ filters: tags });
+}
+
+const outgoing = search(new Request('https://service.invalid/search?tag=art&tag=music'));
+console.log(await outgoing.text());
+```
+
+```text output
+{"filters":["art","music"]}
+```
+
+## What the functions receive and return
+
+| Call                                  | Input                                                     | Output and work performed                                                                         |
+| ------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `request.parseQuery(search)`          | Raw URL query text                                        | A readonly record whose values are strings or arrays of strings; repeated values keep their order |
+| `request.readBody(incoming, options)` | Native `Request`, optional byte limits                    | `Promise<Uint8Array>`; consumes the body under a byte budget                                      |
+| `forward(headers)`                    | Native `Headers`                                          | New sanitized headers; removes hop-by-hop fields, including names listed in `Connection`          |
+| `response.create(Definition, body)`   | Reusable response description and one body                | Logical `[body, status, headers]` result associated with that exact definition                    |
+| `problem.create(Definition, options)` | Reusable rejection description and safe occurrence detail | Problem `[body, status, headers]` result                                                          |
+
+One level deeper, query parsing uses `URLSearchParams` for decoding and collects repeated occurrences instead of
+overwriting a previous value. Body reading checks a declared length, counts actual chunks, and cancels its reader on
+overflow or abort. Header forwarding gathers the fixed hop-by-hop names and the names nominated by `Connection`, then
+copies the remaining fields. The design keeps parsing, trust and application validation separate: a preserved search
+filter is still text until your application decides which filters are supported.
+
+Start with the native handler above. Add response or problem definitions when several handlers need the same checked
+answer shape; add a service when you want that checking performed automatically. You can read the
+[full function and type contracts](API.md) without adopting those additional layers.
+
 ## Build on the example
 
 For a search API, combine [request parsing](request/README.md) with an [endpoint](../server/endpoint/README.md) that
@@ -62,13 +97,6 @@ decisions with route ownership. Neither parsing nor forwarding decides which act
 [Choose related utilities by outcome](../../docs/outcomes.md). Later examples with application-owned clients or schemas
 are composition sketches; supply those dependencies before running them.
 
-## Purpose
-
-`@okikio/http` contains framework-neutral HTTP protocol utilities.
-
-It owns the HTTP data and wire rules that endpoint definitions and server runtimes share. It does not own Hono, routing,
-middleware execution, service compilation, or gateway composition.
-
 ## Public areas
 
 `@okikio/http/request` : Parses and sanitizes an untrusted Web `Request` with explicit size and trust rules.
@@ -79,21 +107,6 @@ middleware execution, service compilation, or gateway composition.
 schemas, pagination, conditional responses, byte ranges, and response-body completion observation.
 
 `@okikio/http/problem` : Defines RFC 9457 problem representations and runtime occurrences.
-
-## Start here
-
-The request helpers work with native Web `Request` objects. They do not replace `Request`, `URL`, `Headers`, or
-`ReadableStream`.
-
-```ts
-import * as request from '@okikio/http/request';
-
-const values = request.parseQuery('?tag=one&tag=two&enabled=true');
-// { tag: ['one', 'two'], enabled: 'true' }
-```
-
-The request parser performs transport parsing only. A Zod or other Standard Schema at the endpoint layer still decides
-whether `enabled` is a boolean and whether the `tag` values are valid.
 
 ## Declared problem example
 
@@ -195,12 +208,6 @@ domain result or expected failure
 The package remains import-safe. Importing it performs no network access, starts no listener, and installs no global
 state.
 
-## Progressive usage
-
-Read [complete compositions](../../docs/composition.md) for a bounded CSV import, allowed-page discovery and a
-resource-backed operation. Each example names its result and owner. Use [the outcome guide](../../docs/outcomes.md) to
-choose additional mechanisms when the application needs them.
-
 ## Record-shaped request options and response headers
 
 When an HTTP operation accepts a JavaScript record for parsing limits or headers, that record must be a plain object or
@@ -209,32 +216,6 @@ read. Native `Headers` objects and explicit `[name, value]` header tuples keep t
 
 This matters most for operational limits: an inherited getter must never be able to silently change a body/header bound
 that the visible configuration does not show.
-
-## Convenience and the manual equivalent
-
-| Convenience  | Manual equivalent                                                                                                                                | Concrete value                               |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
-| `request.*`  | parse headers/query/cookies/body from Web `Request`, enforce configured bounds, and normalize cancellation yourself                              | one deterministic request-input contract     |
-| `response.*` | validate status/body/header definitions, snapshot response options, build headers, pagination, conditionals, and completion observation manually | one immutable response-construction contract |
-| `problem.*`  | construct RFC problem envelopes, stable type URLs, response tuples, and matching helpers yourself                                                | one shared problem-details vocabulary        |
-
-`@okikio/http` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics with Web Request,
-Response, Headers, URL, URLSearchParams, and ReadableStream directly.
-
-The utility adds bounded parsing, declared representations, RFC 9457 contracts, cookies, forwarding rules, and
-completion observation while keeping the Web APIs visible.
-
-## Source guide
-
-Start with this README, then use the source in this order when you need more detail:
-
-1. `mod.ts` shows the supported runtime operations and the composition shape.
-2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
-4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
-
-The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
-separate hand-written API reference.
 
 ## Webhooks
 

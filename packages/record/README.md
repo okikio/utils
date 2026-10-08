@@ -13,10 +13,7 @@ before a utility lists or snapshots its fields. It checks the container, not the
 This is a shape decision table. It does not prove that `port` is a valid port number or that nested values are
 immutable.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
+The [full API reference](API.md) shows exact key/value inference and rejection contracts.
 
 ## Run a complete example
 
@@ -39,20 +36,31 @@ The demo checks the options object, then prints its exact keys and key/value pai
 the second line. Replacing that plain field with a getter makes the shape check fail before `entries()` reads it. Use
 `snapshot()` when the consumer also needs a frozen copy of the accepted outer record.
 
+## What the shape check actually inspects
+
+These helpers operate on ordinary JavaScript objects. You do not need to construct a special record class.
+
+| Call                             | Contract                                                           | Boundary                                                                                                       |
+| -------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `is(value)`                      | Unknown value → boolean, with TypeScript narrowing                 | Accepts plain or null-prototype objects with only own enumerable string-keyed data properties.                 |
+| `assert(value, name?)`           | Returns nothing on success; throws `TypeError` on a rejected shape | Does not check nested values or field meanings.                                                                |
+| `keys(value)` / `entries(value)` | Readonly keys / readonly typed key-value pairs                     | Validates first, then freezes the returned containers. Key/value relationships remain available to TypeScript. |
+| `snapshot(value)`                | Accepted object → frozen null-prototype outer copy                 | Nested values are borrowed, not cloned or deep-frozen.                                                         |
+
+Under the hood, the check first rejects arrays and unusual prototypes. It then checks for symbol keys and examines own
+property descriptors. A descriptor says whether a field stores data or runs a getter, without reading the field value.
+Only enumerable data properties pass. Snapshotting copies those accepted values into a fresh outer object.
+
+This stricter design prevents a typed field map from silently losing invisible fields during enumeration. It also
+rejects getters before they are read. It is a contract for authored data, not a sandbox: a Proxy can run traps during
+inspection. For trusted objects that need no such check, `Object.keys()` remains a useful ordinary choice.
+
 ## Build on the example
 
 - Check authored field maps before composing [Environment](../env/README.md) or [Codec](../codec/README.md) definitions.
   This package protects the map's shape; those packages validate or convert the values they own.
 - Use [Schema](../schema/README.md) for external payload meaning. Do not substitute a record-shape check for validation
   of a request's required fields, ranges or nested structures.
-
-Validate authored options before snapshotting them, then use typed keys and entries to retain exact key/value
-relationships. Use the ordinary Web or JavaScript API when data is already trusted and the stronger record contract adds
-no value. Record inspection does not recursively validate application values or make external objects immutable.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
 
 ## Try checking structure before checking meaning
 
@@ -87,38 +95,6 @@ false
 The snapshot keeps the supplied plain fields; the schema converts the port text to a valid number. The last check
 rejects the getter-backed shape without running its getter. Change the plain port to `'70000'` to fail the value check
 instead. Snapshotting is shallow: nested objects would still need their own ownership and validation rules.
-
-## Purpose
-
-`@okikio/record` defines the small JavaScript object shape used when a utility needs an ordinary string-keyed data map
-whose runtime enumeration must agree with its TypeScript record type.
-
-## Start here
-
-```ts
-import * as record from '@okikio/record';
-
-const input = { host: 'localhost', port: 4321 } as const;
-record.assert(input, 'server options');
-
-record.keys(input); // ('host' | 'port')[]
-record.entries(input); // exact key/value pairs
-```
-
-## Why this exists
-
-`Object.keys()` and `Object.entries()` ignore inherited and non-enumerable properties. Accessor properties can also
-execute code when a later operation reads them. A generic API that accepts an arbitrary object and then snapshots it
-with enumeration can therefore let TypeScript promise fields that runtime drops.
-
-The accepted shape is deliberately small:
-
-- a normal object literal or a null-prototype object;
-- own string keys only;
-- every property enumerable;
-- every property a data property, not a getter/setter.
-
-`record.is()` checks that shape. `record.assert()` rejects anything else.
 
 ## Immutable snapshots
 

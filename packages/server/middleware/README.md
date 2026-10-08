@@ -15,12 +15,7 @@ The arrows mean availability in the ordered plan, not proof of authentication. `
 value; your authentication implementation checks credentials and supplies that value. The plan can verify that the slot
 exists, but it cannot decide whether your authentication provider is correct.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](../API.md#middleware).
-
-## Run a complete example
+## Catch a missing value before serving requests
 
 ```ts runnable
 import '@okikio/duration/polyfill';
@@ -47,6 +42,55 @@ The demo defines an `Actor` slot containing an `id`, then declares a middleware 
 `[Read]` returns `false` because nothing has supplied that slot. Supplying `[Actor]` as initially available makes the
 second plan valid, so it prints `true`. This checks declarations only: it neither runs authentication nor creates an
 actual actor value. Runtime bindings must still populate the declared values when the service handles a request.
+
+## The declarations are data; the behavior is a normal callback
+
+`context<{ id: string }>()({ ... })` can look like a new language. The first call selects the TypeScript value type; the
+second constructs an immutable key from ordinary object data. It does not run authentication or create a nested runtime.
+The key later identifies a value stored for one request.
+
+| Contract                             | Important fields or operations                                               | Job                                                                |
+| ------------------------------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `MiddlewareContextDefinition<Value>` | `kind`, `id`, `description`; retains the inferred value type                 | Typed key for one request value                                    |
+| `MiddlewareDefinition`               | `requires`, `provides`, resources, problems and other declared contributions | Says what a step needs and may expose                              |
+| `MiddlewareHandler`                  | Exact `definition` and `handle(context, next)` callback                      | Supplies the code that actually runs                               |
+| Callback `context`                   | `request`, `host`, `values`, `resources`, `ctx`                              | Borrowed request data and declared capabilities                    |
+| `context.values`                     | `has(Key)`, `get(Key)`, `set(Key, value)`                                    | Identity-keyed store restricted to declared required/provided keys |
+| `next()`                             | `Promise<Result>`                                                            | Executes downstream work, then returns its result                  |
+
+For example, an authentication binding can call `values.set(Actor, checkedActor)` before `await next()`. A later binding
+that declares `requires: [Actor]` can call `values.get(Actor)`. Use the exact imported `Actor` object for both calls;
+another key with the same textual ID is not the same key. The handler must supply the promised value: a `provides`
+declaration does not manufacture it.
+
+### Time a request with ordinary try/finally
+
+The callback shape is the same wrapper pattern used by many web frameworks. This composition sketch uses the definition
+from the first example; the application supplies `authenticate` and `recordDuration`:
+
+```ts
+const Authentication = middleware.define({
+	id: 'actor.authenticate',
+	description: 'Check the session and provide its actor.',
+	provides: [Actor],
+});
+const AuthenticationHandler = middleware.handler(Authentication, async ({ request, values }, next) => {
+	const actor = await authenticate(request);
+	values.set(Actor, actor);
+	const started = performance.now();
+	try {
+		return await next();
+	} finally {
+		recordDuration(performance.now() - started);
+	}
+});
+```
+
+Under the hood, definitions snapshot their arrays, validation walks the ordered lanes and tracks available keys, and the
+service links each declaration to its exact binding. Each request gets its own store and callback sequence. This lets
+startup reject a missing producer while keeping runtime behavior as readable JavaScript. Timing around `next()` measures
+the wrapped work through its result; it does not measure the final drain of a streaming response body. Use a completion
+observer for that separate lifetime. See the [full middleware contracts](../API.md#middleware).
 
 ## Build on the example
 

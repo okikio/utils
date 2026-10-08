@@ -13,10 +13,7 @@ features it contains, without opening a browser.
 Read each row as evidence from source text. The table does not show resolved addresses, downloaded files, or the styles
 that a browser actually applies.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
+The [full API reference](API.md) includes every extractor and source-location field.
 
 ## Run a complete example
 
@@ -39,29 +36,47 @@ The demo parses one stylesheet once, then asks two questions of it. The first li
 second lists custom-property names. Change `hero.webp` to `banner.webp` to change the corresponding resource evidence.
 The parser does not download either image.
 
+## Turn stylesheet references into download addresses
+
+A parser finds references; the ordinary `URL` constructor resolves their relative addresses. Keeping those jobs separate
+lets the same parsed stylesheet support dependency reports, downloads or source diagnostics.
+
+```ts runnable=download-addresses.ts
+import { parseResources } from '@okikio/css';
+
+const stylesheetUrl = 'https://example.com/styles/site.css';
+const references = parseResources('@import "theme.css"; .hero { background: url("../images/hero.webp"); }');
+const addresses = references.map((reference) => ({
+	kind: reference.kind,
+	url: new URL(reference.url, stylesheetUrl).href,
+}));
+console.log(JSON.stringify(addresses));
+```
+
+```text output
+[{"kind":"import","url":"https://example.com/styles/theme.css"},{"kind":"image","url":"https://example.com/images/hero.webp"}]
+```
+
+| Call or value              | Contract                                       | Meaning                                                                                                    |
+| -------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `parse(source, options?)`  | CSS string → `{ ast, problems }`               | Retains the syntax tree and recoverable parse problems.                                                    |
+| `ResourceReference`        | `{ url, kind, property?, atRule?, location? }` | An occurrence with source context, not a fetched resource. `kind` is `font`, `image`, `import` or `other`. |
+| `resources(parsed)`        | Parsed tree → readonly reference array         | Collects `url()` tokens and quoted imports, removes duplicate reference keys and sorts by source position. |
+| `customProperties(parsed)` | Parsed tree → readonly name array              | Returns distinct declared `--name` properties in source order.                                             |
+
+One level deeper: `parse()` uses CSSTree with source positions and custom-property parsing enabled. Each extractor walks
+that existing tree. URL classification uses the containing declaration or at-rule, so a font source can be distinguished
+from a background image. Recoverable problems remain available beside the tree; fatal parser errors can still throw.
+
+The design avoids reparsing for every question and avoids treating a comment or ordinary quoted string as a URL. It does
+not calculate browser styles or decide which discovered addresses are safe to download.
+
 ## Build on the example
 
 - Use [HTML](../html/README.md) to extract a page's inline `<style>` text, then inspect that text with CSS. The runnable
   composition below shows this without network access.
 - Record the URLs with [CSV](../csv/README.md) for a dependency report. Your application must resolve relative
   references against the stylesheet's address before scheduling downloads.
-
-Extract URL references first, then collect custom properties, media features and pseudo classes from the same parsed
-stylesheet. References retain source positions for diagnostics. Resolve relative URLs against the stylesheet URL in your
-application. Parsing performs no network fetch and does not tell you whether a feature is supported by a particular
-browser.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
-
-## Purpose
-
-`@okikio/css` turns CSS source into inspectable structure without starting a browser. It exposes parser problems,
-external resources, custom properties, media features, pseudo-classes, and normalized source generation.
-
-Use it when a collector or analysis package needs facts from CSS text. Fetching stylesheets, resolving URLs, executing
-CSS in a browser, and assigning product meaning remain caller responsibilities.
 
 ## The ordinary problem
 

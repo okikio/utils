@@ -7,15 +7,10 @@ owner. An **effect owner** is the component that accepts responsibility for the 
 ![An accepted byte measurement becomes a keyed reading delivered by an application-supplied destination](diagram.png)
 
 [Editable diagram source](diagram.mmd). Solid arrows show the acceptance path used in the demo. The dotted arrow is
-later application-owned delivery; the example's empty emitter supplies no ledger. Acceptance alone does not prove that a
-billing provider processed a reading.
+later application-owned delivery; the example's in-memory recipient supplies no durable ledger. Acceptance alone does
+not prove that a billing provider processed a reading.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
-
-## Run a complete example
+## Record the size of a downloaded file
 
 The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
 implementation is preserved.
@@ -30,23 +25,46 @@ import { MeterReadingSchema } from '@okikio/meter';
 import * as schema from '@okikio/schema';
 const Bytes = meter.define({ id: 'download.bytes', unit: 'byte', aggregation: 'sum' });
 await using owner = context.create({ id: 'download' });
+const accepted: number[] = [];
 const ctx = effect.scope(owner, {
 	effects: [meter.effect(Bytes)],
-	emitter: { async emit() {} },
+	emitter: {
+		async emit(_ctx, occurrence) {
+			accepted.push((await schema.parse(MeterReadingSchema, occurrence.value)).value);
+		},
+	},
 });
 const occurrence = await meter.record(ctx, Bytes, 2048, { key: 'download:asset-1' });
 console.log((await schema.parse(MeterReadingSchema, occurrence.value)).value);
+console.log(accepted.join(','));
 ```
 
 Expected output:
 
 ```text output
 2048
+2048
 ```
 
-The demo defines a byte meter, supplies an in-memory accepting owner, and records `2048` with the key
-`download:asset-1`. It then validates the returned reading and prints its value. Change the measurement to `4096` to
-change the output. The owner is disposed at the end; no bill is calculated.
+The first line is the returned reading; the second is what the recipient actually accepted. Both are `2048`. The
+download size is a fixture, so the example performs no network I/O. In a real download, use the number of bytes your
+application accepted, then decide which stable download identity belongs in the key.
+
+You do not need to learn the rest of the utility collection to read this call. `context.create()` makes the cleanup
+owner, signal, and clock for this operation. `effect.scope()` attaches one allowed announcement and one callback to a
+borrowed view of that owner. `await using owner` cleans up when the block ends. The meter uses this existing effect
+contract so it does not need a separate queue or reporting runtime.
+
+```text
+MeterDefinition: { kind: "meter", id, unit, aggregation, effect }
+MeterReadingType: { value: number, at: string, attributes?: { [name]: string | number | boolean } }
+Accepted occurrence: { definition: Bytes.effect, key: "download:asset-1", value: reading }
+```
+
+`record()` builds the reading using `ctx.clock.now()`, validates it through the meter's effect schema, and awaits the
+configured emitter. It returns `Promise<EffectOccurrence>`, not a bill or an aggregate. `unit` and `aggregation` are
+metadata for the receiving system; `aggregation: 'sum'` does not maintain a hidden running total. See the
+[full contract reference](API.md) for the exported schemas and occurrence types.
 
 ## Build on the example
 
@@ -59,10 +77,6 @@ change the output. The owner is disposed at the end; no bill is calculated.
 Define a measurement once, record it with a stable idempotency key, then attach attributes for later aggregation. A real
 owner may persist the occurrence to a ledger or outbox. The example owner accepts in memory only; it is not a billing
 backend. Meter definitions describe units and aggregation, while application policy decides pricing and entitlement.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
 
 ## Purpose
 

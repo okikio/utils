@@ -12,10 +12,7 @@ crawler's **user agent** is the name used to select the relevant rules.
 The table explains this document's two decisions. An allow decision is not authentication, a successful download or
 permission to ignore other site policies. Fetch errors and cache policy belong to the crawler.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
+The [full API reference](API.md) includes parsed groups, rules and source records.
 
 ## Run a complete example
 
@@ -40,28 +37,50 @@ The demo supplies a policy string and checks two URLs against it. The longer mat
 URL. Remove that Allow line to make both examples denied by the private-path rule. No website is contacted while these
 checks run.
 
+## Filter a local list of candidate pages
+
+Parsing and matching fit into ordinary `Array.filter()`. Supply the same parsed document for every candidate; no network
+operation is needed to test the policy itself.
+
+```ts runnable=allowed-pages.ts
+import { match, parse } from '@okikio/robots';
+
+const policy = parse('User-agent: *\nDisallow: /private/\nAllow: /private/pricing\n');
+const pages = ['/guide', '/private/report', '/private/pricing'];
+const allowed = pages.filter((path) =>
+	match(policy, {
+		userAgent: 'ResearchBot',
+		url: new URL(path, 'https://example.com').href,
+	})
+);
+console.log(JSON.stringify(allowed));
+```
+
+```text output
+["/guide","/private/pricing"]
+```
+
+| Call or value                         | Contract                                                         | Meaning                                                                          |
+| ------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `parse(text)`                         | String → `{ groups, sitemaps, extensions, records }`             | Retains rule groups and one-based source lines; does not fetch anything.         |
+| Rule                                  | `{ kind: 'allow' \| 'disallow', pattern: string, line: number }` | Source instruction, not a global access-control rule.                            |
+| `match(document, { userAgent, url })` | Document + absolute URL → boolean                                | `true` means this local rule evaluation permits the path. An invalid URL throws. |
+| `getSitemapUrls(document)`            | Document → readonly string array                                 | Returns distinct absolute HTTP(S) sitemap declarations.                          |
+
+Under the hood, parsing groups consecutive user-agent records and preserves extensions separately. Matching selects the
+most specific matching agent groups, checks path plus query against their patterns, and chooses the longest matching
+rule with wildcard/end markers excluded from its length. Allow wins a tie; no matching rule permits the URL.
+
+Those overlapping-rule mechanics are why collecting every Disallow line is insufficient. Acquisition remains a separate
+decision: the application must select the correct site's policy and decide what a failed fetch means. A successful local
+check is not authentication or proof that a server will serve the page.
+
 ## Build on the example
 
 - Use [Sitemap](../sitemap/README.md) to read declared page candidates, then keep only candidates allowed by the local
   robots policy. The runnable discovery example below shows those two decisions separately.
 - Use a [Context](../context/README.md) cancellation signal for the application's policy fetch, with explicit network
   and byte budgets. Your application decides what a missing or failed policy response means.
-
-Parse once and check many URLs, then collect declared sitemaps for discovery. Unknown extension records remain available
-for higher-level policy. The parser performs no fetch and does not decide HTTP status, caching or authority rules. The
-application owns acquisition limits and whether a failed robots fetch should allow or deny crawling.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
-
-## Purpose
-
-`@okikio/robots` parses one `robots.txt` document and evaluates its local Allow/Disallow rules. It also returns absolute
-`Sitemap:` declarations and preserves unknown extension records for higher-level consumers.
-
-The package is deliberately network-free. HTTP status handling, redirects, cache lifetime, authority rules, fetch
-limits, and Sitemap retrieval belong to the discovery layer that acquires the file.
 
 ## The ordinary problem
 

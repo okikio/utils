@@ -14,12 +14,7 @@ A definition is the description of an operation, not the code that performs it. 
 exact definition. The compiler checks that link before serving traffic. Defining an endpoint starts no server and
 creates no provider connection.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](../API.md#endpoint).
-
-## Run a complete example
+## Describe a health route, then answer a request
 
 ```ts runnable
 import '@okikio/duration/polyfill';
@@ -31,19 +26,47 @@ import { z } from 'zod';
 const Healthy = response.ok(z.object({ ok: z.boolean() }), { id: 'health.ok', description: 'Service health.' });
 const Health = endpoint.get({ id: 'health.read', path: '/health', responses: [Healthy] });
 const Api = service.define({ id: 'health-api', path: '/api', endpoints: [Health] });
-console.log(Health.path, Api.path);
+const implementation = service.implement(Api, {
+	endpoints: [endpoint.handler(Health, () => response.create(Healthy, { ok: true }))],
+});
+await using runtime = service.create(service.compile(implementation), { host: {} });
+const outgoing = await runtime.fetch(new Request('https://service.invalid/api/health'));
+console.log(outgoing.status, await outgoing.text());
 ```
 
 Expected output:
 
 ```text output
-/health /api
+200 {"ok":true}
 ```
 
-The demo first describes a successful health answer containing an `ok` boolean. It then declares GET `/health` and puts
-that endpoint in a service with the prefix `/api`. The printed `/health /api` values are the two authored path
-components. They describe the future `/api/health` route; this demo does not bind a handler or answer a request. The
-[service mini-demo](../service/README.md#run-a-complete-example) continues those exact steps through a real Fetch call.
+The first three definitions describe a JSON body, a GET route and a service prefix. `endpoint.handler()` supplies the
+ordinary function that answers the request. The service compiles that binding and validates the answer against
+`Healthy`, producing HTTP `200` with `{"ok":true}`. The `.invalid` URL only supplies a URL for the in-process Request;
+no listener or network connection is opened. `await using` closes the runtime when this scope ends.
+
+## What an endpoint adds to a function
+
+| Value                    | Important contents                                                                   | What happens when it is created                       |
+| ------------------------ | ------------------------------------------------------------------------------------ | ----------------------------------------------------- |
+| `EndpointDefinition`     | `id`, `path`, shared `inputs`, method `operations`                                   | Snapshots a reusable HTTP description                 |
+| `EndpointOperation`      | `method`, input schemas, allowed response/problem definitions, resource declarations | Describes one method's accepted inputs and results    |
+| `EndpointHandlerBinding` | Exact `endpoint`, exact `operation`, ordinary `handle` function                      | Links behavior by object identity; does not invoke it |
+| Handler argument         | `{ request, input, host, resources, ctx }` plus declared request values              | Supplied by the service for one invocation            |
+
+For example, adding `json: z.object({ title: z.string() })` to an endpoint causes its handler to receive
+`input.json.title` as a string after validation. Adding `query: z.object({ limit: z.coerce.number() })` exposes a number
+at `input.query.limit`, although the URL started with text. The schema's output type flows into the callback; you do not
+cast unvalidated JSON into an application type yourself.
+
+Under the hood, method helpers build an operation and wrap it in an endpoint definition. They snapshot contribution
+arrays and retain the actual schema/response objects. The service compiler resolves prefixed paths and links exact
+handler identities before serving requests. This makes one description usable for validation and OpenAPI without forcing
+the code to live in a particular router. An ID is diagnostic text; constructing another object with the same ID does not
+make it the original declaration.
+
+Use a plain Fetch route when all you need is a local callback. Use an endpoint when clients and hosts need an explicit
+shared contract. See the [full endpoint types](../API.md#endpoint) for optional inputs and policies.
 
 ## Build on the example
 

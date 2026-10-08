@@ -13,12 +13,7 @@ The first line reads the incoming token. The second writes instructions for the 
 still decides whether the token identifies a valid session. `secure`, `httpOnly` and `sameSite` describe browser
 behavior; they do not replace authentication or access checks.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](../API.md#cookie).
-
-## Run a complete example
+## Read and rotate a browser token
 
 ```ts runnable
 import * as cookie from '@okikio/http/cookie';
@@ -48,6 +43,25 @@ The demo defines `__Host-session` as a nonempty string and gives it the attribut
 The output `1` counts the outgoing `Set-Cookie` fields; it does not count active sessions or prove that either token is
 trusted. A missing cookie returns `undefined`, while `get()` rejects a value that fails the declared rule.
 
+## What is stored in the definition?
+
+| Contract                                 | Shape or return value                                             | Meaning                                                                                |
+| ---------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `CookieDefinition`                       | `{ kind: 'cookie', id, name, value, attributes, description }`    | Frozen name, Standard Schema value rule and browser attributes                         |
+| `safeGet(incoming, Session)`             | `Promise<{ success: true, value } \| { success: false, issues }>` | Missing cookies succeed with `value: undefined`; malformed values return schema issues |
+| `get(incoming, Session)`                 | `Promise<string \| undefined>` for the example schema             | Same read; invalid values throw `TypeError`                                            |
+| `set(headers, Session, token, options?)` | `void`                                                            | Appends an outgoing `Set-Cookie` field; mutates only the supplied `Headers`            |
+| `delete(headers, Session)`               | `void`                                                            | Appends an empty expired cookie; does not delete a stored application session          |
+
+Under the hood, reading parses the incoming Cookie header, selects the definition's name, decodes the text and invokes
+the schema. Writing percent-encodes the supplied value and combines it with the declared attributes. Writing does not
+run the value schema again. Keep runtime validation at the boundary where unknown tokens enter the application.
+
+Definition construction rejects incompatible browser policies. For example, a `__Host-` cookie must be Secure, use Path
+`/` and omit Domain. Keeping these attributes beside the name prevents sign-in and logout code from accidentally using
+different cookie scopes. It does not make a token authentic: your session lookup still determines that. See the
+[complete cookie contracts](../API.md#cookie) for expiry and other attributes.
+
 ## Build on the example
 
 For sign-in, read the token in authentication code, look it up in your application's session store, and rotate it only
@@ -57,14 +71,6 @@ to later code. Use `safeGet()` when invalid cookie input should follow an ordina
 For a response that updates a session and a display preference, append both cookies and carry the resulting headers into
 the [response](../response/README.md). Preserve separate `Set-Cookie` fields through the host or
 [gateway](../../server/gateway/README.md). Your application owns expiry, logout, rotation and session storage.
-
-## Purpose
-
-`@okikio/http/cookie` defines application-owned HTTP cookies and provides Fetch-native helpers to read, set, delete,
-compose, and document them.
-
-A cookie definition records the stable cookie name and its security attributes. Importing the definition does not read a
-request or write a response.
 
 ## How it fits
 

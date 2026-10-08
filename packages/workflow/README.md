@@ -8,6 +8,49 @@ This package separates the sequence from the code that performs each job. An [ac
 one job; the workflow requests those jobs in order. A scheduler consults recorded results and sends new work to an
 executor. An executor is the host that runs the supplied job implementation.
 
+## Start with the familiar sequence
+
+For a sequence that can safely start over, ordinary functions are enough. This complete example prepares a label:
+
+```ts runnable=plain-label.ts
+async function prepareLabel(title: string): Promise<string> {
+	const trimmed = title.trim();
+	return trimmed.toUpperCase();
+}
+console.log(await prepareLabel(' summer trip '));
+```
+
+```text output
+SUMMER TRIP
+```
+
+Workflow adds a record of named instruction completions and a way to dispatch jobs separately. It is useful when
+repeating earlier work after an interruption would be expensive or unsafe. The longer example below keeps the same label
+transformation deliberately small so you can see which extra pieces create that record.
+
+`yield* activity.request(Trim, input)` is the unfamiliar part. Read it as “ask for the Trim job's result, then
+continue.” It uses JavaScript's generator protocol: a request yields an instruction object; the scheduler supplies a
+completion; the request returns the completion's value to the program. It is not an async function call hidden behind
+new spelling. Use `await` for ordinary live promises; use `yield*` inside this workflow program when the scheduler must
+identify and record the instruction.
+
+| Contract                      | Simplified contents                                                     | Role in the label example                                  |
+| ----------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `WorkflowDefinition`          | ID, version, input/result schemas, declared activities and dependencies | Describe what the program accepts and returns.             |
+| `WorkflowImplementation`      | Definition plus a generator function                                    | Describe the order of instructions.                        |
+| `WorkflowOperation<Value>`    | An iterable yielding a `WorkflowInstruction` and returning `Value`      | Connect one requested instruction to its typed completion. |
+| Completion                    | Success with a value, declared failure, fault, or cancellation          | Tell the suspended request how that step finished.         |
+| History / dispatch / executor | Recorded instructions / admitted activity items / supplied provider     | Decide whether to reuse a completion or run new work.      |
+
+Underneath `workflow.run()`, the runner validates the run's input and steps through the generator. For each instruction,
+the scheduler computes an identity at that instruction's path and asks history for a compatible completion. A matching
+record supplies the value. New activity work goes through dispatch to an eligible executor, whose accepted completion
+returns through the scheduler. The runner then resumes the generator and validates its eventual result.
+
+That separation lets a program describe “prepare, then save” without choosing a thread or transport in its call sites.
+It also requires more setup than an async function. Stable run/instruction identities and trustworthy adapters matter;
+neither an in-memory record nor replay alone guarantees that a remote side effect happens exactly once.
+
 ## See the sequence and the record of completed work
 
 Read this diagram from top to bottom. A recorded completion can provide the step's result without another provider call.
@@ -147,25 +190,6 @@ For resource use, start with
 [the activity save-title demo](../activity/README.md#save-a-photo-title-with-a-supplied-store). For a simpler local
 import, start with [the bounded CSV composition](../../docs/composition.md#import-rows-with-bounded-work). Adding
 workflow is useful when replay and dispatch solve a real problem; it is not necessary just to run two functions.
-
-## Build on the example
-
-Run the complete local dispatch example first, then select Worker or process activity providers without changing the
-workflow definition. Share authoritative dispatch and history adapters before spreading execution across computers.
-Placement selects an eligible engine and host; claims fence attempts. Replay records instruction outcomes, not live
-stack frames, sockets or threads. External effects still need stable idempotency keys and an accepting sink. The
-in-memory example survives replica replacement only while its owning process retains the stores.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
-
-`@okikio/workflow` interprets deterministic generator programs. A workflow program yields serializable instructions. The
-Scheduler gives each instruction a stable path, records or replays its completion through `History`, and admits external
-activity work through `ActivityDispatch`.
-
-Use `@okikio/task` for finite work that is local to one process. Use this package when the work needs replayable
-instruction identity, declared external activities, or an explicit stored handoff between scheduling and execution.
 
 ## Understand the local host
 

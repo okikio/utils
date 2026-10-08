@@ -13,10 +13,7 @@ to look up those cells. This is a file reader, not an automatic contact importer
 The table shows one small text file. It omits encoding, header discovery, source diagnostics and streaming limits, which
 matter for larger or less predictable files.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
+The [full API reference](API.md) lists parsing options, row shapes and diagnostic codes.
 
 ## Run a complete example
 
@@ -47,6 +44,42 @@ The demo explicitly chooses the first row as the header. Its output first shows 
 cell values in the first data row. Try putting a newline inside the quoted note to keep two lines in one cell. Parsing
 leaves the content as text; it does not decide what a contact record must contain.
 
+## Read a contact by column name
+
+Once CSV quoting is handled, the rest is ordinary array and object code. Use the normalized column key to find a cell
+instead of assuming every export puts email in the first column.
+
+```ts runnable=contact-preview.ts
+import { parse } from '@okikio/csv';
+
+const document = parse('Name,Email\nAda,ada@example.com\n', { headerRow: 1 });
+const emailColumn = document.columns.find((column) => column.key === 'email');
+if (emailColumn === undefined) throw new Error('The contact file needs an Email column.');
+const addresses = document.rows.map((row) => row.values[emailColumn.index] ?? '');
+console.log(JSON.stringify(addresses));
+```
+
+```text output
+["ada@example.com"]
+```
+
+| Value or call                 | Contract                                           | What it proves                                                                                         |
+| ----------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `CsvColumn`                   | `{ index, name, key, normalizedName, rawHeader? }` | Where the field is and how its header was interpreted. `index` is zero-based.                          |
+| `CsvRow`                      | `{ row, values: readonly string[], diagnostics }`  | Cell text and its one-based logical source record. Quoted newlines stay inside a cell.                 |
+| `parse(text, options?)`       | String → `CsvDocument` immediately                 | Bounded structural parsing. Unrecoverable input throws `CsvParseError` with a machine-readable `code`. |
+| `parseStream(body, options?)` | Byte stream → `Promise<CsvStreamDocument>`         | Metadata plus one-shot async rows. Dispose the document to release its reader.                         |
+
+Under the hood, the parser separates three decisions:
+
+1. Byte entrypoints choose an encoding, then dialect detection or your explicit option chooses the delimiter.
+2. A record scanner carries quote state. A comma or newline inside quotes belongs to the current cell, not the next row.
+3. Header selection assigns unique lookup keys; data records retain strings and attach recoverable diagnostics.
+
+Keeping structure separate from meaning preserves phone numbers, leading zeroes and formula-like text instead of
+guessing their types. Your importer still validates email addresses and decides whether warnings should stop the import.
+The contact preview above materializes the small source; use streamed rows for large input.
+
 ## Build on the example
 
 - Use [Schema](../schema/README.md) to validate each imported row's business meaning after CSV has read its text. A
@@ -54,16 +87,6 @@ leaves the content as text; it does not decide what a contact record must contai
 - Use [Concurrency](../concurrency/README.md) for bounded per-row work in a large import. The
   [complete import walkthrough](../../docs/composition.md#import-rows-with-bounded-work) shows the reader, validation
   and work ownership together.
-
-Collect small bounded input with parseBytes(); use parseStream() and fold rows for a large import. Explicit headers
-avoid guessing when an upstream format is known. preserveBlankRows keeps empty source occurrences when reconciliation
-depends on row positions; textOnly opts into rejecting non-text input. Cells remain text, including formula-like
-content. Applications decide whether to reject formulas when exporting to a spreadsheet and whether diagnostics should
-stop an import. Disposal releases a one-shot stream reader.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
 
 ## Before and after: reconcile source occurrences and write a valid export
 
@@ -95,58 +118,10 @@ escape formula-like values for their export destination. Collection and streamin
 grammar, while the standalone header normalization and discovery contracts stay intact. Streaming rejects
 `maximumCharacters` because it is a collecting-only source limit rather than silently ignoring it.
 
-## Purpose
-
-`@okikio/csv` parses CSV structure. It does **not** decide what a column means to a CRM import, data pipeline, or any
-other product feature.
-
-Use it when you need:
-
-- bounded CSV parsing from text, bytes, or a Web `ReadableStream`;
-- delimiter and byte-encoding detection;
-- stable header normalization and duplicate-key handling;
-- row/cell/source limits;
-- one-shot streaming with backpressure and deterministic disposal;
-- structural diagnostics without coercing source cells into numbers, dates, or formulas.
-
-The public runtime API is intended to read as a namespace:
-
-```ts
-import * as csv from '@okikio/csv';
-
-const document = csv.parse('name,role\nAda,Engineer\n');
-const fromBytes = csv.parseBytes(new TextEncoder().encode('name\nAda\n'));
-const normalized = csv.normalizeHeader(' Company:Website_URL ');
-```
-
-`CsvParseError` and the `Csv*` types remain self-identifying because callers may import them directly and error names
-must remain clear in stack traces.
-
-## Start with text
-
-```ts
-import * as csv from '@okikio/csv';
-
-const document = csv.parse([
-	'name,website',
-	'Northstar,https://northstar.example',
-].join('\n'));
-
-console.log(document.columns);
-// [
-//   { index: 0, name: 'name', key: 'name', normalizedName: 'name' },
-//   { index: 1, name: 'website', key: 'website', normalizedName: 'website' },
-// ]
-
-console.log(document.rows[0]?.values);
-// ['Northstar', 'https://northstar.example']
-```
-
-The parser keeps cell values as strings. If `00123` appears in the file, the returned value remains `'00123'`.
-
 ## Parse original bytes
 
-Use `parseBytes()` when byte encoding and the source-byte limit matter.
+Use `parseBytes()` when byte encoding and the source-byte limit matter. The text path above already has decoded input;
+the byte path also has to choose an encoding. Both keep `00123` as the string `'00123'` instead of guessing a number.
 
 ```ts
 import * as csv from '@okikio/csv';

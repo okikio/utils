@@ -22,12 +22,7 @@ Read the two output branches together: observing exit alone is not the complete 
 requests shutdown through the adapter. Descendant handling depends on the selected ownership mode and platform; this is
 not a promise to reap arbitrary grandchildren.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
-
-## Run a complete example
+## Capture a short command's output
 
 The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
 implementation is preserved.
@@ -68,6 +63,53 @@ bytes, discards stderr, waits for the child's lifecycle, and decodes those bytes
 changing the child's printed text to see that it is subprocess output, not a value returned by an in-process function.
 Deno needs permission to launch the subprocess; the utility does not grant that permission.
 
+The adapter answers "how do I spawn on this host?". The utility answers "who waits for exit, collects bytes, and stops
+the child?". A Context supplies the operation's cancellation signal and cleanup lifetime. Importing the generic package
+does not select a runtime or launch a program; the call to `exec()` does.
+
+| Contract                                    | Meaning in this example                                                                          |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `StartOptionsType.command` and `arguments`  | Executable plus ordered argument strings, not a shell command expression.                        |
+| `stdout: { type: 'capture', maximumBytes }` | Retain at most the byte limit in memory; reject if it is exceeded.                               |
+| `ProcessExitType`                           | `{ code: number, success: boolean, signal?: string, stdout?: Uint8Array, stderr?: Uint8Array }`. |
+| `exec()`                                    | Return `Promise<ProcessExitType>` after owned process and output work settle.                    |
+| `start()`                                   | Return `Promise<Process>` with `wait()`, `stop()`, and optional live streams.                    |
+
+Internally, the generic owner resolves the stdio and shutdown settings, starts the adapter, and collects captured
+streams while the child runs. It joins output collection with exit status before returning. An exit code describes the
+child's result; capture failures describe an incomplete result. This distinction prevents an exited child from being
+mistaken for a fully collected output. See the [contract reference](API.md) for the adapter and shutdown shapes.
+
+## Handle a nonzero exit as ordinary result data
+
+A converter can report a bad input through its exit code. Here a tiny Deno child prints a diagnostic and exits with
+code 7. `exec()` resolves with that status; the caller chooses whether it is an expected outcome or an error.
+
+```ts runnable=exit-status.ts
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as context from '@okikio/context';
+import * as process from '@okikio/process';
+import * as deno from '@okikio/process/deno';
+await using owner = context.create({ id: 'converter-check' });
+const exit = await process.exec(owner, deno.create(), {
+	command: Deno.execPath(),
+	arguments: ['eval', 'console.error("Unsupported input"); Deno.exit(7);'],
+	stdout: { type: 'discard' },
+	stderr: { type: 'capture', maximumBytes: 1024 },
+});
+console.log(exit.success, exit.code);
+console.log(new TextDecoder().decode(exit.stderr).trim());
+```
+
+```text output
+false 7
+Unsupported input
+```
+
+This requires Deno subprocess permission. On Node, choose `@okikio/process/node`, `node:process.execPath`, and Node's
+arguments for the child program. Executable trust and runtime permissions remain application decisions.
+
 - **Convert an uploaded picture:** give the command a [Context](../context/README.md), bound its output, and use
   [Dispose](../dispose/README.md) for application-owned temporary files. The application still decides which executable
   and arguments are trusted.
@@ -82,10 +124,6 @@ activity protocols. Select the Node adapter for Node hosts. Direct-child ownersh
 have different guarantees; an exited leader can leave descendants alive. wait() owns output failures while disposal
 joins termination without repeating a handled capture failure. Callers still own executable trust and runtime
 permissions.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
 
 ## Purpose
 
@@ -222,5 +260,4 @@ Start with this README, then use the source in this order when you need more det
 3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
 4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
-separate hand-written API reference.
+Read the [generated API reference](API.md) for the complete exported contracts and field descriptions.

@@ -15,10 +15,7 @@ seconds. A duration describes an amount of time; converting it does not start a 
 The table shows conversion rules, not a universal rule that every month has 31 days. Calendar units use `2000-01-01` as
 their anchor; billing periods or “next month from today” need their own business date.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
+The [full API reference](API.md) includes the input type and explicit Temporal entrypoints.
 
 ## Run a complete example
 
@@ -39,6 +36,35 @@ Expected output:
 2500
 0
 ```
+
+## Use the number with an ordinary timer
+
+You do not need a context, workflow or retry framework to use this package. Convert a duration once and hand the result
+to JavaScript's timer. The timer, not Duration, owns the wait.
+
+```ts runnable=plain-timer.ts
+import '@okikio/duration/polyfill';
+import { milliseconds } from '@okikio/duration';
+
+const delay = milliseconds({ milliseconds: 1 });
+await new Promise<void>((resolve) => setTimeout(resolve, delay));
+console.log('Ready to try again.');
+```
+
+```text output
+Ready to try again.
+```
+
+| Call or input          | Contract                                                         | Boundary                                                                                                                                            |
+| ---------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DurationInput`        | `Temporal.Duration`, duration-like record or ISO duration string | `{ seconds: 2.5 }` is not the same input as `{ milliseconds: 2500 }`: Temporal requires integer record fields. Use `PT2.5S` for fractional seconds. |
+| `milliseconds(input)`  | Input → number immediately                                       | Uses Temporal conversion. Invalid inputs throw Temporal errors; no timer is started.                                                                |
+| `compare(left, right)` | Two inputs → negative, zero or positive number                   | Uses the same calendar anchor for both operands.                                                                                                    |
+
+One level deeper: both functions first call `Temporal.Duration.from()`. `milliseconds()` then totals milliseconds;
+`compare()` uses Temporal's duration comparison. Both supply the fixed date `2000-01-01` when calendar units need an
+anchor. That shared date makes generic conversions repeatable, but it cannot answer “how long is next month from today?”
+Use a real business date with Temporal directly for that question.
 
 ## Temporal when the host has none
 
@@ -81,65 +107,14 @@ instant and prints the new instant without installing a global.
 - **Plan retry waits:** use [Resilience](../resilience/README.md) to describe delays and retry safety, then let the
   chosen runtime apply them. A time value does not decide whether repeating a payment or write is safe.
 
-## Build on the example
+## Choose the operation's time policy
 
-Use milliseconds() for shared conversion and compare() for shared ordering. Calendar units use 2000-01-01, so this is
-deterministic mechanics rather than a business calendar. A timer may still reject years and months; a lease may require
-positive time. On hosts without Temporal, import the explicit polyfill first. Use the temporal ponyfill export when your
-own application wants a local Temporal value without changing globals.
+Conversion and permission are separate decisions. A deadline may forbid months, a retry wait may require positive time,
+and a host timer may clamp large numbers. Each caller must decide those rules before starting its operation.
+`milliseconds({ seconds: 2, milliseconds: 250 })` returns `2250`; it does not decide whether that wait is appropriate.
 
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
-
-## Purpose
-
-`@okikio/duration` gives shared runtime code one deterministic way to convert and compare Temporal durations.
-
-Temporal durations such as `PT30S` are straightforward. Calendar durations such as one month are different because their
-exact length depends on the date used for comparison. This package owns one fixed calendar anchor so generic runtime
-utilities do not each invent a different answer.
-
-The package does **not** decide whether a duration is valid for a specific operation. A timer can reject months, a retry
-policy can require positive time, and a gateway can clamp JavaScript timer ranges. Those policies stay with the caller.
-
-## Start here
-
-```ts
-import * as duration from '@okikio/duration';
-
-const milliseconds = duration.milliseconds({ seconds: 2, milliseconds: 250 });
-console.log(milliseconds);
-// 2250
-```
-
-Expected output:
-
-```text
-2250
-```
-
-Outcome: code that needs a numeric duration can use one shared Temporal conversion rule instead of copying a
-relative-date choice into every package.
-
-## Calendar-aware comparison
-
-```ts
-import * as duration from '@okikio/duration';
-
-const order = duration.compare({ months: 1 }, { days: 31 });
-console.log(order);
-// 0
-```
-
-Expected output:
-
-```text
-0
-```
-
-Outcome: both values are compared at the same deterministic calendar anchor, so all callers agree about ordering even
-when calendar units are present.
+Calendar comparison uses the same fixed anchor as conversion. The opening example compares one month with 31 days and
+gets `0`, because January 2000 has 31 days. That result is repeatable mechanics, not a claim about every month.
 
 ## Convenience and the manual equivalent
 
@@ -187,5 +162,4 @@ Start with this README, then use the source in this order when you need more det
 2. `types.ts` defines the accepted Temporal input shape.
 3. `mod.test.ts` shows fixed-unit, calendar-unit, negative, and ordering behavior as executable examples.
 
-The README is the primary user documentation. It stays close to the public source instead of maintaining a separate
-hand-written API reference.
+The [generated API reference](API.md) lists the public operations, input shape and Temporal entrypoints.

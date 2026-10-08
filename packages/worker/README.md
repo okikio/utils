@@ -20,12 +20,7 @@ Read across each row as a message crossing the boundary, then down as the lifecy
 execution; the parent owns the handle and shutdown. This diagram omits progress notices and reverse calls, which have
 separate meanings from a terminal response.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
-
-## Run a complete example
+## Call a function in another thread
 
 The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
 implementation is preserved.
@@ -71,6 +66,72 @@ it. Both sides agree on string request and response schemas. Try another string,
 conversion together when teaching a new request shape. A host must supply the standard Worker contract or an appropriate
 factory.
 
+The ordinary call is `await thread.request(ctx, input)`. With these schemas it takes a string and resolves to a string;
+there is no additional result container. The Context supplies cancellation, identity, and a serializable clock/deadline
+snapshot. `await using thread` owns shutdown when the block ends. It is the Worker handle, not the string result, that
+needs disposal.
+
+| Contract                                              | Why it exists                                                                          |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `WorkerProtocol<Request, Response>`                   | Request and response schemas shared in meaning by the parent and Worker.               |
+| `WorkerHandle.request(ctx, input): Promise<Response>` | Ordinary async call; it validates both sides and matches the response to this request. |
+| `run(request, ctx, control)`                          | The Worker-side function returning your response value or Promise.                     |
+| `control.checkpoint(): Promise<void>`                 | An explicit place for cooperative pause to wait for resume.                            |
+| Request envelope                                      | `{ type: 'request', id, context: snapshot, request: validatedInput }`.                 |
+| Result envelope                                       | `{ type: 'result', id, response: validatedOutput }`.                                   |
+
+The parent validates input, assigns a request ID, and remembers its pending Promise before sending a message. The Worker
+reconstructs a local Context, validates input, calls `run()`, validates the output, and sends a result with the same ID.
+The parent resolves that one Promise. Cancellation uses a control message and local AbortController in the receiving
+realm; an AbortSignal is not sent as a transferable object. The [contract reference](API.md) includes the failure,
+notice, and reverse-call envelopes when you need them.
+
+## Total a small inventory in the Worker
+
+The same call shape also works for arrays and ordinary numbers. Save these two files together. The array is checked
+before the handler sums its quantities, and the returned number is checked before the parent receives it. This tiny
+fixture teaches input and output, not a thread speedup; large CPU work must justify message and setup costs.
+
+```ts runnable=inventory-main.ts
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as context from '@okikio/context';
+import * as worker from '@okikio/worker';
+import { z } from 'zod';
+await using owner = context.create({ id: 'inventory' });
+await using thread = worker.open(owner, {
+	module: new URL('./inventory-thread.ts', import.meta.url),
+	protocol: worker.protocol({
+		request: z.array(z.object({ name: z.string(), quantity: z.number().int().nonnegative() })),
+		response: z.number().int().nonnegative(),
+	}),
+});
+console.log(
+	await thread.request(owner, [
+		{ name: 'photos', quantity: 4 },
+		{ name: 'videos', quantity: 2 },
+	]),
+);
+```
+
+```text output
+6
+```
+
+```ts support=inventory-thread.ts
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as worker from '@okikio/worker';
+import { z } from 'zod';
+worker.serve({
+	protocol: worker.protocol({
+		request: z.array(z.object({ name: z.string(), quantity: z.number().int().nonnegative() })),
+		response: z.number().int().nonnegative(),
+	}),
+	run: (items) => items.reduce((total, item) => total + item.quantity, 0),
+});
+```
+
 - **Analyze uploaded files:** combine a [Context](../context/README.md) for cancellation with this protocol for the
   analysis request. Transferable buffers can move across the boundary when ownership is deliberately transferred;
   ordinary resource handles and AbortSignals do not become transferable merely by being in a request.
@@ -86,10 +147,6 @@ arbitrary resources. Pause is cooperative and requires handler checkpoints. Canc
 but an external validator still owns its resources. The parent owns Worker shutdown; each realm needs its own optional
 polyfill imports.
 
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
-
 ## Purpose
 
 `@okikio/worker` provides a validated correlated protocol over standard Worker threads. The generic package owns request
@@ -103,26 +160,7 @@ anywhere the standard Worker contract is available without embedding one runtime
 Use this utility only when the runtime resource is a Worker thread. A media or analysis package should still name the
 concrete resource it exposes to its callers.
 
-## Start here
-
-Define the wire contract first, serve it inside the Worker, then open a caller-owned handle in the parent.
-
-```ts
-import * as worker from '@okikio/worker';
-
-const MediaProtocol = worker.protocol({
-	request: RequestSchema,
-	response: ResponseSchema,
-	failure: FailureSchema,
-});
-
-const handle = worker.open(ctx, {
-	module: new URL('./media-thread.ts', import.meta.url),
-	protocol: MediaProtocol,
-});
-
-const result = await handle.request(requestCtx, request);
-```
+## Know what happens when a message is invalid or late
 
 Each request carries a unique ID and a serialized context snapshot. The Worker creates local cancellation state for that
 request and returns exactly one result, expected failure, or fault. Unknown IDs, duplicate active IDs, malformed
@@ -133,6 +171,9 @@ rejects the local request. A late response for a recently cancelled ID is ignore
 cooperative cancellation does not invalidate a healthy Worker.
 
 ## Serve the same protocol inside the Worker
+
+This extension sketch assumes an application-owned `MediaProtocol` and `convert()` function. Use the complete inventory
+pair above when learning only the request/result path.
 
 ```ts
 await using server = worker.serve({
@@ -217,5 +258,4 @@ Start with this README, then use the source in this order when you need more det
 3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
 4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
-separate hand-written API reference.
+Read the [generated API reference](API.md) for the complete exported contracts and field descriptions.

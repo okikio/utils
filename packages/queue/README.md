@@ -19,12 +19,7 @@ Add work -> queued -> claim by worker-a -> complete with live claim -> result
 The visual shows logical ownership, not automatic thread creation. The caller runs work and drives the applicable
 recovery operations. Claims prevent stale publication; they cannot undo external side effects already performed.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
-
-## Run a complete example
+## Put a request in a queue and read its result
 
 The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
 implementation is preserved.
@@ -32,16 +27,13 @@ implementation is preserved.
 ```ts runnable
 import '@okikio/duration/polyfill';
 import '@okikio/dispose/polyfill';
-import * as context from '@okikio/context';
 import * as queue from '@okikio/queue';
-const clock = new context.TestClock();
-await using ctx = context.create({ id: 'queue-owner', clock });
-await using jobs = queue.memory<string, string>({ clock });
-const ref = await jobs.add(ctx, 'resize asset');
-const [claim] = await jobs.claim(ctx, { owner: 'worker-a', duration: { seconds: 30 } });
-if (claim === undefined) throw new Error('No work was available.');
-await jobs.complete(ctx, claim, claim.value.toUpperCase());
-console.log(await jobs.result(ctx, ref));
+await using jobs = queue.fifo(queue.memory<string, string>());
+const ref = await jobs.add('resize asset');
+const task = await jobs.take();
+if (task === undefined) throw new Error('No work was available.');
+await task.complete(task.value.toUpperCase());
+console.log(await jobs.result(ref));
 ```
 
 Expected output:
@@ -50,17 +42,55 @@ Expected output:
 RESIZE ASSET
 ```
 
-`memory<string, string>()` returns `Queue<string, string>` immediately. `add()` resolves to a `QueueRef`, `claim()`
-resolves to live `QueueClaim<string>` values, and `result()` resolves here to the output string `RESIZE ASSET`. The
-producer owns the queue lifetime; the worker must present its live claim when completing. Disposing this reference store
-loses its in-memory records and joins its local waiters.
+`memory<string, string>()` creates a queue whose input and output are strings. `fifo()` supplies a small one-at-a-time
+API with an internally owned Context, so this path needs no Context import or worker runtime. `add()` returns a
+`Promise<QueueRef>`, `take()` returns a `Promise<QueueClaimHandle<string, string> | undefined>`, and `result()` waits
+for the ordinary output string. `await using jobs` closes the queue and its local waiters when the block ends.
 
-## Read the mini-demo
+The demo transforms a request label to capitals rather than resizing a real picture. Replace the transform with your
+conversion function; the producer's stable reference and the executor's temporary claim still have different jobs:
 
-The demo adds the text `resize asset`, claims it for `worker-a` for 30 seconds, and completes it with the uppercase
-text. `result(ctx, ref)` reads `RESIZE ASSET` through the stable item reference. The test clock makes time controllable;
-no actual picture is resized and no extra worker thread is started. Try changing the input text to follow the same value
-from admission through its claimed attempt to its final result.
+```text
+QueueRef:         { id }                            identifies the logical request
+QueueClaim:       { id, itemId, owner, value, attempt, claimedAt, expiresAt }
+QueueClaimHandle: those claim fields + complete(), retry(), fail(), renew()
+```
+
+The claim's `id` identifies this attempt. Its `itemId` is the reference's `id`. `fifo.take()` wraps the underlying
+`claim({ limit: 1 })`; `task.complete()` forwards its retained claim for validation. Completion only succeeds while that
+claim is live. `retry()` puts the same logical item back for another attempt. Disposing a taken-item handle does not
+implicitly complete, fail, or retry it: choose the outcome explicitly.
+
+This separation makes later recovery possible without changing the producer's reference. The
+[contract reference](API.md) describes the lower-level Context-taking queue for batch claims and custom clocks. The
+memory implementation is process-local; its state disappears at process exit.
+
+## Avoid adding the same report twice
+
+A stable key makes producer retries reattach to one logical request. The key must describe the whole intended work,
+including its version. This example deliberately submits identical work twice and receives the same item reference.
+
+```ts runnable=repeat-report.ts
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as queue from '@okikio/queue';
+await using jobs = queue.fifo(queue.memory<string, string>());
+const first = await jobs.add('report revision 7', { key: 'account-1:report:7' });
+const repeated = await jobs.add('report revision 7', { key: 'account-1:report:7' });
+console.log(first.id === repeated.id);
+const task = await jobs.take();
+if (task === undefined) throw new Error('No report was available.');
+await task.complete('Report ready');
+console.log(await jobs.result(repeated));
+```
+
+```text output
+true
+Report ready
+```
+
+Admission deduplication does not compare arbitrary input values. A changed report must use a changed key, and
+deduplicating the item cannot by itself prevent duplicate external writes made during execution.
 
 - **Convert many uploads:** use [Workflow](../workflow/README.md) for multi-step execution and a queue for pending work.
   [Worker](../worker/README.md) or [Process](../process/README.md) can perform the conversion. Durable recovery needs an
@@ -75,10 +105,6 @@ Start with FIFO convenience for a small local producer, then use explicit claims
 expiry recovery. Renewal extends an attempt; completion must present the exact live claim. Expired claims can be
 recovered and stale owners cannot replace the result. memory() loses all state when the process exits. A storage adapter
 must make admission, claiming and fenced completion atomic for durable or distributed work.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
 
 ## Purpose
 
@@ -481,5 +507,4 @@ Start with this README, then use the source in this order when you need more det
 3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
 4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
-separate hand-written API reference.
+Read the [generated API reference](API.md) for the complete exported contracts and field descriptions.

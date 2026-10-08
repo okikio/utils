@@ -10,10 +10,7 @@ representation. It checks each direction through the schemas you supply.
 conversions, not network requests. This picture omits invalid-input branches and does not promise that every codec
 preserves the original text spelling.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
+The examples explain the common conversion path. The [full API reference](API.md) includes every composition helper.
 
 ## Run a complete example
 
@@ -42,31 +39,51 @@ The input is `2026-01-01T00:00:00.000Z`. Decoding produces a `Date`; encoding th
 Try a different valid timestamp to see the conversion use that value. A text value such as `not-a-date` rejects through
 the decode schema instead of becoming an unchecked application date.
 
+## Put a converted date into an ordinary API response
+
+The codec gives you a `Date`, so normal JavaScript date methods work. Encode that value when returning JSON. This
+example uses a local `Response`; it opens no listener and sends no request.
+
+```ts runnable=response-date.ts
+import { decode, define, encode } from '@okikio/codec';
+import { z } from 'zod';
+
+const InstantCodec = define({
+	decode: z.string().datetime().transform((text) => new Date(text)),
+	encode: z.date().transform((date) => date.toISOString()),
+});
+const joined = await decode(InstantCodec, '2026-01-01T00:00:00.000Z');
+const response = Response.json({ joined: await encode(InstantCodec, joined), year: joined.getUTCFullYear() });
+console.log(await response.text());
+```
+
+```text output
+{"joined":"2026-01-01T00:00:00.000Z","year":2026}
+```
+
+The important contract is two validators, not a special kind of application object:
+
+| Part                               | Contract for this example                             | Why it is separate                                                                        |
+| ---------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `InstantCodec.decode`              | Standard Schema: timestamp text → `Date`              | Checks and converts incoming data.                                                        |
+| `InstantCodec.encode`              | Standard Schema: `Date` → timestamp text              | Checks the value that is about to leave the application.                                  |
+| `decode()` / `encode()`            | `Promise<Date>` / `Promise<string>`                   | Both await validation; reported issues reject with `SchemaValidationError`.               |
+| `object({ joined: InstantCodec })` | Object → object with each declared property converted | Child issue paths are prefixed with the property name. Undeclared properties are omitted. |
+
+Under the hood, `define()` checks that both schemas implement Standard Schema V1 and freezes the outer definition.
+`decode()` calls the decode schema's validator; `encode()` calls the encode schema's validator. Object and array
+composition repeat that process for children and collect issues with their paths. Output containers from that
+composition are frozen; this does not make every returned payload deeply immutable.
+
+Two directions are deliberate: turning text into a date loses the original timezone spelling. An encoder cannot recover
+that spelling just by reversing the decoder. Keep raw text separately if that evidence matters.
+
 ## Build on the example
 
 - Pair a codec with [HTTP request](../http/request/README.md) parsing when an API field needs an application value. HTTP
   owns the request body; the codec owns that field's conversion.
 - Use [Schema](../schema/README.md) directly when you only need to check incoming values. Add a codec when a stored or
   outgoing value also needs a defined reverse conversion.
-
-Use a codec for an HTTP field, queue payload or stored result, then expose it through schema-compatible consumers. Both
-directions validate their own output. Round-trip fidelity depends on your transformations: converting an offset
-timestamp to Date intentionally normalizes its spelling. A codec does not serialize resources or make arbitrary objects
-durable.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
-
-## Purpose
-
-`@okikio/codec` defines explicit two-way data conversion with one Standard Schema for each direction.
-
-A codec is useful when the runtime value and serialized value are different. Examples include dates, identifiers,
-provider records, persistence formats, and wire representations.
-
-The package deliberately uses separate decode and encode schemas. A single invertible schema is not assumed to describe
-both directions safely.
 
 ## How it fits
 
@@ -78,44 +95,42 @@ validated value back to a different external form.
 
 The codec utility does not own transport, persistence, HTTP, or provider behavior.
 
-## Start here
+## Convert a complete stored user record
 
-A codec has one validator for decoding external data and another validator for encoding the application value back out.
-Zod is convenient for authoring, but any Standard Schema V1 implementation can be used.
+Object, optional, nullable and array codecs apply the same two directions to larger values. A missing optional field
+stays `undefined`; an explicitly nullable field can stay `null`. This stored user has a creation date, no deletion date
+and one visit.
 
-```ts
-import * as codec from '@okikio/codec';
+```ts runnable=stored-user.ts
+import { array, decode, define, encode, nullable, object, optional } from '@okikio/codec';
 import { z } from 'zod';
 
-const InstantCodec = codec.define({
-	decode: z.string().datetime().transform((value) => new Date(value)),
-	encode: z.date().transform((value) => value.toISOString()),
+const InstantCodec = define({
+	decode: z.string().datetime().transform((text) => new Date(text)),
+	encode: z.date().transform((date) => date.toISOString()),
 });
-
-const instant = await codec.decode(InstantCodec, '2026-08-21T03:00:00.000Z');
-const wire = await codec.encode(InstantCodec, instant);
-```
-
-The decode schema owns the external-to-application conversion. The encode schema independently owns the
-application-to-external conversion.
-
-## Larger composition
-
-Object, optional, nullable, and array codecs preserve the same rule recursively:
-
-```ts
-const UserCodec = codec.object({
+const UserCodec = object({
 	createdAt: InstantCodec,
-	deletedAt: codec.optional(codec.nullable(InstantCodec)),
-	visits: codec.array(InstantCodec),
+	deletedAt: optional(nullable(InstantCodec)),
+	visits: array(InstantCodec),
 });
-
-const user = await codec.decode(UserCodec, stored);
-const encoded = await codec.encode(UserCodec, user);
+const user = await decode(UserCodec, {
+	createdAt: '2026-01-01T00:00:00.000Z',
+	deletedAt: null,
+	visits: ['2026-01-02T00:00:00.000Z'],
+});
+console.log(user.createdAt.getUTCFullYear(), user.deletedAt);
+console.log(JSON.stringify(await encode(UserCodec, user)));
 ```
 
-Invalid nested input reports its complete property/index path. The utility does not mutate the external input or
-application value.
+```text output
+2026 null
+{"createdAt":"2026-01-01T00:00:00.000Z","deletedAt":null,"visits":["2026-01-02T00:00:00.000Z"]}
+```
+
+Invalid nested input reports its property/index path, such as `['visits', 0]`. The utility creates converted containers
+without mutating the external input. The generated outer objects are frozen; nested `Date` values retain normal Date
+behavior and ownership.
 
 ## Progressive usage
 
@@ -149,5 +164,5 @@ Start with this README, then use the source in this order when you need more det
 3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
 4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
 
-The README is the primary user documentation. It intentionally stays close to the public source instead of maintaining a
-separate hand-written API reference.
+The [generated API reference](API.md) lists every public function and type. These examples teach the common paths and
+the design decisions behind those contracts.

@@ -17,12 +17,7 @@ import.failed (error) --------------> flush history + error -> reporter
 The visual shows the demo's diagnostic delivery, not control of the import. Reporter failures are isolated from the
 operation, and real applications choose destinations and redaction policy.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
-
-## Run a complete example
+## Keep the events that explain a failed import
 
 ```ts runnable
 import * as telemetry from '@okikio/telemetry';
@@ -49,6 +44,58 @@ total bound on all keys; discard completed keys so a long-lived host does not ac
 `output.records` after only the debug event to see the distinction between buffered history and delivered records. The
 example does not send anything to a remote logging service.
 
+`create()` returns a scope immediately. `scope.report()` returns `Promise<Event>` after creating the record and
+attempting delivery. `scope.child(fields)` returns another scope that inherits its parent's fields and reporter. These
+are normal objects and callbacks; they require no Context, global logger, or hidden async-local storage.
+
+The useful contract is small:
+
+```text
+Event:    { kind: "telemetry-event", name, level, message, at, fields, fault?, error? }
+Reporter: { report(event): void | Promise<void>, flush?(): void | Promise<void> }
+Scope:    { report(input): Promise<Event>, child(fields): Scope, flush(): Promise<void> }
+```
+
+When you report an event, the scope combines shared fields with per-event fields, assigns defaults for severity and
+time, projects unexpected errors into bounded diagnostic data, and calls the reporter. A scope isolates delivery
+failures so a broken logging destination cannot turn a successful file save into a failed save. Invalid event inputs can
+still reject; reporter isolation is not a guarantee that every call is valid. Calling a raw Reporter directly does not
+add scope-level isolation.
+
+The buffer is an optional reporter wrapper. It retains low-severity history in a ring per correlation key. A trigger
+event delivers that key's retained records before the trigger. `capacity` bounds history per key, not the number of
+keys; call `discard(key)` when completed work no longer needs its history. See the [contract reference](API.md) for
+buffer key selection and explicit flush behavior.
+
+## Add request and note IDs to a normal save function
+
+Start without buffering when all you need is consistent log fields. This in-memory save still returns its ordinary
+string ID. The child scope adds a note ID to the request fields, so the accepted record can be traced to both.
+
+```ts runnable=save-note.ts
+import * as telemetry from '@okikio/telemetry';
+import type { Scope } from '@okikio/telemetry';
+const output = telemetry.memory();
+const log = telemetry.create(output, { fields: { request_id: 'request-1' } });
+const notes = new Map<string, string>();
+async function save(log: Scope, id: string, text: string): Promise<string> {
+	notes.set(id, text);
+	await log.child({ note_id: id }).report({ name: 'note.saved', fields: { characters: text.length } });
+	return id;
+}
+console.log(await save(log, 'note-7', 'Remember the photo'));
+const saved = output.records[0];
+console.log(saved?.name, saved?.fields.request_id, saved?.fields.note_id);
+```
+
+```text output
+note-7
+note.saved request-1 note-7
+```
+
+The Map owns the saved state. The report helps diagnose that state; it is not a receipt for durable storage. A real
+application can pass a LogTape adapter as the reporter without changing `save()`'s signature or return value.
+
 - **Investigate a thumbnail failure:** observe [Queue](../queue/README.md) attempts and [Worker](../worker/README.md)
   requests using lifecycle adapters. Shared identifiers connect the diagnostics; the queue claim and Worker result
   remain the respective authorities.
@@ -62,10 +109,6 @@ Start with a memory reporter to inspect behavior, then choose an explicit LogTap
 attach correlation, and buffering can retain a bounded recent history until failure. Applications configure logging and
 exporting. Telemetry is observation; it cannot authorize cancellation, settle a job or prove an authoritative effect was
 accepted.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
-variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
-dependencies before running them.
 
 ## Purpose
 

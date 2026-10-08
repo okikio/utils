@@ -18,12 +18,7 @@ implementation.
 The table shows import selection, not a promise that any arbitrary bundler removes all unused code. The focused paths
 keep runtime ownership clear; representative built consumers are checked separately as described below.
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
-
-## Run a complete example
+## Use a familiar function through one suite dependency
 
 ```ts runnable
 import * as result from '@okikio/utils/result';
@@ -38,8 +33,6 @@ Expected output:
 id
 ```
 
-## Read the mini-demo
-
 The mini-demo creates a successful Result containing `{ id: 'asset-1' }`. `unwrap()` retrieves that successful value,
 and `record.keys()` returns its key names, so the final text is `id`. Both utilities are imported through umbrella
 subpaths. Try adding a `name` property to the value to see another key appear; the umbrella does not change either
@@ -52,6 +45,41 @@ utility's semantics. Read [Result](../result/README.md) before unwrapping values
   when the narrow dependency declaration is useful. Suite installation is optional; consumers retain direct public
   imports and the same contracts.
 
+## What the umbrella adds under the hood
+
+These imports select the same implementation:
+
+```ts
+import { parseQuery } from '@okikio/http/request';
+// Or, after installing the suite:
+import { parseQuery as suiteParseQuery } from '@okikio/utils/http/request';
+```
+
+The generated umbrella module contains `export * from '@okikio/http/request'`. There is no wrapper callback, second
+parser or extra context passed to the function. Its return remains the same readonly string/string-array record. The
+root `packages` value is a frozen array of package names, while `PackageName` is the TypeScript union derived from those
+literal names. These are inventory data, not registrations that start runtimes.
+
+You can use a single familiar parser before learning any of the lifetime or workflow packages:
+
+```ts runnable=suite-search.ts
+import { parseQuery } from '@okikio/utils/http/request';
+
+const incoming = new Request('https://service.invalid/search?tag=film&tag=music');
+const filters = parseQuery(new URL(incoming.url).search);
+const outgoing = Response.json(filters);
+console.log(await outgoing.text());
+```
+
+```text output
+{"tag":["film","music"]}
+```
+
+The benefit is installation and import organization. The focused packages own validation, cancellation, resources and
+all other runtime behavior. Start with one useful function, then add another when the application needs it. Importing
+the eager `all` facade is optional and reaches a much larger graph. See the [suite contracts](API.md) for the inventory
+and the focused README for the selected utility's actual behavior.
+
 ## Build on the example
 
 Use @okikio/utils/<package> for one-install convenience or install @okikio/<package> independently. Deep subpaths
@@ -62,13 +90,6 @@ exact export and contract when upgrading.
 [Choose related utilities by outcome](../../docs/outcomes.md). The sections below explain the remaining contracts and
 variations. Examples that introduce application-owned clients or schemas are composition sketches; supply those
 dependencies before running them.
-
-## Purpose
-
-`@okikio/utils` is the installation package for the complete Okikio utility suite. It does not implement a second copy
-of any utility. Each subpath re-exports the focused `@okikio/*` package that owns that behavior.
-
-Use the umbrella when an application wants one dependency declaration while keeping imports focused and tree-shakeable.
 
 ## The ordinary problem
 
