@@ -17,7 +17,10 @@ Definitions describe behavior; implementations supply code and resource factorie
 plan before requests arrive. `create()` supplies the live host and starts the service's runtime ownership, without
 opening a listener. An injected host is borrowed; the service owns the resources its runtime constructs.
 
-## Serve a checked JSON answer
+## Save a note and reject an invalid title
+
+This service uses Temporal for request timestamps and `AsyncDisposableStack` for cleanup. The first two imports supply
+those globals in environments that lack them; native environments can omit that setup at their application boundary.
 
 ```ts runnable
 import '@okikio/duration/polyfill';
@@ -25,75 +28,6 @@ import '@okikio/dispose/polyfill';
 import * as endpoint from '@okikio/server/endpoint';
 import * as response from '@okikio/http/response';
 import * as service from '@okikio/server/service';
-import { z } from 'zod';
-const Healthy = response.ok(z.object({ ok: z.boolean() }), { id: 'health.ok', description: 'Service health.' });
-const Health = endpoint.get({ id: 'health.read', path: '/health', responses: [Healthy] });
-const Api = service.define({ id: 'health-api', path: '/api', endpoints: [Health] });
-const live = service.implement(Api, {
-	endpoints: [endpoint.handler(Health, () => response.create(Healthy, { ok: true }))],
-});
-await using runtime = service.create(service.compile(live), { host: {} });
-const result = await runtime.fetch(new Request('https://service.invalid/api/health'));
-console.log(result.status, (await result.json()).ok);
-```
-
-Expected output:
-
-```text output
-200 true
-```
-
-The demo describes GET `/health`, puts it under `/api`, and binds that exact endpoint to a handler returning
-`{ ok: true }`. This example uses no external resources, so none need to be supplied. Compilation links the handler, and
-`create()` makes a runtime with an empty borrowed host. Fetching `/api/health` validates and sends the declared result,
-then reading its JSON prints `200 true`. `await using` disposes the runtime when the scope ends; the explicit polyfill
-imports support the required duration and disposal APIs in environments that need them.
-
-## Why four setup calls?
-
-The calls separate reusable API facts from live application behavior. Each produces a concrete value:
-
-| Call                                                     | Value returned          | Work done now                                                                                           |
-| -------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------- |
-| `define({ id, path?, endpoints, ... })`                  | `ServiceDefinition`     | Snapshots the API description; starts no work                                                           |
-| `implement(Api, { endpoints, middleware?, resources? })` | `ServiceImplementation` | Associates exact definitions with callbacks/factories                                                   |
-| `compile(implementation)`                                | `CompiledService`       | Checks the graph and prepares routes, operation plans and a JSON-safe manifest                          |
-| `create(compiled, { host, ... })`                        | `ServiceRuntime`        | Creates an owned context/resource collection and exposes `fetch`, `routes`, `resources`, async disposal |
-
-The `host` is an application-supplied object that handlers and factories borrow. The runtime does not close borrowed
-host values. Its resource collection acquires declared resources lazily, shares in-flight acquisition and owns the
-values it creates. Await runtime disposal to finish that collection's cleanup. `await using` is the compact JavaScript
-syntax for calling and awaiting `Symbol.asyncDispose` at scope exit.
-
-### One request, one level deeper
-
-For the health example, the runtime matches `/api/health`, creates the request lifetime, runs the configured middleware
-lanes, parses any declared inputs, invokes the linked callback, checks that the result belongs to `Healthy`, validates
-the body, and constructs a Web `Response`. Reading the response completes its body lifetime and releases request-owned
-state. Returning headers alone does not mean a streaming body has finished.
-
-With `json: z.object({ title: z.string() })` on a POST endpoint, the callback receives a typed `input.json.title` only
-after byte limits, JSON parsing and schema validation. With an undeclared or invalid handler result, the runtime returns
-its framework problem response rather than silently sending that value. Host adapters provide real authentication,
-requirements and resilience behavior; the compiler does not invent those implementations.
-
-This design lets one API definition feed request validation, output validation, OpenAPI and gateway routing. If a single
-local function with a native response meets your need, start with [plain HTTP routes](../http/README.md) instead. The
-[full service contracts](../API.md#service) show the optional parts.
-
-## Build on the example
-
-### Save a note with a typed input
-
-This complete example uses normal string operations in the callback. The service checks the JSON before the callback
-runs, so `input.json.title` is inferred as a string. The same route rejects a numeric title with `400`:
-
-```ts runnable=save-note.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
-import * as endpoint from '@okikio/server/endpoint';
-import * as service from '@okikio/server/service';
-import * as response from '@okikio/http/response';
 import { z } from 'zod';
 
 const Saved = response.ok(z.object({ title: z.string() }), { id: 'note.saved', description: 'Saved note title.' });
@@ -104,8 +38,13 @@ const Save = endpoint.post({
 	responses: [Saved],
 });
 const Api = service.define({ id: 'notes', path: '/', endpoints: [Save] });
+const notes: string[] = [];
 const implementation = service.implement(Api, {
-	endpoints: [endpoint.handler(Save, ({ input }) => response.create(Saved, { title: input.json.title.trim() }))],
+	endpoints: [endpoint.handler(Save, ({ input }) => {
+		const title = input.json.title.trim();
+		notes.push(title);
+		return response.create(Saved, { title });
+	})],
 });
 await using runtime = service.create(service.compile(implementation), { host: {} });
 for (const title of [' First note ', 42]) {
@@ -119,16 +58,58 @@ for (const title of [' First note ', 42]) {
 	const body = await outgoing.json();
 	console.log(outgoing.status, body.title);
 }
+console.log(notes.length);
 ```
+
+Expected output:
 
 ```text output
 200 First note
 400 Invalid request
+1
 ```
 
-The first `title` is the saved body field; the second is the framework problem's human-readable title. The output
-validation schema also checks the returned success body. This demonstration trims text rather than writing storage;
-replace that one callback operation with application work and declare any resources it borrows.
+The first request saves a trimmed title in the local array and returns its checked JSON representation. The numeric
+title receives `400 Invalid request` before the handler runs, so only one note is stored. `input.json.title` is inferred
+as a string; the handler needs no assertion or cast. The response schema also checks the success body.
+
+The local array makes the example reproducible and is not persistent storage: its notes disappear when the process ends.
+A deployed application supplies its chosen storage as a declared resource. `await using` disposes this runtime when the
+scope ends; no listener or network connection is opened.
+
+## Why four setup calls?
+
+The calls separate reusable API facts from live application behavior. Each produces a concrete value:
+
+| Call                                                     | Value returned          | Work done now                                                                                           |
+| -------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------- |
+| `define({ id, path, endpoints, ... })`                   | `ServiceDefinition`     | Snapshots the API description; starts no work                                                           |
+| `implement(Api, { endpoints, middleware?, resources? })` | `ServiceImplementation` | Associates exact definitions with callbacks/factories                                                   |
+| `compile(implementation)`                                | `CompiledService`       | Checks the graph and prepares routes, operation plans and a JSON-safe manifest                          |
+| `create(compiled, { host, ... })`                        | `ServiceRuntime`        | Creates an owned context/resource collection and exposes `fetch`, `routes`, `resources`, async disposal |
+
+The `host` is an application-supplied object that handlers and factories borrow. The runtime does not close borrowed
+host values. Its resource collection acquires declared resources lazily, shares in-flight acquisition and owns the
+values it creates. Await runtime disposal to finish that collection's cleanup. `await using` is the compact JavaScript
+syntax for calling and awaiting `Symbol.asyncDispose` at scope exit.
+
+### One request, one level deeper
+
+For the note example, the runtime matches POST `/notes`, creates the request lifetime, runs the configured middleware
+lanes, parses the declared JSON input, invokes the linked callback, checks that the result belongs to `Saved`, validates
+the body, and constructs a Web `Response`. Reading the response completes its body lifetime and releases request-owned
+state. Returning headers alone does not mean a streaming body has finished.
+
+With `json: z.object({ title: z.string() })` on a POST endpoint, the callback receives a typed `input.json.title` only
+after byte limits, JSON parsing and schema validation. With an undeclared or invalid handler result, the runtime returns
+its framework problem response rather than silently sending that value. Host adapters provide real authentication,
+requirements and resilience behavior; the compiler does not invent those implementations.
+
+This design lets one API definition feed request validation, output validation, OpenAPI and gateway routing. If a single
+local function with a native response meets your need, start with [plain HTTP routes](../http/README.md) instead. The
+[full service contracts](../API.md#service) show the optional parts.
+
+## Build on the example
 
 For an account API, add [endpoint input rules](../endpoint/README.md), a database [resource](../../resource/README.md),
 authentication [middleware](../middleware/README.md) and [permission checks](../../permission/README.md). A resource is

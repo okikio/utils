@@ -131,38 +131,52 @@ const result = problem.create(NotFound, {
 `problem.url(base, path)` is only a convenience. Its manual equivalent is a normalized `new URL(path, base)` call. The
 caller owns the stable problem namespace; the generic HTTP package does not choose a product domain.
 
-## Larger HTTP composition
+## Carry search filters and a browser preference together
 
-A service normally uses several areas together:
+This handler keeps both selected tags and validates the browser's display preference. The preference cookie carries a
+string, not a session object. The response definition supplies one shared shape for the resulting JSON:
 
-```ts
+```ts runnable=search-preference.ts
 import * as cookie from '@okikio/http/cookie';
 import * as request from '@okikio/http/request';
 import * as response from '@okikio/http/response';
+import { z } from 'zod';
 
-const QueryResult = response.ok(QueryResultSchema, {
-	id: 'query-result',
-	description: 'Validated query result.',
+const Theme = cookie.define({
+	id: 'display.theme',
+	name: 'theme',
+	description: 'Preferred display theme.',
+	value: z.enum(['light', 'dark']),
+	attributes: { path: '/', sameSite: 'lax' },
+});
+const SearchResult = response.ok(z.object({ tags: z.array(z.string()), theme: z.enum(['light', 'dark']) }), {
+	id: 'search.result',
+	description: 'Selected search filters and display theme.',
 });
 
-const url = new URL(incoming.url);
-const query = request.parseQuery(url.search);
-const session = await cookie.safeGet(incoming.headers, SessionCookie);
-if (!session.success) return new Response(null, { status: 401 });
+async function search(incoming: Request): Promise<Response> {
+	const query = request.parseQuery(new URL(incoming.url).search);
+	const tags = query.tag === undefined ? [] : typeof query.tag === 'string' ? [query.tag] : query.tag;
+	const theme = await cookie.safeGet(incoming, Theme);
+	if (!theme.success) return Response.json({ error: 'Unsupported display theme.' }, { status: 400 });
+	const value = response.finalize(response.create(SearchResult, { tags: [...tags], theme: theme.value ?? 'light' }));
+	return Response.json(value.body, { status: value.status, headers: response.toHeaders(value.headers) });
+}
 
-const logical = response.create(QueryResult, {
-	query,
-	workspaceId: session.value.workspaceId,
+const incoming = new Request('https://service.invalid/search?tag=film&tag=music', {
+	headers: { cookie: 'theme=dark' },
 });
-const finalized = response.finalize(logical, { url });
-return new Response(JSON.stringify(finalized.body), {
-	status: finalized.status,
-	headers: { ...finalized.headers, 'content-type': 'application/json' },
-});
+const outgoing = await search(incoming);
+console.log(outgoing.status, await outgoing.text());
 ```
 
-At the server layer, endpoint definitions and schemas normally own the repeated validation and response-selection work.
-The HTTP utility remains usable without that convenience layer.
+```text output
+200 {"tags":["film","music"],"theme":"dark"}
+```
+
+Only local Request/Response values are used. An absent preference selects `light`; an unsupported cookie follows the
+ordinary `400` branch. The body is assembled from parsed strings and the checked cookie. `response.create()` supplies
+the declared type at construction; a service would additionally validate unknown handler output at runtime.
 
 ## Query wire forms
 

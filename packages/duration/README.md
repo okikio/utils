@@ -19,12 +19,10 @@ The [full API reference](API.md) includes the input type and explicit Temporal e
 
 ## Run a complete example
 
-The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
-implementation is preserved.
+The Temporal installer is needed only on hosts without Temporal. Duration conversion uses no disposal API.
 
 ```ts runnable
 import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as duration from '@okikio/duration';
 console.log(duration.milliseconds('PT2.5S'));
 console.log(duration.compare({ months: 1 }, { days: 31 }));
@@ -39,14 +37,16 @@ Expected output:
 
 ## Use the number with an ordinary timer
 
-You do not need a context, workflow or retry framework to use this package. Convert a duration once and hand the result
-to JavaScript's timer. The timer, not Duration, owns the wait.
+When a retry setting arrives as ISO duration text, convert it once and hand the number to JavaScript's timer. This demo
+uses a one-millisecond setting to finish quickly; real applications can supply longer settings such as `PT2.5S`. The
+timer owns the wait.
 
 ```ts runnable=plain-timer.ts
 import '@okikio/duration/polyfill';
 import { milliseconds } from '@okikio/duration';
 
-const delay = milliseconds({ milliseconds: 1 });
+const retrySetting = 'PT0.001S';
+const delay = milliseconds(retrySetting);
 await new Promise<void>((resolve) => setTimeout(resolve, delay));
 console.log('Ready to try again.');
 ```
@@ -126,6 +126,8 @@ gets `0`, because January 2000 has 31 days. That result is repeatable mechanics,
 The underlying object model is still Temporal. The convenience functions only centralize the relative-date mechanism.
 
 ```ts
+import { Temporal } from '@okikio/duration/temporal';
+
 const relativeTo = Temporal.PlainDate.from('2000-01-01');
 const value = Temporal.Duration.from({ months: 1 });
 const milliseconds = value.total({ unit: 'milliseconds', relativeTo });

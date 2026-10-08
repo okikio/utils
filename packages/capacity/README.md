@@ -112,12 +112,6 @@ The package has two related surfaces:
 - `create()`, `acquire()`, `available()`, and `snapshot()` reserve named integer limits atomically with FIFO fairness
   and cancellation.
 
-Import the package as a namespace:
-
-```ts
-import * as capacity from '@okikio/capacity';
-```
-
 ## Start here
 
 A schema validates one value. A unit explains what the value measures. A constraint explains how several validated
@@ -156,7 +150,7 @@ const result = await capacity.check(HostCapacity, {
 	threads: 8,
 	threadsPerCore: 2,
 });
-// result.status === 'hit'
+console.log(result.status); // hit: threads exactly match the available topology.
 ```
 
 `assert()` runs the same validation and throws `CapacityExceededError` only when one or more relationships are exceeded.

@@ -8,33 +8,150 @@ This package separates the sequence from the code that performs each job. An [ac
 one job; the workflow requests those jobs in order. A scheduler consults recorded results and sends new work to an
 executor. An executor is the host that runs the supplied job implementation.
 
-## Start with the familiar sequence
+## Run a complete example
 
-For a sequence that can safely start over, ordinary functions are enough. This complete example prepares a label:
+Save a photo title, then add its returned ID to an album. Running the same logical upload again should return that ID
+without adding a second title or album entry. The two arrays at the end let you inspect whether either write repeated.
 
-```ts runnable=plain-label.ts
-async function prepareLabel(title: string): Promise<string> {
-	const trimmed = title.trim();
-	return trimmed.toUpperCase();
+The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
+implementation is preserved.
+
+```ts runnable
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as activity from '@okikio/activity';
+import * as engine from '@okikio/activity/engine';
+import * as local from '@okikio/activity/local';
+import * as context from '@okikio/context';
+import * as resource from '@okikio/resource';
+import * as dispatch from '@okikio/workflow/dispatch';
+import * as history from '@okikio/workflow/history';
+import * as workflow from '@okikio/workflow';
+import { z } from 'zod';
+
+const TextSchema = z.string();
+const Local = engine.define({ id: 'local' });
+const Store = resource.define<{
+	save(title: string): Promise<string>;
+	addToAlbum(id: string): Promise<string>;
+}>()({ id: 'photo.store', description: 'Save titles and append photo IDs to an album.' });
+const titles: string[] = [];
+const album: string[] = [];
+const StoreLive = resource.implement(Store, {
+	create: () => ({
+		async save(title) {
+			titles.push(title);
+			return `asset-${titles.length}`;
+		},
+		async addToAlbum(id) {
+			album.push(id);
+			return id;
+		},
+	}),
+});
+const SaveTitle = activity.define({
+	id: 'photo.save-title',
+	version: '1',
+	input: z.string().trim().min(1),
+	result: TextSchema,
+	placement: engine.require(Local),
+	resources: [Store],
+});
+const AddToAlbum = activity.define({
+	id: 'photo.add-to-album',
+	version: '1',
+	input: TextSchema,
+	result: TextSchema,
+	placement: engine.require(Local),
+	resources: [Store],
+});
+const SaveTitleLive = activity.implement(SaveTitle, {
+	async run(ctx) {
+		return await (await ctx.get(Store)).save(ctx.input.toUpperCase());
+	},
+});
+const AddToAlbumLive = activity.implement(AddToAlbum, {
+	async run(ctx) {
+		return await (await ctx.get(Store)).addToAlbum(ctx.input);
+	},
+});
+const UploadPhoto = workflow.define({
+	id: 'photo.upload',
+	version: '1',
+	input: TextSchema,
+	result: TextSchema,
+	activities: [SaveTitle, AddToAlbum],
+});
+const UploadPhotoLive = workflow.implement(UploadPhoto, function* (ctx) {
+	const id = yield* activity.request(SaveTitle, ctx.input);
+	return yield* activity.request(AddToAlbum, id);
+});
+
+await using parent = context.create({ id: 'photo-parent' });
+await using stores = resource.create(resource.implementations(StoreLive), { ctx: parent, host: {} });
+await using jobs = dispatch.memory();
+await using records = history.memory();
+await using scheduler = workflow.scheduler({
+	activityDispatch: jobs,
+	history: records,
+});
+await using executor = await workflow.executor({
+	dispatch: jobs,
+	engine: Local,
+	hostId: 'photo-host',
+	capacity: 1,
+	provider: local.create({ engine: Local, implementations: [SaveTitleLive, AddToAlbumLive], resources: stores }),
+});
+for (const pass of ['first run', 'replay']) {
+	await using run = await workflow.context({
+		definition: UploadPhoto,
+		runId: 'photo-upload-1',
+		input: ' summer trip ',
+		ctx: parent,
+	});
+	console.log(pass, await workflow.run({ ctx: run, implementation: UploadPhotoLive, scheduler }));
 }
-console.log(await prepareLabel(' summer trip '));
+console.log('Saved titles:', titles.join(','));
+console.log('Album entries:', album.join(','));
 ```
+
+Expected output:
 
 ```text output
-SUMMER TRIP
+first run asset-1
+replay asset-1
+Saved titles: SUMMER TRIP
+Album entries: asset-1
 ```
 
-Workflow adds a record of named instruction completions and a way to dispatch jobs separately. It is useful when
-repeating earlier work after an interruption would be expensive or unsafe. The longer example below keeps the same label
-transformation deliberately small so you can see which extra pieces create that record.
+The first activity checks and saves the title, returning `asset-1`. The second appends that ID to the album. The final
+two lines inspect the actual arrays used by the supplied store: one saved title and one album entry after two passes.
+The scheduler records returned values; the activity implementations perform the writes.
 
-`yield* activity.request(Trim, input)` is the unfamiliar part. Read it as “ask for the Trim job's result, then
+The loop then repeats the same run identity, input and program while the same stores remain alive. The replay returns
+the recorded instruction results, so neither write runs a second time. Change the title and give it a new `runId` to
+start a different logical run. Reusing a run's identity with changed instruction data is a conflict, not a request to
+silently replace its recorded work.
+
+The example uses real activity implementations through `local.create()`. It does not simulate a remote computer, save
+records to disk or prove that a remote write happens exactly once. The collection supplies the same lazy store to both
+activities. The arrays are deliberately not idempotent: calling their methods again appends another entry. The demo
+shows replay of accepted completions, not recovery from a crash between a write and recording its result. A production
+store needs stable write keys or another duplicate-write policy for that gap.
+
+## Save a photo, then add it to an album
+
+An album upload has two writes: save the photo's title and add its returned ID to the album. Calling the same functions
+again could create a second photo or album entry. The example above runs those two jobs, then runs the same workflow
+again. Its recorded completions provide the answer without repeating either write.
+
+`yield* activity.request(SaveTitle, input)` is the unfamiliar part. Read it as “ask for the SaveTitle job's result, then
 continue.” It uses JavaScript's generator protocol: a request yields an instruction object; the scheduler supplies a
 completion; the request returns the completion's value to the program. It is not an async function call hidden behind
 new spelling. Use `await` for ordinary live promises; use `yield*` inside this workflow program when the scheduler must
 identify and record the instruction.
 
-| Contract                      | Simplified contents                                                     | Role in the label example                                  |
+| Contract                      | Simplified contents                                                     | Role in the album example                                  |
 | ----------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------- |
 | `WorkflowDefinition`          | ID, version, input/result schemas, declared activities and dependencies | Describe what the program accepts and returns.             |
 | `WorkflowImplementation`      | Definition plus a generator function                                    | Describe the order of instructions.                        |
@@ -60,7 +177,7 @@ A step without a completion needs the configured dispatch and executor.
 
 [Editable diagram source](diagram.mmd). This is the successful path. It omits retry timing, cancellation and stale-claim
 rejection, which the later sections explain. Reusing a result does not rewind the JavaScript process. Durable recovery
-needs authoritative storage and host services: the memory stores in the demo below disappear when their process exits.
+needs authoritative storage and host services: the memory stores in the demo above disappear when their process exits.
 
 Use a regular function for a simple sequence that can start over safely. Use [task](../task/README.md) for an owned
 local operation. Use a workflow when named instruction results, independently executed jobs or controlled replay are
@@ -70,113 +187,6 @@ For shared terms such as `await` and `await using`, see
 [the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
 
 For the exact functions, types and field explanations, read the [generated contract reference](API.md).
-
-## Run a complete example
-
-The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
-implementation is preserved.
-
-```ts runnable
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
-import * as activity from '@okikio/activity';
-import * as engine from '@okikio/activity/engine';
-import * as local from '@okikio/activity/local';
-import * as context from '@okikio/context';
-import * as resource from '@okikio/resource';
-import * as dispatch from '@okikio/workflow/dispatch';
-import * as history from '@okikio/workflow/history';
-import * as workflow from '@okikio/workflow';
-import { z } from 'zod';
-
-const TextSchema = z.string();
-const Local = engine.define({ id: 'local' });
-const Trim = activity.define({
-	id: 'photo.trim-label',
-	version: '1',
-	input: TextSchema,
-	result: TextSchema,
-	placement: engine.require(Local),
-});
-const Upper = activity.define({
-	id: 'photo.upper-label',
-	version: '1',
-	input: TextSchema,
-	result: TextSchema,
-	placement: engine.require(Local),
-});
-let calls = 0;
-const TrimLive = activity.implement(Trim, {
-	run: (ctx) => {
-		calls++;
-		return ctx.input.trim();
-	},
-});
-const UpperLive = activity.implement(Upper, {
-	run: (ctx) => {
-		calls++;
-		return ctx.input.toUpperCase();
-	},
-});
-const PrepareLabel = workflow.define({
-	id: 'photo.prepare-label',
-	version: '1',
-	input: TextSchema,
-	result: TextSchema,
-	activities: [Trim, Upper],
-});
-const PrepareLabelLive = workflow.implement(PrepareLabel, function* (ctx) {
-	const trimmed = yield* activity.request(Trim, ctx.input);
-	return yield* activity.request(Upper, trimmed);
-});
-
-await using parent = context.create({ id: 'photo-parent' });
-await using stores = resource.create(resource.implementations(), { ctx: parent, host: {} });
-await using jobs = dispatch.memory();
-await using records = history.memory();
-await using scheduler = workflow.scheduler({
-	activityDispatch: jobs,
-	history: records,
-});
-await using executor = await workflow.executor({
-	dispatch: jobs,
-	engine: Local,
-	hostId: 'photo-host',
-	capacity: 1,
-	provider: local.create({ engine: Local, implementations: [TrimLive, UpperLive], resources: stores }),
-});
-for (const pass of ['first run', 'replay']) {
-	await using run = await workflow.context({
-		definition: PrepareLabel,
-		runId: 'photo-label-1',
-		input: ' summer trip ',
-		ctx: parent,
-	});
-	console.log(pass, await workflow.run({ ctx: run, implementation: PrepareLabelLive, scheduler }));
-}
-console.log('implementation calls:', calls);
-```
-
-Expected output:
-
-```text output
-first run SUMMER TRIP
-replay SUMMER TRIP
-implementation calls: 2
-```
-
-The input has spaces around `summer trip`. The first activity removes the surrounding spaces; the second changes the
-letters to uppercase. `yield* activity.request(...)` asks the scheduler for that step's result before the program
-continues. The functions that change the text live in the activity implementations, not in the scheduler.
-
-The loop then repeats the same run identity, input and program while the same stores remain alive. The replay returns
-the recorded instruction results, so there are two implementation calls across both passes, rather than four. Change the
-title and give it a new `runId` to start a different logical run. Reusing a run's identity with changed instruction data
-is a conflict, not a request to silently replace its recorded work.
-
-The example uses real activity implementations through `local.create()`. It does not simulate a remote computer, save
-records to disk or prove that a remote write happens exactly once. Its empty resource collection is enough because these
-two activities only transform text.
 
 ## Apply the same shape to a larger job
 
@@ -194,8 +204,8 @@ workflow is useful when replay and dispatch solve a real problem; it is not nece
 ## Understand the local host
 
 The first example runs two activities through the process-local reference stores. `workflow.run()` resolves to the
-validated workflow result: here `Promise<string>` containing `SUMMER TRIP`. The generator yields a declared request; it
-does not call the provider directly. The executor produces the activity result and the scheduler resumes the generator.
+validated workflow result: here `Promise<string>` containing `asset-1`. The generator yields a declared request; it does
+not call the provider directly. The executor produces the activity result and the scheduler resumes the generator.
 
 `await using` closes the run, executor, scheduler and stores in reverse declaration order. Cancellation remains
 cooperative and the owners join cleanup. Both `memory()` stores disappear when their process exits. Read the

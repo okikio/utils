@@ -21,16 +21,21 @@ Read this as admission order, not a measured timeline. The limiter admits at mos
 mapping delivers their results in input order even if the second call finishes first. The diagram omits failure cleanup,
 which aborts admitted siblings and waits for them to settle.
 
-## Keep a report in its original order
+## Count the bytes in a group of documents
+
+The local documents below use data URLs so the fetches need no network access. The utility admits at most two requests
+and returns their byte counts in document order. The mapper uses ordinary `fetch()` and `Response.arrayBuffer()`; it
+forwards the supplied cancellation signal to the fetch that actually does the work.
 
 ```ts runnable
 import { mapPooledOrdered } from '@okikio/concurrency';
 const values = mapPooledOrdered({
-	items: ['first', 'second', 'third'],
+	items: ['data:text/plain,first', 'data:text/plain,second', 'data:text/plain,third'],
 	concurrency: 2,
-	async map(value, { signal }) {
-		signal.throwIfAborted();
-		return value.toUpperCase();
+	async map(url, { signal }) {
+		const response = await fetch(url, { signal });
+		if (!response.ok) throw new Error(`Document request failed: ${response.status}`);
+		return (await response.arrayBuffer()).byteLength;
 	},
 });
 console.log(JSON.stringify(await Array.fromAsync(values)));
@@ -39,16 +44,14 @@ console.log(JSON.stringify(await Array.fromAsync(values)));
 Expected output:
 
 ```text output
-["FIRST","SECOND","THIRD"]
+[5,6,5]
 ```
 
 ## Read the mini-demo
 
-The mini-demo gives the limiter three words and two available places. Each mapper turns one word into capitals.
-`Array.fromAsync()` consumes the returned sequence and collects the three results, so the printed array preserves
-`first`, `second`, `third` order. The mapper checks its cancellation signal before doing work. This tiny transform
-teaches ordering; it does not demonstrate a CPU speedup. Try `concurrency: 1` to make admission sequential while keeping
-the same output.
+`first` contains five bytes, `second` six, and `third` five. `Array.fromAsync()` collects the sequence into the small
+array `[5,6,5]`. Replace the local URLs with your document URLs to cap an actual batch of requests. The example proves
+the output and admission call shape; it makes no throughput claim. Set `concurrency: 1` to make admission sequential.
 
 `mapPooledOrdered()` returns an `AsyncIterable<R>`, which means a sequence you consume with ordinary `for await`. Your
 mapper still returns `Promise<R>`; the utility neither wraps each result nor asks you to learn a new result language.

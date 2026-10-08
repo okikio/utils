@@ -82,16 +82,9 @@ valid and empty. Your application owns nested-source limits, fetch policy and ad
 
 ## The ordinary problem
 
-A small Sitemap can be parsed as one XML document and then walked:
-
-```ts
-const text = await response.text();
-const document = parseXml(text);
-const locations = findLocElements(document).map((element) => element.text);
-```
-
-That approach becomes awkward for large sources. The caller must also handle Sitemap indexes, RSS/Atom links, plain-text
-lists, namespace scope, source byte limits, hostile chunk splits, cancellation, and incremental backpressure.
+A generic XML parser can find `loc` elements in a small source. A discovery reader must also distinguish pages from
+child sources, interpret RSS/Atom links, handle plain-text lists, respect namespaces and bound streamed bytes. Those
+format and lifetime rules are the reusable work this package supplies.
 
 ## Use the utility
 
@@ -113,25 +106,8 @@ console.log(records.map((record) => record.loc));
 // ['https://example.com/a', 'https://example.com/b']
 ```
 
-For unknown or large input, stream records as the parser discovers them:
-
-```ts
-const result = await sitemap.parseStream({
-	stream: response.body!,
-	url: response.url,
-	contentType: response.headers.get('content-type') ?? undefined,
-	maxBytes: 64 * 1024 * 1024,
-	signal: ctx.signal,
-	async onRecord(record) {
-		await saveCandidate(record);
-	},
-});
-
-console.log(result.byteLength, result.capped, result.problems);
-```
-
-`onRecord` is awaited. A slower consumer therefore applies backpressure instead of forcing the package to retain the
-complete record set.
+For unknown or large input, use `parseStream()` as in the complete example below. Its `onRecord` callback is awaited, so
+a slower consumer applies backpressure instead of forcing the package to retain the complete record set.
 
 ## Use with other utilities
 
@@ -139,9 +115,6 @@ Kaiju Crawl discovers Sitemap sources from robots declarations and waits for its
 complete local version streams supplied bytes, applies robots rules and returns only accepted page URLs.
 
 ```ts runnable=stream-discovery.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
-import * as context from '@okikio/context';
 import * as robots from '@okikio/robots';
 import * as sitemap from '@okikio/sitemap';
 
@@ -150,15 +123,13 @@ const text = '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' +
 	'<url><loc>https://example.com/guide</loc></url>' +
 	'<url><loc>https://example.com/private/report</loc></url></urlset>';
 const candidates: string[] = [];
-await using owner = context.create({ id: 'sitemap-discovery' });
 for (const url of robots.getSitemapUrls(policy)) {
 	const parsed = await sitemap.parseStream({
 		stream: new Response(text).body!,
 		url,
 		contentType: 'application/xml',
 		maxBytes: 20_000,
-		signal: owner.signal,
-		async onRecord(record) {
+		onRecord(record) {
 			if (record.kind === 'url' && robots.match(policy, { userAgent: 'KaijuBot', url: record.loc })) {
 				candidates.push(record.loc);
 			}
@@ -177,12 +148,12 @@ Expected output:
 
 `parseStream()` returns `Promise<SitemapStreamResult>`. It awaits `onRecord()` before advancing, so an asynchronous sink
 can apply backpressure. The final application result is `string[]`; it is deliberately collected here. The parser owns
-the stream reader and releases it when parsing finishes, fails or is cancelled. The context supplies cancellation and is
-disposed when its block ends. Cancellation cannot undo an already accepted sink write.
+the stream reader and releases it when parsing finishes or fails. No context is needed for this supplied finite source;
+the byte budget is the useful input bound.
 
-For a fetched source, pass `owner.signal` to `fetch()` too, reject unwanted HTTP status, and limit nested source counts.
-Context owns lifetime, robots owns syntax and matching, and sitemap owns XML/feed/text parsing. The acquiring
-application owns network and crawl policy.
+For a fetched source, pass the caller's cancellation signal to both `fetch()` and `parseStream()`, reject unwanted HTTP
+status, and limit nested source counts. Cancellation cannot undo an already accepted sink write. Robots owns rule
+matching, Sitemap owns parsing, and the application owns acquisition and crawl policy.
 
 ## Parser and safety model
 

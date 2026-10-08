@@ -18,25 +18,26 @@ implementation.
 The table shows import selection, not a promise that any arbitrary bundler removes all unused code. The focused paths
 keep runtime ownership clear; representative built consumers are checked separately as described below.
 
-## Use a familiar function through one suite dependency
+## Preserve every selected search filter
 
 ```ts runnable
-import * as result from '@okikio/utils/result';
-import * as record from '@okikio/utils/record';
-const value = result.ok({ id: 'asset-1' });
-console.log(record.keys(result.unwrap(value)).join(','));
+import { parseQuery } from '@okikio/utils/http/request';
+
+const incoming = new Request('https://service.invalid/search?tag=film&tag=music');
+const filters = parseQuery(new URL(incoming.url).search);
+const outgoing = Response.json(filters);
+console.log(await outgoing.text());
 ```
 
 Expected output:
 
 ```text output
-id
+{"tag":["film","music"]}
 ```
 
-The mini-demo creates a successful Result containing `{ id: 'asset-1' }`. `unwrap()` retrieves that successful value,
-and `record.keys()` returns its key names, so the final text is `id`. Both utilities are imported through umbrella
-subpaths. Try adding a `name` property to the value to see another key appear; the umbrella does not change either
-utility's semantics. Read [Result](../result/README.md) before unwrapping values whose success is not already known.
+The request represents a search with two selected tags. `parseQuery()` preserves both values instead of silently
+choosing one, and the ordinary JSON response carries the filters forward. The utility is imported through a suite
+subpath; its behavior is identical to the focused HTTP package. This runs in process without a network connection.
 
 - **Build a small import tool:** use [CSV](../csv/README.md), [Streams](../streams/README.md), and
   [Context](../context/README.md) through their corresponding umbrella subpaths. CSV understands rows, Streams groups
@@ -47,33 +48,13 @@ utility's semantics. Read [Result](../result/README.md) before unwrapping values
 
 ## What the umbrella adds under the hood
 
-These imports select the same implementation:
-
-```ts
-import { parseQuery } from '@okikio/http/request';
-// Or, after installing the suite:
-import { parseQuery as suiteParseQuery } from '@okikio/utils/http/request';
-```
+Both `@okikio/http/request` and `@okikio/utils/http/request` export the same `parseQuery` implementation. Choose the
+first path with a focused dependency, or the second after installing the suite.
 
 The generated umbrella module contains `export * from '@okikio/http/request'`. There is no wrapper callback, second
 parser or extra context passed to the function. Its return remains the same readonly string/string-array record. The
 root `packages` value is a frozen array of package names, while `PackageName` is the TypeScript union derived from those
 literal names. These are inventory data, not registrations that start runtimes.
-
-You can use a single familiar parser before learning any of the lifetime or workflow packages:
-
-```ts runnable=suite-search.ts
-import { parseQuery } from '@okikio/utils/http/request';
-
-const incoming = new Request('https://service.invalid/search?tag=film&tag=music');
-const filters = parseQuery(new URL(incoming.url).search);
-const outgoing = Response.json(filters);
-console.log(await outgoing.text());
-```
-
-```text output
-{"tag":["film","music"]}
-```
 
 The benefit is installation and import organization. The focused packages own validation, cancellation, resources and
 all other runtime behavior. Start with one useful function, then add another when the application needs it. Importing
@@ -110,14 +91,8 @@ Install once:
 deno add jsr:@okikio/utils
 ```
 
-Import only the capabilities used by the module:
-
-```ts
-import * as context from '@okikio/utils/context';
-import * as queue from '@okikio/utils/queue';
-import * as telemetry from '@okikio/utils/telemetry';
-import * as workflow from '@okikio/utils/workflow';
-```
+Import only the capability used by the module. For example, a parser can use `@okikio/utils/http/request` as above,
+while a work queue can use `@okikio/utils/queue`.
 
 These subpaths re-export the corresponding leaf packages. Importing `@okikio/utils/queue` therefore does not evaluate
 HTML, Hono, Worker, process, or other unrelated runtime surfaces.
@@ -135,35 +110,33 @@ It exposes installation inventory rather than loading the full utility graph.
 
 ## Use utilities together
 
-One application can use a `Context` as the lifetime for bounded queue admission without hiding which package owns which
-state:
+An imported contact-domain file may reorder its columns and contain quoted commas. Compose CSV parsing with domain
+normalization to read the domain column by name and compare equivalent spellings before presenting the import preview:
 
-```ts
-import * as context from '@okikio/utils/context';
-import * as queue from '@okikio/utils/queue';
+```ts runnable=contact-preview.ts
+import { parse } from '@okikio/utils/csv';
+import { normalizeDomain } from '@okikio/utils/email';
 
-await using ctx = context.create({ id: 'research-run' });
-await using jobs = queue.memory<string, { title: string }>();
-
-const ref = await jobs.add(ctx, 'example.com', { key: 'research:example.com' });
-const claim = (await jobs.claim(ctx, { ref, owner: 'local', limit: 1 }))[0];
-
-if (claim) {
-	await jobs.complete(ctx, claim, { title: `Research ${claim.value}` });
-}
+const document = parse('Name,Domain\n"Doe, Jane",@EXAMPLE.COM\nLee,example.com\n', { headerRow: 1 });
+const domainColumn = document.columns.find((column) => column.key === 'domain');
+if (domainColumn === undefined) throw new Error('The contact file needs a Domain column.');
+const normalized = document.rows.map((row) => normalizeDomain(row.values[domainColumn.index] ?? ''));
+const domains = normalized.filter((domain) => domain !== undefined);
+console.log(JSON.stringify([...new Set(domains)]));
 ```
 
-`@okikio/context` owns cancellation/deadline state. `@okikio/queue` owns logical work identity and claims. The umbrella
-only changes how both packages are installed and imported.
-
-Use `@okikio/utils/all` only at an intentional composition root that needs broad namespace access:
-
-```ts
-import * as utils from '@okikio/utils/all';
-
-console.log(utils.context.SystemClock);
-console.log(utils.version.semanticVersionScheme.id);
+```text output
+["example.com"]
 ```
+
+CSV owns quoting and column positions. Email normalization admits valid domain shapes and canonicalizes their spelling.
+The array code deliberately excludes invalid domains and removes duplicates; neither utility proves mailbox existence or
+sends email. The umbrella only changes how both capabilities are installed and imported; it adds no execution context or
+lifecycle to this job.
+
+Use `@okikio/utils/all` only at an intentional composition root that needs broad namespace access. Its `context`,
+`version` and other namespaces give the same operations as the focused entries, but importing it reaches the complete
+suite graph.
 
 A normal leaf module should prefer focused subpaths because they make dependency and runtime ownership obvious.
 
@@ -204,11 +177,11 @@ which gives suite consumers a compatible aggregate release without replacing the
 
 The umbrella mirrors public subpaths from every focused package, including nested paths:
 
-```ts
-import { parseQuery } from '@okikio/utils/http/request';
-import { prepareRoutes } from '@okikio/utils/server/http';
-import type { RoutePlan } from '@okikio/utils/server/http/types';
-```
+| Capability                   | Suite entry                       | Example export   |
+| ---------------------------- | --------------------------------- | ---------------- |
+| Read repeated HTTP filters   | `@okikio/utils/http/request`      | `parseQuery`     |
+| Prepare method/path matching | `@okikio/utils/server/http`       | `prepareRoutes`  |
+| Describe that prepared plan  | `@okikio/utils/server/http/types` | `RoutePlan` type |
 
 These files are generated re-export bridges. They do not contain alternate implementations.
 `tools/sync-utils-exports.ts` owns parity with focused package manifests.

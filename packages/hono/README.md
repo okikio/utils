@@ -24,7 +24,6 @@ import * as hono from '@okikio/hono';
 import * as http from '@okikio/server/http';
 const app = new Hono();
 app.get('/health', (ctx) => ctx.json({ status: 'ok' }));
-app.onError(hono.catchErrors());
 const fetch = hono.fetch(app, [http.securityHeaders()]);
 const response = await fetch(new Request('https://service.invalid/health'));
 console.log((await response.json()).status, response.headers.get('x-content-type-options'));
@@ -36,10 +35,10 @@ Expected output:
 ok nosniff
 ```
 
-The demo keeps `/health` as an ordinary Hono route and installs the adapter's error callback on that app. `hono.fetch()`
-then wraps it with the generic security-header middleware. The response JSON supplies `status: 'ok'`, and the wrapper
-supplies `X-Content-Type-Options: nosniff`, producing `ok nosniff`. This shows one request passing through both owners.
-It does not start a listener or exercise the error path.
+The demo keeps `/health` as an ordinary Hono route. `hono.fetch()` wraps it with the generic security-header middleware.
+The response JSON supplies `status: 'ok'`, and the wrapper supplies `X-Content-Type-Options: nosniff`, producing
+`ok nosniff`. This shows one request passing through both owners. It does not start a listener. Add
+`app.onError(hono.catchErrors())` when the host also needs the shared error policy.
 
 ## What each adapter actually does
 

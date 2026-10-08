@@ -101,31 +101,34 @@ stream pressure control progress. Use these when a destination already accepts W
 
 ## Batch without materializing the source
 
-```ts
-async function* values() {
-	for (let value = 0; value < 10_000; value++) yield value;
-}
-
-for await (const group of streams.batch(values(), { maximumItems: 100 })) {
-	await writeGroup(group);
-}
-```
-
 `batch()` retains only the current bounded group. At least one of `maximumItems` or `maximumBytes` is required. When
-byte limits matter, provide a `size(value)` function so the utility can enforce the same unit you care about.
+byte limits matter, provide a `size(value)` function so the utility can enforce the same unit you care about. Here each
+name is destined for a UTF-8 text payload, so encoded bytes, rather than JavaScript character count, determine the
+group.
 
-```ts
+```ts runnable=payload-batches.ts
+import { batch } from '@okikio/streams';
+
+const names = ['Ada', 'Zoë', 'Grace'];
+const encoder = new TextEncoder();
 for await (
-	const group of streams.batch(records(), {
-		maximumItems: 500,
-		maximumBytes: 4 * 1024 * 1024,
-		size: (record) => new TextEncoder().encode(JSON.stringify(record)).byteLength,
-		signal,
+	const group of batch(names, {
+		maximumItems: 2,
+		maximumBytes: 8,
+		size: (name) => encoder.encode(name).byteLength,
 	})
 ) {
-	await upload(group, signal);
+	console.log(JSON.stringify(group));
 }
 ```
+
+```text output
+["Ada","Zoë"]
+["Grace"]
+```
+
+The estimate above excludes separators and transport headers. Include those in your size policy if the destination's
+limit counts them. A single item larger than the byte bound throws rather than entering an oversized group.
 
 Use `collect()` only when the caller intentionally wants a finite source in memory and can supply explicit limits. The
 manual equivalent is an ordinary `for await` loop that tracks the same counters before retaining each value.

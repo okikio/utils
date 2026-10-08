@@ -80,24 +80,8 @@ not calculate browser styles or decide which discovered addresses are safe to do
 
 ## The ordinary problem
 
-CSSTree already provides an excellent CSS parser. A caller can use it directly:
-
-```ts
-import { parse, walk } from 'css-tree';
-
-const ast = parse(source, { positions: true });
-const urls: string[] = [];
-
-walk(ast, {
-	visit: 'Url',
-	enter(node) {
-		urls.push(node.value);
-	},
-});
-```
-
-Real collectors usually need more than the raw URL value. They need stable resource kinds, source locations, recoverable
-parse diagnostics, `@import` strings, and de-duplication. Repeating that adapter logic in every caller makes CSS
+CSSTree supplies the parser and tree traversal. Collectors need more than raw URL tokens: stable resource kinds, source
+locations, recoverable parse diagnostics, `@import` strings and de-duplication. Repeating that adapter logic makes CSS
 evidence disagree across the codebase.
 
 ## Use the utility
@@ -127,9 +111,8 @@ console.log(parsed.problems); // recoverable parser diagnostics
 
 `parseResources()` is the shorter path when resources are the only result the caller needs:
 
-```ts
-const resources = css.parseResources(source, { filename: 'app.css' });
-```
+Use `parseResources(source, { filename: 'app.css' })` when the dependency list is the only result you need. The earlier
+download-address example uses that convenience directly.
 
 Resource kinds distinguish `font`, `image`, `import`, and `other`. The package does not resolve those references against
 a base URL because URL ownership belongs to the caller that knows the stylesheet location.

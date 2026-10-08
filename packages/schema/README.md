@@ -99,6 +99,10 @@ Suppose a database column is unconstrained text but the application currently re
 adapter should first expose `string`:
 
 ```ts
+import { parse } from '@okikio/schema';
+import { z } from 'zod';
+
+const row: { status: unknown } = { status: 'paused' };
 const PersistedStatusSchema = z.string();
 
 const KnownStatusSchema = z.enum([
@@ -107,8 +111,9 @@ const KnownStatusSchema = z.enum([
 	'completed',
 ]);
 
-const persisted = await schema.parse(PersistedStatusSchema, row.status);
+const persisted = await parse(PersistedStatusSchema, row.status);
 const known = KnownStatusSchema.safeParse(persisted);
+console.log(known.success ? known.data : `Unrecognized status: ${persisted}`); // Unrecognized status: paused
 ```
 
 The second validation is an application classification step. It must not be confused with a guarantee made by the
@@ -161,13 +166,12 @@ the design decisions behind those contracts.
 ## Standard JSON Schema
 
 Standard Schema validation and Standard JSON Schema representation are related but separate contracts. A conforming
-validator can expose both under the same `~standard` properties:
+validator can expose both under the same `~standard` properties. These are separate capabilities:
 
-```ts
-const standard = value['~standard'];
-const checked = await standard.validate(input);
-const inputSchema = standard.jsonSchema?.input({ target: 'draft-2020-12' });
-const outputSchema = standard.jsonSchema?.output({ target: 'draft-2020-12' });
+```text
+~standard.validate(input)                       check data and return the transformed value or issues
+~standard.jsonSchema.input({ target })          describe accepted wire input, when supported
+~standard.jsonSchema.output({ target })         describe validated output, when supported
 ```
 
 Do not assume that the two JSON Schemas are identical. Coercions, defaults, codecs, and transforms can make accepted

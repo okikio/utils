@@ -76,13 +76,8 @@ examples below are qualified against this workspace. Registry installation requi
 deno add jsr:@okikio/utils
 ```
 
-Import the capability used by the current module:
-
-```ts
-import * as context from '@okikio/utils/context';
-import * as queue from '@okikio/utils/queue';
-import * as workflow from '@okikio/utils/workflow';
-```
+Import the capability used by the current module. The runnable import above uses `@okikio/utils/csv`; a module that
+needs a queue uses `@okikio/utils/queue` instead. Each subpath selects its focused implementation.
 
 A reusable package can depend on a focused package directly:
 
@@ -90,9 +85,8 @@ A reusable package can depend on a focused package directly:
 deno add jsr:@okikio/queue
 ```
 
-```ts
-import * as queue from '@okikio/queue';
-```
+Use the focused `@okikio/queue` import in that package's modules. Its [runnable guide](packages/queue/README.md) shows
+adding, claiming and settling actual work.
 
 Use `@okikio/utils/all` only at a composition root that intentionally needs the broad namespace graph.
 
@@ -145,12 +139,10 @@ coerce or transform values.
 
 ## Packages and tree-shaking
 
-Applications can install `@okikio/utils` once while retaining focused imports:
-
-```ts
-import { parseQuery } from '@okikio/utils/http/request';
-import { prepareRoutes } from '@okikio/utils/server/http';
-```
+Applications can install `@okikio/utils` once while retaining focused imports. For example, the
+[request guide](packages/http/request/README.md) uses `parseQuery()` to preserve repeated filters; its facade path is
+`@okikio/utils/http/request`. The [Fetch runtime guide](packages/server/http/README.md) uses `prepareRoutes()` to
+prepare request dispatch; its facade path is `@okikio/utils/server/http`.
 
 The umbrella modules re-export focused package entries. They do not contain a second implementation. Release checks
 compare representative focused and umbrella bundles to catch eager barrels and import-time effects.

@@ -45,10 +45,9 @@ executable only needs a known path.
 `args()` visits a fixed key order, deduplicates each list and doubles literal commas before joining scopes. This is why
 two launchers can share the same grant model without having to implement CLI quoting independently.
 
-For example, a launcher can pass `permissions.args({ read: ['./input'] })` as part of
-`new Deno.Command(Deno.execPath(), { args: ['run', ...grants, 'import.ts'] })`. Constructing `Deno.Command` describes
-the command; `spawn()` or `output()` is the later action that starts it. The host chooses grants and owns the child
-process.
+For example, a launcher can use the first example's `args` as part of
+`new Deno.Command(Deno.execPath(), { args: ['run', ...args, 'import.ts'] })`. Constructing `Deno.Command` describes the
+command; `spawn()` or `output()` is the later action that starts it. The host chooses grants and owns the child process.
 
 The other adapters have limits worth knowing before composing them. `file.write()` checks abort before work and before
 rename; it does not interrupt an already-running filesystem call or promise crash durability. `port.get()` reports a
@@ -79,7 +78,7 @@ as `permissions`, `file`, `port` and `signals` namespaces.
 
 Import the submodule as a namespace:
 
-```ts
+```ts runnable=scoped-permissions.ts
 import * as permissions from '@okikio/deno/permissions';
 
 const args = permissions.args({
@@ -87,6 +86,11 @@ const args = permissions.args({
 	write: ['/srv/output', '/srv/tmp,1'],
 	run: ['chromium'],
 });
+console.log(JSON.stringify(args));
+```
+
+```text output
+["--allow-read","--allow-write=/srv/output,/srv/tmp,,1","--allow-run=chromium"]
 ```
 
 `args()` produces stable `--allow-*` arguments. Scoped values are deduplicated without reordering. Literal commas are
@@ -100,13 +104,20 @@ scoped grants are merged. An unscoped grant wins over scoped grants for the same
 `parse()` is useful when a host receives permission arguments and needs a normalized grant model before composing
 another command:
 
-```ts
+```ts runnable=permission-roundtrip.ts
+import * as permissions from '@okikio/deno/permissions';
+
 const grants = permissions.parse([
 	'--allow-read=/srv/input,/srv/cache',
 	'--allow-net=example.invalid:443',
 ]);
 
 const canonical = permissions.args(grants);
+console.log(JSON.stringify(canonical));
+```
+
+```text output
+["--allow-read=/srv/input,/srv/cache","--allow-net=example.invalid:443"]
 ```
 
 An unscoped grant such as `--allow-read` dominates scoped grants for the same permission. Unsupported flags are rejected

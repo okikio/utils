@@ -8,24 +8,104 @@ Start with a regular function when that is all you need. Activities become usefu
 locations need the same rules: what input is accepted, what result comes back, which dependencies are available, and
 what should stop when the caller cancels. You declare those rules once and attach the actual function separately.
 
-## Begin with the ordinary function
+## Save a photo title with a supplied store
 
-An activity implementation still performs ordinary work. For example, this complete function prepares a photo title:
+Save a submitted title, then reject a blank submission before it reaches the store. The store is an in-memory array, so
+it needs no account, network, database or credentials. The result is a receipt: the saved ID plus the normalized label.
+The explicit polyfills support the Temporal clock and disposal stack used by the context and resource collection when
+the host lacks those APIs.
 
-```ts runnable=plain-title.ts
-function prepareTitle(title: string): string {
-	return title.trim().toUpperCase();
+```ts runnable=save-title.ts
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as activity from '@okikio/activity';
+import * as engine from '@okikio/activity/engine';
+import * as context from '@okikio/context';
+import * as resource from '@okikio/resource';
+import { SchemaValidationError } from '@okikio/schema';
+import { z } from 'zod';
+
+const Local = engine.define({ id: 'local' });
+const InputSchema = z.object({ title: z.string().trim().min(1) });
+const ReceiptSchema = z.object({ id: z.string(), label: z.string() });
+const Store = resource.define<{ save(label: string): Promise<string> }>()({
+	id: 'photo.store',
+	description: 'Save a photo label and return its ID.',
+});
+const labels: string[] = [];
+const StoreLive = resource.implement(Store, {
+	create: () => ({
+		async save(label) {
+			labels.push(label);
+			return `asset-${labels.length}`;
+		},
+	}),
+});
+const SaveTitle = activity.define({
+	id: 'photo.save-title',
+	version: '1',
+	input: InputSchema,
+	result: ReceiptSchema,
+	placement: engine.require(Local),
+	resources: [Store],
+});
+const SaveTitleLive = activity.implement(SaveTitle, {
+	async run(ctx) {
+		const store = await ctx.get(Store);
+		const label = ctx.input.title.toUpperCase();
+		return { id: await store.save(label), label };
+	},
+});
+await using owner = context.create({ id: 'photo-upload' });
+await using stores = resource.create(resource.implementations(StoreLive), { ctx: owner, host: {} });
+const receipt = await activity.run({
+	ctx: owner,
+	engine: Local,
+	resources: stores,
+	implementation: SaveTitleLive,
+	input: { title: 'Summer trip' },
+	jobId: 'save-title-1',
+	attempt: 1,
+});
+console.log(receipt.id, receipt.label);
+try {
+	await activity.run({
+		ctx: owner,
+		engine: Local,
+		resources: stores,
+		implementation: SaveTitleLive,
+		input: { title: '   ' },
+		jobId: 'save-title-2',
+		attempt: 1,
+	});
+} catch (error) {
+	if (!(error instanceof SchemaValidationError)) throw error;
+	console.log('Empty title rejected');
 }
-console.log(prepareTitle(' summer trip '));
+console.log('Saved labels:', labels.join(','));
 ```
 
 ```text output
-SUMMER TRIP
+asset-1 SUMMER TRIP
+Empty title rejected
+Saved labels: SUMMER TRIP
 ```
 
-That transformation needs no activity. Wrap a function when callers need a named input/result contract, checked
-dependencies, or the same operation on a different execution host. The transformation remains inside your function; the
-activity runner supplies the checks and lifetime around it.
+The first line is the checked receipt. The next two lines show that whitespace-only input is rejected and the store
+still contains only the accepted title. `run()` returns `Promise<{ id: string; label: string }>` for this definition.
+The definition's `resources: [Store]` lets the implementation ask for that store through `ctx.get(Store)`. Changing the
+store implementation can change where the label is saved without changing the activity's input or result contract. The
+activity borrows the store; the `stores` collection closes its acquired resources.
+
+Try changing the input title to `Family visit`. Both output labels become `FAMILY VISIT`. An empty title fails the input
+schema before the save function runs. This array is a teaching store, not durable storage, and repeating the call adds
+another entry. A real save operation needs its own duplicate-write policy.
+
+## Keep a save operation behind one checked contract
+
+A photo title arrives from a form. Before a storage client sees it, the activity checks that it contains text. After the
+client saves it, the activity checks the receipt. Different callers can use that same contract without copying
+validation around every save. The example above shows both an accepted title and a rejected empty one.
 
 The three main calls have different jobs:
 
@@ -79,136 +159,6 @@ For shared terms such as `await` and `await using`, see
 
 For the exact functions, types and field explanations, read the [generated contract reference](API.md).
 
-## Run a complete example
-
-The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
-implementation is preserved.
-
-```ts runnable
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
-import * as activity from '@okikio/activity';
-import * as engine from '@okikio/activity/engine';
-import * as context from '@okikio/context';
-import * as resource from '@okikio/resource';
-import { z } from 'zod';
-
-const Local = engine.define({ id: 'local' });
-const Upper = activity.define({
-	id: 'text.upper',
-	version: '1',
-	input: z.string(),
-	result: z.string(),
-	placement: engine.require(Local),
-});
-const UpperLive = activity.implement(Upper, { run: (ctx) => ctx.input.toUpperCase() });
-await using ctx = context.create({ id: 'uppercase' });
-await using resources = resource.create(resource.implementations(), { ctx, host: {} });
-const value = await activity.run({
-	ctx,
-	engine: Local,
-	resources,
-	implementation: UpperLive,
-	input: 'hello',
-	jobId: 'uppercase-1',
-	attempt: 1,
-});
-console.log(value);
-```
-
-Expected output:
-
-```text output
-HELLO
-```
-
-`activity.run()` returns `Promise<string>` for this definition and resolves to `HELLO`. It validates input and result
-and owns a local attempt context. The caller owns the resource collection and parent context. Declared failures and
-unexpected faults have separate contracts; placement metadata alone does not launch another process.
-
-Read this first demo in three steps. `Upper` says that this job accepts text and returns text. `UpperLive` supplies the
-uppercase function. `run()` supplies `hello` and returns `HELLO` after checking both sides. Changing the input to
-`summer trip` changes the result to `SUMMER TRIP`; it does not change the job's identity. The empty resource collection
-means this particular job needs no external dependency.
-
-The setup is deliberately visible. The engine declares where the job is eligible to run, the context owns this call's
-lifetime, and `await using` closes the owners when the module ends. You do not need this setup merely to uppercase a
-string; the small transformation makes the surrounding execution rules easier to inspect.
-
-## Save a photo title with a supplied store
-
-This complete mini-demo performs the scenario above. Its store is an in-memory array, so it needs no account, network,
-database or credentials. The result is a receipt: the saved ID plus the normalized label.
-
-```ts runnable=save-title.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
-import * as activity from '@okikio/activity';
-import * as engine from '@okikio/activity/engine';
-import * as context from '@okikio/context';
-import * as resource from '@okikio/resource';
-import { z } from 'zod';
-
-const Local = engine.define({ id: 'local' });
-const InputSchema = z.object({ title: z.string().min(1) });
-const ReceiptSchema = z.object({ id: z.string(), label: z.string() });
-const Store = resource.define<{ save(label: string): Promise<string> }>()({
-	id: 'photo.store',
-	description: 'Save a photo label and return its ID.',
-});
-const labels: string[] = [];
-const StoreLive = resource.implement(Store, {
-	create: () => ({
-		async save(label) {
-			labels.push(label);
-			return `asset-${labels.length}`;
-		},
-	}),
-});
-const SaveTitle = activity.define({
-	id: 'photo.save-title',
-	version: '1',
-	input: InputSchema,
-	result: ReceiptSchema,
-	placement: engine.require(Local),
-	resources: [Store],
-});
-const SaveTitleLive = activity.implement(SaveTitle, {
-	async run(ctx) {
-		const store = await ctx.get(Store);
-		const label = ctx.input.title.toUpperCase();
-		return { id: await store.save(label), label };
-	},
-});
-await using owner = context.create({ id: 'photo-upload' });
-await using stores = resource.create(resource.implementations(StoreLive), { ctx: owner, host: {} });
-const receipt = await activity.run({
-	ctx: owner,
-	engine: Local,
-	resources: stores,
-	implementation: SaveTitleLive,
-	input: { title: 'Summer trip' },
-	jobId: 'save-title-1',
-	attempt: 1,
-});
-console.log(receipt.id, receipt.label);
-console.log(labels.join(','));
-```
-
-```text output
-asset-1 SUMMER TRIP
-SUMMER TRIP
-```
-
-The first line is the returned result. The second line confirms that the supplied store received the label. The
-definition's `resources: [Store]` lets the implementation ask for that store through `ctx.get(Store)`. Changing the
-store implementation can change where the label is saved without changing the activity's input or result contract. The
-activity borrows the store; the `stores` collection closes its acquired resources.
-
-Try changing the input title to `Family visit`. Both output labels become `FAMILY VISIT`. An empty title fails the input
-schema before the save function runs. This array is a teaching store, not durable storage, and repeating the call adds
-another entry. A real save operation needs its own duplicate-write policy.
-
 ## Choose the next piece for your scenario
 
 | You need to achieve                                   | Combine                                                                 | What changes for the caller                                                                              |
@@ -227,7 +177,7 @@ not supply that infrastructure.
 `activity.request()` creates one serializable workflow operation. It does not execute the implementation.
 
 ```ts
-const uppercase = yield * activity.request(Upper, 'hello');
+const receipt = yield * activity.request(SaveTitle, { title: 'Summer trip' });
 ```
 
 `activity.try()` creates the same request but converts only declared activity failures into `@okikio/result`. Unexpected

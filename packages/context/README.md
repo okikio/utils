@@ -9,27 +9,33 @@ A **context** is an object carried alongside that work: an ID, an `AbortSignal`,
 
 ## Download text with a two-second budget
 
-This complete example uses real `fetch`. The `data:` URL keeps the demo offline; replace it with an HTTPS URL in your
-application. For that URL, the host must permit network access.
+Loading a profile needs a name and a city. The caller allows two seconds for the whole operation; each helper also caps
+its own download at one second. The helper receives the caller's context, so it cannot restart or extend that overall
+budget. This complete example uses real `fetch`; `data:` URLs keep it offline. HTTPS URLs require network permission.
 
 ```ts runnable=download-text.ts
 import '@okikio/duration/polyfill';
 import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 
-async function downloadText(url: string): Promise<string> {
-	await using request = context.create({ id: 'download-text' });
-	await using download = context.timeout(request, { seconds: 2 });
+async function downloadText(parent: context.Context, url: string): Promise<string> {
+	await using download = context.timeout(parent, { seconds: 1 });
 	const response = await fetch(url, { signal: download.signal });
 	if (!response.ok) throw new Error(`Download failed: HTTP ${response.status}`);
 	return await response.text();
 }
 
-console.log(await downloadText('data:text/plain,Hello%20Ada'));
+await using request = context.create({
+	id: 'profile-screen',
+	deadline: Temporal.Now.instant().add({ seconds: 2 }),
+});
+const name = await downloadText(request, 'data:text/plain,Ada');
+const city = await downloadText(request, 'data:text/plain,Toronto');
+console.log(`${name} lives in ${city}`);
 ```
 
 ```text output
-Hello Ada
+Ada lives in Toronto
 ```
 
 There are two different results here. `context.timeout()` returns `download` **immediately**. `fetch()` returns a
@@ -37,9 +43,9 @@ There are two different results here. `context.timeout()` returns `download` **i
 both the request and body read because both are inside the block.
 
 `await using` means “when this block ends, await this object's cleanup,” including when a call throws. Here it releases
-the child's deadline wait and parent listener, then closes the parent. Finishing early does not wait out the two
+the child's deadline wait and parent listener. The caller closes the parent. Finishing early does not wait out the two
 seconds. The setup imports install Temporal and disposal APIs only if the host lacks them; ordinary context imports
-install no globals. Try `Hello%20Grace` as the input text: the output becomes `Hello Grace`.
+install no globals. Replace `Ada` with `Grace` in the first URL: the output becomes `Grace lives in Toronto`.
 
 An HTTP error is handled by the explicit `response.ok` check; a network error or abort rejects the Fetch promise.
 Context does not convert every provider's errors into a new result format.
@@ -99,19 +105,19 @@ plus listener and timer state. Expiry aborts the signal; it does not dispose reg
 
 ## Use familiar `try/finally` instead of `await using`
 
-The cleanup syntax can look unfamiliar even when the work is ordinary JavaScript. This complete version has the same
-successful output and explicitly awaits both owners' disposal:
+The cleanup syntax can look unfamiliar even when the work is ordinary JavaScript. This complete fragment of the profile
+load prints its name and explicitly awaits both owners' disposal:
 
 ```ts runnable=download-finally.ts
 import '@okikio/duration/polyfill';
 import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 
-const request = context.create({ id: 'download-text' });
+const request = context.create({ id: 'profile-screen', deadline: Temporal.Now.instant().add({ seconds: 2 }) });
 try {
 	const download = context.timeout(request, { seconds: 2 });
 	try {
-		const response = await fetch('data:text/plain,Hello%20Ada', { signal: download.signal });
+		const response = await fetch('data:text/plain,Ada', { signal: download.signal });
 		if (!response.ok) throw new Error(`Download failed: HTTP ${response.status}`);
 		console.log(await response.text());
 	} finally {
@@ -123,7 +129,7 @@ try {
 ```
 
 ```text output
-Hello Ada
+Ada
 ```
 
 `await using` expresses this responsibility more briefly and uses the language's combined-error rules when work and
@@ -147,21 +153,24 @@ async function read(url: string): Promise<string> {
 	if (!response.ok) throw new Error(`Download failed: HTTP ${response.status}`);
 	return await response.text();
 }
-const [name, city] = await Promise.all([read('data:text/plain,Ada'), read('data:text/plain,Toronto')]);
-console.log(`${name} lives in ${city}`);
 screen.abort(new Error('The screen was closed.'));
-console.log(downloads.signal.aborted);
+try {
+	await Promise.all([read('data:text/plain,Ada'), read('data:text/plain,Toronto')]);
+} catch (error) {
+	if (error !== screen.signal.reason) throw error;
+	console.log('Profile load cancelled');
+}
 ```
 
 ```text output
-Ada lives in Toronto
-true
+Profile load cancelled
 ```
 
-The abort follows the completed reads, so the demo proves signal propagation rather than interruption of an active
-request. In a UI, the same `screen.abort()` call belongs in its close action. Disposing a child never aborts its parent.
-`Promise.all` does not cancel its other input when one fails; use the bounded concurrency package when you need its
-sibling-cancellation and joining contract.
+The screen closes before its reads start, so both Fetch calls receive an already-aborted child signal. This proves that
+cancellation stops new requests, rather than just printing a flag after completed work. In a UI, the same
+`screen.abort()` call belongs in its close action. This offline case does not simulate cancellation during an active
+network transfer. Disposing a child never aborts its parent. `Promise.all` does not cancel its other input when one
+fails; use the bounded concurrency package when you need its sibling-cancellation and joining contract.
 
 ## Observe expiry without relying on network timing
 
@@ -173,9 +182,9 @@ import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 
 const clock = new context.TestClock();
-await using request = context.create({ id: 'download', clock });
+await using request = context.create({ id: 'download', clock, deadline: clock.now().add({ seconds: 1 }) });
 await using download = context.timeout(request, { seconds: 2 });
-clock.advance({ seconds: 2 });
+clock.advance({ seconds: 1 });
 await Promise.resolve();
 try {
 	await fetch('data:text/plain,Too%20late', { signal: download.signal });
@@ -188,12 +197,13 @@ try {
 true
 ```
 
-Advancing the clock releases its deadline wait. The next microtask lets that wait abort the signal before Fetch starts;
-Fetch then rejects with the deadline reason. No active network request or machine-time sleep is involved. `check()`
-reads the deadline and signal and throws when work must stop. Use it between synchronous chunks. `wait(ctx,
-duration)`
-checks before and after sleeping through the context's clock. `delay(milliseconds)` is a plain pause; `remaining(ctx)`
-reads the budget without starting a timer. None returns your download's answer.
+The parent allows one second; the helper requests two. Advancing one second releases the inherited deadline wait,
+showing that the helper cannot extend its caller's budget. The next microtask lets that wait abort the signal before
+Fetch starts; Fetch then rejects with the deadline reason. No active network request or machine-time sleep is involved.
+`check()` reads the deadline and signal and throws when work must stop. Use it between synchronous chunks.
+`wait(ctx,
+duration)` checks before and after sleeping through the context's clock. `delay(milliseconds)` is a plain
+pause; `remaining(ctx)` reads the budget without starting a timer. None returns your download's answer.
 
 ## Add a field without creating another lifetime
 
@@ -207,18 +217,22 @@ import * as context from '@okikio/context';
 
 await using request = context.create({ id: 'greeting' });
 const localized = context.view(request, { language: 'fr' as const });
-console.log(localized.language, localized.signal === request.signal);
+function greeting(ctx: context.Context & { readonly language: 'fr' | 'en' }, name: string): string {
+	context.check(ctx);
+	return ctx.language === 'fr' ? `Bonjour ${name}` : `Hello ${name}`;
+}
+console.log(greeting(localized, 'Ada'));
 ```
 
 ```text output
-fr true
+Bonjour Ada
 ```
 
-Its return type is `Base & Readonly<Extension>`: existing fields plus the new fields. The implementation copies and
-freezes the view, rejects replacement of existing properties, and records its relationship to the original owner. It
-creates no controller, timer, or cleanup stack. Other packages call similar additions a **scope** when they add
-permissions or resource access. There is no `context.scope()` export: `child()` creates a lifetime; `view()` adds
-fields.
+The helper reads the added language and checks cancellation through the same context. Its return type is
+`Base & Readonly<Extension>`: existing fields plus the new fields. The implementation copies and freezes the view,
+rejects replacement of existing properties, and records its relationship to the original owner. It creates no
+controller, timer, or cleanup stack. Other packages call similar additions a **scope** when they add permissions or
+resource access. There is no `context.scope()` export: `child()` creates a lifetime; `view()` adds fields.
 
 ## Register cleanup and choose the next capability
 

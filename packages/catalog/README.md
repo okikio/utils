@@ -95,18 +95,8 @@ console.log(EffectiveProblems[1] === InvalidInput); // true
 `compose()` accepts entries, catalogs, selections, and nested arrays. Repeating the same object is harmless. A different
 object that claims the same stable `id` is rejected because the identity would be ambiguous.
 
-A larger composition can therefore remain declarative:
-
-```ts
-const ServiceProblems = catalog.compose(
-	PublicProblems,
-	featureEnabled ? FeatureProblems : [],
-	pluginProblems,
-	[InvalidInput, optionalProblems],
-);
-```
-
-Nested input is walked iteratively, so very deep generated composition does not consume the JavaScript call stack.
+Nested arrays let an application add a feature's definitions conditionally, including `[]` when it is disabled.
+Composition walks nested input iteratively, so deep generated input does not consume the JavaScript call stack.
 
 ## Inspect without exposing internal indexes
 
@@ -128,17 +118,9 @@ internally.
 | `catalog.create()`               | freeze entries, build identity/key indexes, reject duplicate IDs, and retain namespace metadata | one authoritative immutable definition set              |
 | `catalog.select()` / `compose()` | look up keys, preserve order, de-duplicate identities, and reject conflicts manually            | safe subsets and unions without parallel registry logic |
 
-The manual version is approximately:
-
-```ts
-const entries = Object.freeze({ NotFound, InvalidInput });
-const ordered = Object.freeze([NotFound, InvalidInput]);
-const byId = new Map(ordered.map((entry) => [entry.id, entry]));
-```
-
-You would then need to add duplicate-ID detection, reverse key lookup, key-preserving selections, deterministic
-flattening, immutable metadata, and a JSON-safe document projection yourself. `@okikio/catalog` packages those
-mechanics. It does not own the meaning or lifecycle of the definitions.
+An ordinary frozen record plus an ID map can store the definitions. You would still need duplicate-ID detection, reverse
+key lookup, key-preserving selections, deterministic flattening, immutable metadata, and a JSON-safe document projection
+yourself. `@okikio/catalog` packages those mechanics. It does not own the meaning or lifecycle of the definitions.
 
 Use a catalog when several reusable definitions need one named, inspectable universe. Do not use it as a service
 locator, startup mechanism, mutable registry, or dependency container.

@@ -13,45 +13,51 @@ The first line reads the incoming token. The second writes instructions for the 
 still decides whether the token identifies a valid session. `secure`, `httpOnly` and `sameSite` describe browser
 behavior; they do not replace authentication or access checks.
 
-## Read and rotate a browser token
+## Remember a display preference and reject unsupported values
 
 ```ts runnable
 import * as cookie from '@okikio/http/cookie';
 import { z } from 'zod';
-const Session = cookie.define({
-	id: 'session',
-	name: '__Host-session',
-	description: 'Opaque session token.',
-	value: z.string().min(1),
-	attributes: { secure: true, httpOnly: true, path: '/', sameSite: 'lax' },
+const Theme = cookie.define({
+	id: 'display.theme',
+	name: 'theme',
+	description: 'Preferred display theme.',
+	value: z.enum(['light', 'dark']),
+	attributes: { path: '/', sameSite: 'lax' },
 });
-console.log(await cookie.get(new Headers({ cookie: '__Host-session=token-1' }), Session));
+const incoming = new Request('https://service.invalid/settings', { headers: { cookie: 'theme=light' } });
+console.log(await cookie.get(incoming, Theme));
 const output = new Headers();
-cookie.set(output, Session, 'token-2');
-console.log(output.getSetCookie().length);
+output.append('Set-Cookie', 'notice=seen; Path=/');
+cookie.set(output, Theme, 'dark');
+const outgoing = new Response('Preference saved', { headers: output });
+console.log(outgoing.headers.getSetCookie().length);
+console.log((await cookie.safeGet(new Headers({ cookie: 'theme=blue' }), Theme)).success);
 ```
 
 Expected output:
 
 ```text output
-token-1
-1
+light
+2
+false
 ```
 
-The demo defines `__Host-session` as a nonempty string and gives it the attributes used when writing it. `get()` reads
-`token-1` from the incoming header and validates its shape. `set()` appends a separate outgoing cookie for `token-2`.
-The output `1` counts the outgoing `Set-Cookie` fields; it does not count active sessions or prove that either token is
-trusted. A missing cookie returns `undefined`, while `get()` rejects a value that fails the declared rule.
+The definition accepts only `light` or `dark`. Reading returns the current `light` preference. Writing `dark` adds a
+second outgoing cookie without erasing the existing notice cookie, which the count `2` confirms. Reading unsupported
+`blue` returns an ordinary unsuccessful result from `safeGet()`. A missing cookie returns `undefined`; `get()` throws
+for an invalid value. The outgoing Response carries both cookies for the browser; no session or authentication is
+created by changing a display preference.
 
 ## What is stored in the definition?
 
-| Contract                                 | Shape or return value                                             | Meaning                                                                                |
-| ---------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `CookieDefinition`                       | `{ kind: 'cookie', id, name, value, attributes, description }`    | Frozen name, Standard Schema value rule and browser attributes                         |
-| `safeGet(incoming, Session)`             | `Promise<{ success: true, value } \| { success: false, issues }>` | Missing cookies succeed with `value: undefined`; malformed values return schema issues |
-| `get(incoming, Session)`                 | `Promise<string \| undefined>` for the example schema             | Same read; invalid values throw `TypeError`                                            |
-| `set(headers, Session, token, options?)` | `void`                                                            | Appends an outgoing `Set-Cookie` field; mutates only the supplied `Headers`            |
-| `delete(headers, Session)`               | `void`                                                            | Appends an empty expired cookie; does not delete a stored application session          |
+| Contract                                | Shape or return value                                             | Meaning                                                                                |
+| --------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `CookieDefinition`                      | `{ kind: 'cookie', id, name, value, attributes, description }`    | Frozen name, Standard Schema value rule and browser attributes                         |
+| `safeGet(incoming, Theme)`              | `Promise<{ success: true, value } \| { success: false, issues }>` | Missing cookies succeed with `value: undefined`; malformed values return schema issues |
+| `get(incoming, Theme)`                  | `Promise<'light' \| 'dark' \| undefined>` for the example schema  | Same read; invalid values throw `TypeError`                                            |
+| `set(headers, Theme, 'dark', options?)` | `void`                                                            | Appends an outgoing `Set-Cookie` field; mutates only the supplied `Headers`            |
+| `delete(headers, Theme)`                | `void`                                                            | Appends an empty expired cookie; does not delete stored application data               |
 
 Under the hood, reading parses the incoming Cookie header, selects the definition's name, decodes the text and invokes
 the schema. Writing percent-encodes the supplied value and combines it with the declared attributes. Writing does not

@@ -28,18 +28,20 @@ const app = http.create({
 });
 const response = await app.fetch(new Request('https://service.invalid/health'));
 console.log(response.status, (await response.json()).ok);
+console.log(response.headers.get('x-content-type-options'));
 ```
 
 Expected output:
 
 ```text output
 200 true
+nosniff
 ```
 
 The demo registers one GET route at `/health` and wraps it with security-header middleware. Calling `app.fetch()`
 directly selects that route and returns JSON with `ok: true`. The output `200 true` means the response succeeded and its
-body has the expected flag. The example reads the body completely. It runs without opening a network listener, which
-also makes this shape useful for local tests.
+body has the expected flag. `nosniff` shows the configured security policy reached the response. The example reads the
+body completely. It runs without opening a network listener, which also makes this shape useful for local tests.
 
 ## Start with the level your application needs
 
@@ -76,24 +78,6 @@ host owns listener startup and shutdown; the chosen service runtime owns its own
 
 [Choose related utilities by outcome](../../docs/outcomes.md). Later examples that introduce application-owned clients
 or schemas are composition sketches; supply those dependencies before running them.
-
-## The same small route written by hand
-
-A Fetch service can always be written manually:
-
-```ts
-const fetch = async (request: Request): Promise<Response> => {
-	const url = new URL(request.url);
-	if (request.method === 'GET' && url.pathname === '/health') {
-		return Response.json({ ok: true });
-	}
-	return new Response('Not found', { status: 404 });
-};
-```
-
-Keep that model in mind. `@okikio/server` does not replace Fetch. It removes the repeated work around declared routes,
-Standard Schema input, resources, expected problems, middleware behavior, OpenAPI projection, and deterministic gateway
-composition.
 
 ## How it fits
 
@@ -141,7 +125,9 @@ Hono part of the service compiler or core server runtime.
 
 ## Larger service composition
 
-The complete version below serves the same familiar health response, this time with a reusable checked body rule:
+The complete version below serves the same familiar health response, this time with a reusable checked body rule. The
+two side-effect imports provide Temporal for request timestamps and `AsyncDisposableStack` for runtime ownership when
+the environment lacks them. They are runtime dependencies of this service flow, not part of route definition itself:
 
 ```ts runnable=declared-service.ts
 import '@okikio/duration/polyfill';

@@ -11,8 +11,8 @@ demo teaches the communication boundary rather than demonstrating a speedup.
 ```text
 Parent module                         Worker module
 open(thread.ts) --------------------> serve(protocol)
-request: "hello" + request ID ------> validate -> convert to capitals
-matching result: "HELLO" <----------- validate response + same request ID
+request: title + report text + ID --> validate -> count words and paragraphs
+matching summary + same ID <--------- validate response -> settle this request
 await using ends -------------------> cooperative stop / bounded termination
 ```
 
@@ -20,7 +20,11 @@ Read across each row as a message crossing the boundary, then down as the lifecy
 execution; the parent owns the handle and shutdown. This diagram omits progress notices and reverse calls, which have
 separate meanings from a terminal response.
 
-## Call a function in another thread
+## Summarize a report in a separate module
+
+A document screen can send report text to an analysis module and receive a small summary for display. Save the parent
+and Worker modules below together. This fixture is deliberately short so its counts are inspectable. The same handler
+can analyze a larger text; choose a Worker when isolating that CPU work is worth module startup and message-copy costs.
 
 The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
 implementation is preserved.
@@ -34,15 +38,29 @@ import { z } from 'zod';
 await using ctx = context.create({ id: 'thread-owner' });
 await using thread = worker.open(ctx, {
 	module: new URL('./thread.ts', import.meta.url),
-	protocol: worker.protocol({ request: z.string(), response: z.string() }),
+	protocol: worker.protocol({
+		request: z.object({ title: z.string(), text: z.string() }),
+		response: z.object({
+			title: z.string(),
+			words: z.number().int().nonnegative(),
+			paragraphs: z.number().int().nonnegative(),
+			characters: z.number().int().nonnegative(),
+		}),
+	}),
 });
-console.log(await thread.request(ctx, 'hello'));
+const summary = await thread.request(ctx, {
+	title: 'Family photo notes',
+	text: 'Ada keeps the family photo.\n\nLin records its date.',
+});
+console.log(`${summary.title}: ${summary.words} words in ${summary.paragraphs} paragraphs`);
+console.log(`${summary.characters} characters`);
 ```
 
 Expected output:
 
 ```text output
-HELLO
+Family photo notes: 9 words in 2 paragraphs
+50 characters
 ```
 
 Worker module, saved as `thread.ts`:
@@ -53,23 +71,43 @@ import '@okikio/dispose/polyfill';
 import * as worker from '@okikio/worker';
 import { z } from 'zod';
 worker.serve({
-	protocol: worker.protocol({ request: z.string(), response: z.string() }),
-	run: (request) => request.toUpperCase(),
+	protocol: worker.protocol({
+		request: z.object({ title: z.string(), text: z.string() }),
+		response: z.object({
+			title: z.string(),
+			words: z.number().int().nonnegative(),
+			paragraphs: z.number().int().nonnegative(),
+			characters: z.number().int().nonnegative(),
+		}),
+	}),
+	run(request) {
+		const text = request.text.trim();
+		return {
+			title: request.title,
+			words: text.match(/\S+/gu)?.length ?? 0,
+			paragraphs: text.length === 0 ? 0 : text.split(/\n\s*\n/u).length,
+			characters: request.text.length,
+		};
+	},
 });
 ```
 
 ## Read the mini-demo
 
-Save the two modules together. The parent opens `thread.ts`, sends the string `hello`, and awaits the correlated
-response. The Worker validates that input as a string, converts it to capitals, and returns `HELLO`; the parent prints
-it. Both sides agree on string request and response schemas. Try another string, or change both schemas and the
-conversion together when teaching a new request shape. A host must supply the standard Worker contract or an appropriate
-factory.
+The first paragraph has five words and the second has four. The handler counts whitespace-separated chunks as words,
+blank-line-separated blocks as paragraphs, and JavaScript string code units as characters. Those are explicit display
+rules, not language-aware word segmentation. An empty report returns zero words and paragraphs. Both modules validate
+the request and summary shapes, and the parent uses the inferred fields directly to render the result.
 
-The ordinary call is `await thread.request(ctx, input)`. With these schemas it takes a string and resolves to a string;
-there is no additional result container. The Context supplies cancellation, identity, and a serializable clock/deadline
-snapshot. `await using thread` owns shutdown when the block ends. It is the Worker handle, not the string result, that
-needs disposal.
+The benefit is a separate analysis module with a checked request/result boundary. The utility supplies validation,
+request IDs, matching Promise settlement, and owned shutdown around standard Worker messaging. A plain function call is
+sufficient when the report is small and isolation is unnecessary. This fixture makes no speedup claim. A host must
+supply the standard Worker contract or an appropriate factory.
+
+The ordinary call is `await thread.request(ctx, input)`. With these schemas it takes `{ title, text }` and resolves to
+`{ title, words, paragraphs, characters }`; there is no additional result container. The Context supplies cancellation,
+identity, and a serializable clock/deadline snapshot. `await using thread` owns shutdown when the block ends. It is the
+Worker handle, not the summary object, that needs disposal.
 
 | Contract                                              | Why it exists                                                                          |
 | ----------------------------------------------------- | -------------------------------------------------------------------------------------- |
@@ -86,51 +124,27 @@ The parent resolves that one Promise. Cancellation uses a control message and lo
 realm; an AbortSignal is not sent as a transferable object. The [contract reference](API.md) includes the failure,
 notice, and reverse-call envelopes when you need them.
 
-## Total a small inventory in the Worker
+## Keep results attached to the report that requested them
 
-The same call shape also works for arrays and ordinary numbers. Save these two files together. The array is checked
-before the handler sums its quantities, and the returned number is checked before the parent receives it. This tiny
-fixture teaches input and output, not a thread speedup; large CPU work must justify message and setup costs.
+While the first parent's handle is open, it can send several reports using the same protocol. The utility assigns each
+call a request ID; each Promise receives the matching summary. `Promise.all()` returns the summaries in input order, so
+a screen can keep its report list in that order even if a later request returns first.
 
-```ts runnable=inventory-main.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
-import * as context from '@okikio/context';
-import * as worker from '@okikio/worker';
-import { z } from 'zod';
-await using owner = context.create({ id: 'inventory' });
-await using thread = worker.open(owner, {
-	module: new URL('./inventory-thread.ts', import.meta.url),
-	protocol: worker.protocol({
-		request: z.array(z.object({ name: z.string(), quantity: z.number().int().nonnegative() })),
-		response: z.number().int().nonnegative(),
-	}),
-});
-console.log(
-	await thread.request(owner, [
-		{ name: 'photos', quantity: 4 },
-		{ name: 'videos', quantity: 2 },
-	]),
-);
+This extension continues the parent module above with its existing `thread` and `ctx`:
+
+```ts
+const reports = [
+	{ title: 'Photo notes', text: 'Ada keeps the family photo.' },
+	{ title: 'Date notes', text: 'Lin records its date.' },
+];
+const summaries = await Promise.all(reports.map((report) => thread.request(ctx, report)));
+console.log(summaries.map((summary) => `${summary.title}: ${summary.words} words`).join('\n'));
+// Photo notes: 5 words
+// Date notes: 4 words
 ```
 
-```text output
-6
-```
-
-```ts support=inventory-thread.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
-import * as worker from '@okikio/worker';
-import { z } from 'zod';
-worker.serve({
-	protocol: worker.protocol({
-		request: z.array(z.object({ name: z.string(), quantity: z.number().int().nonnegative() })),
-		response: z.number().int().nonnegative(),
-	}),
-	run: (items) => items.reduce((total, item) => total + item.quantity, 0),
-});
-```
+One Worker still runs its JavaScript on one execution thread. Multiple outstanding requests exercise correlation; they
+do not create additional CPU threads or guarantee that two synchronous analyses run in parallel.
 
 - **Analyze uploaded files:** combine a [Context](../context/README.md) for cancellation with this protocol for the
   analysis request. Transferable buffers can move across the boundary when ownership is deliberately transferred;
@@ -172,7 +186,7 @@ cooperative cancellation does not invalidate a healthy Worker.
 
 ## Serve the same protocol inside the Worker
 
-This extension sketch assumes an application-owned `MediaProtocol` and `convert()` function. Use the complete inventory
+This extension sketch assumes an application-owned `MediaProtocol` and `convert()` function. Use the complete report
 pair above when learning only the request/result path.
 
 ```ts

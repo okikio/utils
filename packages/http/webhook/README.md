@@ -21,23 +21,26 @@ actions. Store and check the event identity when duplicates would matter.
 import * as webhook from '@okikio/http/webhook';
 import * as standard from '@okikio/http/webhook/standard';
 const verifier = standard.create({ secret: 'whsec_' + btoa(String.fromCharCode(...new Uint8Array(32).fill(1))) });
-const body = '{"ok":true}';
+const body = '{"kind":"payment.received","invoiceId":"invoice-42"}';
 const headers = await verifier.sign({ id: 'event-1', timestamp: 1000, body });
 const request = new Request('https://service.invalid/webhook', { method: 'POST', headers, body });
 const verified = await webhook.verifyRequest(request, verifier, { now: new Date(1000_000) });
-console.log(verified.ok, (await request.json()).ok);
+if (!verified.ok) throw new Error(`Payment event rejected: ${verified.code}`);
+const event = await request.json();
+console.log(verified.id, event.kind, event.invoiceId);
 ```
 
 Expected output:
 
 ```text output
-true true
+event-1 payment.received invoice-42
 ```
 
-The demo creates a verifier with a fixed example key, signs `{"ok":true}` as event `event-1`, and uses a fixed
-verification clock that matches the signed timestamp. The first `true` means verification accepted the signed bytes and
-metadata. The second comes from parsing the original request, showing that verification did not consume it. Use
-application-owned secrets and the real clock in deployment; this key and timestamp only make the demo reproducible.
+The demo signs a local payment-event fixture as `event-1` with a fixed example key and a matching verification clock.
+Only after verification succeeds does it parse the original request and read the invoice identity. This shows the order
+an inbound payment route needs without pretending to contact a payment provider. It does not mark the invoice paid or
+deduplicate deliveries. Validate the event schema and commit its identity with the business update in your application.
+Use application-owned secrets and the real clock in deployment; this key and timestamp only make the demo reproducible.
 
 ## The contract beneath verification
 

@@ -144,11 +144,14 @@ Options use complete words. `maximumRows` is intentional; there is no `maxRows` 
 ## Stream unknown or large input
 
 `parseStream()` is the primary API when you do not want to retain the complete source or complete row set in memory.
+This HTTP integration sketch assumes `request` is the incoming request and `saveRow` is your awaited persistence
+function. The utility bounds parsing and owns the reader; that function owns validation and transaction behavior.
 
 ```ts
 import * as csv from '@okikio/csv';
 
-await using document = await csv.parseStream(request.body!, {
+if (request.body === null) throw new Error('The upload has no body.');
+await using document = await csv.parseStream(request.body, {
 	maximumBytes: 128 * 1024 * 1024,
 	maximumRows: 2_000_000,
 	maximumColumns: 256,
@@ -188,12 +191,8 @@ data flows.
 
 ## Header normalization
 
-```ts
-import * as csv from '@okikio/csv';
-
-csv.normalizeHeader('\ufeff Company:Website_URL ');
-// 'company website url'
-```
+`normalizeHeader('\ufeff Company:Website_URL ')` returns `'company website url'`. The contact preview above uses the
+corresponding normalized key to locate a column without depending on its position.
 
 Normalization handles BOMs, Unicode normalization, camel-case word transitions, common punctuation, separators, and
 repeated whitespace. It is idempotent: normalizing an already-normalized header returns the same value.
@@ -208,6 +207,7 @@ For example, a product import feature can classify parsed columns without teachi
 ```ts
 import * as csv from '@okikio/csv';
 
+const source = 'Company Domain Name,Website URL\nexample.com,https://example.com\n';
 const roles = new Map(
 	[
 		[csv.normalizeHeader('Company Domain Name'), 'domain'],
@@ -220,6 +220,8 @@ const columns = document.columns.map((column) => ({
 	...column,
 	role: roles.get(column.normalizedName) ?? 'unknown',
 }));
+console.log(columns.map((column) => `${column.key}: ${column.role}`).join(', '));
+// company domain name: domain, website url: website
 ```
 
 That separation is important. `@okikio/csv` remains reusable for media metadata, financial exports, scientific data,

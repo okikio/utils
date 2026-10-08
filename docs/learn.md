@@ -46,8 +46,8 @@ without first learning the suite's vocabulary.
 | Keep only a few operations active at a time                       | [Concurrency](../packages/concurrency/README.md)                                                   | A limited mapper returns ordered or completion-ordered results.             |
 | Share a supplied storage client                                   | [Resource](../packages/resource/README.md)                                                         | A dependency is created when first borrowed and released by its collection. |
 | Save a photo title as one checked job                             | [Activity](../packages/activity/README.md#save-a-photo-title-with-a-supplied-store)                | The store receives a label; the caller receives a validated receipt.        |
-| Run named steps and reuse recorded completions                    | [Workflow](../packages/workflow/README.md)                                                         | Two passes return the same label, with only two implementation calls.       |
-| Answer an HTTP request with a checked result                      | [Service](../packages/server/service/README.md)                                                    | A request to `/api/health` produces status 200 and `{ ok: true }`.          |
+| Run named steps and reuse recorded completions                    | [Workflow](../packages/workflow/README.md)                                                         | Two passes return the same photo ID, with only one title and album entry.   |
+| Save checked HTTP input and return a checked result               | [Service](../packages/server/service/README.md)                                                    | A valid title is saved; a numeric title gets status 400 before the handler. |
 
 These demonstrations use supplied local values. Their outputs do not establish that a database, remote service or
 production deployment has been configured. Each guide names what the application must provide for that next step.
@@ -64,8 +64,9 @@ database for you.
 
 Finally, suppose preparing a photo takes several independently executed jobs. A **workflow** describes their sequence
 and asks a scheduler for each result. Its configured history can reuse a recorded instruction completion. In the local
-workflow demo, the second pass reuses both text transformations. Memory history remains local to that process; a crash
-recovery system needs authoritative storage and additional host services.
+workflow demo, the second pass reuses the saved title's ID and the album update result without repeating either write.
+Memory history remains local to that process; a crash recovery system needs authoritative storage and additional host
+services.
 
 ![Choose a regular function, an activity, or a workflow to match the required outcome](diagrams/learn.png)
 
@@ -119,6 +120,11 @@ Several names recur across packages. Their meanings stay consistent:
 The demos' explicit duration and disposal polyfills support hosts missing the required APIs. The
 [duration](../packages/duration/README.md) and [disposal](../packages/dispose/README.md) guides explain direct imports,
 global installation and ownership. Setup imports are not the operation's result.
+
+Each imported binding must participate in the demonstrated job. A setup import belongs only where the example actually
+needs that missing runtime API. The first runnable example must use the package it teaches and show a recognizable
+outcome. A larger example adds another package only when it owns a needed rule or resource. Printing metadata or calling
+a method merely to make an import look used is not evidence that the extra setup helps the reader.
 
 ## Combine packages around a real result
 

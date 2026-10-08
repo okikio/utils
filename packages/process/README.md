@@ -160,6 +160,7 @@ const result = await process.exec(ctx, node.create(), {
 	stdout: { type: 'capture', maximumBytes: 64 * 1024 },
 	stderr: { type: 'capture', maximumBytes: 64 * 1024 },
 });
+console.log(new TextDecoder().decode(result.stdout).trim());
 ```
 
 `exec()` owns the complete finite lifecycle. It starts the child, writes optional piped input, waits for termination,
@@ -182,6 +183,7 @@ await using child = await process.start(ctx, node.create(), {
 console.log(child.pid);
 await child.stop('host shutdown');
 const exit = await child.wait();
+console.log(exit.success, exit.code);
 ```
 
 `stop()` is idempotent. Disposing the handle and parent-context cancellation use the same shutdown path rather than
@@ -196,16 +198,17 @@ consume the Web stream incrementally:
 await using child = await process.start(ctx, node.create(), {
 	command: nodeProcess.execPath,
 	arguments: ['large-output.mjs'],
-	stdout: 'piped',
+	stdout: { type: 'stream' },
 	stderr: { type: 'capture', maximumBytes: 64 * 1024 },
 });
 
 if (child.stdout === undefined) throw new Error('stdout was not piped');
-for await (const chunk of streams.iterable(child.stdout)) {
+for await (const chunk of child.stdout) {
 	await destination.write(chunk);
 }
 
 const exit = await child.wait();
+if (!exit.success) throw new Error(`Output command failed with code ${exit.code}.`);
 ```
 
 The caller owns consumption of a piped stream. `@okikio/process` still owns the child lifetime and final shutdown path.

@@ -27,12 +27,9 @@ report must name which of those gates actually passed and preserve blocked or un
 ## Install optional globals at the executable boundary
 
 Lifecycle packages use Temporal and ECMAScript explicit resource management. On a host that lacks the corresponding
-globals, import the explicit setup entries before using those packages:
-
-```ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
-```
+globals, import `@okikio/duration/polyfill` and `@okikio/dispose/polyfill` before using those packages. The complete
+[Context profile-load example](../packages/context/README.md#download-text-with-a-two-second-budget) uses their clock
+and disposal APIs around real Fetch calls.
 
 Those entries preserve an existing native implementation and are intentionally side-effectful. Ordinary utility imports
 do not install globals. `duration/temporal` instead provides a local Temporal ponyfill when the application wants

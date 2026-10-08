@@ -204,6 +204,9 @@ A runtime that does not yet expose the stack classes can install only the missin
 
 ```ts
 import '@okikio/dispose/polyfill';
+const owned = new AsyncDisposableStack();
+owned.defer(() => console.log('Application cleanup finished'));
+await owned.disposeAsync();
 ```
 
 That import is compatibility plumbing. The manual equivalent is to provide the standard globals before application code

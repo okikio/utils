@@ -86,7 +86,8 @@ diagnostics; your code still receives the actual credential and must control whe
 Concrete packages define the environment fields they need. An executable host selects raw sources and parses those
 definitions during startup. Importing a definition never reads ambient process state.
 
-Metadata can describe the port for deployment tooling, while `secret()` labels a credential:
+Metadata can produce an operator's configuration checklist. `secret()` keeps the credential value out of that generated
+template, so the same definitions used for startup checks can also produce safe deployment instructions:
 
 ```ts
 import * as env from '@okikio/env/zod';
@@ -103,9 +104,7 @@ const ServiceEnvironment = env.define({
 	),
 });
 
-const values = ServiceEnvironment.parseSync(
-	env.merge(env.env, { PORT: '4321' }),
-);
+console.log(env.example(ServiceEnvironment));
 ```
 
 The definition is import-safe. Creating it does not read ambient state, connect to a provider, or configure a process.
@@ -151,14 +150,13 @@ printing the corresponding secret values.
 
 ### Zod
 
-```ts
-import * as env from '@okikio/env/zod';
-```
-
 Bare Zod schemas become ordinary variables. The adapter reads metadata through Zod 4's public `.meta()` and
 `.describe()` APIs:
 
 ```ts
+import * as env from '@okikio/env/zod';
+import { z } from 'zod';
+
 const ServiceEnvironment = env.define({
 	LOG_LEVEL: z.enum(['debug', 'info', 'warning', 'error']).default('info').meta({
 		title: 'Log level',
@@ -166,16 +164,21 @@ const ServiceEnvironment = env.define({
 		examples: ['info'],
 	}),
 });
+console.log(ServiceEnvironment.parseSync({}).LOG_LEVEL); // info
 ```
 
 Secret classification remains explicit because secrecy is a deployment rule, not a validation property:
 
 ```ts
+import * as env from '@okikio/env/zod';
+import { z } from 'zod';
+
 const ServiceEnvironment = env.define({
 	API_TOKEN: env.secret(
 		z.string().min(1).describe('Token used to call the provider API.'),
 	),
 });
+console.log(env.example(ServiceEnvironment)); // API_TOKEN=<secret>, with its description
 ```
 
 ### Valibot
@@ -184,14 +187,15 @@ const ServiceEnvironment = env.define({
 import * as env from '@okikio/env/valibot';
 import * as v from 'valibot';
 
-const Port = v.pipe(
+const PortSchema = v.pipe(
 	v.string(),
 	v.title('HTTP port'),
 	v.description('Port used by the service listener.'),
 	v.examples(['8787']),
 );
 
-const ServiceEnvironment = env.define({ PORT: Port });
+const ServiceEnvironment = env.define({ PORT: PortSchema });
+console.log(ServiceEnvironment.parseSync({ PORT: '8787' }).PORT); // '8787': this schema keeps text
 ```
 
 The adapter uses Valibot's public `getTitle`, `getDescription`, `getMetadata`, and `getExamples` functions. The original
@@ -199,20 +203,21 @@ Valibot schema remains the runtime validator and the source of inferred output t
 
 ### Generic Standard Schema
 
-```ts
-import * as env from '@okikio/env/standard';
-```
-
 Standard Schema defines validation interoperability but does not define a shared metadata protocol. Generic callers
 therefore provide environment metadata explicitly:
 
 ```ts
+import * as env from '@okikio/env/standard';
+import { z } from 'zod';
+
+const PortSchema = z.coerce.number().int().min(1).max(65535);
 const ServiceEnvironment = env.define({
 	PORT: env.variable(PortSchema, {
 		description: 'Port used by the service listener.',
 		example: '8787',
 	}),
 });
+console.log(ServiceEnvironment.parseSync({ PORT: '8787' }).PORT); // 8787, a number
 ```
 
 The generic entrypoint never inspects private Zod or Valibot properties.
@@ -247,16 +252,8 @@ Secrets never project examples, including examples attached to the schema.
 `@okikio/env` consumes raw environment records. It does not discover `.env` files, read a filesystem, or choose which
 runtime source has precedence. That decision belongs to the executable host.
 
-```ts
-// Node host
-const raw = Object.fromEntries(Object.entries(process.env));
-const values = ServiceEnvironment.parseSync(raw);
-```
-
-```ts
-// Deno host
-const values = ServiceEnvironment.parseSync(Deno.env.toObject());
-```
+At the executable root, pass `env.env` to read only the declared keys from the runtime. You can also supply
+`process.env` in Node or `Deno.env.toObject()` in Deno when an existing host already owns a complete raw snapshot.
 
 A browser-like host can pass deployment bindings. A test can pass a literal record. If a CLI chooses to parse dotenv
 syntax, the parser remains CLI/runtime composition and its result is still just `Record<string, string | undefined>`.
@@ -269,9 +266,10 @@ Not every value needs an environment definition. A deployment adapter may need o
 import * as env from '@okikio/env';
 
 const values = env.select(
-	env.merge(env.env, deploymentOverrides),
-	['BUNNY_API_KEY', 'BUNNY_RELEASE_ID'],
+	env.merge({ RELEASE_ID: 'stable', REGION: 'us-east' }, { RELEASE_ID: 'preview' }),
+	['RELEASE_ID', 'REGION'],
 );
+console.log(JSON.stringify(values)); // {"RELEASE_ID":"preview","REGION":"us-east"}
 ```
 
 This path has no Zod or Valibot dependency.
@@ -281,14 +279,18 @@ This path has no Zod or Valibot dependency.
 Composition permits the same field object to arrive through several imported definitions:
 
 ```ts
-export const DatabaseUrl = env.secret(
+import * as env from '@okikio/env/zod';
+import { z } from 'zod';
+
+const DatabaseUrl = env.secret(
 	z.string().min(1).describe('PostgreSQL connection string.'),
 );
 
-export const DatabaseEnvironment = env.define({ DATABASE_URL: DatabaseUrl });
-export const WorkerEnvironment = env.define({ DATABASE_URL: DatabaseUrl });
+const DatabaseEnvironment = env.define({ DATABASE_URL: DatabaseUrl });
+const WorkerEnvironment = env.define({ DATABASE_URL: DatabaseUrl });
 
 const HostEnvironment = env.compose(DatabaseEnvironment, WorkerEnvironment);
+console.log(env.manifest(HostEnvironment).secrets.map((field) => field.key)); // ['DATABASE_URL'], once
 ```
 
 Independently declaring another field under `DATABASE_URL` is rejected. Silently choosing one declaration would lose
@@ -301,8 +303,7 @@ definitions composes safely.
 
 - `env.env` is lazy and performs no read during import.
 - Deno reads remain per-key so hosts can grant narrow environment permissions.
-- Node access uses `process.getBuiltinModule('node:process')`, avoiding static `node:` imports in browser-compatible
-  graphs.
+- Node access reads ambient `process.env` without static `node:` imports in browser-compatible graphs.
 - `env.record()` snapshots values through `Map`, so prototype-shaped external keys remain ordinary data.
 - `env.merge()` is sparse: `undefined` falls through to a lower-precedence source.
 - Definitions collect all schema issues before throwing `EnvironmentError`; its message lists each field while `.issues`
@@ -317,11 +318,11 @@ choose additional mechanisms when the application needs them.
 
 ## Convenience and the manual equivalent
 
-| Convenience                          | Manual equivalent                                                                                                   | Concrete value                                                                  |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `env.environment()`                  | validate every field definition, snapshot the map, parse raw strings, prefix issues, and freeze the resolved output | one schema-derived environment contract                                         |
-| `env.merge()` / `env.select()`       | copy raw source records in precedence order or pick exact keys manually                                             | source acquisition stays outside the utility while composition is deterministic |
-| `definition.parse()` / `parseSync()` | resolve the definition and throw one structured report for missing/invalid fields                                   | typed startup failure instead of scattered `Deno.env.get()` checks              |
+| Convenience                          | Manual equivalent                                                                       | Concrete value                                                                  |
+| ------------------------------------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `env.environment()`                  | validate field definitions, snapshot the field map, parse raw strings and prefix issues | one schema-derived environment contract                                         |
+| `env.merge()` / `env.select()`       | copy raw source records in precedence order or pick exact keys manually                 | source acquisition stays outside the utility while composition is deterministic |
+| `definition.parse()` / `parseSync()` | resolve the definition and throw one structured report for missing/invalid fields       | typed startup failure instead of scattered `Deno.env.get()` checks              |
 
 `@okikio/env` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics by passing a
 `Record<string, string | undefined>` into Zod, Valibot, or another Standard Schema.

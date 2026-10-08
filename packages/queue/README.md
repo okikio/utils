@@ -19,7 +19,7 @@ Add work -> queued -> claim by worker-a -> complete with live claim -> result
 The visual shows logical ownership, not automatic thread creation. The caller runs work and drives the applicable
 recovery operations. Claims prevent stale publication; they cannot undo external side effects already performed.
 
-## Put a request in a queue and read its result
+## Queue an invoice calculation and retrieve its total
 
 The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
 implementation is preserved.
@@ -28,27 +28,32 @@ implementation is preserved.
 import '@okikio/duration/polyfill';
 import '@okikio/dispose/polyfill';
 import * as queue from '@okikio/queue';
-await using jobs = queue.fifo(queue.memory<string, string>());
-const ref = await jobs.add('resize asset');
+await using jobs = queue.fifo(queue.memory<readonly number[], number>());
+const ref = await jobs.add([1999, 500]);
 const task = await jobs.take();
 if (task === undefined) throw new Error('No work was available.');
-await task.complete(task.value.toUpperCase());
-console.log(await jobs.result(ref));
+await task.complete(task.value.reduce((cents, price) => cents + price, 0));
+console.log(`$${((await jobs.result(ref)) / 100).toFixed(2)}`);
 ```
 
 Expected output:
 
 ```text output
-RESIZE ASSET
+$24.99
 ```
 
-`memory<string, string>()` creates a queue whose input and output are strings. `fifo()` supplies a small one-at-a-time
-API with an internally owned Context, so this path needs no Context import or worker runtime. `add()` returns a
-`Promise<QueueRef>`, `take()` returns a `Promise<QueueClaimHandle<string, string> | undefined>`, and `result()` waits
-for the ordinary output string. `await using jobs` closes the queue and its local waiters when the block ends.
+The producer submits two prices in cents. The executor claims those inputs and publishes their total. The producer's
+reference retrieves `$24.99` later without retaining the executor's temporary claim. This example runs both roles in one
+module; an application can submit work from a request and calculate it in a later execution loop.
 
-The demo transforms a request label to capitals rather than resizing a real picture. Replace the transform with your
-conversion function; the producer's stable reference and the executor's temporary claim still have different jobs:
+`memory<readonly number[], number>()` creates a queue whose inputs are price arrays and outputs are totals in cents.
+`fifo()` supplies a small one-at-a-time API with an internally owned Context, so this path needs no Context import or
+worker runtime. `add()` returns a `Promise<QueueRef>`, `take()` returns a
+`Promise<QueueClaimHandle<readonly number[], number> | undefined>`, and `result()` waits for the ordinary output number.
+`await using jobs` closes the queue and its local waiters when the block ends.
+
+The utility stores and coordinates the work; the ordinary `reduce()` expression calculates the total. The producer's
+stable reference and the executor's temporary claim have different jobs:
 
 ```text
 QueueRef:         { id }                            identifies the logical request
@@ -218,12 +223,11 @@ const task = await jobs.take();
 // task.value might be: 'transcode file'
 
 // Publish a successful outcome for the logical item.
-const completion = await task?.complete('ok');
-// completion is undefined because complete() only records success.
+await task?.complete('ok');
 
 // Read that outcome later through the stable item reference.
 const output = await jobs.result(ref);
-// output is: 'ok'
+console.log(output); // ok
 ```
 
 `output` is `'ok'`.
@@ -343,11 +347,10 @@ const task = await jobs.take({ duration: { seconds: 30 } });
 
 // The same logical item goes back to the queue.
 // The next take gets a new lease attempt for that item.
-const retry = await task?.retry({ delay: { seconds: 10 } });
-// retry is undefined because retry() only changes queue state.
+await task?.retry({ delay: { seconds: 10 } });
 
 const immediate = await jobs.take();
-// immediate is undefined because the item is delayed.
+console.log(immediate, ref.id); // No item is ready; ref still identifies the delayed work.
 ```
 
 After the delay passes, another `take()` call can receive the same item with a higher attempt number.
@@ -393,12 +396,11 @@ const recovered = await jobs.take({ duration: { seconds: 5 } });
 // recovered?.id might be: 'claim-2'
 
 // task-b publishes the successful terminal result.
-const completion = await recovered?.complete('recovered');
-// completion is undefined because complete() only records success.
+await recovered?.complete('recovered');
 
 // The stable item reference still points at the same logical item.
 const result = await jobs.result(ref);
-// result is: 'recovered'
+console.log(result); // recovered
 ```
 
 `result` is `'recovered'`.
@@ -441,11 +443,10 @@ const waiting = jobs.result(ref);
 // waiting will later resolve to: 'ready'
 
 // Another caller can publish the outcome.
-const completion = await task?.complete('ready');
-// completion is undefined because complete() only records success.
+await task?.complete('ready');
 
 const output = await waiting;
-// output is: 'ready'
+console.log(output); // ready
 ```
 
 The first situation is enough for FIFO-like use. The later situations explain why the queue keeps more state than a

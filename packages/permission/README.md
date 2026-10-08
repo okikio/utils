@@ -214,6 +214,7 @@ const allowed = await permissions.batch(
 	permissionsCtx,
 	assets.map((asset) => permissions.on(ReadAsset, { assetId: asset.id })),
 );
+console.log(assets.filter((_asset, index) => allowed[index]).map((asset) => asset.id));
 ```
 
 The `PermissionChecker` declares `maximumChecks`. This limit bounds the number of atomic checks in one logical

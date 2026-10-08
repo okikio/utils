@@ -14,12 +14,7 @@ The [full API reference](API.md) includes operators, normalized query shapes and
 
 ## Run a complete example
 
-The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
-implementation is preserved.
-
 ```ts runnable
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as query from '@okikio/query';
 import { z } from 'zod';
 const Search = query.define({
@@ -157,13 +152,15 @@ authenticate cursor tokens or construct HTTP responses.
 ```ts
 import * as query from '@okikio/query';
 
+import { z } from 'zod';
+
 export const WidgetQuery = query.define({
 	fields: {
-		id: query.field(IdSchema, { sortable: true }),
-		name: query.field(NameSchema, { sortable: true }),
-		score: query.field(ScoreSchema, { sortable: true }),
-		deletedAt: query.field(InstantSchema),
-		internalNote: query.field(NoteSchema, { selectable: false }),
+		id: query.field(z.string(), { sortable: true }),
+		name: query.field(z.string(), { sortable: true }),
+		score: query.field(z.coerce.number(), { sortable: true }),
+		deletedAt: query.field(z.iso.datetime().nullable()),
+		internalNote: query.field(z.string(), { selectable: false }),
 	},
 	filters: {
 		name: [query.eq, query.icontains, query.in],
@@ -223,6 +220,7 @@ const compatibility = WidgetQuery.validateAdapter({
 	fieldSelection: ['simple'],
 	maximumSorts: 3,
 });
+if (!compatibility.valid) console.log(compatibility.issues);
 ```
 
 Adapters reject unsupported operators or pagination strategies instead of silently changing their meaning. Tenant,
@@ -238,53 +236,18 @@ pagination form for link generation and round-trip tests.
 
 ## Request and adapter flow
 
-```ts
-const ListImports = endpoint.get({
-	id: 'imports.list',
-	path: '/imports',
-	query: ListImportsQuery,
-	responses: [ImportPage],
-	resources: [SelectImports],
-});
-
-const ListImportsHandler = endpoint.handler(ListImports, async (context) => {
-	const selectImports = await context.resources.get(SelectImports);
-
-	const page = await selectImports.execute({
-		query: context.input.query,
-		base: {
-			organizationId: context.organization.id,
-		},
-		execution: context.execution,
-	});
-
-	return response.create(ImportPage, page);
-});
+```text
+request URL parameters
+  -> query definition checks fields, operands, sorts and page bounds
+  -> application adds its trusted tenant and authorization restrictions
+  -> compatible provider adapter translates checked query data
+  -> provider returns rows for the application response
 ```
 
-The service runtime parses raw `URLSearchParams` and validates them through the query definition before the handler
-runs. The handler receives a normalized query value, not raw strings.
-
-A provider package compiles the public definition once:
-
-```ts
-const SelectImports = postgres.collection(ListImportsQuery, {
-	from: imports,
-	columns: {
-		id: imports.id,
-		filename: imports.filename,
-		status: imports.status,
-		createdAt: imports.createdAt,
-	},
-	base: {
-		organizationId: imports.organizationId,
-	},
-});
-```
-
-The adapter owns parameterized Drizzle expressions, keyset seek predicates, count strategy, and cursor codec use.
-ClickHouse and SPARQL adapters map the same normalized public contract into their native semantics and reject
-unsupported combinations at adapter compilation.
+Read top to bottom as data crosses ownership boundaries. The diagram omits provider-specific SQL and connection setup.
+Checked client filters never replace the application's trusted restrictions. The provider adapter owns parameterized
+expressions, keyset seek predicates, count strategy and cursor codec use. The earlier array example implements the
+smallest part of this flow without introducing a database or server runtime.
 
 ## Progressive usage
 

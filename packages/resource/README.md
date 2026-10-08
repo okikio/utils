@@ -18,7 +18,7 @@ closes the owned store when the collection ends. The two jobs do not close their
 a separate instance. It omits dependency ordering and access checks, which are explained below. The collection is not a
 cross-machine connection pool.
 
-## Supply a storage client to an operation
+## Save and read a note through a storage client
 
 The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
 implementation is preserved.
@@ -28,28 +28,45 @@ import '@okikio/duration/polyfill';
 import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as resource from '@okikio/resource';
-const Store = resource.define<{ read(id: string): string }>()({ id: 'store', description: 'Read one stored value.' });
-const StoreLive = resource.implement(Store, { create: () => ({ read: (id) => `value:${id}` }) });
+const Store = resource.define<{
+	save(id: string, text: string): void;
+	read(id: string): string | undefined;
+}>()({ id: 'store', description: 'Save and read notes.' });
+const StoreLive = resource.implement(Store, {
+	create({ ctx }) {
+		const notes = new Map<string, string>();
+		ctx.defer(() => notes.clear());
+		return {
+			save(id: string, text: string): void {
+				notes.set(id, text);
+			},
+			read(id: string): string | undefined {
+				return notes.get(id);
+			},
+		};
+	},
+});
 await using ctx = context.create({ id: 'store-owner' });
 await using stores = resource.create(resource.implementations(StoreLive), { ctx, host: {} });
 const store = await stores.get(ctx, Store);
-console.log(store.read('asset-1'));
+store.save('note-1', 'Bring the family photo');
+console.log(store.read('note-1'));
 ```
 
 Expected output:
 
 ```text output
-value:asset-1
+Bring the family photo
 ```
 
 `create()` returns a `ResourceCollection` immediately without opening the store. `get()` returns a Promise of the
-borrowed `{ read(id: string): string }` value, creating it lazily. The collection owns created values and releases them
-at disposal. The caller gets the string `value:asset-1` and must not dispose a borrowed provider independently.
+borrowed `{ save(), read() }` client, creating it lazily. `save()` writes the note to the supplied in-memory store, and
+`read()` returns the same text. The collection clears that store at disposal through the registered cleanup callback.
+The caller borrows the client and must not dispose it independently.
 
-The mini-demo starts with the ID `asset-1`. `Store` describes the operation a caller can use, and `StoreLive` supplies a
-tiny implementation that returns `value:` followed by that ID. `stores.get()` obtains that implementation; `read()`
-produces the printed string. No external file or database is read. Replace the supplied implementation when the same
-call needs to use real storage.
+The reason for a definition and separate implementation is to keep consumers on the same storage contract when the host
+changes providers. This offline implementation stores actual notes in a Map; a database implementation can supply the
+same capability with database-specific ownership and persistence. No external file or database is used here.
 
 The curried call `resource.define<Value>()({ id, description })` separates the TypeScript value type from the runtime
 metadata. The first parentheses tell the compiler what a consumer will receive. The second create a definition; they do

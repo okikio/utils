@@ -99,10 +99,12 @@ instead. Snapshotting is shallow: nested objects would still need their own owne
 ## Immutable snapshots
 
 ```ts
-const source = Object.create(null);
-source.__proto__ = 'ordinary-data';
+import { snapshot } from '@okikio/record';
 
-const snapshot = record.snapshot(source);
+const source = { ['__proto__']: 'ordinary-data', host: 'localhost' };
+const options = snapshot(source);
+console.log(options.__proto__); // ordinary-data
+console.log(Object.getPrototypeOf(options) === null); // true
 ```
 
 `snapshot()` validates first, then copies every own enumerable string data property into a frozen null-prototype object.

@@ -83,12 +83,7 @@ detectors reported; it cannot establish whether those detectors are trustworthy.
 
 ## The ordinary problem
 
-String comparison is not version comparison:
-
-```ts
-['2.10.0', '2.9.0'].sort();
-// ['2.10.0', '2.9.0'] -- lexical order, not release order
-```
+String sorting puts `2.10.0` before `2.9.0`; release ordering has the opposite relationship.
 
 Even a SemVer-only parser is insufficient when one source reports `2`, another reports `2.4`, and a vendor uses
 four-part numeric releases such as `2.11.16.1`. An evidence system also needs to distinguish refinement from
@@ -103,7 +98,6 @@ import * as version from '@okikio/version';
 
 const schemes = version.createVersionSchemeCatalog([
 	version.semanticVersionScheme,
-	version.numericDottedVersionScheme,
 ]);
 
 const resolution = version.resolveVersionCandidates([

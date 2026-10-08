@@ -5,16 +5,19 @@ are expected. An endpoint definition describes those facts as a reusable value. 
 server, client description and gateway can use the same route instead of copying strings and guessing its body shape.
 
 ```text
-Definition: GET /health -> declared Healthy result
+Definition: GET /greeting + name query -> declared greeting result
            + service prefix /api
-           -> service compiler links exact handler -> runtime serves /api/health
+           -> service compiler links exact handler -> runtime serves /api/greeting
 ```
 
 A definition is the description of an operation, not the code that performs it. The handler is linked separately to the
 exact definition. The compiler checks that link before serving traffic. Defining an endpoint starts no server and
 creates no provider connection.
 
-## Describe a health route, then answer a request
+## Validate a query before greeting its caller
+
+The example runs a service so you can see the declared endpoint answer a request. Its duration and disposal imports
+supply Temporal timestamps and `AsyncDisposableStack` cleanup when those APIs are absent from the environment.
 
 ```ts runnable
 import '@okikio/duration/polyfill';
@@ -23,27 +26,41 @@ import * as endpoint from '@okikio/server/endpoint';
 import * as response from '@okikio/http/response';
 import * as service from '@okikio/server/service';
 import { z } from 'zod';
-const Healthy = response.ok(z.object({ ok: z.boolean() }), { id: 'health.ok', description: 'Service health.' });
-const Health = endpoint.get({ id: 'health.read', path: '/health', responses: [Healthy] });
-const Api = service.define({ id: 'health-api', path: '/api', endpoints: [Health] });
+const Greeting = response.ok(z.object({ message: z.string() }), {
+	id: 'greeting.ok',
+	description: 'Personal greeting.',
+});
+const Greet = endpoint.get({
+	id: 'greeting.read',
+	path: '/greeting',
+	query: z.object({ name: z.string().min(1) }),
+	responses: [Greeting],
+});
+const Api = service.define({ id: 'greeting-api', path: '/api', endpoints: [Greet] });
 const implementation = service.implement(Api, {
-	endpoints: [endpoint.handler(Health, () => response.create(Healthy, { ok: true }))],
+	endpoints: [
+		endpoint.handler(Greet, ({ input }) => response.create(Greeting, { message: `Hello, ${input.query.name}!` })),
+	],
 });
 await using runtime = service.create(service.compile(implementation), { host: {} });
-const outgoing = await runtime.fetch(new Request('https://service.invalid/api/health'));
+const outgoing = await runtime.fetch(new Request('https://service.invalid/api/greeting?name=Sam'));
 console.log(outgoing.status, await outgoing.text());
+const invalid = await runtime.fetch(new Request('https://service.invalid/api/greeting'));
+console.log(invalid.status);
+await invalid.body?.cancel();
 ```
 
 Expected output:
 
 ```text output
-200 {"ok":true}
+200 {"message":"Hello, Sam!"}
+400
 ```
 
-The first three definitions describe a JSON body, a GET route and a service prefix. `endpoint.handler()` supplies the
-ordinary function that answers the request. The service compiles that binding and validates the answer against
-`Healthy`, producing HTTP `200` with `{"ok":true}`. The `.invalid` URL only supplies a URL for the in-process Request;
-no listener or network connection is opened. `await using` closes the runtime when this scope ends.
+The query schema makes `input.query.name` a validated string in the ordinary callback. A request without a name returns
+`400` before the callback can run. The response schema describes the greeting that callers receive. The `.invalid` URL
+only supplies a URL for the in-process Request; no listener or network connection is opened. The example consumes the
+success body, cancels the unused rejection body and closes the runtime at scope exit.
 
 ## What an endpoint adds to a function
 

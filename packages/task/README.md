@@ -26,9 +26,9 @@ For the exact functions, types and field explanations, read the [generated contr
 
 ## Give an ordinary import a result and a pause button
 
-An async function can still do the work. Here the input is three contact names and the output is three normalized names.
-`start()` adds a control handle around that function. `await using` closes that handle when its block ends, including
-after a thrown error.
+An import screen needs a Pause button that stops admitting new records. An async function can still do the work. Here an
+array stands in for the destination: no database account is required. Pausing before admission leaves it empty; resuming
+saves the three normalized names. `await using` closes the handle when its block ends, including after an error.
 
 ```ts runnable=normalize-contacts.ts
 import '@okikio/duration/polyfill';
@@ -36,8 +36,8 @@ import '@okikio/dispose/polyfill';
 import * as task from '@okikio/task';
 
 const names = [' Ada ', 'Grace ', ' Linus'];
+const saved: string[] = [];
 await using work = task.start(async (ctx) => {
-	const saved: string[] = [];
 	for (const name of names) {
 		await ctx.checkpoint();
 		saved.push(name.trim());
@@ -45,11 +45,13 @@ await using work = task.start(async (ctx) => {
 	return saved;
 }, { id: 'contact-import' });
 await work.pause();
+console.log('Saved while paused:', saved.length);
 work.resume();
 console.log((await work.done).join(', '));
 ```
 
 ```text output
+Saved while paused: 0
 Ada, Grace, Linus
 ```
 
@@ -72,42 +74,51 @@ This keeps control state beside a familiar async function, instead of passing se
 cleanup stacks through each loop. Control remains cooperative: an uninterrupted provider call must finish or observe its
 signal itself. A Task does not save progress for a later process.
 
-## Observe cleanup before the result
+## Release a temporary export URL before returning
 
-The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
-implementation is preserved.
+A contact preview uses a temporary Blob URL to read an export. That URL must be revoked after the read, including when
+work fails or is cancelled. Registering it with the task keeps that responsibility beside the work. Awaiting `done`
+means the exported text is available and the temporary URL has already been released. The explicit polyfills support the
+task's Temporal clock and disposal stack on hosts missing those APIs.
 
 ```ts runnable
 import '@okikio/duration/polyfill';
 import '@okikio/dispose/polyfill';
 import * as task from '@okikio/task';
-const cleanup: string[] = [];
 await using work = task.start(async (ctx) => {
-	ctx.defer(() => {
-		cleanup.push('released');
-	});
-	await ctx.checkpoint();
-	return 42;
-}, { id: 'local-operation' });
-console.log(await work.done, work.status, cleanup.join(','));
+	const url = ctx.adopt(URL.createObjectURL(new Blob(['Name\nAda\nGrace\n'])), URL.revokeObjectURL);
+	const response = await fetch(url, { signal: ctx.signal });
+	return { text: await response.text(), url };
+}, { id: 'contact-preview' });
+const exportFile = await work.done;
+console.log(exportFile.text.trim());
+try {
+	await fetch(exportFile.url);
+} catch (error) {
+	if (!(error instanceof TypeError)) throw error;
+	console.log('Temporary URL released');
+}
 ```
 
 Expected output:
 
 ```text output
-42 completed released
+Name
+Ada
+Grace
+Temporary URL released
 ```
 
-`start()` returns `Task<number>` immediately. `work.done` is `Promise<number>` and resolves here to `42` after
-registered cleanup runs. A thrown operation or cleanup failure rejects it. The task owns its child context; the caller
-owns the task through `await using`.
+`start()` returns `Task<{ text: string; url: string }>` immediately. `work.done` resolves to that value after registered
+cleanup runs. A thrown operation or cleanup failure rejects it. The task owns its child context; the caller owns the
+task through `await using`.
 
 ## Read the mini-demo
 
-The demo registers cleanup that appends `released`, visits a checkpoint, and returns `42`. Awaiting `work.done` then
-prints the result, the completed status, and the cleanup marker: `42 completed released`. That marker demonstrates that
-cleanup has already run when the successful result is available. To explore pause, use the multi-item example below;
-this immediate operation may finish before an external pause request can be observed.
+The demo reads the export through a real Fetch call. Its second Fetch call fails because the task has revoked the URL,
+so the observation checks a real resource release rather than an artificial cleanup marker. The returned URL is included
+only to inspect that release; an application should use the returned text, not pass the expired URL to a download link.
+A link that must stay usable belongs to the screen's longer lifetime instead.
 
 - **Pause a multi-file import:** place checkpoints between files, use [Streams](../streams/README.md) for incremental
   input, and pass the task signal into actual I/O. Checkpoints do not interrupt an indivisible database or codec call.
@@ -120,7 +131,7 @@ this immediate operation may finish before an external pause request can be obse
 Pausing is cooperative. `pause()` resolves when the operation reaches its next `ctx.checkpoint()` or becomes terminal:
 
 ```ts
-const operation = task.start(async (ctx) => {
+await using operation = task.start(async (ctx) => {
 	for (const item of items) {
 		await ctx.checkpoint();
 		await processItem(item, ctx.signal);
@@ -128,7 +139,7 @@ const operation = task.start(async (ctx) => {
 });
 
 await operation.pause();
-// The operation is now waiting at a checkpoint.
+// In this multi-item operation, pause stops new items at a checkpoint.
 operation.resume();
 await operation.done;
 ```
@@ -171,7 +182,7 @@ snapshot.
 finished cleanup:
 
 ```ts
-const operation = task.start(run, { ctx: requestContext });
+await using operation = task.start(run, { ctx: requestContext });
 
 await operation.cancel(new Error('request no longer needs this work'));
 console.log(operation.status); // "cancelled" unless cleanup itself failed

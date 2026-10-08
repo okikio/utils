@@ -18,8 +18,6 @@ exists, but it cannot decide whether your authentication provider is correct.
 ## Catch a missing value before serving requests
 
 ```ts runnable
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as middleware from '@okikio/server/middleware';
 const Actor = middleware.context<{ id: string }>()({ id: 'actor', description: 'Authenticated actor.' });
 const Read = middleware.define({

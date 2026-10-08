@@ -84,17 +84,8 @@ check is not authentication or proof that a server will serve the page.
 
 ## The ordinary problem
 
-The file format looks simple enough to split by lines:
-
-```ts
-const disallowed = text
-	.split(/\r?\n/u)
-	.filter((line) => line.toLowerCase().startsWith('disallow:'))
-	.map((line) => line.slice(line.indexOf(':') + 1).trim());
-```
-
-That stops being sufficient when several user-agent groups exist, `Allow` and `Disallow` overlap, wildcard rules are
-present, comments appear after values, or an application needs the original line for diagnostics.
+Collecting every `Disallow:` line loses which user-agent group owns it. It also misses more specific `Allow` rules,
+wildcards and comments. Parsing those details once lets a crawler apply the same local policy to many candidate pages.
 
 ## Use the utility
 

@@ -133,6 +133,7 @@ export const ExportFeatures = entitlement.select(Features, ['ExportCsv']);
 
 ```ts
 const required = entitlement.require(Export);
+console.log(requirement.document(required)[0]?.definition);
 ```
 
 A service, resource, or another definition can retain that requirement. The host's requirement interpreter decides how
@@ -152,6 +153,7 @@ const RequiredForAnalyst = entitlement.compose(
 );
 
 const requirements = RequiredForAnalyst.map(entitlement.require);
+console.log(requirement.document(requirements).map((entry) => entry.definition).join(','));
 ```
 
 The definitions remain plain immutable metadata. Product policy can change without changing the utility.

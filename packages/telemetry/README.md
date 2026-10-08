@@ -231,7 +231,7 @@ This keeps one clock and one operation identity across queues, workers, processe
 The optional LogTape adapter accepts an already-configured logger. The utility never calls `configure()`:
 
 ```ts
-import { getLogger, withContext } from '@logtape/logtape';
+import { getLogger } from '@logtape/logtape';
 import * as telemetry from '@okikio/telemetry';
 import * as logtape from '@okikio/telemetry/logtape';
 
@@ -267,6 +267,7 @@ const scope = telemetry.create(reporter, {
 		request_id: 'req-42',
 	},
 });
+await scope.report({ name: 'account.read', fields: { account_id: 'account-7' } });
 ```
 
 The host owns the OpenTelemetry dependency and configuration. If there is no active span,
@@ -287,10 +288,12 @@ const Diagnostics = service.observer.define({
 });
 const scope = telemetry.create(reporter, { fields: { deployment_id: 'blue' } });
 
-const runtime = service.create(compiled, {
+await using runtime = service.create(compiled, {
 	host,
 	observers: [serverTelemetry.service(Diagnostics, scope)],
 });
+const response = await runtime.fetch(new Request('https://example.test/accounts/account-7'));
+console.log(response.status);
 ```
 
 The same adapter exposes `serverTelemetry.gateway()` for Gateway observer definitions. Service and Gateway continue to

@@ -20,7 +20,7 @@ Dispose pool -> finish owned transitions and close its values
 This shows borrowing and cleanup, not a database transaction or cross-machine connection broker. The application
 supplies creation, health checks, and closing behavior for the actual resource.
 
-## Borrow a value and return it for reuse
+## Save two notes through one reusable session
 
 The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
 implementation is preserved.
@@ -31,42 +31,71 @@ import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as pool from '@okikio/pool';
 await using ctx = context.create({ id: 'connection-owner' });
+const saved = new Map<string, string>();
 let opened = 0;
-await using connections = await pool.create({
-	ctx,
-	maximum: 2,
-	create: () => ({ id: ++opened }),
-	close: () => {},
-});
+let closed = 0;
 {
-	await using lease = await connections.acquire(ctx);
-	console.log(lease.value.id);
+	await using connections = await pool.create({
+		ctx,
+		maximum: 1,
+		create() {
+			opened++;
+			const pending = new Map<string, string>();
+			return {
+				stage(id: string, text: string): void {
+					pending.set(id, text);
+				},
+				async commit(): Promise<void> {
+					await Promise.resolve();
+					for (const [id, text] of pending) saved.set(id, text);
+					pending.clear();
+				},
+				close(): void {
+					pending.clear();
+					closed++;
+				},
+			};
+		},
+		close: (session) => session.close(),
+	});
+	async function save(id: string, text: string): Promise<void> {
+		await using lease = await connections.acquire(ctx);
+		lease.value.stage(id, text);
+		await lease.value.commit();
+	}
+	await Promise.all([save('note-1', 'Ada'), save('note-2', 'Lin')]);
+	console.log(saved.get('note-1'), saved.get('note-2'));
+	console.log(opened, connections.stats().leased);
 }
-{
-	await using lease = await connections.acquire(ctx);
-	console.log(lease.value.id, opened);
-}
-console.log(connections.stats().leased);
+console.log(closed);
 ```
 
 Expected output:
 
 ```text output
+Ada Lin
+1 0
 1
-1 1
-0
 ```
 
-`create()` returns `Promise<Pool<{ id: number }>>`; `acquire()` returns `Promise<Lease<{ id: number }>>`. The lease
-borrows the value until its block ends, so the final leased count is zero. Pool disposal closes values through
-`close()`. This example callback has no external handle to close; a real connection implementation must supply that
-cleanup.
+The supplied session is an offline transaction adapter: it stages writes, commits them to the `saved` Map, and clears
+uncommitted work on close. It simulates a client API, not a database server or durable transaction. Two `save()` calls
+start together, but the pool lends the only session to one caller at a time. The second waits, then reuses the returned
+session. On this successful path, each commit clears the session's pending writes before the next borrower uses it.
 
-## Read the mini-demo
+The first output proves both notes were saved. `1 0` means one session was opened and no leases remain. The final `1`
+means pool disposal called the client's close operation once. A real database adapter supplies connection creation,
+commit, and close through the same callback boundary; it owns the actual transactional guarantees.
 
-The first borrow prints ID `1`. The second borrow prints `1 1`: it uses the same retained value, and only one value has
-been created. After both blocks, the leased count is zero. The no-op close callback is appropriate only because this
-demo owns no real external handle.
+The fixture's commit cannot fail. With a real client, a failed commit may leave a transaction open or its outcome
+unknown. The borrower must roll it back or reset it before returning the lease, according to the client's contract. If
+the session cannot be proved safe for reuse, call `lease.invalidate(error)` before disposal so the pool closes it.
+Returning a lease does not itself roll back a transaction, clear staged writes, or make an external commit atomic.
+
+`create()` returns `Promise<Pool<Value>>`; `acquire()` returns `Promise<Lease<Value>>` for that session type. A lease
+borrows the session until its block ends. Returning a lease permits reuse; disposing the pool closes the underlying
+session. Keeping those actions separate lets a host amortize connection setup without allowing concurrent borrowers to
+mix session state.
 
 The Context passed here is the owner's cancellation signal, clock, and cleanup lifetime. An acquisition can use another
 caller Context so one cancelled request stops waiting without cancelling the pool. `await using lease` returns the value
@@ -83,37 +112,6 @@ tries an idle value, checks it if configured, and creates another value only whe
 Lease disposal returns a healthy value to idle or closes an invalid value. A borrower should call `invalidate()` after a
 failure only when that failure makes the underlying connection unsafe to reuse; an ordinary missing database row does
 not necessarily mean a broken connection. The [contract reference](API.md) explains optional age and wait limits.
-
-## Reuse a decoding session while keeping ordinary string results
-
-This session has a normal method taking bytes and returning text. Pooling a cheap `TextDecoder` is only a small
-ownership demonstration; a production pool should justify its setup and bookkeeping costs with a resource worth reusing.
-
-```ts runnable=decode-session.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
-import * as context from '@okikio/context';
-import * as pool from '@okikio/pool';
-await using owner = context.create({ id: 'text-reader' });
-await using sessions = await pool.create({
-	ctx: owner,
-	maximum: 1,
-	create: () => new TextDecoder(),
-	close: () => {},
-});
-for (const bytes of [new Uint8Array([65, 100, 97]), new Uint8Array([76, 105, 110])]) {
-	await using lease = await sessions.acquire(owner);
-	console.log(lease.value.decode(bytes));
-}
-```
-
-```text output
-Ada
-Lin
-```
-
-Replace the factory, close callback, and ordinary call on `lease.value` to use a database connection or browser page.
-The lease rule stays the same; the resource API and returned values stay familiar.
 
 - **Check many pages with a few browser instances:** combine this pool with [Concurrency](../concurrency/README.md). The
   mapper limits admitted operations; each operation borrows a browser value from the pool and returns its lease.

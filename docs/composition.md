@@ -144,8 +144,8 @@ failure policy in the acquiring application. The originating adapter is `kaiju-c
 ## Share a resource with a finite operation
 
 MediaD's media jobs use a task for finite work and borrow storage through a resource definition. The example below
-stores a small manifest using that same ownership shape. A local Map stands in for the application storage provider; no
-generic utility chooses a cloud account, media format, or file destination.
+stores a small manifest using that same ownership shape, with a pause before it commits the manifest. A local Map stands
+in for the application storage provider; no generic utility chooses a cloud account, media format, or file destination.
 
 ```ts runnable=store-manifest.ts
 import '@okikio/duration/polyfill';
@@ -175,10 +175,14 @@ await using work = task.start(async (ctx) => {
 	store.put('asset-1', JSON.stringify({ title: 'Guide', ready: true }));
 	return store.get('asset-1');
 }, { ctx: owner, resources: stores, allowed: [ManifestStore] });
+await work.pause();
+console.log('Saved while paused:', values.has('asset-1'));
+work.resume();
 console.log(await work.done);
 ```
 
 ```text output
+Saved while paused: false
 {"title":"Guide","ready":true}
 ```
 
@@ -187,6 +191,7 @@ console.log(await work.done);
 task borrows `stores`, so disposing the task does not dispose the collection. Lexical cleanup runs task, collection,
 then parent context. A provider implementation can register its actual disposable connection during creation.
 
+The first line confirms that pausing has stopped admission before the manifest is stored; resuming allows the write.
 `checkpoint()` is where a pause request can take effect. Cancellation reaches the task signal; pass that signal into
 real provider I/O. A task cannot interrupt an indivisible synchronous mutation or undo a stored manifest. Work and
 cleanup failures remain visible through the standard `SuppressedError` contract. These are process-local lifetimes, not

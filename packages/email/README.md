@@ -20,17 +20,21 @@ The [full API reference](API.md) describes classification rules and row-extracti
 ```ts runnable
 import * as email from '@okikio/email';
 console.log(email.normalizeDomain('Example.COM'));
+console.log(email.normalizeDomain('@Example.COM'));
+console.log(email.normalizeDomain('person@example.com'));
 ```
 
 Expected output:
 
 ```text output
 example.com
+example.com
+undefined
 ```
 
-The demo turns one mixed-case domain into its lowercase form. Try the other inputs in the table to see the boundary
-between a domain and an address. For email-like text containing addresses, use `extractDomains()` rather than passing
-that text directly to `normalizeDomain()`.
+The demo normalizes two spellings of the same domain and rejects a whole address. That input check earns more than a
+plain lowercase operation: the caller can distinguish a usable domain from text that needs address extraction. For
+email-like text containing addresses, use `extractDomains()` instead.
 
 ## Compare two imports without changing their evidence
 
@@ -117,6 +121,7 @@ const classifier = email.createDomainClassifier({
 });
 
 const classification = classifier.classify('team.relay.example.invalid');
+console.log(classification.evidence.map((item) => item.trait)); // ['privacy-relay']
 ```
 
 The injected data is normalized once when the classifier is created. Product policy still stays outside this package.

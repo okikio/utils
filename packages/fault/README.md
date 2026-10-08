@@ -106,21 +106,26 @@ objects throw, `bigint` throws, and object getters can execute while serializati
 - converts unsupported runtime values to stable markers;
 - treats custom-prototype objects as opaque instead of calling their `toString()`.
 
-## A larger host example
+## Keep diagnostic output bounded
 
-```ts
-const diagnostic = fault.encode(error, {
-	maximumDepth: 5,
-	maximumEntries: 24,
-	maximumStringLength: 2_048,
-	includeStack: false,
-});
+Unexpected failures can contain circular objects as well as errors. This example produces a printable diagnostic without
+letting one repeated object or a long message prevent reporting.
 
-await queue.fail(ctx, claim, {
-	id: 'worker.fault',
-	message: 'Worker execution faulted.',
-	data: diagnostic,
+```ts runnable=bounded-report.ts
+import { encode } from '@okikio/fault';
+
+const report: { message: string; details?: unknown } = { message: 'Provider response was invalid.' };
+report.details = report;
+const diagnostic = encode(report, {
+	maximumDepth: 3,
+	maximumEntries: 4,
+	maximumStringLength: 64,
 });
+console.log(JSON.stringify(diagnostic));
+```
+
+```text output
+{"details":"[circular]","message":"Provider response was invalid."}
 ```
 
 The limits are operational safety controls for diagnostic data. `encode()` and `message()` require an ordinary

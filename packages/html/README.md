@@ -78,20 +78,9 @@ on layout or code executed by the page.
 
 ## The ordinary problem
 
-A caller can combine parse5, its htmlparser2 tree adapter, css-select, and DOMUtils directly. That requires every caller
-to remember the same adapter types and storage details:
-
-```ts
-import { parse } from 'parse5';
-import { adapter } from 'parse5-htmlparser2-tree-adapter';
-import { selectAll } from 'css-select';
-
-const document = parse(source, { treeAdapter: adapter });
-const anchors = selectAll('a[href]', document);
-```
-
-The lower-level libraries are still doing the hard parser and selector work. `@okikio/html` gives callers one stable
-document model and hides parser-specific attribute and relationship shapes.
+Combining parse5, its htmlparser2 tree adapter, css-select and DOMUtils requires each caller to choose matching tree
+representations and remember their attribute storage. This package makes that agreement once. The lower-level libraries
+still own parsing and selectors; the useful addition is one document model and consistent traversal operations.
 
 ## Use the utility
 

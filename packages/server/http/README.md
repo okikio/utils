@@ -24,21 +24,23 @@ const app = http.create({
 	routes: [http.route('GET', '/health', () => Response.json({ ok: true }))],
 	middleware: [http.securityHeaders()],
 });
-console.log((await app.fetch(new Request('https://service.invalid/health', { method: 'HEAD' }))).status);
+const head = await app.fetch(new Request('https://service.invalid/health', { method: 'HEAD' }));
+console.log(head.status, head.body === null, head.headers.get('x-content-type-options'));
 console.log((await app.fetch(new Request('https://service.invalid/missing'))).status);
 ```
 
 Expected output:
 
 ```text output
-200
+200 true nosniff
 404
 ```
 
 The demo registers GET `/health` with a JSON answer. A HEAD request can use that GET route, so its status is `200`,
-while the application's final HEAD policy suppresses the body. The second request has no route and receives the default
-`404`. The security-header middleware surrounds these requests. The printed statuses demonstrate routing behavior; they
-do not prove that a listener is reachable or that a database is ready.
+while the application's final HEAD policy suppresses the body, which the `true` confirms. `nosniff` shows the selected
+security-header policy reached the response. The second request has no route and receives the default `404`. These
+outputs demonstrate routing and policy behavior; they do not prove that a listener is reachable or that a database is
+ready.
 
 ## A handler is an ordinary JavaScript function
 

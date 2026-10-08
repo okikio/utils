@@ -19,12 +19,11 @@ or adapter owns actual waits, cancellation, failure classification, and any shar
 
 ## Inspect retry delays before doing any work
 
-The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
-implementation is preserved.
+The duration polyfill supplies Temporal when the host lacks it. Retry settings and calculated delays use Temporal
+durations; this example creates no cleanup owner and therefore needs no disposal polyfill.
 
 ```ts runnable
 import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as resilience from '@okikio/resilience';
 const retry = resilience.retry({
 	initialDelay: { seconds: 1 },
@@ -153,6 +152,7 @@ const RetryWrites = resilience.retry({
 	jitter: true,
 	retryOn: ['serialization-failure'],
 });
+console.log(resilience.document(RetryWrites)[0]?.configuration.maximumAttempts);
 ```
 
 The policy states what retry behavior is allowed. The runtime that executes the operation still owns cancellation,

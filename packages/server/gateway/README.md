@@ -18,8 +18,6 @@ domain input and decides whether the actor may perform the operation.
 ## Forward a health request with a controlled upstream
 
 ```ts runnable
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as endpoint from '@okikio/server/endpoint';
 import * as response from '@okikio/http/response';
 import * as service from '@okikio/server/service';
@@ -30,12 +28,11 @@ const Health = endpoint.get({ id: 'health.read', path: '/health', responses: [He
 const Api = service.define({ id: 'health-api', path: '/api', endpoints: [Health] });
 const Edge = gateway.define({ id: 'edge', services: [gateway.mount(Api, { origin: 'https://upstream.invalid' })] });
 const compiled = gateway.compile(Edge);
-console.log(compiled.routes[0]?.path, compiled.routes[0]?.credentials.requestCookies);
 const runtime = gateway.create(compiled, {
-	requestId: () => 'demo-request',
 	fetch: async (input, init) => {
 		const incoming = new Request(input, init);
-		return Response.json({ path: new URL(incoming.url).pathname, cookie: incoming.headers.has('cookie') });
+		console.log(incoming.method, new URL(incoming.url).pathname, incoming.headers.has('cookie'));
+		return Response.json({ ok: true });
 	},
 });
 const outgoing = await runtime.fetch(
@@ -49,16 +46,20 @@ console.log(outgoing.status, await outgoing.text());
 Expected output:
 
 ```text output
-/api/health strip
-200 {"path":"/api/health","cookie":false}
+GET /api/health false
+200 {"ok":true}
 ```
 
 The demo imports the health endpoint and its `/api` service prefix, then mounts that service at
 `https://upstream.invalid`. Compilation produces `/api/health` without copying that full path into the gateway. The
-output `strip` is the request-cookie policy on the compiled route: incoming browser cookies are not blindly forwarded.
-The injected Fetch function answers locally and reports what reached it: the imported route path and no caller cookie.
-Reading the returned body completes this request. No network connection is made; the `.invalid` origin is only route
-metadata in this example.
+injected Fetch function reports what reached it: GET for the imported route path and no caller cookie. The `false` shows
+the default credential policy removed the incoming session cookie before forwarding. That local upstream answers with
+the declared health body; the gateway returns it to the caller without performing origin-side schema validation. Reading
+the returned body completes this request. No network connection is made; the `.invalid` origin is only route metadata in
+this example.
+
+This route has no timeout and creates no owned resource collection, so it needs no Temporal or disposal polyfill setup.
+If you configure a Temporal timeout in a runtime without Temporal, install the duration polyfill at the host boundary.
 
 ## What the gateway compiles and what it forwards
 

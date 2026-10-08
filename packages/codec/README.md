@@ -22,12 +22,14 @@ const InstantCodec = codec.define({
 	encode: z.date().transform((value) => value.toISOString()),
 });
 const instant = await codec.decode(InstantCodec, '2026-01-01T00:00:00.000Z');
+console.log('Membership year:', instant.getUTCFullYear());
 console.log(await codec.encode(InstantCodec, instant));
 ```
 
 Expected output:
 
 ```text output
+Membership year: 2026
 2026-01-01T00:00:00.000Z
 ```
 
@@ -35,9 +37,10 @@ For these schemas, `decode()` returns `Promise<Date>` and `encode()` returns `Pr
 with structured schema issues. The resulting Date is a local application value; no transport, timer or resource is
 opened, and the encoded string is the caller-owned wire representation.
 
-The input is `2026-01-01T00:00:00.000Z`. Decoding produces a `Date`; encoding that date produces the printed timestamp.
-Try a different valid timestamp to see the conversion use that value. A text value such as `not-a-date` rejects through
-the decode schema instead of becoming an unchecked application date.
+The input is `2026-01-01T00:00:00.000Z`. Decoding produces a checked `Date` used for the membership year; encoding that
+date produces the timestamp for a stored or outgoing record. Try a different valid timestamp to see the conversion use
+that value. A text value such as `not-a-date` rejects through the decode schema instead of becoming an unchecked
+application date.
 
 ## Put a converted date into an ordinary API response
 

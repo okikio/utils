@@ -92,8 +92,6 @@ Define a meter without performing I/O:
 
 ```ts
 import * as meter from '@okikio/meter';
-import { MeterReadingSchema } from '@okikio/meter';
-import * as schema from '@okikio/schema';
 
 const DownloadBytes = meter.define({
 	id: 'download.bytes',
@@ -188,6 +186,7 @@ const Meters = meter.catalog('media', {
 
 const NetworkMeters = meter.select(Meters, ['DownloadBytes', 'Requests'] as const);
 const declared = meter.compose(NetworkMeters);
+console.log(declared.map((entry) => entry.id).join(','));
 ```
 
 ## Convenience and the manual equivalent
