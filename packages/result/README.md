@@ -67,7 +67,7 @@ Keeping failure as data makes a normal absence visible in the function's return 
 throw. Use `getOr()` for an explicit fallback or `getOrElse()` when creating that fallback should happen only on
 failure.
 
-## Compose success while preserving the rejection
+## Add validation and recognizable failure reasons
 
 - Combine [Schema](../schema/README.md) validation with Result when a form or import should return an ordinary “please
   fix this field” branch. The [complete port-validation example](../../docs/packages/17-result.md) in the Result guide shows accepted and rejected input.
@@ -177,6 +177,7 @@ options and types.
 | Import                         | Use it to                                                                | Exact contract                 |
 | ------------------------------ | ------------------------------------------------------------------------ | ------------------------------ |
 | `@okikio/result/failure`       | Declare and encode expected domain failures across host transfers.       | [Contract](./failure/mod.ts)   |
+| `@okikio/result/failure/migrate` | Convert a saved failure between explicit historical and current definitions. | [Contract](./failure/migrate.ts) |
 | `@okikio/result/failure/types` | Import public types for this capability; this entry does not start work. | [Contract](./failure/types.ts) |
 | `@okikio/result/fault`         | Project unexpected exceptions into bounded diagnostic data.              | [Contract](./fault/mod.ts)     |
 | `@okikio/result/fault/types`   | Import public types for this capability; this entry does not start work. | [Contract](./fault/types.ts)   |

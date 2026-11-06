@@ -82,6 +82,9 @@ Their inferred input and output follow those same rules. A stripping schema acce
 those keys remain in its output. `record(keySchema, valueSchema)` describes a partial dictionary: a finite key set does
 not require every possible key to be present.
 
+`pick(ObjectSchema, keys)` and `omit(ObjectSchema, keys)` preserve native field identity, optionality and unknown-key
+policy. Foreign schemas are validated through Standard Schema; their internal shapes are not introspected.
+
 Use `tuple()` for exact positions, `union()` for ordered alternatives, and `refine()` for a predicate. `transform()`
 changes output and therefore needs an explicit reverse conversion before transport. `guard()` exposes a precise
 non-transforming type predicate as an identity validator. `json()` checks the finite JSON data model, rejects getters
@@ -116,6 +119,14 @@ leap-second spellings, invalid Dates and years outside 0000 through 9999. Fracti
 truncated before parsing, including dates before the Unix epoch; encoding emits exactly three fractional digits. The
 small lexical guard preserves this wire grammar while Temporal owns calendar validation. Date remains the explicit
 application compatibility value, and every decode creates a fresh instance.
+
+`codec.tuple([...])` keeps distinct wire/application types and exact position types, validates one child at a time and
+prefixes the first failure with its index. `codec.record(keyCodec, valueCodec, { maximumEntries })` requires a finite
+entry bound and rejects transformed key collisions. Both directions produce fresh frozen containers.
+
+`codec.discriminated(key, variants)` reads an own string discriminant and executes exactly one branch. When decoding
+changes the discriminant, provide separate `{ decode(value), encode(value) }` selectors that return variant names. No
+encoder is trial-executed to discover its branch. Selector and validator defects propagate unchanged.
 
 ## Issues and JSON Schema
 
@@ -394,27 +405,17 @@ options and types.
 | `@okikio/schema/codec`       | Keep application and wire values connected by directional codecs.            | [Contract](./codec/mod.ts)   |
 | `@okikio/schema/codec/types` | Import public types for this capability; this entry does not start work.     | [Contract](./codec/types.ts) |
 
-## Select owned shapes and bound returned diagnostics
-
-`pick(ObjectSchema, keys)` and `omit(ObjectSchema, keys)` preserve native field identity, optionality and unknown-key
-policy. Foreign schemas are validated through Standard Schema; their internal shapes are not introspected.
+## Bound returned validation diagnostics
 
 `validate(definition, value, { maximumIssues, maximumPathLength })` can cap returned issue evidence and reports
 `truncated: true` when it omits issues or path segments. Both provided limits must be positive safe integers. These
 controls bound the returned report; they do not interrupt or bound allocations inside a foreign validator. Use
 vendor/native input and issue policies where that work must also be bounded.
 
-`codec.tuple([...])` keeps distinct wire/application types and exact position types, validates one child at a time and
-prefixes the first failure with its index. `codec.record(keyCodec, valueCodec, { maximumEntries })` requires a finite
-entry bound and rejects transformed key collisions. Both directions produce fresh frozen containers.
-
-`codec.discriminated(key, variants)` reads an own string discriminant and executes exactly one branch. When decoding
-changes the discriminant, provide separate `{ decode(value), encode(value) }` selectors that return variant names. No
-encoder is trial-executed to discover its branch. Selector and validator defects propagate unchanged.
-
-For native object, array, tuple and record builders, the same options now bound accumulation before copying each child
-report. Once a known rejection fills maximumIssues, later siblings are skipped. Limits pass explicitly through native
-optional/default/refinement/transform/coercion wrappers, so reentrant validation has an independent invocation budget.
+For native object, array, tuple and record builders, `maximumIssues` and `maximumPathLength` also bound issue
+accumulation before copying each child report. Once a known rejection fills `maximumIssues`, later siblings are skipped.
+Limits pass explicitly through native optional/default/refinement/transform/coercion wrappers, so reentrant validation
+has an independent invocation budget.
 Union branches still run until one succeeds: an early invalid branch must not prevent a later valid match. Failed-branch
 reports are bounded, and successful-branch evidence does not mark a later sibling's report truncated. Path limits retain
 root-most segments before prefix copying. Omitted options retain complete native validation behavior. Custom define()
@@ -471,9 +472,13 @@ false
 
 ## Measure validation and directional conversion
 
-The focused benchmarks measure tuple encode/decode; 100/10,000 invalid rows with capped/full issues. The benchmark
-compares against manual sequential validated decode; uncapped diagnostics. Bounded evidence changes diagnostic output
-and is not an equivalent full-report replacement.
+The tuple benchmark measures decode and encode separately for 2 and 16 fields. Its decode reference calls the same
+child codec sequentially and freezes the output array, so the comparison retains child validation. It is not an encode
+reference.
+
+The invalid-array benchmark checks 100 and 10,000 rows with either complete diagnostics or a cap of two issues and one
+path segment. The capped path can skip later siblings; it intentionally returns less evidence. Compare those costs as
+a diagnostic policy choice, not as two ways to produce an equivalent full report.
 
 From the repository root, run the package's tests and untimed benchmark checks before collecting timings:
 

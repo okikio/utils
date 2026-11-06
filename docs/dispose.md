@@ -12,8 +12,9 @@ resource is borrowed or transferred to the current owner.
 The operation fails after registering two cleanup actions. Watch their order in the output: the last registered action
 runs first, then the earlier action runs, and the original failure remains visible to the caller.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as a `.ts` file in your project and use
-`mise exec -- deno run example.ts`.
+From this checkout, run `mise run prepare -- --kind deps`, save the runnable block as `example.ts` at the checkout root,
+and use `mise exec -- deno run example.ts`. In a separate application, install the shown dependencies with your package
+manager. The same source runs with `deno run example.ts`, `node example.ts`, or `bun example.ts` on the supported runtimes.
 
 ```ts runnable=package-task.ts
 import { AsyncDisposableStack } from '@okikio/dispose';
@@ -50,49 +51,67 @@ application should modify globals.
 
 ## Compose with a streaming CSV import
 
-An import owns its reader while another utility interprets the CSV. The stack releases the reader after success or an
-early failure. Replace the in-memory stream with a response body while keeping the same ownership boundary.
+An import owns the CSV document, and the document owns its source reader. Process each row as it arrives instead of
+collecting the entire body into a string or array. The stack closes the document if row processing throws or stops early.
+It also waits for the source's cleanup outcome, so an asynchronous cancellation failure remains visible.
 
-Save this complete variation as `example-2.ts` and run `mise exec -- deno run example-2.ts` after the same checkout setup.
+Save this complete variation as `example-2.ts` and run it with the same checkout setup.
 
 ```ts runnable
 import { AsyncDisposableStack } from '@okikio/dispose/ponyfill';
-import { parse } from '@okikio/format/csv';
+import { parseStream } from '@okikio/format/csv';
+
+// A small local source makes this program reproducible without a network service.
+// For a download, pass the checked response.body instead.
+const chunks = ['name,asset\nAda,photo.png\n', 'Grace,audio.wav\n'][Symbol.iterator]();
 const source = new ReadableStream<Uint8Array>({
-	start(controller) {
-		controller.enqueue(new TextEncoder().encode('name,asset\nAda,photo.png\n'));
-		controller.close();
+	pull(controller) {
+		const next = chunks.next();
+		if (next.done) controller.close();
+		else controller.enqueue(new TextEncoder().encode(next.value));
 	},
 });
-const owned = new AsyncDisposableStack();
-try {
-	const reader = owned.adopt(source.getReader(), async (value) => {
-		try {
-			await value.cancel();
-		} finally {
-			value.releaseLock();
-		}
-	});
-	const decoder = new TextDecoder();
-	let text = '';
-	for (;;) {
-		const next = await reader.read();
-		if (next.done) break;
-		text += decoder.decode(next.value, { stream: true });
-	}
-	text += decoder.decode();
-	console.log(parse(text, { headerRow: 1 }).rows[0]?.values.join(':'));
-} finally {
-	await owned.disposeAsync();
+
+await using owned = new AsyncDisposableStack();
+const document = await parseStream(source, {
+	// This upload contract is known. Discovery need not wait for a larger sample.
+	delimiter: ',',
+	encoding: 'utf-8',
+	headerRow: 1,
+	maximumBytes: 1024 * 1024,
+	maximumRows: 1000,
+	maximumCellCharacters: 1000,
+});
+
+// The stack runs in reverse order: close the document, then join source cleanup.
+// Register the join first so an early exit follows that order too.
+owned.defer(async () => {
+	const cleanup = await document.cleanup;
+	if (cleanup.status === 'failed') throw cleanup.error;
+});
+owned.use(document);
+
+for await (const row of document.rows) {
+	// Await a database write here in a real import. Keeping only this row avoids
+	// an output array that grows with the total number of rows.
+	console.log(row.values.join(':'));
 }
 ```
 
 ```text output
 Ada:photo.png
+Grace:audio.wav
 ```
 
-This example collects a bounded source before parsing. For an unbounded import, use `csv.parseStream()` and consume its
-rows incrementally instead of building one string.
+With automatic format detection, `parseStream()` samples at most `maximumPeekBytes` before choosing the encoding and
+delimiter; it also reads the configured header-discovery rows. Supplying the known encoding, delimiter and header row
+avoids waiting for that sample to fill. Subsequent records arrive incrementally, including records split across chunks.
+The parser still retains an unfinished record and may read ahead through stream queues. These settings limit accepted
+input, rows and cells; they are not a promise that a provider's chunks or unfinished record need no memory.
+
+Stopping early cancels the source. Joining `document.cleanup` can still wait for an uncooperative provider; choose a
+[bounded cleanup policy](../packages/streams/README.md) when that matters. Streaming also does not make application writes
+atomic: the application must decide whether to retain or roll back rows accepted before a later failure.
 
 ## Local protocol keys on older hosts
 

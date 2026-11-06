@@ -8,6 +8,27 @@ The portable entry supplies diagnostic events, buffering, JSON output, and LogTa
 [collection setup](./04-setup.md) also connects logs, traces, and operational metrics to an explicit endpoint. The
 application opens that collection and joins its shutdown; importing the portable reporter starts no exporter.
 
+For ordinary reporting, a destination and a scope are sufficient. This complete program attaches one request ID and
+prints the delivered event. After the [checkout setup](../../README.md#work-on-the-repository), save it as
+`report-note.ts` at the root and run `mise exec -- deno run report-note.ts`. It needs no Context, collector, buffer or
+global configuration:
+
+```ts runnable=report-note.ts
+import * as telemetry from '@okikio/telemetry';
+const output = telemetry.memory();
+const log = telemetry.create(output, { fields: { request_id: 'request-1' } });
+await log.report({ name: 'note.saved' });
+console.log(output.records[0]?.name, output.records[0]?.fields.request_id);
+```
+
+```text output
+note.saved request-1
+```
+
+The memory reporter keeps records for inspection; a long-lived application must clear it or select another destination.
+The next example adds buffering because it wants debug history only when an error occurs. Those retention settings are
+an optional delivery policy, rather than prerequisites for emitting a diagnostic event.
+
 ## Retain the events that explain a failed import
 
 Attach a request ID to the import events and retain recent history until an error occurs. The output shows which records

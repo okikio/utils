@@ -1,10 +1,13 @@
-# Connect logs, traces, metrics, and profiles
+# Collect logs, traces, and metrics across a workflow
 
 A customer submits an import. The service saves the request in PostgreSQL. A worker reads that request and writes rows.
 If the worker dies, another worker reads the saved progress and continues.
 
 PostgreSQL answers **what completed**. Telemetry answers **what happened while code ran**. A trace or log is not proof
 that a write committed. A missing trace is not proof that it failed.
+
+This adapter exports logs, traces and metrics. CPU and memory profiles answer a different question and require
+separate runtime tools; the table below keeps that boundary visible.
 
 | Signal   | Question                                             | Current support                                                          |
 | -------- | ---------------------------------------------------- | ------------------------------------------------------------------------ |

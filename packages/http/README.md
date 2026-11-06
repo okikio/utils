@@ -152,6 +152,7 @@ options and types.
 | `@okikio/http/request`             | Read repeated query fields, bounded bodies, and forwarding metadata.            | [Contract](./request/mod.ts)         |
 | `@okikio/http/webhook`             | Verify signed request bytes before interpreting an event.                       | [Contract](./webhook/mod.ts)         |
 | `@okikio/http/webhook/standard`    | Use the Standard Webhooks signing and verification profile.                     | [Contract](./webhook/standard.ts)    |
+| `@okikio/http/retry` | Parse bounded Retry-After advice; the caller owns waiting, safe body replay and retry execution. | [Contract](./retry.ts) |
 | `@okikio/http/response`            | Construct responses and apply protocol conditions.                              | [Contract](./response/mod.ts)        |
 | `@okikio/http/response/body`       | Construct response bodies with explicit representation choices.                 | [Contract](./response/body.ts)       |
 | `@okikio/http/response/types`      | Import public types for this capability; this entry does not start work.        | [Contract](./response/types.ts)      |
@@ -267,25 +268,37 @@ These commands use package-owned fixtures and development dependencies. The
 [benchmark protocol](../../docs/benchmarks/01-running.md#choose-a-comparison-that-answers-the-question) explains fair
 comparisons, raw report collection and the limits of local measurements.
 
-## Read further
+## Check a representation before sending it again
 
-The [Http guide](https://github.com/okikio/utils/blob/main/docs/http/01-guide.md) explains the model, manual
-alternatives, and composition.
+A client that already has revision 42 can ask whether the same representation is still current. Check routing,
+authentication and resource access first; then plan the conditional response without reading or writing its body.
+This complete local handler returns status 304 when the client's `If-None-Match` matches the current ETag. Save it as
+`conditional-asset.ts` and run `mise exec -- deno run conditional-asset.ts` after the checkout setup above.
 
-Plan conditional responses after ordinary routing, authentication and resource checks:
-
-```ts
+```ts runnable=conditional-asset.ts
 import { preconditions } from '@okikio/http/response/http';
-const plan = preconditions(request, {
-	exists: true,
-	etag: '"revision-42"',
-	lastModified: 'Sun, 06 Nov 1994 08:49:37 GMT',
-	now: Date.now(),
-});
-if (plan.kind === 'not-modified' || plan.kind === 'failed' || plan.kind === 'invalid') {
-	return new Response(null, { status: plan.status });
+
+/** The example assumes access is already allowed and this is the current representation. */
+function readAsset(request: Request): Response {
+	const etag = '"revision-42"';
+	const plan = preconditions(request, {
+		exists: true,
+		etag,
+		lastModified: 'Sun, 06 Nov 1994 08:49:37 GMT',
+		now: Date.now(),
+	});
+	if (plan.kind === 'not-modified' || plan.kind === 'failed' || plan.kind === 'invalid') {
+		return new Response(null, { status: plan.status, headers: { etag } });
+	}
+	// plan.range permits range evaluation; byteRange() separately decides satisfiability for real file routes.
+	return new Response('Asset revision 42', { headers: { etag } });
 }
-// plan.range permits range evaluation; byteRange() separately decides satisfiability.
+const request = new Request('https://service.invalid/assets/1', { headers: { 'if-none-match': '"revision-42"' } });
+console.log(readAsset(request).status);
+```
+
+```text output
+304
 ```
 
 The planner follows
@@ -297,15 +310,32 @@ If-Range uses exact strong-tag comparison; date comparison requires `strongDate:
 That proof cannot be inferred merely from a Last-Modified header. Conditions do not read a body or perform the action.
 CONNECT, OPTIONS and TRACE ignore conditions.
 
-`@okikio/http/retry` exposes `planRetryAfter(value, { now, maximumDelay,
-maximumCodeUnits })`. It returns missing,
-invalid or delay data. Delays use whole milliseconds and cap at the explicit budget. Both decimal seconds and the three
-HTTP-date grammars are accepted. Obsolete two-digit years use the supplied clock's 50-year horizon; impossible calendar
-dates reject. Epoch time maps a leap-second `:60` to the following epoch second. Past dates produce zero delay.
-Native-only formats such as ISO dates do not silently become valid Retry-After fields. The application still owns replay
-safety, idempotency, deadlines and retry execution.
+## Read Retry-After advice before choosing another attempt
 
-`cookie.remove(headers, definition)` is an alias of existing `cookie.delete`. Both append an expired Set-Cookie field
-with Max-Age=0, keeping the definition's path/domain, Secure, prefix and SameSite attributes. They do not accept a
-different identity at deletion time and do not validate the empty marker as an application value. Separate Set-Cookie
-fields remain separate.
+A server can return a delay in `Retry-After`. `planRetryAfter()` parses that advice and caps it at your budget. It does
+not wait or retry a request. This example receives three seconds of advice and admits at most two seconds. Save it as
+`retry-advice.ts` and run `mise exec -- deno run retry-advice.ts`:
+
+```ts runnable=retry-advice.ts
+import { planRetryAfter } from '@okikio/http/retry';
+const plan = planRetryAfter('3', { now: 0, maximumDelay: 2000, maximumCodeUnits: 100 });
+if (plan.kind === 'delay') console.log(plan.milliseconds, plan.capped);
+```
+
+```text output
+2000 true
+```
+
+The result distinguishes missing, invalid and usable delay data. Delays use whole milliseconds. Both decimal seconds
+and the three HTTP-date grammars are accepted. Obsolete two-digit years use the supplied clock's 50-year horizon;
+impossible calendar dates reject. Epoch time maps a leap-second `:60` to the following epoch second. Past dates produce
+zero delay. Native-only formats such as ISO dates do not silently become valid Retry-After fields. The application
+still owns replay safety, idempotency, deadlines and retry execution.
+
+For browser preferences, the [Cookie example](./cookie/README.md#remove-a-saved-preference) shows updating and removing a
+cookie while retaining its identity and attributes.
+
+## Read further
+
+The [Http guide](https://github.com/okikio/utils/blob/main/docs/http/01-guide.md) explains the model, manual
+alternatives, and composition.

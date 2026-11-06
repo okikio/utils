@@ -13,7 +13,7 @@ the application still needs a persistent event identity and a repeat-safe busine
 ## Verify a local payment event
 
 Verify local signed bytes before reading the event payload. This program supplies its own local input and uses public
-workspace imports. After `mise run prepare -- --kind deps`, copy it to a `.ts` file in your project and run
+workspace imports. After `mise run prepare -- --kind deps`, save it as `example.ts` at the checkout root and run
 `mise exec -- deno run example.ts`.
 
 ```ts runnable=complete-task.ts

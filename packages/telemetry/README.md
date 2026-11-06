@@ -27,6 +27,27 @@ import.failed (error) --------------> flush history + error -> reporter
 The visual shows the demo's diagnostic delivery, not control of the import. Reporter failures are isolated from the
 operation, and real applications choose destinations and redaction policy.
 
+For ordinary reporting, a destination and a scope are sufficient. This complete program attaches one request ID and
+prints the delivered event. After the [checkout setup](../../README.md#work-on-the-repository), save it as
+`report-note.ts` at the root and run `mise exec -- deno run report-note.ts`. It needs no Context, collector, buffer or
+global configuration:
+
+```ts runnable=report-note.ts
+import * as telemetry from '@okikio/telemetry';
+const output = telemetry.memory();
+const log = telemetry.create(output, { fields: { request_id: 'request-1' } });
+await log.report({ name: 'note.saved' });
+console.log(output.records[0]?.name, output.records[0]?.fields.request_id);
+```
+
+```text output
+note.saved request-1
+```
+
+The memory reporter keeps records for inspection; a long-lived application must clear it or select another destination.
+The next example adds buffering because it wants debug history only when an error occurs. Those retention settings are
+an optional delivery policy, rather than prerequisites for emitting a diagnostic event.
+
 ## Keep the events that explain a failed import
 
 Keep the start event in a small history buffer, then report the import failure. The error flushes its recent history to

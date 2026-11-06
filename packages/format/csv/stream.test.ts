@@ -18,7 +18,7 @@ describe('CSV source ownership', () => {
 		let cancelled = false;
 		const source = new ReadableStream<Uint8Array>({
 			start(controller) {
-				// Supply enough text after LF for the maintained parser's delimiter lookahead.
+				// Supply a complete header and unfinished row so the next row read stays pending.
 				controller.enqueue(encoder.encode('A,B\nrow'));
 			},
 			pull() {
@@ -75,6 +75,43 @@ function stream(...chunks: string[]): ReadableStream<Uint8Array> {
 }
 
 describe('CSV streaming parser', () => {
+	it(
+		'yields a complete row before input ends and cancels the open source on early exit',
+		{ timeout: 5000 },
+		async () => {
+			let cancelled = false;
+			let observed = 0;
+			const source = new ReadableStream<Uint8Array>({
+				start(controller) {
+					// Leave the producer open. A whole-input collector would wait forever here.
+					controller.enqueue(encoder.encode('Name,Asset\nAda,photo.png\n'));
+				},
+				cancel() {
+					cancelled = true;
+				},
+			});
+			const document = await csv.parseStream(source, {
+				delimiter: ',',
+				encoding: 'utf-8',
+				headerRow: 1,
+			});
+			try {
+				for await (const row of document.rows) {
+					observed++;
+					expect(row.values).toEqual(['Ada', 'photo.png']);
+					// Breaking must cancel the still-open source, not wait for producer EOF.
+					break;
+				}
+			} finally {
+				await document[Symbol.asyncDispose]();
+				await document.cleanup;
+			}
+			expect(observed).toBe(1);
+			expect(cancelled).toBe(true);
+			expect(source.locked).toBe(false);
+		},
+	);
+
 	it('streams quoted records across arbitrary byte chunks', async () => {
 		await using document = await csv.parseStream(stream(
 			'Company,Notes,Email\nNorthstar,"line one\n',

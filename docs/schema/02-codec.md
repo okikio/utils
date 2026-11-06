@@ -1,8 +1,9 @@
-# Convert between saved text and application values
+# Convert between stored representations and application values
 
 JSON can store a timestamp string, but your JavaScript code may need a `Date` to compare times. A **codec** supplies two
-checked conversions: decode the saved text into the application value, and encode the application value back to saved
-text. “Wire” means the representation sent to another component, whether through HTTP or a saved JSON record.
+checked conversions: decode an external representation into an application value, and encode the application value
+back to that representation. A timestamp codec converts a string; an object codec converts a record containing fields.
+Parsing or writing JSON text is a separate step. “Wire” means the representation sent to another component, whether through HTTP or a saved JSON record.
 
 ```text
 saved timestamp string -- decode --> Date used by application code
@@ -57,7 +58,8 @@ behavior and ownership.
 
 ## Save, reload and diagnose the same user
 
-The complete variation below uses a plain record as its saved representation. Encoding produces timestamp text; decoding produces Dates again. The final input has a bad first visit, so the issue points to `visits` and index `0`. A real storage adapter must still own persistence, concurrency and byte limits.
+The complete variation below uses a plain record as its saved representation. Encoding produces a record with timestamp strings. `JSON.stringify()` writes that record as text;
+`JSON.parse()` reads the text, and decoding converts the fields back into Dates. The final input has a bad first visit, so the issue points to `visits` and index `0`. A real storage adapter must still own persistence, concurrency and byte limits.
 
 Save this complete variation as `reload-user.ts` and run `mise exec -- deno run reload-user.ts` after the same checkout setup.
 
@@ -76,7 +78,10 @@ const user = await codec.decode(UserCodec, {
 	visits: ['2026-01-02T00:00:00.000Z'],
 });
 const saved = await codec.encode(UserCodec, user);
-const reopened = await codec.decode(UserCodec, saved);
+// JSON owns text serialization; the codec owns checked field conversions.
+const text = JSON.stringify(saved);
+const loaded: unknown = JSON.parse(text);
+const reopened = await codec.decode(UserCodec, loaded);
 console.log(reopened.visits[0]?.getUTCDate());
 try {
 	await codec.decode(UserCodec, { ...saved, visits: ['yesterday'] });

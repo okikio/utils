@@ -10,7 +10,7 @@ The program constructs both messages locally so no browser or listener is needed
 ## Run a complete task
 
 Store a display preference and reject an unsupported value. This program supplies its own local input and uses public
-workspace imports. After `mise run prepare -- --kind deps`, copy it to a `.ts` file in your project and run
+workspace imports. After `mise run prepare -- --kind deps`, save it as `example.ts` at the checkout root and run
 `mise exec -- deno run example.ts`.
 
 ```ts runnable=complete-task.ts

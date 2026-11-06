@@ -4,14 +4,18 @@ import { createGreetingMcp } from './server.ts';
 import { listen } from './listen.ts';
 import { strict as assert } from 'node:assert';
 
-const host = createGreetingMcp();
-const socket = await listen(0);
+// The listener owns a separate application for real protocol requests.
+// This application tests HTTP admission directly, without a network client.
+const admissionApp = createGreetingMcp();
+let listener: Awaited<ReturnType<typeof listen>> | undefined;
 const client = new Client({ name: 'greeting-check', version: '1.0.0' }, { versionNegotiation: { mode: 'auto' } });
 try {
+	// Acquire inside the cleanup scope so a failed bind still closes the direct application.
+	listener = await listen(0);
 	// Use the actual SDK transport over a real loopback connection.
 	// The network client supplies Host; the outer route checks it before MCP.
 	await client.connect(
-		new StreamableHTTPClientTransport(socket.url),
+		new StreamableHTTPClientTransport(listener.url),
 	);
 
 	// Discovery tells a client which tools exist; calling one is a separate step.
@@ -26,13 +30,13 @@ try {
 	console.log('invalid', invalid.isError);
 
 	// Exercise the outer HTTP policy independently of valid protocol input.
-	const badHost = await host.app.fetch(
+	const badHost = await admissionApp.app.fetch(
 		new Request('http://localhost/mcp', {
 			method: 'POST',
 			headers: { host: 'attacker.invalid' },
 		}),
 	);
-	const badOrigin = await host.app.fetch(
+	const badOrigin = await admissionApp.app.fetch(
 		new Request('http://localhost/mcp', {
 			method: 'POST',
 			headers: { host: 'localhost', origin: 'https://attacker.invalid' },
@@ -50,9 +54,9 @@ try {
 		await client.close();
 	} finally {
 		try {
-			await host.close();
+			await admissionApp.close();
 		} finally {
-			await socket.close();
+			await listener?.close();
 		}
 	}
 }

@@ -14,7 +14,8 @@ Response definition + result body -> create -> logical result
 Logical result -> materialize validates and presents -> Response constructor -> native Response -> caller
 ```
 
-A logical result is a checked body/status/header value, not a Web Response. `materialize()` validates and presents
+A logical result holds a body, status and headers associated with a definition. It is not a native Web `Response`,
+and creating it does not validate its body. `materialize()` validates and presents
 that value; the native Response constructor below adapts it to Fetch. Server's service runtime normally performs
 these stages for its handlers. The caller owns reading or cancelling the resulting body.
 
@@ -49,6 +50,18 @@ The demo describes a `200` result whose body has a string `id`, then creates the
 `materialize()` validates the body and exposes its converted value with status and transport metadata. The next line
 turns those values into an ordinary `Response` and reads its JSON text. No file or network connection is opened in this local example.
 
+Use `Response.json()` directly when one handler only needs to return ordinary JSON. A reusable response definition
+becomes useful when several handlers, OpenAPI or a typed service must agree on the same answer. In that case:
+
+1. `ok()` declares the status and body rule once. It does not produce an answer.
+2. `create()` associates one body with that exact declaration. Validation has not run yet.
+3. `materialize()` validates and converts that body, then adds transport metadata.
+4. The native `Response` carries the actual HTTP bytes. Reading or cancelling it belongs to the caller.
+
+The `Response.json()` conversion above is for a JSON body. Do not apply it to a stream or download: that would serialize
+the body object instead of forwarding its bytes. A [Service](../../server/service/README.md) performs the correct transport
+conversion for declared response modes, including streams. The standalone helpers also remain useful without a service.
+
 ## Conditional request dates
 
 `Last-Modified` and `If-Modified-Since` carry HTTP-date text, including the protocol's older weekday/month spellings.
@@ -56,11 +69,11 @@ Their existing Date parser stays local to conditional-request evaluation; Tempor
 language. Invalid parse results do not satisfy the condition. ETag comparison continues to use `@std/http/etag` and
 takes precedence when `If-None-Match` is present. These wall timestamps do not measure elapsed execution time.
 
-## One response direction
+## Validate and convert each body once
 
-For an ordinary Standard Schema, `create()` accepts the schema input. `prepare()` validates it once and retains the
-returned output, including removed private fields and transformations. For an explicit `schema/codec`, `create()`
-accepts the application value and `prepare()` uses its encoder. Page definitions apply the same rule to every item;
+For an ordinary Standard Schema, `create()` accepts the schema input. `prepare()` validates it once and keeps the
+validator's returned value. Fields removed by validation remain absent, and transformations are applied once. For an
+explicit `schema/codec`, `create()` accepts the application value and `prepare()` uses its encoder. Page definitions apply the same rule to every item;
 validation issues include the item index. Handlers never need to pre-parse a value and then feed the output back into a
 different input type.
 

@@ -29,6 +29,7 @@ Save the next complete TypeScript block as
 
 ```ts runnable
 import * as problem from '@okikio/http/problem';
+import { toHeaders } from '@okikio/http/response';
 const Missing = problem.define({
 	id: 'asset.missing',
 	type: problem.url('https://problems.invalid/v1', 'asset-missing'),
@@ -37,9 +38,11 @@ const Missing = problem.define({
 	description: 'The asset could not be found.',
 });
 // Build the declared problem body and use its HTTP status when creating the actual Response.
-const [body, status] = problem.create(Missing, { detail: 'No asset has that ID.' });
+const [body, status, headers] = problem.create(Missing, { detail: 'No asset has that ID.' });
 console.log(status, body.type);
-const outgoing = Response.json(body, { status, headers: { 'content-type': 'application/problem+json' } });
+// Preserve generated and application headers, including the default no-store policy.
+const outgoing = Response.json(body, { status, headers: toHeaders(headers) });
+console.log(outgoing.headers.get('cache-control'));
 console.log(await outgoing.text());
 ```
 
@@ -47,13 +50,15 @@ Expected output:
 
 ```text output
 404 https://problems.invalid/v1/asset-missing
+no-store
 {"type":"https://problems.invalid/v1/asset-missing","title":"Asset missing","status":404,"detail":"No asset has that ID."}
 ```
 
 The demo defines the missing-asset rejection once, then creates one occurrence with the detail `No asset has that ID.`.
-The returned pair contains the problem body and HTTP status. Printing `404` and the type URL shows the two stable facts
-a caller can use to choose a missing-asset screen or recovery action. The next line materializes the body as a normal
-Web response and reads its exact JSON. No network connection is made and no internal exception is exposed.
+The logical result contains body, HTTP status and headers. Printing `404` and the type URL shows two stable facts a
+caller can use to choose a missing-asset screen or recovery action. The native Response preserves all returned headers;
+`no-store` confirms that the default cache policy survived conversion. The last line reads its exact JSON. No network
+connection is made and no internal exception is exposed.
 
 You can send this value without a service compiler. Its JSON contains `type`, `title`, `status` and the supplied
 `detail`; it does not contain an exception stack.

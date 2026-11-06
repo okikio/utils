@@ -10,7 +10,8 @@ when importing the whole Input package.
 
 ## Show Save feedback in the browser
 
-Click Save changes. The persistent live region changes to “Changes saved locally”. A brief brightness cue is optional;
+Edit the draft and click Save changes. After the browser storage adapter accepts the text, the mounted live region
+changes to “Changes saved locally”. A brief brightness cue is optional;
 reduced-motion or unsupported animation does not change business success. The native region is already mounted before
 its first announcement. The promise join below makes visual cleanup explicit; sound or vibration would need their own
 available devices and permission checks.
@@ -31,30 +32,79 @@ feedback/
 <!doctype html>
 <meta charset="utf-8">
 <title>Save feedback</title>
-<button id="save">Save changes</button>
+<label>Draft <input id="draft" value="My first note"></label>
+<button id="save" disabled>Save changes</button>
 <p id="status" role="status">Ready</p>
 <script type="module" src="save-feedback.js"></script>
 ```
 
+The stored cell keeps the current draft string. Its Web Storage adapter saves that value under one chosen browser key;
+reopening the same key loads it again. `contract` names the saved format so a later application version cannot silently
+reinterpret it. The string schema checks loaded values. Here the application promises one writing tab; use the
+locked adapter mode when cooperating tabs may write concurrently.
+
 ```ts support=save-feedback.ts
-import { announcer, brightness } from '@okikio/input/feedback';
+import { announcer, create, define } from '@okikio/input/feedback';
+import * as state from '@okikio/context/state';
+import * as web from '@okikio/storage/state/web';
+import * as schema from '@okikio/schema';
 
 const button = document.querySelector<HTMLButtonElement>('#save')!;
 const region = document.querySelector<HTMLElement>('#status')!;
+const input = document.querySelector<HTMLInputElement>('#draft')!;
 /** The screen owns cancellation; feedback borrows its signal for each operation. */
 const screen = new AbortController();
 const status = announcer(region, { signal: screen.signal });
+/** This screen owns one active cue; its native elements and live region remain borrowed. */
+const player = create({ status, visual: button });
+// This demonstration has one writing tab. A multi-tab application needs the locked adapter mode.
+// Reopening the same storage key restores the draft, subject to browser storage retention.
+let draft: Awaited<ReturnType<typeof openDraft>>;
+/** Load saved text before enabling Save; storage access or invalid saved data can fail. */
+async function openDraft() {
+	return await state.open({
+		store: web.open({ storage: localStorage, key: 'feedback.draft', mode: 'single-writer' }),
+		contract: 'feedback.draft.v1',
+		value: schema.string(),
+		initial: () => input.value,
+	});
+}
+try {
+	draft = await openDraft();
+	input.value = draft.reader.get();
+	button.disabled = false;
+} catch (error) {
+	button.disabled = true;
+	// Loading failed before click ownership began. Release the feedback owners too.
+	try {
+		await player.disposeAsync();
+	} catch (cleanupError) {
+		console.error(cleanupError);
+	} finally {
+		screen.abort();
+		status.dispose();
+		// Disposal restores the region, so leave the application-owned error afterward.
+		region.textContent = 'The local draft could not be opened. Save is unavailable.';
+	}
+	throw error;
+}
+/** The same finite cue can be reused by a click, keyboard shortcut or command. */
+const saved = define({ message: 'Changes saved locally', brightness: { amount: 1.12, duration: 180 } });
 /** Retain in-flight feedback only until it settles, so teardown can join cleanup. */
 const pending = new Set<Promise<void>>();
 
 /** Announce accepted business work and join the optional visual cue separately. */
 async function save(): Promise<void> {
-	// This local example has no server. Replace this with your awaited business save.
-	status.announce('Changes saved locally');
-	const [visual] = await Promise.allSettled([
-		brightness(button, 1.12, { duration: 180, signal: screen.signal }),
-	]);
-	if (visual.status === 'rejected' && !screen.signal.aborted) console.error(visual.reason);
+	try {
+		// Await the storage acknowledgement before announcing success or starting the cue.
+		await draft.set(input.value);
+	} catch (error) {
+		status.announce('Changes could not be saved. Keep this page open and try again.');
+		console.error(error);
+		return;
+	}
+	const [cue] = await Promise.allSettled([player.play(saved, { signal: screen.signal })]);
+	if (cue.status === 'rejected' && !screen.signal.aborted) console.error(cue.reason);
 }
 
 /** The DOM listener cannot await a Promise, so retain it for the screen's teardown. */
@@ -70,7 +120,15 @@ async function close(): Promise<void> {
 	button.removeEventListener('click', onClick);
 	screen.abort();
 	await Promise.allSettled(pending);
-	status.dispose();
+	try {
+		await player.disposeAsync();
+	} finally {
+		try {
+			await draft[Symbol.asyncDispose]();
+		} finally {
+			status.dispose();
+		}
+	}
 }
 window.addEventListener('pagehide', () => {
 	void close();
@@ -86,10 +144,15 @@ mise exec -- deno bundle --platform browser feedback/save-feedback.ts -o feedbac
 python3 -m http.server 8000 --bind 127.0.0.1 --directory feedback
 ```
 
-Open `http://127.0.0.1:8000/save-feedback.html`. Keep the server terminal open; stop it with Ctrl+C when finished.
+Open `http://127.0.0.1:8000/save-feedback.html`. Edit the note, save it, then refresh: the input restores the saved text.
+A storage failure produces an error message and no success cue. This example uses one writing tab; see
+[stored state](../context/03-stored-state.md) for cooperating writers and storage conflicts. Browser storage can be
+cleared or evicted and is not a remote backup. Keep the server terminal open; stop it with Ctrl+C when finished.
 After TypeScript edits, rebuild the bundle and refresh the browser. The HTTP server serves only `feedback/`; do not
-expose it on a public address. The module owns its listeners and releases them on page exit. In an application, call its
-teardown when removing the screen instead. The browser interaction is separate from the portable example checks below.
+expose it on a public address. The module requests cleanup on page exit. A browser does not wait for asynchronous
+`pagehide` work, so that hook
+cannot guarantee a completed shutdown. In an application, await `close()` when removing the screen while its JavaScript
+realm is still alive. The browser interaction is separate from the portable example checks below.
 
 ## Check the announcer contract without a browser
 
@@ -155,6 +218,44 @@ Cue times accept milliseconds or Duration values such as `ms(80)` and `sec(0.2)`
 longer than one minute. Vibration accepts up to 128 alternating vibration/pause segments and rounds each segment up to a
 whole millisecond. Visual animations accept up to 128 keyframes and run once. These limits keep a feedback request
 finite; sustained media playback belongs to a media API.
+
+## Reuse a cue across interaction sources
+
+`define()` validates and freezes plain settings for a status message, vibration pattern, gamepad rumble, tone and
+brightness pulse. Duration values become elapsed milliseconds, and a vibration pattern accepts at most 128 segments
+and one minute in total. The definition retains no device, element, signal or current preference. The existing finite
+operations remain available when a reusable description is unnecessary.
+
+`create(hosts)` makes one owned playback scope. Its `play(cue, policy)` announces text first, then starts the configured
+optional effects together. The result includes `announced` and an outcome for each requested modality. An unsupported
+device does not prevent the other effects or the status text. A thrown host error cancels sibling effects, joins their
+cleanup and rejects. Distinct failures remain visible in an `AggregateError`.
+
+Pass preferences at each play so they reflect the current interaction:
+
+| Policy | Behavior |
+| --- | --- |
+| `enabled: false` | Skip optional effects with `unavailable/disabled`; retain text status. |
+| `muted: true` or `volume: 0` | Skip sound with `unavailable/muted`; retain other modalities. |
+| `volume` | Multiply the defined tone gain by a zero-to-one amplitude ratio. |
+| `reducedMotion` | Override the brightness target's motion preference; omission reads its own realm. |
+| `signal` | Reject with the exact abort reason after all acquired effects release their resources. |
+
+A new play on the same player supersedes the preceding play with an `AbortError`. The successor waits until the
+previous effects release their resources, including an asynchronous gamepad reset. This is useful when repeated Save
+interactions should replace an earlier cue rather than accumulate effects. Separate players remain independent, while
+the existing per-host vibration and rumble rules still apply. No player intercepts native events or installs input
+listeners: the click listener in the example remains application-owned.
+
+Use `await using` or `disposeAsync()` when the interaction scope ends. Disposal prevents new plays, cancels the active
+play and joins cleanup. It does not close an AudioContext or dispose an announcer supplied by the application. Prepare
+and resume audio in an allowed native user interaction before passing it to the player; no automatic permission or
+autoplay workaround is attempted. If a native cleanup never settles, disposal waits rather than releasing ownership
+while a device operation is still active.
+
+For saved cue settings, `CueSchema` validates the normalized plain-value representation and `CueType` describes its
+output. Run loaded settings through `define()` before playback to enforce the total vibration duration and obtain an
+immutable definition. Keep user preferences and borrowed hosts outside the saved record.
 
 ## Add optional feedback to a browser action
 

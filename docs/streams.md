@@ -32,7 +32,7 @@ join the separately exposed cleanup when your operation owns that obligation.
 Three records become two bounded groups. A separate byte stream becomes two text lines. These small inputs let you
 inspect the returned values before introducing a network source or a destination that applies backpressure.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as a `.ts` file in your project and use
+Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
 `mise exec -- deno run example.ts`.
 
 ```ts runnable=package-task.ts
@@ -161,6 +161,34 @@ Remove `break` to read all three records. Lower `maximumLineBytes` below the fir
 failure. Previously saved batches remain partial work if a later record fails. Use a staging table and a separate
 publication step when the destination requires all-or-nothing visibility. An arbitrary producer may finish cancellation
 later; the reader cleanup example below explains how to retain and join that eventual outcome.
+
+## Release a reader promptly and join source cleanup separately
+
+`@okikio/streams/reader` exposes the same reader owner used by bytes, lines, and format parsers. Its synchronous Dispose
+stack releases the abort subscription and reader lock even if one release fails. Source cancellation has a separate
+promise because a source or tee sibling can keep cancellation pending. `close()` always returns the same `cleanup`
+promise; that promise resolves to an outcome and never rejects.
+
+```ts runnable=reader-cleanup.ts
+import { open } from '@okikio/streams/reader';
+const finish = Promise.withResolvers<void>();
+const source = new ReadableStream<number>({ cancel: () => finish.promise });
+const reader = open(source);
+const cleanup = reader.close();
+console.log(source.locked);
+finish.resolve();
+console.log((await cleanup).status);
+```
+
+```text output
+false
+cancelled
+```
+
+Choose `preventCancel: true` when the source remains borrowed; cleanup then reports `released`. At EOF it reports
+`completed`. A late cancellation or local release failure reports `{ status: 'failed', error }`. When both fail, `error`
+is a `SuppressedError` retaining the local release failure and the source cancellation failure. The outcome lets the
+enclosing owner decide when to join the source without keeping its reader lock held.
 
 ## Ownership
 

@@ -60,7 +60,8 @@ function is useful for small JSON/uploads but is not a streaming processor for m
 
 If a header/content-type/declared-length check rejects before reading starts, the helper has not taken a body reader.
 The surrounding transport still owns that unread body. Once a reader is taken, the helper owns releasing its lock and
-joining any cancellation it starts.
+recording the outcome of any cancellation it starts. Cancellation may still be pending when the read rejects.
+The enclosing request owner must await `bodyCleanup(request)` when it needs to join that source cleanup.
 
 ## Build on the example
 

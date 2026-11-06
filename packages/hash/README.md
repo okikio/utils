@@ -1,6 +1,9 @@
 # Hash
 
-An import receipt needs to answer two questions: did these exact source bytes change, and which dataset attempt does this receipt describe? SHA-256 gives the content a full fingerprint, called a digest. `id()` derives a shorter correlation key from the dataset name and that digest. Neither operation grants permission to access the data.
+An import receipt needs to identify its dataset and content. SHA-256 gives the exact source bytes a full fingerprint,
+called a digest. `id()` derives a compact correlation key from the dataset ID and that digest. Reimporting identical bytes
+for the same dataset produces the same key. Keep a separate operation ID when each attempt must be distinct. Neither
+kind of ID grants permission to access the data.
 
 For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters keep their native runtime requirements.
 
@@ -8,6 +11,7 @@ From a checkout of this experimental workspace, run `mise trust`, `mise install`
 
 ```ts runnable
 import { id, sha256 } from '@okikio/hash';
+import { random } from '@okikio/hash/id';
 
 const source = 'Name\nAda\n';
 // Hash the exact UTF-8 content, including newlines, for later integrity comparison.
@@ -15,14 +19,22 @@ const digest = await sha256(source);
 // Derive a compact correlation key separately; retain the full digest for integrity checks.
 const key = await id('import', ['dataset-42', digest]);
 console.log(digest.length, key.startsWith('import-'));
+// Content identity repeats; attempt identity is chosen independently for each invocation.
+const repeated = await id('import', ['dataset-42', digest]);
+const attempt = random();
+console.log(key === repeated, attempt.length);
 ```
 
-The digest has 64 hexadecimal characters (256 bits). The second value confirms the correlation prefix. Compare full digests to detect changed content; keep the source or expected digest in a trusted location when checking integrity.
+The digest has 64 hexadecimal characters (256 bits). The first line also confirms the correlation prefix. The second
+shows that the same dataset/content tuple repeats its key, while the independent attempt ID contains 21 random
+characters. Random IDs can collide; a persistent attempt table still needs a unique constraint. Compare full digests to
+detect changed content, and keep the source or expected digest in a trusted location when checking integrity.
 
 Expected output:
 
 ```text output
 64 true
+true 21
 ```
 
 The digest is useful only in a comparison. If you keep a trusted digest from an earlier import, the same digest later

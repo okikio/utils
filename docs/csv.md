@@ -12,7 +12,7 @@ for blank records and exact quoted newlines. Application policy owns header and 
 The contact source contains a quoted company name. Parse the complete record, then select its email through the header
 lookup. The lookup keeps column position out of the application code.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as a `.ts` file in your project and use
+Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
 `mise exec -- deno run example.ts`.
 
 ```ts runnable=example.ts
@@ -32,12 +32,38 @@ company,email,note
 ada@example.com
 ```
 
-## Keep source positions when exporting contacts
+## Keep logical record positions when reviewing contacts
 
-An importer may need to match each accepted contact back to its source row, including blank records.
-`preserveBlankRows: true` retains those occurrences; `rawHeader` retains the exact decoded header beside its normalized
-lookup key. `textOnly: true` explicitly rejects binary signatures and non-text controls. The legacy permissive text
-policy stays the default, and explicit `headerRow` is independent of the automatic discovery budget.
+A review screen may need to point a person back to the record that needs attention. `row.row` is the one-based
+**logical record** number, including the header and any blank records before it. It is not a physical line number:
+a quoted cell can contain several lines. `preserveBlankRows: true` also emits blank records instead of discarding them.
+`rawHeader` keeps the exact decoded header next to its normalized lookup key.
+
+```ts runnable=contact-positions.ts
+import * as csv from '@okikio/format/csv';
+
+const document = csv.parse(' Company ,Email\n"Ada, Inc.",ada@example.com\n\nLin,lin@example.com\n', {
+	headerRow: 1,
+	preserveBlankRows: true,
+});
+console.log(JSON.stringify(document.columns[0]?.rawHeader));
+for (const row of document.rows) {
+	const label = row.values.every((value) => value === '') ? '(blank)' : row.values[0];
+	console.log(row.row, label);
+}
+```
+
+```text output
+" Company "
+2 Ada, Inc.
+3 (blank)
+4 Lin
+```
+
+Keep the record number beside a validation error or accepted contact. Omitting blank records from the result does not
+renumber later records. If you need byte offsets or physical line spans, this API does not provide them.
+
+## Quote cells when writing contacts
 
 Use the writer for quoted scalar framing instead of assembling cells by hand:
 
@@ -93,7 +119,6 @@ This complete continuation streams the same contacts rather than materializing e
 it with a real write only after choosing validation and commit behavior.
 
 ```ts runnable=import-contacts.ts
-import '@okikio/dispose/polyfill';
 import * as csv from '@okikio/format/csv';
 const source = new Response('Company,Email,Note\n"Ada, Inc.",ada@example.com,"hello, world"\n').body!;
 const cancel = new AbortController();
@@ -139,6 +164,10 @@ The returned `CsvStreamDocument` is one-shot. Consuming all rows or calling its 
 reader. Attempting to iterate a second time fails rather than silently replaying or buffering the source.
 
 ## Safety limits
+
+`textOnly: true` rejects binary signatures and non-text controls. The default text policy is permissive; choose
+strict rejection when the upload contract requires text. Explicit `headerRow` selection is independent of the
+automatic discovery budget.
 
 Each growing dimension has its own bound:
 

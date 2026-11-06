@@ -10,7 +10,7 @@ that rejection as an ordinary Web Response. The example below shows all three va
 ## Run a complete task
 
 Return an expected missing-record response using a declared problem. This program supplies its own local input and uses
-public workspace imports. After `mise run prepare -- --kind deps`, copy it to a `.ts` file in your project and run
+public workspace imports. After `mise run prepare -- --kind deps`, save it as `example.ts` at the checkout root and run
 `mise exec -- deno run example.ts`.
 
 ```ts runnable=complete-task.ts

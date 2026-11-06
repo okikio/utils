@@ -10,7 +10,7 @@ creates no network listener. A schema is an executable value rule; parsing JSON 
 ## Run a complete task
 
 Create an ordinary checked JSON response. This program supplies its own local input and uses public
-workspace imports. After `mise run prepare -- --kind deps`, copy it to a `.ts` file in your project and run
+workspace imports. After `mise run prepare -- --kind deps`, save it as `example.ts` at the checkout root and run
 `mise exec -- deno run example.ts`.
 
 ```ts runnable=complete-task.ts
@@ -48,6 +48,11 @@ These values represent separate stages. Keeping them separate lets the same cont
 input, or a codec's application value. `prepare()` validates or encodes that value once and retains the returned
 representation. `finalize()` only adds presentation details such as envelopes and pagination links. A standalone adapter
 uses `await materialize()` to compose both stages; Server performs the same two stages before sending the response.
+
+The native conversion in this example is specific to JSON. `Response.json(value.body)` serializes that value as JSON;
+it cannot forward a byte stream or file body. Let Service choose the transport conversion for declared stream/download
+modes. A standalone application can still use the lower-level helpers, but must select the native body representation
+and own its read or cancellation. A definition is optional when an ordinary `Response.json()` already meets the task.
 
 ## Build on the example
 

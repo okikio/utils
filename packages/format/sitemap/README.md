@@ -53,21 +53,24 @@ The same parser handles a page list and an index of other sitemap files. Check `
 schedule. The example only prints decisions; it performs no recursive downloads.
 
 ```ts runnable=index-decisions.ts
-import { parse } from '@okikio/format/sitemap';
+import { locations, parse } from '@okikio/format/sitemap';
 
-const records = parse({
+const source = {
 	url: 'https://example.com/sitemap.xml',
 	contentType: 'application/xml',
 	text:
 		'<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><sitemap><loc>https://example.com/pages.xml</loc></sitemap></sitemapindex>',
-});
-for (const record of records) {
+};
+// locations() keeps the child address too; only parse() retains its source/page distinction.
+console.log(JSON.stringify(locations(source)));
+for (const record of parse(source)) {
 	if (record.kind === 'sitemap') console.log(`Read another source: ${record.loc}`);
 	else console.log(`Consider a page: ${record.loc}`);
 }
 ```
 
 ```text output
+["https://example.com/pages.xml"]
 Read another source: https://example.com/pages.xml
 ```
 
@@ -109,13 +112,14 @@ different contracts; the benchmark reports timing and source identity, not a pea
 
 ## Choose complete text or incremental input
 
-Use the first example when the application already holds a small complete document. `locations()` returns only page
-locations; `parse()` also retains record kinds. For unknown-size downloads, skip whole-text collection and use the
+Use the first example when the application already holds a small complete document. `locations()` returns every parsed
+location, including child sitemap addresses, and discards each record's kind. Use `parse()` and check `record.kind` when
+pages and child sources need different actions. For unknown-size downloads, skip whole-text collection and use the
 [complete streaming discovery program](../../../docs/packages/21-sitemap.md#use-with-other-utilities). That program
 supplies the byte stream, byte cap, awaited record sink, abort owner and cleanup receipt. Start with one supplied source;
 add recursive index fetching only after choosing depth, visited-source and total download budgets. A parser cap cannot
-bound your entire crawl. The `inspect()` reference below explains how to preserve complete-input failures instead of
-interpreting every empty list as a valid empty website.
+bound your entire crawl. [Retain complete-input failure evidence](#retain-complete-input-failure-evidence) explains how to
+distinguish a valid empty source from a rejected one.
 
 ## Release a source when parsing stops
 

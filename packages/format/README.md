@@ -96,18 +96,21 @@ options and types.
 | `@okikio/format/csv/stream`   | Read records incrementally with budgets, cancellation, and backpressure.   | [Contract](./csv/stream.ts)   |
 | `@okikio/format/csv/types`    | Import public types for this capability; this entry does not start work.   | [Contract](./csv/types.ts)    |
 | `@okikio/format/csv/write`    | Serialize rows with correct CSV quoting.                                   | [Contract](./csv/write.ts)    |
-| `@okikio/format/csv/source`   | Prepare byte sources before discovery or parsing.                          | [Contract](./csv/source.ts)   |
+| `@okikio/format/csv/source`   | Inspect and retain CSV serialization choices for later writing.                          | [Contract](./csv/source.ts)   |
 | `@okikio/format/sitemap`      | Read URL sets and sitemap indexes from explicitly supplied sources.        | [Contract](./sitemap/mod.ts)  |
 | `@okikio/format`              | Use the package entry shown in the complete examples above.                | [Contract](./mod.ts)          |
 | `@okikio/format/csv/validate` | Validate explicitly mapped CSV columns with bounded row diagnostics.       | [Contract](./csv/validate.ts) |
 
-Typed CSV import uses the same parser and explicit source-column positions:
+Typed CSV import checks the text cells after CSV quoting has been resolved. This complete program reads one name
+from a local byte stream, so it needs neither a file nor a server.
 
-```ts
+```ts runnable=typed-contacts.ts
 import * as csv from '@okikio/format/csv';
 import { rows } from '@okikio/format/csv/validate';
 import * as schema from '@okikio/schema';
-const RowSchema = schema.object({ name: schema.string() });
+const RowSchema = schema.object({ name: schema.string({ minLength: 1 }) });
+const source = new Response('Name\nAda\n').body!;
+// The document owns the reader even if validation fails before the loop finishes.
 await using document = await csv.parseStream(source, { headerRow: 1 });
 for await (
 	const result of rows(RowSchema, document.rows, {
@@ -123,6 +126,14 @@ for await (
 	else console.log(result.row, result.kind);
 }
 ```
+
+```text output
+Ada
+```
+
+`headerRow: 1` selects the first logical source record as headers. `columns: { name: 0 }` then maps the first
+cell of each data record into the schema's `name` field. These numbers count different things: header rows start at
+one, while array column positions start at zero. The row validator does not guess a mapping from a header label.
 
 Mappings use zero-based column positions, so duplicate and blank source headers cannot select another field
 accidentally. No implicit string-to-number conversion occurs. Author coercion in the schema when the wire contract

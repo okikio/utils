@@ -215,30 +215,64 @@ still checks actual eligibility.
 
 ## Persist shortcut choices
 
-```ts
+The remapping codec checks a portable settings value; it does not save it. This complete application program loads a
+JSON file, validates any existing settings, sets the save shortcut, writes the encoded value, then reads that file again.
+The filename is your application choice. Save the program as `shortcuts.ts` and choose one runtime:
+
+| Deno | Node | Bun |
+| --- | --- | --- |
+| `deno run --allow-read=shortcuts.json --allow-write=shortcuts.json shortcuts.ts shortcuts.json` | `node shortcuts.ts shortcuts.json` | `bun shortcuts.ts shortcuts.json` |
+
+```ts support=shortcuts.ts
+import { readFile, writeFile } from 'node:fs/promises';
+import process from 'node:process';
 import * as keys from '@okikio/input/keys';
 import * as codec from '@okikio/schema/codec';
 
+const filename = process.argv[2];
+if (filename === undefined) throw new Error('Choose a settings filename, for example shortcuts.json.');
 const contract = keys.remapping(['document.save'], {
 	maximumCommands: 1,
 	maximumBindings: 4,
 	maximumTextCodeUnits: 128,
 	maximumComparisons: 6,
 });
-const saved = await codec.read(contract, {
-	version: 1,
+let previous: unknown;
+try {
+	previous = JSON.parse(await readFile(filename, 'utf8'));
+} catch (error) {
+	// Only an absent file starts with defaults. Invalid JSON and access failures must remain visible.
+	if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') throw error;
+	previous = { version: 1, bindings: [] };
+}
+// Reject invalid existing settings before overwriting them. The new binding is this application's explicit edit.
+const loaded = await codec.read(contract, previous);
+const edited = await codec.read(contract, {
+	...loaded,
 	bindings: [{ command: 'document.save', sequence: [{ key: 's', mod: true }] }],
 });
-// Resolve saved command IDs against the application's commands before keys.listen().
-console.log(saved.bindings[0]?.command);
+await writeFile(filename, JSON.stringify(await codec.write(contract, edited), null, 2) + '\n');
+// Reopen from storage: this is a new parse, not another reference to the in-memory edited object.
+const restored = await codec.read(contract, JSON.parse(await readFile(filename, 'utf8')));
+console.log(restored.bindings[0]?.command);
 ```
+
+Expected output: `document.save`. The file remains after the program exits; running it again loads and validates those
+saved settings first. This example deliberately assigns the one save shortcut on each run. Remove the file only when
+you intend to reset those choices. Node's filesystem API runs from the same source on Deno, Node and Bun; browser
+applications can instead use the [Web Storage adapter](../storage/state/README.md#browser-storage) with an explicit
+single-writer or Web Locks policy.
 
 The identity codec rejects unknown commands, callback fields, invalid modifiers and proven same-scope, same-priority
 equal or prefix collisions in either direction. An insufficient pair-comparison budget rejects validation rather than
 accepting unchecked bindings. `keys.conflicts(bindings, bounds)` reports indices and whether its report was capped.
 Key-versus-code overlap is a possible layout conflict, not a proven collision; remapping validation permits it.
-Inspection never attaches listeners or invokes commands. The application owns storage, ID resolution and listener
-disposal.
+Resolve restored command IDs against the application's trusted commands before calling `keys.listen()`.
+
+The file example assumes one writer. It does not arbitrate competing processes or make an overwrite crash-atomic; a
+write failure can leave a partial file and propagates to the caller. Use the storage protocol your application needs
+when those guarantees matter. Codec validation neither writes the file nor attaches listeners; the application owns
+storage, command resolution and listener disposal.
 
 ## Measure form and command collection
 

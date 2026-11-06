@@ -295,6 +295,9 @@ options and types.
 | `@okikio/streams/bytes`  | Materialize binary input under a byte limit.                             | [Contract](./bytes.ts)  |
 | `@okikio/streams/json`   | Read bounded JSON or frame JSON Lines input.                             | [Contract](./json.ts)   |
 | `@okikio/streams/reader` | Own one reader, release its lock promptly, and inspect delayed cleanup.  | [Contract](./reader.ts) |
+| `@okikio/streams/text` | Decode UTF-8 byte chunks or encode text with explicit byte limits. | [Contract](./text.ts) |
+| `@okikio/streams/frame` | Split bytes by a delimiter or fixed width before interpreting each record. | [Contract](./frame.ts) |
+| `@okikio/streams/events` | Observe native events or adapt push notifications to a bounded Web Stream. | [Contract](./events.ts) |
 
 ## Decode, frame and validate incrementally
 
@@ -309,6 +312,35 @@ unterminated/short EOF. Split excludes delimiters and does not add an empty fram
 produce empty frames. Every output frame owns its bytes. Delimiter matching retains at most frame bound plus delimiter
 bytes and uses prefix fallback for repeated prefixes. A provider's pre-existing chunk allocation remains outside reader
 ownership.
+
+For example, an export might separate names with `|` instead of newlines. Framing finds each complete byte record;
+a TextDecoder then gives that record its text meaning. This source ends with a delimiter, so no incomplete record
+remains at EOF. The explicit `reject` policy would reject an unfinished final record.
+
+```ts runnable=delimited-names.ts
+import { split } from '@okikio/streams/frame';
+
+const source = new Response('Ada|Grace|').body!;
+const delimiter = new TextEncoder().encode('|');
+const decoder = new TextDecoder('utf-8', { fatal: true });
+for await (const record of split(source, delimiter, {
+	maximumBytes: 64,
+	maximumChunkBytes: 64,
+	maximumFrameBytes: 16,
+	incomplete: 'reject',
+})) {
+	console.log(decoder.decode(record));
+}
+```
+
+```text output
+Ada
+Grace
+```
+
+The total byte limit bounds accepted input, the chunk limit rejects oversized deliveries, and the frame limit bounds
+one unfinished name. They are separate because a tiny complete record does not prove a source or chunk is small.
+Choose the limits from your file or protocol contract; these small values only describe this demonstration.
 
 `bytes.rechunk` delegates fixed framing. `json.decode(schema, source, options)` parses JSONL and validates once per
 record. It yields value/schema/syntax records with one-based record numbers and original zero-based UTF-8 byte offsets.
@@ -338,28 +370,50 @@ These commands use package-owned fixtures and development dependencies. The
 [benchmark protocol](../../docs/benchmarks/01-running.md#choose-a-comparison-that-answers-the-question) explains fair
 comparisons, raw report collection and the limits of local measurements.
 
-## Read further
+## Flush a partial live batch when its deadline arrives
 
-The [Streams guide](https://github.com/okikio/utils/blob/main/docs/streams.md) explains the model, manual alternatives,
-and composition.
-
-## Use the operation clock for live batches
+A live source may pause after one record. Waiting for three records could then delay a write indefinitely. This
+complete example holds the next record back, advances a deterministic clock by 50 milliseconds and receives `[1]`
+while the source is still open. The second record arrives afterward and flushes at EOF. A production operation supplies
+its Context clock; the test clock makes the timing visible without sleeping in real time.
 
 ```ts runnable=timed.ts
 import * as context from '@okikio/context';
 import * as streams from '@okikio/streams';
-await using owner = context.create({ id: 'batch-writer' });
-// Limit each batch, not the total source. This tiny source is safe to collect for display.
-const batches = streams.batch([1, 2, 3], {
-	maximumItems: 2,
-	maximumDelay: 50,
-	clock: owner.clock,
-});
-console.log(JSON.stringify(await Array.fromAsync(batches)));
+const clock = new context.TestClock();
+const nextRecord = Promise.withResolvers<void>();
+let closed = false;
+/** Keep the source open after record 1 until this example permits record 2. */
+async function* records() {
+	try {
+		yield 1;
+		await nextRecord.promise;
+		yield 2;
+	} finally {
+		closed = true;
+	}
+}
+const batches = streams.batch(records(), { maximumItems: 3, maximumDelay: 50, clock });
+try {
+	const first = batches.next();
+	// Give the iterator time to accept record 1 and register its deadline.
+	// Bound this check so a broken setup fails rather than waiting forever.
+	for (let turn = 0; turn < 100 && clock.pending().length === 0; turn++) await Promise.resolve();
+	if (clock.pending().length !== 1) throw new Error('Expected one batch deadline.');
+	clock.advance({ milliseconds: 50 });
+	console.log(JSON.stringify((await first).value), 'source closed:', closed);
+	nextRecord.resolve();
+	console.log(JSON.stringify(await Array.fromAsync(batches)), 'source closed:', closed);
+} finally {
+	// Release the producer before joining it, including when an assertion fails.
+	nextRecord.resolve();
+	await batches.return?.(undefined);
+}
 ```
 
 ```text output
-[[1,2],[3]]
+[1] source closed: false
+[[2]] source closed: true
 ```
 
 ## Own timed flush and cleanup
@@ -423,3 +477,8 @@ producer allocations. At most `maximumItems` values are queued, plus one handed 
 abort, source failure and completion release the subscription. Completion drains retained values; abort discards them
 and errors with the exact reason. Source errors terminate this stream; ObservableError values emitted by upstream
 operators remain values.
+
+## Read further
+
+The [Streams guide](https://github.com/okikio/utils/blob/main/docs/streams.md) explains the model, manual alternatives,
+and composition.

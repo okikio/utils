@@ -172,6 +172,10 @@ Save `check.ts`. A **transport** carries protocol messages between client and se
 Streamable HTTP transport builds real protocol requests and sends them to the loopback listener.
 `client.connect()` establishes the protocol conversation before discovery or tool calls.
 
+The check creates two application instances from the same definition. `listen()` owns the one reached by the SDK
+client. `admissionApp` receives direct Requests with hostile headers, so those checks can exercise HTTP admission
+without starting a protocol conversation. Each instance has its own lifetime and must close.
+
 ```ts source=../../examples/mcp/check.ts
 /** Discover and call a real tool without a model; assert failures and close every owned connection. @module */
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
@@ -179,14 +183,18 @@ import { createGreetingMcp } from './server.ts';
 import { listen } from './listen.ts';
 import { strict as assert } from 'node:assert';
 
-const host = createGreetingMcp();
-const socket = await listen(0);
+// The listener owns a separate application for real protocol requests.
+// This application tests HTTP admission directly, without a network client.
+const admissionApp = createGreetingMcp();
+let listener: Awaited<ReturnType<typeof listen>> | undefined;
 const client = new Client({ name: 'greeting-check', version: '1.0.0' }, { versionNegotiation: { mode: 'auto' } });
 try {
+	// Acquire inside the cleanup scope so a failed bind still closes the direct application.
+	listener = await listen(0);
 	// Use the actual SDK transport over a real loopback connection.
 	// The network client supplies Host; the outer route checks it before MCP.
 	await client.connect(
-		new StreamableHTTPClientTransport(socket.url),
+		new StreamableHTTPClientTransport(listener.url),
 	);
 
 	// Discovery tells a client which tools exist; calling one is a separate step.
@@ -201,13 +209,13 @@ try {
 	console.log('invalid', invalid.isError);
 
 	// Exercise the outer HTTP policy independently of valid protocol input.
-	const badHost = await host.app.fetch(
+	const badHost = await admissionApp.app.fetch(
 		new Request('http://localhost/mcp', {
 			method: 'POST',
 			headers: { host: 'attacker.invalid' },
 		}),
 	);
-	const badOrigin = await host.app.fetch(
+	const badOrigin = await admissionApp.app.fetch(
 		new Request('http://localhost/mcp', {
 			method: 'POST',
 			headers: { host: 'localhost', origin: 'https://attacker.invalid' },
@@ -225,9 +233,9 @@ try {
 		await client.close();
 	} finally {
 		try {
-			await host.close();
+			await admissionApp.close();
 		} finally {
-			await socket.close();
+			await listener?.close();
 		}
 	}
 }
@@ -250,8 +258,9 @@ The first line proves discovery. The second is the tool's protocol content. `inv
 not produce a successful greeting. The final two 403 responses come from HTTP admission, before the SDK parses a tool
 request. These are different failure owners; a tool error is not automatically an HTTP 4xx status.
 
-The client, host, and listener close in `finally`, including when a call fails. The nested cleanup still attempts host closure if
-client closure fails. Neither side should be left alive because the success path was the only path tested.
+The client, direct admission application, and listener close in `finally`, including when a call fails. Closing the
+listener also closes its own application. The nested cleanup attempts each release even if an earlier release fails. Listener acquisition happens inside that scope, so a bind failure still closes the direct
+application. Neither side should be left alive because the success path was the only path tested.
 
 ## Let another application connect
 

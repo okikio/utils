@@ -10,13 +10,14 @@ session ID, but reading a session ID still requires your application to validate
 `HttpOnly` prevents JavaScript access in the browser; it does not encrypt the value or authenticate it.
 
 ```text
-Browser sends Cookie -> get/safeGet -> checked token -> application checks session
-Application rotates token -> set -> independent Set-Cookie field -> browser
+Browser sends theme=light -> get/safeGet -> checked preference -> application uses theme
+Application chooses dark -> set -> independent Set-Cookie field -> browser
 ```
 
-The first line reads the incoming token. The second writes instructions for the browser to update it. The application
-still decides whether the token identifies a valid session. `secure`, `httpOnly` and `sameSite` describe browser
-behavior; they do not replace authentication or access checks.
+The first line reads and validates the incoming preference. The second writes instructions for the browser to update
+it; it does not change the incoming Request. Session IDs are a separate cookie use: the application must look up and
+validate the account session they identify. `secure`, `httpOnly` and `sameSite` describe browser behavior; they do not
+replace authentication or access checks.
 
 ## Remember a display preference and reject unsupported values
 
@@ -93,6 +94,36 @@ Theme saved true
 
 Read an invalid incoming theme with `safeGet()` before using it. A successful serialization does not establish that a
 browser accepted a cookie; browser policy, HTTPS, origin and attributes govern that boundary.
+
+## Remove a saved preference
+
+Removal is another response instruction: append an expired cookie with the same name, path and domain as the original.
+The incoming Request remains unchanged. This variation clears the same theme preference:
+
+```ts runnable=remove-theme.ts
+import * as cookie from '@okikio/http/cookie';
+import * as schema from '@okikio/schema';
+const Theme = cookie.define({
+	id: 'display.theme',
+	name: 'theme',
+	description: 'Preferred display theme.',
+	value: schema.oneOf(['light', 'dark']),
+	attributes: { path: '/', sameSite: 'lax' },
+});
+const headers = new Headers();
+cookie.remove(headers, Theme);
+const outgoing = new Response('Preference removed', { headers });
+console.log(outgoing.headers.getSetCookie()[0]?.includes('Max-Age=0'));
+```
+
+```text output
+true
+```
+
+`remove()` and `delete()` are the same operation. Both retain the definition's path/domain, Secure, prefix and SameSite
+attributes, set Max-Age to zero, and keep independent Set-Cookie fields separate. Do not choose another path or domain
+at deletion time: it would identify a different browser cookie. The expired empty marker does not need to pass the
+application's `light`/`dark` value rule. A browser still has to receive and accept the Response for its saved value to change.
 
 ## Expiration interoperability
 
