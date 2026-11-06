@@ -11,8 +11,6 @@
  *
  * @example
  * ```ts
- * import '@okikio/duration/polyfill';
- * import '@okikio/dispose/polyfill';
  * import * as activity from '@okikio/activity';
  * import * as engine from '@okikio/activity/engine';
  * import * as context from '@okikio/context';
@@ -81,6 +79,7 @@
  * @module
  */
 
+import { temporal } from '@okikio/duration/temporal';
 import * as codec from '@okikio/schema/codec';
 import { TriggerEffect, TriggerSchema } from './trigger.ts';
 import * as catalogCore from '@okikio/collection/catalog';
@@ -910,8 +909,8 @@ async function transferSuccess(
 		return instruction.options.result === 'discard' ? undefined : await transfer(instruction.workflow.result, value);
 	}
 	if (instruction.type === 'sleep') {
-		if (direction === 'write' && value instanceof Temporal.Instant) return value.toString();
-		if (direction === 'read' && typeof value === 'string') return Temporal.Instant.from(value);
+		if (direction === 'write' && value instanceof temporal.Instant) return value.toString();
+		if (direction === 'read' && typeof value === 'string') return temporal.Instant.from(value);
 		throw new TypeError('Invalid relative timer completion.');
 	}
 	if (instruction.type === 'wait') return await transfer(instruction.signal.value, value);

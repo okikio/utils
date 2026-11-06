@@ -8,6 +8,7 @@
  *
  * @module
  */
+import { temporal } from '@okikio/duration/temporal';
 import * as context from '@okikio/context';
 import * as record from '@okikio/collection/record';
 import { freeze as freezeAffinity, rejection } from './affinity.ts';
@@ -249,7 +250,7 @@ class Runtime {
 			}
 			const next = this.#next(item);
 			// Already-ready queued work needs an executor mutation, not zero-delay polling.
-			const future = next !== undefined && Temporal.Instant.compare(next, observed) > 0 ? next : undefined;
+			const future = next !== undefined && temporal.Instant.compare(next, observed) > 0 ? next : undefined;
 			await wait(ctx, waiters, this.#clock, this.#delay(future));
 		}
 	}
@@ -394,7 +395,7 @@ class Runtime {
 			if (executor.draining) return Object.freeze([]);
 			const available = Math.max(0, executor.lease.capacity - executor.active);
 			const ready = [...this.#items.values()]
-				.filter((item) => item.state === 'queued' && Temporal.Instant.compare(item.availableAt, observed) <= 0)
+				.filter((item) => item.state === 'queued' && temporal.Instant.compare(item.availableAt, observed) <= 0)
 				.sort((left, right) => left.order - right.order);
 			const claims: ActivityClaimType[] = [];
 			for (const item of ready) {
@@ -621,13 +622,13 @@ class Runtime {
 				this.#revoke(executor);
 				continue;
 			}
-			if (executor.lease.expiresAt !== undefined && Temporal.Instant.compare(now, executor.lease.expiresAt) >= 0) {
+			if (executor.lease.expiresAt !== undefined && temporal.Instant.compare(now, executor.lease.expiresAt) >= 0) {
 				this.#revoke(executor);
 			}
 		}
 		for (const item of this.#items.values()) {
 			if (item.state !== 'claimed' || item.claim === undefined) continue;
-			if (Temporal.Instant.compare(now, item.claim.expiresAt) < 0) continue;
+			if (temporal.Instant.compare(now, item.claim.expiresAt) < 0) continue;
 			this.#release(item);
 			item.state = 'queued';
 			item.claim = undefined;
@@ -651,8 +652,8 @@ class Runtime {
 		for (const item of this.#items.values()) {
 			const candidate = this.#next(item);
 			if (
-				candidate !== undefined && Temporal.Instant.compare(candidate, observed) > 0 &&
-				(next === undefined || Temporal.Instant.compare(candidate, next) < 0)
+				candidate !== undefined && temporal.Instant.compare(candidate, observed) > 0 &&
+				(next === undefined || temporal.Instant.compare(candidate, next) < 0)
 			) {
 				next = candidate;
 			}
@@ -660,8 +661,8 @@ class Runtime {
 		for (const executor of this.#executors.values()) {
 			const candidate = executor.lease.expiresAt;
 			if (
-				candidate !== undefined && Temporal.Instant.compare(candidate, observed) > 0 &&
-				(next === undefined || Temporal.Instant.compare(candidate, next) < 0)
+				candidate !== undefined && temporal.Instant.compare(candidate, observed) > 0 &&
+				(next === undefined || temporal.Instant.compare(candidate, next) < 0)
 			) {
 				next = candidate;
 			}
@@ -801,7 +802,7 @@ function nonNegativeDuration(
 	value: Temporal.Duration | Temporal.DurationLike | string,
 	label: string,
 ): Temporal.Duration {
-	const duration = Temporal.Duration.from(value);
+	const duration = temporal.Duration.from(value);
 	if (duration.sign < 0) throw new TypeError(`${label} must not be negative.`);
 	return duration;
 }

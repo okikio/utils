@@ -753,7 +753,7 @@ async function completion(command: WorkflowInstruction, outcome: OutcomeType): P
 	if (command.type === 'child-workflow' && command.options.result !== 'discard') {
 		value = await codec.read(command.workflow.result, value);
 	}
-	if (command.type === 'sleep') value = Temporal.Instant.from(value as string);
+	if (command.type === 'sleep') value = temporal.Instant.from(value as string);
 	if (command.type === 'wait-event') {
 		const event = value as { type: 'received'; value: unknown } | { type: 'timeout' };
 		if (event.type === 'received') {

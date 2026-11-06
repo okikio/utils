@@ -1,5 +1,6 @@
 /** A bounded, process-local inbox. PostgreSQL owns delivery that must survive a restart. @module */
 
+import { temporal } from '@okikio/duration/temporal';
 import * as codec from '@okikio/schema/codec';
 import { SystemClock } from '@okikio/context';
 import { createEventDispatcher, waitForEvent } from '@okikio/observables/events';
@@ -70,7 +71,7 @@ export function events(options: { readonly capacity?: number; readonly clock?: C
 			if (
 				entry.outcome ||
 				entry.until !== undefined &&
-					clock.now().epochMilliseconds >= Temporal.Instant.from(entry.until).epochMilliseconds
+					clock.now().epochMilliseconds >= temporal.Instant.from(entry.until).epochMilliseconds
 			) throw new ExecutionError('event_closed');
 			entry.hash = hash;
 			entry.value = decode(saved);
@@ -92,7 +93,7 @@ export function events(options: { readonly capacity?: number; readonly clock?: C
 				ctx.signal.throwIfAborted();
 				if (closed) throw new ExecutionError('events_closed');
 				if (entry.outcome) return entry.outcome;
-				const due = command.until === undefined ? Infinity : Temporal.Instant.from(command.until).epochMilliseconds;
+				const due = command.until === undefined ? Infinity : temporal.Instant.from(command.until).epochMilliseconds;
 				if (entry.hash !== undefined && entry.received! <= due) {
 					entry.outcome = { type: 'received', value: await codec.read(command.event.value, entry.value) };
 					return entry.outcome;

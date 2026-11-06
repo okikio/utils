@@ -5,8 +5,6 @@
  *
  * @example
  * ```ts
- * import '@okikio/duration/polyfill';
- * import '@okikio/dispose/polyfill';
  * import * as context from '@okikio/context';
  * import * as process from '@okikio/worker/process';
  * import * as deno from '@okikio/runtime/deno/process';
@@ -412,8 +410,6 @@ function spawnOptions(options: StartOptionsType, resolved: ResolvedStartOptions)
  *
  * @example
  * ```ts
- * import '@okikio/duration/polyfill';
- * import '@okikio/dispose/polyfill';
  * import nodeProcess from 'node:process';
  * import * as context from '@okikio/context';
  * import * as process from '@okikio/worker/process';

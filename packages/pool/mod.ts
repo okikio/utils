@@ -11,8 +11,6 @@
  *
  * @example
  * ```ts
- * import '@okikio/duration/polyfill';
- * import '@okikio/dispose/polyfill';
  * import * as context from '@okikio/context';
  * import * as pool from '@okikio/pool';
  * await using ctx = context.create({ id: 'connection-owner' });

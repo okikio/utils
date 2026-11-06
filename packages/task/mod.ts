@@ -11,8 +11,6 @@
  *
  * @example
  * ```ts
- * import '@okikio/duration/polyfill';
- * import '@okikio/dispose/polyfill';
  * import * as task from '@okikio/task';
  * const cleanup: string[] = [];
  * await using work = task.start(async (ctx) => {

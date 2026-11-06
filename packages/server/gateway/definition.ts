@@ -1,3 +1,4 @@
+import { temporal } from '@okikio/duration/temporal';
 import { isArtifactMount } from './artifact.ts';
 import * as durationCore from '@okikio/duration';
 import * as endpoint from '@okikio/server/endpoint/definition';
@@ -74,7 +75,7 @@ export function policy(input: GatewayPolicyInput): GatewayPolicy {
 	if (input.bodyLimit !== undefined && (!Number.isSafeInteger(input.bodyLimit) || input.bodyLimit < 1)) {
 		throw new TypeError('Gateway bodyLimit must be a positive safe integer.');
 	}
-	const timeout = input.timeout === undefined ? undefined : Temporal.Duration.from(input.timeout);
+	const timeout = input.timeout === undefined ? undefined : temporal.Duration.from(input.timeout);
 	if (timeout !== undefined && durationCore.elapsed(timeout) <= 0) {
 		throw new TypeError('Gateway timeout must be positive.');
 	}

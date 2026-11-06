@@ -13,8 +13,6 @@
  *
  * @example
  * ```ts
- * import '@okikio/duration/polyfill';
- * import '@okikio/dispose/polyfill';
  * import * as context from '@okikio/context';
  * import * as requirement from '@okikio/capability/requirement';
  * const Feature = Object.freeze({ kind: 'entitlement', id: 'export.csv' });

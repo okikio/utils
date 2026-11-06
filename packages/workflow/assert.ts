@@ -8,6 +8,7 @@
  * @module
  */
 
+import { temporal } from '@okikio/duration/temporal';
 import { MAX_ACTIVE_CHILDREN } from './scope.ts';
 import type { WorkflowInstruction, WorkflowOperation } from './types.ts';
 
@@ -38,7 +39,7 @@ export function positive(value: number, label: string): number {
  * @internal
  */
 export function duration(value: Temporal.Duration | Temporal.DurationLike | string, label: string): Temporal.Duration {
-	const result = Temporal.Duration.from(value);
+	const result = temporal.Duration.from(value);
 	if (result.sign <= 0) throw new TypeError(`${label} must be greater than zero.`);
 	return result;
 }

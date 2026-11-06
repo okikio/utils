@@ -948,3 +948,24 @@ it('cancels an unread upstream body when the caller aborts and releases its read
 	}
 	expect(source.locked).toBe(false);
 });
+
+describe('gateway local time provider', () => {
+	it('constructs timeout policy without reading the global Temporal property', () => {
+		const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'Temporal');
+		// Policy construction must use the imported provider, even if another
+		// application dependency removes or replaces the ambient global later.
+		Object.defineProperty(globalThis, 'Temporal', {
+			configurable: true,
+			get() {
+				throw new Error('Global Temporal must not be read during policy construction.');
+			},
+		});
+		try {
+			const policy = gateway.policy({ id: 'local-time.timeout', endpoints: [Public], timeout: 'PT1S' });
+			expect(policy.timeout?.toString()).toBe('PT1S');
+		} finally {
+			if (descriptor === undefined) Reflect.deleteProperty(globalThis, 'Temporal');
+			else Object.defineProperty(globalThis, 'Temporal', descriptor);
+		}
+	});
+});

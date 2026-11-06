@@ -11,8 +11,6 @@
  *
  * @example
  * ```ts
- * import '@okikio/duration/polyfill';
- * import '@okikio/dispose/polyfill';
  * import * as activity from '@okikio/activity';
  * import * as engine from '@okikio/activity/engine';
  * import * as context from '@okikio/context';

@@ -5,8 +5,6 @@
  *
  * @example
  * ```ts
- * import '@okikio/duration/polyfill';
- * import '@okikio/dispose/polyfill';
  * import * as context from '@okikio/context';
  * import * as queue from '@okikio/scheduler/queue';
  * const clock = new context.TestClock();
@@ -21,6 +19,7 @@
  *
  * @module
  */
+import { temporal } from '@okikio/duration/temporal';
 import { EventBus } from '@okikio/observables/events';
 import { observe } from '@okikio/telemetry/observe';
 import { elapsed as milliseconds } from '@okikio/duration';
@@ -435,7 +434,7 @@ class Runtime<Input, Output> {
 			const now = this.#clock.now();
 			const candidates = options.ref === undefined ? [...this.#items.values()] : [this.#item(options.ref.id)];
 			const available = candidates
-				.filter((item) => item.state === 'queued' && Temporal.Instant.compare(item.availableAt, now) <= 0)
+				.filter((item) => item.state === 'queued' && temporal.Instant.compare(item.availableAt, now) <= 0)
 				.sort(compareItems)
 				.slice(0, limit);
 			if (available.length > 0) return Object.freeze(available.map((item) => this.#take(item, owner, duration)));
@@ -462,7 +461,7 @@ class Runtime<Input, Output> {
 			const item = this.#item(ref.id);
 			if (terminal(item)) return 'terminal';
 			const now = this.#clock.now();
-			if (item.state === 'queued' && Temporal.Instant.compare(item.availableAt, now) <= 0) return 'claimable';
+			if (item.state === 'queued' && temporal.Instant.compare(item.availableAt, now) <= 0) return 'claimable';
 			const wakeAt = this.#next(item);
 			await this.#change(
 				ctx,
@@ -677,7 +676,7 @@ class Runtime<Input, Output> {
 		const now = this.#clock.now();
 		for (const item of this.#items.values()) {
 			if (item.state !== 'claimed' || item.claim === undefined) continue;
-			if (Temporal.Instant.compare(item.claim.expiresAt, now) > 0) continue;
+			if (temporal.Instant.compare(item.claim.expiresAt, now) > 0) continue;
 			const expired = item.claim;
 			item.state = 'queued';
 			item.claim = undefined;
@@ -698,7 +697,7 @@ class Runtime<Input, Output> {
 		let next: Temporal.Instant | undefined;
 		for (const item of this.#items.values()) {
 			const candidate = this.#next(item);
-			if (candidate !== undefined && (next === undefined || Temporal.Instant.compare(candidate, next) < 0)) {
+			if (candidate !== undefined && (next === undefined || temporal.Instant.compare(candidate, next) < 0)) {
 				next = candidate;
 			}
 		}
@@ -939,7 +938,7 @@ function elapsedDuration(
 	label: string,
 	zero: boolean,
 ): Temporal.Duration {
-	const parsed = Temporal.Duration.from(value);
+	const parsed = temporal.Duration.from(value);
 	const total = milliseconds(parsed);
 	if (!Number.isFinite(total) || (zero ? total < 0 : total <= 0)) {
 		throw new RangeError(`${label} must be ${zero ? 'non-negative' : 'positive'} elapsed time.`);

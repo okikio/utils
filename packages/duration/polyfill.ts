@@ -1,11 +1,13 @@
 /**
  * Install Temporal only when the host does not provide it.
  *
- * Import this module first at an application entry point. It lets duration,
- * context, queue, pool and workflow code run on hosts without global Temporal.
- * Libraries keep this choice with the application; ordinary utility imports do
- * not install globals. Each Worker or process has its own global and needs its
- * own entry-point import. An existing native implementation is preserved.
+ * Use this explicit application import only when application code or another
+ * dependency reads globalThis.Temporal. Duration and the utilities that import
+ * its local Temporal provider do not need global installation.
+ *
+ * The import preserves an existing native implementation. Each Worker or process
+ * has its own global, so an application that needs the global there must install
+ * it in that entry point too. This module does not transfer a global to another host.
  *
  * @example
  * ```ts

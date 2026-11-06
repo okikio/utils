@@ -629,3 +629,32 @@ it('releases response completion readers after EOF, cancellation and source erro
 		expect(cancel).toBe(outcome === 'cancel' ? 1 : 0);
 	}
 });
+
+describe('response local time provider', () => {
+	it('materializes timestamps without reading the global Temporal property', async () => {
+		const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'Temporal');
+		// The provider was selected at import. Refuse later ambient access so this
+		// test catches a regression without depending on the host's native support.
+		Object.defineProperty(globalThis, 'Temporal', {
+			configurable: true,
+			get() {
+				throw new Error('Global Temporal must not be read during response construction.');
+			},
+		});
+		try {
+			const Saved = response.ok(ItemSchema, {
+				id: 'local-time.saved',
+				description: 'Saved item with an observation timestamp.',
+				envelope: 'data',
+				timestamp: true,
+			});
+			const value = await response.materialize(response.create(Saved, { id: 'asset-1' }));
+			expect(value.status).toBe(200);
+			expect(JSON.stringify(value.body)).toContain('"timestamp":"');
+		} finally {
+			// Restore the host exactly; this test owns only its temporary property override.
+			if (descriptor === undefined) Reflect.deleteProperty(globalThis, 'Temporal');
+			else Object.defineProperty(globalThis, 'Temporal', descriptor);
+		}
+	});
+});

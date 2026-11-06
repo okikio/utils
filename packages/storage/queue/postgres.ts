@@ -5,6 +5,7 @@
  * its requests and leaves saved work and the caller's pool intact.
  * @module
  */
+import { temporal } from '@okikio/duration/temporal';
 import type { Parameter, Sql, TransactionSql } from 'postgres';
 import { EventBus } from '@okikio/observables/events';
 import { observe } from '@okikio/telemetry/observe';
@@ -772,7 +773,7 @@ function instant(value: unknown): Temporal.Instant {
 	if (!(value instanceof Date) || !Number.isFinite(value.getTime())) {
 		throw new TypeError('Invalid saved queue timestamp.');
 	}
-	return Temporal.Instant.fromEpochMilliseconds(value.getTime());
+	return temporal.Instant.fromEpochMilliseconds(value.getTime());
 }
 /** Inspect the saved failure envelope without interpreting its domain-specific data. */
 function readFailure(value: unknown): EncodedFailure {

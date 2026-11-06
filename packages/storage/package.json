@@ -28,7 +28,8 @@
 		"@okikio/result": "workspace:^",
 		"@okikio/observables": "^1.4.0",
 		"@okikio/capability": "workspace:^",
-		"@okikio/dispose": "workspace:^"
+		"@okikio/dispose": "workspace:^",
+		"@okikio/duration": "workspace:^"
 	},
 	"devDependencies": {
 		"zod": "^4.5.4",

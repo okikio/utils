@@ -11,8 +11,6 @@
  *
  * @example
  * ```ts
- * import '@okikio/duration/polyfill';
- * import '@okikio/dispose/polyfill';
  * import * as context from '@okikio/context';
  * const clock = new context.TestClock();
  * await using parent = context.create({ id: 'import', clock });

@@ -10,6 +10,28 @@ function ids(...values: string[]): () => string {
 }
 
 describe('memory queue', () => {
+	it('claims, renews and completes without reading an ambient Temporal provider', async () => {
+		const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'Temporal');
+		Object.defineProperty(globalThis, 'Temporal', {
+			configurable: true,
+			get() {
+				throw new Error('Queue must use its imported time provider.');
+			},
+		});
+		try {
+			const clock = new context.TestClock();
+			await using owner = context.create({ id: 'queue-local-time', clock });
+			await using jobs = queue.memory<number, number>({ clock });
+			const ref = await jobs.add(owner, 21);
+			const claim = (await jobs.claim(owner, { duration: 'PT1S' }))[0]!;
+			const renewed = await jobs.renew(owner, claim, 'PT2S');
+			await jobs.complete(owner, renewed, 42);
+			expect(await jobs.result(owner, ref)).toBe(42);
+		} finally {
+			if (descriptor === undefined) Reflect.deleteProperty(globalThis, 'Temporal');
+			else Object.defineProperty(globalThis, 'Temporal', descriptor);
+		}
+	});
 	it('wraps the claimed-work queue in a FIFO-friendly one-at-a-time API', async () => {
 		const clock = new context.TestClock();
 		await using claimed = queue.memory<string, string>({ clock, id: ids('item-1', 'item-2', 'claim-1', 'claim-2') });

@@ -12,8 +12,6 @@
  *
  * @example
  * ```ts
- * import '@okikio/duration/polyfill';
- * import '@okikio/dispose/polyfill';
  * import * as context from '@okikio/context';
  * import * as permission from '@okikio/authz/permission';
  * import * as schema from '@okikio/schema';

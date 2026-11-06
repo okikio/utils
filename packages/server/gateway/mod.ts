@@ -5,8 +5,6 @@
  *
  * @example
  * ```ts
- * import '@okikio/duration/polyfill';
- * import '@okikio/dispose/polyfill';
  * import * as endpoint from '@okikio/server/endpoint';
  * import * as response from '@okikio/http/response';
  * import * as service from '@okikio/server/service';

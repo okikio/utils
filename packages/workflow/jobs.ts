@@ -1,3 +1,4 @@
+import { temporal } from '@okikio/duration/temporal';
 import * as codec from '@okikio/schema/codec';
 /**
  * Activity item admission and independently hosted executor lifecycles.
@@ -668,7 +669,7 @@ function retryFailure(activity: ActivityReference, value: unknown, attempt: numb
 /** Compute deterministic retry timing from activity policy and stable item identity. */
 function delay(activity: ActivityReference, failedAttempt: number, seed: string): Temporal.Duration {
 	const policy = retryPolicy(activity.resilience);
-	if (policy === undefined) return Temporal.Duration.from('PT0S');
+	if (policy === undefined) return temporal.Duration.from('PT0S');
 	return retryDelay(
 		policy,
 		failedAttempt,

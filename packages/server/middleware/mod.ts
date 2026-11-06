@@ -8,8 +8,6 @@
  *
  * @example
  * ```ts
- * import '@okikio/duration/polyfill';
- * import '@okikio/dispose/polyfill';
  * import * as middleware from '@okikio/server/middleware';
  * const Actor = middleware.context<{ id: string }>()({ id: 'actor', description: 'Authenticated actor.' });
  * const Read = middleware.define({

@@ -6,6 +6,7 @@
  * does not mean the call's browser, connection or memory has become free.
  * @internal @module
  */
+import { temporal } from '@okikio/duration/temporal';
 import { HostReferenceSchema, HostSelectionError } from './selection.ts';
 import type { HostReferenceType } from './selection.ts';
 import * as context from '@okikio/context';
@@ -143,7 +144,7 @@ class Shared<Value> implements Hosts<Value> {
 				});
 			} catch (error) {
 				if (timed !== undefined && error instanceof context.ContextDeadlineExceededError) {
-					throw new pool.PoolAcquireTimeoutError(Temporal.Duration.from(this.#options.acquireTimeout!));
+					throw new pool.PoolAcquireTimeoutError(temporal.Duration.from(this.#options.acquireTimeout!));
 				}
 				throw error;
 			}

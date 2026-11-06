@@ -34,7 +34,8 @@
 		"@okikio/hash": "workspace:^",
 		"@okikio/streams": "workspace:^",
 		"@okikio/dispose": "workspace:^",
-		"@okikio/schema": "workspace:^"
+		"@okikio/schema": "workspace:^",
+		"@okikio/duration": "workspace:^"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",

@@ -3,6 +3,7 @@
  * @module
  */
 
+import { temporal } from '@okikio/duration/temporal';
 import * as codec from '@okikio/schema/codec';
 import { encodeHex } from '@std/encoding/hex';
 import type * as effects from '@okikio/capability/effect';
@@ -116,7 +117,7 @@ export function sleep(
 			category: 'command',
 			type: 'sleep',
 			version: builtInInstructionVersion,
-			duration: Temporal.Duration.from(duration),
+			duration: temporal.Duration.from(duration),
 			...instructionMetadata(options),
 		} satisfies WorkflowSleepCommand,
 	);
@@ -127,7 +128,7 @@ export function sleep(
  * @deprecated Use `wait({ until })`, which returns a Temporal.Instant.
  */
 export function sleepUntil(until: string, options: WorkflowCommandOptions = {}): WorkflowOperation<string> {
-	const instant = Temporal.Instant.from(until).toString();
+	const instant = temporal.Instant.from(until).toString();
 	return operation({
 		category: 'command',
 		type: 'sleep-until',
@@ -151,7 +152,7 @@ export function waitForEvent<Value>(
 	schema.assert(codec.input(definition.value), 'workflow event schema');
 	const eventKey = options.key ?? 'default';
 	if (!eventKey.trim() || eventKey.length > 512) throw new TypeError('Event key must contain 1..512 characters.');
-	const until = options.until === undefined ? undefined : Temporal.Instant.from(options.until).toString();
+	const until = options.until === undefined ? undefined : temporal.Instant.from(options.until).toString();
 	return operation({
 		category: 'command',
 		type: 'wait-event',
@@ -237,7 +238,7 @@ export function wait<Value>(
 	}
 	if (request.duration !== undefined) {
 		if (request.until !== undefined) throw new TypeError('Timer waits require exactly one of duration or until.');
-		const duration = Temporal.Duration.from(request.duration);
+		const duration = temporal.Duration.from(request.duration);
 		if (duration.sign < 0) throw new RangeError('Wait duration must not be negative.');
 		return sleep(duration, request);
 	}
@@ -246,7 +247,7 @@ export function wait<Value>(
 	// Convert the saved string at the generator boundary. Existing history stays readable.
 	return Object.freeze({
 		*[Symbol.iterator]() {
-			return Temporal.Instant.from(yield* timer);
+			return temporal.Instant.from(yield* timer);
 		},
 	});
 }
@@ -450,8 +451,8 @@ export function retry<Value, Failure>(
 ): WorkflowOperation<Value, Failure> {
 	recordCore.assert(options, 'workflow retry options');
 	assertOperation(childOperation);
-	const delay = options.delay === undefined ? undefined : Temporal.Duration.from(options.delay);
-	const maximumDelay = options.maximumDelay === undefined ? undefined : Temporal.Duration.from(options.maximumDelay);
+	const delay = options.delay === undefined ? undefined : temporal.Duration.from(options.delay);
+	const maximumDelay = options.maximumDelay === undefined ? undefined : temporal.Duration.from(options.maximumDelay);
 	const backoff = options.backoff ?? 1;
 	if (!Number.isFinite(backoff) || backoff < 1) {
 		throw new TypeError('retry backoff must be a finite number greater than or equal to 1.');

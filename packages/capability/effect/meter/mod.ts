@@ -12,8 +12,6 @@
  *
  * @example
  * ```ts
- * import '@okikio/duration/polyfill';
- * import '@okikio/dispose/polyfill';
  * import * as context from '@okikio/context';
  * import * as effect from '@okikio/capability/effect';
  * import * as meter from '@okikio/capability/effect/meter';

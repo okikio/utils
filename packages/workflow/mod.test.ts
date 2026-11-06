@@ -5,9 +5,42 @@ import * as context from '@okikio/context';
 import * as task from '@okikio/task';
 import * as requirement from '@okikio/capability/requirement';
 import * as workflow from './mod.ts';
+import { temporal } from '@okikio/duration/temporal';
 import { AnySchema, operation, runProgram, TestActivity, TestEngine } from './fixtures/program.ts';
 
 describe('durable workflow declarations', () => {
+	it('runs relative and absolute timers without reading global time or disposal constructors', async () => {
+		const descriptors = ['Temporal', 'AsyncDisposableStack', 'DisposableStack'].map((name) =>
+			[name, Object.getOwnPropertyDescriptor(globalThis, name)] as const
+		);
+		for (const [name] of descriptors) {
+			Object.defineProperty(globalThis, name, {
+				configurable: true,
+				get() {
+					throw new Error(`Workflow must not read global ${name}.`);
+				},
+			});
+		}
+		try {
+			const until = '2026-01-01T00:00:00Z';
+			const result = await runProgram(function* () {
+				yield* workflow.sleep('PT1S');
+				return (yield* workflow.wait({ until })).toString();
+			}, {
+				async command(_ctx, command) {
+					if (command.type === 'sleep') return workflow.success(temporal.Instant.from(until));
+					if (command.type === 'sleep-until') return workflow.success(command.until);
+					throw new Error('Unexpected timer command.');
+				},
+			});
+			expect(result).toBe(until);
+		} finally {
+			for (const [name, descriptor] of descriptors) {
+				if (descriptor === undefined) Reflect.deleteProperty(globalThis, name);
+				else Object.defineProperty(globalThis, name, descriptor);
+			}
+		}
+	});
 	it('rejects accessor-backed durable operation maps without invoking getters', () => {
 		let reads = 0;
 		const operations = Object.create(null) as Record<string, unknown>;

@@ -1,3 +1,4 @@
+import { temporal } from '@okikio/duration/temporal';
 import * as recordCore from '@okikio/collection/record';
 import * as schema from '@okikio/schema';
 import * as codec from '@okikio/schema/codec';
@@ -457,7 +458,7 @@ function buildMeta(
 	return Object.freeze({
 		...(custom ?? {}),
 		...(pagination !== undefined ? { pagination } : {}),
-		...(timestamp ? { timestamp: instantString(now?.() ?? Temporal.Now.instant(), 'Response timestamp') } : {}),
+		...(timestamp ? { timestamp: instantString(now?.() ?? temporal.Now.instant(), 'Response timestamp') } : {}),
 	});
 }
 
@@ -584,7 +585,7 @@ function instantString(value: unknown, name: string): string {
 		return value;
 	}
 	try {
-		return Temporal.Instant.prototype.toString.call(value as Temporal.Instant);
+		return temporal.Instant.prototype.toString.call(value as Temporal.Instant);
 	} catch {
 		throw new TypeError(`${name} must be a Temporal.Instant or string.`);
 	}

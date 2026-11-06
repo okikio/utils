@@ -1,4 +1,5 @@
 /** Deterministic values used by retry policy evaluation. @module */
+import { temporal } from '@okikio/duration/temporal';
 import * as durationCore from '@okikio/duration';
 import type { WorkflowRetryInstruction } from './types.ts';
 
@@ -26,7 +27,7 @@ export function delay(instruction: WorkflowRetryInstruction, path: string, faile
 	const jitterScale = instruction.jitter === 0
 		? 1
 		: 1 + ((unit(`${path}:${failedAttempt}`) * 2) - 1) * instruction.jitter;
-	return Temporal.Duration.from({ milliseconds: Math.max(0, Math.round(backedOff * jitterScale)) });
+	return temporal.Duration.from({ milliseconds: Math.max(0, Math.round(backedOff * jitterScale)) });
 }
 
 /**

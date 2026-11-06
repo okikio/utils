@@ -1,4 +1,5 @@
 import type { Cause } from './kernel.ts';
+import { AsyncDisposableStack } from '@okikio/dispose';
 
 /** Maximum live child branches one scope may own concurrently. @internal */
 export const MAX_ACTIVE_CHILDREN = 64;

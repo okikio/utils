@@ -5,6 +5,34 @@ import * as hosts from './hosts.ts';
 import { AsyncDisposableStack } from '@okikio/dispose';
 
 describe('shared activity hosts', () => {
+	it('reports acquisition timeout through the local time provider after ambient replacement', async () => {
+		const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'Temporal');
+		Object.defineProperty(globalThis, 'Temporal', {
+			configurable: true,
+			get() {
+				throw new Error('Host timeout must use its imported time provider.');
+			},
+		});
+		try {
+			const clock = new context.TestClock();
+			await using ctx = context.create({ id: 'host-local-time', clock });
+			await using values = await hosts.create({
+				ctx,
+				maximum: 1,
+				maximumWaiting: 1,
+				acquireTimeout: 'PT0.001S',
+				create: () => ({}),
+				close() {},
+			}, 1);
+			await using held = await values.acquire(ctx);
+			const waiting = expect(values.acquire(ctx)).rejects.toMatchObject({ name: 'PoolAcquireTimeoutError' });
+			clock.advance({ milliseconds: 1 });
+			await waiting;
+		} finally {
+			if (descriptor === undefined) Reflect.deleteProperty(globalThis, 'Temporal');
+			else Object.defineProperty(globalThis, 'Temporal', descriptor);
+		}
+	});
 	it('bounds sharing and host count, cancels FIFO waits and joins drain', async () => {
 		await using ctx = context.create({ id: 'shared-hosts' });
 		let created = 0;
