@@ -110,8 +110,10 @@ export async function settle<Value>(
 	} catch (error) {
 		failed = true;
 		operationError = error;
-		if (ctx.signal.aborted) completion = { type: 'cancelled' };
-		else if (failure.isOccurrence(error)) {
+		// Cancellation does not explain an unrelated operation or nested disposal failure.
+		if (context.cancelled(error) || (ctx.signal.aborted && error === ctx.signal.reason)) {
+			completion = { type: 'cancelled' };
+		} else if (failure.isOccurrence(error)) {
 			try {
 				const encoded = await failure.encode(error);
 				completion = {
