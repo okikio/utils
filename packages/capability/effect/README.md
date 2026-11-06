@@ -23,14 +23,11 @@ subscriber has acted on the announcement. Those guarantees depend on the applica
 
 ## Give a save announcement an explicit recipient
 
-The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
-implementation is preserved.
+Context supplies its own clock and cleanup support. Importing this utility does not require changing runtime globals.
 
 From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare -- --kind deps` at the repository root. Save the following program as `example.ts` and run `mise exec -- deno run example.ts`. These commands use the workspace export maps; they do not assume a published registry version.
 
 ```ts runnable
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as effect from '@okikio/capability/effect';
 import * as schema from '@okikio/schema';
@@ -111,9 +108,55 @@ save:asset-1 asset-1
 - **Send a confirmation after an import:** combine [CSV](../../format/csv/README.md) parsing with an application-owned
   save, then announce the accepted import through an effect. If save and announcement must commit together, the
   application needs a transactional outbox; calling two functions in sequence does not create a transaction.
-- **Deliver announcements later:** use the queue-backed outbox described below with
+- **Deliver announcements later:** use the [complete queue-backed example below](#queue-an-announcement-then-deliver-it) with
   [Queue](../../scheduler/queue/README.md). Stable keys support recipient deduplication; only a durable, atomic queue
   adapter and replay-safe recipient can supply the corresponding restart and duplicate-delivery guarantees.
+
+## Queue an announcement, then deliver it
+
+A producer can finish once a queue accepts an announcement, while a later delivery step calls its recipient. This
+complete variation keeps the same saved-asset shape. Its in-memory queue lets you see those two moments separately;
+process restart would lose queued announcements. After the same checkout setup, save it as `queued-save.ts` and run
+`mise exec -- deno run queued-save.ts`.
+
+```ts runnable=queued-save.ts
+import * as context from '@okikio/context';
+import * as effect from '@okikio/capability/effect';
+import type { EffectEncoded, EffectReceiptType } from '@okikio/capability/effect';
+import * as queue from '@okikio/scheduler/queue';
+import * as schema from '@okikio/schema';
+
+const Saved = effect.define({ id: 'asset.saved', value: schema.object({ id: schema.string() }) });
+await using owner = context.create({ id: 'save-asset-1' });
+await using pending = queue.memory<EffectEncoded, EffectReceiptType>();
+const delivered: string[] = [];
+await using box = effect.outbox({
+	queue: pending,
+	handlers: [
+		effect.implement(Saved, (_ctx, occurrence) => {
+			// A real recipient must make this business action safe to repeat after a lost acknowledgement.
+			delivered.push(occurrence.value.id);
+		}),
+	],
+});
+const ctx = effect.scope(owner, { effects: [Saved], emitter: box });
+await effect.emit(ctx, Saved, { id: 'asset-1' }, { key: 'save:asset-1' });
+console.log('Delivered before drain:', delivered.length);
+// No background loop runs implicitly. The owner explicitly admits one queued delivery.
+const result = await box.drain(owner, { limit: 1 });
+console.log('Delivered after drain:', delivered.join(','), result.accepted);
+```
+
+```text output
+Delivered before drain: 0
+Delivered after drain: asset-1 1
+```
+
+`emit()` accepts into the queue; `drain()` claims the queued occurrence and awaits its exact handler before acknowledging
+it. The example owns the queue and outbox separately: closing the outbox does not close its borrowed queue. A durable
+queue can preserve acceptance across restart, but saving a picture and emitting afterward still are two commits.
+Use the [transactional PostgreSQL outbox](../../../docs/postgres/02-outbox.md) when the picture update and announcement
+must commit together. Stable keys support retry identity; the recipient still owns duplicate-safe business effects.
 
 ## Choose what acceptance must guarantee
 

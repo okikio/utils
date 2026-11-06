@@ -4,8 +4,9 @@ The [connected consumer guide](./14-consumers.md) adds the preferred trigger API
 progress, and durable registered cleanup. Its smaller fixtures complement the full domain scenarios described here.
 
 Use this page to find actual code instead of assembling setup from unrelated fragments. Start with
-[the bottom-up walkthrough](./01-basics.md) for the concepts. Every file below is current executable test code. Core,
-Intelligence, and Signals remain unchanged.
+[the bottom-up walkthrough](./01-basics.md) for the concepts. Every file below is current executable test code.
+Core and Intelligence are the separate applications that inspired these import and research scenarios; neither is a
+dependency you must install for the examples.
 
 | File                                                               | What to inspect                                                                                             |
 | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |

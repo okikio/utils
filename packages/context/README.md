@@ -37,6 +37,10 @@ console.log(name);
 Ada
 ```
 
+The `id` labels this operation in snapshots and diagnostics. It is not a globally registered owner or an access token.
+Reuse an existing request or job ID when you have one. Otherwise choose a useful local label, as this example does.
+The default clock is real time; no clock, registry or global polyfill setup is needed for ordinary work.
+
 `timeout()` returns the child immediately. Its deadline requests cancellation through the signal; cooperative I/O must
 receive that signal. `await using` cancels the child's timer and awaits its registered cleanup when the block ends.
 Disposing the child leaves the request owner open. Deadline expiry requests cancellation but does not independently run
@@ -170,10 +174,11 @@ Read the [usage guide](../../docs/context/01-guide.md) for ownership, exact time
 cancellation rules, and the [stored-state guide](../../docs/context/03-stored-state.md) for commits, codecs, and
 restart. Source contracts are in [types.ts](./types.ts), [state.ts](./state.ts), and [events.ts](./events.ts).
 
-## Carry the lifetime from a request to an editor
+## Choose the owner for each operation
 
-A request deadline, an editor lifetime, and an import operation can all carry cancellation and cleanup. A stored draft
-adds persistence without changing who owns mutation.
+A request, an editor and an import can each use Context for cancellation and cleanup. These are separate lifetimes,
+not stages that transfer one live owner. A saved draft can outlive its request; reopening that data creates a new local
+view, not a continuation of the old request's cancellation signal or cleanup stack.
 
 Pass a borrowed context into ordinary functions. Create a child for independently closable work. Add Storage only for
 saved state and Task only when pause/resume control is required.

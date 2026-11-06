@@ -9,6 +9,11 @@ For Deno, Node, and Bun execution, see
 [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters
 keep their native runtime requirements.
 
+There are two lifetimes in a reusable Worker: the thread stays open across calls, while each request can stop
+independently. That is why `open(ctx, ...)` and `thread.request(ctx, input)` both take a Context. The first owns the
+thread; the second bounds this request. They may use the same Context for a short program. An HTTP server would normally
+keep the thread under its server lifetime and pass a different request Context for each caller.
+
 ## Summarize a report in a separate Worker module
 
 An ordinary function is sufficient for a small string. Choose a Worker when expensive analysis should run in a separate
@@ -21,8 +26,6 @@ loading the companion module and its imports. The data is local and no network s
 explicit Runtime Worker factory rather than assuming a browser-style global constructor.
 
 ```ts runnable=main.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as worker from '@okikio/worker/thread';
 import * as schema from '@okikio/schema';
@@ -59,8 +62,6 @@ Family photo notes: 9 words in 2 paragraphs
 Worker module, saved as `thread.ts`:
 
 ```ts support=thread.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as worker from '@okikio/worker/thread';
 import * as schema from '@okikio/schema';
 worker.serve({

@@ -10,8 +10,6 @@ From the `utils` checkout root, review `mise.toml` and run `mise trust`, `mise i
 Save the complete block as `export-feature.ts` and run `mise exec -- deno run export-feature.ts`. No server or database is needed.
 
 ```ts runnable=export-feature.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as entitlement from '@okikio/authz/entitlement';
 import * as requirement from '@okikio/capability/requirement';
 import * as context from '@okikio/context';

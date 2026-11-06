@@ -1,11 +1,11 @@
-# Follow a Core-style dataset import
+# Import a CSV without losing saved corrections
 
 The [connected consumer guide](./14-consumers.md) adds the preferred trigger API, process/thread engines, standard
 progress, and durable registered cleanup. Its smaller fixtures complement the full domain scenarios described here.
 
 The customer needs usable accounts from an uploaded CSV. The customer may correct a row while background work is
 interrupted. A worker restart must preserve both the uploaded values and those corrections. This fixture tests that
-contract without changing Core.
+contract. Core is the separate application that inspired this scenario; the fixture runs without changing or installing it.
 
 Read [core.ts](../../tests/workflows/scenarios/core.ts) for the complete definitions, implementations, and policy. Read
 [service.ts](../../tests/workflows/scenarios/service.ts) for the complete HTTP admission path. The

@@ -12,12 +12,10 @@ durable receipt.
 Declare the announcement and give it a recipient before emitting it. The local recipient lets you inspect the accepted
 value. Replace it with a durable recipient only when the announcement must survive this process.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as a `.ts` file in your project and use
+Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
 `mise exec -- deno run example.ts`.
 
 ```ts runnable
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as effect from '@okikio/capability/effect';
 import * as schema from '@okikio/schema';

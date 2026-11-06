@@ -12,7 +12,7 @@ access.
 | -------------------------------- | --------------------------------- | ---------------------------------------------------- |
 | Define the feature               | `export.csv`                      | The feature has a stable name.                       |
 | Call `entitlement.require()`     | A requirement record              | An operation can declare that it needs the feature.  |
-| Apply through a host interpreter | Application-specific policy check | The host must decide whether this account tests. |
+| Apply through a host interpreter | Application-specific policy check | The host must decide whether this account may export. |
 
 Read the table as separate responsibilities. Creating the first two values does not perform the final policy check.
 
@@ -73,8 +73,6 @@ its account policy. The host callback checks every active requirement before con
 `Export.id` from the set makes `requirement.apply()` reject and prevents the download from being produced.
 
 ```ts runnable=export-csv.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as entitlement from '@okikio/authz/entitlement';
 import * as requirement from '@okikio/capability/requirement';

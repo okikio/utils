@@ -19,8 +19,6 @@ The first request reaches both middleware steps and the handler; the second is r
 That declaration does not open a network listener. Here, `runtime.fetch()` receives a local `Request` directly:
 
 ```ts runnable=actor-greeting.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as endpoint from '@okikio/server/endpoint';
 import * as response from '@okikio/http/response';
 import * as problem from '@okikio/http/problem';
@@ -127,7 +125,7 @@ incoming Request
 │  │  │
 │  │  └─ afterValidation.before        ← default lane
 │  │     ├─ requirement families
-│  │     │   permission / entitlement / meter / future families
+│  │     │   permission / entitlement / application policy
 │  │     │
 │  │     └─ aroundOperation.before
 │  │        └─ endpoint handler

@@ -13,8 +13,6 @@ From the `utils` checkout root, review `mise.toml` and run `mise trust`, `mise i
 Save the complete block as `gallery.ts` and run `mise exec -- deno run gallery.ts`. No server or database is needed.
 
 ```ts runnable=gallery.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as permission from '@okikio/authz/permission';
 import * as schema from '@okikio/schema';
@@ -67,6 +65,19 @@ Read each row as one possible decision. The diagram omits authentication and sto
 Change the requested ID to `photo-2` and it remains denied. A malformed target or broken checker throws rather than
 pretending to be an ordinary denial. Use `assert()` when denial must throw before later work; `check()` is useful when
 a normal 403 branch is clearer.
+
+The setup separates three questions that must not be confused:
+
+| Value | Question it answers | Why the application supplies it |
+| --- | --- | --- |
+| `Read` | Which action and target shape are being checked? | The same declaration can be shared by routes, documentation and policy. It contains no actor or decision. |
+| `owner` | How long may this operation run? | Its Context carries cancellation and cleanup. Inside an existing request, use that request's Context instead of creating another owner. |
+| `ctx` | Which checker and actions apply to this operation? | `permission.scope()` adds an actor-specific policy view while borrowing `owner`. It does not create a second cleanup owner. |
+
+`maximumChecks: 10` accepts at most ten individual action/target questions in one logical call. It is not a limit of
+ten requests over the owner's lifetime. The two calls above each ask one question. Choose the bound to match the
+application's batch size and policy provider; it prevents an unexpectedly large expression from reaching the checker.
+The checker remains explicit because the library cannot infer who owns a picture or which actor is trusted.
 
 ## Filter a gallery page with the same policy
 

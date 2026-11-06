@@ -34,8 +34,6 @@ repository root, then run
 The program writes application data; use only that disposable database.
 
 ```ts support=saved-progress.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import postgresjs from 'postgres';
 import * as postgres from '@okikio/storage/workflow/postgres';
 import * as workflow from '@okikio/workflow';

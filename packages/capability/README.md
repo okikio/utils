@@ -41,11 +41,11 @@ const live = capability.resource.implement(Store, {
 });
 
 await using owner = context.create({ id: 'save-note' });
-await using clients = capability.resource.create(capability.resource.implementations(live), { ctx: owner, host: {} });
+await using clients = await capability.resource.open(live, { ctx: owner });
 const account = { canWrite: true };
 const accepted: string[] = [];
 const ctx = capability.scope(owner, {
-	resources: { collection: clients, allowed: [Store] },
+	resources: { collection: clients.collection, allowed: [Store] },
 	requirements: {
 		interpreters: {
 			notes: {

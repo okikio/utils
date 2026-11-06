@@ -29,8 +29,6 @@ Add a number, claim its queued calculation, and complete it with twice that valu
 original reference returns 42. This queue is in memory and needs no background service.
 
 ```ts runnable
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import { queue } from '@okikio/scheduler';
 await using jobs = queue.fifo(queue.memory<number, number>());
 const ref = await jobs.add(21);
@@ -164,9 +162,13 @@ exposing these methods.
 
 ## Measure scheduling and queue pressure
 
-The focused benchmarks measure mapping at 1/8/64 concurrency, queue lifecycle and inspection. The benchmark compares
-against existing mapping owner; FIFO or reduced-contract references named in cases. Local queues are not durable
-database queues; ordered head-of-line costs need separate interpretation.
+The mapping benchmark compares public `map()` with `mapPooledOrdered()` or `mapPooledUnordered()` at concurrency
+1, 8 and 64. Both paths use the same ordering and consumer-acknowledgement rules and check exact output multiplicity.
+An ordered slow first result can delay delivery even when later results are ready.
+
+Queue cases measure add/claim/complete, bounded inspection pages and repeated-key redrive. The array FIFO reference
+only enqueues and dequeues values; it omits validation, claims, leases and fenced completion. Inspection compares first
+and continued pages of the same mixed-state queue. These memory measurements do not test database durability.
 
 From the repository root, run the package's tests and untimed benchmark checks before collecting timings:
 

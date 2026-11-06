@@ -11,7 +11,7 @@ own cleanup. A view attaches fields to the same lifetime. It does not create ano
 Create a child lifetime for a download and pass its signal to the request. The child owns its deadline and cleanup; the
 parent remains available for other work after the child closes.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as a `.ts` file in your project and use
+Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
 `mise exec -- deno run example.ts`.
 
 ```ts runnable=download-text.ts
@@ -31,6 +31,10 @@ console.log(name);
 ```text output
 Ada
 ```
+
+`profile` is a caller-chosen label for this operation, not a registration or a globally unique address. If the request
+already has an ID, use it here so snapshots and diagnostics can be connected to that request. Context supplies its own
+real-time clock and local cleanup implementation; ordinary callers do not install globals or build a registry.
 
 The program prints the response body. `await` waits for each Promise (a result that will arrive later). `await using` also gives the block a cleanup boundary: leaving it waits for the child to release its timer and registered resources. The data URL works offline; a real network URL additionally needs Deno network permission.
 

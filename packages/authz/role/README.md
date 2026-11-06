@@ -51,6 +51,11 @@ decisions through `permission.scope()`. Both granted requests invoke the mandato
 `role.get()` resolves an external role ID through trusted declarations. A caller-created object with the same ID is not
 that declaration.
 
+There are two distinct lookups. `role.get()` turns a stored membership ID into an exact role declaration; it makes no
+access decision. `role.checker()` snapshots those trusted roles and combines their grants with `policy`. A missing grant
+denies before the target policy runs. A grant only makes the target eligible for that policy, so the two photo checks can
+still disagree. Create this actor-specific checker after resolving trusted membership, and replace it when membership changes.
+
 Bounds count authored roles, grants including duplicates, and check requests. The adapter snapshots its grants, so
 recreate it when membership changes. It owns no membership database, expiry or policy cache. Policy faults propagate;
 missing access is not a reason to hide a broken provider as false. The operation owner closes its own lifetime at exit.

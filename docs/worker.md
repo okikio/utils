@@ -18,8 +18,6 @@ Save the companion module with its shown filename beside the main program. The e
 launching the Worker.
 
 ```ts support=thread.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as worker from '@okikio/worker/thread';
 import * as schema from '@okikio/schema';
 worker.serve({
@@ -48,8 +46,6 @@ The main file opens that companion module and sends the text. Awaiting the reque
 the owned scope closes the Worker.
 
 ```ts runnable=main.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as worker from '@okikio/worker/thread';
 import * as schema from '@okikio/schema';
@@ -102,9 +98,14 @@ Each request carries a unique ID and a serialized context snapshot. The Worker c
 request and returns exactly one result, expected failure, or fault. Unknown IDs, duplicate active IDs, malformed
 envelopes, and invalid response data invalidate the Worker because request correlation can no longer be trusted.
 
-Cancellation before dispatch prevents a request from being sent. Cancellation after dispatch sends a cancel envelope and
-rejects the local request. A late response for a recently cancelled ID is ignored for a bounded period so one
-cooperative cancellation does not invalidate a healthy Worker.
+Cancellation before dispatch prevents a request from being sent. After dispatch, cancellation sends a cancel envelope
+and retains the pending request until the Worker confirms that validation, execution, encoding and request cleanup have
+settled. The request then rejects with `ContextCancelledError`; a progress message is not that confirmation.
+
+`cancelMs` bounds this cooperative wait. If the Worker cannot confirm release, the parent retires it and the request
+rejects with `WorkerStoppedError`, retaining the cancellation cause. The host adapter must join actual termination
+before its capacity can be reused. A termination or cleanup failure remains a failure; requesting cancellation alone
+does not establish that the host stopped. See [completion includes cleanup](../packages/worker/thread/README.md#completion-includes-cleanup).
 
 ## Serve the same protocol inside the Worker
 

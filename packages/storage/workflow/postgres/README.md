@@ -76,8 +76,6 @@ it connect to PostgreSQL. `open` borrows the SQL pool. `migrate` is explicit set
 pool only after worker/resource/store cleanup. In a deployment, run migration as a maintenance step before workers start.
 
 ```ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import postgresjs from 'postgres';
 import * as postgres from '@okikio/storage/workflow/postgres';
 import * as workflow from '@okikio/workflow';
@@ -305,11 +303,6 @@ pool. Context State stores one snapshot, and Queue stores logical items without 
 
 The [package choice map](../../README.md#choose-an-entry-point) lists the other public entries and when to use them.
 
-## Read further
-
-Continue in the [numbered guide](https://github.com/okikio/utils/blob/main/docs/postgres/01-workflow.md) for
-composition, ownership, and failure behavior.
-
 ## Plan maintenance before applying it
 
 `await migrationStatus({ database: sql })` reports the saved revision, this library's target revision, compatibility and
@@ -325,3 +318,8 @@ draining. Concurrent external DDL can invalidate a read-only observation and cau
 rather than treating an old `ready` result as authority. All calls borrow the application's pool and leave it open.
 
 Schema revision 3 persists required placement, activity affinity, and compute generations. Drain older workers before the explicit upgrade. The [placement guide](../../../../docs/workflows/17-placement.md) explains ancestor budgets, inherited child constraints, executor replacement, and the trusted registration boundary.
+
+## Read further
+
+Continue in the [numbered guide](https://github.com/okikio/utils/blob/main/docs/postgres/01-workflow.md) for
+composition, ownership, and failure behavior.

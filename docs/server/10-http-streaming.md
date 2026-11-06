@@ -11,7 +11,7 @@ on each line. SSE adds named events and IDs that an application can use when rec
 persistent storage or exactly-once work.
 
 From the Utils checkout, review `mise.toml`, run `mise trust`, `mise install`, and `mise run prepare -- --kind deps`. Save the next
-two files together in your project under the root. Run `mise exec -- deno run greeting-streams-check.ts`; no listener or network is required.
+two files together at the Utils checkout root. Run `mise exec -- deno run greeting-streams-check.ts`; no listener or network is required.
 
 ## Let the reader control how much it consumes
 

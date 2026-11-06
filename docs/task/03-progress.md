@@ -13,8 +13,6 @@ Save it as `import-progress.ts`, after `mise run prepare -- --kind deps`, and ru
 `mise exec -- deno run import-progress.ts`.
 
 ```ts runnable=import-progress.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as task from '@okikio/task';
 import * as effect from '@okikio/capability/effect';
 
@@ -64,14 +62,10 @@ Use a custom effect only when the standard counters/message/data shape cannot de
 smaller variation reports a validated row count. It deliberately gates work until the subscription exists so the printed
 callback is deterministic. The gate is demonstration setup, not a requirement for real Tasks.
 
-
-
 Declare the report as an effect. Select that effect when starting the Task. Subscribe to `updates` to display accepted
 reports.
 
 ```ts runnable
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as task from '@okikio/task';
 import * as effect from '@okikio/capability/effect';
 import * as schema from '@okikio/schema';

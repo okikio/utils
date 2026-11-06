@@ -2,7 +2,7 @@
 > improvement package. See [the delivered capability status](./README.md) and [operations](../16-operations.md) for
 > implemented changes and restrictions. Local research-workspace paths are provenance notes, not required runtime files.
 
-# Current utility capabilities and the next implementation package
+# 2026-10-31 capability baseline and original repair plan
 
 ## Scope and evidence
 

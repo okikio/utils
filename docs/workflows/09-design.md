@@ -10,7 +10,7 @@ folder.
 | -------------------------------------------- | ------------------------------------------------------- | -------------------------------------------------- |
 | Run code and get a result                    | An ordinary function or Promise                         | Decide whether retry is safe                       |
 | Pause or cancel local work and await cleanup | `task` and `context`                                    | Save business progress if needed                   |
-| Reuse a checked named operation              | `activity.define`, `activity.implement`, `activity.run` | Bind its live dependencies                         |
+| Reuse a checked named operation              | `activity.define`, `activity.implement`, `activity.call` | Bind its live dependencies                         |
 | Control an in-process backlog                | `queue`                                                 | Persistence after process loss                     |
 | Reuse recorded steps while memory survives   | Local workflow scheduler, history, and dispatch         | Durable storage and crash-safe effects             |
 | Accept work before a worker is online        | Workflow client plus PostgreSQL adapter                 | Authenticated service and database deployment      |

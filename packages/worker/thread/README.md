@@ -44,12 +44,7 @@ No network is used. Plain Node does not supply the same global Worker constructo
 supply the [Node Worker adapter](../../runtime/node/worker.ts) through `create`, and test that host separately.
 Do not run this command under an arbitrary Node version and assume Deno's host contract exists there.
 
-The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
-implementation is preserved.
-
 ```ts runnable=main.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as worker from '@okikio/worker/thread';
 import * as schema from '@okikio/schema';
@@ -86,8 +81,6 @@ Family photo notes: 9 words in 2 paragraphs
 Worker module, saved as `thread.ts`:
 
 ```ts support=thread.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as worker from '@okikio/worker/thread';
 import * as schema from '@okikio/schema';
 worker.serve({
@@ -180,7 +173,7 @@ Save the second module beside the first. Start with request/result, then add not
 host-owned policy. A notice is not completion. Transfer lists move ownership of transferable data; they do not move
 arbitrary resources. Pause is cooperative and requires handler checkpoints. Parent admission can stop waiting for
 validation before sending a request. Remote validators, encoders, handlers, and cleanup are joined before a release
-receipt is sent. The parent owns Worker shutdown; each realm needs its own optional polyfill imports.
+receipt is sent. The parent owns Worker shutdown; the examples use local time and disposal providers without changing globals.
 
 ## Completion includes cleanup
 
@@ -206,11 +199,6 @@ separately.
 
 The [package choice map](../README.md#choose-an-entry-point) lists the other public entries and when to use them.
 
-## Read further
-
-The [numbered guide](https://github.com/okikio/utils/blob/main/docs/worker.md) explains the model, manual alternatives,
-and composition.
-
 ## Replace an interrupted report Worker without silently resending it
 
 The report request now includes `hold`, a deliberate interruption point. Generation 0 announces that it received the
@@ -223,8 +211,6 @@ Save `supervised.ts` and `supervised-thread.ts` together. Run
 coordination point; `closed` and joined `stop` remain termination authority.
 
 ```ts runnable=supervised.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as thread from '@okikio/worker/thread';
 import * as supervisor from '@okikio/worker/supervisor';
@@ -277,8 +263,6 @@ stopped
 ```
 
 ```ts support=supervised-thread.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as thread from '@okikio/worker/thread';
 import * as schema from '@okikio/schema';
 const server = thread.serve({
@@ -310,3 +294,8 @@ local replacement and shutdown, not process-loss persistence, deployment availab
 Activity providers built on this transport can select one thread inside a pool.
 The provider owns host identity and retirement; this transport still owns
 request correlation and native stop. See [Physical hosts](../../../docs/workflows/19-hosts.md).
+
+## Read further
+
+The [numbered guide](https://github.com/okikio/utils/blob/main/docs/worker.md) explains the model, manual alternatives,
+and composition.

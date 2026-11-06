@@ -19,16 +19,15 @@ acknowledged by a remote peer are different observations. Choose which one your 
 
 ## Record the size of a downloaded file
 
-The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
-implementation is preserved.
+Download a local `data:` payload, measure the bytes accepted into this application's memory, then record that count.
+This uses Fetch and actual response bytes without an external server or network permission. It does not measure remote
+receipt. Context supplies its own clock and cleanup support; no global polyfill setup is needed.
 
 After the [checkout setup](../../../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
 Save the next complete TypeScript block as
 `example.ts` at that root, then run `mise exec -- deno run example.ts`.
 
 ```ts runnable
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as effect from '@okikio/capability/effect';
 import * as meter from '@okikio/capability/effect/meter';
@@ -45,8 +44,12 @@ const ctx = effect.scope(owner, {
 		},
 	},
 });
+// Read the complete local payload before measuring what this operation actually accepted.
+const response = await fetch('data:application/octet-stream,' + 'x'.repeat(2048), { signal: ctx.signal });
+if (!response.ok) throw new Error(`Download failed: HTTP ${response.status}`);
+const bytes = new Uint8Array(await response.arrayBuffer());
 // The key identifies this reading. The receiver decides how it is retained and aggregated.
-const occurrence = await meter.record(ctx, Bytes, 2048, { key: 'download:asset-1' });
+const occurrence = await meter.record(ctx, Bytes, bytes.byteLength, { key: 'download:asset-1' });
 console.log((await schema.parse(MeterReadingSchema, occurrence.value)).value);
 console.log(accepted.join(','));
 ```
@@ -58,9 +61,11 @@ Expected output:
 2048
 ```
 
-The first line is the returned reading; the second is what the recipient actually accepted. Both are `2048`. The
-download size is a fixture, so the example performs no network I/O. In a real download, use the number of bytes your
-application accepted, then decide which stable download identity belongs in the key.
+The first line is the measured reading; the second is what the recipient actually accepted. Both are `2048`: the local
+payload contains 2,048 ASCII `x` bytes. Fetch reads those bytes, and Meter records their count. A real network download
+can use the same measured count after its body read succeeds; choose a stable download identity for the key. Buffering
+the complete body is suitable for this small example. Large downloads need incremental byte accounting and an explicit
+input limit, not an unbounded `arrayBuffer()` call.
 
 You do not need to learn the rest of the utility collection to read this call. `context.create()` makes the cleanup
 owner, signal, and clock for this operation. `effect.scope()` attaches one allowed announcement and one callback to a

@@ -1,11 +1,12 @@
-# Follow an Intelligence-style research workflow
+# Publish research and expire its capture data
 
 The [connected consumer guide](./14-consumers.md) adds the preferred trigger API, process/thread engines, standard
 progress, and durable registered cleanup. Its smaller fixtures complement the full domain scenarios described here.
 
 The customer needs one useful published contribution from requested research. Raw capture data also has an expiry
 obligation. Publication can finish before expiry, so those outcomes need separate saved work. This fixture tests those
-rules without changing Intelligence or calling paid services.
+rules without calling paid services. Intelligence is the separate application that inspired this scenario; the fixture
+does not require that application.
 
 Read [intelligence.ts](../../tests/workflows/scenarios/intelligence.ts) for all definitions, implementations, and
 policy. The [receiver](../../tests/workflows/scenarios/provider.ts) is an actual HTTP process with persistent capture

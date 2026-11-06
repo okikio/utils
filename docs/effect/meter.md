@@ -13,12 +13,10 @@ Define a byte counter, attach a recipient, and record one 2,048-byte download. B
 from the returned occurrence and the other from the recipient that accepted it. The array is local evidence of
 acceptance.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as a `.ts` file in your project and use
+Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
 `mise exec -- deno run example.ts`.
 
 ```ts runnable=package-task.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as effect from '@okikio/capability/effect';
 import * as meter from '@okikio/capability/effect/meter';
@@ -107,8 +105,6 @@ to acknowledge it. Here the application keeps accepted keys and readings in a Ma
 local entry; it does not add a second reading.
 
 ```ts runnable=accepted-readings.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as effect from '@okikio/capability/effect';
 import * as meter from '@okikio/capability/effect/meter';
@@ -161,8 +157,8 @@ console.log(declared.map((entry) => entry.id).join(','));
 
 ## Reading contract
 
-`MeterReadingSchema` is the executable schema for the value emitted by `record()`. Use it before saving a reading to storage
-that need to validate the exact measurement envelope without invoking the meter runtime.
+`MeterReadingSchema` is the executable schema for the value emitted by `record()`. Use it when a store needs
+to validate the exact measurement envelope without invoking the meter runtime.
 
 ## Decide which bookkeeping to keep in your application
 

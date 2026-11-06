@@ -29,6 +29,12 @@ leaving the pool's own block closes the underlying values. Those are different o
 A callback waiting for network I/O still holds its lease. Other JavaScript can run during that wait, but another caller
 must not use the same exclusive connection until the first caller has finished and returned it.
 
+The first example asks you to choose two limits because they protect different resources. `maximum: 1` allows one
+owned session; `maximumWaiting: 1` allows one additional caller to wait for it. Set `maximumWaiting: 0` when callers
+should receive a busy error immediately. The pool cannot infer the cost of your sessions or how many waiting requests
+your application can afford. `ctx` owns the pool's overall lifetime; the Context passed to `acquire()` belongs to the
+individual caller and can cancel that caller's wait without stopping other borrowers.
+
 ## Borrow, return, and reuse one session
 
 The pool creates reusable sessions; each caller borrows one through a lease. This offline session simply labels a note.
@@ -38,8 +44,6 @@ From the repository root, run `mise run prepare -- --kind deps` once. Save the c
 `mise exec -- deno run borrow-session.ts`. These examples use workspace imports; they need no published package or network service.
 
 ```ts runnable=borrow-session.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as pool from '@okikio/pool';
 await using owner = context.create({ id: 'notes' });
@@ -77,12 +81,7 @@ staging in a Map so two callers can compete for that same session; it still uses
 
 ## Save two notes through one reusable session
 
-The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
-implementation is preserved.
-
 ```ts runnable
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as pool from '@okikio/pool';
 await using ctx = context.create({ id: 'connection-owner' });
@@ -246,7 +245,8 @@ release, and close work, not just idle values.
 `maximumWaiting` is required in addition to `maximum`. It counts queued acquisitions, not leases or provider creation.
 Use zero to reject blocked requests immediately. A full queue rejects with `PoolWaitLimitError`; cancellation, timeout
 and drain release waiting slots. Existing callers must choose a finite bound based on their admitted request budget.
-Activity thread/process providers explicitly allow one waiting caller per configured host.
+Activity thread/process providers default their waiting budget to `maximum * concurrency`: the number of hosts times
+the attempts permitted on each host. An explicit `maximumWaiting` overrides that budget.
 
 Reset and rotation are opt-in resource policies:
 
@@ -294,11 +294,16 @@ options and types.
 
 ## Measure reuse and bounded pressure
 
-The focused benchmarks measure warm leases, 8 active/32 waiting/32 rejected borrowers, reset and retirement. The
-benchmark compares against direct reusable value reads; caller reset with the same owned rotation. Direct reads omit
-admission and cleanup guarantees. Saturation checks assert all leases return. The burst fixture releases held leases
-and joins accepted waiters even when its admission assertions fail. Warm reuse excludes pool construction; rotation
-includes construction and shutdown. These boundaries remain separate in the benchmark groups.
+The focused benchmarks separate three costs:
+
+| Workload | Reference and interpretation |
+| --- | --- |
+| 100 warm acquisitions and returns | Direct reads of a reusable value show the primitive read cost; they omit exclusive admission and joined release. Pool construction is outside this timing. |
+| A burst with 8 active, 32 waiting and 32 rejected borrowers | The fixture checks admission limits and joins every accepted borrower, including when an assertion fails. This is a pressure case, not an equivalent direct-read comparison. |
+| 100 leases with retirement every 10 uses | Compare the pool’s reset callback with a caller-performed reset while both paths retain the same pool-owned rotation and shutdown. Both include construction and close. |
+
+The exact-selection case separately checks identity and resource counts across eight retained values. Local timings do
+not establish database throughput or native Worker startup cost.
 
 From the repository root, run the package's tests and untimed benchmark checks before collecting timings:
 
@@ -312,11 +317,6 @@ These commands use package-owned fixtures and development dependencies. The
 [benchmark protocol](../../docs/benchmarks/01-running.md#choose-a-comparison-that-answers-the-question) explains fair
 comparisons, raw report collection and the limits of local measurements.
 
-## Read further
-
-The [Pool guide](https://github.com/okikio/utils/blob/main/docs/pool.md) explains the model, manual alternatives, and
-composition.
-
 ## Select or retire one value
 
 `select(ctx, value)` borrows the exact retained value by `Object.is` identity.
@@ -327,3 +327,8 @@ ambiguous and reject. `retire(value)` stops reuse, joins existing borrowers and
 closes the value before returning its capacity. Never await retirement from
 inside that value's lease. Native activity providers build portable host
 references on these operations; see [Physical hosts](../../docs/workflows/19-hosts.md).
+
+## Read further
+
+The [Pool guide](https://github.com/okikio/utils/blob/main/docs/pool.md) explains the model, manual alternatives, and
+composition.

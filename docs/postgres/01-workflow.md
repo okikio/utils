@@ -68,8 +68,6 @@ it connect to PostgreSQL. `open` borrows the SQL pool. `migrate` is explicit set
 pool only after worker/resource/store cleanup. In a deployment, run migration as a maintenance step before workers start.
 
 ```ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import postgresjs from 'postgres';
 import * as postgres from '@okikio/storage/workflow/postgres';
 import * as workflow from '@okikio/workflow';

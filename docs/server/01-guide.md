@@ -72,15 +72,13 @@ Hono part of the service compiler or core server runtime.
 
 ## Larger service composition
 
-The complete version below serves the same familiar health response, this time with a reusable checked body rule. The
-two side-effect imports provide Temporal for request timestamps and `AsyncDisposableStack` for runtime ownership when
-the environment lacks them. They are runtime dependencies of this service flow, not part of route definition itself:
+The complete version below serves the same familiar health response, this time with a reusable checked body rule.
+The service owns request lifetimes and cleanup. Its dependencies supply local time and disposal implementations, so
+this flow needs no global polyfill setup:
 
 Save `declared-service.ts` and run `mise exec -- deno run declared-service.ts`.
 
 ```ts runnable=declared-service.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as endpoint from '@okikio/server/endpoint';
 import * as service from '@okikio/server/service';
 import * as response from '@okikio/http/response';

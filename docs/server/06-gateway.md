@@ -123,7 +123,7 @@ const Edge = gateway.define({
 });
 ```
 
-The origin is an application decision, not a value supplied by the incoming request. Keep credentials stripped for this public health route. A provider proxy that really needs cookies must opt in deliberately; forwarding an incoming cookie does not authenticate it or grant domain access. `bodyLimit` counts request bytes, while the total timeout also covers the returned body. Configure any required Temporal globals at the host boundary as described in the package README.
+The origin is an application decision, not a value supplied by the incoming request. Keep credentials stripped for this public health route. A provider proxy that really needs cookies must opt in deliberately; forwarding an incoming cookie does not authenticate it or grant domain access. `bodyLimit` counts request bytes, while the total timeout also covers the returned body. Timeouts use Duration's local Temporal provider; no global Temporal setup is required.
 
 The compiler resolves exact method/path ownership directly from the mounted service definitions, then resolves origins,
 policy conflicts, credential treatment, redirect behavior, observers, and manifests before a runtime is created. Hosts

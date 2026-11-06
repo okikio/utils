@@ -24,8 +24,6 @@ From the repository root, run `mise run prepare -- --kind deps` once. Save the c
 `mise exec -- deno run approve-import.ts`. These examples use workspace imports; they need no published package or network service.
 
 ```ts runnable=approve-import.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as schema from '@okikio/schema';
 import * as workflow from '@okikio/workflow';
@@ -183,7 +181,7 @@ key. The service must not report acceptance before commit.
 
 ## Wait for time or an event
 
-Use `yield* workflow.sleep()` for time and `yield* workflow.wait(Approved, options)` for an event. Each pauses only
+Use `yield* workflow.sleep(duration)` for a relative delay and `yield* workflow.wait(Approved, options)` for an event. Each pauses only
 its branch while the runner saves or completes the instruction.
 
 ```ts

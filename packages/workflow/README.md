@@ -51,6 +51,12 @@ asset-1 asset-2
 2 2
 ```
 
+The next example exposes the local pieces so you can see who runs work and who remembers answers. You do not need
+to reproduce this wiring for every application. For one checked call use `activity.call()`. For pause and cancellation
+in one process use Task. For accepted work that must survive process loss, use the
+[complete stored workflow](../../docs/workflows/01-basics.md), which selects a persistent store and owns the worker loop.
+The memory history below demonstrates replay in one process; it cannot recover after that process exits.
+
 ## Record the same two writes
 
 Keep those two writes, but ask the scheduler for each result instead of calling it directly. In a workflow generator,
@@ -70,12 +76,9 @@ These objects divide responsibility for running and remembering the two photo wr
 | Context                              | Supply cancellation and local cleanup lifetime. It does not persist an execution.       |
 
 From the repository root, run `mise run prepare -- --kind deps` once. Save the next block as `recorded-upload.ts` and
-run `mise exec -- deno run recorded-upload.ts`. The polyfills supply Temporal/disposal globals when absent, preserving
-native implementations. These workspace imports need no published package or network service.
+run `mise exec -- deno run recorded-upload.ts`. These workspace imports need no published package or network service.
 
 ```ts runnable=recorded-upload.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as activity from '@okikio/activity';
 import * as engine from '@okikio/activity/engine';
 import * as local from '@okikio/activity/local';
@@ -309,6 +312,7 @@ import * as schema from '@okikio/schema';
 import * as workflow from '@okikio/workflow';
 import * as testing from '@okikio/workflow/testing';
 import * as replay from '@okikio/workflow/replay';
+import { temporal as Temporal } from '@okikio/duration/temporal';
 
 const Greeting = workflow.define({
 	id: 'example.greeting',
@@ -385,23 +389,13 @@ The package separates [declarations](./mod.test.ts), [deterministic composition]
 run and borrows any supplied history. Durable dispatch and native host recovery have separate integration suites; the
 local fixture does not establish those capabilities.
 
-## Read further
-
-The [Workflow guide](https://github.com/okikio/utils/blob/main/docs/workflows/README.md) explains the model, manual
-alternatives, and composition.
+## Wait for time or an addressed event
 
 Use `yield* workflow.sleep({ seconds: 5 })` for a relative timer. Use `yield* workflow.sleep({ until })` for an absolute
 UTC deadline. Both return a `Temporal.Instant`. Use `yield* workflow.wait(Approved, { key: 'approval', until })` for a
 saved event with a deadline. It returns received data or a timeout. Keep `defer()` for cleanup. See the
 [execution guide](https://github.com/okikio/utils/blob/main/docs/workflows/13-execution.md) for composition and
 recovery.
-
-See [event waits](https://github.com/okikio/utils/blob/main/docs/workflows/11-events.md) for `wait(Event, { key })` and
-`client.send()`. See [saved progress](https://github.com/okikio/utils/blob/main/docs/workflows/12-progress.md) for
-progress effects and `client.watch()`.
-
-For bounded host sharing and inherited required locations, read [Placement](../../docs/workflows/17-placement.md). It
-connects registration, ancestor capacity, durable claims, replacement fences, and cooperative host turns.
 
 ## Return activity work to one pooled host
 
@@ -410,3 +404,16 @@ survives saved-job and nested-workflow serialization, while the referenced nativ
 replacement makes the old reference lost; retries cannot choose a sibling. See
 [Physical hosts](../../docs/workflows/19-hosts.md) for the complete setup and
 [Resource sessions](../../docs/workflows/18-sessions.md) for resource ownership.
+
+## Read further
+
+The [Workflow guide](https://github.com/okikio/utils/blob/main/docs/workflows/README.md) explains the model, manual
+alternatives, and composition.
+
+
+See [event waits](https://github.com/okikio/utils/blob/main/docs/workflows/11-events.md) for `wait(Event, { key })` and
+`client.send()`. See [saved progress](https://github.com/okikio/utils/blob/main/docs/workflows/12-progress.md) for
+progress effects and `client.watch()`.
+
+For bounded host sharing and inherited required locations, read [Placement](../../docs/workflows/17-placement.md). It
+connects registration, ancestor capacity, durable claims, replacement fences, and cooperative host turns.

@@ -47,8 +47,6 @@ After `mise run prepare -- --kind deps`, save this block as `approval.ts` and ru
 `mise exec -- deno run approval.ts`. No database or service is required:
 
 ```ts runnable
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as schema from '@okikio/schema';
 import * as context from '@okikio/context';
 import * as workflow from '@okikio/workflow';

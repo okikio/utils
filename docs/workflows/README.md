@@ -10,7 +10,7 @@ no database. The durable chapters add explicitly configured persistence and exec
 | Bind an application               | [Consumers](./02-consumers.md), [Policy](./03-policy.md), [Connected consumers](./14-consumers.md) | Locate complete setup and identify resources and policy your host supplies.        |
 | Implement a saved wait or report  | [Events](./11-events.md), [Progress](./12-progress.md), or [Execution](./13-execution.md)          | Select the instruction and its persistence/observation contract.                   |
 | Operate or repair saved work      | [Operations](./16-operations.md), with [Recovery](./04-recovery.md)                                | Inspect state and apply the documented maintenance procedure.                      |
-| Study a full domain example       | [Core import](./05-core.md) or [Intelligence](./06-intelligence.md)                                | Trace one application flow without treating it as a required utility architecture. |
+| Study a full domain example       | [CSV import](./05-core.md) or [research publication](./06-intelligence.md)                                | Trace one application flow without treating it as a required utility architecture. |
 
 The chapter list below is a reference map, not a requirement to read all nineteen pages before using Workflow.
 
@@ -20,8 +20,8 @@ The chapter list below is a reference map, not a requirement to read all ninetee
    supplies.
 3. [03 — Policy](./03-policy.md): bind resources and choose limits, retries, readiness, and shutdown behavior.
 4. [04 — Recovery](./04-recovery.md): follow a crash before or after a write and understand how a replacement continues.
-5. [05 — Core import](./05-core.md): follow source bytes through parsing, committed rows, and account resolution.
-6. [06 — Intelligence](./06-intelligence.md): follow capture, child workflows, publication, and expiry.
+5. [05 — CSV import](./05-core.md): follow source bytes through parsing, committed rows, and account resolution.
+6. [06 — Research publication](./06-intelligence.md): follow capture, child workflows, publication, and expiry.
 7. [07 — Tests](./07-tests.md): connect each failure window to an executable assertion.
 8. [08 — Containers](./08-containers.md): inspect the service, workers, receiver, database, and cleanup ownership.
 9. [09 — Design](./09-design.md): compare manual approaches, local scheduling, saved execution, and Inngest.

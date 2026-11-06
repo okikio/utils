@@ -40,8 +40,6 @@ Run from this checkout after `mise run prepare -- --kind deps`. Save the runnabl
 `mise exec -- deno run example.ts`.
 
 ```ts runnable
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as queue from '@okikio/scheduler/queue';
 await using jobs = queue.fifo(queue.memory<readonly number[], number>());
 const ref = await jobs.add([1999, 500]);
@@ -311,9 +309,13 @@ After the delay passes, another `take()` call can receive the same item with a h
 
 The next situation explains why lease expiry exists.
 
-The failure case is concrete. A task can stop after claim time and before completion. That stop can come from process
-exit, cancellation, a crash, or lost connectivity. Without lease expiry, the item can stay stuck forever. Without a
-claim token, an old task can wake up later and overwrite newer work.
+The failure case is concrete. An executor can stop after claiming an item and before completing it. For this memory
+queue, the process that owns the queue must remain alive: the example advances a test clock to simulate an abandoned
+attempt. If that owning process exits, its items and claims disappear. Use the PostgreSQL adapter when a replacement
+process must recover them.
+
+While the queue remains available, lease expiry permits another attempt instead of leaving the item stuck forever.
+The claim token prevents an old executor from waking up later and overwriting the replacement result.
 
 The failure and recovery flow looks like this:
 

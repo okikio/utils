@@ -1,4 +1,4 @@
-# Workflow
+# Replay completed steps in a local photo upload
 
 This guide follows a photo upload from ordinary calls to recorded local instructions. It also serves as a reference
 for local scheduling. Read [the durable service chapters](./README.md) when committed work must survive worker crashes.
@@ -52,12 +52,9 @@ These objects divide responsibility for running and remembering the two photo wr
 | Context | Supply cancellation and local cleanup lifetime. It does not persist an execution. |
 
 From the repository root, run `mise run prepare -- --kind deps` once. Save the next block as `recorded-upload.ts` and run
-`mise exec -- deno run recorded-upload.ts`. The polyfills supply Temporal/disposal globals when absent, preserving
-native implementations. These workspace imports need no published package or network service.
+`mise exec -- deno run recorded-upload.ts`. These workspace imports need no published package or network service.
 
 ```ts runnable=recorded-upload.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as activity from '@okikio/activity';
 import * as engine from '@okikio/activity/engine';
 import * as local from '@okikio/activity/local';
@@ -215,7 +212,7 @@ For shared terms such as `await` and `await using`, see
 [the short glossary](../02-learn.md#read-the-small-amount-of-code-you-need).
 
 For the exact functions, types and field explanations, read the
-[generated contract reference](../../packages/workflow/README.md).
+[Workflow package README and entry-point map](../../packages/workflow/README.md#choose-an-entry-point).
 
 ## Apply the same shape to a larger job
 

@@ -21,10 +21,20 @@ Validate target -> configured checker -> true: caller may continue
 This shows one ordinary check. `check()` reports a decision; the application must branch on it, or use `assert()` to
 stop denied work. A missing or broken checker throws rather than silently producing an ordinary denial.
 
-## Ask whether a picture can be read
+The setup separates three questions that must not be confused:
 
-The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
-implementation is preserved.
+| Value | Question it answers | Why the application supplies it |
+| --- | --- | --- |
+| `Read` | Which action and target shape are being checked? | The same declaration can be shared by routes, documentation and policy. It contains no actor or decision. |
+| `owner` | How long may this operation run? | Its Context carries cancellation and cleanup. Inside an existing request, use that request's Context instead of creating another owner. |
+| `ctx` | Which checker and actions apply to this operation? | `permission.scope()` adds an actor-specific policy view while borrowing `owner`. It does not create a second cleanup owner. |
+
+`maximumChecks: 10` accepts at most ten individual action/target questions in one logical call. It is not a limit of
+ten requests over the owner's lifetime. The two calls in the example each ask one question. Choose the bound to match the
+application's batch size and policy provider; it prevents an unexpectedly large expression from reaching the checker.
+The checker remains explicit because the library cannot infer who owns a picture or which actor is trusted.
+
+## Ask whether a picture can be read
 
 These examples use the current experimental source checkout, not an assumed registry release. From the `utils`
 repository root, review `mise.toml`, run `mise trust`, then `mise install` and `mise run prepare -- --kind deps`.
@@ -32,8 +42,6 @@ Save the following module as `example.ts` and run `mise exec -- deno run example
 [Checkout prerequisites](../../../README.md#work-on-the-repository) explain installing Mise.
 
 ```ts runnable
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as permission from '@okikio/authz/permission';
 import * as schema from '@okikio/schema';
@@ -93,8 +101,6 @@ This complete version demonstrates the actual protected outcome. An allowed requ
 request returns status 403. It uses the standard `Response` class and starts no HTTP listener.
 
 ```ts runnable=protected-response.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as permission from '@okikio/authz/permission';
 import * as schema from '@okikio/schema';

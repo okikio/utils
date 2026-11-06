@@ -12,12 +12,10 @@ history.
 Start one local import and await its terminal result. The task supplies the lifetime and controls; the operation still
 returns the value. Later examples add checkpoints where pause and cancellation can cooperate with the work.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as a `.ts` file in your project and use
+Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
 `mise exec -- deno run example.ts`.
 
 ```ts runnable=package-task.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as task from '@okikio/task';
 
 const names = [' Ada ', 'Grace ', ' Linus'];
@@ -47,12 +45,9 @@ Ada, Grace, Linus
 
 A contact preview uses a temporary Blob URL to read an export. That URL must be revoked after the read, including when
 work fails or is cancelled. Registering it with the task keeps that responsibility beside the work. Awaiting `done`
-means the exported text is available and the temporary URL has already been released. The explicit polyfills support the
-task's Temporal clock and disposal stack on hosts missing those APIs.
+means the exported text is available and the temporary URL has already been released.
 
 ```ts runnable
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as task from '@okikio/task';
 await using work = task.start(async (ctx) => {
 	const url = ctx.adopt(URL.createObjectURL(new Blob(['Name\nAda\nGrace\n'])), URL.revokeObjectURL);

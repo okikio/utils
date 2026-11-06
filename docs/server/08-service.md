@@ -18,8 +18,6 @@ and uses public workspace imports. From the experimental Utils checkout, run `mi
 Save `complete-task.ts` and run `mise exec -- deno run complete-task.ts`.
 
 ```ts runnable=complete-task.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as endpoint from '@okikio/server/endpoint';
 import * as response from '@okikio/http/response';
 import * as service from '@okikio/server/service';

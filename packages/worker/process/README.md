@@ -29,9 +29,6 @@ not a promise to reap arbitrary grandchildren.
 
 ## Capture a short command's output
 
-The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
-implementation is preserved.
-
 This example uses the Deno adapter and needs subprocess permission. Use the Node adapter with node:process.execPath on a
 Node host.
 
@@ -40,8 +37,6 @@ Save the next complete TypeScript block as
 `example.ts` at that root, then run `mise exec -- deno run --allow-run example.ts`.
 
 ```ts runnable
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as process from '@okikio/worker/process';
 import * as deno from '@okikio/runtime/deno/process';
@@ -96,8 +91,6 @@ A converter can report a bad input through its exit code. Here a tiny Deno child
 code 7. `exec()` resolves with that status; the caller chooses whether it is an expected outcome or an error.
 
 ```ts runnable=exit-status.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as process from '@okikio/worker/process';
 import * as deno from '@okikio/runtime/deno/process';

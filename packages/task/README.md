@@ -30,6 +30,11 @@ For work accepted by a service and resumed after worker loss, use the
 [saved background-work path](https://github.com/okikio/utils/blob/main/docs/workflows/01-basics.md). A local Task
 remains useful inside a process, but it is not another required scheduler for that path.
 
+Start with `task.start(work)`: it owns a local lifetime and works without an engine, resource collection or saved
+queue. Pass an existing Context only when another owner should cancel the task. Add `task/group` when several tasks
+must share a concurrency limit; a group owns admission and joins their cleanup, while each returned Task still owns its
+own result. Progress is optional observation and never a prerequisite for starting or awaiting work.
+
 ## Give an ordinary import a result and a pause button
 
 An import screen needs a Pause button that stops admitting new records. An async function can still do the work. Here an
@@ -41,8 +46,6 @@ From the repository root, run `mise run prepare -- --kind deps`, save the next b
 and local arrays; no network or database is required. Later named blocks can be saved and run in the same way.
 
 ```ts runnable=normalize-contacts.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as task from '@okikio/task';
 
 const names = [' Ada ', 'Grace ', ' Linus'];
@@ -118,9 +121,12 @@ options and types.
 
 ## Measure joined children and progress
 
-The focused benchmarks measure joined child lifetimes and shared-source progress snapshots. The benchmark compares
-against ordinary Task lifecycle; raw source read. Raw reads omit weighted progress; local Tasks do not establish durable
-orchestration.
+The child benchmark runs 1 or 100 sequential Tasks, joining each result and cleanup before starting the next. It compares
+a group’s admission and counters with ordinary `task.start()` calls, so both paths retain the Task lifecycle.
+
+The progress benchmark reads an already-updated weighted projection with 1, 100 or 1,000 readers of one source. Reading
+the raw source is a primitive-cost reference: it omits aggregation and the combined display shape. Neither benchmark
+tests saved orchestration, remote work or process-loss recovery.
 
 From the repository root, run the package's tests and untimed benchmark checks before collecting timings:
 
@@ -140,8 +146,6 @@ A screen can run several independently controllable imports. A group limits how 
 This is the earlier name-trimming operation applied to two small lists, with a counter proving both cleanups finished.
 
 ```ts runnable=contact-groups.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as groups from '@okikio/task/group';
 await using owner = context.create({ id: 'contact-groups' });
@@ -189,24 +193,60 @@ rejection remains visible on repeated close/disposal. No process-loss durability
 
 ## Display the combined progress of those contact lists
 
-The view owns two progress cells, one for each import. Actual Task subscriptions update these cells; this isolated
-example supplies the snapshots directly so their weights are inspectable. It never changes either Task's result.
-The first list has two contacts and the second has one, so weights 2 and 1 make each contact an equal share.
+The two imports below perform the same trimming as the group example. Each Task reports its own saved count. The view
+copies those reports into cells and combines them; it never writes a Task’s result. Weights 2 and 1 give each of the
+three contacts an equal share. A deliberate gate holds both imports at an inspectable point, then lets them finish.
 
 ```ts runnable=contact-progress.ts
+import * as task from '@okikio/task';
+import * as effect from '@okikio/capability/effect';
 import * as state from '@okikio/context/state';
 import * as progress from '@okikio/task/progress';
-using first = state.create<progress.ProgressType | undefined>({ completed: 1, total: 2 });
-using second = state.create<progress.ProgressType | undefined>({ completed: 0, total: 1 });
-using total = progress.combine([first.reader, second.reader], { weights: [2, 1], maximumChildren: 2 });
-console.log('Saved share:', total.get().ratio?.toFixed(2));
-first.set({ completed: 2, total: 2 });
-second.set({ completed: 1, total: 1 });
-console.log('Saved share:', total.get().ratio?.toFixed(2));
+const release = Promise.withResolvers<void>();
+/** Start a real import and expose when it reaches this demonstration's pause point. */
+function start(names: string[], holdAfter: number) {
+	const ready = Promise.withResolvers<void>();
+	const work = task.start(async (ctx) => {
+		const saved: string[] = [];
+		await effect.emit(ctx, task.ProgressEffect, { completed: 0, total: names.length });
+		for (const name of names) {
+			if (saved.length === holdAfter) {
+				ready.resolve();
+				await release.promise;
+			}
+			await ctx.checkpoint();
+			saved.push(name.trim());
+			await effect.emit(ctx, task.ProgressEffect, { completed: saved.length, total: names.length });
+		}
+		return saved.join(', ');
+	});
+	return { work, ready: ready.promise };
+}
+const first = start([' Ada ', ' Grace '], 1);
+const second = start([' Linus '], 0);
+await using firstWork = first.work;
+await using secondWork = second.work;
+using firstCount = state.create<progress.ProgressType | undefined>(firstWork.progress?.value);
+using secondCount = state.create<progress.ProgressType | undefined>(secondWork.progress?.value);
+// Subscribe before either import's asynchronous reports can be missed.
+using firstUpdates = firstWork.updates.subscribe(({ value }) => firstCount.set(value));
+using secondUpdates = secondWork.updates.subscribe(({ value }) => secondCount.set(value));
+using total = progress.combine([firstCount.reader, secondCount.reader], { weights: [2, 1], maximumChildren: 2 });
+try {
+	await Promise.all([first.ready, second.ready]);
+	console.log('Saved share:', total.get().ratio?.toFixed(2));
+	release.resolve();
+	// Only done proves that work and Task-owned cleanup finished.
+	console.log(await firstWork.done, '/', await secondWork.done);
+	console.log('Saved share:', total.get().ratio?.toFixed(2));
+} finally {
+	release.resolve();
+}
 ```
 
 ```text output
 Saved share: 0.33
+Ada, Grace / Linus
 Saved share: 1.00
 ```
 

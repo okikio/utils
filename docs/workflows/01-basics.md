@@ -1,12 +1,12 @@
 # Run background work that survives a worker restart
 
 A customer uploads a dataset. They expect the import to finish after they close the page. They also expect saved
-corrections to remain intact if a worker crashes. A research customer has a similar need. Research must finish once, and
-temporary capture data must expire later.
+corrections to remain intact if a worker crashes. A research customer has a similar need. The research must produce one published contribution, and
+temporary capture data must expire later. Repeated attempts must not publish duplicate contributions.
 
 This guide builds that system one decision at a time. It describes the current utils code, not a proposed application
-migration. Core, Intelligence, and Signals remain unchanged. The examples reproduce selected import and research rules
-with small test datasets.
+migration. The import and research scenarios come from separate applications named Core and Intelligence. They use
+small test datasets here; you do not need either application to follow the guide.
 
 ## Start with a function
 
@@ -94,7 +94,8 @@ function. The current workflow turn can return its activation slot while the wai
 ordinary network I/O is different: it remains an active invocation and retains its activity slot until its code and
 cleanup settle.
 
-For a local call, use `activity.run()` with an explicit implementation and resources. For accepted background work,
+For one local call, use `activity.call()` with the implementation; it owns a local operation lifetime. Use the lower-level
+`activity.run()` when a scheduler already owns job identity, attempt and admission. For accepted background work,
 submit the activity directly:
 
 ```ts

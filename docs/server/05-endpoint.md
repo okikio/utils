@@ -16,8 +16,6 @@ An Express or Hono route often combines input checks and the callback. Here `Gre
 From the experimental Utils checkout, run `mise trust`, `mise install`, and `mise run prepare -- --kind deps` at the repository root. Save each named program there and run `mise exec -- deno run <filename>.ts`, replacing `<filename>` with the name shown. These examples use workspace exports, not an assumed published registry release. Save this as `declared-greeting.ts` and run `mise exec -- deno run declared-greeting.ts`.
 
 ```ts runnable=declared-greeting.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as endpoint from '@okikio/server/endpoint';
 import * as response from '@okikio/http/response';
 import * as service from '@okikio/server/service';

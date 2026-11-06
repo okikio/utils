@@ -28,8 +28,9 @@ sequenceDiagram
 ```
 
 Read down the diagram as successive saved transitions. It omits activity writes and cleanup; those must finish under
-the rules below before a segment can hand off. Continuation bounds history, while activity receipts make repeated
-external writes safe. They solve different problems.
+the rules below before a segment can hand off. Continuation bounds history. A receipt committed in the same transaction as a business write can prevent that SQL write
+from repeating. An external HTTP or browser action needs its receiver’s idempotency or reconciliation contract; a local
+receipt alone cannot prove its outcome.
 
 ## Declare the budget
 
@@ -99,8 +100,6 @@ Migration creates/updates `utils_workflow`; use only the disposable database. Th
 in `finally` after worker drain and local disposal.
 
 ```ts support=counter.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import postgresjs from 'postgres';
 import * as postgres from '@okikio/storage/workflow/postgres';
 import * as context from '@okikio/context';

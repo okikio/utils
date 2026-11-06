@@ -10,6 +10,11 @@ store lasts only as long as its process. PostgreSQL retains committed rows indep
 choice saves an arbitrary JavaScript stack or a live browser object. Store portable values and recreate live connections
 under a new owner when recovery requires them.
 
+These adapters are alternatives for different kinds of state, not a setup sequence. Saving a draft does not need a
+queue. A queue can stand alone without a workflow. A workflow store already owns its workflow queue. Choose one row in
+the task table below; add another kind of state only when it serves a separate application need. Database credentials,
+namespace and payload contract remain explicit because guessing them could connect unrelated users or incompatible data.
+
 ## Reopen a saved value through a different owner
 
 From the repository root, run `mise run prepare -- --kind deps` once. Save the complete block as the named `.ts` file and run
@@ -66,7 +71,7 @@ Persist Context state, Scheduler queues, and Workflow execution through explicit
 | `@okikio/storage/queue/postgres`    | PostgreSQL-backed claimed work, delays, retries, renewal, fenced completion and bounded retention. |
 | `@okikio/storage/workflow`          | Type-only execution/client store contracts.                                                        |
 | `@okikio/storage/workflow/postgres` | PostgreSQL workflow history, receipts, outbox, inspection and recovery.                            |
-| `@okikio/storage/outbox/postgres` | Bounded message acceptance inside a borrowed business transaction, with leased delivery and explicit retention. |
+| `@okikio/storage/outbox/postgres` | Bounded transactional messages, leased delivery and renewal, metadata inspection, audited redrive and retention. |
 | `@okikio/storage/outbox/effect` | Stage an effect in that transaction and deliver a bounded batch through trusted, idempotent handlers. |
 
 The PostgreSQL adapters borrow an application-owned Postgres.js pool. Apply `migrate({ database })` explicitly, then

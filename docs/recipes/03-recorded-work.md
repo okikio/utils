@@ -53,12 +53,9 @@ These objects divide responsibility for running and remembering the two photo wr
 | Context | Supply cancellation and local cleanup lifetime. It does not persist an execution. |
 
 From the repository root, run `mise run prepare -- --kind deps` once. Save the next block as `recorded-upload.ts` and run
-`mise exec -- deno run recorded-upload.ts`. The polyfills supply Temporal/disposal globals when absent, preserving
-native implementations. These workspace imports need no published package or network service.
+`mise exec -- deno run recorded-upload.ts`. Clock and cleanup support use local providers. These workspace imports need no published package or network service.
 
 ```ts runnable=recorded-upload.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as activity from '@okikio/activity';
 import * as engine from '@okikio/activity/engine';
 import * as local from '@okikio/activity/local';

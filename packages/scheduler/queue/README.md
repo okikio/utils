@@ -52,12 +52,7 @@ with that process; persistent stores and real host delivery are separate choices
 From the repository root, run `mise run prepare -- --kind deps` once. Save the complete block as the named `.ts` file and run
 `mise exec -- deno run invoice.ts`. These examples use workspace imports; they need no published package or network service.
 
-The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
-implementation is preserved.
-
 ```ts runnable
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as queue from '@okikio/scheduler/queue';
 await using jobs = queue.fifo(queue.memory<readonly number[], number>());
 const ref = await jobs.add([1999, 500]);
@@ -108,8 +103,6 @@ A stable key makes producer retries reattach to one logical request. The key mus
 including its version. This example deliberately submits identical work twice and receives the same item reference.
 
 ```ts runnable=repeat-report.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as queue from '@okikio/scheduler/queue';
 await using jobs = queue.fifo(queue.memory<string, string>());
 const first = await jobs.add('report revision 7', { key: 'account-1:report:7' });
@@ -149,8 +142,6 @@ A test clock advances lease time deterministically; it does not kill or replace 
 one memory queue. The logical invoice keeps its reference, while the replacement gets attempt 2.
 
 ```ts runnable=recover-invoice.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as queue from '@okikio/scheduler/queue';
 const clock = new context.TestClock();
