@@ -49,8 +49,8 @@ export interface ActivityOptions {
 	readonly failures?: CatalogDefinitionInput<FailureDefinition>;
 	/** One-way consequences this activity can announce. */
 	readonly effects?: EffectDefinitions;
-	/** Ordered execution-target selection interpreted by the workflow Scheduler. */
-	readonly placement: EnginePlacementInputType;
+	/** Ordered execution targets. Defaults to engine.local; selecting a remote target remains explicit. */
+	readonly placement?: EnginePlacementInputType;
 	/** Resource definitions or collection available to this activity. */
 	readonly resources?: CatalogDefinitionInput<ResourceDefinition>;
 	/** Requirements owned directly by this activity. Resource requirements stay on their resources. */
@@ -175,6 +175,30 @@ export interface ActivityRunOptions<Activity extends ActivityDefinition> {
 	readonly heartbeat?: (value?: unknown) => void | Promise<void>;
 	/** Optional cooperative pause gate supplied by the owning Task or remote host. */
 	readonly checkpoint?: () => Promise<void>;
+}
+
+/** Options for one checked local call, without a saved job or retry policy. */
+export interface ActivityCallOptions {
+	/** Borrow cancellation from this caller. The call never closes the supplied context. */
+	readonly ctx?: BaseContext;
+	/** Exact current-host engine identity. Defaults to engine.local; no remote engine is selected for you. */
+	readonly engine?: EngineDefinition;
+	/**
+	 * Supply bindings to open resources for this call, or borrow an existing collection
+	 * to reuse resources across calls. Omit this when the activity needs no resources.
+	 * Bindings receive no native host facilities; use resource.open() for custom host construction.
+	 */
+	readonly resources?:
+		| ResourceCollection
+		| import('@okikio/capability/resource').ResourceImplementationAny
+		| readonly import('@okikio/capability/resource').ResourceImplementationAny[]
+		| import('@okikio/capability/resource').ResourceImplementationSet;
+	/** Authoritative evaluator for declared permission checks. Omission grants no permissions. */
+	readonly permission?: PermissionChecker;
+	/** Owner of declared effects; omission does not invent an effect recipient. */
+	readonly effect?: EffectEmitter;
+	/** Explicit interpreters for requirement families. Unknown requirements still reject. */
+	readonly requirements?: RequirementRuntime;
 }
 
 /** Named activity catalog. */

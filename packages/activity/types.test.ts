@@ -51,3 +51,17 @@ function contracts(reason: activity.ActivityFailures<typeof Read>): void {
 	activity.request(Read, new Date());
 }
 void contracts;
+
+/** Check the default local call through source and emitted public declarations; never launch it as a fixture. */
+async function localCall(): Promise<void> {
+	const Upper = activity.define({ id: 'types.call', version: '1', input: schema.string(), result: schema.string() });
+	const live = activity.implement(Upper, { run: (ctx) => ctx.input.toUpperCase() });
+	const text: string = await activity.call(live, 'hello');
+	void text;
+	// @ts-expect-error A local call accepts the input declared by its exact implementation.
+	await activity.call(live, 1);
+	// @ts-expect-error The checked output remains string, including in emitted declarations.
+	const number: number = await activity.call(live, 'hello');
+	void number;
+}
+void localCall;

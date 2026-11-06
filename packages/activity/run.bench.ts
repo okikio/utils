@@ -25,10 +25,12 @@ const live = activity.implement(Add, {
 await using parent = context.create({ id: 'activity-bench', clock: new context.TestClock() });
 await using resources = resource.create(resource.implementations(), { host: {}, ctx: parent });
 for (const count of [1, 100]) {
-	const cycle = async function (owned: boolean, verify = false): Promise<number> {
+	const cycle = async function (mode: 'attempt' | 'call' | 'direct', verify = false): Promise<number> {
 		let sum = 0;
 		for (let index = 0; index < count; index++) {
-			const result = owned
+			const result = mode === 'call'
+				? await activity.call(live, index, { ctx: parent, engine: Local, resources })
+				: mode === 'attempt'
 				? await activity.run({
 					implementation: live,
 					engine: Local,
@@ -44,13 +46,17 @@ for (const count of [1, 100]) {
 		}
 		return sum;
 	};
-	strictEqual(await cycle(true, true), count * (count + 1) / 2);
-	strictEqual(await cycle(false, true), count * (count + 1) / 2);
+	// All paths must produce the same answers before measurements begin. The call
+	// facade includes identity/lifetime setup; the attempt path borrows that setup.
+	for (const mode of ['attempt', 'call', 'direct'] as const) {
+		strictEqual(await cycle(mode, true), count * (count + 1) / 2);
+	}
 	group(`Activity ${count} local validated attempts`, () => {
-		bench('owned Activity input, operation and result', async () => do_not_optimize(await cycle(true)));
+		bench('owned Activity input, operation and result', async () => do_not_optimize(await cycle('attempt')));
+		bench('local call with generated identity and owned lifetime', async () => do_not_optimize(await cycle('call')));
 		bench(
 			'direct operation with same number validation, no attempt ownership',
-			async () => do_not_optimize(await cycle(false)),
+			async () => do_not_optimize(await cycle('direct')),
 		);
 	});
 }

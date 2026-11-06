@@ -27,9 +27,9 @@ export interface LocalProviderOptions {
 	readonly implementations: readonly ActivityImplementation[];
 	/** Borrowed resource collection shared by local attempts. */
 	readonly resources: ResourceCollection;
-	/** Optional actor-specific permission evaluator. */
+	/** Fallback permission evaluator; an exact attempt control takes precedence when supplied. */
 	readonly permission?: PermissionChecker;
-	/** Optional authoritative effect owner. */
+	/** Fallback effect owner; an exact attempt control takes precedence when supplied. */
 	readonly effect?: EffectEmitter;
 	/** Generic requirement interpreters used by direct attempts and resources. */
 	readonly requirements?: RequirementRuntime;
@@ -107,6 +107,7 @@ export function create(options: LocalProviderOptions): EngineProvider {
 				});
 			}
 			try {
+				// An exact attempt control owns its authority; provider defaults serve calls without that override.
 				const value = await activity.run({
 					implementation,
 					engine: options.engine,
@@ -116,8 +117,10 @@ export function create(options: LocalProviderOptions): EngineProvider {
 					jobId: attempt.jobId,
 					attempt: attempt.attempt,
 					admitted: attempt.admitted,
-					...(options.permission === undefined ? {} : { permission: options.permission }),
-					...(options.effect === undefined ? {} : { effect: options.effect }),
+					...((control.permission ?? options.permission) === undefined
+						? {}
+						: { permission: control.permission ?? options.permission }),
+					...((control.effect ?? options.effect) === undefined ? {} : { effect: control.effect ?? options.effect }),
 					...(options.requirements === undefined ? {} : { requirements: options.requirements }),
 					...(options.checkpoint === undefined ? {} : { checkpoint: options.checkpoint }),
 					heartbeat(value) {
@@ -129,7 +132,8 @@ export function create(options: LocalProviderOptions): EngineProvider {
 				if (activity.isFailure(implementation.definition, error)) {
 					return Object.freeze({ type: 'failure', failure: error });
 				}
-				if (context.cancelled(error) || ctx.signal.aborted) {
+				// A late abort must not hide resource-disposal failures or unrelated implementation errors.
+				if (context.cancelled(error) || (ctx.signal.aborted && error === ctx.signal.reason)) {
 					return Object.freeze({ type: 'cancelled', reason: ctx.signal.aborted ? ctx.signal.reason : error });
 				}
 				return Object.freeze({ type: 'fault', fault: error });

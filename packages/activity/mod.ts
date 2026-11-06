@@ -12,32 +12,16 @@
  * @example
  * ```ts
  * import * as activity from '@okikio/activity';
- * import * as engine from '@okikio/activity/engine';
- * import * as context from '@okikio/context';
- * import * as resource from '@okikio/capability/resource';
  * import * as schema from '@okikio/schema';
- * import { HostSelectionError } from './selection.ts';
  *
- * const Local = engine.define({ id: 'local' });
  * const Upper = activity.define({
  * 	id: 'text.upper',
  * 	version: '1',
  * 	input: schema.string(),
  * 	result: schema.string(),
- * 	placement: engine.require(Local),
  * });
  * const UpperLive = activity.implement(Upper, { run: (ctx) => ctx.input.toUpperCase() });
- * await using ctx = context.create({ id: 'uppercase' });
- * await using resources = resource.create(resource.implementations(), { ctx, host: {} });
- * const value = await activity.run({
- * 	ctx,
- * 	engine: Local,
- * 	resources,
- * 	implementation: UpperLive,
- * 	input: 'hello',
- * 	jobId: 'uppercase-1',
- * 	attempt: 1,
- * });
+ * const value = await activity.call(UpperLive, 'hello');
  * console.log(value);
  * ```
  *
@@ -61,6 +45,7 @@ import { HostSelectionError } from './selection.ts';
 import * as workflow from '@okikio/workflow';
 import * as engineCore from './engine.ts';
 import type {
+	ActivityCallOptions,
 	ActivityCatalog,
 	ActivityContext,
 	ActivityDefinition,
@@ -115,14 +100,18 @@ export class UndeclaredFailureError extends Error {
 	}
 }
 
-/** Define one immutable external-work contract. */
+/**
+ * Describe checked input, result and declared capabilities without starting work.
+ * Omitted placement permits engine.local. Supply placement when this operation
+ * must run on a particular host capability; requirements remain independently enforced.
+ */
 export function define<const Authoring extends ActivityOptions>(input: Authoring): ActivityDefinition<Authoring> {
 	assertId(input.id, 'activity');
 	assertId(input.version, 'activity version');
 	schema.assert(codec.input(input.input), 'activity input schema');
 	schema.assert(codec.input(input.result), 'activity result schema');
 
-	const placement = engineCore.compose(input.placement);
+	const placement = engineCore.compose(input.placement ?? engineCore.require(engineCore.local));
 	const failures = input.failures === undefined ? Object.freeze([]) : catalogCore.compose(input.failures);
 	const effects = input.effects === undefined ? Object.freeze([]) : effectCore.compose(input.effects);
 	const resources = input.resources === undefined ? Object.freeze([]) : catalogCore.compose(input.resources);
@@ -194,6 +183,57 @@ export function request<Activity extends ActivityDefinition>(
 	options: ActivityRequestOptions = {},
 ): ActivityOperation<Activity> {
 	return workflow.activity<ActivityResult<Activity>, ActivityFailures<Activity>>(definition, input, options);
+}
+
+/**
+ * Call an implementation once in this process and return its checked result.
+ *
+ * The call creates its own cancellation and cleanup lifetime. Supplied resource
+ * bindings are opened lazily and closed before this Promise settles. A supplied
+ * Context or resource collection is borrowed and remains open after the call.
+ * Input, result, placement and requirements use the same checks as run().
+ *
+ * No job is saved and no failure is retried. Use run() when a scheduler already
+ * owns the job identity, attempt number and admission. A custom engine must be
+ * supplied explicitly and must be allowed by the definition; this function
+ * never dispatches to a remote provider or grants a lease or permission.
+ */
+export async function call<Activity extends ActivityDefinition>(
+	implementation: ActivityImplementation<Activity>,
+	input: codec.ContractInput<Activity['input']>,
+	options: ActivityCallOptions = {},
+): Promise<ActivityResult<Activity>> {
+	const id = `local:${crypto.randomUUID()}`;
+	await using lifetime = options.ctx === undefined
+		? contextCore.create({ id })
+		: contextCore.child(options.ctx, { id });
+	const supplied = options.resources;
+	// A borrowed collection keeps its cache and ownership. Bindings instead belong
+	// to this call; closing the opened scope also closes any lazily acquired values.
+	const borrowed = supplied !== undefined && 'get' in supplied ? supplied : undefined;
+	await using opened = borrowed === undefined
+		? await resourceCore.open(
+			supplied as Exclude<ActivityCallOptions['resources'], resourceCore.ResourceCollection | undefined> ?? [],
+			{
+				ctx: lifetime,
+				requirements: options.requirements,
+			},
+		)
+		: undefined;
+	// Await inside this scope: disposing the lifetime before run() settles would
+	// cancel an otherwise successful attempt while its input is being decoded.
+	return await run({
+		implementation,
+		input,
+		ctx: lifetime,
+		engine: options.engine ?? engineCore.local,
+		resources: borrowed ?? opened!.collection,
+		jobId: id,
+		attempt: 1,
+		permission: options.permission,
+		effect: options.effect,
+		requirements: options.requirements,
+	});
 }
 
 /** Create one workflow request that converts only declared failures into an explicit result. */
@@ -367,6 +407,7 @@ function assertJobId(value: string): void {
 /** Create one workflow request that converts only declared failures into an explicit result. */
 export { attempt as try };
 export type {
+	ActivityCallOptions,
 	ActivityCatalog,
 	ActivityContext,
 	ActivityDefinition,

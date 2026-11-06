@@ -75,6 +75,13 @@ export function define<const Id extends string>(input: EngineOptions<Id>): Engin
 	});
 }
 
+/**
+ * The current process, used when an activity omits placement. This is a name,
+ * not a running host. Reuse this exact value when registering a local provider.
+ * Defining another engine with id `local` does not give it the same identity.
+ */
+export const local: EngineDefinition<'local'> = define({ id: 'local', description: 'Run in the calling process.' });
+
 /** Select one exact engine with no fallback. */
 export function require<Engine extends EngineDefinition>(engine: Engine): EngineChoiceType<Engine> {
 	return choice(engine, 'required');

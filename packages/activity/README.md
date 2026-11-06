@@ -12,7 +12,7 @@ what should stop when the caller cancels. You declare those rules once and attac
 
 An activity definition is a description. Its implementation is a function. A queued job requests that activity for one
 input. An attempt is one invocation of its implementation. Neither `define()` nor `implement()` runs the work. Use
-`activity.run()` for a local call or `client.submit()` for saved background work with an explicit store and policy. The
+`activity.call()` for a local call or `client.submit()` for saved background work with an explicit store and policy. The
 [background-work guide](../../docs/workflows/01-basics.md) explains that service-to-worker path.
 
 For example, a request handler can call a local title-saving activity and await its answer. A background service can
@@ -24,31 +24,24 @@ business function work in either setting.
 
 Save a submitted title, then reject a blank submission before it reaches the store. The store is an in-memory array, so
 it needs no account, network, database or credentials. The result is a receipt: the saved ID plus the normalized label.
-The explicit polyfills support the Temporal clock and disposal stack used by the context and resource collection when
-the host lacks those APIs.
 
 The business operation is still an ordinary function: trim the submitted title, uppercase it, then
 `await store.save(label)`. The declaration adds input/result checks around that call. Nothing is saved until
-`activity.run()` invokes the implementation.
+`activity.call()` invokes the implementation.
 
-`Local` names the permitted execution environment; it launches no process. `Store` describes a dependency,
-`StoreLive` supplies it, and `stores` owns the acquired instance. `owner` supplies cancellation and cleanup. The activity
-borrows that store through `ctx.get(Store)` and must not close it itself.
+`Store` describes the dependency, `StoreLive` supplies it, and `stores` owns the acquired instance. Each call creates
+its own cancellation and cleanup lifetime. The activity borrows the store through `ctx.get(Store)` and must not close
+it itself. Placement defaults to the current process; no worker, queue or saved job is created.
 
 From the repository root, run `mise run prepare -- --kind deps` once. Save the complete block as the named `.ts` file and run
 `mise exec -- deno run save-title.ts`. These examples use workspace imports; they need no published package or network service.
 
 ```ts runnable=save-title.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as activity from '@okikio/activity';
-import * as engine from '@okikio/activity/engine';
-import * as context from '@okikio/context';
 import * as resource from '@okikio/capability/resource';
 import { SchemaValidationError } from '@okikio/schema';
 import * as schema from '@okikio/schema';
 
-const Local = engine.define({ id: 'local' });
 const InputSchema = schema.object({ title: schema.string({ pattern: /\S/ }) });
 const ReceiptSchema = schema.object({ id: schema.string(), label: schema.string() });
 const Store = resource.define<{ save(label: string): Promise<string> }>()({
@@ -71,7 +64,6 @@ const SaveTitle = activity.define({
 	version: '1',
 	input: InputSchema,
 	result: ReceiptSchema,
-	placement: engine.require(Local),
 	resources: [Store],
 });
 // Bind behavior to the checked activity definition before running an attempt.
@@ -83,28 +75,12 @@ const SaveTitleLive = activity.implement(SaveTitle, {
 		return { id: await store.save(label), label };
 	},
 });
-await using owner = context.create({ id: 'photo-upload' });
-await using stores = resource.create(resource.implementations(StoreLive), { ctx: owner, host: {} });
-const receipt = await activity.run({
-	ctx: owner,
-	engine: Local,
-	resources: stores,
-	implementation: SaveTitleLive,
-	input: { title: 'Summer trip' },
-	jobId: 'save-title-1',
-	attempt: 1,
-});
+// Share one lazily opened store across both calls; this scope owns its cleanup.
+await using stores = await resource.open(StoreLive);
+const receipt = await activity.call(SaveTitleLive, { title: 'Summer trip' }, { resources: stores.collection });
 console.log(receipt.id, receipt.label);
 try {
-	await activity.run({
-		ctx: owner,
-		engine: Local,
-		resources: stores,
-		implementation: SaveTitleLive,
-		input: { title: '   ' },
-		jobId: 'save-title-2',
-		attempt: 1,
-	});
+	await activity.call(SaveTitleLive, { title: '   ' }, { resources: stores.collection });
 } catch (error) {
 	if (!(error instanceof SchemaValidationError)) throw error;
 	console.log('Empty title rejected');
@@ -119,10 +95,25 @@ Saved labels: SUMMER TRIP
 ```
 
 The first line is the checked receipt. The next two lines show that whitespace-only input is rejected and the store
-still contains only the accepted title. `run()` returns `Promise<{ id: string; label: string }>` for this definition.
+still contains only the accepted title. `call()` returns `Promise<{ id: string; label: string }>` for this definition.
 The definition's `resources: [Store]` lets the implementation ask for that store through `ctx.get(Store)`. Changing the
 store implementation can change where the label is saved without changing the activity's input or result contract. The
 activity borrows the store; the `stores` collection closes its acquired resources.
+
+For a single call, pass `{ resources: StoreLive }` instead. The call opens that binding lazily and closes its value
+before returning. Keep `resource.open(StoreLive)` when several calls should reuse one connection or client. Supply
+`{ ctx: requestContext }` when an HTTP request's cancellation should also stop the call; the call borrows that Context
+and never closes it. These options change ownership, not the input and result checks.
+
+| You need to | Use | Who owns execution details |
+| --- | --- | --- |
+| Await one checked call in this process | `activity.call(implementation, input, options?)` | The call creates its own attempt identity and cleanup lifetime. |
+| Run an attempt already admitted by a scheduler | `activity.run(options)` | The scheduler supplies job ID, attempt number, engine and borrowed resources. |
+| Describe work for a workflow to schedule | `activity.request(definition, input)` | The workflow scheduler owns when and where it runs; creating the request starts no work. |
+
+Omitting placement selects `engine.local`, the exported identity for this process. A definition with explicit placement
+keeps that restriction: a local call rejects if its engine is not allowed. Passing an engine to `call()` identifies this
+host; it does not launch or contact that engine. Remote execution belongs to the provider and workflow paths below.
 
 Try changing the input title to `Family visit`. Both output labels become `FAMILY VISIT`. An empty title fails the input
 schema before the save function runs. This array is a teaching store, not durable storage, and repeating the call adds
@@ -176,9 +167,11 @@ Neither form publishes late success. The dispatch claim remains the authority fo
 
 ## Measure attempts and host selection
 
-The focused benchmarks measure local validated attempts and placement across 10–1,000 hosts. The benchmark compares
-against direct validated arithmetic; selection without a diagnostic report. Provider startup and remote execution remain
-root scenarios.
+The attempt benchmark compares `run()` and `call()` with direct arithmetic under the same input/result number
+validation. The direct path omits attempt identity and cleanup ownership. A separate placement benchmark compares
+`engine.inspect()` across 10–1,000 hosts with a selection-only scan of the same fixture, where earlier hosts are full
+and the last matching host is free. That scan omits diagnostic report construction and does not cover every production
+eligibility rule. Provider startup and remote execution remain root scenarios.
 
 From the repository root, run the package's tests and untimed benchmark checks before collecting timings:
 
@@ -192,11 +185,6 @@ These commands use package-owned fixtures and development dependencies. The
 [benchmark protocol](../../docs/benchmarks/01-running.md#choose-a-comparison-that-answers-the-question) explains fair
 comparisons, raw report collection and the limits of local measurements.
 
-## Read further
-
-The [Activity guide](https://github.com/okikio/utils/blob/main/docs/activity.md) explains the model, manual
-alternatives, and composition.
-
 ## Select a host inside a provider
 
 Worker and process providers expose `hosts()` for live references and
@@ -206,3 +194,8 @@ or saved work; busy/lost selection never falls back to another host. Activities
 can return `ctx.physicalHost` with their result for later work.
 See the [complete physical-host example](../../docs/workflows/19-hosts.md) for
 identity, bounded admission, errors and resource-session ownership.
+
+## Read further
+
+The [Activity guide](https://github.com/okikio/utils/blob/main/docs/activity.md) explains the model, manual
+alternatives, and composition.

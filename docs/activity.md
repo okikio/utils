@@ -12,7 +12,7 @@ after process loss.
 The same save contract accepts a photo title and rejects a blank one before the store is called. The receipt contains
 the new ID and normalized title; the final labels show exactly what reached the in-memory store.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as a `.ts` file in your project and use
+Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
 `mise exec -- deno run save-title.ts`.
 
 The examples use a few names that can otherwise make this small idea feel larger:
@@ -21,27 +21,19 @@ The examples use a few names that can otherwise make this small idea feel larger
 | -------------- | -------------------------------------------------------------------------------------------------- |
 | Definition     | The job's name, version, input and result rules. Declaring it starts no work.                      |
 | Implementation | The function that actually performs the job.                                                       |
-| Engine         | A declared execution category that must match the chosen runner. A name does not launch a process. |
-| Attempt        | One execution of the job. A later retry is another attempt.                                        |
 | Resource       | A supplied dependency, such as a store or browser. The job borrows it.                             |
-| Context        | The attempt's identity, cancellation signal, deadline and cleanup lifetime.                        |
 
 The business operation is still an ordinary function: trim the submitted title, uppercase it, then
 `await store.save(label)`. The declaration adds input/result checks around that call. Nothing is saved until
-`activity.run()` invokes the implementation.
+`activity.call()` invokes the implementation.
 
 ```ts runnable=save-title.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as activity from '@okikio/activity';
-import * as engine from '@okikio/activity/engine';
-import * as context from '@okikio/context';
 import * as resource from '@okikio/capability/resource';
 import { SchemaValidationError } from '@okikio/schema';
 import * as schema from '@okikio/schema';
 
 // These declarations check a call contract; they do not launch a host or save data.
-const Local = engine.define({ id: 'local' });
 const InputSchema = schema.object({ title: schema.string({ pattern: /\S/ }) });
 const ReceiptSchema = schema.object({ id: schema.string(), label: schema.string() });
 
@@ -70,7 +62,6 @@ const SaveTitle = activity.define({
 	version: '1',
 	input: InputSchema,
 	result: ReceiptSchema,
-	placement: engine.require(Local),
 	resources: [Store],
 });
 
@@ -85,32 +76,14 @@ const SaveTitleLive = activity.implement(SaveTitle, {
 	},
 });
 
-// Dispose the collection before its parent Context. Each run only borrows it.
-await using owner = context.create({ id: 'photo-upload' });
-await using stores = resource.create(resource.implementations(StoreLive), { ctx: owner, host: {} });
-
-const receipt = await activity.run({
-	ctx: owner,
-	engine: Local,
-	resources: stores,
-	implementation: SaveTitleLive,
-	input: { title: 'Summer trip' },
-	jobId: 'save-title-1',
-	attempt: 1,
-});
+// Share one lazily opened store across both calls; this scope owns its cleanup.
+await using stores = await resource.open(StoreLive);
+const receipt = await activity.call(SaveTitleLive, { title: 'Summer trip' }, { resources: stores.collection });
 console.log(receipt.id, receipt.label);
 
 // A second call proves that schema rejection happens before the storage write.
 try {
-	await activity.run({
-		ctx: owner,
-		engine: Local,
-		resources: stores,
-		implementation: SaveTitleLive,
-		input: { title: '   ' },
-		jobId: 'save-title-2',
-		attempt: 1,
-	});
+	await activity.call(SaveTitleLive, { title: '   ' }, { resources: stores.collection });
 } catch (error) {
 	if (!(error instanceof SchemaValidationError)) throw error;
 	console.log('Empty title rejected');
@@ -126,16 +99,28 @@ Saved labels: SUMMER TRIP
 
 ## Keep a save operation behind one checked contract
 
+The local call hides details that matter only to a scheduler: generating a local attempt ID, setting its first attempt
+number, and opening a cancellation/cleanup lifetime. It still validates input and result and enforces requirements.
+It saves no job, makes no retry, and grants no permission. `activity.run()` remains available to a host that already
+owns those attempt details.
+
+The example borrows `stores.collection` so both calls share its lazily created store. For one call, pass
+`{ resources: StoreLive }` and let the call own that store's lifetime. To cancel from an existing request, also pass
+`{ ctx: requestContext }`; the call closes only its own child lifetime. A definition can opt into explicit engine
+placement later. The default is `engine.local`, and `call()` never chooses a remote engine implicitly.
+
 A photo title arrives from a form. Before a storage client sees it, the activity checks that it contains text. After the
 client saves it, the activity checks the receipt. Different callers can use that same contract without copying
 validation around every save. The example above shows both an accepted title and a rejected empty one.
 
-The three main calls have different jobs:
+The common path is `define()`, `implement()`, then `call()`. A host that already owns attempt identity can use the
+lower-level `run()` instead:
 
 | Call or contract                                            | What it contains or returns                                                              | What actually runs                                                       |
 | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | `define()` → `ActivityDefinition`                           | ID, version, input/result schemas, placement, and optional dependencies/failures/effects | Declaration only; no job starts.                                         |
 | `implement(definition, { run })` → `ActivityImplementation` | The exact definition and your function                                                   | Registration only; the function has not been called.                     |
+| `call(implementation, input, options?)`                          | A result inferred from the definition, with a local engine and an owned call lifetime | One checked call; the caller supplies input and any application resources. |
 | `run(options)` → `Promise<ActivityResult<Activity>>`        | A result inferred from the definition's result schema                                    | One checked local attempt with supplied input and dependencies.          |
 | `ActivityContext` supplied to `run`                         | Typed `input`, `signal`, job ID, attempt number, `get()`, checkpoint and cleanup methods | Your function uses this state; it still returns its normal result value. |
 
@@ -148,9 +133,10 @@ context. It adds the declared resource/permission/effect views, applies admissio
 validates its result, and awaits attempt cleanup. Invalid input never reaches the function. Schemas may be asynchronous,
 so the outward result is a Promise even when your function returns a string immediately.
 
-The caller still supplies a resource collection and engine identity. That setup costs more than a direct function call;
-it becomes useful when the same rules must survive a change of caller or execution location. It does not launch a remote
-host or make an external write durable by itself.
+`call()` supplies the local engine identity and owns those attempt details for you. The lower-level `run()` asks the
+caller for them because a scheduler already owns that identity, retry count and resource lifetime. An engine is a named
+execution capability, not a running process. Supplying its identity never launches a remote host or makes an external
+write durable. Keep this lower-level control for the point where another owner actually needs it.
 
 ## Follow one job from input to result
 
