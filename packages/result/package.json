@@ -10,7 +10,8 @@
 		"./failure/types": "./failure/types.ts",
 		"./fault": "./fault/mod.ts",
 		"./fault/types": "./fault/types.ts",
-		".": "./mod.ts"
+		".": "./mod.ts",
+		"./failure/migrate": "./failure/migrate.ts"
 	},
 	"dependencies": {
 		"@okikio/collection": "workspace:^",

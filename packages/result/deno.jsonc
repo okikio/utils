@@ -14,10 +14,10 @@
 		"./failure/types": "./failure/types.ts",
 		"./fault": "./fault/mod.ts",
 		"./fault/types": "./fault/types.ts",
-		".": "./mod.ts"
+		".": "./mod.ts",
+		"./failure/migrate": "./failure/migrate.ts"
 	},
-	"imports": {
-	},
+	"imports": {},
 	"license": "MIT",
 	"tasks": {
 		"check": "mise run check -- --project result",

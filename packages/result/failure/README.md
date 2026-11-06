@@ -70,6 +70,50 @@ direction, and `decode()` resolves the ID through trusted definitions before val
 schemas work directly. External identity validators require `codec.identity(schema)` as an explicit declaration. Local
 causes are never encoded.
 
+## Upgrade a saved failure without guessing its schema
+
+A breaking payload change uses a new failure ID. Keep the historical definition
+until the application has migrated or expired every record that uses it. The
+`failure/migrate` entry checks the old payload, calls your conversion, checks the
+new payload, then returns an encoded replacement. It does not write storage.
+
+```ts
+import { migrate } from '@okikio/result/failure/migrate';
+import * as failure from '@okikio/result/failure';
+import * as schema from '@okikio/schema';
+
+const Previous = failure.define({
+	id: 'asset.missing.v1',
+	description: 'The asset is missing.',
+	data: schema.object({ path: schema.string() }),
+});
+
+const Current = failure.define({
+	id: 'asset.missing.v2',
+	description: 'The asset is missing.',
+	data: schema.object({ id: schema.string() }),
+});
+
+const saved = { id: Previous.id, data: { path: 'asset-1' }, message: 'Archived asset is missing.' };
+
+// Both definitions are trusted application code; the saved ID cannot select an arbitrary converter.
+const replacement = await migrate(saved, {
+	from: Previous,
+	to: Current,
+	convert: ({ path }) => ({ id: path }),
+});
+
+// The application now writes replacement in its own transaction or compare-and-swap.
+console.log(replacement.id, replacement.data);
+```
+
+The saved explanation remains intact. A local cause is not transferred. Unknown
+IDs, invalid historical data, conversion errors, and invalid replacement data
+reject before a replacement is returned. Converters should be pure so a storage
+retry does not repeat external effects. Apply a second explicit transition when
+several historical versions must be upgraded; there is no global migration registry
+or automatic fallback during ordinary `decode()`.
+
 ## Choose adjacent capabilities
 
 Use Failure for a stable expected rejection that callers can encode and recognize. Result carries success or failure as
