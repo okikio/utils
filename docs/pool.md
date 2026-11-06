@@ -1,8 +1,15 @@
 # Reuse a resource while preserving exclusive ownership
 
-Two requests need a reusable connection, but only one request may borrow it at a time. A pool lends it through a lease,
-waits when every value is busy, and either retains or closes it when the lease returns. At shutdown the pool must also
-join the work still borrowing its values.
+Opening a database connection or a browser page can involve setup work. Opening a new one for every request repeats
+that cost. Keeping one reusable value saves setup, but creates another question: what happens when two callers need it
+at once? If that value supports only one active operation, giving it to both callers can mix their state.
+
+A **pool** keeps a bounded set of reusable values. A caller borrows one through a **lease**, an object whose disposal
+returns that borrow. The next caller can then reuse the value. Callers should dispose the lease rather than close the
+underlying value themselves, because the pool may need it again.
+
+When every value is busy, the pool waits within its configured bounds. When a lease returns, the pool either keeps
+the value for reuse or closes it. At shutdown, the pool must also wait for callers to return their active leases.
 
 Pooling saves acquisition cost but adds waiting and shutdown obligations. A borrowed client must not be closed by a
 caller that does not own it.

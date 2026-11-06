@@ -1,9 +1,17 @@
 # Select one thread or process inside a provider pool
 
-A provider may own several threads or child processes. Selecting that provider
-chooses its executor, but a browser context or other live resource belongs to
-one particular host inside it. Use a physical-host reference when later work
-must return to that same thread or process.
+Suppose one action signs in to a website and a later action reads its account page. The first action's browser context
+holds the login cookies. Sending the later action to another empty browser context will not carry that login with it.
+The [sessions guide](./18-sessions.md) explains this browser state and how to retain it between actions.
+
+Now let the application run actions in several JavaScript threads or child processes. Each has its own memory. A
+**provider** starts those hosts and sends activities to them; its **pool** is the set it can choose from. Naming the
+provider selects that group, but does not yet identify which member holds this login. A **physical-host reference**
+identifies the particular member that must receive the later action.
+
+For stateless work, such as resizing an image from supplied bytes, any eligible free host may be suitable. Retained
+browser state creates a different requirement: return to the host that actually owns it. A reference routes the request;
+it does not transfer browser memory to another host or authenticate the caller.
 
 This guide is for consumers building that flow and maintainers changing pool
 admission or shutdown. A host reference contains two identifiers: `pool` names

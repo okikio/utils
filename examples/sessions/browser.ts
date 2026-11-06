@@ -4,9 +4,11 @@ import type { BrowserContext } from 'playwright';
 import { AsyncDisposableStack } from '@okikio/dispose';
 import * as resource from '@okikio/capability/resource';
 import * as session from '@okikio/capability/resource/session';
+import { openWebsite } from './website.ts';
 
-/** Run without an external website. The two actions share real Chromium cookies and separate pages. */
+/** Sign in on one page, then read the account on another page through the same retained browser context. */
 export async function readProfile(): Promise<string> {
+	await using website = await openWebsite();
 	await using application = new AsyncDisposableStack();
 	const browser = application.adopt(await chromium.launch(), (value) => value.close());
 
@@ -28,18 +30,22 @@ export async function readProfile(): Promise<string> {
 	await profiles.use(reference, async (profile, action) => {
 		const page = await profile.newPage();
 		action.defer(() => page.close());
-		await page.setContent('<h1>Account sign-in</h1>');
-		// A real sign-in would set this cookie through its HTTP response. No credentials or network are needed here.
-		await profile.addCookies([{ name: 'account', value: 'Ada', url: 'https://example.invalid/' }]);
+		// A new context starts signed out. Launching Chromium alone does not establish a login.
+		const before = await page.goto(`${website.url}/account`);
+		if (before?.status() !== 401) throw new Error('A fresh profile should start signed out.');
+		await page.goto(`${website.url}/login`);
+		await page.getByRole('button', { name: 'Sign in as Ada' }).click();
+		await page.waitForURL(`${website.url}/account`);
+		// The website's response set a cookie. Closing this page leaves it in the context.
 	});
 
 	const account = await profiles.use(reference, async (profile, action) => {
 		const page = await profile.newPage();
 		action.defer(() => page.close());
-		await page.setContent('<h1>Account report</h1>');
-		const cookie = (await profile.cookies('https://example.invalid/')).find((value) => value.name === 'account');
-		if (!cookie) throw new Error('The second action did not retain the login.');
-		return cookie.value;
+		const response = await page.goto(`${website.url}/account`);
+		if (response?.status() !== 200) throw new Error('The second action did not retain the login.');
+		// Read what the page displays, rather than reading a cookie directly.
+		return await page.getByRole('heading').innerText();
 	});
 
 	// Close joins both resource and temporary-page cleanup. The reference cannot reopen this login.

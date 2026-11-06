@@ -1,31 +1,92 @@
 # Keep a browser login between actions
 
-A sign-in action opens a browser context and receives cookies. A later action needs those same cookies. Closing the
-browser context after sign-in loses that login. Opening a fresh one for every action also loses it.
+Suppose your application needs to read a report from a website that requires an account. A person would open the site,
+sign in, and then open the report. Your program must do those steps too. Starting Chrome only starts a browser; it does
+not tell the website which account the program may use. A new automated browser does not automatically inherit the
+login from the Chrome window on your desktop.
 
-A **resource session** keeps that live object between actions. Its owner retains the object; callers keep a small
-reference identifying it. An action temporarily borrows the object, finishes its work and temporary cleanup, then
-returns it for another action. Closing the session ends that retained lifetime.
+After a successful sign-in, many websites send the browser a **cookie**: a small value that the browser stores and
+sends back on later requests to that site. The site checks that value to recognize the signed-in account. Without an
+accepted login cookie or another authentication mechanism, the report request can return a sign-in page or an HTTP
+`401` response, which means authentication is required. Each website decides how its authentication works.
+
+Now split the job into two actions. The first signs in. A later action opens the account page and reads its contents.
+For example, those actions might be separate requests to your application. If the first action closes its browser
+state, the second cannot continue that login. If each action creates a fresh isolated browser context, the second
+starts signed out. Keeping Chrome running is not enough: the second action needs the same state within it.
+
+This guide uses **browser automation**, which means code opens pages, clicks controls and reads displayed content.
+Collecting information from pages is often called scraping. You do not need prior scraping experience here. The example
+uses a tiny local website and a pretend account so you can observe the login boundary without real credentials.
+
+## Know which part of the browser must stay alive
+
+[Playwright](https://playwright.dev/docs/browser-contexts) controls the browser from JavaScript. It separates three things:
+
+| Thing | What it does in this example | When it closes |
+| --- | --- | --- |
+| Browser | Runs Chromium, the browser engine used here | When the application finishes |
+| Browser context | Keeps one isolated set of cookies and other site state | When this retained login is no longer needed |
+| Page | Opens one document, like a browser tab | When its action finishes |
+
+The contexts below run inside the same browser, but they do not share login cookies. Pages inside one context do share
+its cookies. This is why “launch Chrome again” and “open another page for the same login” have different results:
+
+```text
+Chromium browser
+├── Context for this account       keep between actions
+│   ├── Sign-in page               close after signing in
+│   └── Later account page         uses the retained cookie
+└── Another fresh context          starts without that cookie
+```
+
+This picture shows where the login state lives, not how Chromium divides its operating-system processes. A browser
+context is also different from the Utils `Context`, which groups cancellation and cleanup for an operation.
+
+For one short script, keep an ordinary Playwright context in a variable, perform both steps, then close it. You do not
+need resource sessions just to open a browser or read a public page. Sessions become useful when separately invoked
+actions need to find and safely use one particular live object after its creation call has returned.
+
+A **resource session** gives that object an explicit lifetime. One owner keeps the browser context in memory; callers
+keep a small **reference** identifying which retained context they need. Each action temporarily borrows that context,
+finishes its work and closes its temporary pages. Returning the borrow leaves the context available for the next action.
+Closing the session closes the retained context too. Exclusive borrowing is the default, so two actions cannot change
+that login's state at the same time through this owner.
+
+A website's login session and a Utils resource session have different jobs. The website decides whether its cookie
+still grants account access. Utils decides which live browser context an action may borrow and who must close it.
+Keeping the context alive cannot prevent the website from expiring a login or asking the user to sign in again.
 
 Use an ordinary resource collection when the object only needs to live as long as one operation. Use sessions when
-several actions need one particular live instance. If state must survive a process crash, save portable data or a
-checkpoint separately: saving a session reference does not save its browser, sockets or memory.
+several actions need one particular live instance. If state must survive a process crash, save supported portable state
+or an application checkpoint separately: saving a reference does not save its browser, sockets or memory.
 
 ## Open once, use twice, then close
 
-This complete program uses actual Chromium. A browser context is an isolated cookie jar inside a running browser.
-The first action sets an account cookie. The second opens another page and reads the same cookie. Neither action needs
-a real website or credentials. The example tests retained browser state; it does not simulate a real authentication protocol.
+The example starts a local website with a **Sign in as Ada** button and an account page. Before sign-in, the account
+page returns `401`. Clicking the button submits an HTTP `POST`; the website responds with `Set-Cookie` and redirects
+the browser to the account page. Playwright follows that interaction just as a browser user would.
 
-After the root checkout setup, install the browser once and run the authored example:
+The first action then closes its page. The second action opens a different page in the retained context, requests the
+account page and reads the displayed name. The browser sends the retained cookie automatically; the second action does
+not insert or copy it. Replacing the retained context with a fresh context would make that account request return `401`.
+
+After the [root checkout setup](../../README.md#work-on-the-repository), install the browser once and run the example:
 
 ```sh
 mise exec -- pnpm exec playwright install chromium
 mise exec -- node examples/sessions/browser.ts
+mise exec -- node examples/sessions/check.browser.ts
 ```
 
-Expected output: `Ada`. The [copyable example](../../examples/sessions/README.md) includes the real-browser check.
-The session primitives use the same TypeScript on Deno, Node and Bun; this browser program is checked on Node.
+The program prints `Ada`. The check asserts that result. If Chromium is missing, run the install command above; closing
+all browser windows on your desktop will not install the separate browser build used by Playwright.
+
+The [example directory](../../examples/sessions/README.md) contains both files. `website.ts` owns the small HTTP server;
+`browser.ts`, shown below, owns the browser and sessions. Keep them together when copying the example. The fixture uses
+a fixed demonstration cookie and no password; it teaches state retention, not secure authentication for deployment.
+All HTTP traffic stays on your computer. This browser program is checked on Node; the session primitives use the same
+TypeScript on Deno, Node and Bun.
 
 ```ts
 /** Reuse one actual browser cookie jar across actions; close each temporary page before the next action. */
@@ -34,9 +95,11 @@ import type { BrowserContext } from 'playwright';
 import { AsyncDisposableStack } from '@okikio/dispose';
 import * as resource from '@okikio/capability/resource';
 import * as session from '@okikio/capability/resource/session';
+import { openWebsite } from './website.ts';
 
-/** Run without an external website. The two actions share real Chromium cookies and separate pages. */
+/** Sign in on one page, then read the account on another page through the same retained browser context. */
 export async function readProfile(): Promise<string> {
+	await using website = await openWebsite();
 	await using application = new AsyncDisposableStack();
 	const browser = application.adopt(await chromium.launch(), (value) => value.close());
 
@@ -58,18 +121,22 @@ export async function readProfile(): Promise<string> {
 	await profiles.use(reference, async (profile, action) => {
 		const page = await profile.newPage();
 		action.defer(() => page.close());
-		await page.setContent('<h1>Account sign-in</h1>');
-		// A real sign-in would set this cookie through its HTTP response. No credentials or network are needed here.
-		await profile.addCookies([{ name: 'account', value: 'Ada', url: 'https://example.invalid/' }]);
+		// A new context starts signed out. Launching Chromium alone does not establish a login.
+		const before = await page.goto(`${website.url}/account`);
+		if (before?.status() !== 401) throw new Error('A fresh profile should start signed out.');
+		await page.goto(`${website.url}/login`);
+		await page.getByRole('button', { name: 'Sign in as Ada' }).click();
+		await page.waitForURL(`${website.url}/account`);
+		// The website's response set a cookie. Closing this page leaves it in the context.
 	});
 
 	const account = await profiles.use(reference, async (profile, action) => {
 		const page = await profile.newPage();
 		action.defer(() => page.close());
-		await page.setContent('<h1>Account report</h1>');
-		const cookie = (await profile.cookies('https://example.invalid/')).find((value) => value.name === 'account');
-		if (!cookie) throw new Error('The second action did not retain the login.');
-		return cookie.value;
+		const response = await page.goto(`${website.url}/account`);
+		if (response?.status() !== 200) throw new Error('The second action did not retain the login.');
+		// Read what the page displays, rather than reading a cookie directly.
+		return await page.getByRole('heading').innerText();
 	});
 
 	// Close joins both resource and temporary-page cleanup. The reference cannot reopen this login.
@@ -92,13 +159,12 @@ Read the calls in the order of their purpose:
 | `action.defer(() => page.close())` | Close the temporary page before the borrow ends. The browser context and its cookies remain. |
 | `profiles.close(reference)` | Stop new use, cancel and join active actions, then close that browser context. |
 
-The two `use()` calls perform different actions on the same object. The first changes the cookie jar; the second
-observes that change. The reference stays ordinary data. The browser context stays on its owner.
+The two `use()` calls perform different actions on the same object. The first completes the local website's sign-in
+interaction; the second receives the account page because that context still holds the cookie. The reference stays
+ordinary data. The browser context stays on its owner.
 
-`await using profiles` also closes remaining sessions on failure or scope exit. A plain `await using` around the
-resource collection inside its creation factory would close the resource before the caller could use it. The session
-composition instead uses a disposable stack, then transfers that stack after acquisition succeeds. If acquisition
-fails, the original stack still closes partial construction. You do not need to reproduce that transfer in feature code.
+`await using profiles` closes any remaining sessions on error or function exit. The explicit `profiles.close(reference)`
+ends this particular login as soon as both actions finish. Either path waits for the cleanup it owns.
 
 A `using` declaration inside the action can own temporary resources that support disposal. `action.defer()` covers
 APIs such as `page.close()` and keeps that cleanup inside the borrow. Registering the page on a longer application
@@ -192,6 +258,11 @@ create a new session or restore a separately saved checkpoint. Do not resend the
 to make the request succeed: that member does not hold the original browser or its cookies.
 
 ## Ownership and borrowing rules
+
+The composition keeps resource creation alive after its factory returns. Internally, it registers newly acquired
+values on a disposable stack and transfers that stack to the session after acquisition succeeds. If acquisition fails,
+the original stack closes partial construction. A `using` scope around the collection inside the factory alone would
+close it before a later action could borrow it. Feature code uses `session.open()` instead of reproducing that transfer.
 
 Each session has a unique ID, resource kind, executor ID/generation and random
 owner incarnation. A new physical owner has a new incarnation even if deployment

@@ -1,10 +1,17 @@
 # Place nested work and share host capacity
 
-A deployment registers executors. A caller chooses required boundaries, and the
-queue grants work only to an eligible executor with free capacity. This complete
-in-memory example registers a thread under a process, container, pod, and node,
-then claims one activity inside that pod. The labels describe trusted deployment
-metadata; the example does not start infrastructure.
+Suppose several workers can resize an image, but only two have the required software and access to its files. The queue
+must choose from those two, and it must wait or reject admission when neither has room. Sending work to an arbitrary
+idle worker would not satisfy the job's requirements. **Placement** expresses which workers may run that job.
+
+The application registers each worker's capabilities, location and capacity before it accepts work. In a small program,
+a location may just be a process or thread. In a clustered deployment, a machine can run containers, and Kubernetes can
+group containers into a pod. A required location means work must stay inside that boundary. These names describe where
+a deployment runs; the placement utility does not install or start that infrastructure.
+
+The complete in-memory example below registers one nested location and claims one activity within a required pod.
+Its purpose is to make the selection visible without requiring a cluster. You can follow the selection rules without
+knowing how to deploy Kubernetes.
 
 An **executor** is a registered host that may run work. An **engine** names the execution capability an activity needs,
 such as a local JavaScript function or a supplied process provider. Placement narrows which registered executor may

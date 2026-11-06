@@ -1,5 +1,14 @@
 # Call code in another execution environment
 
+JavaScript normally runs your function on the calling thread. A long synchronous calculation can keep that thread
+from responding to other requests or user input. Writing `async` or awaiting a Promise does not by itself move the
+calculation to another thread. A **Worker** runs code in a separate execution environment and exchanges messages with
+its caller. The caller can continue other work while the Worker calculates.
+
+A small calculation usually does not justify the startup and messaging cost. The text counter below is intentionally
+small so you can follow one complete request; it is not evidence that counting this sample is faster in a Worker.
+Use the same communication model when a measured CPU-heavy operation needs that separation.
+
 A text-analysis module can run in a Worker while its caller waits for a summary. The client sends checked input, matches
 the reply to that request, and keeps cancellation and shutdown tied to the caller. A late reply must never complete a
 different request.
