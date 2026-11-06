@@ -220,7 +220,7 @@ export async function create(options: ProcessProviderOptions): Promise<ProcessPr
 				return await transport.result(definition, value);
 			} catch (error) {
 				if (channelFault(error)) lease.invalidate(error);
-				if (ctx.signal.aborted) {
+				if (contexts.cancelled(error) || (ctx.signal.aborted && error === ctx.signal.reason)) {
 					return Object.freeze({ type: 'cancelled', reason: ctx.signal.reason }) as ActivityAttemptResultType;
 				}
 				return Object.freeze({ type: 'lost', reason: error }) as ActivityAttemptResultType;
@@ -409,7 +409,12 @@ export function serve(options: ProcessServeOptions): channel.ProcessServer {
 				if (activity.isFailure(implementation.definition, error)) {
 					return await transport.wire(implementation.definition, Object.freeze({ type: 'failure', failure: error }));
 				}
-				if (ctx.signal.aborted) return Object.freeze({ type: 'cancelled', reason: remote.fault(ctx.signal.reason) });
+				if (contexts.cancelled(error) || (ctx.signal.aborted && error === ctx.signal.reason)) {
+					return Object.freeze({ type: 'cancelled', reason: remote.fault(ctx.signal.reason) });
+				}
+				// The enclosing transport checks cancellation after a returned value. Raise genuine
+				// stop or disposal faults so it cannot replace them with a clean cancellation receipt.
+				if (ctx.signal.aborted) throw error;
 				return Object.freeze({ type: 'fault', fault: remote.fault(error) });
 			}
 		},

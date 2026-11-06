@@ -165,9 +165,20 @@ incompatible host fails the handshake instead of accepting unchecked payloads. T
 remote host. Process framing limits must match both peers, including envelope overhead above the application value. The
 native conformance corpus checks failure identity, heartbeat and predispatch cancellation across all three providers;
 remote pool cancellation may reject the original context reason while local execution can return a cancelled outcome.
-Neither form publishes late success. The dispatch claim remains the authority for accepting a terminal result.
+Neither form publishes late success. Cancellation is clean only when work stopped for the Context's cancellation
+reason and all owned cleanup finished. An unrelated error or a failed `ctx.defer()` disposer while stopping is not
+clean cancellation. Worker and process providers report `lost` with the transport fault diagnostics and retire that
+physical host; reconcile the attempt before choosing whether to retry. A request to stop does not prove that an
+external write was rolled back. The host lease remains reserved until the cleanup receipt or host retirement joins.
+The dispatch claim remains the authority for accepting a terminal result.
 
 ## Measure attempts and host selection
+
+The [real-host cancellation benchmark](../../bench/activity-cleanup.bench.ts) measures the stop request through the
+joined cleanup receipt. It starts actual `node:worker_threads` hosts and child processes; Deno and Bun runs use their
+Node compatibility APIs. `--check` runs independent receipt and lease-release oracles without collecting timings.
+Clean cancellation reuses its host. A disposer failure retires the host, so those trials include replacement startup
+and must not be compared as equivalent work. Timings do not establish leak freedom or a shutdown latency guarantee.
 
 The attempt benchmark compares `run()` and `call()` with direct arithmetic under the same input/result number
 validation. The direct path omits attempt identity and cleanup ownership. A separate placement benchmark compares
