@@ -47,8 +47,16 @@ export function classify(path: string): TestFile {
 	if (path === 'tests/workflows/postgres-soak.test.ts') {
 		return { path, family: 'soak', reason: 'Opt-in multi-hour PostgreSQL load with owned Docker fixtures.' };
 	}
+	if (path === 'tests/workflows/duplex-browser.test.ts') {
+		return {
+			path,
+			family: 'containers',
+			reason: 'Requires real Playwright browser engines and one owned Docker HTTP host.',
+		};
+	}
 	if (
 		[
+			'tests/workflows/duplex-containers.test.ts',
 			'tests/workflows/containers.test.ts',
 			'tests/workflows/nested-containers.test.ts',
 			'tests/workflows/session-containers.test.ts',

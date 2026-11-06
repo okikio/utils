@@ -16,7 +16,8 @@
 		"./types": "./types.ts",
 		"./worker": "./worker.ts",
 		"./selection": "./selection.ts",
-		"./http": "./http.ts"
+		"./http": "./http.ts",
+		"./http/duplex": "./http/duplex.ts"
 	},
 	"imports": {},
 	"license": "MIT",

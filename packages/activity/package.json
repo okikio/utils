@@ -12,7 +12,8 @@
 		"./types": "./types.ts",
 		"./worker": "./worker.ts",
 		"./selection": "./selection.ts",
-		"./http": "./http.ts"
+		"./http": "./http.ts",
+		"./http/duplex": "./http/duplex.ts"
 	},
 	"dependencies": {
 		"@standard-schema/spec": "^1.1.0",

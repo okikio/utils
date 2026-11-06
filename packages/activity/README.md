@@ -140,6 +140,7 @@ options and types.
 | `@okikio/activity`         | Use the package entry shown in the complete examples above.              | [Contract](./mod.ts)     |
 | `@okikio/activity/engine`  | Declare execution targets and select placement without starting a host.  | [Contract](./engine.ts)  |
 | `@okikio/activity/http` | Call an authenticated HTTP activity service; the application owns its listener and durable claims. | [Contract](./http.ts), [guide](./http.md) |
+| `@okikio/activity/http/duplex` | Let a remote activity call its original authorities through paired HTTP requests; sessions are temporary. | [Contract](./http/duplex.ts), [guide](./http/duplex.md) |
 | `@okikio/activity/local`   | Bind activity implementations to the process-local engine.               | [Contract](./local.ts)   |
 | `@okikio/activity/process` | Run activities in an owned pool of child processes.                      | [Contract](./process.ts) |
 | `@okikio/activity/selection` | Validate physical host references and recognize busy/lost selection. | [Contract](./selection.ts) |
@@ -191,6 +192,7 @@ comparisons, raw report collection and the limits of local measurements.
 Use the optional [authenticated HTTP adapter](./http.md) to connect an existing Fetch service to an activity engine.
 The application owns authentication, authorization, listener lifetime and durable claim recovery. The unary transport
 does not forward Scheduler heartbeat, permission or effect calls; the receiving host supplies those authorities.
+The optional [duplex HTTP adapter](./http/duplex.md) forwards those calls to the original caller through authenticated paired requests.
 
 ## Select a host inside a provider
 
