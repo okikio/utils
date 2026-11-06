@@ -1,199 +1,195 @@
-# Keep a resource session on its physical owner
+# Keep a browser login between actions
 
-A resource session lets several activities reuse one live object, such as a
-browser context with cookies or an open connection. That object stays in the
-thread or process that created it. Activities carry a portable reference and
-route work back to that owner. A saved workflow can retain the reference;
-the live object does not survive its owner. “Distributed” describes where the
-callers and references can live, not a resource that moves between hosts.
+A sign-in action opens a browser context and receives cookies. A later action needs those same cookies. Closing the
+browser context after sign-in loses that login. Opening a fresh one for every action also loses it.
 
-This guide is for library consumers implementing that host and maintainers
-operating its leases. `@okikio/capability/resource/session` owns references,
-borrowing and local cleanup. `@okikio/storage/session/postgres` supplies durable
-lease authority. Workflow placement routes activity work to the registered
-executor. Deployment owns the executor and any external orphan recovery.
+A **resource session** keeps that live object between actions. Its owner retains the object; callers keep a small
+reference identifying it. An action temporarily borrows the object, finishes its work and temporary cleanup, then
+returns it for another action. Closing the session ends that retained lifetime.
 
-For example, imagine a browser tab logged in to an account on computer A.
-A request on computer B wants to read a page using that login. Sending the tab
-object as JSON cannot move its sockets or memory. Instead, B sends a reference
-that names A's registered executor. The host routes an activity to A, and A
-briefly lends the tab to that activity. That temporary use is a **borrow**.
+Use an ordinary resource collection when the object only needs to live as long as one operation. Use sessions when
+several actions need one particular live instance. If state must survive a process crash, save portable data or a
+checkpoint separately: saving a session reference does not save its browser, sockets or memory.
 
-The reference identifies the resource; it is not a login credential. The
-registry records whether that owner still has permission to serve the resource.
-That time-limited permission is a **lease**. A short-lived claim records one
-borrow, so closing a session can wait for the code that still uses it.
+## Open once, use twice, then close
+
+This complete program uses actual Chromium. A browser context is an isolated cookie jar inside a running browser.
+The first action sets an account cookie. The second opens another page and reads the same cookie. Neither action needs
+a real website or credentials. The example tests retained browser state; it does not simulate a real authentication protocol.
+
+After the root checkout setup, install the browser once and run the authored example:
+
+```sh
+mise exec -- pnpm exec playwright install chromium
+mise exec -- node examples/sessions/browser.ts
+```
+
+Expected output: `Ada`. The [copyable example](../../examples/sessions/README.md) includes the real-browser check.
+The session primitives use the same TypeScript on Deno, Node and Bun; this browser program is checked on Node.
+
+```ts
+/** Reuse one actual browser cookie jar across actions; close each temporary page before the next action. */
+import { chromium } from 'playwright';
+import type { BrowserContext } from 'playwright';
+import { AsyncDisposableStack } from '@okikio/dispose';
+import * as resource from '@okikio/capability/resource';
+import * as session from '@okikio/capability/resource/session';
+
+/** Run without an external website. The two actions share real Chromium cookies and separate pages. */
+export async function readProfile(): Promise<string> {
+	await using application = new AsyncDisposableStack();
+	const browser = application.adopt(await chromium.launch(), (value) => value.close());
+
+	// A browser context is an isolated cookie jar. Its definition names the value later actions borrow.
+	const Profile = resource.define<BrowserContext>()({
+		id: 'browser.profile',
+		description: 'Retain one browser login.',
+	});
+	const ProfileLive = resource.implement(Profile, {
+		async create({ ctx }) {
+			// Adopt immediately: a later acquisition failure must still close this new browser context.
+			return ctx.adopt(await browser.newContext(), (value) => value.close());
+		},
+	});
+	// This scope retains browser contexts between actions. Local defaults own renewal, bounds and cleanup.
+	await using profiles = await session.open(ProfileLive);
+	const reference = await profiles.create();
+
+	await profiles.use(reference, async (profile, action) => {
+		const page = await profile.newPage();
+		action.defer(() => page.close());
+		await page.setContent('<h1>Account sign-in</h1>');
+		// A real sign-in would set this cookie through its HTTP response. No credentials or network are needed here.
+		await profile.addCookies([{ name: 'account', value: 'Ada', url: 'https://example.invalid/' }]);
+	});
+
+	const account = await profiles.use(reference, async (profile, action) => {
+		const page = await profile.newPage();
+		action.defer(() => page.close());
+		await page.setContent('<h1>Account report</h1>');
+		const cookie = (await profile.cookies('https://example.invalid/')).find((value) => value.name === 'account');
+		if (!cookie) throw new Error('The second action did not retain the login.');
+		return cookie.value;
+	});
+
+	// Close joins both resource and temporary-page cleanup. The reference cannot reopen this login.
+	await profiles.close(reference);
+	return account;
+}
+
+if (import.meta.main) console.log(await readProfile());
+```
+
+Read the calls in the order of their purpose:
+
+| Call | Why this step exists |
+| --- | --- |
+| `resource.define<BrowserContext>()(...)` | Name the kind of live value later code may borrow. It opens nothing. |
+| `resource.implement(Profile, ...)` | Supply the actual browser constructor. `ctx.adopt()` registers its close operation immediately. |
+| `session.open(ProfileLive)` | Own the retained instances and their cleanup. Local defaults supply the lifetime, lease bookkeeping and bounds. |
+| `profiles.create()` | Open one fresh browser context and return its reference. Another create opens a separate login. |
+| `profiles.use(reference, action)` | Lend that exact browser context for one action, with exclusive use by default. |
+| `action.defer(() => page.close())` | Close the temporary page before the borrow ends. The browser context and its cookies remain. |
+| `profiles.close(reference)` | Stop new use, cancel and join active actions, then close that browser context. |
+
+The two `use()` calls perform different actions on the same object. The first changes the cookie jar; the second
+observes that change. The reference stays ordinary data. The browser context stays on its owner.
+
+`await using profiles` also closes remaining sessions on failure or scope exit. A plain `await using` around the
+resource collection inside its creation factory would close the resource before the caller could use it. The session
+composition instead uses a disposable stack, then transfers that stack after acquisition succeeds. If acquisition
+fails, the original stack still closes partial construction. You do not need to reproduce that transfer in feature code.
+
+A `using` declaration inside the action can own temporary resources that support disposal. `action.defer()` covers
+APIs such as `page.close()` and keeps that cleanup inside the borrow. Registering the page on a longer application
+Context would leave it open after this action has returned the browser context to another caller.
+
+## Start with local defaults; configure the host when it grows
+
+`session.open()` creates a local Context for cancellation and cleanup, a bounded in-memory registry, and a fresh local
+owner identity. A **registry** records whether a reference may still be borrowed. The **owner** holds the actual live
+objects and closes them. A Context groups cancellation and cleanup; it does not locate those objects or coordinate
+borrowing. The supported composition keeps these roles together so local callers do not construct each one.
+
+| Local default | Meaning |
+| --- | --- |
+| `maximum: 100` | At most 100 opening, live and closing instances together. Excess creation rejects. |
+| One borrow at a time | Another action gets `busy`; there is no hidden waiting queue. |
+| Owner and borrow leases: 30 seconds | A healthy owner renews these permissions automatically. |
+| Idle lifetime: 5 minutes | Close a session that has not been borrowed again within this budget. |
+| 64 terminal records | Bound local history while permitting repeated creation and closure. Old references remain unusable after eviction. |
+
+These are local starting budgets, not a deployment performance guarantee. Override them where your measured scheduling,
+network or resource costs require it. For example:
+
+```ts
+// The application has measured that each browser login is expensive, so admit only four.
+await using profiles = await session.open(ProfileLive, {
+    maximum: 4,
+    policy: { idleMs: 120000 },
+});
+```
+
+Supply `ctx` when the application already owns a parent lifetime. Closing the session owner leaves that parent borrowed.
+Supply resource dependencies and construction settings through the same options accepted by `resource.open()`.
+`configure(input)` can select those settings separately for each `create({ input })`; its input type is inferred from
+your callback. Validate external input at the activity boundary and use the resource's environment schema to check raw
+configuration. A custom binding can therefore use a different account or connection setting for each instance.
+
+The lower-level `session.owner()` accepts an explicit factory that transfers a value and its close operation. It is
+useful when adapting a native lifetime outside resource collections. Use it deliberately; it is not an extra step
+required after `session.open()`.
+
+## Return remote actions to the same owner
+
+Computer B cannot receive a browser object from computer A as JSON. It sends an activity request containing the saved
+reference. Placement selects A's exact executor and, for a pooled provider, its exact thread or process. The configured
+activity transport delivers that request. A then checks admission before lending its local object.
 
 ```mermaid
 sequenceDiagram
     participant B as Caller on computer B
-    participant Route as Workflow placement and host transport
-    participant A as Resource owner on computer A
-    participant DB as Session registry
-    B->>Route: Activity input plus saved reference
-    Route->>Route: Select exact executor ID and generation
-    Route->>A: Deliver activity on that executor
-    A->>DB: Request current borrow claim
+    participant Route as Activity transport
+    participant A as Browser owner on computer A
+    participant DB as Shared session registry
+    B->>Route: Registered activity plus session reference
+    Route->>A: Deliver to the reference's exact destination
+    A->>DB: May this action borrow the session?
     DB-->>A: Claim or rejection
-    A->>A: Use live tab, await callback and temporary cleanup
-    A->>DB: Release borrow claim
+    A->>A: Use browser and finish temporary cleanup
+    A->>DB: Release claim
     A-->>B: Portable result
 ```
 
-The arrows show responsibility, not a transport supplied by `session.owner()`.
-That API manages the live value locally. Workflow placement selects the owner;
-the configured host transport delivers work there. The later integration examples
-exercise actual threads and processes. If A disappears, B cannot recreate that
-tab from the reference: it must receive a loss result and deliberately open a
-replacement. A generation rejects work for an old executor lifetime; the session's
-incarnation also distinguishes a new owner within a reused executor name.
+The host configures a shared registry and its registered executor identity once. Unlike local defaults, an injected
+registry requires an explicit `owner`: the library cannot guess which deployment registration represents this host.
+`owner.id` names that registration; `generation` rejects saved work for an earlier registration. These are not OS
+thread numbers. A random incarnation also rejects references from a replaced session owner with the same registration.
 
-## Share a host without sharing an exclusive resource
+In a creation activity, capture the provider's physical host in the reference itself:
 
-An owner can retain several sessions. Each session can be exclusive even while
-unrelated work runs on the same host. If an activity awaits a page load,
-JavaScript can run another ready callback on that thread. The original activity
-still holds its borrow. Waiting does not make its tab safe for another borrower.
-
-Scheduling limits answer different questions. A concurrency limit counts active
-callbacks, including callbacks awaiting I/O. A capacity lease reserves named
-quantities until it is released. A resource borrow protects a particular live
-object until its action and cleanup finish. None automatically observes CPU
-idleness and transfers a slot. To reserve CPU budget only for a compute phase,
-release that capacity before unrelated I/O and reacquire it for the next compute
-phase, provided no protected invariant needs it held. Keep exclusive resource
-borrows for as long as the resource is actually in use.
-
-[Capacity](../capacity.md#reserve-only-the-phase-that-uses-a-scarce-resource)
-shows this separation. [Worker](../../packages/worker/README.md) explains when a
-separate runtime is needed. A synchronous CPU loop cannot be preempted by adding
-`await` elsewhere. Work must cooperate by yielding, or run in a separately owned
-thread/process. Load balancing can choose a host for new work; work tied to a
-live session must return to that session's exact owner rather than any idle host.
-
-## Create, borrow and close
-
-From this experimental source checkout, use the root README's prerequisites.
-Save the following as `session-example.ts`, and run
-`deno run session-example.ts` from the repository root. This complete example needs no database or native host.
-It demonstrates the session API; the later integration tests prove transport.
-
-```ts runnable
-import * as context from '@okikio/context';
-import * as resource from '@okikio/capability/resource';
-import * as session from '@okikio/capability/resource/session';
-
-/** The value stays inside its owner; only the session reference can be saved. */
-interface CounterType {
-	/** Number of increments accepted by this resource. */
-	count: number;
-	/** Borrow cleanups that finished before the next exclusive use. */
-	finished: number;
-}
-
-const Counter = resource.define<CounterType>()({
-	id: 'example.counter',
-	description: 'Retain a counter within one session.',
-});
-const CounterLive = resource.implement(Counter, {
-	create: () => ({ count: 0, finished: 0 }),
-});
-
-// Declare the parent first: reverse disposal closes the owner before its Context.
-await using ctx = context.create({ id: 'example' });
-const registry = session.registry(session.memory({ maximum: 100 }));
-await using owner = session.owner({
-	ctx,
-	registry,
-	owner: { id: 'thread:one', generation: 1 },
-	resource: Counter.id,
-	maximum: 2,
-	policy: {
-		leaseMs: 30000,
-		idleMs: 60000,
-		borrowMs: 10000,
-	},
-	async create() {
-		const collection = resource.create(resource.implementations(CounterLive), {
-			ctx,
-			host: {},
-		});
-
-		try {
-			// Return the value together with its close operation. This transfers
-			// collection ownership to the session after acquisition succeeds.
-			const value = await collection.get(ctx, Counter);
-			return {
-				value,
-				async [Symbol.asyncDispose]() {
-					await collection[Symbol.asyncDispose]();
-				},
-			};
-		} catch (error) {
-			// Until transfer succeeds, the factory must close partial construction.
-			try {
-				await collection[Symbol.asyncDispose]();
-			} catch (cleanup) {
-				throw new AggregateError([error, cleanup], 'Acquisition and cleanup failed.');
-			}
-			throw error;
-		}
-	},
-});
-
-const reference = await owner.create();
-const saved = session.ReferenceSchema.parse(JSON.parse(JSON.stringify(reference)));
-
-await owner.use(saved, (counter, borrow) => {
-	counter.count++;
-	// Real borrowed resources put temporary close operations here. This counter
-	// records the joined cleanup so the next use can check the ordering.
-	borrow.defer(() => {
-		counter.finished++;
-	});
-});
-
-const count = await owner.use(saved, (counter) => {
-	if (counter.finished !== 1) throw new Error('Previous borrow cleanup is incomplete.');
-	return counter.count;
-});
-console.log(count);
-
-// Await close to join physical cleanup. Inspecting a 'closed' authority record
-// alone cannot prove that the owner's cleanup has finished.
-await owner.close(saved);
-console.log((await registry.inspect(saved.id))?.state);
-
-// Remove terminal history only after cleanup. Never reuse this ID for a
-// replacement resource; create a fresh session reference instead.
-await registry.remove(saved.id);
+```ts
+// ctx.physicalHost comes from the trusted provider, not from untrusted activity input.
+const reference = await profiles.create({ signal: ctx.signal, host: ctx.physicalHost });
 ```
 
-```text output
-1
-closed
-```
+Later workflow calls use `workflow.placement.session(reference)`. The helper selects the exact physical host when the
+reference contains one; callers no longer pair separate saved session and host values. The receiving activity calls
+its local `profiles.use(reference, action, { signal: ctx.signal })`. Callbacks run there; they are not serialized or
+sent over the network. Local examples above demonstrate ownership; native-host integration tests exercise transport.
 
-The factory transfers the returned resource's disposal authority to the session
-owner. Here the transferred object owns a resource collection. That collection
-still uses the existing resource dependency and acquisition model. A factory
-owns partial construction until it returns successfully. `owner.create({ signal })`
-can cancel acquisition; cancellation after it returns does not dispose the session.
+Only parse `ReferenceSchema` when a reference arrives as unknown data, such as JSON outside a checked activity contract.
+A reference returned by `create()` is already validated. Re-parsing it after every local call adds no useful step.
 
-Creation reserves local capacity before publishing the lease record. Renewal
-starts only after that publication succeeds: a missing record while its creation
-is still pending does not mean the owner died. After publication, renewal also
-covers a resource factory that is still opening. This distinction matters on a
-cold host after a crash, where opening a database connection can take longer than
-one renewal interval. Failed or cancelled acquisition still joins publication
-before revoking the record and closing any resource the factory transferred.
+If A disappears, the reference becomes lost. An idle host B cannot recover the old browser by receiving its identifier.
+The application must reconcile any outstanding external effects, then deliberately open a replacement if its use case
+permits that. The replacement gets a new reference.
 
-`owner.use()` borrows the value without transferring it. Its callback must await
-its work, and put temporary cleanup in `borrow.defer()` or an awaited disposal
-scope. The owner joins that cleanup before releasing the claim or returning the
-result. Registering cleanup on an unrelated activity context can run too late.
-Do not return live resources, launch detached work using the borrowed value, or
-await `owner.close()` from inside that session's own borrow or cleanup.
+When a physical host has died, a request pinned to its saved reference can fail during routing before an activity
+runs. A surviving owner can instead reject an expired reference with `SessionError('lost')`. Both mean the caller
+must stop using that live instance. Inspect shared authority when available, report the lost session, and explicitly
+create a new session or restore a separately saved checkpoint. Do not resend the old reference to another pool member
+to make the request succeed: that member does not hold the original browser or its cookies.
 
 ## Ownership and borrowing rules
 
@@ -225,7 +221,7 @@ not a transferable resource object or an authorization credential.
 
 ## Lease and idle rules
 
-All three durations are explicit whole milliseconds, from 30 to 86400000:
+`session.open()` supplies the defaults above. Each explicit duration is a whole-millisecond value, from 30 to 86400000:
 
 | Policy | Meaning | Renewal |
 | --- | --- | --- |
@@ -281,24 +277,14 @@ response has an unknown outcome: inspect the record rather than treating an
 error as permission to borrow. Namespace and identity do not provide tenant
 access control; expose these APIs only through trusted application authorization.
 
-Create sessions in an activity, outside replaying workflow code. The activity
-returns only a validated reference. Subsequent activity input includes it and
-uses `workflow.placement.on(reference.owner)`. For scoped nested work, use
-`placement.scope()` as described in [Placement](./17-placement.md). For a multi-host provider, save the creation activity's `ctx.physicalHost` with
-the session reference and use `placement.host(executor, host)` for subsequent
-work. See [Physical hosts](./19-hosts.md) for identity and retirement rules.
-
-The receiving activity calls the corresponding local `owner.use()`. The owner
-checks resource kind, executor generation and incarnation before exposing a
-value. Placement and this check are complementary. A wrongly routed reference
-fails instead of constructing a new resource on whichever host received it.
-There is no implicit network RPC or resource serialization in this API: existing
-activity transports carry references and invoke the owner. A browser-specific
-remote debugging transport remains an application-owned capability.
+Create sessions in an activity, outside replaying workflow code. Use the complete-reference routing shown above.
+[Placement](./17-placement.md) explains nested scopes, while [physical hosts](./19-hosts.md) covers provider retirement.
+The owner still checks resource kind, executor generation and incarnation before lending a value. Routing selects a
+location; it does not grant access. The application owns authentication, authorization and external orphan recovery.
 
 ## Recovery and external effects
 
-Handle failures explicitly:
+Handle failures explicitly. Registry inspection shows state and timing; it does not contain a dedicated persisted loss-reason field:
 
 | Code | Application response |
 | --- | --- |
@@ -306,7 +292,7 @@ Handle failures explicitly:
 | `limit` | Close idle sessions, remove retained terminal records, or change a measured budget |
 | `owner` | Correct routing, resource kind or deployment generation |
 | `closed` | Stop using that reference; normal admission was revoked |
-| `lost` | Inspect the cause and resource-specific recovery policy; never renew or silently substitute |
+| `lost` | Use the operation error and resource-specific recovery policy; never renew or silently substitute |
 
 The recommended recovery rule is to fail the old reference permanently, reconcile
 external effects/orphans where necessary, and explicitly create a fresh session.

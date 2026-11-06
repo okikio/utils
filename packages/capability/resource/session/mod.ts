@@ -1,6 +1,9 @@
 /**
  * Reuse a live object on the thread or process that created it.
  *
+ * Start with open(binding): create() opens a fresh instance, use() borrows it,
+ * and close() joins its cleanup. The returned owner supplies bounded local defaults.
+ *
  * Callers pass a serializable reference, not the object. A host must route that
  * reference back to its owner before calling Owner.use(). The registry grants
  * time-limited permission (a lease); each use obtains a temporary borrow claim.
@@ -16,3 +19,5 @@ export { memory, Registry, registry, SessionError } from './store.ts';
 export type { Change, Store } from './store.ts';
 export { Owner, owner } from './owner.ts';
 export type { Borrow, Options, Resource } from './owner.ts';
+export { open } from './open.ts';
+export type { OpenOptions } from './open.ts';

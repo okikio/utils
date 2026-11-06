@@ -139,7 +139,9 @@ export async function checkSession(
 	const beforeLoss = await call(origin, 'memory', { op: 'use', reference: saved });
 	await expect(call(origin, 'memory', { op: 'crash' })).rejects.toBeInstanceOf(Error);
 	await until(async () => (await registry.inspect(saved.id))?.state === 'lost');
-	expect((await call(origin, 'durable', { op: 'use', reference: saved })).status).toBe('lost');
+	// The reference now includes its exact physical host. That host is gone, so transport rejects;
+	// no replacement host may run this borrow merely to return an owner-local 'lost' receipt.
+	await expect(call(origin, 'durable', { op: 'use', reference: saved })).rejects.toThrow('Session operation failed:');
 	const replacementResult = await call(origin, 'durable', { op: 'create' });
 	expect(replacementResult.status).toBe('ok');
 	const replacement = replacementResult.reference!;
@@ -196,12 +198,14 @@ export async function checkHosts(
 	const refA = createdA.reference!;
 	const createdB = await call(origin, 'memory', { op: 'create', host: b });
 	const refB = createdB.reference!;
-	const usedA = await call(origin, 'memory', { op: 'use', host: a, reference: refA });
-	const savedA = await call(origin, 'durable', { op: 'use', host: a, reference: refA });
+	expect(refA.host).toEqual(a);
+	expect(refB.host).toEqual(b);
+	const usedA = await call(origin, 'memory', { op: 'use', reference: refA });
+	const savedA = await call(origin, 'durable', { op: 'use', reference: refA });
 	expect(savedA.host).toEqual(a);
 	expect(savedA.instance).toBe(usedA.instance);
 	expect(savedA.count).toBe(2);
-	const usedB = await call(origin, 'durable', { op: 'use', host: b, reference: refB });
+	const usedB = await call(origin, 'durable', { op: 'use', reference: refB });
 	expect(usedB.host).toEqual(b);
 	expect(usedB.instance).not.toBe(usedA.instance);
 	expect(kind === 'thread' ? usedB.thread !== usedA.thread : usedB.pid !== usedA.pid).toBe(true);
@@ -210,7 +214,7 @@ export async function checkHosts(
 	// New selected admission must reject while already accepted work joins.
 	await using held = hold({ origin, reference: refA, database, namespace, host: a });
 	await until(async () => (await registry.inspect(refA.id))!.claims.length === 1);
-	const busy = await post('memory', { op: 'use', host: a, reference: refA });
+	const busy = await post('memory', { op: 'use', reference: refA });
 	expect(busy.status).toBe(500);
 	await busy.text();
 	const retirement = post('retire', { op: 'close', host: a });
@@ -225,7 +229,7 @@ export async function checkHosts(
 		await database`select * from utils_session_fixture.releases where namespace=${namespace} and session=${refA.id}`,
 	).toEqual([]);
 	// The untouched host retains its own resource; selection must never run A's work there.
-	expect((await call(origin, 'memory', { op: 'use', host: b, reference: refB })).count).toBe(2);
+	expect((await call(origin, 'memory', { op: 'use', reference: refB })).count).toBe(2);
 
 	// Remove the remaining idle host explicitly, then creation must allocate a new lifetime.
 	const retiredB = await post('retire', { op: 'close', host: b });
@@ -234,7 +238,7 @@ export async function checkHosts(
 	const fresh = await call(origin, 'durable', { op: 'create' });
 	expect(fresh.host!.id).not.toBe(a!.id);
 	expect(fresh.host!.id).not.toBe(b!.id);
-	const stale = await post('durable', { op: 'use', host: a, reference: refA });
+	const stale = await post('durable', { op: 'use', reference: refA });
 	expect(stale.status).toBe(500);
 	await stale.text();
 	const crashed = await post('memory', { op: 'crash', host: fresh.host });

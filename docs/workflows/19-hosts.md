@@ -81,8 +81,6 @@ export const Read = workflow.define({
 `thread.ts` serves that activity and owns its resource collection:
 
 ```ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as resources from '@okikio/capability/resource';
 import * as worker from '@okikio/activity/worker';
@@ -109,8 +107,6 @@ await server.closed;
 inside that registration:
 
 ```ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as activity from '@okikio/activity';
 import * as worker from '@okikio/activity/worker';
@@ -257,11 +253,11 @@ session reference names it, while its registry controls borrow leases and expiry
 “Distributed” describes the callers and saved references, not a resource that
 moves between machines or survives owner loss.
 
-For a multi-host provider, save `{ executor, host, session }` from the creation
-activity. Route later activities with `placement.host(executor, host)` and call
-`owner.use(session, ...)` on that host. The host reference chooses the thread or
-process; the session reference chooses a resource inside it. Retiring that host
-closes its owned sessions through `finalize()`. Killing it leaves old references
+For a multi-host provider, create the session inside an activity and include `ctx.physicalHost` in its reference.
+Save that complete reference as the activity result. Later activities use `placement.session(reference)` to select its
+executor and exact thread or process, then call `profiles.use(reference, ...)` on that host. The host fields select
+the execution location; the session ID selects a live resource there. You do not need a separate saved host value.
+Retiring that host closes its owned sessions through `finalize()`. Killing it leaves old references
 lost after lease expiry; browser-specific reconstruction and external orphan
 reconciliation remain application responsibilities. See [Resource sessions](./18-sessions.md).
 

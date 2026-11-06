@@ -104,6 +104,14 @@ export function on(reference: ReferenceType): SelectionType {
 export function host(executor: ReferenceType, reference: HostType): SelectionType {
 	return SelectionSchema.parse({ within: [], on: executor, host: reference });
 }
+/**
+ * Return work to a saved resource's executor and, when present, its exact pooled host.
+ * The creation activity captures host from ctx.physicalHost in the session reference.
+ * This only selects a destination: the receiving owner still checks the reference and borrowing permission.
+ */
+export function session(reference: Readonly<{ owner: ReferenceType; host?: HostType }>): SelectionType {
+	return reference.host === undefined ? on(reference.owner) : host(reference.owner, reference.host);
+}
 /** Combine scopes without allowing a child to replace its parent's requirements. */
 export function intersect(parent?: SelectionType, child?: SelectionType): SelectionType {
 	const a = parent === undefined ? undefined : SelectionSchema.parse(parent);

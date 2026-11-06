@@ -27,6 +27,11 @@ Adapters preserve the shared Worker protocol's input, output, progress and rever
 remains explicit: cancellation joins cleanup and a host that cannot cooperate is retired before reuse. See the
 [Deno host guide](./deno/README.md) and [Worker guide](../worker/README.md) for lifetime semantics.
 
+Choose the highest layer that solves your task. To send a checked message, start with
+[Worker's complete two-file example](../worker/thread/README.md). Add a Runtime adapter when your selected host needs
+one, such as Node's `worker_threads`. Use the permission, port, signal and health modules independently when an
+executable needs those host facilities. You do not need to assemble every Runtime subpath before using Worker.
+
 ## Prepare a browser contract without starting a Worker
 
 Prepare an echo protocol and a checked reply without opening a browser Worker. The response is an ordinary value; the
@@ -89,9 +94,9 @@ const create = (module: URL, selected: { name?: string }) =>
 
 The provider owns termination; the adapter joins native exit and removes its bridge listeners. Node's options control
 thread environment, arguments and runtime limits. They do not define placement, resource leases or a per-request memory
-quota. Use `maximum: 1` and a separate executor registration for each physical target when placement must select a
-particular thread. A multi-thread pool remains one executor unless each host is registered separately. The
-[placement guide](../../docs/workflows/17-placement.md) explains the ownership and recovery limits.
+quota. A multi-thread provider remains one registered executor. Use its `hosts()` references and
+`placement.host(executor, hostReference)` when an activity must return to one particular thread in that pool.
+The [physical-host guide](../../docs/workflows/19-hosts.md) shows selection, retirement and recovery limits.
 
 ## Select the host that supplies the capability
 

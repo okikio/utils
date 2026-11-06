@@ -16,6 +16,7 @@ does not establish that the Deno WebSocket host was tested.
 | Example | What it demonstrates |
 | --- | --- |
 | [MCP](./mcp/README.md) | Discover and call a checked tool over HTTP, reject invalid input, enforce host/origin policy, and close resources. |
+| [Browser sessions](./sessions/README.md) | Keep real Chromium cookies across actions and close each temporary page. Its browser check is explicit and requires a browser installation. |
 | [WebSocket](./websocket/README.md) | Upgrade a Deno HTTP connection, exchange a greeting, then close it; native clients run on all three hosts. |
 
 These directories are authored, copyable programs. Maintainer logs and generated

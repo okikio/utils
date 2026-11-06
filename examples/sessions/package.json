@@ -1,0 +1,13 @@
+{
+  "name": "@examples/sessions",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@okikio/capability": "workspace:*",
+    "@okikio/dispose": "workspace:*",
+    "playwright": "1.65.0"
+  },
+  "devDependencies": {
+    "@std/expect": "npm:@jsr/std__expect@^1.0.20"
+  }
+}

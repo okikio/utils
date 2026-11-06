@@ -2,7 +2,7 @@
 import { AsyncDisposableStack } from '@okikio/dispose';
 import type { Context } from '@okikio/context';
 import { OwnerSchema, PolicySchema, ReferenceSchema } from './schema.ts';
-import type { ClaimType, OwnerType, PolicyInputType, PolicyType, ReferenceType } from './schema.ts';
+import type { ClaimType, HostType, OwnerType, PolicyInputType, PolicyType, ReferenceType } from './schema.ts';
 import { Registry, same, SessionError } from './store.ts';
 
 /** A factory explicitly transfers one value's cleanup authority to the session owner. */
@@ -20,7 +20,7 @@ export interface Borrow {
 	defer(close: () => void | PromiseLike<void>): void;
 }
 /** Explicit owner and acquisition policy. Imports and construction do not acquire a resource. */
-export interface Options<Value> {
+export interface Options<Value, Input = undefined> {
 	/** Borrowed parent cancellation. Disposal still belongs to the creator of this owner. */
 	readonly ctx: Context;
 	/** Shared authority, backed by PostgreSQL when references must survive process loss. */
@@ -33,8 +33,12 @@ export interface Options<Value> {
 	readonly maximum: number;
 	/** Explicit liveness and idle budgets; omitted maximumBorrows selects exclusive use. */
 	readonly policy: PolicyInputType;
-	/** Own partial-construction cleanup until this promise transfers a Resource to the owner. */
-	readonly create: (reference: ReferenceType, signal: AbortSignal) => Promise<Resource<Value>>;
+	/**
+	 * Acquire one instance using the input passed to create(). The signal cancels acquisition and
+	 * later work on that instance. Keep partial-construction cleanup in a stack until this promise
+	 * transfers a Resource to the owner; a failed factory must close anything it has already opened.
+	 */
+	readonly create: (reference: ReferenceType, signal: AbortSignal, input: Input) => Promise<Resource<Value>>;
 }
 /** One local borrow retained through both callback and cleanup, including cancellation. @internal */
 interface Active {
@@ -69,9 +73,9 @@ interface Entry<Value> {
  * separately killable thread/process and external orphan recovery for that case.
  * Cancellation never makes a still-running resource available to another borrower.
  */
-export class Owner<Value> implements AsyncDisposable {
+export class Owner<Value, Input = undefined> implements AsyncDisposable {
 	/** Validated policy and borrowed dependencies; disposing the owner never disposes its registry. */
-	readonly #options: Omit<Options<Value>, 'policy'> & { readonly policy: PolicyType };
+	readonly #options: Omit<Options<Value, Input>, 'policy'> & { readonly policy: PolicyType };
 	/** Capacity stays reserved until acquisition, borrowers and physical cleanup have joined. */
 	readonly #entries = new Map<string, Entry<Value>>();
 	/** Distinguishes this owner lifetime even when deployment reuses its executor name. */
@@ -92,7 +96,7 @@ export class Owner<Value> implements AsyncDisposable {
 	#omittedFailures = 0;
 
 	/** Validate bounds and start renewal; resource acquisition remains explicit through create(). */
-	constructor(options: Options<Value>) {
+	constructor(options: Options<Value, Input>) {
 		options.ctx.signal.throwIfAborted();
 		if (!Number.isSafeInteger(options.maximum) || options.maximum < 1) {
 			throw new RangeError('Session maximum must be positive.');
@@ -113,8 +117,19 @@ export class Owner<Value> implements AsyncDisposable {
 		};
 		options.ctx.signal.addEventListener('abort', this.#abort, { once: true });
 	}
-	/** Acquire a fresh session. Failed construction revokes its record and closes any transferred resource. */
-	async create(options: { readonly signal?: AbortSignal } = {}): Promise<ReferenceType> {
+	/**
+	 * Acquire a fresh instance and return its portable reference. Pass input when the factory needs
+	 * per-instance settings. Inside a pooled Activity, pass ctx.physicalHost as host so later actions
+	 * can select the same thread or process through workflow.placement.session(reference).
+	 * The host is a routing address, not permission to use the resource. Failed construction revokes
+	 * its record and closes any resource whose cleanup has already transferred to this owner.
+	 */
+	async create(
+		...args: Input extends undefined
+			? [options?: { readonly signal?: AbortSignal; readonly host?: HostType; readonly input?: Input }]
+			: [options: { readonly input: Input; readonly signal?: AbortSignal; readonly host?: HostType }]
+	): Promise<ReferenceType> {
+		const options = args[0] ?? {};
 		if (this.#stopped) throw new SessionError('closed');
 		options.signal?.throwIfAborted();
 		if (this.#entries.size >= this.#options.maximum) throw new SessionError('limit');
@@ -123,6 +138,7 @@ export class Owner<Value> implements AsyncDisposable {
 			resource: this.#options.resource,
 			owner: this.#options.owner,
 			incarnation: this.#incarnation,
+			...(options.host === undefined ? {} : { host: options.host }),
 		});
 		const entry: Entry<Value> = {
 			reference,
@@ -141,7 +157,11 @@ export class Owner<Value> implements AsyncDisposable {
 			// Renew during a slow resource factory, but never race the initial authority write.
 			entry.published = true;
 			entry.abort.signal.throwIfAborted();
-			entry.resource = await this.#options.create(ReferenceSchema.parse(reference), entry.abort.signal);
+			entry.resource = await this.#options.create(
+				ReferenceSchema.parse(reference),
+				entry.abort.signal,
+				options.input as Input,
+			);
 			entry.abort.signal.throwIfAborted();
 		})();
 		try {
@@ -348,6 +368,6 @@ export class Owner<Value> implements AsyncDisposable {
 	}
 }
 /** Construct a physical owner with an explicit lease policy; importing starts no timer or resource. */
-export function owner<Value>(options: Options<Value>): Owner<Value> {
+export function owner<Value, Input = undefined>(options: Options<Value, Input>): Owner<Value, Input> {
 	return new Owner(options);
 }

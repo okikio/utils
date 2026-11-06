@@ -23,7 +23,8 @@ export class SessionError extends Error {
 /** Compare every identity field; matching only a stable executor name permits stale owner reuse. @internal */
 export function same(a: ReferenceType, b: ReferenceType): boolean {
 	return a.id === b.id && a.resource === b.resource && a.incarnation === b.incarnation &&
-		a.owner.id === b.owner.id && a.owner.generation === b.owner.generation;
+		a.owner.id === b.owner.id && a.owner.generation === b.owner.generation &&
+		a.host?.pool === b.host?.pool && a.host?.id === b.host?.id;
 }
 /** Expiry is terminal, including a borrow that may still be running. Never regrant it to a competing borrower. @internal */
 function expire(row: RecordType, now: number): RecordType {
@@ -142,10 +143,23 @@ export class Registry {
 export function registry(store: Store): Registry {
 	return new Registry(store);
 }
-/** Bounded local authority for memory execution. Its clock is replaceable for deterministic lease tests. */
-export function memory(options: { readonly maximum?: number; readonly now?: () => number } = {}): Store {
+/**
+ * Keep session authority in this process. maximum bounds all records and defaults to 4,096.
+ * Without maximumTerminal, terminal records stay until remove(); use that history for inspection.
+ * Set maximumTerminal to retain only that many closed/lost records during repeated local lifetimes.
+ * Eviction removes inspection history, not physical cleanup responsibility. Missing references reject borrowing.
+ * Creators must use a fresh identity for every new instance; Owner.create() does so.
+ * The optional clock supports deterministic lease tests, not persistence.
+ */
+export function memory(
+	options: { readonly maximum?: number; readonly maximumTerminal?: number; readonly now?: () => number } = {},
+): Store {
 	const maximum = options.maximum ?? 4096, now = options.now ?? Date.now;
 	if (!Number.isSafeInteger(maximum) || maximum < 1) throw new RangeError('Session record maximum must be positive.');
+	const terminal = options.maximumTerminal;
+	if (terminal !== undefined && (!Number.isSafeInteger(terminal) || terminal < 0 || terminal > maximum)) {
+		throw new RangeError('Terminal session history must fit inside the record maximum.');
+	}
 	const rows = new Map<string, RecordType>();
 	return {
 		async change(id, change) {
@@ -156,6 +170,12 @@ export function memory(options: { readonly maximum?: number; readonly now?: () =
 				if (next.reference.id !== id) throw new TypeError('Session record ID differs from its storage key.');
 				rows.set(id, RecordSchema.parse(next));
 			} else rows.delete(id);
+			// Local applications may retain a bounded terminal history. Removing a terminal ID
+			// does not grant another borrow. Owner.create() gives each new instance a fresh identity.
+			if (terminal !== undefined) {
+				const ended = [...rows].filter(([, row]) => row.state !== 'open');
+				for (const [key] of ended.slice(0, Math.max(0, ended.length - terminal))) rows.delete(key);
+			}
 			return next && structuredClone(next);
 		},
 	};

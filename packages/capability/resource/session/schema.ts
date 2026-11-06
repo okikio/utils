@@ -19,6 +19,13 @@ export const OwnerSchema: schema.ObjectReader<
 	/** Deployment generation; replacing that registration must not accept saved older work. */
 	generation: schema.number({ integer: true, minimum: 1 }),
 });
+/** Address of one host in a provider pool. It is routing data, not an OS identifier or a credential. */
+export const HostSchema: schema.ObjectReader<
+	{ readonly pool: schema.JsonReader<string, string>; readonly id: schema.JsonReader<string, string> },
+	'reject'
+> = schema.object({ pool: IdSchema, id: IdSchema });
+/** Physical host lifetime carried with a session when its provider owns several hosts. */
+export type HostType = schema.Output<typeof HostSchema>;
 /** Portable reference that may be saved in workflow history. It never contains the resource value or a borrow token. */
 export const ReferenceSchema: schema.ObjectReader<
 	{
@@ -26,6 +33,10 @@ export const ReferenceSchema: schema.ObjectReader<
 		readonly resource: schema.JsonReader<string, string>;
 		readonly owner: typeof OwnerSchema;
 		readonly incarnation: schema.JsonReader<string, string>;
+		readonly host: schema.JsonReader<
+			schema.Output<typeof HostSchema> | undefined,
+			schema.Input<typeof HostSchema> | undefined
+		>;
 	},
 	'reject'
 > = schema.object({
@@ -37,6 +48,8 @@ export const ReferenceSchema: schema.ObjectReader<
 	owner: OwnerSchema,
 	/** Random owner incarnation, distinct from a deployment's reusable executor name. */
 	incarnation: IdSchema,
+	/** Exact pool host, captured by the creation activity rather than reconstructed by every caller. */
+	host: schema.optional(HostSchema),
 });
 /** Validated portable session reference. */
 export type ReferenceType = schema.Output<typeof ReferenceSchema>;

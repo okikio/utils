@@ -1,10 +1,17 @@
-/** PostgreSQL session authority with database time and per-reference transaction serialization. Imports issue no SQL. @module */
+/**
+ * Save resource-session ownership and borrowing permission in PostgreSQL.
+ * Each change to one session runs alone under a transaction lock. Database time
+ * decides lease expiry, so owners with different local clocks agree on it.
+ * This stores portable records, not the live resource itself. Imports issue no SQL.
+ * @module
+ */
 import type { Sql } from 'postgres';
 import { RecordSchema } from '@okikio/capability/resource/session';
 import type { Store } from '@okikio/capability/resource/session';
 
 /** Borrowed pool and explicit application partition. A namespace grants no authorization. */
 export interface Options {
+	/** Application-owned connection pool. This adapter never closes it. */
 	readonly database: Sql;
 	/** Nonblank application partition, at most 128 code points. Applications own reference retention and remove terminal IDs explicitly. */
 	readonly namespace: string;
@@ -47,10 +54,14 @@ export function open(options: Options): Store {
 			if (!id || [...id].length > 192) throw new TypeError('Invalid session ID.');
 			const result = await options.database.begin(async (sql) => {
 				await sql`select set_config('statement_timeout',${String(timeout)},true)`;
+				// Lock even an absent record: two first creators must not both grant
+				// ownership before either has inserted the session row.
 				await sql`select pg_advisory_xact_lock(hashtextextended(${JSON.stringify([namespace, id])},0))`;
 				const rows =
 					await sql`select value from utils_session.records where namespace=${namespace} and id=${id} for update`;
 				const clock = await sql`select floor(extract(epoch from clock_timestamp()) * 1000)::double precision as now`;
+				// Make the ownership decision against the locked record and database
+				// clock together, then persist that decision before returning it.
 				const next = change(rows[0] ? RecordSchema.parse(rows[0].value) : undefined, Number(clock[0]!.now));
 				if (next) {
 					const value = RecordSchema.parse(next);
