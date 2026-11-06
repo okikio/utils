@@ -11,7 +11,8 @@
 		"./process": "./process.ts",
 		"./types": "./types.ts",
 		"./worker": "./worker.ts",
-		"./selection": "./selection.ts"
+		"./selection": "./selection.ts",
+		"./http": "./http.ts"
 	},
 	"dependencies": {
 		"@standard-schema/spec": "^1.1.0",
@@ -24,7 +25,8 @@
 		"@okikio/schema": "workspace:^",
 		"@okikio/workflow": "workspace:^",
 		"@okikio/authz": "workspace:^",
-		"@okikio/duration": "workspace:^"
+		"@okikio/duration": "workspace:^",
+		"@okikio/streams": "workspace:^"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",

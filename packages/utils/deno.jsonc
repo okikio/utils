@@ -265,7 +265,8 @@
 		"./workflow/testing": "./workflow/testing.ts",
 		"./workflow/types": "./workflow/types.ts",
 		"./query/postgres": "./query/postgres.ts",
-		"./result/failure/migrate": "./result/failure/migrate.ts"
+		"./result/failure/migrate": "./result/failure/migrate.ts",
+		"./activity/http": "./activity/http.ts"
 	},
 	"imports": {},
 	"license": "MIT",
