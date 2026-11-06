@@ -4,7 +4,7 @@ import * as schema from '@okikio/schema';
 import * as json from '@okikio/collection/record/json';
 
 /** Bound namespace, definition and occurrence keys before a database transaction acquires locks. */
-const NameSchema = schema.string({ minLength: 1, maxLength: 512 });
+const NameSchema: schema.JsonReader<string, string> = schema.string({ minLength: 1, maxLength: 512 });
 /** PostgreSQL text OID. Prevent the driver from JSON-encoding canonical JSON text a second time. */
 const TextOid = 25;
 /** A logical message key is unique within its namespace and definition ID. Payloads must be finite JSON. */
@@ -32,6 +32,91 @@ export const StateSchema: schema.JsonReader<
 > = schema.oneOf(['pending', 'leased', 'complete', 'failed']);
 /** Validated retained state, read without extending the current delivery lease. */
 export type StateType = schema.Output<typeof StateSchema>;
+/** Metadata omits payloads and claim tokens so operator lists do not expose message contents or settlement fences. */
+export const EntrySchema: schema.ObjectReader<{
+	readonly id: typeof NameSchema;
+	readonly key: typeof NameSchema;
+	readonly state: typeof StateSchema;
+	readonly attempt: schema.JsonReader<number, number>;
+	readonly budget: schema.JsonReader<number, number>;
+	readonly due: schema.JsonReader<number, number>;
+	readonly updated: schema.JsonReader<number, number>;
+	readonly expires: schema.JsonReader<number | null, number | null>;
+	readonly failure: schema.JsonReader<string | null, string | null>;
+}, 'reject'> = schema.object({
+	/** Trusted definition identity, paired with key for pagination and recovery. */
+	id: NameSchema,
+	/** Stable occurrence identity; redelivery keeps this key so sink receipts remain effective. */
+	key: NameSchema,
+	/** Stored state, which changes only through explicit adapter operations. */
+	state: StateSchema,
+	/** Lifetime claims, including attempts lost to process crashes. Never reset by redrive. */
+	attempt: schema.number({ integer: true, minimum: 0 }),
+	/** Lifetime claims at the start of the current bounded delivery budget. */
+	budget: schema.number({ integer: true, minimum: 0 }),
+	/** Earliest next delivery time in database epoch milliseconds. */
+	due: schema.number(),
+	/** Most recent state change in database epoch milliseconds. */
+	updated: schema.number(),
+	/** Lease deadline in database epoch milliseconds, or null outside an active reservation. */
+	expires: schema.nullable(schema.number()),
+	/** Caller-supplied safe diagnostic code or summary, never an automatically serialized exception. */
+	failure: schema.nullable(NameSchema),
+});
+/** Detached operator metadata validated at the SQL boundary. */
+export type EntryType = schema.Output<typeof EntrySchema>;
+/** One committed recovery decision. Pruning its message removes the associated audit records. */
+export const RepairSchema: schema.ObjectReader<{
+	readonly attempt: schema.JsonReader<number, number>;
+	readonly actor: typeof NameSchema;
+	readonly reason: typeof NameSchema;
+	readonly updated: schema.JsonReader<number, number>;
+}, 'reject'> = schema.object({
+	/** Lifetime attempt observed before another bounded budget was granted. */
+	attempt: schema.number({ integer: true, minimum: 1 }),
+	/** Application-authenticated operator identity; the adapter does not establish identity. */
+	actor: NameSchema,
+	/** Safe explanation of the reconciliation or correction that permits redelivery. */
+	reason: NameSchema,
+	/** Database epoch milliseconds when recovery committed. */
+	updated: schema.number(),
+});
+/** Detached safe recovery metadata. */
+export type RepairType = schema.Output<typeof RepairSchema>;
+/** An explicit operator decision about one observed failed occurrence. */
+export interface RedriveOptions {
+	/** Exact retained message definition ID. */
+	readonly id: string;
+	/** Exact retained occurrence key; sink deduplication continues to use it. */
+	readonly key: string;
+	/** Observed lifetime attempt. A newer failure makes this decision stale. */
+	readonly attempt: number;
+	/** Operator identity established by the caller's authorization layer. */
+	readonly actor: string;
+	/** Safe explanation, at most 512 code points; never credentials or raw exceptions. */
+	readonly reason: string;
+}
+/** Position in byte-ordered message identity. This is a live traversal, not a database snapshot. */
+export interface PositionType {
+	/** Definition identity of the last returned row. */
+	readonly id: string;
+	/** Occurrence identity of the last returned row. */
+	readonly key: string;
+}
+/** One bounded operator page; a next position means more rows existed when this query ran. */
+export interface PageType {
+	/** At most the requested limit; no payloads or claim tokens. */
+	readonly entries: readonly EntryType[];
+	/** Pass unchanged with the same state filter to continue after the last returned identity. */
+	readonly next?: PositionType;
+}
+/** Explicit retry policy and safe diagnostics. Never pass secrets or unredacted provider errors as reason. */
+export interface RetryOptions {
+	/** Database-clock delay, from zero to one day in milliseconds. @default 1000 */
+	readonly delayMs?: number;
+	/** Retained safe diagnostic, at most 512 Unicode code points. Omission clears the previous diagnostic. */
+	readonly reason?: string;
+}
 /** Bounded shared admission policy; every view of a namespace must agree. */
 export interface Options {
 	/** Application-owned pool, borrowed for short transactions and never closed by the outbox. */
@@ -62,7 +147,8 @@ export async function migrate({ database }: { readonly database: Sql }): Promise
 		await tx`create schema if not exists utils_outbox`;
 		await tx`create table if not exists utils_outbox.version (id boolean primary key check(id), revision integer not null)`;
 		await tx`insert into utils_outbox.version values (true,1) on conflict do nothing`;
-		if ((await tx`select revision from utils_outbox.version where id`)[0]?.revision !== 1) {
+		const revision = (await tx`select revision from utils_outbox.version where id`)[0]?.revision;
+		if (revision !== 1 && revision !== 2) {
 			throw new TypeError('Unsupported outbox schema revision.');
 		}
 		await tx`create table if not exists utils_outbox.policies (namespace text primary key, maximum integer not null, bytes integer not null, attempts integer not null)`;
@@ -73,6 +159,16 @@ export async function migrate({ database }: { readonly database: Sql }): Promise
 			due double precision not null, updated double precision not null,
 			primary key(namespace,id,key))`;
 		await tx`create index if not exists outbox_ready on utils_outbox.messages(namespace,state,due)`;
+		// Additive revision 2 keeps lifetime attempts intact. The budget baseline
+		// grants another finite cycle without making an old reservation current again.
+		await tx`alter table utils_outbox.messages add column if not exists budget integer not null default 0`;
+		await tx`alter table utils_outbox.messages add column if not exists failure text`;
+		await tx`create table if not exists utils_outbox.repairs (
+			namespace text not null, id text not null, key text not null, attempt integer not null,
+			actor text not null, reason text not null, updated double precision not null,
+			primary key(namespace,id,key,attempt),
+			foreign key(namespace,id,key) references utils_outbox.messages(namespace,id,key) on delete cascade)`;
+		await tx`update utils_outbox.version set revision=2 where id`;
 	});
 }
 /** Reject unbounded durations/counts before obtaining database ownership. @internal */
@@ -101,9 +197,23 @@ export function open(
 		/** Record sink acceptance only while this exact claim remains current and unexpired. */
 		complete(claim: ClaimType): Promise<void>;
 		/** Release a claim for later delivery. External sink work may already have happened. */
-		retry(claim: ClaimType, delayMs?: number): Promise<void>;
+		retry(claim: ClaimType, delay?: number | RetryOptions): Promise<void>;
+		/** Extend only a current unexpired reservation. Renewal does not prove the sink stopped after lease loss. */
+		renew(claim: ClaimType, leaseMs?: number): Promise<void>;
 		/** Read retained delivery state without renewing its lease. */
 		inspect(id: string, key: string): Promise<StateType | undefined>;
+		/** Inspect a bounded live page in byte-ordered identity order. No payloads or tokens are returned. */
+		list(
+			options?: { readonly state?: StateType; readonly limit?: number; readonly after?: PositionType },
+		): Promise<PageType>;
+		/** Grant failed work another finite budget after sink reconciliation. Concurrent/stale decisions reject. */
+		redrive(options: RedriveOptions): Promise<void>;
+		/** Read at most 1000 recovery decisions in ascending attempt order; continue after the last attempt. */
+		history(
+			id: string,
+			key: string,
+			options?: { readonly after?: number; readonly limit?: number },
+		): Promise<readonly RepairType[]>;
 		/** Remove a bounded terminal batch; removal ends deduplication for those message keys. */
 		prune(before: number, limit?: number): Promise<number>;
 	}
@@ -120,7 +230,12 @@ export function open(
 		if (row.maximum !== maximum || row.bytes !== bytes || row.attempts !== attempts) throw new OutboxError('policy');
 	}
 	/** A current unexpired token alone can mutate delivery. Repeated successful acknowledgement is idempotent. */
-	async function settle(claim: ClaimType, complete: boolean, delay: number): Promise<void> {
+	async function settle(
+		claim: ClaimType,
+		complete: boolean,
+		delay: number,
+		failure: string | null = null,
+	): Promise<void> {
 		if (claim.namespace !== namespace) throw new OutboxError('stale');
 		NameSchema.parse(claim.id);
 		NameSchema.parse(claim.key);
@@ -135,10 +250,10 @@ export function open(
 			if (!row || row.state !== 'leased' || row.token !== claim.token || Number(row.expires) <= time) {
 				throw new OutboxError('stale');
 			}
-			const state = complete ? 'complete' : Number(row.attempt) >= attempts ? 'failed' : 'pending';
+			const state = complete ? 'complete' : Number(row.attempt) - Number(row.budget) >= attempts ? 'failed' : 'pending';
 			await tx`update utils_outbox.messages set state=${state}, due=${
 				time + delay
-			}, updated=${time}, expires=null where namespace=${namespace} and id=${claim.id} and key=${claim.key}`;
+			}, updated=${time}, expires=null, failure=${failure} where namespace=${namespace} and id=${claim.id} and key=${claim.key}`;
 		});
 	}
 	return Object.freeze({
@@ -177,9 +292,9 @@ export function open(
 			return await options.database.begin(async (tx) => {
 				await policy(tx);
 				const time = await now(tx);
-				await tx`update utils_outbox.messages set state='failed', updated=${time} where namespace=${namespace} and state='leased' and expires<=${time} and attempt>=${attempts}`;
+				await tx`update utils_outbox.messages set state='failed', expires=null, updated=${time} where namespace=${namespace} and state='leased' and expires<=${time} and attempt-budget>=${attempts}`;
 				const rows =
-					await tx`select * from utils_outbox.messages where namespace=${namespace} and attempt<${attempts} and ((state='pending' and due<=${time}) or (state='leased' and expires<=${time})) order by due,id,key limit ${limit} for update skip locked`;
+					await tx`select * from utils_outbox.messages where namespace=${namespace} and attempt-budget<${attempts} and ((state='pending' and due<=${time}) or (state='leased' and expires<=${time})) order by due,id,key limit ${limit} for update skip locked`;
 				const claims: ClaimType[] = [];
 				for (const row of rows) {
 					const token = crypto.randomUUID(), attempt = Number(row.attempt) + 1;
@@ -198,11 +313,33 @@ export function open(
 			return settle(claim, true, 0);
 		},
 		/** Retry with a bounded explicit delay; exhausted attempts become failed. Sink effects may already have happened. */
-		retry(claim: ClaimType, delayMs = 1000): Promise<void> {
+		retry(claim: ClaimType, delay: number | RetryOptions = 1000): Promise<void> {
+			const delayMs = typeof delay === 'number' ? delay : delay.delayMs ?? 1000;
+			const reason = typeof delay === 'number' ? null : delay.reason ?? null;
 			if (!Number.isSafeInteger(delayMs) || delayMs < 0 || delayMs > 86400000) {
 				throw new RangeError('Invalid outbox retry delay.');
 			}
-			return settle(claim, false, delayMs);
+			if (reason !== null) NameSchema.parse(reason);
+			return settle(claim, false, delayMs, reason);
+		},
+		/** Serialize renewal with settlement and replacement. A lost lease cannot be revived. */
+		async renew(claim: ClaimType, leaseMs = 30000): Promise<void> {
+			count(leaseMs, 86400000);
+			if (claim.namespace !== namespace) throw new OutboxError('stale');
+			for (const value of [claim.id, claim.key, claim.token]) NameSchema.parse(value);
+			await options.database.begin(async (tx) => {
+				const row =
+					(await tx`select state,token,expires from utils_outbox.messages where namespace=${namespace} and id=${claim.id} and key=${claim.key} for update`)[
+						0
+					];
+				const time = await now(tx);
+				if (row?.state !== 'leased' || row.token !== claim.token || Number(row.expires) <= time) {
+					throw new OutboxError('stale');
+				}
+				await tx`update utils_outbox.messages set expires=${
+					time + leaseMs
+				},updated=${time} where namespace=${namespace} and id=${claim.id} and key=${claim.key}`;
+			});
 		},
 		/** Read retained delivery state without extending any lease. */
 		async inspect(id: string, key: string): Promise<StateType | undefined> {
@@ -213,6 +350,68 @@ export function open(
 					0
 				];
 			return row ? StateSchema.parse(row.state) : undefined;
+		},
+		/** Keep identity order independent of the database's locale. State changes may enter or leave later pages. */
+		async list(
+			{ state, limit = 100, after }: {
+				readonly state?: StateType;
+				readonly limit?: number;
+				readonly after?: PositionType;
+			} = {},
+		): Promise<PageType> {
+			count(limit, 1000);
+			if (state !== undefined) StateSchema.parse(state);
+			if (after) {
+				NameSchema.parse(after.id);
+				NameSchema.parse(after.key);
+			}
+			const rows = await options.database`select id,key,state,attempt,budget,due,updated,expires,failure
+				from utils_outbox.messages where namespace=${namespace}
+				and (${state ?? null}::text is null or state=${state ?? null})
+				and (${after?.id ?? null}::text is null or (id collate "C",key collate "C")>(${
+				after?.id ?? null
+			}::text collate "C",${after?.key ?? null}::text collate "C"))
+				order by id collate "C",key collate "C" limit ${limit + 1}`;
+			const entries = Object.freeze(rows.slice(0, limit).map((row) => Object.freeze(EntrySchema.parse(row))));
+			const last = entries.at(-1);
+			return Object.freeze({
+				entries,
+				...(rows.length > limit && last ? { next: Object.freeze({ id: last.id, key: last.key }) } : {}),
+			});
+		},
+		/** Recovery is an operator decision, not an automatic retry. Payload and occurrence identity remain unchanged. */
+		async redrive(
+			{ id, key, attempt, actor, reason }: RedriveOptions,
+		): Promise<void> {
+			for (const value of [id, key, actor, reason]) NameSchema.parse(value);
+			count(attempt, 2147473647);
+			await options.database.begin(async (tx) => {
+				await policy(tx);
+				const row =
+					(await tx`select state,attempt from utils_outbox.messages where namespace=${namespace} and id=${id} and key=${key} for update`)[
+						0
+					];
+				if (row?.state !== 'failed' || Number(row.attempt) !== attempt) throw new OutboxError('stale');
+				const time = await now(tx);
+				// Audit and renewed admission commit together. Clearing the token fences
+				// all previous acknowledgements even before the next claim is reserved.
+				await tx`insert into utils_outbox.repairs values (${namespace},${id},${key},${attempt},${actor},${reason},${time})`;
+				await tx`update utils_outbox.messages set state='pending',budget=attempt,token=null,expires=null,due=${time},updated=${time} where namespace=${namespace} and id=${id} and key=${key}`;
+			});
+		},
+		/** Retained audit reads neither extend a reservation nor authorize another delivery. */
+		async history(
+			id: string,
+			key: string,
+			{ after = 0, limit = 100 }: { readonly after?: number; readonly limit?: number } = {},
+		): Promise<readonly RepairType[]> {
+			NameSchema.parse(id);
+			NameSchema.parse(key);
+			count(limit, 1000);
+			if (!Number.isSafeInteger(after) || after < 0) throw new RangeError('Invalid repair history position.');
+			const rows = await options
+				.database`select attempt,actor,reason,updated from utils_outbox.repairs where namespace=${namespace} and id=${id} and key=${key} and attempt>${after} order by attempt limit ${limit}`;
+			return Object.freeze(rows.map((row) => Object.freeze(RepairSchema.parse(row))));
 		},
 		/** Remove a bounded terminal batch. Callers must preserve their required deduplication window. */
 		async prune(before: number, limit = 100): Promise<number> {

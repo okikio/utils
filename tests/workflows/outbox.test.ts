@@ -241,3 +241,102 @@ describe('outbox delivery ownership', () => {
 		expect(await box.claim()).toHaveLength(0);
 	});
 });
+
+describe('outbox operator recovery', () => {
+	it('pages metadata without payloads, filters states, and bounds traversal', async () => {
+		await using owned = partition();
+		const box = outbox.open({ database, namespace: owned.namespace });
+		await database.begin(async (tx) => {
+			for (const key of ['c', 'a', 'b']) await box.append(tx, { id: 'list', key, value: { secret: key } });
+		});
+		const first = await box.list({ limit: 2 });
+		expect(first.entries.map((entry) => entry.key)).toEqual(['a', 'b']);
+		expect(Object.keys(first.entries[0]!)).not.toContain('value');
+		expect(Object.keys(first.entries[0]!)).not.toContain('token');
+		const second = await box.list({ limit: 2, after: first.next! });
+		expect(second.entries.map((entry) => entry.key)).toEqual(['c']);
+		expect(second.next).toBeUndefined();
+		expect((await box.list({ state: 'failed' })).entries).toEqual([]);
+		await expect(box.list({ limit: 1001 })).rejects.toBeInstanceOf(RangeError);
+	});
+
+	it('audits one competing redrive, preserves attempts and identity, and fences old claims', async () => {
+		await using owned = partition();
+		const box = outbox.open({ database, namespace: owned.namespace, maximumAttempts: 1 });
+		await database.begin((tx) => box.append(tx, { id: 'repair', key: 'one', value: 'unchanged' }));
+		const first = (await box.claim())[0]!;
+		await box.retry(first, 0);
+		const decision = {
+			id: first.id,
+			key: first.key,
+			attempt: first.attempt,
+			actor: 'operator',
+			reason: 'Sink reconciled; decoder deployed.',
+		};
+		const outcomes = await Promise.allSettled([box.redrive(decision), box.redrive(decision)]);
+		expect(outcomes.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+		expect(outcomes.filter((result) => result.status === 'rejected')).toHaveLength(1);
+		expect((await box.list()).entries[0]).toMatchObject({ state: 'pending', attempt: 1, budget: 1 });
+		expect(await database`select actor,reason,attempt from utils_outbox.repairs where namespace=${owned.namespace}`)
+			.toEqual([{ actor: decision.actor, reason: decision.reason, attempt: 1 }]);
+		await expect(box.complete(first)).rejects.toMatchObject({ code: 'stale' });
+		const second = (await box.claim())[0]!;
+		expect(second).toMatchObject({ attempt: 2, key: 'one', value: 'unchanged' });
+		expect(second.token).not.toBe(first.token);
+		await box.complete(second);
+		await expect(box.redrive({ ...decision, attempt: 2 })).rejects.toMatchObject({ code: 'stale' });
+		expect(await box.prune(Number.MAX_SAFE_INTEGER)).toBe(1);
+		expect(await database`select * from utils_outbox.repairs where namespace=${owned.namespace}`).toHaveLength(0);
+	});
+
+	it('keeps each new budget finite and rejects a recovery decision based on an older failure', async () => {
+		await using owned = partition();
+		const box = outbox.open({ database, namespace: owned.namespace, maximumAttempts: 1 });
+		await database.begin((tx) => box.append(tx, { id: 'budget', key: 'one', value: null }));
+		const first = (await box.claim())[0]!;
+		await box.retry(first, 0);
+		const decision = {
+			id: first.id,
+			key: first.key,
+			attempt: 1,
+			actor: 'operator',
+			reason: 'Reconciled first failure.',
+		};
+		await box.redrive(decision);
+		const next = (await box.claim())[0]!;
+		await box.retry(next, 0);
+		expect(await box.claim()).toHaveLength(0);
+		await expect(box.redrive(decision)).rejects.toMatchObject({ code: 'stale' });
+		await box.redrive({ ...decision, attempt: 2 });
+		expect((await box.claim())[0]!.attempt).toBe(3);
+		const history = await box.history('budget', 'one', { limit: 1 });
+		expect(history).toHaveLength(1);
+		expect(history[0]).toMatchObject({ attempt: 1, actor: 'operator', reason: decision.reason });
+		expect((await box.history('budget', 'one', { after: history[0]!.attempt })).map((entry) => entry.attempt)).toEqual([
+			2,
+		]);
+		await expect(box.history('budget', 'one', { after: -1 })).rejects.toBeInstanceOf(RangeError);
+	});
+
+	it('renews only an unexpired current token and retains an explicit safe failure reason', async () => {
+		await using owned = partition();
+		const box = outbox.open({ database, namespace: owned.namespace });
+		await database.begin((tx) => box.append(tx, { id: 'renew', key: 'one', value: null }));
+		const claim = (await box.claim({ leaseMs: 1000 }))[0]!;
+		const previousDeadline = (await box.list()).entries[0]!.expires!;
+		await box.renew(claim, 2000);
+		// Compare two authority-clock deadlines, rather than assuming the SQL
+		// container and this test process have identical wall clocks.
+		expect((await box.list()).entries[0]!.expires).toBeGreaterThan(previousDeadline + 500);
+		await expect(box.renew({ ...claim, token: crypto.randomUUID() })).rejects.toMatchObject({ code: 'stale' });
+		await box.retry(claim, { delayMs: 0, reason: 'sink_unavailable' });
+		expect((await box.list()).entries[0]!.failure).toBe('sink_unavailable');
+		await expect(box.renew(claim)).rejects.toMatchObject({ code: 'stale' });
+		const expired = (await box.claim({ leaseMs: 20 }))[0]!;
+		await database`select pg_sleep(0.04)`;
+		await expect(box.renew(expired)).rejects.toMatchObject({ code: 'stale' });
+		const recovered = (await box.claim())[0]!;
+		await box.complete(recovered);
+		expect((await box.list()).entries[0]!.failure).toBeNull();
+	});
+});

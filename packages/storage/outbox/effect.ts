@@ -42,18 +42,24 @@ export async function dispatch(
 	let accepted = 0, retried = 0;
 	for (const claim of claims) {
 		check(ctx);
+		// Record only our safe stage label. Provider exceptions can contain payloads,
+		// credentials or SQL, so diagnostics must not serialize their messages.
+		let reason = 'handler_missing';
 		try {
 			const handler = table.get(claim.id);
 			if (!handler) throw new TypeError('No trusted handler for outbox effect.');
+			reason = 'decode_rejected';
 			const occurrence = await effects.decode(claim, [handler.definition]);
+			reason = 'acceptance_unconfirmed';
 			await handler.accept(ctx, occurrence);
 			check(ctx);
+			reason = 'acknowledgement_unconfirmed';
 			await box.complete(claim);
 			accepted++;
 		} catch (error) {
 			check(ctx);
 			try {
-				await box.retry(claim, options.delayMs);
+				await box.retry(claim, { delayMs: options.delayMs, reason });
 			} catch (cleanup) {
 				throw new AggregateError([error, cleanup], 'Effect acceptance or acknowledgement failed.');
 			}

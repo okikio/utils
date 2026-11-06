@@ -79,4 +79,60 @@ for (const limit of [1, 16]) {
 		bench('accept + claim + acknowledge + prune', cycle);
 	});
 }
+
+/** Compare operator inspection and an audited recovery cycle, with fixed retained history. */
+{
+	const namespace = `outbox-recovery-bench-${crypto.randomUUID()}`;
+	owners.defer(async () => {
+		await database.begin(async (tx) => {
+			await tx`delete from utils_outbox.messages where namespace=${namespace}`;
+			await tx`delete from utils_outbox.policies where namespace=${namespace}`;
+		});
+	});
+	const box = outbox.open({ database, namespace, maximumAttempts: 1 });
+	await database.begin(async (tx) => {
+		for (const message of messages) await box.append(tx, message);
+	});
+	for (const claim of await box.claim({ limit: 16 })) {
+		await box.retry(claim, { delayMs: 0, reason: 'fixture_sink_unavailable' });
+	}
+	/** Keep setup and retained history fixed so listing measures one bounded metadata query. */
+	const inspect = async (): Promise<number> => {
+		const page = await box.list({ state: 'failed', limit: 16 });
+		do_not_optimize(page);
+		return page.entries.length;
+	};
+	/** Measure the full explicit repair cycle; audit insertion and pruning are intentionally included. */
+	const recover = async (): Promise<number> => {
+		const failed = (await box.list({ state: 'failed', limit: 1 })).entries[0]!;
+		await box.redrive({
+			id: failed.id,
+			key: failed.key,
+			attempt: failed.attempt,
+			actor: 'benchmark',
+			reason: 'Fixture sink reconciled.',
+		});
+		const claim = (await box.claim())[0]!;
+		await box.retry(claim, { delayMs: 0, reason: 'fixture_sink_unavailable' });
+		// This benchmark measures a repeatable operator cycle, not retained audit
+		// growth. Delete this fixture's audit after each cycle so samples stay bounded.
+		await database`delete from utils_outbox.repairs where namespace=${namespace}`;
+		do_not_optimize(claim.attempt);
+		return claim.attempt;
+	};
+	deepStrictEqual(await inspect(), 16);
+	const before = (await box.list({ state: 'failed', limit: 1 })).entries[0]!;
+	deepStrictEqual(await recover(), before.attempt + 1);
+	const after = (await box.list({ state: 'failed', limit: 1 })).entries[0]!;
+	deepStrictEqual({ key: after.key, state: after.state, budget: after.budget, failure: after.failure }, {
+		key: before.key,
+		state: 'failed',
+		budget: before.attempt,
+		failure: 'fixture_sink_unavailable',
+	});
+	group('operator recovery over sixteen retained SQL messages', () => {
+		bench('list sixteen failed metadata records', inspect);
+		bench('inspect + audited redrive + claim + fail + audit cleanup', recover);
+	});
+}
 await run();

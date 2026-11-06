@@ -99,8 +99,9 @@ incompatibly; a handler for a different ID cannot decode it implicitly.
 
 `claim()` reserves up to 100 messages and assigns each a fresh token and one-based
 attempt number. Only that token, while unexpired, can acknowledge or retry the
-message. Expiry uses database time. There is no lease renewal: choose a lease
-longer than a normal handler call plus realistic scheduling and SQL delays.
+message. Expiry uses database time. `dispatch()` does not renew leases automatically: choose a lease
+longer than the entire sequential batch, including handler calls, scheduling and SQL delays. A custom claim loop can
+call `renew(claim, leaseMs)` before expiry; the [renewal section](#inspect-and-recover-failed-delivery) explains that ownership.
 Even then, a slow sink can overlap redelivery after expiry. The sink needs its
 own atomic receipt, provider idempotency key or stronger resource-specific fence.
 
@@ -136,19 +137,89 @@ dispatcher concurrency, authorization, transaction timeouts and total retained
 namespace count. A namespace is not tenant access control. Delivery order across
 concurrent dispatchers is not an aggregate-ordering guarantee.
 
-Current inspection returns only the retained state. Failure reasons, operator
-repair history, lease renewal and physical process-crash checks are not
-provided by this foundation. Keep application diagnostics and reconcile against
-the actual sink before manual recovery. These limits remain open in the local
-implementation ledger; the session SQL soak does not test this adapter.
+## Inspect and recover failed delivery
+
+`inspect(id, key)` retains its small state-only contract. Use `list()` for a
+bounded metadata page with attempts, budget baseline, database timestamps and a
+safe failure label. It excludes payloads and claim tokens. Each page contains at
+most 1,000 entries in byte-ordered `(id, key)` order. Pass `next` as `after` with
+the same state filter to continue. This is a live traversal: concurrent inserts
+or state changes can enter or leave later pages. It is not a snapshot export.
+
+After fixing the cause and reconciling the sink, an application can explicitly
+redrive a failed message. The following function borrows an existing outbox view;
+the application must authenticate and authorize the operator before calling it.
+
+```ts
+import type { EntryType, Outbox } from '@okikio/storage/outbox/postgres';
+
+/** Reopen one reconciled failure without changing its payload or sink identity. */
+async function retryReconciled(
+	box: Outbox,
+	actor: string,
+	reconcile: (entry: EntryType) => Promise<boolean>,
+): Promise<boolean> {
+	const page = await box.list({ state: 'failed', limit: 1 });
+	const entry = page.entries[0];
+	if (!entry) return false;
+
+	// The application must check the sink receipt first. A failed delivery does
+	// not prove that its effect never committed, so the sink must still deduplicate.
+	if (!await reconcile(entry)) return false;
+	await box.redrive({
+		id: entry.id,
+		key: entry.key,
+		attempt: entry.attempt,
+		actor,
+		reason: 'Sink reconciled and missing handler deployed.',
+	});
+	return true;
+}
+```
+
+Redrive accepts only a retained `failed` row at the observed lifetime attempt.
+A competing or stale decision rejects with `OutboxError` code `stale`. The
+transaction records the actor, reason and database time in `utils_outbox.repairs`
+and grants another `maximumAttempts` budget. Lifetime attempt numbers never
+reset; the payload and logical identity remain unchanged, and all earlier tokens
+remain invalid. Completed, pending and leased messages cannot be redriven.
+Pruning a terminal message also removes its repair history. Export that history
+before pruning if application audit policy requires longer retention.
+`history(id, key, { limit, after })` reads at most 1,000 decisions in ascending
+attempt order; use the last returned attempt as `after` to continue. Inspection
+and audit reads do not authorize redelivery or extend a lease.
+
+For low-level dispatchers, `renew(claim, leaseMs)` extends a current unexpired
+reservation using database time. It cannot revive a lost lease. Stop admitting
+effects after renewal failure and reconcile the sink; renewal cannot stop a
+request already accepted by another system. `dispatch()` does not run a renewal
+timer: choose its batch size and lease duration for the whole sequential batch,
+or use low-level claims for longer work and explicitly own the renewal loop.
+
+`retry(claim, { delayMs, reason })` stores an application-supplied safe label.
+Do not pass secrets, payloads or raw exceptions. Effect dispatch stores only its
+safe failure stage (`handler_missing`, `decode_rejected`,
+`acceptance_unconfirmed` or `acknowledgement_unconfirmed`). These labels locate
+the uncertainty; they do not prove that a sink effect did not occur. Successful
+completion clears the label.
+
+Run `migrate()` before deploying this API. Revision 2 adds the budget baseline,
+safe failure label and repair table without resetting existing attempts. Drain
+older dispatchers before enabling redrive: revision-1 code does not understand
+renewed budgets. Applications continue to own credentials, access control,
+diagnostic retention and reconciliation with external sinks.
 
 ## Verify and measure
 
 Use only a disposable database. The maintained tests cover transaction rollback,
 duplicate acceptance, competing claims, payload representation, lease expiry,
 exhaustion, missing handlers, cancellation and a transactional sink receipt after
-lost acknowledgement. The lost acknowledgement is injected inside the test; it
-does not claim an actual process was killed.
+lost acknowledgement. Three cases fork a real process and send `SIGKILL` before
+producer commit, after claim commit or after sink commit. Losing the producer
+rolls back both writes. A replacement dispatcher claims after lease
+expiry and the transactional sink receipt prevents a second business write.
+Operator cases check competing redrive, stale decisions, finite renewed budgets,
+renewal fencing and metadata pagination against PostgreSQL.
 
 ```sh
 UTILS_TEST_DATABASE_URL=postgres://fixture:fixture@127.0.0.1:5432/utils_test \
@@ -164,3 +235,10 @@ retention cleanup is inside. The untimed oracle verifies no message remains.
 The benchmark removes only its own namespaces, then closes its pool even after
 failure. It measures SQL coordination, not sink latency, native host execution,
 production capacity or a memory ceiling.
+
+Two additional workloads list sixteen failed metadata records and perform one
+inspection/redrive/claim/failure cycle. The cycle includes audit insertion and
+fixture audit cleanup in timing, so retained history stays bounded across
+samples. The untimed oracle checks the unchanged occurrence identity, cumulative
+attempt, new budget and retained safe failure label. It does not model a
+production audit-retention policy.
