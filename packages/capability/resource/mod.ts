@@ -1,19 +1,22 @@
 /**
- * Create expensive dependencies once, borrow them through declared access and close them at their owner lifetime. Hand-built dependency bags make missing implementations, cycles and cleanup ordering hard to detect.
+ * Open a client when first needed, then close it when its owning scope ends.
+ * A definition names the client's contract; an implementation supplies its constructor.
+ * open(binding) joins those pieces with a default local lifetime. get(Definition)
+ * borrows the value, so callers do not close the shared client independently.
  *
- * Add dependency declarations when one resource needs another, validate implementation coverage before startup, and scope access to the exact resources an activity may use. Collections own created values; callers borrow them and must not close them individually. Acquisition requirements apply at creation, while actor-specific use requirements are checked on public borrowing. Remote work must reconstruct its local resources rather than serialize live clients.
+ * Declare dependencies when one client needs another. The collection detects missing
+ * bindings and cycles before acquisition. It checks construction requirements once,
+ * and caller-specific use requirements on every borrow, including cached values.
+ * Use a caller Context when access or cancellation belongs to a particular request.
+ * Remote work opens its own clients; live objects do not become portable JSON.
  *
  * @example
  * ```ts
- * import '@okikio/duration/polyfill';
- * import '@okikio/dispose/polyfill';
- * import * as context from '@okikio/context';
  * import * as resource from '@okikio/capability/resource';
  * const Store = resource.define<{ read(id: string): string }>()({ id: 'store', description: 'Read one stored value.' });
  * const StoreLive = resource.implement(Store, { create: () => ({ read: (id) => `value:${id}` }) });
- * await using ctx = context.create({ id: 'store-owner' });
- * await using stores = resource.create(resource.implementations(StoreLive), { ctx, host: {} });
- * const store = await stores.get(ctx, Store);
+ * await using stores = await resource.open(StoreLive);
+ * const store = await stores.get(Store);
  * console.log(store.read('asset-1'));
  * ```
  *
@@ -999,3 +1002,6 @@ export type {
 	ResourceValidationResult,
 	ResourceValue,
 } from './types.ts';
+
+export { open } from './open.ts';
+export type { Opened, OpenOptions } from './open.ts';

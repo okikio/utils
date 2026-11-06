@@ -4,15 +4,15 @@ A save operation needs a store, but should not decide which database to open or 
 describes that dependency. The application supplies its implementation, and a collection creates and owns the live
 value. The save operation borrows it for its work.
 
-A declaration opens nothing. Resource requirements describe what an operation needs; runtime bindings supply it. Partial
-construction must release resources already acquired.
+A declaration opens nothing. Resource definitions name the dependencies an operation needs; runtime bindings supply
+their implementations. Partial construction must release resources already acquired.
 
 The application **host** is the code that knows how to create the actual client. The calling operation only needs its
 methods. A **collection** keeps the created clients and closes what it owns; borrowing a client does not transfer that
 cleanup responsibility to the caller.
 
 `await using` closes a disposable value when its block ends, including after an exception. Declarations are disposed in
-reverse order, so the collection is declared after its Context. An `await` inside the save operation waits for a Promise;
+reverse order. The collection supplies its own Context unless you pass an existing lifetime. An `await` inside the save operation waits for a Promise;
 it does not release or move the borrowed client while the operation is paused.
 
 ## Save and read a note through a supplied store
@@ -20,13 +20,10 @@ it does not release or move the borrowed client while the operation is paused.
 The definition names the store a caller needs. Its implementation creates the in-memory store, and the collection owns
 that value while the caller borrows it. Saving and reading the note makes those three roles visible.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as a `.ts` file in your project and use
+Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
 `mise exec -- deno run example.ts`.
 
 ```ts runnable
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
-import * as context from '@okikio/context';
 import * as resource from '@okikio/capability/resource';
 const Store = resource.define<{
 	save(id: string, text: string): void;
@@ -47,9 +44,9 @@ const StoreLive = resource.implement(Store, {
 		};
 	},
 });
-await using ctx = context.create({ id: 'store-owner' });
-await using stores = resource.create(resource.implementations(StoreLive), { ctx, host: {} });
-const store = await stores.get(ctx, Store);
+// The collection supplies local cancellation and cleanup; its first get opens the store.
+await using stores = await resource.open(StoreLive);
+const store = await stores.get(Store);
 store.save('note-1', 'Bring the family photo');
 console.log(store.read('note-1'));
 ```
@@ -94,8 +91,11 @@ collection scope that originally acquired it.
 
 ## Borrow lazily and join shutdown
 
-`create(implementations, { ctx, host })` returns the collection without invoking factories. `get(ctx, Definition)`
-checks current use requirements and lazily creates the requested implementation. Concurrent borrowers of that exact
+`await resource.open(binding)` owns a lazy collection and any Context it creates. `get(Definition)` borrows under that
+default lifetime; `get(Definition, callerContext)` checks a particular request's access and cancellation instead.
+A supplied parent remains borrowed. For a host that already assembles these pieces,
+`create(implementations, { ctx, host })` supplies the lower-level collection and `get(ctx, Definition)` makes its caller
+explicit. Both paths check current use requirements before lazily creating the requested implementation. Concurrent borrowers of that exact
 definition share the same pending creation. A failed creation releases its partial resources and permits a later
 acquisition.
 
@@ -143,6 +143,7 @@ provider-specific package for persistence. Resource does not choose a database, 
 | Convenience                         | Manual equivalent                                                                                                               | Concrete value                                         |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
 | `resource.define()` + `implement()` | declare identity/dependencies, separately bind create/dispose behavior, and validate that implementation matches the definition | definition and live provider stay separate             |
+| `resource.open()`                   | own a local Context and lazy collection, normalize one binding or an array, and join their cleanup                                | one complete local resource lifetime                   |
 | `resource.create()`                 | topologically acquire dependencies, cache values, fence cycles/missing implementations, and unwind partial failures manually    | one owned resource graph                               |
 | `implementations()`                 | deduplicate implementation objects while preserving the implementation union yourself                                           | runtime set semantics no longer lie about tuple length |
 

@@ -28,21 +28,15 @@ not a cross-machine connection pool.
 
 ## Save and read a note through a storage client
 
-The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
-implementation is preserved.
-
-The `await using` declarations below register cleanup when their block ends, including on errors. Because cleanup runs
-in reverse declaration order, declare the collection after its Context. `await stores.get(...)` waits for the client;
-it does not hand the caller ownership of closing that client.
+The `await using` declaration below closes the collection when its block ends, including on errors.
+`open()` supplies its cancellation and cleanup lifetime. `await stores.get(Store)` waits for the client; the collection
+still owns closing it. The factory receives `ctx` so it can register cleanup when it acquires something.
 
 After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
 Save the next complete TypeScript block as
 `example.ts` at that root, then run `mise exec -- deno run example.ts`.
 
 ```ts runnable
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
-import * as context from '@okikio/context';
 import * as resource from '@okikio/capability/resource';
 const Store = resource.define<{
 	save(id: string, text: string): void;
@@ -63,9 +57,9 @@ const StoreLive = resource.implement(Store, {
 		};
 	},
 });
-await using ctx = context.create({ id: 'store-owner' });
-await using stores = resource.create(resource.implementations(StoreLive), { ctx, host: {} });
-const store = await stores.get(ctx, Store);
+// open() owns the default lifetime. The Store binding stays lazy until the first get().
+await using stores = await resource.open(StoreLive);
+const store = await stores.get(Store);
 store.save('note-1', 'Bring the family photo');
 console.log(store.read('note-1'));
 ```
@@ -76,7 +70,7 @@ Expected output:
 Bring the family photo
 ```
 
-`create()` returns a `ResourceCollection` immediately without opening the store. `get()` returns a Promise of the
+`open()` returns an owned, lazy collection without opening the store. `get()` returns a Promise of the
 borrowed `{ save(), read() }` client, creating it lazily. `save()` writes the note to the supplied in-memory store, and
 `read()` returns the same text. The collection clears that store at disposal through the registered cleanup callback.
 The caller borrows the client and must not dispose it independently.
@@ -85,15 +79,31 @@ The reason for a definition and separate implementation is to keep consumers on 
 changes providers. This offline implementation stores actual notes in a Map; a database implementation can supply the
 same capability with database-specific ownership and persistence. No external file or database is used here.
 
+For one binding, `open(StoreLive)` is enough. For several bindings, pass an array, such as
+`open([StoreLive, CacheLive])`. `implementations(...)` builds a reusable, validated set when a host needs to inspect or
+share the same configuration; it is not a required step for every local collection.
+
+A collection has a lifetime, and each caller can have a shorter one. `stores.get(Store)` uses the collection's default
+context. For a request with its own cancellation or access requirements, use `stores.get(Store, requestContext)`.
+This checks that caller's requirements on every borrow, even when the client was opened earlier. A cancelled request
+stops waiting without cancelling construction that another request still needs. Creating a new Context is therefore
+useful when an operation needs a separate lifetime; it is not required merely to read a local resource.
+
+When Activity or Service supplies that caller context for you, pass `stores.collection` to its resource configuration.
+The lower-level `create(implementations, { ctx, host })` remains available for a host that already owns its lifetime and
+native construction capabilities. Its `get(ctx, Store)` makes the borrower explicit. See the table below for that contract.
+
 The curried call `resource.define<Value>()({ id, description })` separates the TypeScript value type from the runtime
 metadata and retains the literal resource ID, so equal-shaped resources remain distinct in declarations. The first
 parentheses tell the compiler what a consumer will receive. The second create a definition; they do not connect to
-storage. `implement()` binds that exact definition to a factory, and `create()` owns the factories' live values. The
+storage. `implement()` binds that exact definition to a factory. `open()` owns the lazy collection and supplies its
+lifetime; `create()` is the lower-level constructor when the host already supplies that lifetime. The
 [source contracts](./types.ts) give the full generic signatures; the local model is:
 
 ```text
 ResourceDefinition<Value>       names the dependency and the value callers may use
 ResourceImplementation         { definition, create(arguments) }
+Opened collection              { get(definition, ctx?): Promise<Value>, collection }
 ResourceCollection             { get(ctx, definition): Promise<Value>, has(definition) }
 ```
 
@@ -114,13 +124,11 @@ borrower's error and does not make disposal fail.
 
 ## Save a value once and read it from another operation
 
-The next example uses a real in-memory Map. Two borrowers receive the same Map, and the factory runs once. Leaving the
-collection's block clears it through the registered cleanup, making the ownership visible in the final line.
+The next example uses the same `open()` facade with a real in-memory Map. Two operations borrow that Map, and the
+factory runs once. Sharing a collection needs no extra Context or host setup. Leaving its block clears the Map through
+the registered cleanup, making ownership visible in the final line.
 
 ```ts runnable=shared-store.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
-import * as context from '@okikio/context';
 import * as resource from '@okikio/capability/resource';
 const Store = resource.define<Map<string, string>>()({ id: 'notes', description: 'Share saved notes.' });
 let opened = 0;
@@ -132,12 +140,11 @@ const StoreLive = resource.implement(Store, {
 		return retained;
 	},
 });
-await using owner = context.create({ id: 'note-owner' });
 {
-	await using stores = resource.create(resource.implementations(StoreLive), { ctx: owner, host: {} });
-	const writer = await stores.get(owner, Store);
+	await using stores = await resource.open(StoreLive);
+	const writer = await stores.get(Store);
 	writer.set('note-1', 'Remember the photo');
-	const reader = await stores.get(owner, Store);
+	const reader = await stores.get(Store);
 	console.log(reader.get('note-1'));
 	console.log(writer === reader, opened);
 }
