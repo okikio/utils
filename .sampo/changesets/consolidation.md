@@ -1,11 +1,11 @@
 ---
-'@okikio/authz': minor
-'@okikio/capability': major
-'@okikio/schema': minor
-'@okikio/context': minor
-'@okikio/http': minor
-'@okikio/env': major
-'@okikio/utils': major
+'npm/@okikio/authz': minor
+'npm/@okikio/capability': major
+'npm/@okikio/schema': minor
+'npm/@okikio/context': minor
+'npm/@okikio/http': minor
+'npm/@okikio/env': major
+'npm/@okikio/utils': major
 ---
 
 Move entitlement checks to authz/entitlement, usage recording to capability/effect/meter, and codecs to schema/codec.

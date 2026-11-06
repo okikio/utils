@@ -1,5 +1,5 @@
 ---
-'@okikio/hash': minor
+'npm/@okikio/hash': minor
 ---
 
 Add asynchronous, synchronous and incremental digests, bounded stream hashing, HMAC signing and verification,

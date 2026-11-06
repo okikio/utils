@@ -49,5 +49,10 @@
 		"@okikio/result": "workspace:^",
 		"@okikio/authz": "workspace:^",
 		"mitata": "^1.0.34"
+	},
+	"publishConfig": {
+		"access": "public",
+		"directory": "../../.tmp/artifacts/npm/server",
+		"linkDirectory": false
 	}
 }

@@ -1,57 +1,65 @@
-/** Protect registry name/version agreement and JSONC preservation in the real release command. @module */
+/** Keep npm/JSR version identity aligned while preserving authored manifest comments. @module */
 import { describe, it } from 'node:test';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { expect } from '@std/expect';
-import { parse } from '@std/jsonc';
+import { candidates } from '#tools/releases/candidates.ts';
+import { versions } from '#tools/releases/versions.ts';
 
-/** Copy the release command into an owned fixture repository so source manifests cannot be changed. */
+/** Own a disposable repository partition; no assertion can write the actual package manifests. */
 async function fixture() {
-	await Deno.mkdir('.tmp/tests', { recursive: true });
-	const root = await Deno.makeTempDir({ dir: `${Deno.cwd()}/.tmp/tests`, prefix: 'okikio-release-' });
-	await Deno.mkdir(`${root}/.bumpy`);
-	await Deno.mkdir(`${root}/packages/example`, { recursive: true });
-	await Deno.copyFile(new URL('../.bumpy/release.ts', import.meta.url), `${root}/.bumpy/release.ts`);
-	await Deno.writeTextFile(
-		`${root}/packages/example/package.json`,
+	await mkdir('.tmp/tests', { recursive: true });
+	const root = await mkdtemp(resolve('.tmp/tests/release-'));
+	await mkdir(resolve(root, 'packages/example'), { recursive: true });
+	await writeFile(
+		resolve(root, 'packages/example/package.json'),
 		JSON.stringify({ name: '@example/owned', version: '1.2.3' }),
 	);
-	await Deno.writeTextFile(
-		`${root}/packages/example/deno.jsonc`,
-		'{\n\t// Keep the source publication intent.\n\t"name": "@example/owned",\n\t"version": "1.1.0",\n}\n',
-	);
-	return { root, [Symbol.asyncDispose]: () => Deno.remove(root, { recursive: true }) };
+	const path = resolve(root, 'packages/example/deno.jsonc');
+	await writeFile(path, '{\n // Keep source publication intent.\n "name": "@example/owned", "version": "1.1.0",\n}\n');
+	return { root, path, [Symbol.asyncDispose]: () => rm(root, { recursive: true }) };
 }
 
-/** Invoke the actual command with only fixture read/write authority and capture terminal status. */
-async function command(root: string, mode: 'check' | 'sync'): Promise<Deno.CommandOutput> {
-	return await new Deno.Command(Deno.execPath(), {
-		args: ['run', '--no-check', `--allow-read=${root}`, `--allow-write=${root}`, `${root}/.bumpy/release.ts`, mode],
-		cwd: root,
-		stdout: 'piped',
-		stderr: 'piped',
-	}).output();
-}
-
-describe('JSR release versions', () => {
-	it('rejects drift, preserves JSONC when synchronizing, and is idempotent', async () => {
-		await using workspace = await fixture();
-		const { root } = workspace;
-		expect((await command(root, 'check')).success).toBe(false);
-		expect((await command(root, 'sync')).success).toBe(true);
-		const synchronized = await Deno.readTextFile(`${root}/packages/example/deno.jsonc`);
-		expect((parse(synchronized) as { version: string }).version).toBe('1.2.3');
-		expect(synchronized).toContain('// Keep the source publication intent.');
-		expect((await command(root, 'check')).success).toBe(true);
-		expect((await command(root, 'sync')).success).toBe(true);
-		expect(await Deno.readTextFile(`${root}/packages/example/deno.jsonc`)).toBe(synchronized);
+describe('release version projection', () => {
+	it('rejects drift, preserves JSONC, and synchronizes idempotently', async () => {
+		await using scope = await fixture();
+		await expect(versions(scope.root)).rejects.toThrow('differs');
+		await versions(scope.root, true);
+		const first = await readFile(scope.path, 'utf8');
+		expect(first).toContain('// Keep source publication intent.');
+		expect(first).toContain('1.2.3');
+		await versions(scope.root);
+		await versions(scope.root, true);
+		expect(await readFile(scope.path, 'utf8')).toBe(first);
 	});
+	it('rejects name drift before writing a projection', async () => {
+		await using scope = await fixture();
+		const before = (await readFile(scope.path, 'utf8')).replace('@example/owned', '@example/other');
+		await writeFile(scope.path, before);
+		await expect(versions(scope.root, true)).rejects.toThrow('names differ');
+		expect(await readFile(scope.path, 'utf8')).toBe(before);
+	});
+});
 
-	it('rejects a mismatched registry name without overwriting the JSR manifest', async () => {
-		await using workspace = await fixture();
-		const { root } = workspace;
-		const path = `${root}/packages/example/deno.jsonc`;
-		const before = (await Deno.readTextFile(path)).replace('@example/owned', '@example/other');
-		await Deno.writeTextFile(path, before);
-		expect((await command(root, 'sync')).success).toBe(false);
-		expect(await Deno.readTextFile(path)).toBe(before);
+describe('npm candidate ownership', () => {
+	it('rejects stale artifacts and publication redirects before publication', async () => {
+		await using scope = await fixture();
+		const source = {
+			name: '@example/owned',
+			version: '1.2.3',
+			publishConfig: { directory: '../../.tmp/artifacts/npm/example', linkDirectory: false },
+		};
+		await writeFile(resolve(scope.root, 'packages/example/package.json'), JSON.stringify(source));
+		const directory = resolve(scope.root, '.tmp/artifacts/npm/example');
+		await mkdir(directory, { recursive: true });
+		const path = resolve(directory, 'package.json');
+		const artifact = { name: source.name, version: '1.2.2', type: 'module' };
+		await writeFile(path, JSON.stringify(artifact));
+		await expect(candidates(scope.root)).rejects.toThrow('identity differs');
+		artifact.version = source.version;
+		await writeFile(path, JSON.stringify(artifact));
+		await candidates(scope.root);
+		await writeFile(path, JSON.stringify({ ...artifact, publishConfig: { directory: '../other' } }));
+		await expect(candidates(scope.root)).rejects.toThrow('publication redirect');
 	});
 });

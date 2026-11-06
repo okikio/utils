@@ -56,6 +56,9 @@ importers:
       '@okikio/input':
         specifier: workspace:*
         version: link:packages/input
+      '@okikio/observables':
+        specifier: ^1.4.0
+        version: 1.4.0
       '@okikio/pool':
         specifier: workspace:*
         version: link:packages/pool
@@ -125,9 +128,6 @@ importers:
       '@types/node':
         specifier: 26.4.0
         version: 26.4.0
-      '@varlock/bumpy':
-        specifier: 1.18.1
-        version: 1.18.1
       ajv:
         specifier: 8.20.0
         version: 8.20.0
@@ -159,14 +159,17 @@ importers:
         specifier: 7.3.3
         version: 7.3.3
       playwright:
-        specifier: 1.62.1
-        version: 1.62.1
+        specifier: 1.65.0
+        version: 1.65.0
       postgres:
         specifier: 4.0.0
         version: 4.0.0
       publint:
         specifier: 0.3.24
         version: 0.3.24
+      sampo:
+        specifier: 0.24.0
+        version: 0.24.0
       saxes:
         specifier: 6.0.0
         version: 6.0.0
@@ -207,6 +210,22 @@ importers:
         specifier: workspace:*
         version: link:../../packages/server
 
+  examples/sessions:
+    dependencies:
+      '@okikio/capability':
+        specifier: workspace:*
+        version: link:../../packages/capability
+      '@okikio/dispose':
+        specifier: workspace:*
+        version: link:../../packages/dispose
+      playwright:
+        specifier: 1.65.0
+        version: 1.65.0
+    devDependencies:
+      '@std/expect':
+        specifier: npm:@jsr/std__expect@^1.0.20
+        version: '@jsr/std__expect@1.0.20'
+
   examples/websocket:
     dependencies:
       '@okikio/server':
@@ -227,6 +246,9 @@ importers:
       '@okikio/context':
         specifier: workspace:^
         version: link:../context
+      '@okikio/duration':
+        specifier: workspace:^
+        version: link:../duration
       '@okikio/pool':
         specifier: workspace:^
         version: link:../pool
@@ -236,6 +258,9 @@ importers:
       '@okikio/schema':
         specifier: workspace:^
         version: link:../schema
+      '@okikio/streams':
+        specifier: workspace:^
+        version: link:../streams
       '@okikio/worker':
         specifier: workspace:^
         version: link:../worker
@@ -252,6 +277,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    publishDirectory: ../../.tmp/artifacts/npm/activity
 
   packages/authz:
     dependencies:
@@ -277,6 +303,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    publishDirectory: ../../.tmp/artifacts/npm/authz
 
   packages/capability:
     dependencies:
@@ -323,6 +350,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    publishDirectory: ../../.tmp/artifacts/npm/capability
 
   packages/collection:
     devDependencies:
@@ -335,6 +363,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    publishDirectory: ../../.tmp/artifacts/npm/collection
 
   packages/context:
     dependencies:
@@ -366,6 +395,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    publishDirectory: ../../.tmp/artifacts/npm/context
 
   packages/dispose:
     devDependencies:
@@ -375,6 +405,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    publishDirectory: ../../.tmp/artifacts/npm/dispose
 
   packages/duration:
     dependencies:
@@ -388,6 +419,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    publishDirectory: ../../.tmp/artifacts/npm/duration
 
   packages/env:
     dependencies:
@@ -416,6 +448,7 @@ importers:
       zod:
         specifier: ^4.5.4
         version: 4.5.4
+    publishDirectory: ../../.tmp/artifacts/npm/env
 
   packages/format:
     dependencies:
@@ -450,6 +483,7 @@ importers:
       saxes:
         specifier: ^6.0.0
         version: 6.0.0
+    publishDirectory: ../../.tmp/artifacts/npm/format
 
   packages/hash:
     dependencies:
@@ -472,6 +506,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    publishDirectory: ../../.tmp/artifacts/npm/hash
 
   packages/hono:
     dependencies:
@@ -494,6 +529,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    publishDirectory: ../../.tmp/artifacts/npm/hono
 
   packages/http:
     dependencies:
@@ -503,6 +539,9 @@ importers:
       '@okikio/dispose':
         specifier: workspace:^
         version: link:../dispose
+      '@okikio/duration':
+        specifier: workspace:^
+        version: link:../duration
       '@okikio/hash':
         specifier: workspace:^
         version: link:../hash
@@ -531,6 +570,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    publishDirectory: ../../.tmp/artifacts/npm/http
 
   packages/input:
     dependencies:
@@ -559,6 +599,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    publishDirectory: ../../.tmp/artifacts/npm/input
 
   packages/pool:
     dependencies:
@@ -584,6 +625,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    publishDirectory: ../../.tmp/artifacts/npm/pool
 
   packages/query:
     dependencies:
@@ -609,6 +651,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    publishDirectory: ../../.tmp/artifacts/npm/query
 
   packages/result:
     dependencies:
@@ -631,6 +674,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    publishDirectory: ../../.tmp/artifacts/npm/result
 
   packages/runtime:
     dependencies:
@@ -659,6 +703,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    publishDirectory: ../../.tmp/artifacts/npm/runtime
 
   packages/scheduler:
     dependencies:
@@ -699,6 +744,7 @@ importers:
       zod:
         specifier: ^4.5.4
         version: 4.5.4
+    publishDirectory: ../../.tmp/artifacts/npm/scheduler
 
   packages/schema:
     dependencies:
@@ -733,6 +779,7 @@ importers:
       zod:
         specifier: ^4.5.4
         version: 4.5.4
+    publishDirectory: ../../.tmp/artifacts/npm/schema
 
   packages/server:
     dependencies:
@@ -785,6 +832,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    publishDirectory: ../../.tmp/artifacts/npm/server
 
   packages/storage:
     dependencies:
@@ -800,6 +848,9 @@ importers:
       '@okikio/dispose':
         specifier: workspace:^
         version: link:../dispose
+      '@okikio/duration':
+        specifier: workspace:^
+        version: link:../duration
       '@okikio/observables':
         specifier: ^1.4.0
         version: 1.4.0
@@ -831,6 +882,7 @@ importers:
       zod:
         specifier: ^4.5.4
         version: 4.5.4
+    publishDirectory: ../../.tmp/artifacts/npm/storage
 
   packages/streams:
     dependencies:
@@ -850,6 +902,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    publishDirectory: ../../.tmp/artifacts/npm/streams
 
   packages/task:
     dependencies:
@@ -881,6 +934,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    publishDirectory: ../../.tmp/artifacts/npm/task
 
   packages/telemetry:
     dependencies:
@@ -955,6 +1009,7 @@ importers:
       '@opentelemetry/sdk-trace-node':
         specifier: 2.2.0
         version: 2.2.0(@opentelemetry/api@1.9.0)
+    publishDirectory: ../../.tmp/artifacts/npm/telemetry
 
   packages/utils:
     dependencies:
@@ -1040,6 +1095,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    publishDirectory: ../../.tmp/artifacts/npm/utils
 
   packages/worker:
     dependencies:
@@ -1071,6 +1127,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    publishDirectory: ../../.tmp/artifacts/npm/worker
 
   packages/workflow:
     dependencies:
@@ -1126,6 +1183,58 @@ importers:
       zod:
         specifier: ^4.5.4
         version: 4.5.4
+    publishDirectory: ../../.tmp/artifacts/npm/workflow
+
+  tools:
+    dependencies:
+      '@okikio/context':
+        specifier: workspace:*
+        version: link:../packages/context
+      '@okikio/dispose':
+        specifier: workspace:*
+        version: link:../packages/dispose
+      '@okikio/duration':
+        specifier: workspace:*
+        version: link:../packages/duration
+      '@okikio/format':
+        specifier: workspace:*
+        version: link:../packages/format
+      '@okikio/input':
+        specifier: workspace:*
+        version: link:../packages/input
+      '@okikio/runtime':
+        specifier: workspace:*
+        version: link:../packages/runtime
+      '@okikio/storage':
+        specifier: workspace:*
+        version: link:../packages/storage
+      '@okikio/worker':
+        specifier: workspace:*
+        version: link:../packages/worker
+      '@std/expect':
+        specifier: npm:@jsr/std__expect@^1.0.20
+        version: '@jsr/std__expect@1.0.20'
+      '@std/jsonc':
+        specifier: npm:@jsr/std__jsonc@1.0.2
+        version: '@jsr/std__jsonc@1.0.2'
+      mitata:
+        specifier: 1.0.34
+        version: 1.0.34
+      oxc-parser:
+        specifier: 0.145.0
+        version: 0.145.0
+      playwright:
+        specifier: 1.65.0
+        version: 1.65.0
+      tsdown:
+        specifier: 0.22.14
+        version: 0.22.14(@arethetypeswrong/core@0.18.5)(publint@0.3.24)(typescript@6.0.3)
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      zod:
+        specifier: ^4.5.4
+        version: 4.5.4
 
 packages:
 
@@ -1149,6 +1258,36 @@ packages:
 
   '@braidai/lang@1.1.2':
     resolution: {integrity: sha512-qBcknbBufNHlui137Hft8xauQMTZDKdophmLFv05r2eNmdIv/MlPuP4TdUknHG68UdWLgVZwgxVe735HzJNIwA==}
+
+  '@bruits/sampo-darwin-arm64@0.24.0':
+    resolution: {integrity: sha512-83jriIIg6YrkpcdhUpp8PBaEJCOxLGww68x/TTr9Fwxld+dPRAP+xsVEicWoxntoA3c9+rWw+qPUaCJz+tT4Hg==}
+    cpu: [arm64]
+    os: [darwin]
+    hasBin: true
+
+  '@bruits/sampo-darwin-x64@0.24.0':
+    resolution: {integrity: sha512-4ctAs8WrStdCSAguxikVRKz2s04XTaceIYpGxLwFCfQPhf+1ZPyKiPPN44sxB5U2ydzp+/g0n+r/s4JehVWHsg==}
+    cpu: [x64]
+    os: [darwin]
+    hasBin: true
+
+  '@bruits/sampo-linux-arm64@0.24.0':
+    resolution: {integrity: sha512-tY+FTHQaZ0M4SefoCvYCd867tKkfb6nyWLkJjhfgZy9Y8nngG59wiBqyMwIlMnLBn7LMAfjgYwPOozt7utJraw==}
+    cpu: [arm64]
+    os: [linux]
+    hasBin: true
+
+  '@bruits/sampo-linux-x64@0.24.0':
+    resolution: {integrity: sha512-pDa5XDm6Re0ARlyHIyQ6Y7PbtWoZBy+d4DIbYtLuCH5tw7cgkVOwWma8bcCwrh1r9W/pTf8xIqQWAXZNeYLxyw==}
+    cpu: [x64]
+    os: [linux]
+    hasBin: true
+
+  '@bruits/sampo-win32-x64@0.24.0':
+    resolution: {integrity: sha512-3Cq00SS+pVb4jNO3ThjHSqq/ZPlm8xNDOgVyBMMYIRz2vn1jqr+IhVzOwy2IPWOViE4ODjb/4zTgN4Z/2exmeQ==}
+    cpu: [x64]
+    os: [win32]
+    hasBin: true
 
   '@colors/colors@1.5.0':
     resolution: {integrity: sha512-ooWCrlZP11i8GImSjTHYHLkvFDP48nS4+204nGb1RiX/WXYHmJA2III9/e2DWVabCESdW7hBAEzHRqUn9OUVvQ==}
@@ -1814,10 +1953,6 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@varlock/bumpy@1.18.1':
-    resolution: {integrity: sha512-u6PHUr+laAgWWm/c3wdExHBCcvYkkTb+KsiRNR9GCFIbCDrCN9CyOZO/crtRZ5u4KWMKtUTeA7U/s+AA0k7Dcg==}
-    hasBin: true
-
   '@yuku-codegen/binding-android-arm64@0.8.7':
     resolution: {integrity: sha512-C/0zV5IhgVdYhGJTwrY0v8dknxlhiKwtVJkMUaexu9/QvRmzlV4vfU3hZlUSgqc2BxQHntL1mCVbDq8j0FRFDw==}
     cpu: [arm64]
@@ -2335,11 +2470,6 @@ packages:
   fs-constants@1.0.0:
     resolution: {integrity: sha512-y6OAwoSIf7FyjMIv94u+b5rdheZEjzR63GTyZJm5qh4Bi+2YgwLCcI/fPFZkL5PSixOt6ZNKm+w+Hfp/Bciwow==}
 
-  fsevents@2.3.2:
-    resolution: {integrity: sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==}
-    engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
-    os: [darwin]
-
   get-caller-file@2.0.5:
     resolution: {integrity: sha512-DyFP3BM/3YHTQOCUL/w0OZHR0lpKeGrxotcHWcqNEdnltqFwXVfhEBQ94eIo34AfQpo0rGki4cyIiftY06h2Fg==}
     engines: {node: 6.* || 8.* || >= 10.*}
@@ -2545,13 +2675,13 @@ packages:
     resolution: {integrity: sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ==}
     engines: {node: '>=16.20.0'}
 
-  playwright-core@1.62.1:
-    resolution: {integrity: sha512-wPYSwEBJY9GHraISXqyqtx0na0LpO3XEX7jNDhntbex7tzUS7kLnZsOlFruFJB4Hi/rhDMjXGqHewDZ68nYZVw==}
+  playwright-core@1.65.0:
+    resolution: {integrity: sha512-vNSKgH6YqtN7cdT/L334zo0a+YwkrpicyrHJlWWPIm/Q+Nn2SWInil01oT0mbu96U4GgoRtCYQD9CzJQgju+lA==}
     engines: {node: '>=20'}
     hasBin: true
 
-  playwright@1.62.1:
-    resolution: {integrity: sha512-0M+L3LAD8/nm554LOla9Ayx0j0tmFZ0FBcoQ7F1VuVHpM/XpiC8RcDzBQB8W5+hA8L22THxELzeF+2WcUzvcLg==}
+  playwright@1.65.0:
+    resolution: {integrity: sha512-F3AMWcR44qMBt4kq+6Kb6mX7bjGXshktKFOPULd7reED6ZJWevjbNRqysP7q+AATE9kdPEZBibex1BYsvpVoeA==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -2656,6 +2786,11 @@ packages:
 
   safer-buffer@2.1.2:
     resolution: {integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==}
+
+  sampo@0.24.0:
+    resolution: {integrity: sha512-IK6zOS/T70bZG5fwAtcjZDtnXe/Y5/5Ye4pKIE/lg0G6BPC8peBrgfSE9ltvzeeEn9V4kcv9FW74W8AZ5NIigA==}
+    engines: {node: '>=22'}
+    hasBin: true
 
   saxes@6.0.0:
     resolution: {integrity: sha512-xAg7SOnEhrm5zI3puOOKyy1OMcMlIJZYNJY7xLBwSze0UjhPLnWfj2GF2EpT0jmzaJKIWKHLsaSSajf35bcYnA==}
@@ -2985,6 +3120,21 @@ snapshots:
   '@borewit/text-codec@0.2.2': {}
 
   '@braidai/lang@1.1.2': {}
+
+  '@bruits/sampo-darwin-arm64@0.24.0':
+    optional: true
+
+  '@bruits/sampo-darwin-x64@0.24.0':
+    optional: true
+
+  '@bruits/sampo-linux-arm64@0.24.0':
+    optional: true
+
+  '@bruits/sampo-linux-x64@0.24.0':
+    optional: true
+
+  '@bruits/sampo-win32-x64@0.24.0':
+    optional: true
 
   '@colors/colors@1.5.0':
     optional: true
@@ -3552,8 +3702,6 @@ snapshots:
   '@typescript/typescript-win32-x64@7.0.2':
     optional: true
 
-  '@varlock/bumpy@1.18.1': {}
-
   '@yuku-codegen/binding-android-arm64@0.8.7':
     optional: true
 
@@ -3960,9 +4108,6 @@ snapshots:
 
   fs-constants@1.0.0: {}
 
-  fsevents@2.3.2:
-    optional: true
-
   get-caller-file@2.0.5: {}
 
   get-port@5.1.1: {}
@@ -4148,13 +4293,11 @@ snapshots:
 
   pkce-challenge@5.0.1: {}
 
-  playwright-core@1.62.1: {}
+  playwright-core@1.65.0: {}
 
-  playwright@1.62.1:
+  playwright@1.65.0:
     dependencies:
-      playwright-core: 1.62.1
-    optionalDependencies:
-      fsevents: 2.3.2
+      playwright-core: 1.65.0
 
   postgres@4.0.0: {}
 
@@ -4285,6 +4428,14 @@ snapshots:
   safe-buffer@5.2.1: {}
 
   safer-buffer@2.1.2: {}
+
+  sampo@0.24.0:
+    optionalDependencies:
+      '@bruits/sampo-darwin-arm64': 0.24.0
+      '@bruits/sampo-darwin-x64': 0.24.0
+      '@bruits/sampo-linux-arm64': 0.24.0
+      '@bruits/sampo-linux-x64': 0.24.0
+      '@bruits/sampo-win32-x64': 0.24.0
 
   saxes@6.0.0:
     dependencies:

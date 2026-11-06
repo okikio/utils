@@ -1,0 +1,13 @@
+version = 1
+
+[git]
+default_branch = "main"
+tag_unpublished = false
+tag_format = "{package_name}-v{version}"
+
+[packages]
+# Release intent concerns libraries. Private tools and runnable examples have no registry release.
+ignore = ["npm/root", "npm/@okikio/tools", "npm/@okikio/example-*"]
+
+[changelog]
+show_acknowledgments = false

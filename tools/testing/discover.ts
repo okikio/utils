@@ -29,7 +29,6 @@ const Ignored = new Set(['node_modules', '.artifacts', '.tmp', '.git', 'fixtures
 /** These tools exercise Deno's compiler/module graph or Deno-hosted child fixtures. */
 const DenoFiles = new Set([
 	'tests/imports.test.ts',
-	'tests/release.test.ts',
 	'tests/selective.test.ts',
 	'tests/process-orchestration.test.ts',
 	'tests/activity-providers.test.ts',

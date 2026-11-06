@@ -1,6 +1,7 @@
 packages:
   - 'packages/*'
   - 'examples/*'
+  - 'tools'
 
 allowBuilds:
   # Docker's SSH transport can use its JavaScript fallback; no native compiler is needed.

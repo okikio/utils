@@ -2,7 +2,8 @@
 	"nodeModulesDir": "manual",
 	"workspace": [
 		"packages/*",
-		"examples/*"
+		"examples/*",
+		"tools"
 	],
 	"tasks": {
 		"fmt": "mise run check -- --kind format",
@@ -49,7 +50,7 @@
 		"exclude": [
 			"pnpm-lock.yaml",
 			"**/*.md",
-			".bumpy/*.md",
+			".sampo/changesets/*.md",
 			"**/.example-*/**",
 			".tmp/artifacts/**",
 			".tmp/**",

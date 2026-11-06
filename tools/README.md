@@ -1,45 +1,57 @@
-# Repository tools
+# Maintain repository workflows
 
-Mise is the local and CI entry point. Its nine public workflows are configured in `mise.toml`.
-`tools/workspace/run.ts` validates selectors and selects private file tasks under `.mise/tasks/ops/`.
-Mise owns their dependencies. These small shell entrypoints preserve each tool's arguments, host and
-permission contract; substantive tooling remains TypeScript. The `ops:` tasks are hidden from normal help.
-Run `mise run test -- --help` for the command grammar and `mise run test -- --suite list` for test ownership.
+`@okikio/tools` is a private workspace package. It owns the programs used to inspect, build and test Utils, rather than
+another set of library APIs. Mise is the local and CI entry point. Start with a task family and select the package or
+runtime you need:
 
-| Owner                   | Programs and purpose                                                                                                                                                      |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm.ts`                | Build emitted ESM/CommonJS, declarations and archives; install and test clean external consumers                                                                       |
-| `sync-utils-exports.ts` | Generate or check umbrella forwarders against focused package export maps                                                                                                 |
-| `packages/`             | Package structure, focused/umbrella bundles and browser-selected module graphs                                                                                            |
-| `testing/`              | Deterministic test discovery, native-runtime execution, portable type profiles, real browser/installed consumers, runnable documentation and pinned Hono source inventory |
-| `bench/`                | Competitor preparation, isolated measurement, report validation, balanced comparisons and native profiling                                                                |
+```sh
+mise run check
+mise run test -- --project streams --runtime node
+mise run test -- --project tools --runtime bun
+mise run bench -- --check --project streams --runtime deno
+mise run build -- --target exports --write
+mise run release -- --operation plan
+```
 
-Authored test scenarios remain beside their package or in `tests/`; focused benchmarks remain in `packages/*/`; composed
-workloads live in `bench/`. Tools orchestrate those scenarios without inventing a second test implementation. Generated
-outputs live under `.tmp/artifacts/`, and fixture data lives with the test that owns it. Bumpy's release integration remains
-under `.bumpy/`.
+`--project` accepts a short name or `@okikio/name`. Test selection accepts repeated projects. Benchmark measurements
+keep one project per report so a result has an unambiguous owner. Adding an ordinary package or test does not require
+adding a new Mise task. `mise run test -- --help` explains selectors, and `mise run test -- --suite list` explains test
+ownership. Type checks still protect the full public inference graph.
 
-Authored orchestration is TypeScript. `tests/npm-consumer.mjs` is a deliberate JavaScript consumer fixture: it checks
-emitted npm exports through both `import` and `require`, without a TypeScript loader concealing packaging errors.
-The executable shell files in `.mise/tasks/ops/` only establish environment, arguments and native tool invocation.
-They contain no test or benchmark implementation. Installed consumers remain outside this checkout to prevent
-ancestor workspace dependencies from hiding missing package dependencies; their generated scenarios live in their own `.tmp/`.
+```text
+tools/
+├── package.json        private npm workspace and direct dependencies
+├── deno.jsonc          Deno workspace boundary and private imports
+├── workspace/          task selection and affected-CI planning
+├── packages/           source exports, npm projection and package contracts
+├── releases/           npm-to-JSR version projection and GitHub release notes
+├── testing/            test discovery, runtime adapters and installed consumers
+└── bench/              fixture checks, measurements, comparisons and profiling
+```
 
-Use `prepare`, `check`, `test`, `bench`, `build`, `verify`, `release`, `ci:plan`, and `ci:run`.
-For example, `mise run bench -- --check --project streams --runtime bun` checks one package's
-benchmark fixtures, while `mise run test -- --runtime node --project server` runs its source tests.
-`--project` accepts a short name or `@okikio/name` and rejects unknown names. Type checking still
-checks the full public inference graph; selecting a package does not weaken that contract.
+`workspace/run.ts` validates selectors and delegates to hidden `.mise/tasks/ops/` operations. Those shell entrypoints
+establish the native tool, environment and permissions. TypeScript owns substantive orchestration. Mise owns pinned
+runtimes and dependency order; package scripts and Deno tasks delegate to these same families.
 
-Package `package.json` files own source exports and npm dependency ranges. Export generation
-projects focused Deno exports, package command aliases, and umbrella bridges from those inputs.
-Deno retains JSR-only aliases, compiler settings, and package permissions. The pnpm and Deno
-locks describe different resolution graphs and both remain frozen in CI.
+`packages/exports.ts` projects the focused package export maps into Deno exports and umbrella forwarders. It has explicit
+check and write modes. The public subpaths in package manifests are deliberate API decisions: discovering every `.ts`
+file would expose private implementation details. `packages/npm.ts` uses those same maps to stage ESM artifacts with
+stable tsdown, preserve external dependencies and build declarations. It packs real archives and tests clean consumers.
+`tests/npm-consumer.mjs` deliberately runs JavaScript without a TypeScript loader.
 
-See [testing](../docs/maintenance/01-testing.md), [packaging](../docs/maintenance/02-packaging.md) and
-[benchmarks](../docs/benchmarks/01-running.md) for commands, evidence and limits. JSR renders API reference
-documentation from public source comments; longer explanations belong in `docs/`.
+Tests remain next to their package; composed workflows remain in root `tests/`. Package benchmarks remain next to the
+package, and cross-package measurements remain in root `bench/`. Tools select these programs without duplicating their
+assertions. External-resource tests declare their database, browser or container needs; ordinary portable tests are
+discovered automatically. Fixed upstream fixture inventories record provenance, not a second editable source tree.
 
-See [artifact ownership](../docs/maintenance/05-artifacts.md) for the tracked-source policy, current freeze preparation,
-and location of preserved historical evidence. Fresh checkouts prepare generated benchmark inputs explicitly; checks
-never depend on the old verification folder.
+Repository-owned generated artifacts and execution evidence live in `.tmp/`. Existing evidence is preserved. Installed
+consumers use isolated directories so this checkout's workspace dependencies cannot conceal a missing dependency.
+These locations are internal test details, not application layout recommendations.
+
+CI installs pinned tools with the official Mise action and caches pnpm downloads and Deno modules. Each job shows its
+setup directly. Restoring downloads does not skip tests, reuse an unverified build or imply a passing check. The release
+workflow reuses exact tested artifacts at the same revision.
+
+Read [testing](../docs/maintenance/01-testing.md), [packaging](../docs/maintenance/02-packaging.md),
+[releases](../docs/maintenance/03-releases.md) and [artifact ownership](../docs/maintenance/05-artifacts.md) for the contracts
+behind these commands. JSR renders API reference from public source comments; longer explanations belong in `docs/`.

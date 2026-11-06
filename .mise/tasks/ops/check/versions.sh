@@ -3,4 +3,4 @@
 #MISE hide=true
 #MISE depends=[]
 set -euo pipefail
-exec deno run --frozen --allow-read .bumpy/release.ts check
+exec node tools/releases/versions.ts check

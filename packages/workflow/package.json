@@ -33,5 +33,10 @@
 		"@okikio/dispose": "workspace:^",
 		"@okikio/scheduler": "workspace:^",
 		"mitata": "^1.0.34"
+	},
+	"publishConfig": {
+		"access": "public",
+		"directory": "../../.tmp/artifacts/npm/workflow",
+		"linkDirectory": false
 	}
 }

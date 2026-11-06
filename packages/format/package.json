@@ -32,5 +32,10 @@
 		"saxes": "^6.0.0",
 		"mitata": "^1.0.34",
 		"csv-parse": "7.0.3"
+	},
+	"publishConfig": {
+		"access": "public",
+		"directory": "../../.tmp/artifacts/npm/format",
+		"linkDirectory": false
 	}
 }

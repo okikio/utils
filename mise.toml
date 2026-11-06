@@ -42,7 +42,7 @@ raw_args = true
 run = "node tools/workspace/run.ts verify"
 
 [tasks."release"]
-description = "Check release metadata and JSR publication candidates"
+description = "Plan Sampo versions or prepare/publish one explicit registry target"
 raw_args = true
 run = "node tools/workspace/run.ts release"
 

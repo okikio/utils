@@ -35,5 +35,10 @@
 		"zod": {
 			"optional": true
 		}
+	},
+	"publishConfig": {
+		"access": "public",
+		"directory": "../../.tmp/artifacts/npm/env",
+		"linkDirectory": false
 	}
 }

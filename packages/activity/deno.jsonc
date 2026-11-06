@@ -19,7 +19,8 @@
 		"./http": "./http.ts",
 		"./http/duplex": "./http/duplex.ts"
 	},
-	"imports": {},
+	"imports": {
+	},
 	"license": "MIT",
 	"tasks": {
 		"check": "mise run check -- --project activity",

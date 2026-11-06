@@ -18,5 +18,10 @@
 		"fast-check": "^4.9.0",
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
 		"mitata": "^1.0.34"
+	},
+	"publishConfig": {
+		"access": "public",
+		"directory": "../../.tmp/artifacts/npm/collection",
+		"linkDirectory": false
 	}
 }

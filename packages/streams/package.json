@@ -22,5 +22,10 @@
 		"@okikio/dispose": "workspace:^",
 		"@okikio/schema": "workspace:^",
 		"@okikio/observables": "^1.4.0"
+	},
+	"publishConfig": {
+		"access": "public",
+		"directory": "../../.tmp/artifacts/npm/streams",
+		"linkDirectory": false
 	}
 }

@@ -17,7 +17,8 @@
 		".": "./mod.ts",
 		"./failure/migrate": "./failure/migrate.ts"
 	},
-	"imports": {},
+	"imports": {
+	},
 	"license": "MIT",
 	"tasks": {
 		"check": "mise run check -- --project result",

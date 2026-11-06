@@ -1,29 +1,29 @@
 ---
-'@okikio/activity': major
-'@okikio/authz': patch
-'@okikio/capability': major
-'@okikio/collection': major
-'@okikio/context': major
-'@okikio/dispose': patch
-'@okikio/duration': minor
-'@okikio/env': patch
-'@okikio/format': major
-'@okikio/http': major
-'@okikio/input': major
-'@okikio/pool': patch
-'@okikio/query': major
-'@okikio/result': major
-'@okikio/runtime': major
-'@okikio/scheduler': major
-'@okikio/schema': major
-'@okikio/server': major
-'@okikio/storage': major
-'@okikio/streams': minor
-'@okikio/task': minor
-'@okikio/telemetry': minor
-'@okikio/utils': major
-'@okikio/worker': major
-'@okikio/workflow': major
+'npm/@okikio/activity': major
+'npm/@okikio/authz': patch
+'npm/@okikio/capability': major
+'npm/@okikio/collection': major
+'npm/@okikio/context': major
+'npm/@okikio/dispose': patch
+'npm/@okikio/duration': minor
+'npm/@okikio/env': patch
+'npm/@okikio/format': major
+'npm/@okikio/http': major
+'npm/@okikio/input': major
+'npm/@okikio/pool': patch
+'npm/@okikio/query': major
+'npm/@okikio/result': major
+'npm/@okikio/runtime': major
+'npm/@okikio/scheduler': major
+'npm/@okikio/schema': major
+'npm/@okikio/server': major
+'npm/@okikio/storage': major
+'npm/@okikio/streams': minor
+'npm/@okikio/task': minor
+'npm/@okikio/telemetry': minor
+'npm/@okikio/utils': major
+'npm/@okikio/worker': major
+'npm/@okikio/workflow': major
 ---
 
 Consolidate 37 utility packages into 27 with shared contracts and explicit subpaths. Capability owns effects,

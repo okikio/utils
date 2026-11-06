@@ -16,5 +16,10 @@
 		"@okikio/http": "workspace:^",
 		"@okikio/capability": "workspace:^",
 		"mitata": "^1.0.34"
+	},
+	"publishConfig": {
+		"access": "public",
+		"directory": "../../.tmp/artifacts/npm/hono",
+		"linkDirectory": false
 	}
 }

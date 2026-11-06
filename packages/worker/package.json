@@ -29,5 +29,10 @@
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
 		"@standard-schema/spec": "^1.1.0",
 		"mitata": "^1.0.34"
+	},
+	"publishConfig": {
+		"access": "public",
+		"directory": "../../.tmp/artifacts/npm/worker",
+		"linkDirectory": false
 	}
 }

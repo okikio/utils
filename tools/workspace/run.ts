@@ -1,9 +1,8 @@
 /** Public repository workflows. Selection is validated before any recipe starts. @module */
 import { parseArgs } from 'node:util';
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, readdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { plan } from './ci.ts';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 process.chdir(root);
@@ -21,6 +20,8 @@ const { values, positionals } = parseArgs({
 		suite: { type: 'string' },
 		target: { type: 'string', default: 'npm' },
 		operation: { type: 'string' },
+		bump: { type: 'string' },
+		message: { type: 'string' },
 		check: { type: 'boolean' },
 		write: { type: 'boolean' },
 		full: { type: 'boolean' },
@@ -48,8 +49,8 @@ if (values.help) {
   --kind <operation> Select a check or preparation operation
   --suite <suite>    source, comparisons, docs, examples, packages, bundles,
                      browser, postgres, containers, soak, list
-  --check            Benchmark correctness or release checks without publishing
-  --operation <name> measure, compare, profile, challengers, freeze, npm, queue
+  --check            Benchmark correctness or release/publish dry runs
+  --operation <name> bench: measure, compare, profile; release: add, plan, version, publish
   --full             Select all CI lanes (default planning uses --base and --head)
   --output <path>    Fresh report directory
 
@@ -64,13 +65,19 @@ const projects =
 const members = readdirSync('packages', { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) =>
 	entry.name
 );
-for (const name of projects) if (!members.includes(name)) throw new TypeError(`Unknown project ${name}.`);
+for (const name of projects) {
+	if (name !== 'tools' && !members.includes(name)) throw new TypeError(`Unknown project ${name}.`);
+}
 if (!['deno', 'node', 'bun'].includes(values.runtime!)) throw new TypeError('Runtime must be deno, node, or bun.');
-const selectors = [...projects.map((name) => `packages/${name}`), ...positionals, ...forwarded];
+const selectors = [
+	...projects.map((name) => name === 'tools' ? 'tools' : `packages/${name}`),
+	...positionals,
+	...forwarded,
+];
 
 /** Recipes are trusted repository code. User arguments remain separate argv entries, never shell interpolation. */
-function command(binary: string, args: readonly string[]): void {
-	const result = spawnSync(binary, [...args], { cwd: root, stdio: 'inherit', env: process.env });
+function command(binary: string, args: readonly string[], environment: NodeJS.ProcessEnv = process.env): void {
+	const result = spawnSync(binary, [...args], { cwd: root, stdio: 'inherit', env: environment });
 	if (result.error) throw result.error;
 	if (result.signal) throw new Error(`${binary} stopped with ${result.signal}.`);
 	if (result.status !== 0) process.exit(result.status ?? 1);
@@ -148,8 +155,9 @@ function bench(): void {
 }
 
 /** CI receives a revision-based plan and runs the same operations available to a maintainer. */
-function ci(): void {
+async function ci(): Promise<void> {
 	if (family === 'ci:plan') {
+		const { plan } = await import('./ci.ts');
 		const paths: string[] = [];
 		if (!values.full) {
 			if (!values.base || !values.head) throw new TypeError('Affected planning requires --base and --head, or --full.');
@@ -264,18 +272,60 @@ switch (family) {
 		test('packages');
 		jsr();
 		break;
-	case 'release':
-		if (values.operation === 'add') {
-			command('pnpm', ['exec', 'bumpy', 'add', ...positionals]);
-			break;
-		}
-		if (!values.check) throw new TypeError('Use --check; publication remains owned by Bumpy.');
-		operation('release:check');
-		if (values.operation !== 'metadata') jsr();
+	case 'release': {
+		// Installation must run without workspace dependencies. Load release tooling only after selection.
+		const { versions } = await import('../releases/versions.ts');
+		const { candidates, clean } = await import('../releases/candidates.ts');
+		const action = values.operation ?? 'plan';
+		if (action === 'add') {
+			command('pnpm', [
+				'exec',
+				'sampo',
+				'add',
+				...projects.flatMap((name) => ['--package', `npm/@okikio/${name}`]),
+				...(values.bump ? ['--bump', values.bump] : []),
+				...(values.message ? ['--message', values.message] : []),
+				...forwarded,
+			]);
+		} else if (action === 'plan') {
+			await versions(root);
+			// A PR checks its release target, not GitHub's synthetic <number>/merge ref.
+			// This override applies only to a read-only preview; writes retain Sampo's branch policy.
+			command('pnpm', ['exec', 'sampo', 'release', '--dry-run'], {
+				...process.env,
+				SAMPO_RELEASE_BRANCH: process.env.GITHUB_BASE_REF || 'main',
+			});
+		} else if (action === 'version') {
+			command(
+				'pnpm',
+				['exec', 'sampo', 'release', ...(values.check ? ['--dry-run'] : [])],
+				values.check
+					? {
+						...process.env,
+						SAMPO_RELEASE_BRANCH: process.env.GITHUB_BASE_REF || 'main',
+					}
+					: process.env,
+			);
+			if (!values.check) await versions(root, true);
+		} else if (action === 'publish') {
+			if (!values.check) clean(root);
+			await versions(root);
+			if (existsSync('.sampo/changesets') && readdirSync('.sampo/changesets').some((name) => name.endsWith('.md'))) {
+				throw new Error('Prepare and merge the release versions before publishing pending changesets.');
+			}
+			// Publication selects a registry explicitly. A failed target can be retried at the same revision.
+			if (values.target === 'npm') {
+				await candidates(root);
+				command('pnpm', ['exec', 'sampo', 'publish', ...(values.check ? ['--dry-run'] : [])]);
+			} else if (values.target === 'jsr') {
+				command('deno', ['publish', '--frozen-lockfile', ...(values.check ? ['--dry-run', '--allow-dirty'] : [])]);
+			} else throw new TypeError('Select --target npm or jsr.');
+		} else throw new TypeError('Release operation must be add, plan, version, or publish.');
 		break;
+	}
 	case 'ci:plan':
 	case 'ci:run':
-		ci();
+		await ci();
 		break;
 	default:
 		throw new TypeError(`Unknown workflow ${family}.`);

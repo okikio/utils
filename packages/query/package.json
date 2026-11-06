@@ -25,5 +25,10 @@
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
 		"mitata": "^1.0.34"
+	},
+	"publishConfig": {
+		"access": "public",
+		"directory": "../../.tmp/artifacts/npm/query",
+		"linkDirectory": false
 	}
 }

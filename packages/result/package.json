@@ -22,5 +22,10 @@
 		"@standard-schema/spec": "^1.1.0",
 		"@okikio/dispose": "workspace:^",
 		"mitata": "^1.0.34"
+	},
+	"publishConfig": {
+		"access": "public",
+		"directory": "../../.tmp/artifacts/npm/result",
+		"linkDirectory": false
 	}
 }

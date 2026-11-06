@@ -3,153 +3,217 @@ name: Release
 on:
   push:
     branches: [main]
+    paths: ['.sampo/changesets/**']
   workflow_dispatch:
-
-concurrency:
-  group: bumpy-release-${{ github.ref }}
-  cancel-in-progress: false
+    inputs:
+      operation:
+        description: Validate without writes, prepare a version PR, or publish its merged revision
+        type: choice
+        options: [validate, prepare, publish]
+        default: validate
 
 permissions:
   contents: read
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  plan:
-    name: Plan release
-    if: github.ref == 'refs/heads/main'
+  identity:
+    name: Check the installed App without repository writes
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.operation == 'validate'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     permissions:
       contents: read
-      packages: read
-    outputs:
-      mode: ${{ steps.plan.outputs.mode }}
-      packages: ${{ steps.plan.outputs.packages }}
     steps:
-      - name: Check out source and release history
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app
         with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Install tools
-        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
-        with:
-          version: 2026.10.3
-          cache: true
-          install: true
-
-      - name: Install dependencies
-        run: mise run prepare -- --kind deps
-
-      - id: plan
-        name: Inspect release state
+          client-id: ${{ secrets.BUMPY_APP_ID }}
+          private-key: ${{ secrets.BUMPY_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Read repository identity with the short-lived App token
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: pnpm exec bumpy ci plan
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          gh api "repos/$REPOSITORY" --jq '{full_name, permissions}'
+          gh api "repos/$REPOSITORY/pulls?state=open&per_page=1" --jq 'length'
 
-  version-pr:
-    name: Update release PR
-    needs: plan
-    if: needs.plan.outputs.mode == 'version-pr'
+  prepare:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.operation == 'prepare')
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
       pull-requests: write
     steps:
-      - name: Check out source and release history
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Install tools
-        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
-        with:
-          version: 2026.10.3
-          cache: true
-          install: true
-
-      - name: Install dependencies
-        run: mise run prepare -- --kind deps
-
-      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        id: app-token
-        with:
-          client-id: ${{ secrets.BUMPY_APP_ID }}
-          private-key: ${{ secrets.BUMPY_APP_PRIVATE_KEY }}
-
-      - name: Create or update Bumpy version PR
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BUMPY_GH_TOKEN: ${{ steps.app-token.outputs.token }} # so `release: published` workflows trigger
-        run: pnpm exec bumpy ci release --expect-mode version-pr
-
-      - name: Synchronize JSR versions into the generated release commit
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          set -euo pipefail
-          git checkout bumpy/version-packages
-          deno run --allow-read --allow-write .bumpy/release.ts sync
-          git add 'packages/*/deno.jsonc'
-          if ! git diff --cached --quiet; then
-            git commit --amend --no-edit
-            gh auth setup-git
-            git push --force-with-lease origin bumpy/version-packages
-          fi
-
-  tested:
-    name: Test release commit
-    needs: plan
-    if: needs.plan.outputs.mode == 'publish'
-    permissions:
-      contents: read
-    uses: ./.github/workflows/quality.yml
-    with:
-      full: true
-
-  publish:
-    name: Publish packages
-    needs: [plan, tested]
-    if: needs.plan.outputs.mode == 'publish'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    environment: publish
-    permissions:
-      id-token: write
-      contents: write
-      packages: write
-    steps:
-      - name: Check out source and release history
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
-
-      - name: Install tools
-        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
+      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
         with:
           version: 2026.10.3
           cache: true
-          install: true
-
-      - name: Install dependencies
-        run: mise run prepare -- --kind deps
-
-      # The exact source revision already passed full checks above.
-      # JSR publishes source, so there is no independently rebuilt npm candidate here.
-      - name: Check immutable JSR publication candidates
-        run: mise run check -- --kind jsr
-
-      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        id: app-token
+      - id: stores
+        run: |
+          echo "pnpm=$(mise exec -- pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+          echo "DENO_DIR=$RUNNER_TEMP/deno-cache" >> "$GITHUB_ENV"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
+          path: |
+            ${{ steps.stores.outputs.pnpm }}
+            ${{ runner.temp }}/deno-cache
+          key: deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.toml', 'pnpm-lock.yaml', 'deno.lock') }}
+          restore-keys: deps-${{ runner.os }}-${{ runner.arch }}-
+      - run: mise run prepare -- --kind deps
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app
+        with:
+          # Reuse the installed App; these existing secret labels do not select a release tool.
           client-id: ${{ secrets.BUMPY_APP_ID }}
           private-key: ${{ secrets.BUMPY_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Prepare versions and their JSR projection together
+        run: mise run release -- --operation version
+      - name: Propose the generated release
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          set -euo pipefail
+          git config user.name 'utils-release[bot]'
+          git config user.email 'utils-release[bot]@users.noreply.github.com'
+          git switch -C release/versions
+          git add .sampo packages pnpm-lock.yaml deno.lock
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'chore(release): prepare package versions'
+          gh auth setup-git
+          git push --force-with-lease origin release/versions
+          if ! gh pr view release/versions --json url >/dev/null 2>&1; then
+            gh pr create --base main --head release/versions --title 'Prepare Utils release' --body 'Sampo consumed the pending changesets and wrote package versions and changelogs. JSR versions are projected from the same npm manifests. Review the changelogs and passing consumer checks before merging. Publication is a separate manual Release workflow operation.'
+          fi
 
-      - name: Publish versioned packages to JSR
+  tested:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && (inputs.operation == 'validate' || inputs.operation == 'publish')
+    uses: ./.github/workflows/quality.yml
+    with:
+      full: true
+
+  npm:
+    if: inputs.operation == 'publish'
+    needs: tested
+    runs-on: ubuntu-latest
+    environment: publish
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
+        with:
+          version: 2026.10.3
+          cache: true
+      - id: stores
+        run: |
+          echo "pnpm=$(mise exec -- pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+          echo "DENO_DIR=$RUNNER_TEMP/deno-cache" >> "$GITHUB_ENV"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ${{ steps.stores.outputs.pnpm }}
+            ${{ runner.temp }}/deno-cache
+          key: deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.toml', 'pnpm-lock.yaml', 'deno.lock') }}
+          restore-keys: deps-${{ runner.os }}-${{ runner.arch }}-
+      - run: mise run prepare -- --kind deps
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: npm-candidates
+          path: .tmp/artifacts/npm
+      - name: Set the annotated release tag identity
+        run: |
+          git config user.name 'utils-release[bot]'
+          git config user.email 'utils-release[bot]@users.noreply.github.com'
+      - name: Publish the tested artifact directories with Sampo
+        run: mise run release -- --operation publish --target npm
+      - name: Retain successful npm tags, including after a partial failure
+        if: always()
         env:
           GH_TOKEN: ${{ github.token }}
-          BUMPY_GH_TOKEN: ${{ steps.app-token.outputs.token }} # so `release: published` workflows trigger
-        run: pnpm exec bumpy ci release --expect-mode publish
+        run: |
+          gh auth setup-git
+          git push origin --tags
+
+  jsr:
+    if: inputs.operation == 'publish'
+    needs: tested
+    runs-on: ubuntu-latest
+    environment: publish
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
+        with:
+          version: 2026.10.3
+          cache: true
+      - id: stores
+        run: |
+          echo "pnpm=$(mise exec -- pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+          echo "DENO_DIR=$RUNNER_TEMP/deno-cache" >> "$GITHUB_ENV"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ${{ steps.stores.outputs.pnpm }}
+            ${{ runner.temp }}/deno-cache
+          key: deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.toml', 'pnpm-lock.yaml', 'deno.lock') }}
+          restore-keys: deps-${{ runner.os }}-${{ runner.arch }}-
+      - run: mise run prepare -- --kind deps
+      - name: Publish source from the same tested revision
+        run: mise run release -- --operation publish --target jsr
+
+  releases:
+    needs: [npm, jsr]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
+        with:
+          version: 2026.10.3
+          cache: true
+      - id: stores
+        run: |
+          echo "pnpm=$(mise exec -- pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+          echo "DENO_DIR=$RUNNER_TEMP/deno-cache" >> "$GITHUB_ENV"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ${{ steps.stores.outputs.pnpm }}
+            ${{ runner.temp }}/deno-cache
+          key: deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.toml', 'pnpm-lock.yaml', 'deno.lock') }}
+          restore-keys: deps-${{ runner.os }}-${{ runner.arch }}-
+      - run: mise run prepare -- --kind deps
+      - name: Create GitHub releases only after both registries succeed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/releases/github.ts

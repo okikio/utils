@@ -34,12 +34,17 @@
 		"@okikio/hash": "workspace:^",
 		"@okikio/streams": "workspace:^",
 		"@okikio/dispose": "workspace:^",
-		"@okikio/schema": "workspace:^",
-		"@okikio/duration": "workspace:^"
+		"@okikio/duration": "workspace:^",
+		"@okikio/schema": "workspace:^"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
 		"fast-check": "^4.9.0",
 		"mitata": "^1.0.34"
+	},
+	"publishConfig": {
+		"access": "public",
+		"directory": "../../.tmp/artifacts/npm/http",
+		"linkDirectory": false
 	}
 }

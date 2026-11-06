@@ -1,9 +1,9 @@
 ---
-'@okikio/activity': patch
-'@okikio/capability': minor
-'@okikio/storage': minor
-'@okikio/task': minor
-'@okikio/workflow': minor
+'npm/@okikio/activity': patch
+'npm/@okikio/capability': minor
+'npm/@okikio/storage': minor
+'npm/@okikio/task': minor
+'npm/@okikio/workflow': minor
 ---
 
 Request activities and child workflows through context triggers, including background acceptance through effects. Add

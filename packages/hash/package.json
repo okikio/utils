@@ -28,5 +28,10 @@
 		"@okikio/streams": "workspace:^",
 		"@std/encoding": "npm:@jsr/std__encoding@^1.0.11",
 		"@std/uuid": "npm:@jsr/std__uuid@^1.1.2"
+	},
+	"publishConfig": {
+		"access": "public",
+		"directory": "../../.tmp/artifacts/npm/hash",
+		"linkDirectory": false
 	}
 }
