@@ -1,6 +1,9 @@
 /** Real SQL transactions prove acceptance and fencing; a separate sink transaction deduplicates redelivery. */
 import { after, before, describe, it } from 'node:test';
 import { expect } from '@std/expect';
+import { fork } from 'node:child_process';
+import { once } from 'node:events';
+import { fileURLToPath } from 'node:url';
 import postgres from 'postgres';
 import * as outbox from '@okikio/storage/outbox/postgres';
 import * as delivery from '@okikio/storage/outbox/effect';
@@ -339,4 +342,57 @@ describe('outbox operator recovery', () => {
 		await box.complete(recovered);
 		expect((await box.list()).entries[0]!.failure).toBeNull();
 	});
+});
+
+describe('outbox dispatcher process loss', () => {
+	for (const phase of ['staged', 'claimed', 'accepted'] as const) {
+		it(
+			`recovers after SIGKILL following ${phase}, without repeating the sink consequence`,
+			{ timeout: 15000 },
+			async () => {
+				await using owned = partition();
+				const namespace = owned.namespace;
+				const box = outbox.open({ database, namespace });
+				if (phase !== 'staged') await database.begin((tx) => box.append(tx, { id: 'crash', key: 'one', value: 'one' }));
+				const child = fork(fileURLToPath(new URL('./scenarios/outbox.ts', import.meta.url)), [], {
+					execArgv: [],
+					stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
+					env: { ...process.env, OUTBOX_DATABASE_URL: url, OUTBOX_NAMESPACE: namespace, OUTBOX_PHASE: phase },
+				});
+				await using cleanup = new AsyncDisposableStack();
+				// Register ownership before waiting for readiness so startup failure cannot
+				// strand a dispatcher. close joins both the process and its IPC channel.
+				const closed = once(child, 'close');
+				cleanup.defer(async () => {
+					if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+					await closed;
+				});
+				const ready = AbortSignal.timeout(10000);
+				const [receipt] = await once(child, 'message', { signal: ready });
+				expect(receipt).toMatchObject({ phase });
+				child.kill('SIGKILL');
+				const [, signal] = await closed;
+				expect(signal).toBe('SIGKILL');
+				await database`select pg_sleep(0.2)`;
+				if (phase === 'staged') {
+					expect(await box.inspect('crash', 'one')).toBeUndefined();
+					expect(await database`select * from outbox_fixture where namespace=${namespace}`).toHaveLength(0);
+					return;
+				}
+
+				const recovered = (await box.claim())[0]!;
+				expect(recovered.attempt).toBe(2);
+				await database.begin(async (tx) => {
+					const receipt =
+						await tx`insert into outbox_inbox values (${namespace},${recovered.id},${recovered.key}) on conflict do nothing returning key`;
+					if (receipt.length) await tx`insert into outbox_fixture values (${namespace},'one')`;
+				});
+				await box.complete(recovered);
+				expect(await database`select value from outbox_fixture where namespace=${namespace}`).toEqual([{
+					value: 'one',
+				}]);
+				expect(await box.inspect('crash', 'one')).toBe('complete');
+			},
+		);
+	}
 });
