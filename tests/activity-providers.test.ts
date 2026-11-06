@@ -6,6 +6,8 @@ import * as local from '@okikio/activity/local';
 import * as worker from '@okikio/activity/worker';
 import * as process from '@okikio/activity/process';
 import * as runtime from '@okikio/runtime/deno/process';
+import { WorkerStoppedError } from '@okikio/worker/thread';
+import { ChannelClosedError } from '@okikio/worker/process/channel';
 import * as failure from '@okikio/result/failure';
 import type { ActivityAttemptType, EngineProvider } from '@okikio/workflow';
 import { Engine, Live, Rejected, Work } from '#fixtures/provider-contract.ts';
@@ -193,7 +195,7 @@ it(
 				shutdown: { graceMs: 100, forceMs: 100 },
 			},
 		});
-		for (const provider of [thread, child]) {
+		for (const [provider, LossError] of [[thread, WorkerStoppedError], [child, ChannelClosedError]] as const) {
 			await using cancelled = context.child(ctx);
 			const stuck = Promise.withResolvers<string>();
 			const entered = Promise.withResolvers<void>();
@@ -213,8 +215,12 @@ it(
 			try {
 				await entered.promise;
 				context.cancel(cancelled, 'stop stuck request');
-				expect((await a).type).toBe('cancelled');
-				expect((await b).type).toBe('lost');
+				// The handler ignores cancellation, so the transport must retire the host.
+				// Neither attempt has a joined cleanup receipt; preserve host loss for both.
+				for (const result of await Promise.all([a, b])) {
+					expect(result.type).toBe('lost');
+					if (result.type === 'lost') expect(result.reason).toBeInstanceOf(LossError);
+				}
 				const next = await provider.run(ctx, attempt(ctx, 'host'), { async heartbeat() {} });
 				expect(next.type).toBe('success');
 				if (next.type === 'success') expect(next.value).not.toBe(old);

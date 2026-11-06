@@ -109,11 +109,19 @@ class Child {
 	async ready(): Promise<string> {
 		const event = await this.event('listening');
 		const origin = `http://127.0.0.1:${event.port}`;
-		await until(async () => {
-			const response = await fetch(`${origin}/ready`, { signal: AbortSignal.timeout(1000) });
-			await response.body?.cancel();
-			return response.ok && origin;
-		});
+		try {
+			await until(async () => {
+				const response = await fetch(`${origin}/ready`, { signal: AbortSignal.timeout(1000) });
+				await response.body?.cancel();
+				return response.ok && origin;
+			});
+		} catch (cause) {
+			// A refused port can hide a child startup fault; retain its bounded diagnostics.
+			throw new Error(
+				`Child readiness failed (exit=${this.child.exitCode}, signal=${this.child.signalCode}): ${this.#stderr}`,
+				{ cause },
+			);
+		}
 		return origin;
 	}
 	async kill(): Promise<void> {
