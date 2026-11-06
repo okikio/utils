@@ -4,6 +4,7 @@ min_version = "2026.10.3"
 # package source and tests keep their own runtime and resource contracts.
 [settings]
 task.output = "keep-order"
+jobs = 4
 
 [tools]
 bun = "1.4.2"

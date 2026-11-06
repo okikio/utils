@@ -103,6 +103,10 @@ function check(kind = values.kind): void {
 	const kinds = kind
 		? [kind]
 		: ['format', 'lint', 'types', 'portable', 'exports', 'packages', 'hono', 'tests', 'versions'];
+	if (kinds.length > 1) {
+		command('mise', ['run', ...kinds.flatMap((name, index) => [...(index ? [':::'] : []), `ops:check:${name}`])]);
+		return;
+	}
 	for (const name of kinds) {
 		if (name === 'jsr') jsr();
 		else if (['format', 'lint'].includes(name) && projects.length) {

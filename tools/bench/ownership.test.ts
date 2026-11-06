@@ -1,6 +1,6 @@
 /** Keep focused measurements independently runnable and prevent package coverage from disappearing. */
 import { readdir, readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
@@ -19,7 +19,25 @@ describe('package benchmark ownership', () => {
 			const directory = resolve(root, 'packages', entry.name);
 			const files = await readdir(directory);
 			if (!files.includes('package.json')) continue;
-			const programs = files.filter((name) => name.endsWith('.bench.ts'));
+			// Submodules own benchmarks too. Walk the package rather than assuming every workload is at its root.
+			const programs: string[] = [];
+			const visit = async (path: string): Promise<void> => {
+				for (const entry of await readdir(resolve(directory, path), { withFileTypes: true })) {
+					if (
+						entry.isSymbolicLink() || entry.name.startsWith('.') || entry.name === 'node_modules' ||
+						entry.name === 'fixtures'
+					) continue;
+					const name = path ? `${path}/${entry.name}` : entry.name;
+					if (entry.isDirectory()) await visit(name);
+					else if (
+						name.endsWith('.bench.ts') &&
+						!/^\/\/ @benchmark (?:optional|register-only|runner=)/mu.test(
+							await readFile(resolve(directory, name), 'utf8'),
+						)
+					) programs.push(name);
+				}
+			};
+			await visit('');
 			expect(programs.length, `${entry.name} needs a measured public capability`).toBeGreaterThan(0);
 			const manifest = JSON.parse(await readFile(resolve(directory, 'package.json'), 'utf8'));
 			const deno = JSON.parse(await readFile(resolve(directory, 'deno.jsonc'), 'utf8'));
@@ -50,7 +68,7 @@ describe('package benchmark ownership', () => {
 						expect(specifier.startsWith('#'), `${entry.name}: root-private import ${specifier}`).toBe(false);
 						if (specifier.startsWith('.')) {
 							expect(
-								resolve(directory, specifier).startsWith(directory + '/'),
+								resolve(dirname(resolve(directory, name)), specifier).startsWith(directory + '/'),
 								`${entry.name}: escaping import ${specifier}`,
 							).toBe(true);
 						} else if (!specifier.startsWith('node:')) {
