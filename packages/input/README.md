@@ -67,7 +67,7 @@ and validation does not silently turn every unknown value into text.
 | `@okikio/input/pointer`   | Own one accepted contact and its native event                               | Build custom manipulation without losing pen metadata      |
 | `@okikio/input/gestures`  | Recognize drag, swipe, hold, pinch and rotation geometry                    | Map physical direction or scale into application behavior  |
 | `@okikio/input/gamepad`   | Read detached control snapshots or own a frame-polling loop                 | Update state or invoke the same application commands       |
-| `@okikio/input/feedback`  | Announce status or play optional cues                                       | Keep business success independent of hardware availability |
+| `@okikio/input/feedback`  | Announce status, play optional cues, or reuse a finite multimodal cue        | Keep business success independent of hardware availability |
 
 The root groups these same operations: `import { text } from '@okikio/input'` and
 `import * as text from '@okikio/input/text'` both provide `text.read`, `text.listen` and `text.observe`. The grouping

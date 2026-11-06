@@ -13,7 +13,13 @@ export type Time = number | DurationInput;
 /** Observable host outcome. No outcome proves that a person perceived the cue. */
 export type Outcome =
 	| { readonly status: 'completed' | 'elapsed' | 'preempted' }
-	| { readonly status: 'unavailable'; readonly reason: 'unsupported' | 'denied' | 'inactive' | 'reduced-motion' };
+	| {
+		readonly status: 'unavailable';
+		readonly reason: 'unsupported' | 'denied' | 'inactive' | 'reduced-motion' | 'disabled' | 'muted';
+	};
+
+export { create, CueSchema, define } from './cues.ts';
+export type { Cue, CueHosts, CuePlayer, CuePolicy, CueResult, CueType } from './cues.ts';
 
 /** Cancellation belongs to the caller; an aborted operation rejects with the exact signal reason. */
 export interface Options {
@@ -152,7 +158,7 @@ export interface AudioParameter {
 /** Structural oscillator for test or embedded audio hosts. */
 export interface Oscillator extends ListenerTarget {
 	/** Wave shape selected before the source starts. */
-	type: 'sine' | 'square' | 'sawtooth' | 'triangle';
+	type: 'sine' | 'square' | 'sawtooth' | 'triangle' | 'custom';
 	/** Frequency automation in hertz. */
 	readonly frequency: Pick<AudioParameter, 'setValueAtTime'>;
 	/** Connect this owned source to the cue's gain node. */
@@ -198,7 +204,7 @@ export interface ToneOptions extends Options {
 	/** Amplitude from 0 to 1; defaults to 0.1. */
 	readonly gain?: number;
 	/** Wave shape; defaults to sine. */
-	readonly wave?: Oscillator['type'];
+	readonly wave?: Exclude<Oscillator['type'], 'custom'>;
 }
 
 /** Play a cue on a native AudioContext after the application resumes it in an allowed interaction. */

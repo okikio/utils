@@ -196,6 +196,19 @@ async function visualFeedback(area: HTMLElement): Promise<string[]> {
 		panel.textContent === '<b>Saved</b>' && panel.children.length === 0,
 		'A live-region message was parsed as markup.',
 	);
+	await using player = feedback.create({ status, visual: panel });
+	const saved = feedback.define({ message: 'Changes saved', brightness: { duration: ms(1) } });
+	const cue = await player.play(saved, { reducedMotion: false });
+	assert(cue.announced && cue.brightness?.status === 'completed', 'Composed native save feedback did not complete.');
+	assert(
+		panel.getAnimations().length === 0 && panel.style.filter === 'contrast(1.2)',
+		'Composed cue retained an effect or overwrote application styling.',
+	);
+	const disabled = await player.play(saved, { enabled: false });
+	assert(
+		disabled.announced && disabled.brightness?.status === 'unavailable',
+		'Disabled optional effects suppressed accessible status.',
+	);
 	status.dispose();
 	assert(
 		panel.textContent?.toString() === 'Ready' && !panel.hasAttribute('aria-live'),
@@ -204,6 +217,7 @@ async function visualFeedback(area: HTMLElement): Promise<string[]> {
 	return [
 		'real Web Animation completion, cancellation and restored styling',
 		'reduced-motion outcome and native plain-text live region',
+		'composed save cue preserves status, reduced-motion policy and animation ownership',
 	];
 }
 
@@ -222,6 +236,17 @@ async function audioFeedback(): Promise<string[]> {
 		assert(
 			outcome.status === 'completed' && audio.state === 'running',
 			'Audio cue did not complete or closed its borrowed context.',
+		);
+		await using player = feedback.create({ audio });
+		const cue = feedback.define({ tone: { duration: ms(20), gain: 0.001 } });
+		assert(
+			(await player.play(cue, { volume: 0.5 })).tone?.status === 'completed',
+			'Composed native audio cue did not complete.',
+		);
+		const muted = await player.play(cue, { muted: true });
+		assert(
+			muted.tone?.status === 'unavailable' && muted.tone.reason === 'muted',
+			'Composed audio did not respect mute policy.',
 		);
 		return ['native AudioContext scheduled source ends without closing its borrowed context'];
 	} finally {
