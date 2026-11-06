@@ -1,6 +1,7 @@
 /** Own a synchronous primary/standby pair for destructive local tests. @module */
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { setTimeout as delay } from 'node:timers/promises';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { GenericContainer, Network, Wait } from 'testcontainers';
 import postgres from 'postgres';
@@ -10,6 +11,35 @@ import { until } from './evidence.ts';
 /** Keep both servers on the same image used to test acknowledged-commit replication. */
 export const PostgresImage = 'postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db';
 const command = promisify(execFile);
+
+/**
+ * Fail a test when acknowledged writes stop, even if the server cannot run SQL timeouts.
+ * The caller must own this pool: expiry destroys its queued and active work, then rejects.
+ * A borrowed production store must never use this to close an application's pool.
+ * `lastProgress` returns a monotonic `performance.now()` timestamp; abort joins normal shutdown.
+ */
+export async function watch(
+	database: Sql,
+	signal: AbortSignal,
+	lastProgress: () => number,
+	maximumPauseMs: number,
+): Promise<void> {
+	while (!signal.aborted) {
+		try {
+			await delay(Math.min(1000, maximumPauseMs), undefined, { signal });
+		} catch (error) {
+			if (signal.aborted) return;
+			throw error;
+		}
+		if (signal.aborted) return;
+		if (performance.now() - lastProgress() >= maximumPauseMs) {
+			// Destroy owned connections before rejecting so queued transactions can settle.
+			// A lost reply still has an unknown commit outcome; this path cannot pass the soak.
+			await database.end({ timeout: 0 });
+			throw new Error(`No acknowledged write for ${maximumPauseMs} ms; closed the fixture-owned pool.`);
+		}
+	}
+}
 
 /**
  * Start an owned primary and physical standby for destructive failover tests.
@@ -97,14 +127,21 @@ export async function cluster(save: (name: string, value: unknown) => Promise<vo
 			direct,
 			standby,
 			url,
+			/** Stop all owned client work before joining a failed scenario; retain servers for its diagnostic dump. */
+			async close(): Promise<void> {
+				await Promise.all(pools.map((pool) => pool.end({ timeout: 0 })));
+			},
 			/**
 			 * Open a fixture-owned pool that follows the server role after promotion.
 			 * `primary` rejects the standby before promotion even if its read-only default is off.
+			 * Bound connection admission separately from SQL execution. The optional
+			 * queue budget is in seconds; a shorter value supports the admission regression.
 			 */
-			pool(max: number) {
+			pool(max: number, queueSeconds = 20) {
 				const pool = postgres(url, {
 					max,
 					connect_timeout: 2,
+					queue_timeout: queueSeconds,
 					target_session_attrs: 'primary',
 					onnotice() {},
 					connection: { statement_timeout: 5000, lock_timeout: 3000 },
@@ -115,6 +152,15 @@ export async function cluster(save: (name: string, value: unknown) => Promise<vo
 			/** Stop only the owned primary with SIGKILL; leave the client process and standby running. */
 			async kill() {
 				await command('docker', ['kill', '--signal=KILL', primary.getId()]);
+			},
+			/** Freeze the actual server; the returned scope resumes it before SQL dump and teardown. */
+			async pause() {
+				await command('docker', ['pause', primary.getId()]);
+				return {
+					async [Symbol.asyncDispose]() {
+						await command('docker', ['unpause', primary.getId()]);
+					},
+				};
 			},
 			/** Promote the survivor, then remove the missing standby requirement so new commits can finish. */
 			async promote() {

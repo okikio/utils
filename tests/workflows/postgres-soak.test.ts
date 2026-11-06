@@ -6,7 +6,7 @@ import { appendFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { expect } from '@std/expect';
-import { cluster, PostgresImage } from './fixtures/postgres.ts';
+import { cluster, PostgresImage, watch } from './fixtures/postgres.ts';
 import { evidence } from './fixtures/evidence.ts';
 import { admit, transient, write } from './fixtures/postgres-work.ts';
 
@@ -47,6 +47,7 @@ it('keeps exact SQL receipts and live leases throughout a PostgreSQL soak with m
 	let lastObservation = started, longestObservationGapMs = 0;
 	let lastAuthorityObservation = started, longestAuthorityGapMs = 0;
 	const failures: unknown[] = [];
+	let closing: Promise<void> | undefined;
 	await run.save('config.json', {
 		image: PostgresImage,
 		containers: { primary: database.primary.getId(), standby: database.replica.getId() },
@@ -62,12 +63,18 @@ it('keeps exact SQL receipts and live leases throughout a PostgreSQL soak with m
 		pid: process.pid,
 	});
 
-	/** A failure stops admission and cancels the scheduled fault; all owned loops are still joined. */
+	/** A failure closes fixture-owned pools so stranded writer or promotion SQL cannot prevent joining. */
 	function launch(operation: () => Promise<void>): Promise<void> {
-		return operation().catch((error: unknown) => {
+		return operation().catch(async (error: unknown) => {
 			failures.push(error);
 			running = false;
 			stop.abort();
+			// Journal writes can fail before the progress watchdog fires (for example,
+			// on disk exhaustion). Join one shared close rather than leave queued work alive.
+			closing ??= database.close().catch((error: unknown) => {
+				failures.push(error);
+			});
+			await closing;
 		});
 	}
 	/** Stop waiting on owned shutdown, but still report unrelated timer failures. */
@@ -226,12 +233,14 @@ it('keeps exact SQL receipts and live leases throughout a PostgreSQL soak with m
 		promotedAt = performance.now() - started;
 		await run.save('promotion.json', { promotedAtMs: promotedAt });
 	});
+	// Independent of SQL observations: a stopped VM cannot execute its own timeout.
+	const watchdog = launch(() => watch(pool, stop.signal, () => lastProgress, 25000));
 	try {
 		await Promise.all(writers);
 	} finally {
 		running = false;
 		stop.abort();
-		await Promise.all([renewal, observations, fault]);
+		await Promise.all([renewal, observations, fault, watchdog]);
 		longestAuthorityGapMs = Math.max(longestAuthorityGapMs, performance.now() - lastAuthorityObservation);
 		// This snapshot is not a pass: exact SQL reconciliation below must still succeed.
 		await run.save('result.json', {

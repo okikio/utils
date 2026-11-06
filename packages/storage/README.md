@@ -222,6 +222,12 @@ Use 4.0.0 for caller-owned pools too. Its parameter typing and array API differ 
 before changing an existing application. A reconnecting pool does not elect or fence database writers, and loss around
 COMMIT can leave its outcome unknown. Reconcile saved identities and receipts before retrying a write.
 
+A connection cap does not bound waiting work. The application owns its pool's Postgres.js `queue_timeout` and transport
+failure detection. SQL timeouts apply only after connection admission and cannot run on a stopped database server.
+The [admission and client-silence tests](../../docs/maintenance/07-recovery.md#keep-permission-alive-during-a-long-database-run)
+keep those limits separate from claim expiry. Test-owned pools can close pending work on failure; borrowed adapters
+leave that shutdown decision with the application.
+
 ## Persist resource session authority
 
 `@okikio/storage/session/postgres` explicitly migrates a separate session schema and supplies per-reference atomic transitions using database time. It borrows the application pool; it does not own live resources. See [Resource sessions](../../docs/workflows/18-sessions.md) for acquisition, retention, expiry and recovery ownership.

@@ -5,11 +5,64 @@ import { describe, it } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { expect } from '@std/expect';
 import { identity } from '@okikio/workflow/execution';
-import { cluster } from './fixtures/postgres.ts';
+import { cluster, watch } from './fixtures/postgres.ts';
 import { evidence, until } from './fixtures/evidence.ts';
 import { admit, Local, transient, Work, write } from './fixtures/postgres-work.ts';
 
 describe('PostgreSQL lease renewal through failover', { concurrency: false, timeout: 180000 }, () => {
+	it('joins queued work after the owned server stops responding to client requests', async () => {
+		const run = await evidence('postgres-client-silence');
+		await using database = await cluster(run.save);
+		const pool = database.pool(1);
+		await pool`select 1`;
+		// A paused server cannot execute statement_timeout or send a protocol reply.
+		// Resume its physical owner before the outer fixture captures the SQL dump.
+		await using _paused = await database.pause();
+		const stop = new AbortController();
+		const lastProgress = performance.now();
+		const pending = pool.begin(async (tx) => await tx`select 2`);
+		const watchdog = watch(pool, stop.signal, () => lastProgress, 500);
+		const results = await Promise.allSettled([pending, watchdog]);
+		stop.abort();
+		expect(results[0]).toMatchObject({ status: 'rejected' });
+		expect(results[1]).toMatchObject({
+			status: 'rejected',
+			reason: { message: 'No acknowledged write for 500 ms; closed the fixture-owned pool.' },
+		});
+		expect(pool.stats).toMatchObject({ connections: 0, waiting: 0 });
+		// Fatal loop shutdown also joins the fixture's separate administration pools.
+		await database.close();
+		expect(database.direct.stats).toMatchObject({ connections: 0, waiting: 0 });
+		expect(database.standby.stats).toMatchObject({ connections: 0, waiting: 0 });
+		await run.save('result.json', {
+			physicallyPaused: true,
+			joined: true,
+			pool: pool.stats,
+			administrationClosed: true,
+		});
+	});
+
+	it('bounds queued transactions without closing connections already owned by callers', async () => {
+		const run = await evidence('postgres-pool-admission');
+		await using database = await cluster(run.save);
+		const pool = database.pool(2, 0.2);
+		await using first = await pool.reserve();
+		await using second = await pool.reserve();
+		let entered = false;
+		// Both connections remain borrowed. No server-side SQL timeout can bound
+		// the third transaction because it has not acquired a connection yet.
+		await expect(pool.begin(async () => {
+			entered = true;
+		})).rejects.toMatchObject({ code: 'QUEUE_TIMEOUT' });
+		expect(entered).toBe(false);
+		expect((await first`select 1 as value`)[0]!.value).toBe(1);
+		expect((await second`select 2 as value`)[0]!.value).toBe(2);
+		first.release();
+		second.release();
+		expect((await pool.begin(async (tx) => await tx`select 3 as value`))[0]!.value).toBe(3);
+		await run.save('result.json', { rejectedBeforeAdmission: true, admittedConnectionsPreserved: true, reused: true });
+	});
+
 	it('serializes concurrent host renewals without converting shared locks into a deadlock', async () => {
 		const run = await evidence('postgres-concurrent-renewal');
 		await using database = await cluster(run.save);

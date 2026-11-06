@@ -431,6 +431,8 @@ class Store implements StoreType {
 	 * Run an adapter operation on one connection with finite SQL and lock waits.
 	 * The transaction timeout also covers time spent awaiting application code.
 	 * These limits belong to this transaction and do not change the borrowed pool defaults.
+	 * They start after connection admission and require a responsive server. The
+	 * application owns pool queue limits and transport failure detection.
 	 */
 	#transaction<Value>(callback: (tx: Transaction) => Promise<Value>): Promise<Value> {
 		this.#assert();
