@@ -23,7 +23,7 @@ Maintained guides explain current behavior without requiring a local run report.
 | `.tmp/artifacts/history/20261104/`                                                  | Preserved prior verification records, freeze experiment, and dated delivery reports      | Local historical evidence. Copy to durable artifact storage before deleting the local directory. |
 | `.tmp/docs/history/`, `.tmp/docs/design/` | Local research, plans and dated implementation ledgers | Ignore. Preserve useful records locally; put current consumer instructions in maintained docs. |
 | `node_modules/`, package stores, editor state, local environment files | Installed dependencies, caches and machine configuration                       | Ignore; never use them as source evidence or commit credentials.                                 |
-| `.bumpy/`                                                                       | Release intent and Bumpy's repository integration                                        | Track according to release policy. It is not an arbitrary scratch folder.                        |
+| `.sampo/`                                                                       | Sampo changesets and release configuration                                        | Track according to release policy. It is not an arbitrary scratch folder.                        |
 
 Generated source can belong in Git when a real consumer requires committed bytes and a deterministic generator checks
 drift. That is a specific contract, not permission to retain every JSON dump or benchmark run alongside source.

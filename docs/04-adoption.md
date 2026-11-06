@@ -1,8 +1,12 @@
-# Utility additions from Core, Intelligence and Signals
+# Historical utility adoption from application repositories
 
-This guide is for maintainers choosing and using additions to standalone utils. The source of truth is the package code
-and tests, with the application copies providing concrete requirements. This adoption changes standalone utils only.
-Core, Intelligence and Signals remain reference consumers.
+This maintainer record describes an earlier transfer of utilities from Core, Intelligence and Signals. It is not an
+application setup guide. To add utilities to your own application, start with the complete
+[composition examples](./03-composition.md); the application keeps its business policy and host ownership.
+
+The transfer changed standalone Utils; Core, Intelligence and Signals supplied the motivating use cases. Use the current
+package code and tests as API authority. The application snapshots below explain provenance, not current integration
+instructions.
 
 Source snapshots inspected for this adoption: Core `776500556870`, Intelligence `c953eeaecec8`, and Signals
 `d44923d32774`. Existing standalone working changes were preserved. These revisions identify source provenance, not

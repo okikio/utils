@@ -7,13 +7,14 @@ submodule. Deeper guides explain distinct tasks, limits, and failure recovery.
 | What you need now                                | Read                                                                         | What you should be able to do afterward                                       |
 | ------------------------------------------------ | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | Find a package or a focused submodule            | [01 — Package map](./01-packages.md)                                         | Choose a capability and distinguish it from adjacent tools.                   |
-| Understand unfamiliar utility concepts           | [02 — Learn](./02-learn.md)                                                  | Recognize ordinary values, definitions, owners, and results.                  |
+| Understand unfamiliar utility concepts           | [02 — Read definitions and results](./02-learn.md)                                                  | Recognize ordinary values, definitions, owners, and results.                  |
 | Combine a few packages                           | [03 — Composition](./03-composition.md)                                      | Run bounded input, discovery, and resource-backed operations.                 |
 | Follow a larger user task                        | [Workflow recipes](./recipes/README.md)                                      | Build an import, search/draft flow, or recorded multi-step operation.         |
-| Introduce utilities into an existing application | [04 — Adoption](./04-adoption.md)                                            | Keep business policy and host ownership explicit while adopting selectively.  |
+| Add utilities to an application | [03 — Composition](./03-composition.md) | Add one capability while keeping business policy and host ownership explicit. |
+| Inspect where utilities came from | [04 — Adoption history](./04-adoption.md) | Trace the historical transfer from application repositories. |
 | Select a supported host                          | [05 — Runtime](./05-runtime.md)                                              | Choose adapters and understand which capability each environment supplies.    |
 | Inspect executable evidence                      | [06 — Scenarios](./06-scenarios.md)                                          | Locate actual tests and distinguish their claims from deployment guarantees.  |
-| Compare utility choices                          | [07 — Outcomes](./07-outcomes.md), [08 — Alternatives](./08-alternatives.md) | Decide whether a utility's contract is needed or a native operation suffices. |
+| Compare utility choices                          | [07 — When built-ins are insufficient](./07-outcomes.md), [08 — Alternatives](./08-alternatives.md) | Decide whether a utility's contract is needed or a native operation suffices. |
 
 These are independent routes, not required chapters to finish before writing code. The
 [repository README](../README.md#run-a-complete-example-from-this-checkout) gives the local setup and runnable-example

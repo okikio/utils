@@ -24,8 +24,6 @@ A reader should understand the protected behavior from the suite name, scenario 
 example holds one resource, attempts a second acquisition, and checks that rejection leaves the first borrow intact:
 
 ```ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 
@@ -124,9 +122,9 @@ mise run test -- --runtime bun -- packages/input
 | `test --suite docs`                                 | Explicitly marked public examples compile and produce their declared results                                                        |
 | `test --suite bundles`                              | Focused/umbrella bundle behavior and browser-selected import graphs                                                                 |
 | `test --suite browser`                              | Real Chromium Input, Context, Collection/Schema, Duration and module Worker behavior through Playwright                             |
-| `test --suite packages`                             | Built archives physically installed outside the checkout: Deno, Node ESM/CommonJS, Bun, inferred types and real Chromium             |
+| `test --suite packages`                             | Built archives physically installed outside the checkout: Deno, Node ESM, Bun, inferred types and real Chromium             |
 | `test --suite postgres`                             | PostgreSQL state, queue and durable workflow recovery, including real process death and restart                                     |
-| `test --suite containers`                           | Docker worker recovery, streaming through nginx and physical PostgreSQL promotion                                                   |
+| `test --suite containers`                           | Docker worker recovery, streaming through nginx, physical PostgreSQL promotion and explicit real-browser duplex HTTP checks          |
 | `test --suite soak`                                 | Opt-in two-hour PostgreSQL guarded writes, lease renewal and midpoint promotion; separate from ordinary CI                          |
 | `bench --check`, `bench --operation freeze --check` | Untimed correctness oracles for the measured workloads                                                                              |
 
@@ -138,6 +136,16 @@ README examples, bundles, installed packages and JSR source publication. Real br
 suites remain explicit because they need their own environments. `mise run test` defaults to Deno source tests. Package
 and Deno aliases delegate to Mise rather than maintaining separate command recipes.
 
+The [duplex browser/container matrix](../../packages/activity/http/duplex.md#exercise-a-browser-and-an-isolated-host)
+also needs the pinned Chromium, Firefox and WebKit binaries. Select its named files when checking only that capability;
+the container suite as a whole includes unrelated databases and fault scenarios. A browser launch failure is reported
+as a failed engine setup, not a passing transport test. Its optional root benchmarks stay outside ordinary benchmark
+selection and share the same owned host fixtures.
+
+Update the root and private Tools Playwright pins together, then prepare their matching browser binaries. The duplex
+guide explains the macOS Firefox application-data startup failure fixed by the selected upstream version. A longer
+timeout or a passing Chromium run cannot establish that Firefox starts and completes its own scenarios.
+
 ### Shared CI and release checks
 
 [`.github/workflows/quality.yml`](../../.github/workflows/quality.yml) selects jobs for source contracts, the
@@ -146,17 +154,16 @@ correctness, documentation and native examples. Formatting and linting run as se
 out the caller's commit and receives a read-only repository token. The runtime matrix, resource fixtures, pinned actions
 and report retention are defined once in that workflow.
 
-Ordinary CI calls it through the `quality` job. Its separate `bumpy` job retains the pull request permission required
-for release-intent checks. The release workflow calls the same quality jobs only when its plan selects publication, and
-`publish` depends on their success. The publish job also builds and tests its own exact package candidates before
-calling the registry publication command. See [the release guide](./03-releases.md).
+Ordinary CI calls it through the `quality` job. Its separate `changesets` job checks the Sampo plan with a read-only
+repository token. The Release workflow calls the full quality workflow before either registry job can publish. The npm
+job downloads the exact candidates tested there; the JSR job publishes source from the same revision.
+See [the release guide](./03-releases.md) for setup and partial-release recovery.
 
-Check names now include the caller prefix. Ordinary CI reports `Quality / Source and public contracts`,
+Check names include the caller prefix. Ordinary CI reports `Quality / Source and public contracts`,
 `Quality / Source on deno`, `Quality / Source on node`, `Quality / Source on bun`,
 `Quality / Native Chromium contracts`, `Quality / Installed package consumers`,
 `Quality / PostgreSQL queue and durable recovery`, `Quality / Container recovery` and `Quality / Benchmark correctness`.
-Update required status checks to these names when adopting this workflow; the separate `bumpy` check keeps its existing
-name. Release checks uses the `Test release commit /` prefix.
+Review branch-protection names when changing workflows; the release-metadata job is now `changesets`.
 
 Install the browser before its source or package checks:
 
@@ -317,3 +324,13 @@ For renewable claims and longer SQL lifetimes, run the
 rejection. `mise run test -- --suite soak` is a separate opt-in two-hour Docker task. Its 90-second harness mode is
 useful preparation, but only a completed run of at least 7,200 seconds counts as multi-hour evidence. Journals, SQL
 dumps and native runner receipts remain in `.tmp/`. The normal container CI job does not run this longer task.
+
+## Maintain examples that demonstrate a real result
+
+Each imported binding must participate in the demonstrated job. A setup import belongs only where the example actually
+needs that missing runtime API. The first runnable example must use the package it teaches and show a recognizable
+outcome. A larger example adds another package only when it owns a needed rule or resource. Printing metadata or calling
+a method merely to make an import look used is not evidence that the extra setup helps the reader.
+
+Mark complete programs with `runnable` and give their expected output. Keep supporting fragments clearly separate from
+the complete program. Run the documentation suite after changing a program so its imports, types and output are checked.

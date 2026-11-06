@@ -19,16 +19,14 @@ opening a listener. An injected host is borrowed; the service owns the resources
 
 ## Save a note and reject an invalid title
 
-This service uses Temporal for request timestamps and `AsyncDisposableStack` for cleanup. The first two imports supply
-those globals in environments that lack them; native environments can omit that setup at their application boundary.
+The service owns its request lifetimes and resource cleanup. The imported utilities supply their time and disposal
+implementations locally; the application does not need to install global polyfills.
 
 After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
 Save the next complete TypeScript block as
 `example.ts` at that root, then run `mise exec -- deno run example.ts`.
 
 ```ts runnable
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as endpoint from '@okikio/server/endpoint';
 import * as response from '@okikio/http/response';
 import * as service from '@okikio/server/service';
@@ -85,6 +83,15 @@ as a string; the handler needs no assertion or cast. The response schema also ch
 The local array makes the example reproducible and is not persistent storage: its notes disappear when the process ends.
 A deployed application supplies its chosen storage as a declared resource. `await using` disposes this runtime when the
 scope ends; no listener or network connection is opened.
+
+The four setup calls serve different lifetimes. Keep `Saved`, `Save` and `Api` with the reusable API description;
+bind the saving callback with `implement()` in the application. `compile()` checks those bindings once before traffic,
+and `create()` owns the live runtime. Compilation produces ordinary JavaScript data, not another executable file.
+
+`host: {}` means this example borrows no application clients. It is not a request context, a hostname or a listener.
+When factories need an application-owned client, pass it through the typed host and keep its shutdown with its owner.
+Omit `resources` and `middleware` when neither is needed; `implement()` already supplies empty collections.
+For a single native `Request -> Response` function, [HTTP](../http/README.md) avoids these declaration stages entirely.
 
 ## Choose adjacent capabilities
 

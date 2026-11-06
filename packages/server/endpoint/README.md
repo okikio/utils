@@ -16,16 +16,14 @@ creates no provider connection.
 
 ## Validate a query before greeting its caller
 
-The example runs a service so you can see the declared endpoint answer a request. Its duration and disposal imports
-supply Temporal timestamps and `AsyncDisposableStack` cleanup when those APIs are absent from the environment.
+The example runs a service so you can see the declared endpoint answer a request. Its runtime owns request lifetimes
+and resource cleanup; creating the endpoint description alone starts neither.
 
 After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
 Save the next complete TypeScript block as
 `example.ts` at that root, then run `mise exec -- deno run example.ts`.
 
 ```ts runnable
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as endpoint from '@okikio/server/endpoint';
 import * as response from '@okikio/http/response';
 import * as service from '@okikio/server/service';

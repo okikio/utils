@@ -18,7 +18,7 @@ occupies its thread.
 Each document request is independent, so two can run at once. The mapper returns results in input order; the final byte
 count comes from reading every response, rather than counting requests that merely started.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as a `.ts` file in your project and use
+Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
 `mise exec -- deno run example.ts`.
 
 ```ts runnable

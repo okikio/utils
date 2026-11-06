@@ -1,4 +1,4 @@
-# Choose utilities by the outcome you need
+# Choose a utility when built-ins omit a needed guarantee
 
 Start with the annoying job in your application. Choose the smallest mechanism that makes that job explicit, then add
 the owners needed to run it. Every package below starts with a complete example, expected output and ways to extend it.
@@ -17,12 +17,16 @@ validated contracts, ownership or replay where a short built-in call does not ca
 | [dispose](../packages/dispose/README.md)                   | Dispose owned values in a predictable order while preserving both the operation failure and any cleanup failure. Hand-written finally blocks often skip later cleanup when one callback throws.                              |
 | [context](../packages/context/README.md)                   | Give nested work one cancellation signal, deadline, clock and cleanup owner. Passing separate signals and timers through every call otherwise makes it easy to outlive the caller or forget a temporary resource.            |
 | [task](../packages/task/README.md)                         | Control one process-local operation with cooperative pause, cancellation and joined cleanup. A Promise alone cannot request a pause or communicate whether cancellation and resource disposal have finished.                 |
-| [concurrency](../packages/scheduler/concurrency/README.md) | Bound active asynchronous work while choosing whether consumers need input order or completion order. Promise.all starts every operation immediately and gives cancellation no ownership over admitted siblings.             |
+| [concurrency](../packages/scheduler/concurrency/README.md) | Bound active asynchronous work while choosing whether consumers need input order or completion order. Calling every async job before `Promise.all` waits gives it no admission limit or ownership of sibling cancellation.             |
 | [capacity](../packages/scheduler/capacity/README.md)       | Reserve several scarce resources together. Separate counters can admit half of a request and leave work holding a browser while it waits forever for an upload slot.                                                         |
 | [pool](../packages/pool/README.md)                         | Reuse a bounded set of expensive resources while retaining explicit lease ownership. Opening a connection for every request wastes setup work; sharing one connection without leases can interleave incompatible operations. |
 | [queue](../packages/scheduler/queue/README.md)             | Give queued work an expiring claim and fenced completion. Removing an item from an array loses it when a worker dies; leaving it in place without a claim permits concurrent duplicate ownership.                            |
 | [streams](../packages/streams/README.md)                   | Consume asynchronous data with explicit item, byte and line budgets. A successful Array.fromAsync can still exhaust memory if the source never ends or one record is enormous.                                               |
 | [resilience](../packages/capability/resilience/README.md)  | Describe timeout, retry and admission policies as inspectable values before a host applies them. Putting retry loops around every call can repeat unsafe side effects and hide who owns the timer or storage.                |
+
+Calling `items.map(async (item) => ...)` invokes the callback for every item. Those calls create the Promises that
+`Promise.all` then waits for; the waiting operation does not start the jobs itself. A bounded mapper instead controls
+how many callbacks may start. It still needs a cancellation owner to stop admitted work cooperatively.
 
 ## Name contracts and authority
 
@@ -122,25 +126,25 @@ local execution, standard Workers and child processes. It supplies no Kubernetes
 deployed cross-machine storage adapter. Adding one requires explicit admission, transport, fencing, resource ownership
 and failure tests at that boundary.
 
-## When Temporal is missing
+## Use local runtime APIs or install globals explicitly
 
-`@okikio/duration/temporal` exports a local Temporal ponyfill. Import it when the caller wants instant and calendar
-arithmetic without changing global objects. `@okikio/duration/polyfill` installs it only when the host has no Temporal
-global. Import that entry before the lifecycle packages when the host needs their global Temporal contract. Each Worker
-and child process has its own realm and needs its own application setup. The same optional entries are available through
-`@okikio/utils/duration/*`.
+Ordinary Utils operations use native Temporal when available and a local provider otherwise. Deadlines, logical clocks,
+queue expiry and workflow timing work without installing a global. Import `@okikio/duration/temporal` when your own code
+needs that local provider for instant or calendar arithmetic.
 
-This enables deadlines, logical clocks, queue expiry and workflow timing on a missing-global host. It does not make a
-queue durable or a calendar month a fixed number of milliseconds. The [duration guide](../packages/duration/README.md)
-shows both forms and explains the calendar anchor and ownership limits.
+Import `@okikio/duration/polyfill` only when your application or another dependency accesses the Temporal global directly.
+It installs the implementation only if that global is missing. Each Worker and child process has its own realm, so an
+application that needs globals must arrange setup in each realm. The same optional entries are available through
+`@okikio/utils/duration/*`. Neither approach makes a queue durable or a calendar month a fixed number of milliseconds;
+the [duration guide](../packages/duration/README.md) explains calendar anchors and ownership limits.
 
-## Evidence and changes
+For local cleanup, import `DisposableStack`, `AsyncDisposableStack`, `SuppressedError` and the protocol keys from
+`@okikio/dispose/ponyfill`. These imports provide cleanup order and failure preservation without installing globals.
+The [disposal guide](../packages/dispose/README.md) starts with one owned stack, then composes it with a CSV import.
+Native `using` syntax needs the host's disposal protocol symbols; use the exported keys and explicit stack methods on
+older hosts, or deliberately install missing globals through `@okikio/dispose/polyfill`.
 
-For local cleanup without global installation, import `DisposableStack`, `AsyncDisposableStack`, `SuppressedError` and
-the protocol keys from `@okikio/dispose/ponyfill`. This makes cleanup order and failure preservation available on a host
-that lacks native constructors. The [disposal guide](../packages/dispose/README.md) starts with one owned stack, then
-shows how to release a CSV input reader with other utilities. Ambient lifecycle packages still need their explicit
-application setup when they rely on missing globals.
+## Find tests and measurements
 
 Read [testing](./maintenance/01-testing.md) for behavioral and type contracts, [benchmarks](./benchmarks/01-running.md)
 for measured workloads, and [runtime boundaries](./05-runtime.md) for portability and ownership.

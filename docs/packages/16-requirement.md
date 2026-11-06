@@ -7,18 +7,16 @@ Recording the condition does not run it. An **interpreter** is an application ca
 The upload example below declares the rule, supplies the evaluator and checks actual bytes. Replacing the evaluator is
 how another host can apply its own policy. A declaration with no effective evaluator is not an access control system.
 
-Start with the [package example](../../packages/capability/requirement/README.md). This focused package needs one guide
-rather than a multi-chapter reading path.
+Start with the [package example](../../packages/capability/requirement/README.md) for the smallest declaration and
+evaluator. The complete upload below shows where that check belongs in an application.
 
 ## Run a complete task
 
 Check an upload rule through an application-supplied evaluator. This program supplies its own local input and uses
-public workspace imports. After `mise run prepare -- --kind deps`, copy it to a `.ts` file in your project and run
+public workspace imports. After `mise run prepare -- --kind deps`, save it as `example.ts` at the checkout root and run
 `mise exec -- deno run example.ts`.
 
 ```ts runnable=complete-task.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as requirement from '@okikio/capability/requirement';
 const Size = Object.freeze({ kind: 'upload-rule', id: 'upload.maximum-bytes', maximum: 1024 });

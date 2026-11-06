@@ -75,8 +75,8 @@ the declared health body; the gateway returns it to the caller without performin
 the returned body completes this request. No network connection is made; the `.invalid` origin is only route metadata in
 this example.
 
-This route has no timeout and creates no owned resource collection, so it needs no Temporal or disposal polyfill setup.
-If you configure a Temporal timeout in a runtime without Temporal, install the duration polyfill at the host boundary.
+This runtime opens no listener. Timeouts use Duration's local Temporal provider, including when the host has no
+global Temporal. Configure a timeout with a Duration value or duration text; no global setup is required.
 
 The second request asks for `/private`, which the imported service did not declare. It returns 404 without another upstream call. Correct the caller’s URL or explicitly declare and admit the route; the gateway does not forward arbitrary paths just because an origin is configured. The rejected body is canceled because this caller only needs its status.
 

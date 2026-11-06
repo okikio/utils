@@ -1,6 +1,7 @@
-# Start with the outcome you need
+# Read definitions, owners and return values
 
-You do not need to learn the entire utility suite before using one package. Start with a problem you can recognize: an
+Use this page to understand the call shapes you meet in package examples. You do not need to learn the entire suite
+before using one package. Start with a problem you can recognize: an
 imported file has quoted commas, too many downloads run at once, cancelled work keeps using a connection, or an
 interrupted job repeats its completed steps. Each package owns one part of that problem.
 
@@ -34,6 +35,26 @@ expresses disposal with familiar `try/finally` before asking you to adopt `await
 This is a reading pattern, not a proposed replacement API: **familiar job → usable result → supporting contract →
 mechanics and tradeoff → optional composition**. Keeping those roles visible makes it possible to learn one package
 without first learning the suite's vocabulary.
+
+## Let the common path own its setup
+
+Being able to configure a system does not mean every caller must assemble it. Start with the entry that owns the
+lifetime you need, then provide additional settings when a concrete requirement calls for them:
+
+| Your task | Start with | Supply more when |
+| --- | --- | --- |
+| Borrow one lazily opened client | `resource.open(binding)` then `get(Definition)` | Pass the current request Context when access checks or cancellation belong to that request. |
+| Retain separate live instances between actions | `session.open(binding)` then `create()` and `use(reference, action)` | Supply a shared registry and registered owner together when several processes coordinate admission. |
+| Validate and call a local named operation | `activity.call(implementation, input)` | Attach resource bindings, policy interpreters, or an explicit execution identity when the operation declares them. |
+| Keep an object only inside one action | `await using` or a disposable stack | Transfer a stack only when another owner must keep the object beyond the current function. |
+
+These entries supply local bookkeeping. They cannot choose an account's permissions, invent a database connection,
+or make a local object survive a crash. Those choices stay with the application because a wrong default would change
+what the program is allowed to do or what data it can recover.
+
+For example, the [browser session guide](./workflows/18-sessions.md) starts with a cookie jar that two actions share.
+Only the distributed variation introduces a registry and placement: the registry decides whether an action may borrow,
+and placement sends the action to the computer that still holds that cookie jar. Neither mechanism copies the browser.
 
 ## Choose a first demonstration
 
@@ -116,14 +137,12 @@ Several names recur across packages. Their meanings stay consistent:
 | Polyfill       | Explicit setup that installs a missing API into the environment.                                                |
 | Ponyfill       | An imported implementation used directly without installing it globally.                                        |
 
-The demos' explicit duration and disposal polyfills support hosts missing the required APIs. The
-[duration](../packages/duration/README.md) and [disposal](../packages/dispose/README.md) guides explain direct imports,
-global installation and ownership. Setup imports are not the operation's result.
+Context and Duration use local providers without requiring global installation. Import a polyfill only when your
+application deliberately needs the corresponding global API. The [duration](../packages/duration/README.md) and
+[disposal](../packages/dispose/README.md) guides explain that choice. Setup is separate from the operation's result.
 
-Each imported binding must participate in the demonstrated job. A setup import belongs only where the example actually
-needs that missing runtime API. The first runnable example must use the package it teaches and show a recognizable
-outcome. A larger example adds another package only when it owns a needed rule or resource. Printing metadata or calling
-a method merely to make an import look used is not evidence that the extra setup helps the reader.
+Copy the imports shown in your selected example. Ordinary utility imports need no global installer; add explicit
+setup only when your application uses a missing global API directly.
 
 ## Combine packages around a real result
 

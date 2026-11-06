@@ -1,7 +1,7 @@
 # Utils
 
-Start with the [package example](../../packages/utils/README.md). This focused package needs one guide rather than a
-multi-chapter reading path.
+Use one suite dependency while importing only the capabilities each module needs. Start with the
+[package example](../../packages/utils/README.md), then use this guide to choose between the umbrella and leaf packages.
 
 ## The ordinary problem
 
@@ -98,7 +98,7 @@ The paths below are relative to the [package directory](../../packages/utils).
 1. `mod.ts` contains the immutable package inventory.
 2. `all.ts` re-exports every focused namespace.
 3. generated `<name>.ts` and `<name>/<subpath>.ts` files re-export focused package entries.
-4. `tools/sync-utils-exports.ts` owns deep export parity.
+4. `tools/packages/exports.ts` owns deep export parity.
 5. `mod.test.ts` proves inventory/subpath consistency.
 
 ## Deep focused subpaths
@@ -112,7 +112,7 @@ The umbrella mirrors public subpaths from every focused package, including neste
 | Describe that prepared plan  | `@okikio/utils/server/http/types` | `RoutePlan` type |
 
 These files are generated re-export bridges. They do not contain alternate implementations.
-`tools/sync-utils-exports.ts` owns parity with focused package manifests.
+`tools/packages/exports.ts` owns parity with focused package manifests.
 
 ## Tree-shaking is tested
 

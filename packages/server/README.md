@@ -86,8 +86,6 @@ Save: POST /notes + title schema + Saved response
 Compilation does not transpile TypeScript or open a port. Save this complete reusable module as `notes-contract.ts`:
 
 ```ts support=notes-contract.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as endpoint from '@okikio/server/endpoint';
 import * as response from '@okikio/http/response';
 import * as service from '@okikio/server/service';
@@ -118,7 +116,7 @@ export function createNotes() {
 
 `response.ok()` describes an allowed answer; `response.create()` produces one occurrence. The schema checks the title
 before the handler runs. `createNotes()` creates an independent in-memory notes instance each time it is called.
-The polyfill imports supply Temporal and disposal globals used by the service on hosts that lack them.
+The service and its dependencies use local time and disposal implementations; no global setup is required.
 
 Save `checked-notes.ts` beside it:
 

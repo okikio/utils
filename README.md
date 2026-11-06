@@ -224,7 +224,7 @@ package names and changed ownership; historical delivery receipts are kept separ
 
 ## Work on the repository
 
-Mise owns the pinned toolchain and task families. Helpers live under `tools/`; tests live with their packages or in
+Mise owns the pinned toolchain and task families. The private `@okikio/tools` workspace owns repository programs (see [tools](tools/README.md)); tests live with their packages or in
 `tests/` for cross-package flows.
 
 For a ZIP checkout, install [Mise](https://mise.jdx.dev/getting-started.html) version 2026.10.3 or newer, then extract

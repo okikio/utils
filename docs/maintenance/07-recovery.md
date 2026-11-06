@@ -194,7 +194,7 @@ Rejecting `begin()` does not stop JavaScript that is still running in its callba
 lost transaction; the application still owns cancellation and any external effects. Check that permission before an
 external write, and reconcile its saved identity before retrying it.
 
-The initial crash logs and supervised recovery run remain under `.tmp/artifacts/qualification-load-failover-20261104/`.
+The initial crash logs and supervised recovery run remain under the preserved initial failover run.
 The upgrade investigation, compatibility checks and new runs are retained under `.tmp/artifacts/postgres-inprocess-20261105/`.
 Each promotion run also saves its process ID, rejected-query outcomes, replication state, database logs and SQL dump
 under the unique `.tmp/tests/recovery/postgres-failover-*` directory printed by the test.

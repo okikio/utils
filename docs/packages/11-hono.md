@@ -46,8 +46,6 @@ schema describes the JSON, an endpoint names its method/path, and the implementa
 Compilation checks that those declarations are connected before Hono receives requests.
 
 ```ts runnable=health-service.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import { Hono } from 'hono';
 import * as hono from '@okikio/hono';
 import * as http from '@okikio/server/http';

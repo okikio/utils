@@ -98,7 +98,7 @@ Save this complete variation as `move-owner.ts` and run `mise exec -- deno run m
 ```ts runnable=move-owner.ts
 import { AsyncDisposableStack } from '@okikio/dispose';
 const released: string[] = [];
-const preparing = new AsyncDisposableStack();
+await using preparing = new AsyncDisposableStack();
 preparing.defer(() => {
 	released.push('connection');
 });
@@ -113,6 +113,10 @@ console.log(released.join(','));
 0
 connection
 ```
+
+The `await using` declaration protects initialization too: a failure before `move()` still closes `preparing`.
+After the move, `running` owns those callbacks; closing `preparing` cannot close them again. The receiving owner must
+close `running`, as the example does. You do not need `move()` when the resource stays within its original block.
 
 A `SuppressedError` stores the later cleanup failure in `error` and the earlier failure in `suppressed`. More failed
 releases nest this structure without replacing a thrown `null` or `undefined` with a generic error.

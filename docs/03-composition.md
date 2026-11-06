@@ -66,8 +66,6 @@ application validates company and website values. It then processes two rows at 
 result. The in-memory `Map` is an explicit example sink, so the example needs no credentials or external database.
 
 ```ts runnable=import-rows.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as concurrency from '@okikio/scheduler/concurrency';
 import * as csv from '@okikio/format/csv';
@@ -155,13 +153,11 @@ callback supplies backpressure. The application checks HTTP status, redirects, a
 
 ## Share a resource with a finite operation
 
-MediaD's media jobs use a task for finite work and borrow storage through a resource definition. The example below
+A media import can use a task for finite work and borrow storage through a resource definition. The example below
 stores a small manifest using that same ownership shape, with a pause before it commits the manifest. A local Map stands
 in for the application storage provider; no generic utility chooses a cloud account, media format, or file destination.
 
 ```ts runnable=store-manifest.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
 import * as resource from '@okikio/capability/resource';
 import * as task from '@okikio/task';

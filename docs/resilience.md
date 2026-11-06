@@ -26,7 +26,7 @@ exposed as `resilience.attempt` from the package family and as `attempt` from Ca
 The first read throws a specific temporary error; the second returns the report. The classifier permits only that error
 to retry. The output shows both the returned value and the two calls counted by the application.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as a `.ts` file in your project and use
+Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
 `mise exec -- deno run example.ts`.
 
 ```ts runnable=retry-read.ts

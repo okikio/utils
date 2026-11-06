@@ -1,4 +1,4 @@
-# Choose a package guide
+# Find a package and its public submodules
 
 Choose the task you want to finish, then follow one complete example. You can adopt one utility without learning the
 whole workspace:

@@ -7,7 +7,7 @@ selection, composition, and inspection. The application continues to decide what
 ## Select the definitions one consumer may use
 
 Select canonical declarations without copying their identities. This program supplies its own local input and uses
-public workspace imports. After `mise run prepare -- --kind deps`, copy it to a `.ts` file in your project and run
+public workspace imports. After `mise run prepare -- --kind deps`, save it as `example.ts` at the checkout root and run
 `mise exec -- deno run example.ts`.
 
 ```ts runnable=complete-task.ts

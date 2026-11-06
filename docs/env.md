@@ -12,7 +12,7 @@ start resources. Vendor metadata is optional; validation uses Standard Schema.
 The application supplies port text and asks its environment definition for a checked number. Parsing happens before any
 listener is opened, so an invalid setting can be corrected without starting a partially configured service.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as a `.ts` file in your project and use
+Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
 `mise exec -- deno run example.ts`.
 
 ```ts runnable=package-task.ts
@@ -35,6 +35,10 @@ Expected output:
 ```text output
 Listen on port 4321
 ```
+
+The description is required because the same field definition can explain its setting in deployment instructions.
+The description does not choose a value: the schema provides the default, and the chosen source provides any override.
+For this example, omitting `PORT` selects `8787`; an invalid port still fails the same range check.
 
 ## Separate field rules from the chosen source
 

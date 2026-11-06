@@ -11,7 +11,7 @@ For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-ru
 [Editable diagram source](./diagram.mmd). The diagram shows startup configuration checking. The valid branch returns
 values for your application to use; it does not open a listener. It omits merging several sources and handling secrets.
 
-The [public source contracts](./mod.ts) includes field metadata, source and definition contracts.
+The [public source contracts](./mod.ts) include field metadata, source and definition contracts.
 
 An environment variable is a named value supplied when a program starts, usually as text. A **source** answers where a
 value comes from, such as a supplied object or the host environment. A **definition** says which values are allowed.
@@ -45,6 +45,10 @@ Expected output:
 ```text output
 Listen on port 4321
 ```
+
+The description explains the setting to a person through manifests and generated configuration examples. It does not
+set the port. The schema owns that rule, including the default, so test and deployment sources use the same validation.
+`define` accepts the fields once; the returned definition can parse many different sources without another setup step.
 
 `parseSync()` returns the inferred configuration object immediately: here `{ PORT: number }` with PORT `4321`. Invalid
 fields throw validation diagnostics before host startup. The record source reads only supplied values, so this example

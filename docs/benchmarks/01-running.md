@@ -284,7 +284,7 @@ not publish a numeric memory bound. Native host tests and composed lifecycle sce
 terminal behavior. Browser engines, deployed durable adapters and remote clusters require their own
 environment-tested measurements.
 
-After `mise run test -- --suite packages` creates the physical clean consumer, measure its ESM and CommonJS package
+After `mise run test -- --suite packages` creates the physical clean consumer, measure its ESM package
 roots with `mise run bench -- --operation npm`. Read the owned temporary consumer path from
 `.tmp/artifacts/npm/consumer-location.json` when supplying it explicitly. The consumer lives outside the checkout so
 Node cannot find uninstalled workspace packages through ancestor directories. This separate program includes all
@@ -295,7 +295,7 @@ cache was cold.
 
 To include those cases in the same retained serial report, pass both paths:
 `mise run bench -- /path/to/report /path/to/physical-consumer`. The npm gate also retains strict all-subpath
-ESM/CommonJS TypeScript diagnostics and owned declaration size in its clean consumer's `types-report.json`. That elapsed
+ESM TypeScript diagnostics and owned declaration size in its clean consumer's `types-report.json`. That elapsed
 time includes compiler startup and is a declaration correctness/size observation, not an editor responsiveness
 guarantee.
 

@@ -4,7 +4,8 @@ An upload needs both a browser slot and room to send data. Reserve those quantit
 release them together when it finishes. If either limit is full, the caller waits without holding a partial reservation.
 Cancelling that wait must leave the active uploads alone.
 
-Capacity controls permission to start. It does not measure usage, execute jobs, or save a durable queue.
+Capacity waits until the requested units are available. It does not authorize a caller, measure usage, execute jobs,
+or save a durable queue.
 
 A reservation is a counter that your application owns. It stays held across
 `await` until you release it. An awaited fetch gives JavaScript time to run other
@@ -19,7 +20,7 @@ This job reserves a browser instance and three upload slots together. The counte
 A browser upload needs one browser slot and three upload slots at the same time. The first snapshot shows the remaining
 capacity while that reservation is held. Releasing the lease restores both counters in the second snapshot.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as a `.ts` file in your project and use
+Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
 `mise exec -- deno run example.ts`.
 
 ```ts runnable=package-task.ts

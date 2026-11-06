@@ -202,6 +202,11 @@ of flattened Number totals. Plain references retain wall-clock semantics; zoned 
 
 ## Format with an explicit locale
 
+Formatting introduces two application choices that elapsed arithmetic does not need: the language shown to the
+reader, and what to do on a runtime without localized duration formatting. Requiring `locale` avoids silently using
+the machine's language. Requiring `fallback` avoids silently replacing a requested localized label with ISO text.
+The `style` already defaults to `short`; you do not need to specify every formatting option.
+
 `@okikio/duration/format` provides `create(options)` for a reusable formatter and `format(value, options)` for one call.
 Supply `locale`, an optional `long`, `short`, `narrow` or `digital` style, and a required `fallback`: `iso` permits an
 ISO string when Intl.DurationFormat is absent; `reject` throws DurationFormatUnsupportedError. The returned formatter's

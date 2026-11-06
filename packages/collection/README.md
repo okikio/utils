@@ -161,6 +161,11 @@ console.log(selected.get('a')?.value);
 2
 ```
 
+The two limits protect different things. `maximumKeys: 1` bounds the retained index in this example.
+`maximumItems: 2` also bounds how much source work may be scanned: a million duplicate rows still take work even
+though they need only one retained key. The duplicate policy is explicit because keeping the first value, keeping
+the last value and rejecting the source produce different application results. No policy is universally correct.
+
 `chunk()` and `unique()` are single-pass lazy iterators. Early exit and callback failure close the source. `group()` and
 `index()` deliberately collect a bounded input into a caller-owned Map. Chunk and group arrays are frozen; their values
 and keys are borrowed. `unique`, `group` and `index` require both `maximumItems` (all scanned items, including
