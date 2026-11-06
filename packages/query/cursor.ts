@@ -15,7 +15,9 @@ export interface Signer {
 }
 /** Selected key identity is public routing data, never a secret or authorization grant. */
 export interface KeyType {
+	/** Public label stored in tokens so decode can select the matching retained key. */
 	readonly id: string;
+	/** Application-owned signing capability. The token contains the label, never this key material. */
 	readonly signer: Signer;
 }
 /** Binding is selected by the authorized caller for one normalized query and provider ordering contract. */
@@ -37,7 +39,9 @@ export interface Options {
 	readonly maximumTokenBytes: number;
 	/** Maximum retained authorized signing keys. Only the addressed key is tried. */
 	readonly maximumKeys: number;
+	/** Keys still accepted for verification, including old keys while issued tokens remain valid. */
 	readonly keys: readonly KeyType[];
+	/** ID in keys used to issue new tokens. Switching it does not invalidate retained old keys. */
 	readonly activeKey: string;
 	/** Milliseconds of validity, or explicit null to omit expiry. No ambient clock is consulted. */
 	readonly expiresIn: number | null;

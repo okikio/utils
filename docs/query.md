@@ -63,7 +63,8 @@ Unknown filter rejected before searching
 ```
 
 The URL supplies a name and a page bound. Query checks which fields and operators are allowed, then returns ordinary
-checked data. Our array provider applies that exact equality and page; Query does not retrieve rows or translate to SQL.
+checked data. Our array provider applies that exact equality and page. `Search.parse()` only checks the request; it retrieves no rows.
+The optional `@okikio/query/postgres` compiler can translate that checked request into SQL, which the application executes.
 The rejected password filter never reaches the provider. A production adapter must preserve every operation enabled
 by its definition and add trusted tenant/access restrictions separately.
 

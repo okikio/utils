@@ -12,7 +12,8 @@
 		"./expression": "./expression.ts",
 		"./pagination": "./page.ts",
 		"./url": "./parameters.ts",
-		"./cursor": "./cursor.ts"
+		"./cursor": "./cursor.ts",
+		"./postgres": "./postgres.ts"
 	},
 	"dependencies": {
 		"@standard-schema/spec": "^1.1.0",

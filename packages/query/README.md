@@ -22,6 +22,11 @@ The arrow into the provider matters: parsing a URL does not search storage or
 protect a tenant by itself. The example below implements only its declared name
 filter and page on a small array, so you can see each step without a database.
 
+Start with `query.define()` and its returned `parse()` method. The focused definition, operator, URL and pagination
+subpaths let you reuse a single part independently; they are not extra setup steps. Add the PostgreSQL compiler when
+SQL should implement the allowed operations. Add signed cursors only when clients need continuation tokens that must
+resist changes: a signature checks the token, while the application still checks who may read the resulting rows.
+
 ## Read an allowed search
 
 Allow only name equality and bounded offset pages. Parse the caller's URL, apply that exact operation to local people,
@@ -64,7 +69,8 @@ Unknown filter rejected before searching
 ```
 
 The URL supplies a name and a page bound. Query checks which fields and operators are allowed, then returns ordinary
-checked data. Our array provider applies that exact equality and page; Query does not retrieve rows or translate to SQL.
+checked data. Our array provider applies that exact equality and page. `Search.parse()` only checks the request; it retrieves no rows.
+The optional `@okikio/query/postgres` compiler can translate that checked request into SQL, which the application executes.
 The rejected password filter never reaches the provider. A production adapter must preserve every operation enabled
 by its definition and add trusted tenant/access restrictions separately.
 
@@ -72,6 +78,226 @@ by its definition and add trusted tenant/access restrictions separately.
 A definition says what callers may request. A parsed value contains `{ filter?, order, fields, pagination }`. The field
 schema validates an operand; Query validates whether that field, operator, sort, projection, and page are allowed
 together.
+
+## Compile a checked request for PostgreSQL
+
+The optional `postgres` entry translates the checked query vocabulary into a
+parameterized SELECT statement. Your application owns its PostgreSQL driver,
+connection lifetime, transaction, row decoding, timeout, and access policy.
+This adapter adds no database dependency to the root query import.
+
+```ts
+import * as query from '@okikio/query';
+import * as pg from '@okikio/query/postgres';
+import * as schema from '@okikio/schema';
+
+const Search = query.define({
+	fields: {
+		id: query.field(schema.number(), { sortable: true }),
+		name: query.field(schema.string()),
+	},
+	filters: { name: [query.contains] },
+	order: [query.asc('id', { tiebreaker: true })],
+	pagination: query.offset({ defaultLimit: 20, maximumLimit: 100 }),
+});
+
+// Check this once when binding an endpoint, before it accepts client requests.
+const support = Search.validateAdapter(pg.capabilities);
+if (!support.valid) throw new Error('This query requests unsupported PostgreSQL adapter features.');
+
+const checked = await Search.parse(new URLSearchParams('filter[name][contains]=Ada'));
+
+const statement = pg.compile(checked, {
+	// The application chooses the relation and private columns; clients choose only public fields.
+	table: ['public', 'people'],
+	columns: { id: 'person_id', name: 'display_name' },
+});
+
+console.log(statement.text, statement.values);
+// With postgres.js, pass text and values separately to database.unsafe().
+// Do not interpolate the values into the SQL text.
+```
+
+The compiler supports bounded offset and cursor pages, simple field selection,
+all declared operators, and ALL/ANY/NOT groups. Resource fieldsets still require
+an application projection. Identifiers come from your mapping and are quoted; operands use
+numbered placeholders. Text contains/prefix/suffix comparisons treat `%`, `_`,
+and backslash literally. Case conversion and collation follow PostgreSQL.
+
+Equality and list membership use null-safe distinctness. Other comparisons use
+SQL's three-valued logic: a comparison with NULL is unknown, including under NOT,
+and a WHERE clause drops that row. Sorts use NULLS LAST in both directions.
+Operands must be strings, finite numbers, booleans, bigint, or null. Text
+operators require strings. Applications needing timestamps should use explicit
+validated scalar representations that their database column accepts.
+
+This SELECT compiler does not add tenant restrictions. Use a server-owned view,
+row-level security, or combine trusted restrictions with the client filter before
+creating the checked value. Never let client choices replace the trusted filter.
+A unique final sort key gives deterministic ordering within a snapshot; offset
+pages can still shift across concurrent writes. Counts and deployment policy
+remain with the application.
+
+### Continue in a stable database order
+
+Cursor pages use a lexicographic keyset rather than skipping earlier rows. Declare
+an immutable, non-null unique key as the final tiebreaker. Earlier keys may be
+nullable and may mix ascending and descending order; PostgreSQL NULLS LAST is
+part of the contract. The compiler checks the order shape and rejects a null
+final boundary key. The application must enforce actual uniqueness and
+immutability in its database model.
+
+```ts
+import * as query from '@okikio/query';
+import * as pg from '@okikio/query/postgres';
+import * as cursors from '@okikio/query/cursor';
+import * as hmac from '@okikio/hash/hmac';
+import * as schema from '@okikio/schema';
+
+const Search = query.define({
+	fields: { id: query.field(schema.number(), { sortable: true }) },
+	order: [query.asc('id', { tiebreaker: true })],
+	pagination: query.cursor({ defaultLimit: 20 }),
+});
+
+// Demo key only. In a service, borrow a persistent signing key from its owner.
+const signer = await hmac.create('sha256', crypto.getRandomValues(new Uint8Array(32)));
+
+const cursor = cursors.create({
+	contract: 'people.v1',
+	order: Search.order,
+	semantics: 'postgres;nulls-last;immutable-unique-id',
+	context: 'authorized-tenant-and-filter-digest',
+	values: schema.array(schema.number(), { minLength: 1, maxLength: 1 }),
+}, {
+	keys: [{ id: 'current', signer }],
+	activeKey: 'current',
+	maximumKeys: 1,
+	maximumTokenBytes: 4096,
+	expiresIn: 60_000,
+	now: Date.now,
+});
+
+// Use the last fetched row's ordered keys to create the next token.
+const token = await cursor.encode([42]);
+const checked = await Search.create({ pagination: { kind: 'cursor', cursor: token, limit: 20 } });
+
+const statement = await pg.compilePage(checked, {
+	table: ['public', 'people'],
+	columns: { id: 'person_id' },
+}, cursor);
+
+console.log(statement.text, statement.values);
+```
+
+The existing cursor codec authenticates contract, order, provider semantics,
+authorized filter/tenant context, expiry, and ordered key values. Rebuild that
+binding from server-owned policy for each authorized query; a valid token is not
+an access grant. `compilePage()` authenticates the opaque token before compiling.
+Use `compile()` with `continuation: { values }` only when the boundary has already
+been authenticated and validated by a trusted owner. A raw cursor token without
+that boundary rejects. The initial page has no token or continuation.
+
+For previous pages, pass `direction: 'before'` to `compilePage()`. SQL then fetches
+the nearest preceding rows in reversed order, with NULLS FIRST. When
+`statement.reversed` is true, reverse the fetched rows before presenting them in
+canonical order. Use the first canonical row's keys for another previous page,
+and the last row's keys for the next page. Keyset traversal avoids offset shifts
+caused by inserts before a boundary; updates to sort keys still require a
+transaction snapshot or an application consistency policy.
+
+Keep the ordered keys available to the provider when building a continuation.
+If a client's sparse projection omits them, fetch them privately in the provider
+and remove them from the public response. The compiler does not manufacture row
+keys or widen a requested projection automatically.
+
+A keyset predicate does not guarantee a range scan. The final non-null unique key
+uses a plain comparison so a single-key cursor can become an index condition.
+Nullable multi-key alternatives may still become residual filters, depending on
+indexes, collation, and PostgreSQL's plan. Inspect EXPLAIN ANALYZE with the actual
+index and data distribution before claiming that a deep page avoids scanning a
+prefix. [PostgreSQL's ordering rules](https://www.postgresql.org/docs/current/queries-order.html)
+and [LIMIT/OFFSET behavior](https://www.postgresql.org/docs/current/queries-limit.html)
+describe the underlying contracts.
+
+### Measure the database work
+
+From the repository checkout, set `UTILS_BENCH_DATABASE_URL` to an explicitly
+disposable PostgreSQL database. The optional
+[SQL benchmark](../../bench/query-postgres.bench.ts) creates a unique 20,000-row
+fixture, checks that deep offset and keyset queries return the same twenty IDs,
+and drops its own tables when it finishes. It borrows that database and closes
+its connection pool. Run each mode separately:
+
+```sh
+node bench/query-postgres.bench.ts --check
+node bench/query-postgres.bench.ts
+node bench/query-postgres.bench.ts --explain
+```
+
+The first mode checks actual rows without timings. The second measures SQL
+execution and result transfer for both a base relation and a unique-key join.
+The third prints EXPLAIN ANALYZE/BUFFERS plans, so compare rows visited and index
+conditions as well as duration. These are local observations rather than
+production latency guarantees. In particular, the fixture's single non-null
+primary key does not prove range scans for nullable composite ordering.
+
+To measure compiler CPU separately, run
+`node packages/query/postgres.bench.ts`. Its fixtures cover up to 32 keyset keys
+and sixteen joins; database setup, execution, and token signing are excluded.
+
+### Join a unique related record without multiplying pages
+
+An application can add explicit INNER or LEFT joins and expose joined columns
+through the same public field map. Every join target must match at most one row
+per incoming row. The compiler requires `cardinality: 'one'` as an explicit
+application assertion; it does not inspect database constraints. Back that
+assertion with a PRIMARY KEY or UNIQUE constraint over the complete joined target
+key. Many people may share one account; each person still occupies one page row.
+
+```ts
+import * as query from '@okikio/query';
+import * as pg from '@okikio/query/postgres';
+import * as schema from '@okikio/schema';
+
+const Search = query.define({
+	fields: {
+		id: query.field(schema.number(), { sortable: true }),
+		name: query.field(schema.nullable(schema.string())),
+	},
+	order: [query.asc('id', { tiebreaker: true })],
+	pagination: query.offset({ defaultLimit: 20 }),
+});
+
+const checked = await Search.create();
+
+const statement = pg.compile(checked, {
+	table: ['public', 'people'],
+	alias: 'p',
+	columns: {
+		id: 'person_id',
+		name: { relation: 'a', column: 'display_name' },
+	},
+	joins: [{
+		table: ['public', 'accounts'],
+		alias: 'a',
+		kind: 'left',
+		cardinality: 'one',
+		on: [{
+			left: { relation: 'p', column: 'account_id' },
+			right: { relation: 'a', column: 'id' },
+		}],
+	}],
+});
+```
+
+Here the offset query exposes `id` and the related account `name`. LEFT retains people without accounts; their
+account name is null. INNER removes them. Each ON pair connects an already
+declared alias to the new target. Unknown/duplicate aliases, disconnected joins,
+and to-many cardinality reject. Joins and physical identifiers are trusted
+configuration; clients cannot introduce them. A to-many child collection needs
+a separate query or an explicitly modeled row relation, rather than silently
+changing what the parent page counts.
 
 ## Author the same request without URL notation
 
@@ -126,6 +352,8 @@ authoring data; the complete request becomes checked data only after `create()` 
 | `@okikio/query/pagination` | Parse and encode bounded pages independently with `cursor`, `offset`, `pagination`, `parse`, `safeParse`, and `encode`.             |
 | `@okikio/query/url`        | Use functional `parse(policy, input)`, `safeParse`, `encode(policy, value)`, and `stringify` with a separately imported definition. |
 | `@okikio/query/types`      | Share the same policy, authoring, result, and adapter contracts.                                                                    |
+| `@okikio/query/postgres`   | Compile checked filters, keyset or offset pages, and trusted to-one joins into bound PostgreSQL SELECT statements. |
+| `@okikio/query/cursor`     | Authenticate ordered continuation keys against a caller-owned query, tenant, expiry, and signing-key policy. |
 
 ## Definition operations
 

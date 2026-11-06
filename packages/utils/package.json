@@ -262,7 +262,8 @@
 		"./workflow/history": "./workflow/history.ts",
 		"./workflow/replay": "./workflow/replay.ts",
 		"./workflow/testing": "./workflow/testing.ts",
-		"./workflow/types": "./workflow/types.ts"
+		"./workflow/types": "./workflow/types.ts",
+		"./query/postgres": "./query/postgres.ts"
 	},
 	"dependencies": {
 		"@okikio/activity": "workspace:^",
