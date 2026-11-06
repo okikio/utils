@@ -235,7 +235,10 @@ export function any(...checks: readonly PermissionExpressionInput[]): Permission
  * Create an unowned permission-aware view of an existing execution context.
  *
  * The returned scope borrows the parent context, evaluator, and declarations.
- * It does not create cancellation state or own cleanup. A different scope can
+ * It does not create cancellation state or own cleanup. Use the existing request
+ * Context when one is available; create and dispose an owner only at an operation
+ * that does not already have one. `permissions` declares which questions may be
+ * asked; the checker still decides each concrete target. A different scope can
  * therefore use the same base context with a different actor-specific evaluator
  * without caching another actor's authority in shared resources.
  */

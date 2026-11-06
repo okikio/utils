@@ -24,6 +24,11 @@ import type {
 	SuccessEnvelope,
 } from './types.ts';
 
+/**
+ * Keep the exact declaration beside each result without adding private fields to
+ * its public tuple. A matching status or body shape cannot establish which
+ * response the handler selected. Weak keys also let completed results be collected.
+ */
 const responseResultMetadata = new WeakMap<ReadonlyArray<unknown>, ResponseResultMetadata>();
 type NormalizedCreateOptions = Readonly<
 	Omit<CreateResponseOptions, 'headers' | 'location' | 'url'> & {

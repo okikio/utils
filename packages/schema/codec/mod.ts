@@ -1,7 +1,14 @@
 /**
- * Describe both directions of a transport conversion together. Independent encoder and decoder functions easily drift when an API changes its timestamp format.
+ * Keep reading and writing rules together when external data differs from application values.
+ * For example, an HTTP timestamp arrives as text but application code uses a Date.
+ * Decoding checks incoming text and creates the Date; encoding checks the Date and
+ * returns the outgoing text. Keeping those rules together prevents one direction
+ * from retaining an old format after the other changes.
  *
- * Use a codec for an HTTP field, queue payload or stored result, then expose it through schema-compatible consumers. Each direction runs its declared validation and conversion. Round-trip fidelity depends on your transformations: converting an offset timestamp to Date intentionally normalizes its spelling. A codec does not serialize resources or make arbitrary objects durable.
+ * Use a codec for an HTTP field, queue payload or stored value. Each direction runs
+ * its declared validation and conversion. A round trip need not reproduce the same
+ * spelling: converting timestamp text to Date can intentionally normalize it.
+ * A codec does not send the value, serialize live resources or make data durable.
  *
  * @example
  * ```ts

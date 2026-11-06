@@ -40,14 +40,23 @@ export type CsvDialectType = schema.Output<typeof CsvDialectSchema>;
 
 /** Incremental observation of record framing without retaining cells or copying the source. */
 export class DialectObserver {
+	/** Inside a quoted cell: separators and line endings here are cell data. */
 	#quoted = false;
+	/** A quote at the last position may close the cell or escape the next quote. */
 	#quotePending = false;
+	/** A quote can open a quoted cell only before any other character in that field. */
 	#fieldStart = true;
+	/** Remains true only while every observed field begins with a quote. */
 	#allQuoted = true;
+	/** Count nonempty field starts so empty input cannot be classified as quoting every field. */
 	#fields = 0;
+	/** Delay recording CR until the next character distinguishes CRLF from a lone CR. */
 	#crPending = false;
+	/** True only when the latest observed character completes an external record ending. */
 	#finalNewline = false;
+	/** Record separators outside quoted cells; multiple spellings produce mixed metadata. */
 	#endings = new Set<'\r\n' | '\n' | '\r'>();
+	/** Reuse the source's first external separator when mixed endings are written again. */
 	#firstEnding: '\r\n' | '\n' | '\r' | undefined;
 	/** Caller-selected separator used by the structural parser. */
 	readonly delimiter: types.CsvDelimiter;

@@ -12,8 +12,10 @@
  * const Healthy = response.ok(schema.object({ ok: schema.boolean() }), { id: 'health.ok', description: 'Service health.' });
  * const Health = endpoint.get({ id: 'health.read', path: '/health', responses: [Healthy] });
  * const Api = service.define({ id: 'health-api', path: '/api', endpoints: [Health] });
- * import * as resource from '@okikio/capability/resource';
- * const live = service.implement(Api, { endpoints: [endpoint.handler(Health, () => response.create(Healthy, { ok: true }))], resources: resource.implementations() });
+ * // The endpoint has no dependencies; implement() supplies the empty resource collection.
+ * const live = service.implement(Api, {
+ *   endpoints: [endpoint.handler(Health, () => response.create(Healthy, { ok: true }))],
+ * });
  * await using runtime = service.create(service.compile(live), { host: {} });
  * const result = await runtime.fetch(new Request('https://service.invalid/api/health'));
  * console.log(result.status, (await result.json()).ok);

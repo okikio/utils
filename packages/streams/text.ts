@@ -4,13 +4,21 @@ import type { ReaderOptions } from './reader.ts';
 
 /** Native UTF-8 decoding policy. BOM handling follows TextDecoder's ignoreBOM option. */
 export interface DecodeOptionsType extends ReaderOptions {
+	/** Maximum total input bytes, including an incomplete character carried between chunks. */
 	readonly maximumBytes: number;
+	/** Reject one oversized source chunk before decoding it; the source still owns its allocation. */
 	readonly maximumChunkBytes: number;
+	/** True rejects malformed UTF-8; false replaces malformed sequences with the replacement character. */
 	readonly fatal: boolean;
 	/** False strips the initial BOM, true preserves it. Only the initial BOM is special. */
 	readonly ignoreBOM: boolean;
 }
-/** Decode each admitted chunk incrementally; incomplete UTF-8 is resolved by fatal policy at successful EOF. */
+/**
+ * Decode byte chunks while preserving characters split across chunk boundaries.
+ * Output strings need not be complete lines or application records. Decode the
+ * final unfinished character at EOF under the same malformed-input policy.
+ * Early return releases the source reader through the shared reader owner.
+ */
 export async function* decode(source: ReadableStream<Uint8Array>, options: DecodeOptionsType): AsyncGenerator<string> {
 	for (const value of [options.maximumBytes, options.maximumChunkBytes]) {
 		if (!Number.isSafeInteger(value) || value < 0) {

@@ -13,12 +13,18 @@ export interface OptionsType extends ReaderOptionsType {
 	readonly maximumBytes: number;
 }
 /**
- * Hash chunks without retaining the complete input. The source must yield bytes.
- * A factory supports optional families without eagerly importing them. Its fresh
- * state transfers to this call and is always destroyed. Errors or abort cancel
- * the source unless preventCancel is set. Cleanup remains inspectable through
- * onCleanup; a hanging cancel hook never delays rejection or lock release.
- * The byte ceiling limits admitted data, not allocations made by the source.
+ * Compute one digest as byte chunks arrive, without retaining the complete input.
+ * Use a SHA-2 algorithm name for the ordinary path. For another algorithm family,
+ * pass a factory that creates a fresh hasher; this call owns and destroys it.
+ *
+ * The required byte ceiling rejects a chunk before it would exceed the admitted
+ * total. It cannot prevent the source from allocating that chunk in the first place.
+ * Hashing each accepted chunk still runs synchronously on the calling thread.
+ *
+ * EOF releases the reader. Failure or abort also requests source cancellation,
+ * unless preventCancel keeps the source borrowed. Reader-lock release and rejection
+ * do not wait for a hanging source cancel hook. Use onCleanup when the source owner
+ * must join or inspect that eventual cleanup separately.
  */
 export async function read(
 	algorithm: AlgorithmType | (() => HasherType),

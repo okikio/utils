@@ -28,7 +28,14 @@ import { HTTPException } from 'hono/http-exception';
 import * as http from '@okikio/server/http';
 import type * as service from '@okikio/server/service';
 
-/** Register every compiled service route on one caller-owned Hono application. */
+/**
+ * Register an existing service runtime's routes on a Hono application.
+ *
+ * This borrows both values and returns the same app. It does not create the
+ * service, open a listener or arrange disposal. Keep the runtime alive while
+ * Hono can call its routes, then dispose it after serving has stopped. Hono's
+ * registration order still decides how these routes interact with native routes.
+ */
 export function mount(app: Hono, runtime: service.ServiceRuntime): Hono {
 	for (const route of runtime.routes) {
 		app.on(route.method, route.path, (ctx) => route.handler(ctx.req.raw));

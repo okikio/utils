@@ -6,10 +6,15 @@ import * as codec from '@okikio/schema/codec';
 
 /** Counters and a short explanation, with optional JSON data owned by the application. */
 export interface ProgressType {
+	/** Finished units so far. Omit when they cannot be counted; never use this as a completion receipt. */
 	readonly completed?: number;
+	/** Expected units in the same unit as completed. Omit when the final size is unknown. */
 	readonly total?: number;
+	/** Label such as files or bytes, so the displayed counts have a concrete meaning. */
 	readonly unit?: string;
+	/** Short explanation of the current work, such as Reading headers. */
 	readonly message?: string;
+	/** Optional JSON-compatible display details, bounded by ProgressSchema. Keep secrets out of observations. */
 	readonly data?: unknown;
 }
 

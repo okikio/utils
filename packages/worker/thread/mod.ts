@@ -1,7 +1,7 @@
 /**
  * Call a standard Worker with validated, correlated requests instead of a hand-built postMessage listener. Correlation, reverse calls, cancellation and shutdown need distinct authority even when messages race.
  *
- * Save the second module beside the first. Start with request/result, then add notices for progress and reverse calls for host-owned policy. A notice is not completion. Transfer lists move ownership of transferable data; they do not move arbitrary resources. Pause is cooperative and requires handler checkpoints. Cancellation can stop waiting for a schema, but an external validator still owns its resources. The parent owns Worker shutdown; each realm needs its own optional polyfill imports.
+ * Save the second module beside the first. Start with request/result, then add notices for progress and reverse calls for host-owned policy. A notice is not completion. Transfer lists move ownership of transferable data; they do not move arbitrary resources. Pause is cooperative and requires handler checkpoints. Cancellation can stop waiting for a schema, but an external validator still owns its resources. The parent owns Worker shutdown; each request has its own cancellation and cleanup lifetime.
  *
  * @example
  * ```ts

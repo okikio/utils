@@ -4,9 +4,11 @@ import type { ReaderOptions } from './reader.ts';
 
 /** Independent total, incoming-chunk and retained-frame limits. All values count bytes. */
 export interface FrameOptionsType extends ReaderOptions {
+	/** Maximum total admitted source bytes, including delimiters and incomplete frames. */
 	readonly maximumBytes: number;
 	/** Reject an oversized provider chunk before buffering it. The provider still owns its original allocation. */
 	readonly maximumChunkBytes: number;
+	/** Maximum retained content bytes for one output frame; split excludes the delimiter. */
 	readonly maximumFrameBytes: number;
 	/** Emit the final incomplete frame or reject it. Empty EOF never adds a trailing empty frame. */
 	readonly incomplete: 'emit' | 'reject';
@@ -36,7 +38,8 @@ async function* chunks(source: ReadableStream<Uint8Array>, options: FrameOptions
 
 /**
  * Split non-overlapping delimiters, excluding them from newly owned output frames.
- * KMP prefix state keeps repeated delimiter prefixes linear in input length.
+ * A prefix table remembers partial delimiter matches, avoiding a rescan when
+ * a delimiter repeats its own prefix (the KMP matching algorithm).
  * Carry is at most maximumFrameBytes + delimiter.length; no source read occurs while a frame is yielded.
  * Early exit releases the source lock promptly; onCleanup retains eventual cancellation outcome.
  */
@@ -61,7 +64,9 @@ export async function* split(
 		if (separator[index] === separator[length]) length++;
 		prefix[index] = length;
 	}
+	/** Bytes carried for the current frame, including a possible unfinished delimiter. */
 	let length = 0;
+	/** Delimiter prefix currently matched at the end of carry; never re-read source bytes. */
 	let matched = 0;
 	for await (const chunk of chunks(source, options)) {
 		for (const byte of chunk) {

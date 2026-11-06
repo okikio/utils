@@ -101,7 +101,14 @@ export class ServiceRuntimeConfigurationError extends Error {
 	}
 }
 
-/** Create a framework-neutral Fetch runtime from one fully compiled service. */
+/**
+ * Create a Fetch application from a checked service plan, without opening a port.
+ *
+ * Pass application-owned clients through `options.host`; the runtime borrows them.
+ * Its Context owns cancellation and the lazy collection owns resources constructed
+ * by declared factories. Consume or cancel response bodies, then await disposal
+ * to join owned cleanup. An empty host is sufficient when no factory needs clients.
+ */
 export function create<Host extends object, Values extends ServiceRequestValues = ServiceRequestValues>(
 	compiled: CompiledService<import('./types.ts').ServiceDefinition, Host>,
 	options: CreateServiceOptions<Host, Values>,

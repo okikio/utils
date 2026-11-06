@@ -110,9 +110,16 @@ export type ProjectionOptions = JsonOptions;
 
 /** Options controlling bounded failure-history buffering. */
 export interface BufferOptions {
-	/** Maximum retained correlation keys. Zero disables pre-trigger retention. */
+	/**
+	 * Maximum operations whose recent history can be retained at once.
+	 * Required so new request IDs cannot grow the buffer without a bound.
+	 * Zero disables pre-trigger retention; triggered events are still delivered.
+	 */
 	readonly maximumKeys: number;
-	/** Maximum retained records across all keys, independent of per-key capacity. */
+	/**
+	 * Maximum history records across all operations, independent of per-key capacity.
+	 * Oldest retained records are evicted at this limit. This counts records, not heap bytes.
+	 */
 	readonly maximumRecords: number;
 	/** Maximum retained pre-trigger records per correlation key. @default 64 */
 	readonly capacity?: number;

@@ -288,11 +288,10 @@ export interface Queue<Input, Output> extends AsyncDisposable {
 }
 
 /**
- * Caller-owned handle for one FIFO-visible item.
- *
- * The handle wraps one underlying queue claim. The caller can complete, fail,
- * retry, or renew the item without passing the claim object back into queue
- * methods manually.
+ * One taken attempt, with methods that carry its exact claim back to the queue.
+ * Disposing this handle makes no completion, failure or retry decision. Call one
+ * of those methods explicitly; otherwise the lease must expire before reclaim.
+ * Keep the new handle returned by renew(), since it carries the new expiry.
  */
 export interface QueueClaimHandle<Input, Output> extends AsyncDisposable {
 	/** Unique identity for the current claim attempt. */
@@ -326,7 +325,7 @@ export interface QueueClaimHandle<Input, Output> extends AsyncDisposable {
  * exposes a smaller surface for callers that want one-at-a-time queue usage.
  */
 export interface FifoQueue<Input, Output> extends AsyncDisposable {
-	/** QueueEventType stream that reports authoritative queue state changes. */
+	/** Notifications after local transitions. Await result() or mutation methods for their authoritative outcomes. */
 	readonly events: EventBus<QueueEventType>['events'];
 	/** Add one logical work item and return its stable reference. */
 	add(input: Input, options?: QueueAddOptions): Promise<QueueRef>;

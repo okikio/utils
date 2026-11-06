@@ -28,7 +28,7 @@ export interface Stats {
 
 /** Caller-owned borrow of one reusable value. Repeated disposal joins the same return or close. */
 export interface Lease<Value> extends AsyncDisposable {
-	/** Value carried by this contract; its schema and owner define the accepted shape. */
+	/** The exclusively borrowed connection, page or other value. Return the lease instead of closing this value yourself. */
 	readonly value: Value;
 	/** Instant when this lease was granted by the owning clock. */
 	readonly acquiredAt: Temporal.Instant;

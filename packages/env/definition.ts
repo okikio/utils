@@ -110,7 +110,12 @@ export function defineEnvironmentField<
 	});
 }
 
-/** Define an ordinary deployment variable with an explicit Standard Schema contract. */
+/**
+ * Describe one ordinary setting and the validator that reads its raw text.
+ * The required description appears in manifests and generated configuration examples;
+ * it is not a runtime value or a default. Put defaults and coercion in the schema
+ * so every source uses the same rule. Defining a field reads no environment values.
+ */
 export function variable<const Schema extends StandardSchemaV1>(
 	schema: Schema,
 	metadata: EnvironmentFieldMetadata,

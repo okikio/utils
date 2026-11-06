@@ -89,9 +89,11 @@ export function open(options: Options): Health {
 	};
 	let server: Deno.HttpServer<Deno.NetAddr> | undefined;
 	let closing: Promise<void> | undefined;
+	/** Refuse new traffic through readiness before the owner begins draining accepted work. */
 	const stop = () => {
 		status = Object.freeze({ state: 'stopping' });
 	};
+	/** Share shutdown with abort and disposal so every caller joins the same listener cleanup. */
 	const close = (): Promise<void> => {
 		if (closing) return closing;
 		stop();

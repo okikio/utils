@@ -21,6 +21,7 @@ import type {
 } from './events.ts';
 import type { EventInput, Fields, Level, Scope } from './types.ts';
 
+/** Map request observations to diagnostic severity, without changing request success or failure. */
 const SERVICE_LEVEL = Object.freeze(
 	{
 		started: 'debug',
@@ -31,6 +32,7 @@ const SERVICE_LEVEL = Object.freeze(
 	} satisfies Record<ServiceObserverEventKind, Level>,
 );
 
+/** A policy denial is an expected observation; transport failure remains an error diagnostic. */
 const GATEWAY_LEVEL = Object.freeze(
 	{
 		denied: 'info',
