@@ -14,9 +14,9 @@ From the repository root:
 
 ```sh
 mise install
-mise run prepare:deps
-mise run bench:freeze:prepare
-mise run bench:freeze:check
+mise run prepare -- --kind deps
+mise run prepare -- --kind freeze
+mise run bench -- --operation freeze --check
 ```
 
 Preparation inspects actual AST freeze calls and creates four frozen/plain pairs. Both Progress copies omit the
@@ -26,7 +26,7 @@ compiler identity, and measurement controls.
 
 The check is read-only after preparation. It verifies those hashes, emitted-code equivalence after the documented
 substitution, successful-output agreement, invalid-input behavior, identity, and mutation differences. It takes no timed
-samples. To save the derived verification receipt deliberately, run `mise run bench:freeze:verify -- --write`;
+samples. To save the derived verification receipt deliberately, run `mise run bench -- --operation freeze:verify -- --write`;
 preparation already does this.
 
 ## Record and summarize independent runs
@@ -35,11 +35,11 @@ Run processes sequentially on an idle machine and choose new filenames. Raw outp
 file.
 
 ```sh
-mise run bench:freeze:run -- --output .tmp/artifacts/bench/freeze/node-1701.json --seed 1701
-mise run bench:freeze:run -- --output .tmp/artifacts/bench/freeze/node-1702.json --seed 1702
+mise run bench -- --operation freeze -- --output .tmp/artifacts/bench/freeze/node-1701.json --seed 1701
+mise run bench -- --operation freeze -- --output .tmp/artifacts/bench/freeze/node-1702.json --seed 1702
 mise exec -- deno run --frozen --no-check --allow-read --allow-write=.tmp/artifacts/bench/freeze --allow-env --allow-sys bench/freeze/freeze.bench.ts --output .tmp/artifacts/bench/freeze/deno-1701.json --seed 1701
 mise exec -- bun bench/freeze/freeze.bench.ts --output .tmp/artifacts/bench/freeze/bun-1701.json --seed 1701
-mise run bench:freeze:summarize -- .tmp/artifacts/bench/freeze/node-1701.json .tmp/artifacts/bench/freeze/node-1702.json
+mise run bench -- --operation freeze:summarize -- .tmp/artifacts/bench/freeze/node-1701.json .tmp/artifacts/bench/freeze/node-1702.json
 ```
 
 The summarizer writes `summary.json` and `RESULTS.md` under `.tmp/artifacts/bench/freeze/`. Without explicit filenames

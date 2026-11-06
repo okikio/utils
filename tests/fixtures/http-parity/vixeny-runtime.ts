@@ -36,7 +36,7 @@ function record(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Load native Vixeny functions from the exact npm source compiled by tools/bench/prepare.mjs.
+ * Load native Vixeny functions from the exact npm source compiled by tools/bench/prepare.ts.
  *
  * The published npm entry is TypeScript inside node_modules. Modern Node/Deno
  * loaders reject that source layout. The verification task emits one ESM

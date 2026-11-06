@@ -7,9 +7,9 @@
  * before timing. Plain variants intentionally weaken mutation guarantees; equal
  * successful output does not make those variants safe replacements.
  *
- * Deno: deno run --allow-read --allow-write --allow-env --allow-sys freeze.bench.ts ...
- * Node: node freeze.bench.ts --output ../../.tmp/freeze-samples.json --seed 101
- * Bun: bun freeze.bench.ts ...
+ * From the repository root, prepare with `mise run prepare -- --kind freeze`.
+ * Collect Node samples with `mise run bench -- --operation freeze -- --seed 101`.
+ * See this folder's README for Deno/Bun commands and explicit output filenames.
  * Use --validate-only to check existing oracles without warmups or timed batches.
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -19,7 +19,7 @@ import { resolve } from 'node:path';
 
 // Generated modules are ignored; a fresh checkout must prepare an explicit source checkpoint.
 if (!existsSync(new URL('../../.tmp/artifacts/bench/freeze/inventory.json', import.meta.url))) {
-	throw new Error('No prepared freeze checkpoint. Run mise run bench:freeze:prepare.');
+	throw new Error('No prepared freeze checkpoint. Run mise run prepare -- --kind freeze.');
 }
 
 const frozenResult: typeof import('@okikio/result') = await import(
@@ -40,10 +40,10 @@ const frozenCatalog: typeof import('@okikio/collection/catalog') = await import(
 const plainCatalog: typeof import('@okikio/collection/catalog') = await import(
 	new URL('../../.tmp/artifacts/bench/freeze/generated/catalog-plain.mjs', import.meta.url).href
 );
-const frozenProgress: Pick<typeof import('@okikio/task'), 'ProgressEffect' | 'ProgressSchema'> = await import(
+const frozenProgress: Pick<typeof import('@okikio/task'), 'ProgressSchema'> = await import(
 	new URL('../../.tmp/artifacts/bench/freeze/generated/progress-frozen.mjs', import.meta.url).href
 );
-const plainProgress: Pick<typeof import('@okikio/task'), 'ProgressEffect' | 'ProgressSchema'> = await import(
+const plainProgress: Pick<typeof import('@okikio/task'), 'ProgressSchema'> = await import(
 	new URL('../../.tmp/artifacts/bench/freeze/generated/progress-plain.mjs', import.meta.url).href
 );
 
@@ -53,7 +53,9 @@ const inventory = JSON.parse(inventoryBytes.toString('utf8')) as {
 	readonly schemaVersion: number;
 	readonly provenance: { readonly inputs: Readonly<Record<string, string>> };
 };
-if (inventory.schemaVersion !== 2) throw new Error('Run bench:freeze:prepare for this source checkpoint first.');
+if (inventory.schemaVersion !== 2) {
+	throw new Error('Run mise run prepare -- --kind freeze for this source checkpoint first.');
+}
 const provenance = {
 	inventorySha256: createHash('sha256').update(inventoryBytes).digest('hex'),
 	inputs: inventory.provenance.inputs,

@@ -9,8 +9,8 @@ retains three fresh Node-process reports.
 Select a disposable PostgreSQL database explicitly through `UTILS_TEST_DATABASE_URL`, then run:
 
 ```sh
-mise run bench:queue .tmp/artifacts/queue-candidate-1 --jobs=128 --concurrency=8 --samples=1
-mise run bench:queue .tmp/artifacts/queue-parent-1 --source-root=/absolute/path/to/parent --jobs=128 --concurrency=8 --samples=1
+mise run bench -- --operation queue --output .tmp/artifacts/queue-candidate-1 --jobs 128 --concurrency 8 --samples 1
+mise run bench -- --operation queue --output .tmp/artifacts/queue-parent-1 --source-root /absolute/path/to/parent --jobs 128 --concurrency 8 --samples 1
 ```
 
 Use new output directories for every invocation. The controller refuses to overwrite existing evidence. `--source-root`
@@ -18,7 +18,7 @@ selects the actual queue, Context, Schema and polyfill modules from that checkou
 through that checkout's package links. Install its frozen dependencies first. The parent source is never modified. The
 same harness and Postgres.js driver from the current checkout serve both versions.
 
-`mise run bench:queue --help` lists the controls. Jobs are bounded to 1–10,000, completion concurrency to 1–64 and no
+`mise run bench -- --operation queue -- --help` lists the controls. Jobs are bounded to 1–10,000, completion concurrency to 1–64 and no
 more than the job count, and fresh samples to 1–20. `UTILS_BENCH_NODE` can explicitly select the Node executable. There
 is no database URL fallback, and reports omit the URL, credentials and server address.
 
@@ -65,7 +65,7 @@ policy, checks removal and closes the owned pool. Failed or partial work remains
 process deadline requests cooperative termination, then allows 15 seconds before a hard kill; a forced process loss
 cannot prove cleanup. The namespace remains in metadata for inspection if cleanup was not confirmed.
 
-This task deliberately stays outside the database-free `bench:check` suite and CI benchmark correctness lane. Its
+This task deliberately stays outside the database-free `bench -- --check` suite and CI benchmark correctness lane. Its
 orchestrator uses the same explicit Deno `-A` permission model as the existing benchmark recorder because collecting
 Linux cgroup limits requires access beyond Deno's ordinary read permission. Production packages acquire no new
 permissions.

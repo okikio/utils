@@ -24,7 +24,7 @@ export const vixenyContract = Object.freeze({
 	]),
 	gaps: Object.freeze([
 		'No gateway, proxy lifecycle, deadline, descendant cancellation, or resource-owner parity is claimed by this fixture.',
-		'The archive ships TypeScript as main.ts; tools/bench/prepare.mjs must emit the exact-source ESM artifact before this fixture runs on Deno, Node or Bun.',
+		'The archive ships TypeScript as main.ts; tools/bench/prepare.ts must emit the exact-source ESM artifact before this fixture runs on Deno, Node or Bun.',
 		'The selected factory signatures are explicitly modeled and checked at artifact loading; upstream strict TypeScript 6/7 compatibility is not claimed.',
 	]),
 });

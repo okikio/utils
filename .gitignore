@@ -284,3 +284,5 @@ coverage/
 # Authored task families are source, even when their family is called build.
 !.mise/tasks/build/
 !.mise/tasks/build/**
+!.mise/tasks/ops/build/
+!.mise/tasks/ops/build/**

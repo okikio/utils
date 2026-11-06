@@ -1,8 +1,9 @@
 # Repository tools
 
 Mise is the local and CI entry point. Its nine public workflows are configured in `mise.toml`.
-`tools/workspace/run.ts` validates selectors and composes private operation recipes; those recipes
-preserve host and permission contracts without creating another public task per operation.
+`tools/workspace/run.ts` validates selectors and selects private file tasks under `.mise/tasks/ops/`.
+Mise owns their dependencies. These small shell entrypoints preserve each tool's arguments, host and
+permission contract; substantive tooling remains TypeScript. The `ops:` tasks are hidden from normal help.
 Run `mise run test -- --help` for the command grammar and `mise run test -- --suite list` for test ownership.
 
 | Owner                   | Programs and purpose                                                                                                                                                      |
@@ -17,6 +18,12 @@ Authored test scenarios remain beside their package or in `tests/`; focused benc
 workloads live in `bench/`. Tools orchestrate those scenarios without inventing a second test implementation. Generated
 outputs live under `.tmp/artifacts/`, and fixture data lives with the test that owns it. Bumpy's release integration remains
 under `.bumpy/`.
+
+Authored orchestration is TypeScript. `tests/npm-consumer.mjs` is a deliberate JavaScript consumer fixture: it checks
+emitted npm exports through both `import` and `require`, without a TypeScript loader concealing packaging errors.
+The executable shell files in `.mise/tasks/ops/` only establish environment, arguments and native tool invocation.
+They contain no test or benchmark implementation. Installed consumers remain outside this checkout to prevent
+ancestor workspace dependencies from hiding missing package dependencies; their generated scenarios live in their own `.tmp/`.
 
 Use `prepare`, `check`, `test`, `bench`, `build`, `verify`, `release`, `ci:plan`, and `ci:run`.
 For example, `mise run bench -- --check --project streams --runtime bun` checks one package's

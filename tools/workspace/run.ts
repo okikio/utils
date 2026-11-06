@@ -3,7 +3,6 @@ import { parseArgs } from 'node:util';
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { operations } from './operations.ts';
 import { plan } from './ci.ts';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -68,7 +67,6 @@ const members = readdirSync('packages', { withFileTypes: true }).filter((entry) 
 for (const name of projects) if (!members.includes(name)) throw new TypeError(`Unknown project ${name}.`);
 if (!['deno', 'node', 'bun'].includes(values.runtime!)) throw new TypeError('Runtime must be deno, node, or bun.');
 const selectors = [...projects.map((name) => `packages/${name}`), ...positionals, ...forwarded];
-const completed = new Set<string>();
 
 /** Recipes are trusted repository code. User arguments remain separate argv entries, never shell interpolation. */
 function command(binary: string, args: readonly string[]): void {
@@ -78,13 +76,9 @@ function command(binary: string, args: readonly string[]): void {
 	if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
-/** Resolve preparation once per workflow, preserving native host and permission requirements. */
+/** Mise owns recipe dependencies; this CLI only selects an operation and forwards its arguments. */
 function operation(name: string, args: readonly string[] = []): void {
-	if (!(name in operations)) throw new TypeError(`Unknown operation ${name}.`);
-	const recipe = operations[name as keyof typeof operations];
-	for (const dependency of recipe.dependencies) if (!completed.has(dependency)) operation(dependency);
-	command('bash', ['-euo', 'pipefail', '-c', recipe.script, name, ...args]);
-	completed.add(name);
+	command('mise', ['run', `ops:${name}`, '--', ...args]);
 }
 
 /** Test source publication, including explicit public declarations, without uploading packages. */
@@ -139,7 +133,7 @@ function bench(): void {
 			operation('bench:check', args);
 		} else operation('bench:run', args);
 	} else if (name === 'freeze') {
-		operation('bench:freeze:prepare');
+		// Preparation is explicit: a correctness check must reject a stale checkpoint rather than replace it.
 		operation(`bench:freeze:${values.check ? 'check' : 'run'}`, [
 			...positionals,
 			...(values.output ? ['--output', values.output] : []),
