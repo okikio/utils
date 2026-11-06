@@ -1,5 +1,5 @@
 ---
-'@okikio/concurrency': patch
+'@okikio/scheduler': patch
 ---
 
 Bounded queue, ordered mapping, and unordered mapping now retain the exact first mapper failure after cancelling and
