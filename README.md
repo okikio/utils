@@ -1,208 +1,273 @@
 # @okikio/utils
 
-`@okikio/utils` contains generic TypeScript mechanisms shared across Okikio projects. Focused `@okikio/*` packages own
-their implementations; the `@okikio/utils` installation package gives applications one dependency declaration.
+TypeScript utilities for working with values, handling input, and running work with explicit ownership. Choose a focused
+package for the job in front of you. The packages share Duration values, cancellation signals, schemas, observable
+sources and resource contracts so you can compose them when the job grows.
 
-If those names are unfamiliar, start with [the illustrated learning path](docs/learn.md). A utility is a reusable piece
-of code for a repeated problem: read a spreadsheet-like file correctly, limit how many jobs run at once, stop work when
-its caller cancels, or check that an API returns the promised answer. Your application still decides what its users want
-to achieve.
+The workspace contains 27 experimental packages. `@okikio/utils` is an installation facade: its focused subpaths forward
+to the same implementations as the individual packages. Examples here run against this workspace; version `0.0.0` is not
+a claim that these changes have been published to a registry.
 
-You can start with one direct import and ordinary JavaScript. A parser returns data; an async operation returns a
-Promise; an iterable lets you use a loop. Some packages also return a control or cleanup object. Those are separate
-roles:
+## Choose by what you need to do
 
-| Familiar job                                                 | First capability                                | What comes back                                                                             |
-| ------------------------------------------------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Read a contact export                                        | `csv.parse(text, options)`                      | An ordinary document object containing columns and rows.                                    |
-| Fetch with a caller's time budget                            | `context.timeout(parent, duration)`             | A child object whose `signal` you pass to normal `fetch`. Fetch still returns the Response. |
-| Normalize many rows without starting every operation at once | `mapPooledOrdered({ items, concurrency, map })` | An async iterable of your mapper's return values.                                           |
-| Pause an import between records                              | `task.start(async (ctx) => ...)`                | A control handle; its `done` Promise carries your function's result.                        |
+| You need to                                               | Start here                                      | Add another utility when                                                               |
+| --------------------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Write readable time settings or convert units             | [Duration](packages/duration/README.md)         | Context needs a deadline or an operation needs a retry delay.                          |
+| Validate filters, sorting and pagination in an HTTP query | [Query](packages/query/README.md)               | A server or storage adapter executes the validated request.                            |
+| Stop related work and observe its progress                | [Context](packages/context/README.md)           | Work needs a resource, explicit requirements, or a recorded workflow.                  |
+| Save a draft or progress value and reopen it              | [Stored state](docs/context/03-stored-state.md) | Storage supplies the chosen memory, browser or PostgreSQL backing.                     |
+| Validate values and share JSON Schema representations     | [Schema](packages/schema/README.md)             | A tool consumes a Standard Schema validator or a separate input/output JSON converter. |
+| Borrow resources, enforce requirements or deliver effects | [Capability](packages/capability/README.md)     | Task or Activity needs the same composed capabilities.                                 |
+| Select named definitions or transform structured data     | [Collection](packages/collection/README.md)     | Schema validates a value's meaning or another package uses the selected definitions.   |
+| Collect text, forms, files or device interaction          | [Input](packages/input/README.md)               | A command updates shared state or triggers optional feedback.                          |
+| Parse CSV or Sitemap data                                 | [Format](packages/format/README.md)             | Streams or Scheduler processes a large input incrementally.                            |
+| Bound concurrent work or schedule a queue                 | [Scheduler](packages/scheduler/README.md)       | Storage persists jobs, or Worker places work in another thread/process.                |
 
-Each [package README](docs/contracts.md) teaches its own call contracts and the ordinary mechanisms underneath before
-larger compositions. You do not need to read the root guide to use a focused package. Start from the output you need,
-then add a lifetime, dependency declaration, or recorded workflow only when it solves another concrete problem.
+The [complete package map](docs/01-packages.md) includes Schema, Result, Dispose, Pool, HTTP, Server, Storage, Runtime,
+Worker, Activity, Task, Workflow and the other packages. Each package README explains its own defaults, failures and
+resource ownership.
 
-Read the picture as three different questions, not a requirement to learn the whole suite:
+## Run a complete example from this checkout
 
-![Choose utilities for reading values, owning work, or connecting named jobs](docs/diagrams/overview.png)
+The examples target this workspace's public exports. Review `mise.toml`, run `mise trust`, install the pinned tools with `mise install`, then run
+`mise run prepare -- --kind deps`. Copy one block marked `ts runnable` into `example.ts`, and run
+`mise exec -- deno run example.ts`. A following `text output` block shows the expected result. Blocks marked
+`support=filename.ts` are companion files; keep them beside the copied entry. Unmarked fragments can require
+named application inputs. When an example names a different entry file, use that basename in your project.
 
-[Editable diagram source](docs/diagrams/overview.mmd). Choose a small capability first. Reading CSV does not require a
-workflow, and running one function does not require an activity. The learning path shows when another package solves a
-concrete problem and links to runnable demonstrations.
+Process examples explicitly need subprocess permission, and Worker examples need their listed companion files and
+module-read permission. Their focused READMEs name those requirements. Run `mise run test -- --suite docs` to compile and execute
+maintained examples together. Passing local examples does not establish database, browser, or deployment support. The
+[repository checks](#work-on-the-repository) explain the separate runtime and integration checks.
 
-## Start with a useful outcome
+## Write time in the units you mean
 
-Parse an import without losing quoted commas or turning text identifiers into numbers. This complete module uses the
-public installation facade and performs no network or filesystem work:
+Long and short unit names construct the same ordinary `Temporal.Duration` values. Conversion is a separate operation.
+This module works without installing a global Temporal object.
 
-```ts runnable=first-import.ts
-import * as csv from '@okikio/utils/csv';
+```ts runnable=readable-time.ts
+import { days, elapsed, hr, min, ms, ns, sec, total } from '@okikio/duration';
 
-const document = csv.parse('Company,Website\n"Northstar, Inc.",https://northstar.example\n', { headerRow: 1 });
-console.log(document.columns.map((column) => column.key).join(','));
-console.log(JSON.stringify(document.rows[0]?.values));
+console.log(sec(2.5).toString(), ms(0.5).toString(), ns(1n).toString());
+console.log(elapsed(days(2)), total(min(90), 'hours'));
+console.log(hr(1.5).toString());
 ```
 
 ```text output
-company,website
-["Northstar, Inc.","https://northstar.example"]
+PT2.5S PT0.0005S PT0.000000001S
+172800000 1.5
+PT1H30M
 ```
 
-`parse()` returns a `CsvDocument` immediately. Its rows contain string cells; interpreting a website or company name is
-application policy. This collecting form retains the parsed rows in memory and has configured source and row limits. It
-throws `CsvParseError` for malformed input or exceeded limits and owns no resource to close.
+Use `elapsed()` for fixed timer arithmetic: a day is 24 hours and a week is seven days. Use `total()` with a real
+`relativeTo` date or zoned date-time when calendar length matters. Months, years and daylight-saving transitions need
+that explicit calendar choice. [Duration's guide](packages/duration/README.md) covers conversions, rounding, exact
+bigint nanoseconds and the independently usable unit, conversion and instant subpaths.
 
-Next, [stream and validate an import](docs/composition.md#import-rows-with-bounded-work) or
-[filter discovered URLs](docs/composition.md#discover-allowed-pages). Those complete examples combine utilities to
-produce a result while keeping input, cancellation, and cleanup ownership visible.
+## Keep a download and its cleanup together
 
-[Choose utilities by outcome](docs/outcomes.md) explains which capability to add when a job needs bounded work, reusable
-resources, independent execution, or replay. Each package guide starts with a complete runnable module and its output,
-then distinguishes further runnable examples from sketches with application-owned dependencies. Read
-[the example convention](docs/composition.md#read-the-examples) before adapting a larger composition.
+A download returns data. Its owner decides when the work must stop and which cleanup must finish. A Context groups
+that cancellation signal and cleanup so related functions can borrow the same lifetime.
 
-When Temporal is missing, the local [`duration/temporal`](packages/duration/temporal.ts) ponyfill supports directly
-imported date arithmetic without changing globals. Lifecycle utilities currently use global Temporal; import the
-explicit [`duration/polyfill`](packages/duration/polyfill.ts) at the executable entry point when the host lacks it.
-Importing the ponyfill alone does not initialize those lifecycle utilities.
+Save this as `owned-import.ts` and run `mise exec -- deno run owned-import.ts`. The `data:` URL is a complete offline
+input; no network permission is needed:
 
-## Install
+```ts runnable=owned-import.ts
+import * as context from '@okikio/context';
 
-Deno and JSR are the canonical source and runtime model. These packages are experimental at version `0.0.0`; the
-examples below are qualified against this workspace. Registry installation requires a published release:
+await using operation = context.create({ id: 'import' });
+operation.defer(() => console.log('Closed import.'));
+const reply = await fetch('data:text/plain,photo-1', { signal: operation.signal });
+console.log(await reply.text());
+```
+
+```text output
+photo-1
+Closed import.
+```
+
+`await` waits for a Promise's result. `await using` has a different job: it disposes `operation` when this module ends,
+including on failure, and waits for registered cleanup. Here the cleanup prints its message after the body has been
+read. Pass `operation.signal` to each cooperating operation; merely creating a Context does not interrupt unrelated work.
+
+## Add progress and test the import's deadline
+
+A Context owns cancellation, deadlines and registered cleanup. A state cell owns updates; its reader grants only reading
+and observation. A view can attach that reader while borrowing the existing lifetime.
+
+```ts runnable=progress-lifetime.ts
+import * as context from '@okikio/context';
+import { elapsed, ms, sec } from '@okikio/duration';
+
+const clock = new context.TestClock();
+await using operation = context.create({ id: 'import', clock });
+await using step = context.timeout(operation, sec(2));
+using progress = context.state.create({ completed: 0 });
+const visible = context.view(step, { progress: progress.reader });
+using display = visible.progress.subscribe(({ value }) => console.log(`Completed ${value.completed}`));
+
+const waiting = context.wait(step, ms(250));
+clock.advance(ms(250));
+await waiting;
+progress.set({ completed: 1 });
+console.log(elapsed(context.remaining(step)!));
+```
+
+```text output
+Completed 1
+1750
+```
+
+This example uses deterministic time so it runs immediately. A production Context defaults to its system clock. Pass its
+`signal` to Fetch or another cooperative operation. Register cleanup with the owner that acquired the resource.
+[Context](packages/context/README.md) also provides independent state and EventTarget-to-Observable APIs; neither
+requires starting a task or workflow.
+
+Use `state.open()` when that observed value needs a backing store. Its asynchronous writes save before publishing;
+readers keep the same synchronous observation API. Memory supports reopening within one process, Web Storage follows the
+supplied browser storage lifetime, and PostgreSQL supports reopening from another process. Conflicts require an explicit
+reload. The [stored-state guide](docs/context/03-stored-state.md) explains these guarantees, cancellation, and how to
+supply another backing without changing callers.
+
+## Collect input before deciding its meaning
+
+Input preserves native values and repeated fields. Schema decides which values your application accepts. This example
+uses standard FormData and the owned Schema package; file values can pass through the same collection path without their
+bodies being read.
+
+```ts runnable=form-values.ts
+import { forms } from '@okikio/input';
+import * as schema from '@okikio/schema';
+
+const Details = schema.object({
+	title: schema.string({ minLength: 1 }),
+	tags: schema.array(schema.string()),
+});
+const submitted = new FormData();
+submitted.append('title', 'Field notes');
+submitted.append('tags', 'research');
+submitted.append('tags', 'draft');
+
+const result = await forms.validate(Details, submitted, { multiple: ['tags'] });
+if (result.issues) throw new Error(result.issues.map((issue) => issue.message).join('; '));
+console.log(result.value.title, result.value.tags.join(', '));
+```
+
+```text output
+Field notes research, draft
+```
+
+The same form operations accept native forms or structural readers. Input also provides text composition handling,
+keyboard shortcuts, pointer sessions, geometric gestures, clipboard data, bounded file selection and gamepad snapshots.
+[Its guide](packages/input/README.md) explains how an ordinary typed command can be reused across several interaction
+styles. [Feedback](docs/input/03-feedback.md) is a separate family for text status, optional haptics and audio, and
+finite visual cues.
+
+## Use one subpath, one package, or several packages
+
+These imports select the same state implementation:
+
+```ts support=import-choices.ts
+import * as state from '@okikio/context/state';
+import * as context from '@okikio/context';
+import * as installedContext from '@okikio/utils/context';
+
+export const direct = state.create;
+export const grouped = context.state.create;
+export const fromOneInstallation = installedContext.state.create;
+```
+
+A focused subpath exposes an independently useful family. A package root groups its families and provides common
+operations where their names are unambiguous. A namespace such as `context.state` is an import organization choice; it
+creates no global registry or additional lifetime. Each call to `create()` creates a separate state owner.
+
+Use focused imports in reusable modules. `@okikio/utils/all` intentionally imports the broad namespace graph and is
+appropriate only when the application wants that whole graph. The [composition guide](docs/03-composition.md) shows
+larger workflows with visible inputs, outputs, cancellation and cleanup.
+
+Applications keep their own product policy, credentials, environment discovery, presentation, logging configuration and
+deployment. Storage adapters make their actual persistence guarantees explicit. A local task, an in-memory queue and a
+durable workflow solve different jobs; the [workflow guide](docs/workflows/01-basics.md) explains when saved history and
+worker recovery become necessary.
+
+To return work to a particular thread or process inside a provider pool, see
+[Physical hosts](docs/workflows/19-hosts.md). To reuse a live resource there
+between activities, see [Resource sessions](docs/workflows/18-sessions.md).
+
+## Build a larger result
+
+Start with a complete task and add only the mechanisms its requirements justify:
+
+| Goal                                                                | Complete walkthrough                              | What the application supplies                                               |
+| ------------------------------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------- |
+| Preview an uploaded file, validate contacts, and report corrections | [Contact import](docs/recipes/01-import.md)       | Column mapping, contact policy, and the real destination.                   |
+| Reuse a search action and restore its saved input                   | [Search and drafts](docs/recipes/02-search.md)    | Allowed search fields, provider, UI bindings, and backing store.            |
+| Reuse completed jobs in a photo operation                           | [Recorded work](docs/recipes/03-recorded-work.md) | Activity implementations, resource providers, and logical identity.         |
+| Accept background work and recover after a worker dies              | [Durable workflows](docs/workflows/01-basics.md)  | SQL pool, transactions, deployment, authorization, and repeat-safe effects. |
+
+These are different requirements, not mandatory levels of framework adoption. A regular function or focused utility can
+be the final solution. Each recipe provides its own setup, input, output, and failure explanation.
+[The learning guide](docs/02-learn.md) connects the return shapes to ordinary JavaScript, and
+[the package map](docs/01-packages.md) links every implementation package and focused capability.
+
+## Find the submodule before building it yourself
+
+Each implementation package README includes a complete import choice map, with a concrete job for every public submodule
+and links to its exact source contract. Examples include `streams/reader` for inspectable cleanup,
+`collection/record/change` for explicit JSON removals, `http/signature` for authenticated bytes, `context/state` for
+local or saved observations, and `capability/resilience/attempt` for an ordinary repeat-safe read. The matching
+`@okikio/utils/` entries forward the same implementations.
+
+The packages remain experimental. Read the focused contract before depending on a default, and use the runnable example
+to check the behavior you intend to adopt. The [migration guide](docs/maintenance/04-consolidation.md) explains removed
+package names and changed ownership; historical delivery receipts are kept separately from current usage instructions.
+
+## Work on the repository
+
+Mise owns the pinned toolchain and task families. Helpers live under `tools/`; tests live with their packages or in
+`tests/` for cross-package flows.
+
+For a ZIP checkout, install [Mise](https://mise.jdx.dev/getting-started.html) version 2026.10.3 or newer, then extract
+the archive. Run the following commands from the directory containing the extracted `utils` folder. These tasks work
+without initializing a Git repository. Review `utils/mise.toml` before trusting the local configuration:
 
 ```sh
-deno add jsr:@okikio/utils
-```
-
-Import the capability used by the current module. The runnable import above uses `@okikio/utils/csv`; a module that
-needs a queue uses `@okikio/utils/queue` instead. Each subpath selects its focused implementation.
-
-A reusable package can depend on a focused package directly:
-
-```sh
-deno add jsr:@okikio/queue
-```
-
-Use the focused `@okikio/queue` import in that package's modules. Its [runnable guide](packages/queue/README.md) shows
-adding, claiming and settling actual work.
-
-Use `@okikio/utils/all` only at a composition root that intentionally needs the broad namespace graph.
-
-## What the repository owns
-
-The repository contains product-neutral mechanisms such as:
-
-- execution context, cancellation, clocks, and disposal
-- bounded concurrency, pools, queues, streams, and resilience
-- schema, result, failure, fault, requirement, and permission mechanics
-- HTTP, endpoint, service, gateway, process, activity, and workflow primitives
-- generic CSV, HTML, CSS, robots, sitemap, email, and version utilities.
-
-Applications own product policy, provider selection, global logging configuration, CLI presentation, and deployment
-composition.
-
-See [`docs/composition.md`](docs/composition.md) for dependency ownership and composition rules.
-
-## Service compilation
-
-`@okikio/server` compiles endpoint, middleware, resource, requirement, response, problem, and resilience definitions
-before traffic begins. The resulting `CompiledService` contains a handler-free route plan and prepared operation
-information that the Fetch runtime can consume directly.
-
-```text
-@okikio/http                 Web and HTTP protocol mechanics
-        |
-        v
-@okikio/server               service compiler and Fetch runtime
-        |
-        +--> @okikio/hono    Hono host adapter
-        +--> MCP adapter     protocol package or application adapter
-        +--> gateway         network forwarding and trust policy
-```
-
-The service compiler remains independent of Hono and MCP. Protocol adapters use Web `Request` and `Response` rather than
-changing endpoint definitions.
-
-Read [`docs/server.md`](docs/server.md) for the compiler, request lifecycle, prepared routing, request state, mounts,
-gateways, OpenAPI, and MCP transport hosting.
-
-## Schema and HTTP representations
-
-Standard Schema is the validator interoperability contract. Standard JSON Schema lets a validator describe accepted
-input and validated output. HTTP query syntax and serialized responses can provide explicit wire schemas when those
-representations differ from the validator's JavaScript values.
-
-This separation keeps generated OpenAPI aligned with what an HTTP client sends and receives, including schemas that
-coerce or transform values.
-
-## Packages and tree-shaking
-
-Applications can install `@okikio/utils` once while retaining focused imports. For example, the
-[request guide](packages/http/request/README.md) uses `parseQuery()` to preserve repeated filters; its facade path is
-`@okikio/utils/http/request`. The [Fetch runtime guide](packages/server/http/README.md) uses `prepareRoutes()` to
-prepare request dispatch; its facade path is `@okikio/utils/server/http`.
-
-The umbrella modules re-export focused package entries. They do not contain a second implementation. Release checks
-compare representative focused and umbrella bundles to catch eager barrels and import-time effects.
-
-Read [`docs/packaging.md`](docs/packaging.md) for public subpaths, side-effect rules, build output, tree-shaking
-evidence, and package-artifact checks.
-
-## Tests
-
-Package-local tests protect focused contracts. Root [`tests/`](tests/) contains cross-package scenarios, public-import
-checks, and consumer flows.
-
-```sh
+cd utils
+mise trust
 mise install
-mise run install
-mise run verify
+mise run prepare -- --kind deps
+mise run check
+mise run test -- --runtime node
+mise run test -- --runtime deno
+mise run test -- --runtime bun
+mise run test -- --suite docs
 ```
 
-Read [`docs/testing.md`](docs/testing.md) for test placement and evidence rules.
+`check --kind portable` compiles browser, Worker and Node consumers with separate ambient types. `test --suite browser` uses real
+Chromium. `mise run test -- --suite packages` builds and installs emitted archives before running consumer checks. PostgreSQL and Docker
+tests have explicit resource tasks. Read [testing](docs/maintenance/01-testing.md),
+[packaging](docs/maintenance/02-packaging.md), and [releases](docs/maintenance/03-releases.md) for the exact commands.
+For long PostgreSQL lifetimes, `mise run test -- --suite soak` explicitly runs two hours of guarded writes, renewable claims and
+a midpoint primary promotion. Read the [lease and soak instructions](docs/maintenance/07-recovery.md#keep-permission-alive-during-a-long-database-run)
+before running it; its short harness mode does not test multi-hour behavior. All local run evidence stays in `.tmp/`.
 
-## Benchmarks
-
-Package-local benchmarks measure focused mechanisms. Root [`bench/`](bench/) contains multi-package benchmark scenarios.
+Each package also owns independent unit tests and focused Mitata benchmarks. For example, check Pool's lease and
+saturation behavior before measuring its cost:
 
 ```sh
-mise run bench
+deno task --cwd=packages/pool test
+deno task --cwd=packages/pool bench:check
+deno task --cwd=packages/pool bench
 ```
 
-Read [`docs/benchmarks.md`](docs/benchmarks.md) for representative workloads, reference implementations, and
-performance-reporting rules.
+Root `tests/` and `bench/` retain the larger integration and end-to-end workflows. Package READMEs name the local
+comparison, the guarantees it omits, and the root workflow needed to assess the complete system.
 
-## Releases
+Benchmarks have their own correctness and measurement tasks. A passing correctness check does not establish a
+performance gain. The [benchmark guide](docs/benchmarks/01-running.md) explains workloads and reports; the
+[artifact policy](docs/maintenance/05-artifacts.md) distinguishes source fixtures, generated output, and historical
+evidence.
 
-Bumpy owns release intent, semantic version propagation, individual package changelogs, version PRs, Git tags, and
-GitHub release notes. JSR remains the source-native publication target. npm packages are a separate Node distribution
-projection; build and archive qualification are distinct from publishing a registry release.
-
-```sh
-mise run release-check
-```
-
-Read [`docs/releases.md`](docs/releases.md) for the release workflow.
-
-## Documentation map
-
-- [Public package contracts](docs/contracts.md) lists every focused package’s generated types, fields and functions.
-
-- [`docs/composition.md`](docs/composition.md) explains package ownership and composition.
-- [`docs/outcomes.md`](docs/outcomes.md) helps select the next capability from a concrete job.
-- [`docs/runtime.md`](docs/runtime.md) separates source, artifact, host, and recovery claims.
-- [`docs/comparison.md`](docs/comparison.md) explains retained and deferred differences from utility copies.
-- [`docs/server.md`](docs/server.md) explains service compilation and request execution.
-- [`docs/packaging.md`](docs/packaging.md) explains exports, tree-shaking, and artifact checks.
-- [`docs/testing.md`](docs/testing.md) explains correctness and consumer tests.
-- [`docs/http-parity.md`](docs/http-parity.md) runs one explicit API through pure Hono and pure Utils.
-- [`docs/alternatives.md`](docs/alternatives.md) compares shared operations against established npm and JSR libraries.
-- [`docs/benchmarks.md`](docs/benchmarks.md) explains performance evidence.
-- [`docs/http-performance-closure-20261007.md`](docs/http-performance-closure-20261007.md) records the measured Hono
-  gap, safe reductions, final qualification and delivery limits.
-- [`docs/duplicates.md`](docs/duplicates.md) explains AST evidence, source-policy signals, and ownership review.
-- [`docs/releases.md`](docs/releases.md) explains versioning and publication.
-- [`docs/standards-review-20261007.md`](docs/standards-review-20261007.md) records guide applicability and documentation
-  corrections.
+For each package’s advanced scenario, existing boundary tests and remaining checks, use the
+[capability evidence guide](docs/maintenance/06-capabilities.md). It distinguishes complete examples, contract checks,
+benchmark comparisons and deployment evidence.

@@ -1,0 +1,22 @@
+# Run an example before adopting its utility
+
+Each directory contains a complete program and an executable check of its result.
+After the root README's checkout setup, run `mise run prepare -- --kind deps` once.
+Use each example's README for its direct commands. To run all declared checks for
+one host, select `deno`, `node` or `bun`:
+
+```sh
+mise run test -- --suite examples --runtime deno
+```
+
+The runner uses `check.<runtime>.ts` when present, otherwise `check.ts`. It skips
+an example with no check for the selected host. A passing Node run therefore
+does not establish that the Deno WebSocket host was tested.
+
+| Example | What it demonstrates |
+| --- | --- |
+| [MCP](./mcp/README.md) | Discover and call a checked tool over HTTP, reject invalid input, enforce host/origin policy, and close resources. |
+| [WebSocket](./websocket/README.md) | Upgrade a Deno HTTP connection, exchange a greeting, then close it; native clients run on all three hosts. |
+
+These directories are authored, copyable programs. Maintainer logs and generated
+reports are separate from the files a reader needs to run them.

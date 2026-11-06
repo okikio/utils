@@ -1,0 +1,15 @@
+{
+	"name": "@examples/mcp",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"check": "node check.ts",
+		"start": "node start.ts"
+	},
+	"dependencies": {
+		"@okikio/server": "workspace:*",
+		"@okikio/schema": "workspace:*",
+		"@modelcontextprotocol/server": "2.4.0",
+		"@modelcontextprotocol/client": "2.4.0"
+	}
+}

@@ -1,0 +1,6 @@
+{
+	"name": "@examples/websocket",
+	"private": true,
+	"type": "module",
+	"dependencies": { "@okikio/server": "workspace:*" }
+}
