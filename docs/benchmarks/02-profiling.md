@@ -68,7 +68,7 @@ Range-driven arguments can share one registration profile; the receipt lists tho
 hook checks the pinned Mitata trial representation and restores its method after the child finishes. Ordinary benchmark
 runs do not install the hook.
 
-Add `--npm` after `mise run test -- --suite packages` to include the physically installed Node ESM/CommonJS import benchmarks. A
+Add `--npm` after `mise run test -- --suite packages` to include the physically installed Node ESM import benchmarks. A
 parent import or host-operation profile measures spawn, messaging and output collection. It does not establish CPU
 coverage of a subprocess or a Worker isolate. Use the separate startup and worker drivers for those boundaries.
 

@@ -1,3 +1,4 @@
+// @installed-consumer: Run this public-import scenario against packed artifacts too.
 import { deepStrictEqual, ok, rejects, strictEqual } from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { setImmediate } from 'node:timers/promises';

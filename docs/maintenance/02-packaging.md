@@ -34,7 +34,7 @@ actual setup behavior.
 
 Both compatibility families have pure direct-import entries: `duration/temporal` exports local Temporal and
 `dispose/ponyfill` exports local stack constructors and protocol keys. The disposal root exports those same bindings.
-Focused and umbrella imports resolve to one implementation. Fresh installed ESM and CommonJS children check that pure
+Focused and umbrella imports resolve to one implementation. Fresh installed ESM children check that pure
 imports leave native, missing-constructor and missing-symbol globals unchanged; explicit `/polyfill` remains the
 application-owned installer.
 
@@ -68,7 +68,7 @@ faster request handling, and a faster router does not prove that unused modules 
 
 ## Build output
 
-`tsdown.config.ts` defines the staged npm projection with ESM and CommonJS output. Unbundled source-module granularity
+`tsdown.config.ts` defines the staged npm projection with ESM output. Unbundled source-module granularity
 keeps independently removable modules available to downstream bundlers. Tests, fixtures, and benchmarks are not runtime
 entry points.
 
@@ -107,7 +107,7 @@ repeat structural and consumer checks
 
 The release checks should confirm these properties:
 
-- canonical workspace and Deno source export maps agree
+- authored focused-package source export maps agree with the generated Deno and umbrella exports
 - staged npm export maps preserve every supported source subpath and explicitly exclude runtime-specific adapters
 - every public export target exists
 - side-effect metadata matches import-time behavior
@@ -117,14 +117,16 @@ The release checks should confirm these properties:
 - package contents exclude unintended source or validation files
 - the exact delivered artifact matches the files that were verified
 
-`tools/packages/check.ts` checks package structure. `tools/sync-utils-exports.ts` generates and checks umbrella export
+`tools/packages/check.ts` checks package structure. `tools/packages/exports.ts` generates and checks umbrella export
 parity. `tools/packages/bundles.ts` checks representative consumer bundles.
 
 ## Node and npm projection
 
-Deno source and JSR exports stay canonical. The additional npm build reads their package metadata and stages independent
-packages under `.tmp/artifacts/npm/`. It does not rewrite source manifests or flatten the focused implementations into the
-umbrella.
+TypeScript is the implementation source for both distributions. Each focused package's `package.json` owns its public
+source export map. `tools/packages/exports.ts` projects those decisions into Deno manifests and umbrella modules. Deno
+manifests own JSR publication settings and imports; tsdown emits npm JavaScript and declarations from the same source.
+The npm build stages independent packages under `.tmp/artifacts/npm/`. It does not rewrite source manifests or flatten
+the focused implementations into the umbrella.
 
 ```sh
 mise run prepare -- --kind deps
@@ -137,8 +139,7 @@ manager pin controls that bootstrap, not a second runtime configuration.
 The task uses the pinned stable tsdown release and its supported TypeScript 6.0.3 declaration API. Source and
 installed-consumer type gates invoke the separate TypeScript 7.0.2 CLI alias explicitly. The pinned declaration plugin
 marks its TypeScript 7 integration experimental; fail-on-warning remains enabled. Each member builds in a fresh serial
-process so declaration graphs are released between packages. Each supported public subpath has an ESM JavaScript entry,
-a CommonJS JavaScript entry, and declarations for both module formats. Workspace dependencies remain external and become
+process so declaration graphs are released between packages. Each supported public subpath has an ESM JavaScript entry and matching declarations. Workspace dependencies remain external and become
 exact member versions in the staged manifests. Explicit polyfills retain side-effect metadata for their emitted files.
 
 The `@okikio/runtime/deno` entry and all `/deno/*` adapters are excluded from npm, along with their matching umbrella
@@ -146,7 +147,7 @@ subpaths. The Runtime root and explicit Node, Bun and browser adapters are inclu
 every supported npm namespace while omitting Deno-specific exports. This is a distribution projection, not a second
 implementation or a replacement for those JSR capabilities.
 
-`tools/npm.ts` checks every staged JavaScript and declaration target and rejects source runtime imports and hard Deno
+`tools/packages/npm.ts` checks every staged JavaScript and declaration target and rejects source runtime imports and hard Deno
 dependencies. Optional `globalThis.Deno` detection in the environment source is retained because it does not require
 Deno in Node. Build-time source copies are removed before packing. The task packs every staged member, checks actual
 archive contents, extracts the exact archives, runs strict publint and Are the Types Wrong?, and writes SHA-256
@@ -155,7 +156,7 @@ receipts. Each native command retains stdout, stderr and exit status under
 
 The empty consumer is created outside the checkout, so unresolved imports cannot fall back to workspace ancestors. Its
 location is recorded in `.tmp/artifacts/npm/consumer-location.json`. It installs physical copies of those archives and
-imports and requires every public subpath. It also type-checks every subpath from clean ESM and CommonJS consumers
+imports every public subpath. It also type-checks every subpath from clean ESM consumers
 without Deno ambient types, including the public inference fixture. It then runs CSV parsing, result matching, duration
 conversion and an owned Node subprocess through the installed packages. Explicit unsupported imports must fail. Installed focused and umbrella result consumers
 are bundled and executed; their module graphs must exclude unrelated adapters and their emitted implementations must
@@ -183,8 +184,8 @@ maintainer's home registry settings. All workspace-owned focused packages still 
 archives.
 
 The packed behavior lane also reuses the repository's discovery, coordination, HTTP host, workflow and provider
-ownership scenarios. It builds those test consumers into ESM and CommonJS while keeping every production package
-external, then executes both formats against installed artifacts. The behavior runner also checks inferred public types
+ownership scenarios. It builds those test consumers into ESM while keeping every production package
+external, then executes ESM against installed artifacts. The behavior runner also checks inferred public types
 with Deno and runs its portable scenarios natively in Deno. Each run retains a unique evidence directory, including
 failed command receipts. Test code is reused; production source is never copied into the clean consumer.
 
@@ -219,7 +220,7 @@ published utility packages.
 Run `mise run check -- --kind jsr` before a release. This performs a workspace-wide
 `deno publish --dry-run` without uploading anything. It checks the source dependency
 graph and reports the publication file list. The release workflow repeats this on
-the exact tested revision before Bumpy performs publication.
+the exact tested revision before registry publication.
 
 Lifecycle event declarations live in `@okikio/telemetry/events`. Pool, Scheduler,
 Worker, and Server retain their original type exports. The shared declarations let
@@ -259,10 +260,9 @@ asset
 
 `tests/publication.types.test.ts` protects defaulted inputs, required outputs,
 selected fields, status unions, codec directions and saved workflow discriminants.
-The installed-consumer check compiles the same fixture against emitted ESM and
-CommonJS declarations. The publication dry-run checks JSR declaration extraction;
+The installed-consumer check compiles the same fixture against emitted ESM declarations. The publication dry-run checks JSR declaration extraction;
 it does not establish editor latency or a type-check performance budget.
 
 JSR receives TypeScript source subpaths directly. Tsdown serves the additional
-ESM/CommonJS npm projection, not JSR subpath publication. Bumpy currently publishes
-JSR only; testing npm archives does not publish them to npm.
+ESM npm projection. Sampo owns npm release versions and publication; Deno publishes JSR source in a separate job.
+Testing npm archives does not publish them. See [releases](./03-releases.md) for the two-registry workflow.

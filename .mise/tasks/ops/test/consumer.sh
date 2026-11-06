@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Run canonical tests against installed artifacts on Deno, Node ESM/CommonJS and Bun"
+#MISE description="Run canonical tests against installed artifacts on Deno, Node ESM and Bun"
 #MISE hide=true
 #MISE depends=[]
 set -euo pipefail

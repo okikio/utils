@@ -168,7 +168,7 @@ async function cases(section: string, consumer?: string) {
 				throw new Error(`Consumer package ${name} lost its installed identity.`);
 			}
 		}
-		for (const format of ['esm', 'cjs']) {
+		for (const format of ['esm']) {
 			for (const name of ['empty', ...roots, '@okikio/utils/result', '@okikio/utils/all']) {
 				if (name !== 'empty' && !paths.includes(name)) throw new Error(`Consumer inventory lacks ${name}.`);
 				planned.push({ name, runtime: 'node', format });
@@ -346,12 +346,11 @@ async function record(
 	} else {
 		command = process.execPath;
 		cwd = consumer;
-		const expression = entry.format === 'esm'
-			? 'const value = process.argv[1] ? await import(process.argv[1]) : {}; process.stdout.write(JSON.stringify(Object.keys(value).length) + "\\n");'
-			: 'const value = process.argv[1] ? require(process.argv[1]) : {}; process.stdout.write(JSON.stringify(Object.keys(value).length) + "\\n");';
+		const expression =
+			'const value = process.argv[1] ? await import(process.argv[1]) : {}; process.stdout.write(JSON.stringify(Object.keys(value).length) + "\\n");';
 		args = [
 			...flags,
-			`--input-type=${entry.format === 'esm' ? 'module' : 'commonjs'}`,
+			'--input-type=module',
 			'--eval',
 			expression,
 			...(entry.name === 'empty' ? [] : [entry.name]),

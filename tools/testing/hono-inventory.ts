@@ -248,7 +248,7 @@ function scope(path: string): ScopeType {
 	if (path.startsWith('build/')) {
 		return {
 			category: 'build-contract',
-			target: 'tools/packages/check.ts; tools/npm.ts',
+			target: 'tools/packages/check.ts; tools/packages/npm.ts',
 			reason:
 				'Hono build transforms and export validation use Hono manifests; review equivalent Utils artifact guarantees independently.',
 		};

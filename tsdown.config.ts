@@ -3,7 +3,7 @@ import type { InlineConfig } from 'tsdown';
 import { defineConfig } from 'tsdown';
 import { resolve } from 'node:path';
 
-/** Preserve each package's source module structure, external dependencies, and both Node module contracts. */
+/** Preserve each package's source module structure, external dependencies, and the Node ESM contract. */
 export function projection(stage: string, entry: Record<string, string>, _root: string): InlineConfig {
 	return {
 		config: false,
@@ -11,7 +11,7 @@ export function projection(stage: string, entry: Record<string, string>, _root: 
 		entry,
 		root: resolve(stage, 'src'),
 		outDir: resolve(stage, 'dist'),
-		format: ['esm', 'cjs'],
+		format: ['esm'],
 		platform: 'node',
 		target: 'esnext',
 		fixedExtension: true,

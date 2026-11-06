@@ -1,3 +1,4 @@
+// @installed-consumer: Run this public-import scenario against packed artifacts too.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 

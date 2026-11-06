@@ -3,4 +3,4 @@
 #MISE hide=true
 #MISE depends=[]
 set -euo pipefail
-exec deno run --frozen --allow-read --allow-write --allow-env --allow-ffi tools/sync-utils-exports.ts --write
+exec deno run --frozen --allow-read --allow-write --allow-env --allow-ffi tools/packages/exports.ts --write

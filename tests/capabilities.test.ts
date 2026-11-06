@@ -1,4 +1,5 @@
-/** One bounded import flow must work unchanged from source and physically installed ESM/CJS packages. */
+// @installed-consumer: Run this public-import scenario against packed artifacts too.
+/** One bounded import flow must work unchanged from source and physically installed ESM packages. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as schema from '@okikio/schema';

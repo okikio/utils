@@ -17,13 +17,12 @@ if (roots.length === 0 || !roots.includes('@okikio/utils')) {
 }
 const selected = [...roots, '@okikio/utils/result', '@okikio/utils/all'];
 /** Same launch and receipt in each case; no application module is preloaded by the parent. */
-async function load(format: 'esm' | 'cjs', name?: string): Promise<number> {
-	const expression = format === 'esm'
-		? 'const value = process.argv[1] ? await import(process.argv[1]) : {}; process.stdout.write(JSON.stringify(Object.keys(value).length) + "\\n");'
-		: 'const value = process.argv[1] ? require(process.argv[1]) : {}; process.stdout.write(JSON.stringify(Object.keys(value).length) + "\\n");';
+async function load(name?: string): Promise<number> {
+	const expression =
+		'const value = process.argv[1] ? await import(process.argv[1]) : {}; process.stdout.write(JSON.stringify(Object.keys(value).length) + "\\n");';
 	const output = await new Deno.Command('node', {
 		args: [
-			`--input-type=${format === 'esm' ? 'module' : 'commonjs'}`,
+			'--input-type=module',
 			'--eval',
 			expression,
 			...(name === undefined ? [] : [name]),
@@ -41,12 +40,12 @@ async function load(format: 'esm' | 'cjs', name?: string): Promise<number> {
 	) throw new Error('Packed import lost runtime exports or its complete receipt.');
 	return count;
 }
-for (const format of ['esm', 'cjs'] as const) {
-	await load(format);
-	for (const name of selected) await load(format, name);
+for (const format of ['esm'] as const) {
+	await load();
+	for (const name of selected) await load(name);
 	group(`fresh native Node ${format} exact npm artifacts: process startup included`, () => {
-		bench('empty child: launch + exit baseline', async () => do_not_optimize(await load(format)));
-		for (const name of selected) bench(name, async () => do_not_optimize(await load(format, name))).gc('once');
+		bench('empty child: launch + exit baseline', async () => do_not_optimize(await load()));
+		for (const name of selected) bench(name, async () => do_not_optimize(await load(name))).gc('once');
 	});
 }
 await run();

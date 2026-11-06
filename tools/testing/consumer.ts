@@ -1,5 +1,6 @@
 /** Reuse canonical ownership tests against installed JavaScript artifacts outside the source checkout. */
 import { mkdir, mkdtemp, readdir, readFile, realpath, writeFile } from 'node:fs/promises';
+import { resolver } from './resolve.ts';
 import { createRequire } from 'node:module';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,7 +16,7 @@ const consumer = await realpath(selected);
 if (consumer === resolve(root) || consumer.startsWith(root)) {
 	throw new Error('Artifact tests require an installed consumer outside the source checkout.');
 }
-const installed = createRequire(join(consumer, 'package.json'));
+const resolveInstalled = await resolver(consumer);
 const compiler = createRequire(join(root, 'package.json'))('typescript') as typeof ts;
 const resolvedArtifacts: Record<string, string> = {};
 for (
@@ -52,17 +53,17 @@ for (
 		'@okikio/workflow',
 	]
 ) {
-	const target = await realpath(installed.resolve(name));
+	const target = await realpath(resolveInstalled(name));
 	if (!target.startsWith(consumer + sep) || !/\.[cm]?js$/.test(target)) {
 		throw new Error(`${name} must resolve to emitted JavaScript physically inside the consumer.`);
 	}
 	resolvedArtifacts[name] = target;
 }
 // This is a test-only dependency. Production dependencies are supplied by the installed archives.
-installed.resolve('@std/expect');
-installed.resolve('fast-check');
+resolveInstalled('@std/expect');
+resolveInstalled('fast-check');
 // Conformance tools are installed only in this consumer fixture, never as core runtime dependencies.
-for (const name of ['ajv', 'ajv-formats', 'typebox', '@sinclair/typebox']) installed.resolve(name);
+for (const name of ['ajv', 'ajv-formats', 'typebox', '@sinclair/typebox']) resolveInstalled(name);
 /** Copied scenarios remain beneath the consumer so they cannot import workspace packages by accident. */
 const scratch = join(consumer, '.tmp', 'tests');
 await mkdir(scratch, { recursive: true });
@@ -194,9 +195,7 @@ async function copyPackage(
 			continue;
 		}
 		if (basename(filename) === 'types.test.ts' || filename.endsWith('.types.test.ts')) {
-			const cts = target.replace(/\.ts$/, '.cts');
-			await writeFile(cts, rewritten);
-			typeFixtures.push(target, cts);
+			typeFixtures.push(target);
 		} else shared.push(target);
 	}
 }
@@ -223,7 +222,11 @@ await copyPackage('scheduler', [
 	'concurrency/admission.test.ts',
 	'concurrency/channel.test.ts',
 ]);
+await copyPackage('activity', ['call.test.ts', 'types.test.ts']);
 await copyPackage('capability', [
+	'resource/open.test.ts',
+	'resource/session/open.test.ts',
+	'session.test.ts',
 	'effect/meter/schema.test.ts',
 	'resource/lifetime.test.ts',
 	'execution.test.ts',
@@ -262,10 +265,10 @@ for (const name of ['csv', 'sitemap']) {
 const nodeWorker = await copy('packages/runtime/node/worker.test.ts', 'runtime/node/worker.test.ts', [
 	["from './worker.ts'", "from '@okikio/runtime/node/worker'"],
 ]);
-const nodeThread = await copy('packages/runtime/node/fixtures/thread.ts', 'runtime/node/fixtures/thread.ts', [
+await copy('packages/runtime/node/fixtures/thread.ts', 'runtime/node/fixtures/thread.ts', [
 	["from '../worker.ts'", "from '@okikio/runtime/node/worker'"],
 ]);
-const protocol = await copy('packages/runtime/node/fixtures/protocol.ts', 'runtime/node/fixtures/protocol.ts');
+await copy('packages/runtime/node/fixtures/protocol.ts', 'runtime/node/fixtures/protocol.ts');
 await copy('packages/runtime/fixtures/web-thread.ts', 'runtime/fixtures/web-thread.ts');
 const bunWorker = await copy('packages/runtime/web.test.ts', 'runtime/web.test.ts', [
 	["import * as deno from '@okikio/runtime/deno/worker';\n", ''],
@@ -366,7 +369,9 @@ async function run(name: string, binary: string, args: readonly string[]): Promi
 
 // This configuration lives in the external installation. It adds no workspace
 // aliases, so Deno must resolve the same packed packages as Node and Bun.
-const denoConfig = join(directory, 'deno.consumer.json');
+// Deno resolves manual node_modules from the configuration directory. Keep this
+// beside the installed package.json, not inside the copied test scratch tree.
+const denoConfig = join(consumer, 'deno.consumer.json');
 await writeFile(
 	denoConfig,
 	JSON.stringify(
@@ -432,41 +437,6 @@ results.push(
 		...shared,
 	]),
 );
-// The CJS export branch has separate code and dependency conditions. Only test fixtures are transpiled here.
-const cjsTests: string[] = [];
-for (const file of [nodeThread, protocol, ...supporting, nodeWorker, ...processTests, ...shared]) {
-	let source = await readFile(file, 'utf8');
-	source = source.replaceAll('import.meta.url', "require('node:url').pathToFileURL(__filename).href")
-		.replace(/(['"])(\.{1,2}\/[^'"]+)\.ts\1/g, '$1$2.cjs$1');
-	let output = compiler.transpileModule(source, {
-		compilerOptions: {
-			target: compiler.ScriptTarget.ESNext,
-			module: compiler.ModuleKind.CommonJS,
-			esModuleInterop: true,
-		},
-	}).outputText;
-	if (file === nodeThread) {
-		output =
-			`void (async () => {\n${output}\n})().catch((error) => { console.error(error); process.exitCode = 1; });\n`;
-	} else {
-		// Canonical ESM fixtures may declare `module`, which is already a parameter of Node's CJS wrapper.
-		output = `"use strict";\n{\n${output}\n}\n`;
-	}
-	const target = join(directory, 'cjs', file.slice(directory.length + 1).replace(/\.ts$/, '.cjs'));
-	await mkdir(dirname(target), { recursive: true });
-	await writeFile(target, output);
-	if (file !== nodeThread && file !== protocol && !supporting.includes(file)) cjsTests.push(target);
-}
-results.push(
-	await run('node-cjs-runtime-input-io', process.execPath, [
-		'--require',
-		'@okikio/duration/polyfill',
-		'--require',
-		'@okikio/dispose/polyfill',
-		'--test',
-		...cjsTests,
-	]),
-);
 if (process.env.UTILS_BUN !== undefined) {
 	results.push(
 		await run('bun-runtime-input-io', process.env.UTILS_BUN, [
@@ -494,7 +464,7 @@ await writeFile(
 			resolvedArtifacts,
 			archives,
 			typeChecks: {
-				formats: ['ESM (.ts)', 'CJS (.cts)'],
+				formats: ['ESM (.ts)'],
 				consumerLibs: [['esnext', 'dom', 'dom.iterable'], ['esnext']],
 				fixtures: [
 					'native DOM positive inference',

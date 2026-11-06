@@ -1,3 +1,4 @@
+// @installed-consumer: Run this public-import scenario against packed artifacts too.
 /** Run independent Hono and Utils candidates against an authored application contract. @module */
 import { deepStrictEqual } from 'node:assert';
 import { describe, it } from 'node:test';

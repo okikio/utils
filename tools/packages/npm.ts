@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { build } from 'tsdown';
 import { parseSync } from 'oxc-parser';
-import { projection } from '../tsdown.config.ts';
+import { projection } from '../../tsdown.config.ts';
 
 /** Source-owned npm metadata; the projection replaces only distribution-specific fields. */
 interface Manifest {
@@ -21,7 +21,7 @@ interface Manifest {
 	sideEffects?: false | string[];
 	[key: string]: unknown;
 }
-const root = fileURLToPath(new URL('../', import.meta.url));
+const root = fileURLToPath(new URL('../../', import.meta.url));
 const output = resolve(root, '.tmp/artifacts/npm');
 const mode = process.argv[2] ?? 'build';
 if (!['build', 'check', 'consumer', 'pack', 'verify', 'member'].includes(mode)) {
@@ -57,19 +57,16 @@ function include(name: string): void {
 for (const name of requested) include(name);
 const portable = [...manifests].filter(([name]) => requested.length === 0 || selected.has(name));
 
-/** Reuse canonical tests through public imports in both emitted formats; never substitute artifact-only oracles. */
-const scenarioSources = {
-	discovery: 'tests/discovery.test.ts',
-	coordination: 'tests/coordination.test.ts',
-	capabilities: 'tests/capabilities.test.ts',
-	host: 'tests/host.test.ts',
-	workflow: 'tests/workflow.test.ts',
-	provider: 'tests/provider.test.ts',
-	'http-parity': 'tests/http-parity.test.ts',
-	bounded: 'packages/scheduler/concurrency/bounded.test.ts',
-	expansion: 'tests/expansion.test.ts',
-	protocol: 'tests/protocol.test.ts',
-};
+/** Reuse canonical tests through public imports in emitted ESM; never substitute artifact-only oracles. */
+const scenarioSources: Record<string, string> = {};
+for (const directory of ['tests', 'packages']) {
+	for await (const file of files(resolve(root, directory))) {
+		if (!file.endsWith('.test.ts')) continue;
+		if (!(await readFile(file, 'utf8')).includes('// @installed-consumer:')) continue;
+		const source = relative(root, file).replaceAll('\\', '/');
+		scenarioSources[source.replace(/[^a-z0-9]/giu, '-')] = source;
+	}
+}
 
 if (mode === 'build' || mode === 'verify') {
 	try {
@@ -111,7 +108,6 @@ if (mode === 'member') {
 			entries[stem] = resolve(stage, 'src', target);
 			exports[key] = {
 				import: { types: `./dist/${stem}.d.mts`, default: `./dist/${stem}.mjs` },
-				require: { types: `./dist/${stem}.d.cts`, default: `./dist/${stem}.cjs` },
 			};
 		}
 		const manifest: Manifest = {
@@ -121,6 +117,8 @@ if (mode === 'member') {
 			engines: { node: '>=26.10.0' },
 		};
 		delete manifest.devDependencies;
+		// The staged package is the publication root, not another redirect to source staging.
+		manifest.publishConfig = { access: 'public' };
 		delete manifest.scripts;
 		// Source-local test aliases do not address any emitted artifact; external runtime aliases remain explicit.
 		if (manifest.imports) {
@@ -150,7 +148,6 @@ if (mode === 'member') {
 				path,
 			) => [
 				path.replace(/\.ts$/, '.mjs').replace(/^\.\//, './dist/'),
-				path.replace(/\.ts$/, '.cjs').replace(/^\.\//, './dist/'),
 			])
 			: false;
 		await writeFile(resolve(stage, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
@@ -200,7 +197,7 @@ async function inspect(): Promise<void> {
 			subpaths++;
 		}
 		for await (const file of files(resolve(stage, 'dist'))) {
-			if (!/\.(?:mjs|cjs)$/.test(file)) continue;
+			if (!/\.mjs$/.test(file)) continue;
 			const text = await readFile(file, 'utf8');
 			const parsed = parseSync(file, text);
 			if (parsed.errors.length) throw new Error(`Cannot parse emitted runtime module ${file}.`);
@@ -227,7 +224,7 @@ async function inspect(): Promise<void> {
 		}
 	}
 	console.log(
-		`Inspected ${portable.length} npm packages and ${subpaths} public subpaths (both module formats and declarations).`,
+		`Inspected ${portable.length} npm packages and ${subpaths} public subpaths (ESM modules and declarations).`,
 	);
 }
 
@@ -257,7 +254,7 @@ async function pack(): Promise<void> {
 		);
 		command(
 			'node',
-			[resolve(root, 'node_modules/@arethetypeswrong/cli/dist/index.js'), '--profile', 'node16', archive],
+			[resolve(root, 'node_modules/@arethetypeswrong/cli/dist/index.js'), '--profile', 'esm-only', archive],
 			root,
 		);
 	}
@@ -279,7 +276,7 @@ async function pack(): Promise<void> {
 	);
 }
 
-/** Install physical archives in an empty consumer, then execute all supported import and require branches. */
+/** Install physical archives in an empty consumer, then execute the supported ESM exports. */
 async function consumer(): Promise<void> {
 	// A consumer below the checkout could resolve missing packages from workspace ancestors.
 	const directory = await mkdtemp(resolve(tmpdir(), 'okikio-utils-npm-consumer-'));
@@ -325,7 +322,7 @@ async function consumer(): Promise<void> {
 	const typeSource = paths.map((path, index) =>
 		`import * as entry${index} from ${JSON.stringify(path)}; void entry${index};`
 	).join('\n');
-	for (const extension of ['mts', 'cts']) await writeFile(resolve(directory, `public.${extension}`), `${typeSource}\n`);
+	for (const extension of ['mts']) await writeFile(resolve(directory, `public.${extension}`), `${typeSource}\n`);
 	await writeFile(
 		resolve(directory, 'tsconfig.json'),
 		JSON.stringify({
@@ -342,22 +339,18 @@ async function consumer(): Promise<void> {
 			},
 			include: [
 				'public.mts',
-				'public.cts',
 				'public-inference.mts',
-				'public-inference.cts',
 				'scenario-*.test.ts',
-				'typed-scenario-*.cts',
 			],
 		}),
 	);
 	// Check the same literal, field-selection and codec inference promises against
-	// physical declaration files in both Node module-resolution branches.
-	for (const extension of ['mts', 'cts']) {
+	// physical declaration files in the Node ESM resolution branch.
+	for (const extension of ['mts']) {
 		await cp(resolve(root, 'tests/publication.types.test.ts'), resolve(directory, `public-inference.${extension}`));
 	}
 	for (const [name, source] of Object.entries(scenarioSources)) {
 		await cp(resolve(root, source), resolve(directory, `scenario-${name}.test.ts`));
-		await cp(resolve(root, source), resolve(directory, `typed-scenario-${name}.cts`));
 	}
 	await cp(resolve(root, 'tests/fixtures/http-parity'), resolve(directory, 'fixtures/http-parity'), {
 		recursive: true,
@@ -398,7 +391,7 @@ async function consumer(): Promise<void> {
 					elapsedMilliseconds,
 					diagnostics,
 					interpretation:
-						'One complete ESM+CJS all-subpath correctness check. Elapsed time includes Node/compiler startup and is diagnostic evidence, not an editor latency or performance regression threshold.',
+						'One complete ESM all-subpath correctness check. Elapsed time includes Node/compiler startup and is diagnostic evidence, not an editor latency or performance regression threshold.',
 				},
 				null,
 				2,
@@ -416,8 +409,9 @@ async function consumer(): Promise<void> {
 async function* files(directory: string): AsyncGenerator<string> {
 	for (const entry of await readdir(directory, { withFileTypes: true })) {
 		const path = resolve(directory, entry.name);
-		if (entry.isDirectory()) yield* files(path);
-		else yield path;
+		if (entry.isDirectory()) {
+			if (!['node_modules', '.tmp', '.git', 'fixtures'].includes(entry.name)) yield* files(path);
+		} else yield path;
 	}
 }
 
@@ -546,7 +540,7 @@ async function scenarios(directory: string): Promise<void> {
 		cwd: directory,
 		entry,
 		outDir: resolve(directory, 'scenarios'),
-		format: ['esm', 'cjs'],
+		format: ['esm'],
 		platform: 'node',
 		target: 'esnext',
 		dts: false,
@@ -555,7 +549,7 @@ async function scenarios(directory: string): Promise<void> {
 		attw: false,
 		deps: { neverBundle: [/^@okikio\//, /^node:/] },
 	});
-	for (const format of ['mjs', 'cjs']) {
+	for (const format of ['mjs']) {
 		command('node', [
 			'--import',
 			'@okikio/dispose/polyfill',
@@ -567,6 +561,6 @@ async function scenarios(directory: string): Promise<void> {
 	}
 	for (const result of results) await result[Symbol.asyncDispose]();
 	console.log(
-		'Installed ESM and CommonJS artifacts passed discovery, coordination, HTTP host, workflow, durable client, provider ownership, bounded mapper failures and independent Hono parity scenarios.',
+		'Installed ESM artifacts passed discovery, coordination, HTTP host, workflow, durable client, provider ownership, bounded mapper failures and independent Hono parity scenarios.',
 	);
 }

@@ -3,7 +3,7 @@ import { cpus, release, totalmem } from 'node:os';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import type { QueueBenchmarkReportType } from '#bench/queue.bench.ts';
+import type { QueueBenchmarkReportType } from '../../bench/queue.bench.ts';
 import { claimOutput } from '#tools/bench/output.ts';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));

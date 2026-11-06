@@ -145,7 +145,7 @@ async function compareProjection(
 	options: { readonly candidate?: string; readonly workload?: string; readonly failure?: boolean } = {},
 ): Promise<{ readonly code: number | null; readonly signal: string | null }> {
 	const child = spawn('node', [
-		fileURLToPath(new URL('./variant-repeat.mjs', import.meta.url)),
+		fileURLToPath(new URL('./variant-repeat.ts', import.meta.url)),
 		fixture.output,
 		`--baseline=${fixture.baseline}`,
 		`--candidate=${options.candidate ?? fixture.candidate}`,

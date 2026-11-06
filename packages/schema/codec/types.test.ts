@@ -2,7 +2,7 @@ import type { StandardSchemaV1 } from '@standard-schema/spec';
 
 import * as codec from './mod.ts';
 
-/** Type-only async consumers compile unchanged through both ESM and CommonJS declarations. */
+/** Type-only async consumers compile unchanged through both ESM declarations. */
 async function codecTypes(): Promise<void> {
 	const NumberCodec = codec.define({
 		decode: schema<string, number>((value) => Number(value)),

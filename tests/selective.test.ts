@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { graphProblems } from '#tools/packages/bundles.ts';
 import { packageProblems } from '#tools/packages/check.ts';
-import { patch, project, sync } from '#tools/sync-utils-exports.ts';
+import { patch, project, sync } from '#tools/packages/exports.ts';
 import { parse } from '@std/jsonc';
 
 const bridge = 'packages/utils/result.ts';

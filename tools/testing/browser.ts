@@ -1,4 +1,5 @@
 /** Exercise portable APIs, resource lifetimes and standard module Workers in a real browser. */
+import { resolver } from './resolve.ts';
 import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { Server } from 'node:http';
@@ -33,7 +34,7 @@ if (consumer === resolve(root) || consumer?.startsWith(root)) {
 }
 const resolvedArtifacts: Record<string, string> = {};
 if (consumer !== undefined) {
-	const installed = createRequire(join(consumer, 'package.json'));
+	const resolveInstalled = await resolver(consumer);
 	for (
 		const name of [
 			'@okikio/input',
@@ -55,7 +56,7 @@ if (consumer !== undefined) {
 			'@okikio/capability/resource',
 		]
 	) {
-		const target = await realpath(installed.resolve(name));
+		const target = await realpath(resolveInstalled(name));
 		if (!target.startsWith(consumer + sep) || !/\.[cm]?js$/.test(target)) {
 			throw new Error(`Artifact ${name} must resolve to emitted JavaScript inside the clean consumer.`);
 		}

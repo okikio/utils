@@ -248,7 +248,7 @@ switch (family) {
 		break;
 	case 'build':
 		if (values.target === 'exports') operation(values.write ? 'build:exports' : 'check:exports');
-		else if (values.target === 'npm') command('node', ['tools/npm.ts', 'build', ...projects]);
+		else if (values.target === 'npm') command('node', ['tools/packages/npm.ts', 'build', ...projects]);
 		else throw new TypeError('Unknown build target.');
 		break;
 	case 'verify':

@@ -1,26 +1,22 @@
-/** Execute the physically installed npm projection in both claimed Node module formats. */
+/** Execute the physically installed npm projection through the supported Node ESM entrypoints. */
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 import { lstat, readFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
-const require = createRequire(import.meta.url);
 
 // Provider startup must also work from the packed artifacts, not only TypeScript source.
-for (const commonJS of [false, true]) {
+{
 	execFileSync(process.execPath, [
 		'--input-type=module',
 		'-e',
 		`
 		import assert from 'node:assert/strict';
-		import { createRequire } from 'node:module';
-		import { createServer } from 'node:http';
+				import { createServer } from 'node:http';
 		import { once } from 'node:events';
-		const require = createRequire(import.meta.url);
-		const load = ${commonJS ? 'async name => require(name)' : 'name => import(name)'};
+				const load = name => import(name);
 		const telemetry = await load('@okikio/telemetry/node');
 		const instrument = await load('@okikio/telemetry/instrument');
 		assert.equal(instrument.noop.capture(), undefined);
-		const logtape = await load(require.resolve('@logtape/logtape'));
+		const logtape = await load('@logtape/logtape');
 		const records = [];
 		const server = createServer(async (request, response) => {
 			const parts = [];
@@ -54,14 +50,12 @@ for (const commonJS of [false, true]) {
 	`,
 	], { cwd: new URL('./', import.meta.url), timeout: 30000, stdio: 'pipe' });
 }
-console.log('Packed ESM and CommonJS collection exported correlated LogTape logs and spans.');
+console.log('Packed ESM collection exported correlated LogTape logs and spans.');
 
 // Each probe starts before any utility import, so module caches cannot hide a missing-global or ownership bug.
-for (const commonJS of [false, true]) {
-	const load = commonJS ? 'async (name) => require(name)' : '(name) => import(name)';
-	const setup = commonJS
-		? "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);"
-		: '';
+{
+	const load = '(name) => import(name)';
+	const setup = '';
 	for (const missing of [false, true]) {
 		execFileSync(process.execPath, [
 			'--input-type=module',
@@ -91,15 +85,13 @@ for (const commonJS of [false, true]) {
 	}
 }
 console.log(
-	'Fresh ESM and CommonJS Temporal probes preserved native globals and enabled missing-global duration/calendar behavior.',
+	'Fresh ESM Temporal probes preserved native globals and enabled missing-global duration/calendar behavior.',
 );
 
 // Direct disposal APIs must remain pure before the explicit installer is ever loaded.
-for (const commonJS of [false, true]) {
-	const setup = commonJS
-		? "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);"
-		: '';
-	const load = commonJS ? 'async (name) => require(name)' : '(name) => import(name)';
+{
+	const setup = '';
+	const load = '(name) => import(name)';
 	for (const mode of ['native', 'missing', 'local-keys']) {
 		execFileSync(process.execPath, [
 			'--input-type=module',
@@ -191,7 +183,7 @@ for (const commonJS of [false, true]) {
 	}
 }
 console.log(
-	'Fresh ESM and CommonJS disposal roots/ponyfill preserved globals and passed native, missing-global and local-key ownership probes.',
+	'Fresh ESM disposal roots/ponyfill preserved globals and passed native, missing-global and local-key ownership probes.',
 );
 
 await import('@okikio/dispose/polyfill');
@@ -204,14 +196,9 @@ for (const specifier of paths) {
 		false,
 	);
 	const esm = await import(specifier);
-	const cjs = require(specifier);
-	assert.deepEqual(
-		Object.keys(esm).sort(),
-		Object.keys(cjs).filter((name) => name !== '__esModule').sort(),
-		`${specifier} module formats disagree`,
-	);
+	assert.equal(typeof esm, 'object', `${specifier} must import as a module namespace`);
 }
-for (const load of [async (name) => import(name), async (name) => require(name)]) {
+for (const load of [async (name) => import(name)]) {
 	const result = await load('@okikio/result');
 	assert.equal(result.unwrap(result.ok('asset-42')), 'asset-42');
 	assert.equal(result.getOr(result.fail('missing'), 'fallback'), 'fallback');
@@ -256,5 +243,5 @@ for (
 	);
 }
 console.log(
-	`Executed ${paths.length} public subpaths through ESM and CommonJS plus data, result, duration and child-process behavior.`,
+	`Executed ${paths.length} public subpaths through ESM plus data, result, duration and child-process behavior.`,
 );

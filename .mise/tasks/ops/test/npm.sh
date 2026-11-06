@@ -3,4 +3,4 @@
 #MISE hide=true
 #MISE depends=[]
 set -euo pipefail
-exec node tools/npm.ts verify
+exec node tools/packages/npm.ts verify

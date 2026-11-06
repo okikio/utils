@@ -1,4 +1,5 @@
-/** Public-import scenarios also execute against physically installed ESM and CJS archives. @module */
+// @installed-consumer: Run this public-import scenario against packed artifacts too.
+/** Public-import scenarios also execute against physically installed ESM archives. @module */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import * as result from '@okikio/result';

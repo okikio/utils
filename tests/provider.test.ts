@@ -1,3 +1,4 @@
+// @installed-consumer: Run this public-import scenario against packed artifacts too.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { StandardJSONSchemaV1, StandardSchemaV1 } from '@standard-schema/spec';

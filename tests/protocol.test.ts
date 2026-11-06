@@ -1,4 +1,5 @@
-/** Public protocol consumers also run against physically installed ESM and CJS archives. @module */
+// @installed-consumer: Run this public-import scenario against packed artifacts too.
+/** Public protocol consumers also run against physically installed ESM archives. @module */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import * as context from '@okikio/context';

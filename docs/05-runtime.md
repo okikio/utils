@@ -1,7 +1,7 @@
 # Runtime and distribution contracts
 
-Deno source is canonical. JSR publishes that source; the npm build projects supported public entries into emitted Node
-packages. The same package name does not prove that every adapter or native capability works in every host.
+TypeScript is the shared implementation source. JSR publishes it; the npm build projects supported public entries into
+emitted Node packages. The same package name does not prove that every adapter or native capability works in every host.
 
 ## Run portable value code first
 
@@ -21,7 +21,7 @@ Run `mise exec -- deno run runtime-check.ts`. It prints:
 {"tag":["photo","audio"]}
 ```
 
-This checks portable parsing on Deno source. For a Node application, select the built npm package's ESM or CommonJS
+This checks portable parsing on Deno source. For a Node application, select the built npm package's ESM
 entry and follow [the installed-consumer procedure](./maintenance/02-packaging.md). Do not infer Node artifact behavior
 from a successful Deno run, or assume that a browser parser import can launch an OS process. The table below explains
 which source, artifact and native-host checks support each choice.
@@ -31,16 +31,16 @@ which source, artifact and native-host checks support each choice.
 | Surface                   | Contract and checks boundary                                                                                                                                                                                                                     |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Deno source               | Run the checked-in TypeScript through its workspace/public imports. Unit, scenario, native Worker/process, and example gates test the applicable source behavior.                                                                                    |
-| JSR                       | Source-native manifests and exports are authoritative. Workspace execution and publish checks are evidence for source/artifact contracts, not proof that a new registry version was deployed.                                                           |
-| Emitted Node ESM/CommonJS | The npm projection emits separate runtime and declaration entries. The clean-consumer gate physically installs exact packed artifacts and imports/requires every included public subpath. Successful source tests alone do not establish this contract. |
+| JSR                       | Deno manifests own JSR publication settings; the focused package source export maps are projected from `package.json`. Workspace execution and publish checks are evidence for source/artifact contracts, not proof that a new registry version was deployed.                                                           |
+| Emitted Node ESM | The npm projection emits separate runtime and declaration entries. The clean-consumer gate installs exact packed artifacts, imports every included ESM public subpath and checks its declarations. Successful source tests alone do not establish this contract. |
 | Deno-specific entries     | `@okikio/runtime/deno`, `process/deno`, and `worker/deno` remain explicit source-runtime adapters and are excluded from Node projections, including matching umbrella entries.                                                                          |
 | Browser                   | Pure parsing and Web API composition have selected bundle/source evidence. That does not test the entire suite in an actual browser or grant a global Worker, listener, filesystem, or process capability.                                           |
-| Bun                       | No complete native Bun artifact/suite guarantee is established by this test. A compatible API shape is not execution evidence.                                                                                                                 |
+| Bun                       | A separate Bun installed-consumer lane checks packed ESM imports and portable behavior. Native Worker behavior uses the explicit `@okikio/runtime/bun/worker` adapter; portable imports do not establish every native capability.                                                                                                                 |
 
 The current npm metadata selects Node `>=26.10.0`, the runtime selected for artifact test. It does not claim
 that older hosts pass the same emitted artifact and lifecycle gates. The ordinary Worker opener still needs a standard
-module `Worker` constructor or a caller-supplied factory; importing its npm entry is not proof of a native Node Worker
-execution. Use `process/node` for the Node child-process adapter; native lifecycle checks is a separate gate from
+module `Worker` constructor or a caller-supplied factory. On Node, use `@okikio/runtime/node/worker`; the installed-consumer lane exercises that
+adapter separately from entry imports. Use `process/node` for the Node child-process adapter; native lifecycle checks are separate from
 entry imports.
 
 The [testing guide](./maintenance/01-testing.md) separates source tests, emitted package consumers, and container
@@ -70,7 +70,8 @@ cleanup[dispose]();
 
 The focused disposal root exports the same pure constructors. On a host without disposal protocol symbols, use the
 exported local keys when registering resources; native `using` syntax needs the host symbols or explicit installer. Each
-Worker or child has its own realm and needs its own setup when ambient lifecycle packages require globals. The
+Worker or child has its own realm. If application code or a dependency accesses missing globals directly, arrange
+explicit setup in that realm too. The
 installation facade exposes matching `@okikio/utils/duration/*` and `@okikio/utils/dispose/*` entries.
 
 ## Own the native resource where it runs
@@ -81,8 +82,8 @@ native handle and shutdown path. Cancellation requests cooperative stopping; dis
 owns. Neither action migrates a JavaScript stack or makes an arbitrary callback safely interruptible.
 
 Process-group termination is tested on the applicable POSIX adapters. Windows currently offers direct-child mode; an
-unsupported stronger mode rejects rather than claiming process-tree cleanup. Browser Web Worker support and a Node
-worker factory need their own native execution evidence.
+unsupported stronger mode rejects rather than claiming process-tree cleanup. Selected browser and Node Worker scenarios have separate native checks; neither an import nor one passing scenario
+establishes all browser or deployment behavior.
 
 The local workflow examples use in-memory history and dispatch. Those stores keep step results and current attempt
 permission only while their process survives. They do not prove recovery from a fresh database connection after process

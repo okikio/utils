@@ -18,7 +18,7 @@
 			"sha256": "57e1f6bfc597beaf806e58ebf7c71a223ddcfa0556c6e6956ed4b71109e222dd",
 			"scope": {
 				"category": "build-contract",
-				"target": "tools/packages/check.ts; tools/npm.ts",
+				"target": "tools/packages/check.ts; tools/packages/npm.ts",
 				"reason": "Hono build transforms and export validation use Hono manifests; review equivalent Utils artifact guarantees independently."
 			}
 		},
@@ -29,7 +29,7 @@
 			"sha256": "9a6c774c5491b9d5879d7f9fd0931b91d3087ad0646235281ed6af05c611e57f",
 			"scope": {
 				"category": "build-contract",
-				"target": "tools/packages/check.ts; tools/npm.ts",
+				"target": "tools/packages/check.ts; tools/packages/npm.ts",
 				"reason": "Hono build transforms and export validation use Hono manifests; review equivalent Utils artifact guarantees independently."
 			}
 		},

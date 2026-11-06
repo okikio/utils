@@ -239,7 +239,7 @@ if (import.meta.main) {
 		throw new TypeError('Use --check (the default) or --write.');
 	}
 	const mode = Deno.args.includes('--write') ? 'write' : 'check';
-	const changed = await sync(new URL('../', import.meta.url), mode);
+	const changed = await sync(new URL('../../', import.meta.url), mode);
 	if (mode === 'check' && changed.length) throw new Error(`Umbrella exports have drifted: ${changed.join(', ')}.`);
 	console.log(`${mode}: ${changed.length} generated files ${mode === 'write' ? 'updated' : 'need changes'}.`);
 }
