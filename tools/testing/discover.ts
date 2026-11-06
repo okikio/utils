@@ -56,6 +56,7 @@ export function classify(path: string): TestFile {
 	if (
 		[
 			'tests/workflows/duplex-containers.test.ts',
+			'tests/workflows/duplex-proxy.test.ts',
 			'tests/workflows/containers.test.ts',
 			'tests/workflows/nested-containers.test.ts',
 			'tests/workflows/session-containers.test.ts',

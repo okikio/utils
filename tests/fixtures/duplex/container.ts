@@ -1,4 +1,6 @@
 /** Own one resource-capped container, copied application bundle and temporary build output. @module */
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
@@ -46,12 +48,17 @@ export interface Host {
 	[Symbol.asyncDispose](): Promise<void>;
 }
 /** Start one copied native Node application; there is no host-source mount or package download in the container. */
-export async function start(options: { readonly allowedOrigin?: string } = {}): Promise<Host> {
+export async function start(options: {
+	readonly allowedOrigin?: string;
+	/** An owning proxy fixture can reach this application through the private duplex network alias. */
+	readonly network?: string;
+} = {}): Promise<Host> {
 	const root = fileURLToPath(new URL('../../../', import.meta.url));
 	const base = new URL('../../../.tmp/tests/duplex/', import.meta.url);
 	await mkdir(base, { recursive: true });
 	const output = await mkdtemp(fileURLToPath(new URL('container-', base)));
 	const token = crypto.randomUUID();
+	const name = `utils-duplex-${crypto.randomUUID()}`;
 	const image = process.env.UTILS_DUPLEX_NODE_IMAGE ?? Image;
 	let container: StartedTestContainer | undefined;
 	let log = '';
@@ -77,8 +84,8 @@ export async function start(options: { readonly allowedOrigin?: string } = {}): 
 			await result[Symbol.asyncDispose]();
 		}
 		if (!entry) throw new Error('The container application bundle has no entry.');
-		container = await new GenericContainer(image)
-			.withName(`utils-duplex-${crypto.randomUUID()}`)
+		let builder = new GenericContainer(image)
+			.withName(name)
 			.withLabels({ 'okikio.owner': 'utils-duplex-tests' })
 			// Explicit cleanup avoids provisioning a second Ryuk container for this one-container fixture.
 			.withAutoCleanup(false).withAutoRemove(true)
@@ -96,8 +103,9 @@ export async function start(options: { readonly allowedOrigin?: string } = {}): 
 				stream.on('data', (chunk) => {
 					log = (log + String(chunk)).slice(-32_768);
 				});
-			})
-			.start();
+			});
+		if (options.network) builder = builder.withNetworkMode(options.network).withNetworkAliases('duplex');
+		container = await builder.start();
 		const origin = `http://${container.getHost()}:${container.getMappedPort(8080)}`;
 		/** Administrative calls use the same per-run credential, finite deadline and explicit response check. */
 		const request = async (path: string, body?: unknown): Promise<Response> => {
@@ -140,7 +148,14 @@ export async function start(options: { readonly allowedOrigin?: string } = {}): 
 		};
 	} catch (cause) {
 		try {
-			await container?.stop({ timeout: 0 });
+			if (container) await container.stop({ timeout: 0 });
+			else {
+				// Readiness can fail after creation, before Testcontainers returns its handle.
+				// Only remove the exact random name owned by this invocation.
+				const command = promisify(execFile);
+				const remaining = await command('docker', ['ps', '-aq', '--filter', `name=^/${name}$`], { timeout: 15000 });
+				if (remaining.stdout.trim()) await command('docker', ['rm', '-f', name], { timeout: 15000 });
+			}
 		} finally {
 			await rm(output, { recursive: true, force: true });
 		}

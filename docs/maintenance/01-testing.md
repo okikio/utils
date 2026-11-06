@@ -142,6 +142,13 @@ the container suite as a whole includes unrelated databases and fault scenarios.
 as a failed engine setup, not a passing transport test. Its optional root benchmarks stay outside ordinary benchmark
 selection and share the same owned host fixtures.
 
+The [TLS/nginx matrix](../../packages/activity/http/duplex.md#deploy-behind-a-tls-edge) is a separate container test.
+It needs the prepared pinned nginx image and OpenSSL on the host. Native Node caller processes receive a private CA
+at startup; the fixture never modifies the runner's global trust. It checks certificate rejection, incremental original
+authority calls, independent control authentication, buffering, idle expiry and held cleanup. Its cold-process benchmark
+has different costs from the warm socket benchmark. Real Worker/process stop-fault tests remain portable source tests
+and run on Node, Deno and Bun without Docker.
+
 Update the root and private Tools Playwright pins together, then prepare their matching browser binaries. The duplex
 guide explains the macOS Firefox application-data startup failure fixed by the selected upstream version. A longer
 timeout or a passing Chromium run cannot establish that Firefox starts and completes its own scenarios.

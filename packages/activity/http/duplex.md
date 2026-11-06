@@ -121,8 +121,9 @@ A provider fault or cleanup error that occurs after an abort remains a fault. Th
 successful cancellation merely because the signal is aborted. Without a clean cancelled terminal, the cancelling client
 returns `lost` and the owner must inspect the failed cleanup before reclaiming resources. Already-running authority
 callbacks are borrowed cooperative operations; the transport cannot undo a committed write or forcibly terminate
-JavaScript callbacks. The supplied provider must preserve its own faults when returning a terminal result. These
-cleanup-failure tests exercise the local Activity provider; they do not establish equivalent behavior for every adapter.
+JavaScript callbacks. The supplied provider must preserve its own faults when returning a terminal result. The
+container tests exercise the local Activity provider. Separate real Worker and child-process tests also preserve
+post-abort faults, invalidate the failed physical host, and keep its lease until cleanup joins.
 
 A physical response disconnect aborts the host attempt too. After the cleanup grace, a stalled output is failed so an
 unread hello/terminal frame cannot keep a dead stream alive. Uncooperative provider cleanup can still keep its slot
@@ -193,3 +194,76 @@ browser scheduling, CORS/Fetch and container networking; cancellation includes p
 joined cleanup. Build, browser launch and container startup are outside timing. Final metrics check that no provider
 work remains active. These measurements exclude TLS, reverse proxies, durable business writes and Kubernetes routing.
 Test those exact deployment settings separately; direct container evidence does not establish production proxy behavior.
+
+
+## Deploy behind a TLS edge
+
+The client requires HTTPS outside the explicit loopback HTTP test option. The application owns certificate trust and
+termination. Do not disable certificate verification to make a deployment pass. For a Node client using an internal
+CA, set `NODE_EXTRA_CA_CERTS=/path/to/ca.pem` before starting the process; Node reads this setting at startup.
+See [Node's CA trust contract](https://nodejs.org/api/cli.html#node_extra_ca_certsfile).
+
+```mermaid
+flowchart LR
+    Caller[Native Fetch caller with trusted CA] -->|HTTPS: start, reply, cancel| Edge[nginx TLS listener]
+    Edge -->|HTTP on private fixture network| Host[Activity host container]
+    Host -->|stream reverse calls| Edge
+    Edge -->|unbuffered response| Caller
+```
+
+The maintained [TLS/proxy matrix](../../../tests/workflows/duplex-proxy.test.ts) starts a separate nginx container,
+a private network, an Activity host and native Node caller processes. Each run creates a fresh test CA. Positive calls
+validate the certificate; separate controls reject the missing CA and wrong hostname before provider admission.
+The redirect control points to a live local route, so a failed DNS lookup cannot masquerade as redirect rejection.
+
+Configure the edge for incremental responses and independent control POSTs. The following directives show the route's
+streaming contract; add the application's real certificate, access policy, limits and upstream address. The idle timeout
+must fit the longest interval without response bytes, not just average activity duration.
+
+```nginx
+location = /attempt {
+    proxy_pass http://activity:8080/attempt;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+
+    # Deliver reverse calls before the activity can finish.
+    proxy_buffering off;
+    proxy_request_buffering off;
+    gzip off;
+
+    # Disconnects must reach the owner; retries can duplicate uncertain work.
+    proxy_ignore_client_abort off;
+    proxy_next_upstream off;
+    proxy_read_timeout 60s;
+}
+```
+
+[nginx's proxy reference](https://nginx.org/en/docs/http/ngx_http_proxy_module.html) explains buffering, upstream
+inactivity timeouts and retry behavior. Preserve authentication headers and the protocol response headers. Do not route
+start, reply and cancel to independent in-memory handlers: their temporary session state belongs to the same handler
+instance. A multi-replica deployment needs explicit affinity or a separately designed shared session protocol.
+
+The matrix verifies original heartbeat/permission/effect receipts, authenticated reply/cancel requests, held cleanup
+after cancellation or disconnect, idle-timeout loss, a deliberately buffering route, and an actual provider cleanup
+exception. A client result alone is never the cleanup oracle: tests read the host's active/finally receipts and release
+a manual cleanup gate. Small sequential authority calls establish incremental delivery; they do not measure TCP
+backpressure or production load.
+
+```sh
+# Prepare the pinned nginx image declared in tests/fixtures/duplex/proxy.ts first.
+# Prepare the Node image using the earlier container instructions too.
+docker pull nginx:1.28-alpine@sha256:a8b39bd9cf0f83869a2162827a0caf6137ddf759d50a171451b335cecc87d236
+mise run test -- --suite containers tests/workflows/duplex-proxy.test.ts
+node bench/duplex-proxy.bench.ts --check
+node bench/duplex-proxy.bench.ts
+```
+
+The optional proxy benchmark checks exact authority receipts and final zero active scopes. Its timings include cold
+caller-process startup, TLS setup and cleanup. Certificate generation and container startup are excluded. Compare only
+matching workloads; the earlier warm socket benchmark has different costs. Temporary keys, bundles and diagnostics
+stay under `.tmp/`, and fixture disposal removes its exact owned containers and network.
+
+This evidence covers native Node Fetch through nginx TLS termination to a private plaintext HTTP upstream. It does
+not establish browser trust-store configuration, encrypted upstreams, mutual TLS, HTTP/2 or HTTP/3, arbitrary proxy
+products, production replica routing, durable writes, replay or Kubernetes scheduling. The browser matrix above
+continues to establish cross-origin browser behavior separately.
