@@ -13,10 +13,18 @@ Field selection chooses which properties the caller wants to receive. These are
 requests within an application-approved vocabulary. They do not grant access to
 private records. Apply trusted account or tenant restrictions in the provider too.
 
-```text
-caller URL -> allowed query definition -> checked request -> your provider -> records
-                                                               ^
-                                             trusted access restrictions
+The flow below separates checking a request from finding records. Follow the valid branch to the provider;
+the invalid branch ends before any search. Authentication and trusted account restrictions are application work.
+
+```mermaid
+flowchart TD
+    URL["Caller URL: name=Ada, limit=2"] --> Parse["Search.parse: check allowed fields, values and limits"]
+    Definition["Application's Search definition"] --> Parse
+    Parse -->|invalid| Reject["QueryValidationError: no search"]
+    Parse -->|valid| Checked["Checked filter and page data"]
+    Checked --> Provider["Application provider applies conditions"]
+    Access["Trusted account restrictions"] --> Provider
+    Provider --> Rows["Matching records, limited to this page"]
 ```
 
 The arrow into the provider matters: parsing a URL does not search storage or
@@ -31,24 +39,56 @@ array. This local provider lets you see actual matching rows before learning alt
 Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as a `.ts` file in your project and use
 `mise exec -- deno run example.ts`.
 
+`parse()` means “read and validate this request,” not “run this search.” The returned filter is data describing
+conditions. `conjunction()` is the existing API name for reading conditions joined by AND: every condition must match.
+It returns an empty list when no filter was supplied, and `undefined` for an OR or NOT group. This example's definition
+allows only AND groups, so its array provider can safely use `every()` on that list. It applies every condition rather
+than silently using only the first one.
+
 ```ts runnable=example.ts
 import * as query from '@okikio/query';
 import * as schema from '@okikio/schema';
-// Expose only the supported fields and operators; a client cannot name arbitrary data fields.
+
+// This is the public search vocabulary, not the database table definition.
 const Search = query.define({
-	fields: { name: query.field(schema.string()) },
+	fields: {
+		name: query.field(schema.string()),
+	},
 	filters: { name: [query.eq] },
 	pagination: query.offset({ defaultLimit: 2, maximumLimit: 10 }),
 });
-const checked = await Search.parse(new URL('https://example.test/people?filter[name]=Ada&limit=2'));
-if (checked.pagination.kind !== 'offset') throw new Error('This provider supports offset pages.');
-const name = query.conjunction(checked.filter)?.[0]?.value;
-// Parsing produced checked query data. This demo provider now applies it to an in-memory collection.
-const people = [{ name: 'Ada' }, { name: 'Lin' }];
-const matches = people.filter((person) => name === undefined || person.name === name);
-console.log(
-	JSON.stringify(matches.slice(checked.pagination.offset, checked.pagination.offset + checked.pagination.limit)),
+
+// Treat URL parameters as untrusted input. parse() checks the field, operator,
+// operand and page limit, then returns data that this provider understands.
+const checked = await Search.parse(
+	new URL('https://example.test/people?filter[name]=Ada&limit=2'),
 );
+
+if (checked.pagination.kind !== 'offset') {
+	throw new Error('This provider supports offset pages.');
+}
+
+// conjunction() reads a list of conditions that must ALL match.
+// This definition permits AND groups only; never flatten OR or NOT into AND.
+const conditions = query.conjunction(checked.filter);
+if (conditions === undefined) {
+	throw new Error('This provider needs an AND-only filter.');
+}
+
+// Parsing does not retrieve people. These array operations are the provider.
+const people = [
+	{ name: 'Ada' },
+	{ name: 'Lin' },
+];
+const matches = people.filter((person) => {
+	return conditions.every((condition) => person.name === condition.value);
+});
+const { offset, limit } = checked.pagination;
+const rows = matches.slice(offset, offset + limit);
+
+console.log(JSON.stringify(rows));
+
+// A disallowed field is rejected before it reaches the provider.
 try {
 	await Search.parse(new URL('https://example.test/people?filter[password]=secret'));
 } catch (error) {
@@ -98,9 +138,12 @@ expose complete capabilities rather than internal functions that require mutable
 
 The checked filter is an ALL/ANY/NOT tree. Sort entries remain in priority order. `encode()` preserves the authored
 structure and page/offset style. `normalize()` creates a separate canonical representation for comparison, and
-`stringify()` writes that representation as URL text.
+`stringify()` writes that representation as URL text. Here **canonical** means a consistent representation useful
+for comparing requests or building cache keys. It is not a database execution plan or permission to reuse another
+account's cached results.
 
-`conjunction(value.filter)` is a convenience for an adapter limited to ALL. It returns all leaves, an empty list for no
+`conjunction(value.filter)` uses the formal word **conjunction**, meaning conditions joined by AND. It is a
+convenience for an adapter limited to ALL. It returns all leaves, an empty list for no
 filter, or `undefined` if ANY/NOT prevents a conjunction-only interpretation. The full tree is always `value.filter`;
 reading it does not throw because the caller used a permitted Boolean operation.
 
@@ -129,27 +172,75 @@ or test provider behavior without constructing a server or workflow runtime.
 Each example starts from the public package or a supported subpath. Keep the allowed search definition, authored input,
 and checked data sent to an adapter distinct as you follow the examples.
 
-## Compose Boolean expressions on their own
+## Read an expression as a tree of decisions
 
-ALL means every condition must match, ANY means at least one must match, and
-NOT reverses its child's answer. A **leaf** is one condition without children.
-In the next example each leaf is a name, and the comparison asks whether that
-name belongs to a set. The rule reads “Ada or Lin is present, and Removed is not.”
-It prints `true` because only Ada is present. It prints `3` because the tree
-contains three name conditions; that count does not say three people matched.
+Suppose a publishing tool allows an editor or an administrator to publish, but a suspended account must be refused.
+Write that rule in ordinary words first:
 
-The expression capability does not need fields, schemas, pagination, or a provider. Your predicate identifies a domain
-leaf; your comparison supplies its meaning. ALL and ANY short-circuit in the authored order after the tree passes shape,
-cycle, and budget checks.
+**(editor OR administrator) AND NOT suspended**
+
+A query **expression** is data that describes a rule. A **tree** means each group contains other groups or individual
+conditions. Its top group is the **root**. A condition with no children is a **leaf**. These are shapes in ordinary
+JavaScript data, not database rows or an executing search.
+
+The current builders use the names below. OR is inclusive: either condition may match, and both may match too.
+
+| Familiar logic | Current builder | What the group asks |
+| --- | --- | --- |
+| AND | `all(a, b)` | Did every child match? |
+| OR | `any(a, b)` | Did at least one child match? |
+| NOT | `not(a)` | Did the child fail to match? |
+
+Read this tree from the top. The AND group needs a positive answer from both branches. Its left branch asks for at
+least one role. Its right branch reverses the suspension answer. The diagram omits evaluation order; the evaluator
+checks shape first, then compares children in the order written in code.
+
+```mermaid
+flowchart TD
+    And["AND: all"] --> Or["OR: any"]
+    And --> Not["NOT: not"]
+    Or --> Editor["Leaf: editor"]
+    Or --> Administrator["Leaf: administrator"]
+    Not --> Suspended["Leaf: suspended"]
+```
+
+`all()`, `any()` and `not()` only construct that data. They do not know whether an account is an editor, whether a
+name matches a person, or how SQL compares a value. `evaluate()` supplies the missing step: it walks a structurally
+valid expression and combines true/false answers from **your** comparison function. It returns one Boolean for the
+whole rule. It does not return matching records, grant authorization, or call a database.
+
+The next example supplies two different functions. `isAccountFact()` recognizes a leaf instead of a group; it checks
+what kind of data the node is. The comparison passed to `evaluate()` checks whether that fact is true for this one
+account. Keeping those jobs separate lets the same expression structure describe other domains.
 
 ```ts runnable
 import { all, any, evaluate, inspect, not } from '@okikio/query/expression';
 
-const rule = all(any('Ada', 'Lin'), not('Removed'));
-const isName = (value: unknown): value is string => typeof value === 'string';
-const names = new Set(['Ada']);
-console.log(evaluate(rule, isName, (name) => names.has(name)));
-console.log(inspect(rule, isName).leafCount);
+type AccountFact = 'editor' | 'administrator' | 'suspended';
+
+/** Recognize this example's leaf values; group nodes are objects, not these strings. */
+function isAccountFact(value: unknown): value is AccountFact {
+	return value === 'editor' || value === 'administrator' || value === 'suspended';
+}
+
+// Describe the policy without evaluating a particular account yet.
+const rule = all(
+	any('editor', 'administrator'),
+	not('suspended'),
+);
+
+// This account is an editor and is not suspended.
+const accountFacts = new Set<AccountFact>(['editor']);
+const canPublish = evaluate(
+	rule,
+	isAccountFact,
+	(fact) => accountFacts.has(fact),
+);
+
+console.log(canPublish);
+
+// Inspection counts the three authored conditions, not accounts or matches.
+console.log(inspect(rule, isAccountFact).leafCount);
 ```
 
 ```text output
@@ -157,12 +248,20 @@ true
 3
 ```
 
-`all()` and `any()` require at least one condition. Their child lists are copied; domain leaf objects remain borrowed.
-Evaluation is synchronous and each comparison must return a boolean. Use the same expression values with a provider
-compiler when your domain is not an in-memory membership test.
+For this account, `editor` matches, so OR is true. `suspended` does not match, so NOT is true. Both answers are true,
+so AND returns true. OR does not need to compare `administrator` after finding `editor`; this is **short-circuiting**.
+The three-leaf inspection count still includes it, because inspection measures the full rule rather than executed checks.
+This is a local rule example, not an authentication system: trusted application code must supply the actual facts.
+
+The evaluator validates the entire structure before calling the comparison, including branches short-circuiting would
+skip. Cycles and invalid groups throw. Comparisons must be synchronous and return booleans. `all()` and `any()` need
+at least one child. They copy their child arrays but borrow leaf objects, so changing a borrowed object can change
+what a later comparison sees.
 
 Standalone inspection defaults to depth 64, 10,000 leaves, and 1,000 children per group. Pass a `QueryExpressionLimits`
 object to choose a smaller budget. These standalone limits are separate from a collection definition's HTTP budgets.
+Use [the collection example below](#apply-a-real-search-to-an-array) to see how evaluating a filter for each person
+produces a matching array.
 
 ## Read pagination without searchable fields
 
@@ -171,12 +270,21 @@ A table, an activity log, or a feed may need page controls without a filter lang
 ```ts runnable
 import * as page from '@okikio/query/pagination';
 
+// Reuse this page policy across incoming requests.
 const policy = page.offset({ defaultLimit: 20, maximumLimit: 100 });
+
+// page=2 and per_page=20 mean skip 20 records, then return up to 20.
 const current = page.parse(policy, new URLSearchParams('page=2&per_page=20&view=compact'));
-if (current.kind !== 'offset') throw new Error('Expected an offset page.');
+if (current.kind !== 'offset') {
+	throw new Error('Expected an offset page.');
+}
 console.log(current.offset, current.limit);
+
+// Write the third page as a link; encoding checks the offset agrees with page 3.
 const next = page.encode(policy, { ...current, page: 3, offset: 40 });
 console.log(next.toString());
+
+// A request beyond maximumLimit is rejected without a throwing validation API.
 console.log(page.safeParse(policy, new URLSearchParams('limit=1000')).success);
 ```
 
@@ -234,11 +342,16 @@ import * as parameters from '@okikio/query/url';
 
 // Expose only the supported fields and operators; a client cannot name arbitrary data fields.
 const Search = query.define({
-	fields: { name: query.field(schema.string()), score: query.field(schema.number()) },
+	fields: {
+		name: query.field(schema.string()),
+		score: query.field(schema.number()),
+	},
 	filters: { name: [query.eq, query.in], score: [query.gte, query.between] },
 	expressions: ['all', 'any', 'not'],
 	pagination: query.offset({ defaultLimit: 20 }),
 });
+
+// Build and validate the request using the same definition as URL callers.
 const value = await Search.create({
 	filter: query.any(
 		Search.condition('name', 'in', ['a,b', '', '雪']),
@@ -247,6 +360,8 @@ const value = await Search.create({
 	fields: ['name'],
 	pagination: { kind: 'page', page: 2, limit: 5 },
 });
+
+// Turn checked data into a shareable link, then read the same request back.
 const url = new URL('https://example.test/people');
 url.search = parameters.encode(Search, value).toString();
 const restored = await parameters.parse(Search, url);
@@ -285,14 +400,20 @@ const Score = codec.define({
 	decode: schema.transform(schema.string(), Number),
 	encode: schema.transform(schema.number(), String),
 });
+
 // Expose only the supported fields and operators; a client cannot name arbitrary data fields.
 const Search = query.define({
 	fields: { score: query.field(Score, { outputJsonSchema: { type: 'number' } }) },
 	filters: { score: [query.gte] },
 	pagination: query.offset(),
 });
+
+// Build and validate the request using the same definition as URL callers.
 const value = await Search.create({ filter: Search.condition('score', 'gte', '12') });
-console.log(query.conjunction(value.filter)?.[0]?.value);
+// This request has one score condition. Inspect its transformed number;
+// this is an encoding demonstration, not an implementation of a search provider.
+const scoreCondition = query.conjunction(value.filter)?.[0];
+console.log(scoreCondition?.value);
 console.log(Search.stringify(await Search.parse(Search.encode(value))) === Search.stringify(value));
 ```
 
@@ -319,18 +440,27 @@ written back into a URL accepted by the same schema.
 This adapter supports name equality, minimum score, Boolean groups, simple projection, and offset pages. Those are
 concrete promises. Its declaration excludes sorting and cursor pagination, so it does not need to guess their semantics.
 
+For each person, the comparison returns true or false for one condition. `evaluate()` combines those answers using
+the expression's AND/OR/NOT groups, and `Array.filter()` keeps people whose whole expression is true. Ada matches
+by name; Lin matches by score; Bea matches neither. Selecting only `name` is called **projection** here: it chooses
+properties in the returned record, independently of which people matched.
+
 ```ts runnable
 import * as query from '@okikio/query';
 import { evaluate } from '@okikio/query/expression';
 import * as schema from '@okikio/schema';
 
-// Expose only the supported fields and operators; a client cannot name arbitrary data fields.
 const Search = query.define({
-	fields: { name: query.field(schema.string()), score: query.field(schema.number()) },
+	fields: {
+		name: query.field(schema.string()),
+		score: query.field(schema.number()),
+	},
 	filters: { name: [query.eq], score: [query.gte] },
 	expressions: ['all', 'any', 'not'],
 	pagination: query.offset(),
 });
+
+// The array provider below promises these features, and no sorting or cursors.
 const compatibility = Search.validateAdapter({
 	operators: ['eq', 'gte'],
 	expressions: ['all', 'any', 'not'],
@@ -338,27 +468,55 @@ const compatibility = Search.validateAdapter({
 	fieldSelection: ['simple'],
 	maximumSorts: 0,
 });
-if (!compatibility.valid) throw new Error('This definition needs a different adapter.');
-const value = await Search.create({
-	filter: query.any(Search.condition('name', 'eq', 'Ada'), Search.condition('score', 'gte', 90)),
+if (!compatibility.valid) {
+	throw new Error('This definition needs a different adapter.');
+}
+
+// Request people named Ada OR people with a score of at least 90.
+const checked = await Search.create({
+	filter: query.any(
+		Search.condition('name', 'eq', 'Ada'),
+		Search.condition('score', 'gte', 90),
+	),
 	fields: ['name'],
 	pagination: { kind: 'offset', limit: 2 },
 });
-const people = [{ name: 'Ada', score: 40 }, { name: 'Lin', score: 95 }, { name: 'Bea', score: 10 }];
-type Filter = query.QueryFilter<typeof Search.fields>;
-const isFilter = (entry: query.QueryExpression<Filter>): entry is Filter => 'field' in entry;
-const matches = people.filter((person) =>
-	value.filter === undefined || evaluate(value.filter, isFilter, (filter) => {
-		if (filter.field === 'name' && filter.operator === 'eq') return person.name === filter.value;
-		if (filter.field === 'score' && filter.operator === 'gte') return person.score >= filter.value;
-		throw new Error('Unsupported field/operator pair.');
-	})
-);
-if (value.pagination.kind !== 'offset' || value.fields.kind !== 'simple') {
-	throw new Error('Unsupported page or projection.');
+
+const people = [
+	{ name: 'Ada', score: 40 },
+	{ name: 'Lin', score: 95 },
+	{ name: 'Bea', score: 10 },
+];
+type Condition = query.QueryFilter<typeof Search.fields>;
+
+/** Recognize a validated field condition rather than an all/any/not group. */
+function isCondition(entry: query.QueryExpression<Condition>): entry is Condition {
+	return 'field' in entry;
 }
-const { offset, limit } = value.pagination;
-const selected = value.fields.fields;
+
+// Evaluate the whole rule once for each person. true means keep that person.
+const matches = people.filter((person) => {
+	if (checked.filter === undefined) return true;
+
+	return evaluate(checked.filter, isCondition, (condition) => {
+		// These comparisons give field conditions their meaning for this data source.
+		if (condition.field === 'name' && condition.operator === 'eq') {
+			return person.name === condition.value;
+		}
+		if (condition.field === 'score' && condition.operator === 'gte') {
+			return person.score >= condition.value;
+		}
+		throw new Error('Unsupported field/operator pair.');
+	});
+});
+
+if (checked.pagination.kind !== 'offset' || checked.fields.kind !== 'simple') {
+	throw new Error('Unsupported page or field selection.');
+}
+
+// Filtering chooses people; pagination chooses a window; projection chooses properties.
+const { offset, limit } = checked.pagination;
+const selected = checked.fields.fields;
 const rows = matches.slice(offset, offset + limit).map((person) =>
 	Object.fromEntries(selected.map((field) => [field, person[field]]))
 );

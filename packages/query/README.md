@@ -12,10 +12,18 @@ Field selection chooses which properties the caller wants to receive. These are
 requests within an application-approved vocabulary. They do not grant access to
 private records. Apply trusted account or tenant restrictions in the provider too.
 
-```text
-caller URL -> allowed query definition -> checked request -> your provider -> records
-                                                               ^
-                                             trusted access restrictions
+The flow below separates checking a request from finding records. Follow the valid branch to the provider;
+the invalid branch ends before any search. Authentication and trusted account restrictions are application work.
+
+```mermaid
+flowchart TD
+    URL["Caller URL: name=Ada, limit=2"] --> Parse["Search.parse: check allowed fields, values and limits"]
+    Definition["Application's Search definition"] --> Parse
+    Parse -->|invalid| Reject["QueryValidationError: no search"]
+    Parse -->|valid| Checked["Checked filter and page data"]
+    Checked --> Provider["Application provider applies conditions"]
+    Access["Trusted account restrictions"] --> Provider
+    Provider --> Rows["Matching records, limited to this page"]
 ```
 
 The arrow into the provider matters: parsing a URL does not search storage or
@@ -37,24 +45,56 @@ repository root, review `mise.toml`, run `mise trust`, then `mise install` and `
 Save the following module as `example.ts` and run `mise exec -- deno run example.ts`.
 [Checkout prerequisites](../../README.md#work-on-the-repository) explain installing Mise.
 
+`parse()` means “read and validate this request,” not “run this search.” The returned filter is data describing
+conditions. `conjunction()` is the existing API name for reading conditions joined by AND: every condition must match.
+It returns an empty list when no filter was supplied, and `undefined` for an OR or NOT group. This example's definition
+allows only AND groups, so its array provider can safely use `every()` on that list. It applies every condition rather
+than silently using only the first one.
+
 ```ts runnable=example.ts
 import * as query from '@okikio/query';
 import * as schema from '@okikio/schema';
-// Expose only the supported fields and operators; a client cannot name arbitrary data fields.
+
+// This is the public search vocabulary, not the database table definition.
 const Search = query.define({
-	fields: { name: query.field(schema.string()) },
+	fields: {
+		name: query.field(schema.string()),
+	},
 	filters: { name: [query.eq] },
 	pagination: query.offset({ defaultLimit: 2, maximumLimit: 10 }),
 });
-const checked = await Search.parse(new URL('https://example.test/people?filter[name]=Ada&limit=2'));
-if (checked.pagination.kind !== 'offset') throw new Error('This provider supports offset pages.');
-const name = query.conjunction(checked.filter)?.[0]?.value;
-// Parsing produced checked query data. This demo provider now applies it to an in-memory collection.
-const people = [{ name: 'Ada' }, { name: 'Lin' }];
-const matches = people.filter((person) => name === undefined || person.name === name);
-console.log(
-	JSON.stringify(matches.slice(checked.pagination.offset, checked.pagination.offset + checked.pagination.limit)),
+
+// Treat URL parameters as untrusted input. parse() checks the field, operator,
+// operand and page limit, then returns data that this provider understands.
+const checked = await Search.parse(
+	new URL('https://example.test/people?filter[name]=Ada&limit=2'),
 );
+
+if (checked.pagination.kind !== 'offset') {
+	throw new Error('This provider supports offset pages.');
+}
+
+// conjunction() reads a list of conditions that must ALL match.
+// This definition permits AND groups only; never flatten OR or NOT into AND.
+const conditions = query.conjunction(checked.filter);
+if (conditions === undefined) {
+	throw new Error('This provider needs an AND-only filter.');
+}
+
+// Parsing does not retrieve people. These array operations are the provider.
+const people = [
+	{ name: 'Ada' },
+	{ name: 'Lin' },
+];
+const matches = people.filter((person) => {
+	return conditions.every((condition) => person.name === condition.value);
+});
+const { offset, limit } = checked.pagination;
+const rows = matches.slice(offset, offset + limit);
+
+console.log(JSON.stringify(rows));
+
+// A disallowed field is rejected before it reaches the provider.
 try {
 	await Search.parse(new URL('https://example.test/people?filter[password]=secret'));
 } catch (error) {
@@ -78,6 +118,68 @@ by its definition and add trusted tenant/access restrictions separately.
 A definition says what callers may request. A parsed value contains `{ filter?, order, fields, pagination }`. The field
 schema validates an operand; Query validates whether that field, operator, sort, projection, and page are allowed
 together.
+
+## Author the same request without URL notation
+
+`condition()` keeps field names, enabled operators, and operand types connected. `create()` validates the complete
+request and supplies omitted defaults.
+Here `eq` means “equals” and `gte` means “greater than or equal to.” The request
+means “name equals Ada OR score is at least 90.” `any()` supplies that OR;
+`all()` requires every condition and `not()` reverses a condition. The first
+printed value, `2`, counts the two conditions, not two matching people. The
+second, `true`, checks that encoding and parsing preserve this request.
+
+A **tree** is a group containing other groups or conditions. This request has an OR group at the top, with two
+conditions beneath it. A **leaf** is a condition with no children; the tree describes a request and does not yet search
+people. See [the expression walkthrough](../../docs/query.md#read-an-expression-as-a-tree-of-decisions) for a nested
+AND/OR/NOT rule and the difference between recognizing a leaf and comparing its value.
+
+```mermaid
+flowchart TD
+    Or["OR: any"] --> Name["name equals Ada"]
+    Or --> Score["score is at least 90"]
+```
+
+```ts runnable
+import * as query from '@okikio/query';
+import * as schema from '@okikio/schema';
+
+// Expose only the supported fields and operators; a client cannot name arbitrary data fields.
+const Search = query.define({
+	fields: {
+		name: query.field(schema.string()),
+		score: query.field(schema.number()),
+	},
+	filters: { name: [query.eq], score: [query.gte, query.between] },
+	expressions: ['all', 'any', 'not'],
+	pagination: query.offset(),
+});
+
+// Build and validate the request using the same definition as URL callers.
+const value = await Search.create({
+	filter: query.any(
+		Search.condition('name', 'eq', 'Ada'),
+		Search.condition('score', 'gte', 90),
+	),
+	pagination: { kind: 'offset', limit: 10 },
+	fields: ['name'],
+});
+// Inspection counts conditions. It does not count matching people.
+console.log(Search.inspect(value).expression.leafCount);
+
+// A saved URL should describe the same checked request after being read back.
+const restored = await Search.parse(Search.encode(value));
+console.log(Search.stringify(restored) === Search.stringify(value));
+```
+
+```text output
+2
+true
+```
+
+A scalar operator requires one value, `between` requires a pair, `in`/`nin` require a nonempty list, and
+`isNull`/`isNotNull` take no operand. These rules apply to types and runtime validation. A condition helper constructs
+authoring data; the complete request becomes checked data only after `create()` succeeds.
 
 ## Compile a checked request for PostgreSQL
 
@@ -299,48 +401,6 @@ configuration; clients cannot introduce them. A to-many child collection needs
 a separate query or an explicitly modeled row relation, rather than silently
 changing what the parent page counts.
 
-## Author the same request without URL notation
-
-`condition()` keeps field names, enabled operators, and operand types connected. `create()` validates the complete
-request and supplies omitted defaults.
-Here `eq` means “equals” and `gte` means “greater than or equal to.” The request
-means “name equals Ada OR score is at least 90.” `any()` supplies that OR;
-`all()` requires every condition and `not()` reverses a condition. The first
-printed value, `2`, counts the two conditions, not two matching people. The
-second, `true`, checks that encoding and parsing preserve this request.
-
-```ts runnable
-import * as query from '@okikio/query';
-import * as schema from '@okikio/schema';
-
-// Expose only the supported fields and operators; a client cannot name arbitrary data fields.
-const Search = query.define({
-	fields: { name: query.field(schema.string()), score: query.field(schema.number()) },
-	filters: { name: [query.eq], score: [query.gte, query.between] },
-	expressions: ['all', 'any', 'not'],
-	pagination: query.offset(),
-});
-const value = await Search.create({
-	filter: query.any(
-		Search.condition('name', 'eq', 'Ada'),
-		Search.condition('score', 'gte', 90),
-	),
-	pagination: { kind: 'offset', limit: 10 },
-	fields: ['name'],
-});
-console.log(Search.inspect(value).expression.leafCount);
-console.log(Search.stringify(await Search.parse(Search.encode(value))) === Search.stringify(value));
-```
-
-```text output
-2
-true
-```
-
-A scalar operator requires one value, `between` requires a pair, `in`/`nin` require a nonempty list, and
-`isNull`/`isNotNull` take no operand. These rules apply to types and runtime validation. A condition helper constructs
-authoring data; the complete request becomes checked data only after `create()` succeeds.
-
 ## Choose the capability you need
 
 | Import                     | Consumer job                                                                                                                        |
@@ -493,7 +553,11 @@ import * as schema from '@okikio/schema';
 import { asc } from '@okikio/query';
 import { create } from '@okikio/query/cursor';
 import * as hmac from '@okikio/hash/hmac';
+
+// A local demonstration key; a service must borrow a persistent signing key.
 const signer = await hmac.create('sha256', crypto.getRandomValues(new Uint8Array(32)));
+
+// Bind this bookmark to the query, its ordered keys and the authorized context.
 const cursor = create({
 	contract: 'people.v1',
 	order: [asc('id', { tiebreaker: true })],
@@ -508,6 +572,8 @@ const cursor = create({
 	expiresIn: 60000,
 	now: Date.now,
 });
+
+// Signing produces a bookmark; decoding verifies it and returns the original key.
 const token = await cursor.encode('last-person-id');
 console.log(await cursor.decode(token));
 ```
