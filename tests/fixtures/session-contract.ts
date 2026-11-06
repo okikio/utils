@@ -90,7 +90,11 @@ export const Live = activity.implement(Work, {
 		const receipt = { pid: process.pid, thread: threadId, host: ctx.physicalHost };
 		try {
 			if (ctx.input.op === 'create') {
-				return { ...receipt, status: 'ok' as const, reference: await owner.create({ signal: ctx.signal, host: ctx.physicalHost }) };
+				return {
+					...receipt,
+					status: 'ok' as const,
+					reference: await owner.create({ signal: ctx.signal, host: ctx.physicalHost }),
+				};
 			}
 			const ref = ctx.input.reference!;
 			if (ctx.input.op === 'close') {

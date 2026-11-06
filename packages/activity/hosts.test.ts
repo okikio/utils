@@ -24,7 +24,8 @@ describe('shared activity hosts', () => {
 				create: () => ({}),
 				close() {},
 			}, 1);
-			await using held = await values.acquire(ctx);
+			// Keep the only host leased so the next acquisition must wait for its deadline.
+			await using _held = await values.acquire(ctx);
 			const waiting = expect(values.acquire(ctx)).rejects.toMatchObject({ name: 'PoolAcquireTimeoutError' });
 			clock.advance({ milliseconds: 1 });
 			await waiting;

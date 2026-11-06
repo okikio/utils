@@ -120,7 +120,9 @@ try {
 			}
 			const location = input.reference
 				? workflow.placement.session(input.reference)
-				: input.host ? workflow.placement.host(compute, input.host) : workflow.placement.on(compute);
+				: input.host
+				? workflow.placement.host(compute, input.host)
+				: workflow.placement.on(compute);
 			if (request.url === '/durable') {
 				const ref = await client.trigger(Parent, input, { scope: 'session', key: crypto.randomUUID(), location });
 				return await client.wait(Parent, ref, { signal: AbortSignal.timeout(15000), intervalMs: 10 });
