@@ -1,8 +1,57 @@
-[env]
-_.file = [".env.local"]
+min_version = "2026.10.3"
+
+# Task families are the common local/CI interface. Helpers live under tools/;
+# package source and tests keep their own runtime and resource contracts.
+[settings]
+task.output = "keep-order"
 
 [tools]
 bun = "1.4.2"
 deno = "2.9.7"
 node = "26.10.0"
 pnpm = "11.17.0"
+
+[tasks."prepare"]
+description = "Prepare explicitly selected dependency and host fixtures"
+raw_args = true
+run = "node tools/workspace/run.ts prepare"
+
+[tasks."check"]
+description = "Check source or package contracts; select kind and project"
+raw_args = true
+run = "node tools/workspace/run.ts check"
+
+[tasks."test"]
+description = "Run discovered tests; select suite, runtime and project"
+raw_args = true
+run = "node tools/workspace/run.ts test"
+
+[tasks."bench"]
+description = "Check or measure discovered workloads; select project and runtime"
+raw_args = true
+run = "node tools/workspace/run.ts bench"
+
+[tasks."build"]
+description = "Build selected npm packages or synchronize source exports"
+raw_args = true
+run = "node tools/workspace/run.ts build"
+
+[tasks."verify"]
+description = "Check source and test supported consumer workflows"
+raw_args = true
+run = "node tools/workspace/run.ts verify"
+
+[tasks."release"]
+description = "Check release metadata and JSR publication candidates"
+raw_args = true
+run = "node tools/workspace/run.ts release"
+
+[tasks."ci:plan"]
+description = "Select affected CI lanes from exact Git revisions"
+raw_args = true
+run = "node tools/workspace/run.ts ci:plan"
+
+[tasks."ci:run"]
+description = "Run one selected CI lane using the local workflow owners"
+raw_args = true
+run = "node tools/workspace/run.ts ci:run"

@@ -1,5 +1,5 @@
 import * as endpoint from '@okikio/server/endpoint';
-import * as resource from '@okikio/resource';
+import * as resource from '@okikio/capability/resource';
 
 import type { ServiceDefinition, ServiceImplementation, ServiceImplementationInput } from './types.ts';
 

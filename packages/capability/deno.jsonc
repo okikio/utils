@@ -1,0 +1,56 @@
+{
+	"name": "@okikio/capability",
+	"version": "0.0.0",
+	"publish": {
+		"exclude": [
+			"**/*.test.ts",
+			"**/*.bench.ts",
+			"**/fixtures/**"
+		]
+	},
+	"exports": {
+		"./effect": "./effect/mod.ts",
+		"./effect/types": "./effect/types.ts",
+		"./effect/observe": "./effect/observe.ts",
+		"./effect/meter": "./effect/meter/mod.ts",
+		"./effect/meter/types": "./effect/meter/types.ts",
+		"./effect/meter/schema": "./effect/meter/schema.ts",
+		"./requirement": "./requirement/mod.ts",
+		"./requirement/types": "./requirement/types.ts",
+		"./requirement/definition": "./requirement/definition.ts",
+		"./resilience": "./resilience/mod.ts",
+		"./resilience/types": "./resilience/types.ts",
+		"./resilience/poll": "./resilience/poll.ts",
+		"./resource": "./resource/mod.ts",
+		"./resource/types": "./resource/types.ts",
+		"./execution": "./execution.ts",
+		".": "./mod.ts",
+		"./resilience/attempt": "./resilience/attempt.ts",
+		"./resource/session": "./resource/session/mod.ts"
+	},
+	"imports": {
+	},
+	"license": "MIT",
+	"tasks": {
+		"check": "mise run check -- --project capability",
+		"test": "mise run test -- --project capability",
+		"bench": "mise run bench -- --project capability",
+		"bench:check": "mise run bench -- --project capability --check"
+	},
+	"permissions": {
+		"test": {},
+		"bench": {
+			"env": [
+				"NODE_DISABLE_COLORS",
+				"NO_COLOR",
+				"FORCE_COLOR"
+			]
+		}
+	},
+	"test": {
+		"exclude": [
+			"**/*.types.test.ts",
+			"**/types.test.ts"
+		]
+	}
+}

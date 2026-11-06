@@ -1,5 +1,8 @@
 /** Adapted upstream literal observations. See README.md and HONO-LICENSE. @module */
-import type { RequestCaseType } from './types.ts';
+import type { RequestCaseType } from '#fixtures/hono-contracts/types.ts';
+import { nativeRequestMetadata } from '#fixtures/hono-contracts/native.ts';
+
+const jsonBytes = [123, 34, 102, 111, 111, 34, 58, 34, 98, 97, 114, 34, 125] as const;
 
 export const requestCases: readonly RequestCaseType[] = [
 	{
@@ -99,46 +102,10 @@ export const requestCases: readonly RequestCaseType[] = [
 			'title': 'req.text()',
 		},
 		'operation': 'body-cache',
-		'expected': [
-			'{"foo":"bar"}',
-			{
-				'foo': 'bar',
-			},
-			[
-				123,
-				34,
-				102,
-				111,
-				111,
-				34,
-				58,
-				34,
-				98,
-				97,
-				114,
-				34,
-				125,
-			],
-			[
-				123,
-				34,
-				102,
-				111,
-				111,
-				34,
-				58,
-				34,
-				98,
-				97,
-				114,
-				34,
-				125,
-			],
-			{
-				'text': '{"foo":"bar"}',
-				'type': 'text/plain;charset=utf-8',
-			},
-		],
+		'expected': ['{"foo":"bar"}', { foo: 'bar' }, jsonBytes, jsonBytes, {
+			text: '{"foo":"bar"}',
+			type: 'text/plain;charset=utf-8',
+		}],
 		'body': '{"foo":"bar"}',
 		'bodyKind': 'text',
 		'order': [
@@ -150,6 +117,12 @@ export const requestCases: readonly RequestCaseType[] = [
 		],
 		'adaptation':
 			'Utils explicitly memoizes bounded raw bytes, then decodes each view. Hono automatically caches body methods; this is composed cache behavior, not equivalent default APIs.',
+		'utilsExpected': ['{"foo":"bar"}', { foo: 'bar' }, jsonBytes, jsonBytes, {
+			text: '{"foo":"bar"}',
+			type: nativeRequestMetadata.textHeader,
+		}],
+		'difference':
+			'Hono reconstructs cached Blob views with native Response; the Utils byte-cache example retains the source Request Content-Type. Native Bun metadata differences remain visible.',
 	},
 	{
 		'id': 'request.cache-json',
@@ -159,46 +132,10 @@ export const requestCases: readonly RequestCaseType[] = [
 			'title': 'req.json()',
 		},
 		'operation': 'body-cache',
-		'expected': [
-			{
-				'foo': 'bar',
-			},
-			'{"foo":"bar"}',
-			[
-				123,
-				34,
-				102,
-				111,
-				111,
-				34,
-				58,
-				34,
-				98,
-				97,
-				114,
-				34,
-				125,
-			],
-			[
-				123,
-				34,
-				102,
-				111,
-				111,
-				34,
-				58,
-				34,
-				98,
-				97,
-				114,
-				34,
-				125,
-			],
-			{
-				'text': '{"foo":"bar"}',
-				'type': 'text/plain;charset=utf-8',
-			},
-		],
+		'expected': [{ foo: 'bar' }, '{"foo":"bar"}', jsonBytes, jsonBytes, {
+			text: '{"foo":"bar"}',
+			type: 'text/plain;charset=utf-8',
+		}],
 		'body': '{"foo":"bar"}',
 		'bodyKind': 'text',
 		'order': [
@@ -210,6 +147,12 @@ export const requestCases: readonly RequestCaseType[] = [
 		],
 		'adaptation':
 			'Utils explicitly memoizes bounded raw bytes, then decodes each view. Hono automatically caches body methods; this is composed cache behavior, not equivalent default APIs.',
+		'utilsExpected': [{ foo: 'bar' }, '{"foo":"bar"}', jsonBytes, jsonBytes, {
+			text: '{"foo":"bar"}',
+			type: nativeRequestMetadata.textHeader,
+		}],
+		'difference':
+			'Hono reconstructs cached Blob views with native Response; the Utils byte-cache example retains the source Request Content-Type. Native Bun metadata differences remain visible.',
 	},
 	{
 		'id': 'request.cache-array-buffer',
@@ -219,46 +162,10 @@ export const requestCases: readonly RequestCaseType[] = [
 			'title': 'req.arrayBuffer()',
 		},
 		'operation': 'body-cache',
-		'expected': [
-			[
-				123,
-				34,
-				102,
-				111,
-				111,
-				34,
-				58,
-				34,
-				98,
-				97,
-				114,
-				34,
-				125,
-			],
-			'{"foo":"bar"}',
-			{
-				'foo': 'bar',
-			},
-			[
-				123,
-				34,
-				102,
-				111,
-				111,
-				34,
-				58,
-				34,
-				98,
-				97,
-				114,
-				34,
-				125,
-			],
-			{
-				'text': '{"foo":"bar"}',
-				'type': '',
-			},
-		],
+		'expected': [jsonBytes, '{"foo":"bar"}', { foo: 'bar' }, jsonBytes, {
+			text: '{"foo":"bar"}',
+			type: nativeRequestMetadata.bytesBlobType,
+		}],
 		'body': '{"foo":"bar"}',
 		'bodyKind': 'bytes',
 		'order': [
@@ -270,6 +177,9 @@ export const requestCases: readonly RequestCaseType[] = [
 		],
 		'adaptation':
 			'Utils explicitly memoizes bounded raw bytes, then decodes each view. Hono automatically caches body methods; this is composed cache behavior, not equivalent default APIs.',
+		'utilsExpected': [jsonBytes, '{"foo":"bar"}', { foo: 'bar' }, jsonBytes, { text: '{"foo":"bar"}', type: '' }],
+		'difference':
+			'Hono reconstructs cached Blob views with native Response; the Utils byte-cache example retains the source Request Content-Type. Native Bun metadata differences remain visible.',
 	},
 	{
 		'id': 'request.cache-bytes',
@@ -279,46 +189,10 @@ export const requestCases: readonly RequestCaseType[] = [
 			'title': 'req.bytes()',
 		},
 		'operation': 'body-cache',
-		'expected': [
-			[
-				123,
-				34,
-				102,
-				111,
-				111,
-				34,
-				58,
-				34,
-				98,
-				97,
-				114,
-				34,
-				125,
-			],
-			'{"foo":"bar"}',
-			{
-				'foo': 'bar',
-			},
-			[
-				123,
-				34,
-				102,
-				111,
-				111,
-				34,
-				58,
-				34,
-				98,
-				97,
-				114,
-				34,
-				125,
-			],
-			{
-				'text': '{"foo":"bar"}',
-				'type': '',
-			},
-		],
+		'expected': [jsonBytes, '{"foo":"bar"}', { foo: 'bar' }, jsonBytes, {
+			text: '{"foo":"bar"}',
+			type: nativeRequestMetadata.bytesBlobType,
+		}],
 		'body': '{"foo":"bar"}',
 		'bodyKind': 'bytes',
 		'order': [
@@ -330,6 +204,9 @@ export const requestCases: readonly RequestCaseType[] = [
 		],
 		'adaptation':
 			'Utils explicitly memoizes bounded raw bytes, then decodes each view. Hono automatically caches body methods; this is composed cache behavior, not equivalent default APIs.',
+		'utilsExpected': [jsonBytes, '{"foo":"bar"}', { foo: 'bar' }, jsonBytes, { text: '{"foo":"bar"}', type: '' }],
+		'difference':
+			'Hono reconstructs cached Blob views with native Response; the Utils byte-cache example retains the source Request Content-Type. Native Bun metadata differences remain visible.',
 	},
 	{
 		'id': 'request.cache-blob',
@@ -340,44 +217,11 @@ export const requestCases: readonly RequestCaseType[] = [
 		},
 		'operation': 'body-cache',
 		'expected': [
-			{
-				'text': '{"foo":"bar"}',
-				'type': 'application/json',
-			},
+			{ text: '{"foo":"bar"}', type: nativeRequestMetadata.jsonBlobType },
 			'{"foo":"bar"}',
-			{
-				'foo': 'bar',
-			},
-			[
-				123,
-				34,
-				102,
-				111,
-				111,
-				34,
-				58,
-				34,
-				98,
-				97,
-				114,
-				34,
-				125,
-			],
-			[
-				123,
-				34,
-				102,
-				111,
-				111,
-				34,
-				58,
-				34,
-				98,
-				97,
-				114,
-				34,
-				125,
-			],
+			{ foo: 'bar' },
+			jsonBytes,
+			jsonBytes,
 		],
 		'body': '{"foo":"bar"}',
 		'bodyKind': 'blob',
@@ -456,7 +300,7 @@ export const requestCases: readonly RequestCaseType[] = [
 			'foo': 'bar',
 			'file': {
 				'name': 't.txt',
-				'type': 'text/plain',
+				'type': nativeRequestMetadata.textFileType,
 				'text': 'hello',
 			},
 		},
@@ -655,7 +499,7 @@ export const requestCases: readonly RequestCaseType[] = [
 			'parsed': {},
 			'view': {
 				'text': '{"event":"push"}',
-				'type': 'application/json',
+				'type': nativeRequestMetadata.jsonBlobType,
 			},
 		},
 		'body': '{"event":"push"}',
@@ -693,11 +537,11 @@ export const requestCases: readonly RequestCaseType[] = [
 			},
 			'cache': 'no-cache',
 			'credentials': 'include',
-			'integrity': 'sha256-test',
+			'integrity': nativeRequestMetadata.integrity,
 			'mode': 'cors',
 			'redirect': 'follow',
-			'referrer': 'http://example.com/',
-			'referrerPolicy': 'origin',
+			'referrer': nativeRequestMetadata.referrer,
+			'referrerPolicy': nativeRequestMetadata.postReferrerPolicy,
 			'different': true,
 		},
 		'body': '{"foo":"bar"}',
@@ -787,7 +631,7 @@ export const requestCases: readonly RequestCaseType[] = [
 			'foo': 'bar',
 			'file': {
 				'name': 't.txt',
-				'type': 'text/plain',
+				'type': nativeRequestMetadata.textFileType,
 				'text': 'hello',
 			},
 		},
@@ -846,7 +690,7 @@ export const requestCases: readonly RequestCaseType[] = [
 			'agent': 'test-agent',
 			'cache': 'default',
 			'redirect': 'manual',
-			'referrerPolicy': 'no-referrer',
+			'referrerPolicy': nativeRequestMetadata.getReferrerPolicy,
 			'different': true,
 		},
 		'adaptation': 'Utils retains native Request.clone; no Utils cloning wrapper is claimed.',

@@ -1,14 +1,15 @@
+import * as codecs from '@okikio/schema/codec';
 import { expect } from '@std/expect';
 import { describe, it } from 'node:test';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 
 import * as context from '@okikio/context';
-import * as effect from '@okikio/effect';
-import * as failures from '@okikio/failure';
-import * as permissions from '@okikio/permission';
-import type { Adapter as ProcessAdapter, SignalType, Spawned, StatusType } from '@okikio/process';
-import * as resource from '@okikio/resource';
-import type { RawWorker, RawWorkerScope } from '@okikio/worker';
+import * as effect from '@okikio/capability/effect';
+import * as failures from '@okikio/result/failure';
+import * as permissions from '@okikio/authz/permission';
+import type { Adapter as ProcessAdapter, SignalType, Spawned, StatusType } from '@okikio/worker/process';
+import * as resource from '@okikio/capability/resource';
+import type { RawWorker, RawWorkerScope } from '@okikio/worker/thread';
 import type { ActivityAttemptControl, ActivityAttemptType, EngineProvider } from '@okikio/workflow';
 import * as engine from './engine.ts';
 import * as local from './local.ts';
@@ -59,19 +60,19 @@ const Write = permissions.define({
 const Rejected = failures.define({
 	id: 'provider-test.rejected',
 	description: 'The transport-conformance fixture deliberately rejected one value.',
-	data: InputSchema,
+	data: codecs.identity(InputSchema),
 });
 const Stored = effect.define({
 	id: 'provider-test.stored',
 	description: 'Records that one transport-conformance value was committed.',
-	value: ResultSchema,
+	value: codecs.identity(ResultSchema),
 });
 const Save = activity.define({
 	id: 'provider-test.save',
 	version: '1',
 	description: 'Checks authority, saves one value, emits an effect, and reports liveness.',
-	input: InputSchema,
-	result: ResultSchema,
+	input: codecs.identity(InputSchema),
+	result: codecs.identity(ResultSchema),
 	placement: engine.require(Engine),
 	resources: [Store],
 	requirements: [permissions.require(Write)],
@@ -239,7 +240,10 @@ class PairedScope implements RawWorkerScope {
 		message: new Set<(event: MessageEvent<unknown>) => void>(),
 		messageerror: new Set<(event: MessageEvent<unknown>) => void>(),
 	};
-	constructor(readonly parent: PairedWorker) {}
+	readonly parent: PairedWorker;
+	constructor(parent: PairedWorker) {
+		this.parent = parent;
+	}
 	postMessage(message: unknown): void {
 		queueMicrotask(() => this.parent.receive(message));
 	}
@@ -260,13 +264,15 @@ class PairedProcessAdapter implements ProcessAdapter {
 	readonly trees = Object.freeze(['direct-child'] as const);
 	readonly signal = 'SIGTERM';
 	readonly forceSignal = 'SIGKILL';
-	readonly servers: import('@okikio/process/channel').ProcessServer[] = [];
+	readonly servers: import('@okikio/worker/process/channel').ProcessServer[] = [];
 	#pid = 40_000;
 
-	constructor(
-		readonly owner: context.Owned,
-		readonly remote: resource.ResourceCollection,
-	) {}
+	readonly owner: context.Owned;
+	readonly remote: resource.ResourceCollection;
+	constructor(owner: context.Owned, remote: resource.ResourceCollection) {
+		this.owner = owner;
+		this.remote = remote;
+	}
 
 	async spawn(): Promise<Spawned> {
 		const input = new TransformStream<Uint8Array, Uint8Array>();
@@ -315,6 +321,77 @@ class PairedProcessAdapter implements ProcessAdapter {
 }
 
 describe('activity engine provider conformance', () => {
+	it('keeps the only Worker pool lease until cancelled activity cleanup has joined', async () => {
+		await using owner = context.create({ id: 'provider-cleanup-owner' });
+		await using first = context.child(owner, { id: 'provider-cleanup-first' });
+		await using second = context.child(owner, { id: 'provider-cleanup-second' });
+		await using remote = resource.create(resource.implementations(), { ctx: owner, host: {} });
+		const started = Promise.withResolvers<void>();
+		const disposing = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		let executions = 0;
+		let unfinished = 0;
+		let maximum = 0;
+		const implementation = activity.implement(Save, {
+			async run(ctx) {
+				executions++;
+				unfinished++;
+				maximum = Math.max(maximum, unfinished);
+				ctx.defer(async () => {
+					if (ctx.input.value === 'first') {
+						disposing.resolve();
+						await release.promise;
+					}
+					unfinished--;
+				});
+				if (ctx.input.value === 'first') {
+					started.resolve();
+					await context.observe(ctx.signal, new Promise<void>(() => {}));
+				}
+				return { stored: ctx.input.value };
+			},
+		});
+		const servers: import('@okikio/worker/thread').WorkerServer[] = [];
+		await using provider = await workers.create({
+			ctx: owner,
+			engine: Engine,
+			activities: [Save],
+			maximum: 1,
+			module: new URL('file:///cleanup.ts'),
+			shutdownMs: 10_000,
+			create() {
+				const pair = new PairedWorker();
+				servers.push(
+					workers.serve({ engine: Engine, implementations: [implementation], resources: remote, scope: pair.scope }),
+				);
+				return pair;
+			},
+		});
+		const control: ActivityAttemptControl = { async heartbeat() {} };
+		try {
+			let settled = false;
+			const pending = provider.run(first, attempt(first, 'first', 'first'), control).finally(() => {
+				settled = true;
+			});
+			await started.promise;
+			context.cancel(first, 'cancel first');
+			await disposing.promise;
+			const next = provider.run(second, attempt(second, 'second', 'second'), control);
+			await new Promise<void>((resolve) => setTimeout(resolve, 0));
+			expect(settled).toBe(false);
+			expect(provider.stats()).toMatchObject({ leased: 1, idle: 0, waiting: 1 });
+			expect(executions).toBe(1);
+			release.resolve();
+			expect((await pending).type).toBe('cancelled');
+			expect(await next).toEqual({ type: 'success', value: { stored: 'second' } });
+			expect(maximum).toBe(1);
+		} finally {
+			release.resolve();
+			await provider[Symbol.asyncDispose]();
+			await Promise.all(servers.map((server) => server[Symbol.asyncDispose]()));
+		}
+	});
+
 	it('preserves permissions, effects, resources, and heartbeats through a local provider', async () => {
 		await using ctx = context.create({ id: 'provider-local', clock: new context.TestClock() });
 		const remote = resources(ctx);
@@ -338,7 +415,7 @@ describe('activity engine provider conformance', () => {
 		const remote = resources(remoteOwner);
 		await using _collection = remote.collection;
 		const host = services();
-		const servers: import('@okikio/worker').WorkerServer[] = [];
+		const servers: import('@okikio/worker/thread').WorkerServer[] = [];
 		const provider = await workers.create({
 			ctx: parent,
 			engine: Engine,
@@ -394,4 +471,56 @@ describe('activity engine provider conformance', () => {
 			await adapter.close();
 		}
 	});
+});
+
+it("retains thrown undefined from both providers' pool-lifetime disposal", async () => {
+	await using owner = context.create({ id: 'provider-undefined-disposal' });
+	let failUnlink = false;
+	// No host is opened: fail only the borrowed signal's unlink during pool cleanup.
+	const signal = new Proxy(owner.signal, {
+		get(target, key) {
+			if (key === 'removeEventListener') {
+				return (...args: Parameters<AbortSignal['removeEventListener']>) => {
+					target.removeEventListener(...args);
+					if (failUnlink) throw undefined;
+				};
+			}
+			const value: unknown = Reflect.get(target, key, target);
+			return typeof value === 'function' ? value.bind(target) : value;
+		},
+	});
+	const ctx: context.Context = { ...owner, signal };
+	await using remote = resource.create(resource.implementations(), { ctx: owner, host: {} });
+	const adapter = new PairedProcessAdapter(owner, remote);
+	const workerProvider = await workers.create({
+		ctx,
+		engine: Engine,
+		activities: [Save],
+		module: new URL('file:///unused-worker.ts'),
+		maximum: 1,
+	});
+	const processProvider = await processes.create({
+		ctx,
+		engine: Engine,
+		activities: [Save],
+		adapter,
+		start: { command: 'unused-process' },
+		maximum: 1,
+	});
+	failUnlink = true;
+	const outcomes = await Promise.all(
+		[workerProvider, processProvider].map((provider) =>
+			provider[Symbol.asyncDispose]().then(
+				() => ({ rejected: false as const }),
+				(error: unknown) => ({ rejected: true as const, error }),
+			)
+		),
+	);
+	for (const outcome of outcomes) {
+		expect(outcome.rejected).toBe(true);
+		if (!outcome.rejected) throw new Error('Expected pool disposal rejection.');
+		expect(outcome.error).toBeInstanceOf(AggregateError);
+		if (!(outcome.error instanceof AggregateError)) throw new Error('Expected provider cleanup aggregate.');
+		expect(outcome.error.errors).toEqual([undefined]);
+	}
 });

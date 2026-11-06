@@ -1,8 +1,8 @@
 /** Pure Hono application and independently authored edge policy; no production Utils imports. @module */
 import { Hono } from 'hono';
 import { bodyLimit as bounded } from 'hono/body-limit';
-import { bodyLimit, jsonLimit, upstream } from './corpus.ts';
-import type { ParityApiType } from './corpus.ts';
+import { bodyLimit, jsonLimit, upstream } from '#fixtures/http-parity/corpus.ts';
+import type { ParityApiType } from '#fixtures/http-parity/corpus.ts';
 
 /** Implement the corpus as native Hono routes, context variables, and Hono middleware. */
 export function createHonoApi(): ParityApiType {

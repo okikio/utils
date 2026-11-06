@@ -1,0 +1,36 @@
+{
+	"name": "@okikio/scheduler",
+	"version": "0.0.0",
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"exports": {
+		"./capacity": "./capacity/mod.ts",
+		"./capacity/standard": "./capacity/standard.ts",
+		"./capacity/types": "./capacity/types.ts",
+		"./concurrency": "./concurrency/mod.ts",
+		"./concurrency/bounded": "./concurrency/bounded.ts",
+		"./concurrency/channel": "./concurrency/channel.ts",
+		"./queue": "./queue/mod.ts",
+		"./queue/types": "./queue/types.ts",
+		"./queue/fifo": "./queue/fifo.ts",
+		"./queue/policy": "./queue/policy.ts",
+		".": "./mod.ts"
+	},
+	"dependencies": {
+		"@standard-schema/spec": "^1.1.0",
+		"@okikio/collection": "workspace:^",
+		"@okikio/schema": "workspace:^",
+		"@std/async": "npm:@jsr/std__async@^1.5.0",
+		"@okikio/observables": "^1.4.0",
+		"@okikio/context": "workspace:^",
+		"@okikio/result": "workspace:^",
+		"@okikio/duration": "workspace:^",
+		"@okikio/telemetry": "workspace:^"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
+		"zod": "^4.5.4",
+		"mitata": "^1.0.34"
+	}
+}

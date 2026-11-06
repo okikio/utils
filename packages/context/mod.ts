@@ -1,7 +1,13 @@
 /**
- * Give nested work one cancellation signal, deadline, clock and cleanup owner. Passing separate signals and timers through every call otherwise makes it easy to outlive the caller or forget a temporary resource.
+ * Give an operation and its nested work one cancellation signal, clock, and cleanup owner. For example, a
+ * request can give a download a shorter deadline while keeping it within the request's lifetime.
  *
- * Start with create(), derive a child deadline for an expensive operation, and register cleanup on the context that owns it. Use view() or family scopes to attach capabilities without inventing a new lifetime. Snapshots carry identity and deadline across a transport; they do not carry resources or cancellation listeners. TestClock lets tests advance logical time without assuming a fast machine.
+ * Create an owner, derive a child when work needs its own lifetime, and register cleanup with the owner
+ * that acquired the resource. A view adds capabilities to an existing lifetime. It does not create another
+ * owner.
+ *
+ * Snapshots carry identity and deadlines across a transport. They do not transfer resources or
+ * cancellation listeners. TestClock lets tests advance logical time explicitly.
  *
  * @example
  * ```ts
@@ -14,16 +20,39 @@
  * const waiting = context.wait(child, { seconds: 1 });
  * clock.advance({ seconds: 1 });
  * await waiting;
- * console.log(context.remaining(child)?.milliseconds);
+ * console.log(context.remaining(child)?.total('milliseconds'));
  * ```
  *
  * @module
  */
+import { AsyncDisposableStack, asyncDispose, DisposableStack } from '@okikio/dispose';
 import { delay as standardDelay } from '@std/async/delay';
 import * as durationCore from '@okikio/duration';
+import { type Temporal, temporal } from '@okikio/duration/temporal';
+import * as record from '@okikio/collection/record';
 import type { ChildOptions, Clock, Context, CreateOptions, Owned, RestoreOptions, Snapshot } from './types.ts';
 
+/** Identity, clock and cleanup authority always remain with the source lifetime. */
+const lifetimeKeys = new Set<PropertyKey>([
+	'id',
+	'traceId',
+	'deploymentId',
+	'idempotencyKey',
+	'startedAt',
+	'deadline',
+	'signal',
+	'clock',
+	'closed',
+	'use',
+	'adopt',
+	'defer',
+	'instrument',
+	asyncDispose,
+]);
+
+/** Cancellation and cleanup authority is attached only to owners, never copied into a borrowed view. */
 const owners = new WeakMap<Owned, Readonly<{ controller: AbortController; dispose: () => Promise<void> }>>();
+/** Resolve nested capability views back to their source lifetime without retaining either object globally. */
 const views = new WeakMap<object, Context>();
 
 /** Error raised when a context has been cancelled. */
@@ -31,7 +60,7 @@ export class ContextCancelledError extends Error {
 	/** Caller or runtime reason retained for cancellation or failure diagnostics. */
 	readonly reason: unknown;
 
-	/** Create this ContextCancelledError from the explicit contract values supplied by its caller. */
+	/** Retain the caller's exact reason; a provider error can be inspected through cause and reason. */
 	constructor(reason: unknown = undefined) {
 		super('Context was cancelled.', reason === undefined ? undefined : { cause: reason });
 		this.name = 'ContextCancelledError';
@@ -46,7 +75,7 @@ export class ContextDeadlineExceededError extends Error {
 	/** Instant when this observation was recorded. */
 	readonly observedAt: Temporal.Instant;
 
-	/** Create this ContextDeadlineExceededError from the explicit contract values supplied by its caller. */
+	/** Record both the promised deadline and when the owning clock observed expiry. */
 	constructor(deadline: Temporal.Instant, observedAt: Temporal.Instant) {
 		super(`Context deadline ${deadline.toString()} was exceeded at ${observedAt.toString()}.`);
 		this.name = 'ContextDeadlineExceededError';
@@ -60,14 +89,15 @@ export function cancelled(value: unknown): boolean {
 	return value instanceof ContextCancelledError || value instanceof ContextDeadlineExceededError;
 }
 
-/** Clock backed by the runtime's native Temporal implementation and timer queue. */
+/** Clock backed by the selected local Temporal implementation and the runtime's timer queue. */
 export const SystemClock = Object.freeze(
 	{
-		now: () => Temporal.Now.instant(),
-		sleep: (milliseconds, signal) => delay(milliseconds, signal),
+		now: (): Temporal.Instant => temporal.Now.instant(),
+		sleep: (milliseconds: number, signal: AbortSignal | undefined): Promise<void> => delay(milliseconds, signal),
 	} satisfies Clock,
 );
 
+/** One simulated sleep and its abort registration. Waking or aborting removes the same waiter before settling it. */
 type TestClockWaiter = Readonly<{
 	target: Temporal.Instant;
 	resolve: () => void;
@@ -78,10 +108,12 @@ type TestClockWaiter = Readonly<{
 
 /** Mutable deterministic clock intended for tests and simulations. */
 export class TestClock implements Clock {
+	/** Current simulated instant. Moving time wakes sleepers but does not run their asynchronous continuations. */
 	#instant: Temporal.Instant;
+	/** Live sleeps only; abort and wake remove each waiter and its listener exactly once. */
 	readonly #waiters = new Set<TestClockWaiter>();
 
-	/** Create this TestClock from the explicit contract values supplied by its caller. */
+	/** Start from a chosen absolute instant; the default is 2000-01-01 UTC and schedules no native timer. */
 	constructor(initial: Temporal.Instant | string = '2000-01-01T00:00:00Z') {
 		this.#instant = toInstant(initial);
 	}
@@ -98,6 +130,7 @@ export class TestClock implements Clock {
 		if (milliseconds === 0) return Promise.resolve();
 		const target = this.#instant.add({ milliseconds });
 		return new Promise<void>((resolve, reject) => {
+			/** Remove authority to settle first: an abort racing with a clock advance must complete this sleep only once. */
 			const settle = (action: () => void) => {
 				if (!this.#waiters.delete(waiter)) return;
 				if (waiter.signal !== undefined && waiter.abort !== undefined) {
@@ -117,6 +150,11 @@ export class TestClock implements Clock {
 		});
 	}
 
+	/** Inspect ordered due instants without acquiring, waking or cancelling any sleeper. */
+	pending(): readonly Temporal.Instant[] {
+		return Object.freeze([...this.#waiters].map((waiter) => waiter.target).sort(temporal.Instant.compare));
+	}
+
 	/** Set deterministic time and release sleepers whose target is now due. */
 	set(instant: Temporal.Instant | string): void {
 		this.#instant = toInstant(instant);
@@ -125,19 +163,31 @@ export class TestClock implements Clock {
 
 	/** Advance deterministic time and release sleepers whose target is now due. */
 	advance(duration: Temporal.Duration | Temporal.DurationLike | string): Temporal.Instant {
-		this.#instant = this.#instant.add(Temporal.Duration.from(duration));
+		this.#instant = elapsedTarget(this.#instant, duration);
 		this.#wake();
 		return this.#instant;
 	}
 
+	/** Wake a snapshot of due sleepers; settlement can remove entries while this pass runs. */
 	#wake(): void {
 		for (const waiter of [...this.#waiters]) {
-			if (Temporal.Instant.compare(waiter.target, this.#instant) <= 0) waiter.resolve();
+			if (temporal.Instant.compare(waiter.target, this.#instant) <= 0) waiter.resolve();
 		}
 	}
 }
 
-/** Create one independently owned context. */
+/**
+ * Create an operation owner with its own cancellation and cleanup stack.
+ *
+ * A supplied signal is borrowed and linked until disposal. Clock and instrument
+ * are also borrowed. The owner disposes only values explicitly registered with
+ * use/adopt/defer; aborting its signal alone does not run that cleanup stack.
+ * Every disposal call joins the same completion, including calls from an abort
+ * observer or a cleanup callback. The closed observation settles after cleanup
+ * and deadline retirement even when disposal rejects with a cleanup failure.
+ * Cleanup callbacks must not await this same disposal completion: the completion
+ * is waiting for those callbacks, so doing so creates a dependency cycle.
+ */
 export function create(options: CreateOptions): Owned {
 	assertIdentifier(options.id, 'id');
 	if (options.traceId !== undefined) assertIdentifier(options.traceId, 'traceId');
@@ -151,6 +201,7 @@ export function create(options: CreateOptions): Owned {
 	const unlinkParent = linkSignal(options.signal, controller);
 	let resolveClosed!: () => void;
 	const closed = new Promise<void>((resolve) => resolveClosed = resolve);
+	/** Published before any callback can reenter; all callers join the entire cleanup lifetime. */
 	let disposal: Promise<void> | undefined;
 	let deadlineWait: Promise<void> | undefined;
 
@@ -158,16 +209,40 @@ export function create(options: CreateOptions): Owned {
 		deadlineWait = waitForDeadline(options.deadline, clock, controller);
 	}
 
+	/**
+	 * Cancel once, then join resources, the deadline wait, and the final closed notification.
+	 * Publish the shared promise before cleanup can call back into disposal.
+	 */
 	const dispose = (): Promise<void> => {
 		if (disposal !== undefined) return disposal;
-		unlinkParent();
-		if (!controller.signal.aborted) controller.abort(new ContextCancelledError('Context was disposed.'));
-		disposal = resources.disposeAsync().finally(
-			deadlineWait === undefined ? resolveClosed : async () => {
-				await deadlineWait;
-				resolveClosed();
-			},
-		);
+		const completion = Promise.withResolvers<void>();
+		disposal = completion.promise;
+
+		// Closed is the last observation, after resources and the canceled clock
+		// have retired. A cleanup failure must not skip either remaining action.
+		const closing = new AsyncDisposableStack();
+		closing.defer(resolveClosed);
+		closing.defer(async () => {
+			await deadlineWait;
+		});
+		closing.use(resources);
+
+		// Unlink and abort synchronously so callers see cancellation immediately.
+		// Structural signal implementations may throw while unlinking; cancellation
+		// and owned cleanup still run, with all failures retained by the stacks.
+		const cancellation = new DisposableStack();
+		cancellation.defer(() => {
+			if (!controller.signal.aborted) controller.abort(new ContextCancelledError('Context was disposed.'));
+		});
+		cancellation.defer(unlinkParent);
+		try {
+			cancellation.dispose();
+		} catch (error) {
+			closing.defer(() => {
+				throw error;
+			});
+		}
+		void closing.disposeAsync().then(completion.resolve, completion.reject);
 		return disposal;
 	};
 
@@ -181,6 +256,7 @@ export function create(options: CreateOptions): Owned {
 			...(options.deadline !== undefined ? { deadline: options.deadline } : {}),
 			signal: controller.signal,
 			clock,
+			...(options.instrument === undefined ? {} : { instrument: options.instrument }),
 			closed,
 			use<Value extends Disposable | AsyncDisposable | null | undefined>(value: Value): Value {
 				return resources.use(value);
@@ -191,7 +267,7 @@ export function create(options: CreateOptions): Owned {
 			defer(disposer: () => void | PromiseLike<void>): void {
 				resources.defer(disposer);
 			},
-			[Symbol.asyncDispose]() {
+			[asyncDispose]() {
 				return dispose();
 			},
 		} satisfies Owned,
@@ -200,7 +276,11 @@ export function create(options: CreateOptions): Owned {
 	return owned;
 }
 
-/** Derive a child context that inherits identity, cancellation, and the parent deadline. */
+/**
+ * Derive a separately owned child that inherits identity, cancellation, and the
+ * earlier of the two deadlines. Parent cancellation reaches the child signal;
+ * it does not join the child cleanup. Dispose each returned child at its owner.
+ */
 export function child(parent: Context, options: ChildOptions = {}): Owned {
 	const resolvedDeadline = earlier(parent.deadline, options.deadline);
 	return create({
@@ -216,6 +296,9 @@ export function child(parent: Context, options: ChildOptions = {}): Owned {
 		...(resolvedDeadline ? { deadline: resolvedDeadline } : {}),
 		signal: options.signal === undefined ? parent.signal : combineSignals([parent.signal, options.signal]),
 		clock: options.clock ?? parent.clock,
+		...((options.instrument ?? parent.instrument) === undefined
+			? {}
+			: { instrument: options.instrument ?? parent.instrument }),
 	});
 }
 
@@ -231,7 +314,8 @@ export function deadline(parent: Context, value: Temporal.Instant): Owned {
  * to abort the child's signal; this function does not run a callback or await
  * work. Pass the signal to cooperative I/O and check it between synchronous
  * steps. The inherited clock controls the wait, and an earlier parent deadline
- * still wins.
+ * still wins. Days mean 24 elapsed hours and weeks mean seven days; months and
+ * years require a caller-chosen calendar and therefore reject here.
  *
  * The returned `Owned` context needs `await using` or explicit awaited disposal.
  * Disposal cancels the deadline wait, removes the parent listener, and releases
@@ -241,7 +325,7 @@ export function deadline(parent: Context, value: Temporal.Instant): Owned {
  * @returns A child context immediately, not a Promise for the operation's value.
  */
 export function timeout(parent: Context, duration: Temporal.DurationLike | string): Owned {
-	const value = parent.clock.now().add(Temporal.Duration.from(duration));
+	const value = elapsedTarget(parent.clock.now(), duration);
 	return deadline(parent, value);
 }
 
@@ -253,22 +337,70 @@ export function timeout(parent: Context, duration: Temporal.DurationLike | strin
  * or declared effects, while another utility adds a different typed view to the
  * same operation. Views can be nested safely.
  *
- * Stable Context properties cannot be replaced at compile time, and no property
- * already present on the concrete runtime value can be replaced at runtime. The
- * runtime check is necessary because generic composition helpers cannot always
- * prove whether an earlier view added the same extension key. Use `child()` when
- * work needs a new independently owned cancellation and cleanup lifetime.
+ * Context identity and lifetime operations cannot be replaced. Additional
+ * capability fields use explicit shallow overrides, so a permission view can
+ * narrow an earlier permission set without mutating its source. The result type
+ * removes overridden fields before applying the replacement types. Use child()
+ * when work needs a new independently owned cancellation and cleanup lifetime.
  */
 export function view<Base extends Context, Extension extends object>(
 	base: Base,
-	extension: Extension & { readonly [Key in Extract<keyof Extension, keyof Context>]: never },
-): Base & Readonly<Extension> {
-	for (const key of Reflect.ownKeys(extension)) {
-		if (key in base) throw new TypeError(`Context view cannot replace existing property ${String(key)}.`);
+	extension: Extension & { readonly [Key in Extract<keyof Extension, keyof Owned>]: never },
+): Omit<Base, keyof Extension> & Readonly<Extension> {
+	for (
+		let owner: object | null = extension;
+		owner !== null && owner !== Object.prototype;
+		owner = Object.getPrototypeOf(owner)
+	) {
+		for (const key of Reflect.ownKeys(owner)) {
+			if (lifetimeKeys.has(key)) throw new TypeError(`Context view cannot replace lifetime property ${String(key)}.`);
+		}
 	}
-	const value = Object.freeze({ ...base, ...extension }) as Base & Readonly<Extension>;
+	const value = Object.create(Object.getPrototypeOf(base)) as Omit<Base, keyof Extension> & Readonly<Extension>;
+	delegateProperties(value, extension);
+	delegateProperties(value, base);
+	Object.freeze(value);
 	views.set(value, base);
 	return value;
+}
+
+/**
+ * Delegate data, getters and methods without flattening a class or changing its receiver.
+ *
+ * A view borrows the original object. Forwarding getters preserves non-enumerable
+ * and inherited fields; binding method reads preserves private-field receivers.
+ * The cache keeps repeated reads of the same method stable without modifying it.
+ */
+function delegateProperties(target: object, source: object): void {
+	const methods = new WeakMap<(...args: never[]) => unknown, (...args: never[]) => unknown>();
+	for (
+		let owner: object | null = source;
+		owner !== null && owner !== Object.prototype;
+		owner = Object.getPrototypeOf(owner)
+	) {
+		for (const key of Reflect.ownKeys(owner)) {
+			if (Object.hasOwn(target, key)) continue;
+			const descriptor = Object.getOwnPropertyDescriptor(owner, key)!;
+			const read = (): unknown => {
+				const value: unknown = Reflect.get(source, key, source);
+				if (typeof value !== 'function' || key === 'constructor') return value;
+				const callable = value as (...args: never[]) => unknown;
+				let method = methods.get(callable);
+				if (method === undefined) {
+					method = callable.bind(source);
+					methods.set(callable, method);
+				}
+				return method;
+			};
+			Object.defineProperty(target, key, {
+				enumerable: descriptor.enumerable,
+				configurable: false,
+				// Data descriptors retain their public shape and exact capability identity.
+				// Getters still delegate to the original receiver instead of being flattened.
+				...('value' in descriptor ? { value: read(), writable: false } : { get: read }),
+			});
+		}
+	}
 }
 
 /** Cancel an owned context or a view of that owned context. Repeated cancellation is harmless. */
@@ -278,11 +410,15 @@ export function cancel(value: Owned, reason: unknown = new ContextCancelledError
 	if (!owner.controller.signal.aborted) owner.controller.abort(reason);
 }
 
-/** Throw the appropriate cancellation or deadline error when work must stop. */
+/**
+ * Check the current clock before cancellation, so an elapsed deadline wins even
+ * before its timer continuation runs. Non-context abort reasons are wrapped in
+ * ContextCancelledError; cause() retains the original signal reason.
+ */
 export function check(value: Pick<Context, 'clock' | 'deadline' | 'signal'>): void {
 	if (value.deadline !== undefined) {
 		const observedAt = value.clock.now();
-		if (Temporal.Instant.compare(observedAt, value.deadline) >= 0) {
+		if (temporal.Instant.compare(observedAt, value.deadline) >= 0) {
 			throw new ContextDeadlineExceededError(value.deadline, observedAt);
 		}
 	}
@@ -297,27 +433,38 @@ export function cause(value: Pick<Context, 'signal'>): unknown {
 	return value.signal.aborted ? value.signal.reason : undefined;
 }
 
-/** Return the non-negative time remaining before the deadline. */
+/** Return the exact non-negative time remaining, without timer rounding or timer-length limits. */
 export function remaining(value: Pick<Context, 'clock' | 'deadline'>): Temporal.Duration | undefined {
 	if (value.deadline === undefined) return undefined;
-	return Temporal.Duration.from({ milliseconds: Math.max(0, millisecondsUntil(value.deadline, value.clock.now())) });
+	const now = value.clock.now();
+	return temporal.Instant.compare(value.deadline, now) <= 0
+		? temporal.Duration.from({ seconds: 0 })
+		: now.until(value.deadline);
 }
 
 /**
  * Wait for a context-scoped duration.
  *
- * This is the context-aware convenience form of `delay()`. It observes the
- * context before and after the timer, converts context cancellation into the
- * context error model, and never hides an elapsed deadline.
+ * Days and weeks are fixed elapsed time; months and years require an external
+ * calendar and reject. Long waits use bounded timer slices while the absolute
+ * target remains authoritative. A sub-millisecond remainder rounds up only at
+ * the timer call, so the wait cannot finish early. Cancellation uses the context
+ * error model and leaves the parent's resources with their existing owner.
  */
 export async function wait(
 	ctx: Pick<Context, 'clock' | 'deadline' | 'signal'>,
 	duration: Temporal.Duration | Temporal.DurationLike | string,
 ): Promise<void> {
 	check(ctx);
-	const milliseconds = durationMilliseconds(duration);
+	const nanoseconds = durationCore.elapsedNanoseconds(duration);
+	if (nanoseconds < 0n) throw new RangeError('Context wait duration must not be negative.');
+	const target = new temporal.Instant(ctx.clock.now().epochNanoseconds + nanoseconds);
 	try {
-		await ctx.clock.sleep(milliseconds, ctx.signal);
+		// Retain the zero-duration scheduling opportunity while slicing longer waits.
+		do {
+			await ctx.clock.sleep(millisecondsUntil(target, ctx.clock.now()), ctx.signal);
+			check(ctx);
+		} while (temporal.Instant.compare(ctx.clock.now(), target) < 0);
 	} catch (error) {
 		check(ctx);
 		throw error;
@@ -330,7 +477,11 @@ export async function wait(
  *
  * `listen` owns the external gate and returns the cleanup that removes its
  * resume callback. This helper owns the context abort listener and removes both
- * listeners when either path settles. It does not cancel work outside the gate.
+ * listeners before its Promise settles. Registration may resume or abort
+ * synchronously; settlement waits until its cleanup callback is available.
+ * Cleanup must be synchronous. A cleanup failure rejects, preserving a prior
+ * cancellation or registration failure through SuppressedError. This helper
+ * does not cancel work outside the gate.
  */
 export function waitFor(
 	ctx: Pick<Context, 'signal'>,
@@ -338,26 +489,52 @@ export function waitFor(
 ): Promise<void> {
 	if (ctx.signal.aborted) return Promise.reject(new ContextCancelledError(ctx.signal.reason));
 	return new Promise<void>((resolve, reject) => {
-		let remove = () => {};
+		const resources = new DisposableStack();
+		/** A synchronous resume is provisional until registration supplies its cleanup. */
+		let registering = true;
 		let settled = false;
-		const finish = (action: () => void): void => {
-			if (settled) return;
+		let outcome: { readonly kind: 'resume' } | { readonly kind: 'abort'; readonly reason: unknown } | undefined;
+		/** Release both listeners once; preserve a rejection even when a cleanup also throws. */
+		const settle = (): void => {
+			if (registering || settled || outcome === undefined) return;
 			settled = true;
-			ctx.signal.removeEventListener('abort', abort);
-			remove();
-			action();
+			const selected = outcome;
+			if (selected.kind === 'abort') {
+				resources.defer(() => {
+					throw selected.reason;
+				});
+			}
+			try {
+				resources.dispose();
+				resolve();
+			} catch (error) {
+				reject(error);
+			}
 		};
-		const resume = () => finish(resolve);
-		const abort = () => finish(() => reject(new ContextCancelledError(ctx.signal.reason)));
-		ctx.signal.addEventListener('abort', abort, { once: true });
+		const resume = (): void => {
+			outcome ??= { kind: 'resume' };
+			settle();
+		};
+		const abort = (): void => {
+			outcome ??= { kind: 'abort', reason: new ContextCancelledError(ctx.signal.reason) };
+			settle();
+		};
 		try {
-			remove = listen(resume);
+			resources.defer(() => ctx.signal.removeEventListener('abort', abort));
+			ctx.signal.addEventListener('abort', abort, { once: true });
+			if (ctx.signal.aborted) abort();
+			if (outcome === undefined) resources.defer(listen(resume));
 		} catch (error) {
-			finish(() => reject(error));
-			return;
+			// A registration failure remains observable even after a synchronous
+			// resume; the Promise has not yet reported successful completion.
+			resources.defer(() => {
+				throw error;
+			});
+			outcome ??= { kind: 'resume' };
+		} finally {
+			registering = false;
+			settle();
 		}
-		if (settled) remove();
-		else if (ctx.signal.aborted) abort();
 	});
 }
 
@@ -398,7 +575,7 @@ export function delay(
 	cancellation?: AbortSignal | AbortController,
 ): Promise<void> {
 	assertDelay(milliseconds);
-	const signal = cancellation instanceof AbortController ? cancellation.signal : cancellation;
+	const signal = cancellation !== undefined && 'signal' in cancellation ? cancellation.signal : cancellation;
 	return signal === undefined ? standardDelay(milliseconds) : standardDelay(milliseconds, { signal });
 }
 
@@ -409,9 +586,9 @@ function assertDelay(milliseconds: number): void {
 	}
 }
 
-/** Return an AbortSignal reason with a standards-compatible fallback. @internal */
+/** Preserve the signal's exact rejection reason, including an explicit null. @internal */
 function abortReason(signal: AbortSignal): unknown {
-	return signal.reason ?? new DOMException('The operation was aborted.', 'AbortError');
+	return signal.reason;
 }
 
 /** Create a serializable context snapshot. Cancellation is intentionally not serialized. */
@@ -426,6 +603,33 @@ export function snapshot(value: Context): Snapshot {
 	});
 }
 
+/** Check inert transport fields before restoring a local lifetime. Date syntax is checked by restore(). */
+export function isSnapshot(value: unknown): value is Snapshot {
+	return record.is(value) && typeof value.id === 'string' && typeof value.startedAt === 'string' &&
+		(value.traceId === undefined || typeof value.traceId === 'string') &&
+		(value.deploymentId === undefined || typeof value.deploymentId === 'string') &&
+		(value.idempotencyKey === undefined || typeof value.idempotencyKey === 'string') &&
+		(value.deadline === undefined || typeof value.deadline === 'string');
+}
+
+/**
+ * Observe a promise until cancellation. Reject with the exact signal reason.
+ * This removes only our listener. It does not cancel or join the underlying work.
+ * A later rejection remains consumed even when cancellation won the race.
+ */
+export function observe<Value>(signal: AbortSignal, value: Promise<Value>): Promise<Value> {
+	return new Promise<Value>((resolve, reject) => {
+		const finish = (action: () => void) => {
+			signal.removeEventListener('abort', abort);
+			action();
+		};
+		const abort = () => finish(() => reject(signal.reason));
+		signal.addEventListener('abort', abort, { once: true });
+		value.then((result) => finish(() => resolve(result)), (error) => finish(() => reject(error)));
+		if (signal.aborted) abort();
+	});
+}
+
 /** Restore a snapshot into a new local context and cancellation controller. */
 export function restore(value: Snapshot, options: RestoreOptions = {}): Owned {
 	return create({
@@ -433,10 +637,11 @@ export function restore(value: Snapshot, options: RestoreOptions = {}): Owned {
 		...(value.traceId !== undefined ? { traceId: value.traceId } : {}),
 		...(value.deploymentId !== undefined ? { deploymentId: value.deploymentId } : {}),
 		...(value.idempotencyKey !== undefined ? { idempotencyKey: value.idempotencyKey } : {}),
-		startedAt: Temporal.Instant.from(value.startedAt),
-		...(value.deadline !== undefined ? { deadline: Temporal.Instant.from(value.deadline) } : {}),
+		startedAt: temporal.Instant.from(value.startedAt),
+		...(value.deadline !== undefined ? { deadline: temporal.Instant.from(value.deadline) } : {}),
 		...(options.signal !== undefined ? { signal: options.signal } : {}),
 		...(options.clock !== undefined ? { clock: options.clock } : {}),
+		...(options.instrument !== undefined ? { instrument: options.instrument } : {}),
 	});
 }
 
@@ -481,8 +686,15 @@ function linkSignal(parent: AbortSignal | undefined, childController: AbortContr
 		abort();
 		return () => {};
 	}
+	// Structural hosts can attach a listener and then throw. Register its removal
+	// first so construction failure releases that partial acquisition, preserving
+	// both setup and cleanup failures through the standard disposal protocol.
+	using registration = new DisposableStack();
+	registration.defer(() => parent.removeEventListener('abort', abort));
 	parent.addEventListener('abort', abort, { once: true });
-	return () => parent.removeEventListener('abort', abort);
+	if (parent.aborted) abort();
+	const linked = registration.move();
+	return () => linked.dispose();
 }
 
 /**
@@ -496,20 +708,15 @@ function earlier(
 ): Temporal.Instant | undefined {
 	if (left === undefined) return right;
 	if (right === undefined) return left;
-	return Temporal.Instant.compare(right, left) < 0 ? right : left;
+	return temporal.Instant.compare(right, left) < 0 ? right : left;
 }
 
-/** Convert a non-calendar duration to the bounded millisecond delay used by runtime timers. @internal */
-function durationMilliseconds(value: Temporal.Duration | Temporal.DurationLike | string): number {
-	const duration = Temporal.Duration.from(value);
-	if (duration.years !== 0 || duration.months !== 0) {
-		throw new RangeError('Context wait does not accept calendar years or months.');
-	}
-	const milliseconds = durationCore.milliseconds(duration);
-	if (!Number.isFinite(milliseconds) || milliseconds < 0 || milliseconds > 2_147_483_647) {
-		throw new RangeError('Context wait duration must be between 0 and 2147483647 milliseconds.');
-	}
-	return milliseconds;
+/** Add fixed elapsed units exactly; calendar units cannot choose their own anchor or time zone. @internal */
+function elapsedTarget(
+	instant: Temporal.Instant,
+	duration: Temporal.Duration | Temporal.DurationLike | string,
+): Temporal.Instant {
+	return new temporal.Instant(instant.epochNanoseconds + durationCore.elapsedNanoseconds(duration));
 }
 
 /**
@@ -546,16 +753,16 @@ function millisecondsUntil(deadline: Temporal.Instant, now: Temporal.Instant): n
 }
 
 /**
- * Converts the source value to instant expected by the operation context.
+ * Accept either an existing instant or ISO instant text for a deterministic clock.
  *
  * @internal
  */
 function toInstant(value: Temporal.Instant | string): Temporal.Instant {
-	return typeof value === 'string' ? Temporal.Instant.from(value) : value;
+	return typeof value === 'string' ? temporal.Instant.from(value) : value;
 }
 
 /**
- * Rejects invalid identifier before it can enter authoritative module state.
+ * Keep operation identities non-empty and bounded before storing them in local or transport context data.
  *
  * @internal
  */
@@ -574,3 +781,8 @@ export type {
 	RestoreOptions,
 	Snapshot,
 } from './types.ts';
+
+export * as state from './state.ts';
+export * as events from './events.ts';
+export { create as createState } from './state.ts';
+export { from as fromEvents } from './events.ts';

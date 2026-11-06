@@ -1,9 +1,9 @@
 /** Register and execute the cross-package benchmark stories. */
-import { run } from './run.ts';
+import { run } from '#tools/bench/run.ts';
 
-import './coordination.bench.ts';
-import './discovery.bench.ts';
-import './http.bench.ts';
-import './workflow.bench.ts';
+import '#bench/coordination.bench.ts';
+import '#bench/discovery.bench.ts';
+import '#bench/http.bench.ts';
+import '#bench/workflow.bench.ts';
 
 await run();

@@ -4,12 +4,12 @@ import type {
 	DefinitionEntry,
 	DefinitionInput,
 	ValuedCatalogEntry,
-} from '@okikio/catalog';
+} from '@okikio/collection/catalog';
 import type { Context } from '@okikio/context';
-import type { EffectContext, EffectDefinitions } from '@okikio/effect';
+import type { EffectContext, EffectDefinitions } from '@okikio/capability/effect';
 import type { ProblemDefinition } from '@okikio/http/problem';
-import type { ResilienceInput } from '@okikio/resilience';
-import type { RequirementDocument, RequirementInput } from '@okikio/requirement';
+import type { ResilienceInput } from '@okikio/capability/resilience';
+import type { RequirementDocument, RequirementInput } from '@okikio/capability/requirement';
 
 /** Static resource reference accepted by portable middleware contracts. */
 export type MiddlewareResourceDefinition<Value = unknown> = ValuedCatalogEntry<'resource', Value>;

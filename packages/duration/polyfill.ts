@@ -10,8 +10,8 @@
  * @example
  * ```ts
  * import '@okikio/duration/polyfill';
- * import { milliseconds } from '@okikio/duration';
- * console.log(milliseconds('PT2.5S')); // 2500
+ * import { elapsed } from '@okikio/duration';
+ * console.log(elapsed('PT2.5S')); // 2500
  * ```
  * @module
  */

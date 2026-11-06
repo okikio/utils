@@ -5,19 +5,29 @@
 	"sideEffects": false,
 	"license": "MIT",
 	"exports": {
+		"./process": "./process/mod.ts",
+		"./process/types": "./process/types.ts",
+		"./process/channel": "./process/channel/mod.ts",
+		"./process/channel/types": "./process/channel/types.ts",
+		"./thread": "./thread/mod.ts",
+		"./thread/types": "./thread/types.ts",
 		".": "./mod.ts",
-		"./types": "./types.ts",
-		"./deno": "./deno.ts"
+		"./protocol": "./protocol.ts",
+		"./supervisor": "./supervisor.ts",
+		"./stream": "./stream/mod.ts",
+		"./stream/types": "./stream/types.ts"
 	},
 	"dependencies": {
 		"@okikio/observables": "^1.4.0",
-		"@standard-schema/spec": "^1.1.0",
 		"@okikio/context": "workspace:^",
-		"@okikio/failure": "workspace:^",
-		"@okikio/fault": "workspace:^",
-		"@okikio/schema": "workspace:^"
+		"@okikio/result": "workspace:^",
+		"@okikio/schema": "workspace:^",
+		"@okikio/telemetry": "workspace:^",
+		"@okikio/dispose": "workspace:^"
 	},
 	"devDependencies": {
-		"@std/expect": "npm:@jsr/std__expect@^1.0.20"
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
+		"@standard-schema/spec": "^1.1.0",
+		"mitata": "^1.0.34"
 	}
 }

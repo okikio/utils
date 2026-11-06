@@ -6,7 +6,13 @@
  * @example
  * ```ts
  * import * as problem from '@okikio/http/problem';
- * const Missing = problem.define({ id: 'asset.missing', type: problem.url('https://problems.invalid/v1', 'asset-missing'), status: 404, title: 'Asset missing', description: 'The asset could not be found.' });
+ * const Missing = problem.define({
+ * 	id: 'asset.missing',
+ * 	type: problem.url('https://problems.invalid/v1', 'asset-missing'),
+ * 	status: 404,
+ * 	title: 'Asset missing',
+ * 	description: 'The asset could not be found.',
+ * });
  * const [body, status] = problem.create(Missing, { detail: 'No asset has that ID.' });
  * console.log(status, body.type);
  * ```
@@ -14,9 +20,9 @@
  * @module
  */
 import type { StandardSchemaV1 } from '@standard-schema/spec';
-import * as catalog from '@okikio/catalog';
-import * as record from '@okikio/record';
-import type { Catalog, CatalogSelection, DefinitionInput } from '@okikio/catalog';
+import * as catalog from '@okikio/collection/catalog';
+import * as record from '@okikio/collection/record';
+import type { Catalog, CatalogSelection, DefinitionInput } from '@okikio/collection/catalog';
 import { mergeHeaders } from '@okikio/http/response/headers';
 
 import type {
@@ -119,7 +125,13 @@ export function compose<Entry extends ProblemDefinition>(
 	return catalog.compose(...inputs);
 }
 
-/** Instantiate one problem occurrence as an RFC 9457 tuple. */
+/**
+ * Create a logical [body, status, headers] result for one expected failure.
+ * Extensions cannot overwrite standard fields. The cause is retained in private
+ * metadata rather than serialized into the body; callers still own redacting
+ * detail, instance and extension values before exposing them publicly.
+ * An extension schema is checked separately by validateExtensions().
+ */
 export function create<
 	Definition extends ProblemDefinition,
 	Extensions extends Readonly<Record<string, unknown>> = Readonly<Record<string, never>>,
@@ -407,9 +419,9 @@ export async function validateExtensions<Definition extends ProblemDefinition>(
 }
 
 /**
- * Rejects invalid definition before it can enter authoritative module state.
- *
- * It keeps RFC 9457 problem representation separate from domain failure identity and server-framework execution.
+ * Check stable problem metadata before publishing its reusable definition.
+ * IDs must use the package identifier grammar; type must be an absolute URI;
+ * only error statuses are allowed. No native response or domain failure is made.
  *
  * @internal
  */

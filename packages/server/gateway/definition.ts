@@ -1,3 +1,4 @@
+import { isArtifactMount } from './artifact.ts';
 import * as durationCore from '@okikio/duration';
 import * as endpoint from '@okikio/server/endpoint/definition';
 import type { EndpointCompositionInput, EndpointDefinition, EndpointEntry } from '@okikio/server/endpoint/types';
@@ -17,21 +18,33 @@ import type {
 	GatewayRedirectPolicy,
 	GatewaySelection,
 } from './types.ts';
+import { normalizeOrigin } from './_origin.ts';
 
 /** Mount an exact service definition or selection at one origin. */
 export function mount<Target extends ServiceDefinition | ServiceSelection>(
 	target: Target,
-	options: Readonly<{ readonly origin: GatewayOrigin }>,
+	options: Readonly<{ readonly origin: GatewayOrigin; readonly internal?: EndpointCompositionInput }>,
 ): GatewayMount<Target> {
 	const origin = normalizeOrigin(options.origin);
-	return Object.freeze({ kind: 'gateway-mount', target, origin });
+	const internal = options.internal === undefined ? Object.freeze([]) : leafEndpoints(options.internal);
+	const selected = leafEndpoints(target.endpoints);
+	if (internal.some((value) => !selected.includes(value))) {
+		throw new TypeError('Internal admission must select mounted endpoints.');
+	}
+	return Object.freeze({ kind: 'gateway-mount', target, origin, internal });
 }
 
 /** Define an import-safe gateway from exact mounted service references. */
 export function define<const Id extends string>(input: GatewayDefinitionInput<Id>): GatewayDefinition<Id> {
 	assertIdentifier(input.id, 'gateway');
-	const services = flattenMounts(input.services);
-	if (services.length === 0) throw new TypeError('A gateway must mount at least one service.');
+	const services = flattenMounts(input.services ?? []);
+	const artifacts = Object.freeze([...(input.artifacts ?? [])]);
+	if (artifacts.some((value) => !isArtifactMount(value))) {
+		throw new TypeError('Gateway artifacts require mountArtifact().');
+	}
+	if (services.length + artifacts.length === 0) {
+		throw new TypeError('A gateway must mount at least one service or artifact.');
+	}
 	const policies = Object.freeze([...(input.policies ?? [])]);
 	const observers = Object.freeze([...(input.observers ?? [])]);
 	for (const value of policies) {
@@ -47,6 +60,7 @@ export function define<const Id extends string>(input: GatewayDefinitionInput<Id
 		id: input.id,
 		...(input.description !== undefined ? { description: input.description } : {}),
 		services,
+		artifacts,
 		policies,
 		observers,
 	});
@@ -61,7 +75,7 @@ export function policy(input: GatewayPolicyInput): GatewayPolicy {
 		throw new TypeError('Gateway bodyLimit must be a positive safe integer.');
 	}
 	const timeout = input.timeout === undefined ? undefined : Temporal.Duration.from(input.timeout);
-	if (timeout !== undefined && durationCore.milliseconds(timeout) <= 0) {
+	if (timeout !== undefined && durationCore.elapsed(timeout) <= 0) {
 		throw new TypeError('Gateway timeout must be positive.');
 	}
 	return Object.freeze({
@@ -244,13 +258,12 @@ export function leafEndpoints(input: EndpointCompositionInput): readonly Endpoin
 }
 
 /**
- * Flattens mounts into the ordered representation consumed by compiled gateway routing.
- *
- * Gateway internals route only definitions selected by the composition root and keep gateway trust policy out of service-domain behavior.
+ * Flatten authored mount arrays in order and reject entries not created as gateway mounts.
+ * This retains mount objects; it does not compile services or open upstream connections.
  *
  * @internal
  */
-function flattenMounts(input: GatewayDefinitionInput['services']): readonly GatewayMount[] {
+function flattenMounts(input: NonNullable<GatewayDefinitionInput['services']>): readonly GatewayMount[] {
 	const result: GatewayMount[] = [];
 	const visit = (value: GatewayMount | readonly GatewayMount[]): void => {
 		if (Array.isArray(value)) {
@@ -267,36 +280,12 @@ function flattenMounts(input: GatewayDefinitionInput['services']): readonly Gate
 }
 
 /**
- * Normalizes origin into the canonical internal form used by later phases.
- *
- * @internal
- */
-function normalizeOrigin(value: GatewayOrigin): string {
-	const url = value instanceof URL ? value : new URL(value);
-	if (url.username || url.password) throw new TypeError('Gateway origins may not contain credentials.');
-	if (url.protocol !== 'https:' && !isLoopbackHttp(url)) {
-		throw new TypeError('Gateway origins must use HTTPS outside loopback development.');
-	}
-	url.hash = '';
-	url.search = '';
-	url.pathname = url.pathname.replace(/\/$/, '');
-	return url.toString().replace(/\/$/, '');
-}
-
-/**
- * Checks whether loopback http satisfies the condition required by compiled gateway routing.
- *
- * @internal
- */
-function isLoopbackHttp(url: URL): boolean {
-	return url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
-}
-
-/**
- * Rejects invalid identifier before it can enter authoritative module state.
+ * Require the stable identifier grammar used by gateway declaration metadata.
  *
  * @internal
  */
 function assertIdentifier(value: string, label: string): void {
 	if (!/^[a-z0-9][a-z0-9._:-]*$/i.test(value)) throw new TypeError(`Invalid ${label} id ${JSON.stringify(value)}.`);
 }
+
+export { normalizeOrigin } from './_origin.ts';

@@ -1,5 +1,5 @@
 /** Adapted upstream literal observations. See README.md and HONO-LICENSE. @module */
-import type { ApplicationCaseType } from './types.ts';
+import type { ApplicationCaseType } from '#fixtures/hono-contracts/types.ts';
 
 export const applicationCases: readonly ApplicationCaseType[] = [
 	{

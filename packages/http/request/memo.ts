@@ -1,8 +1,15 @@
-import * as recordCore from '@okikio/record';
+import * as recordCore from '@okikio/collection/record';
+import { AsyncDisposableStack } from '@okikio/dispose';
 
 const requestCaches = new WeakMap<object, Map<unknown, unknown>>();
 
-/** Compute one request-owned capability once, sharing a pending promise across consumers. */
+/**
+ * Share one pending load under an exact request object and key.
+ *
+ * Concurrent consumers receive the same resolved value. Rejected loads are
+ * removed by default so a later call can retry; cacheRejected retains rejection.
+ * The caller owns the request lifetime and must join its consumers before dispose().
+ */
 export async function memoize<Value>(
 	request: object,
 	key: unknown,
@@ -20,6 +27,8 @@ export async function memoize<Value>(
 		requestCaches.set(request, cache);
 	}
 	if (cache.has(key)) return await cache.get(key) as Value;
+	// Publish the promise before invoking user code, so a synchronous second
+	// consumer can join the load rather than start a duplicate resource.
 	const pending = Promise.resolve().then(load);
 	cache.set(key, pending);
 	try {
@@ -32,24 +41,44 @@ export async function memoize<Value>(
 	}
 }
 
-/** Invalidate one memoized request capability or the complete request cache. */
+/**
+ * Remove cached entries without closing their values or waiting for loaders.
+ * Use only when another owner is responsible for those removed resources.
+ * This does not cancel an in-flight load.
+ */
 export function invalidate(request: object, key?: unknown): void {
 	if (key === undefined) requestCaches.delete(request);
 	else requestCaches.get(request)?.delete(key);
 }
 
-/** Dispose memoized values exposing native disposal protocols, then clear the request cache. */
+/**
+ * Remove this cache and dispose each distinct resolved resource once.
+ *
+ * Entries are visited in reverse cache-entry order. Pending loads are awaited
+ * as their entries are visited; this is not concurrent-load completion order.
+ * Every disposer is attempted, and failures retain the shared disposal stack's
+ * aggregation semantics. Join normal request consumers before calling this.
+ */
 export async function dispose(request: object): Promise<void> {
 	const cache = requestCaches.get(request);
 	requestCaches.delete(request);
 	if (!cache) return;
 	const values = new Set(cache.values());
-	for (const value of [...values].reverse()) {
-		const resolved = await value;
-		if (resolved && typeof resolved === 'object') {
+	const disposed = new Set<object>();
+	// Each deferred entry gets a cleanup attempt even if an earlier loader or
+	// disposer rejects. Aliases to the same object must not close it twice.
+	const owner = new AsyncDisposableStack();
+	for (const value of values) {
+		owner.defer(async () => {
+			const resolved: unknown = await value;
+			if (
+				resolved === null || typeof resolved !== 'object' && typeof resolved !== 'function' || disposed.has(resolved)
+			) return;
+			disposed.add(resolved);
 			const asyncDispose = (resolved as { [Symbol.asyncDispose]?: () => PromiseLike<void> })[Symbol.asyncDispose];
-			if (asyncDispose) await asyncDispose.call(resolved);
+			if (asyncDispose !== undefined) await asyncDispose.call(resolved);
 			else (resolved as { [Symbol.dispose]?: () => void })[Symbol.dispose]?.call(resolved);
-		}
+		});
 	}
+	await owner.disposeAsync();
 }

@@ -1,4 +1,4 @@
-import * as record from '@okikio/record';
+import * as record from '@okikio/collection/record';
 
 /** Recursively freeze one OpenAPI data graph without invoking accessors or custom object behavior. */
 export function freeze<Value>(value: Value, name = 'OpenAPI value'): Value {

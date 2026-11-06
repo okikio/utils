@@ -33,3 +33,37 @@ describe('result', () => {
 		expect(() => result.unwrap(result.fail(failure))).toThrow(failure);
 	});
 });
+
+describe('result composition', () => {
+	it('maps only the selected branch and preserves untouched wrappers', () => {
+		const rejected = result.fail('missing');
+		expect(result.map(rejected, () => {
+			throw new Error('unexpected');
+		})).toBe(rejected);
+		expect(result.map(result.ok(3), (value) => value * 2)).toEqual(result.ok(6));
+		const accepted = result.ok(3);
+		expect(result.mapFailure(accepted, () => {
+			throw new Error('unexpected');
+		})).toBe(accepted);
+		expect(result.mapFailure(rejected, (reason) => reason.length)).toEqual(result.fail(7));
+		expect(result.flatMap(accepted, () => result.fail('new reason'))).toEqual(result.fail('new reason'));
+	});
+
+	it('captures synchronous throws and asynchronous rejections distinctly', async () => {
+		const fault = new Error('failure');
+		expect(result.capture(() => {
+			throw fault;
+		})).toEqual(result.fail(fault));
+		expect(
+			await result.captureAsync(async () => {
+				throw fault;
+			}),
+		).toEqual(result.fail(fault));
+		expect(
+			await result.captureAsync(() => {
+				throw fault;
+			}),
+		).toEqual(result.fail(fault));
+		expect(await result.captureAsync(() => 2)).toEqual(result.ok(2));
+	});
+});

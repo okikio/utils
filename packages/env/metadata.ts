@@ -1,7 +1,7 @@
 import type { EnvironmentFieldMetadata, EnvironmentFieldMetadataInput } from './types.ts';
 
 /**
- * Normalizes the optional string while preserving absence as `undefined` for environment definition and resolution.
+ * Keep nonblank authored text unchanged; blank or non-string metadata is absent.
  *
  * @internal
  */
@@ -10,7 +10,7 @@ function optionalString(value: unknown): string | undefined {
 }
 
 /**
- * Normalizes the optional boolean while preserving absence as `undefined` for environment definition and resolution.
+ * Preserve explicit false; non-boolean metadata must not become a truthy policy flag.
  *
  * @internal
  */
@@ -19,7 +19,7 @@ function optionalBoolean(value: unknown): boolean | undefined {
 }
 
 /**
- * Normalizes the optional strings while preserving absence as `undefined` for environment definition and resolution.
+ * Copy only nonblank text entries; an empty usable list permits metadata fallback.
  *
  * @internal
  */

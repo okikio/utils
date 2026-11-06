@@ -1,7 +1,20 @@
 import * as problem from '@okikio/http/problem';
 
-/** Framework-owned failures emitted before an origin service receives a request. */
-export const GatewayProblems = problem.catalog('gateway', {
+/**
+ * Framework-owned routing and transport failures. Timeouts, unavailable responses and rejected
+ * redirects can occur after the origin has received the request.
+ */
+export const GatewayProblems: ReturnType<
+	typeof problem.catalog<'gateway', {
+		readonly NotFound: problem.ProblemDefinition<problem.ProblemExtensionContract | undefined, 404>;
+		readonly InvalidRequest: problem.ProblemDefinition<problem.ProblemExtensionContract | undefined, 400>;
+		readonly BodyTooLarge: problem.ProblemDefinition<problem.ProblemExtensionContract | undefined, 413>;
+		readonly DeadlineExceeded: problem.ProblemDefinition<problem.ProblemExtensionContract | undefined, 504>;
+		readonly InvalidRedirect: problem.ProblemDefinition<problem.ProblemExtensionContract | undefined, 502>;
+		readonly Unavailable: problem.ProblemDefinition<problem.ProblemExtensionContract | undefined, 503>;
+		readonly Internal: problem.ProblemDefinition<problem.ProblemExtensionContract | undefined, 500>;
+	}>
+> = problem.catalog('gateway', {
 	NotFound: problem.define({
 		id: 'gateway:not-found',
 		type: 'urn:utils:gateway:not-found',

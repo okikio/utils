@@ -5,24 +5,43 @@
 		"exclude": [
 			"**/*.test.ts",
 			"**/*.bench.ts",
-			"fixtures/**"
+			"**/fixtures/**"
 		]
 	},
 	"exports": {
 		".": "./mod.ts",
 		"./definition": "./definition.ts",
 		"./operators": "./operators.ts",
-		"./types": "./types.ts"
+		"./types": "./types.ts",
+		"./expression": "./expression.ts",
+		"./pagination": "./page.ts",
+		"./url": "./parameters.ts",
+		"./cursor": "./cursor.ts"
 	},
 	"imports": {
 		"@standard-schema/spec": "jsr:@standard-schema/spec@^1.1.0"
 	},
+	"license": "MIT",
 	"tasks": {
-		"check": "deno fmt --check && deno lint && deno check . && deno doc --lint mod.ts",
-		"test": "deno test -P=test"
+		"check": "mise run check -- --project query",
+		"test": "mise run test -- --project query",
+		"bench": "mise run bench -- --project query",
+		"bench:check": "mise run bench -- --project query --check"
 	},
 	"permissions": {
-		"test": {}
+		"test": {},
+		"bench": {
+			"env": [
+				"NODE_DISABLE_COLORS",
+				"NO_COLOR",
+				"FORCE_COLOR"
+			]
+		}
 	},
-	"license": "MIT"
+	"test": {
+		"exclude": [
+			"**/*.types.test.ts",
+			"**/types.test.ts"
+		]
+	}
 }

@@ -10,8 +10,8 @@
  * import * as endpoint from '@okikio/server/endpoint';
  * import * as response from '@okikio/http/response';
  * import * as service from '@okikio/server/service';
- * import { z } from 'zod';
- * const Healthy = response.ok(z.object({ ok: z.boolean() }), { id: 'health.ok', description: 'Service health.' });
+ * import * as schema from '@okikio/schema';
+ * const Healthy = response.ok(schema.object({ ok: schema.boolean() }), { id: 'health.ok', description: 'Service health.' });
  * const Health = endpoint.get({ id: 'health.read', path: '/health', responses: [Healthy] });
  * const Api = service.define({ id: 'health-api', path: '/api', endpoints: [Health] });
  * console.log(Health.path, Api.path);
@@ -97,3 +97,5 @@ export type {
 	OpenApiSchemaProjector,
 	OpenApiServer,
 } from './openapi.ts';
+
+export type { OpenApiComponents, OpenApiSecurityRequirement, OpenApiSecurityScheme } from './openapi.ts';

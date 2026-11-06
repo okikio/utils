@@ -66,6 +66,7 @@ export class Scope {
 		return this.#closing;
 	}
 
+	/** Join every child before disposing resources, retaining failures from both phases. */
 	async #close(reason: unknown): Promise<readonly Cause[]> {
 		const causes: Cause[] = [];
 		const children = [...this.#children];

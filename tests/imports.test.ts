@@ -75,7 +75,7 @@ test('generic lifecycle imports do not install the disposal polyfill implicitly'
 	for (
 		const entry of [
 			new URL('../packages/context/mod.ts', import.meta.url),
-			new URL('../packages/resource/mod.ts', import.meta.url),
+			new URL('../packages/capability/resource/mod.ts', import.meta.url),
 			new URL('../packages/task/mod.ts', import.meta.url),
 			new URL('../packages/workflow/mod.ts', import.meta.url),
 		]
@@ -127,7 +127,7 @@ test('telemetry records without host globals or optional backend adapters', asyn
 });
 
 test('pure permission and requirement declarations import without execution globals', async () => {
-	const entries = ['permission', 'requirement'].map((name) =>
+	const entries = ['authz/permission', 'capability/requirement'].map((name) =>
 		new URL(`../packages/${name}/definition.ts`, import.meta.url).href
 	);
 	for (const entry of entries) {

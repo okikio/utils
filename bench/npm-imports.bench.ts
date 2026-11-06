@@ -1,10 +1,11 @@
+// @benchmark runner=npm
 /** Measure exact installed npm artifacts in fresh native Node processes, separately from source imports. */
 import { resolve } from 'node:path';
 import { bench, do_not_optimize, group } from 'mitata';
-import { run } from './run.ts';
+import { run } from '#tools/bench/run.ts';
 const index = Deno.args.indexOf('--consumer');
 const pointer = index < 0
-	? JSON.parse(await Deno.readTextFile(new URL('../.artifacts/npm/consumer-location.json', import.meta.url))) as {
+	? JSON.parse(await Deno.readTextFile(new URL('../.tmp/artifacts/npm/consumer-location.json', import.meta.url))) as {
 		directory: string;
 	}
 	: undefined;
@@ -12,7 +13,7 @@ const consumer = resolve(index < 0 ? pointer!.directory : Deno.args[index + 1] ?
 const paths = JSON.parse(await Deno.readTextFile(`${consumer}/paths.json`)) as string[];
 const roots = paths.filter((path) => /^@okikio\/[^/]+$/u.test(path)).sort();
 if (roots.length === 0 || !roots.includes('@okikio/utils')) {
-	throw new Error('Run npm:verify before measuring packed imports.');
+	throw new Error('Run mise run test:npm before measuring packed imports.');
 }
 const selected = [...roots, '@okikio/utils/result', '@okikio/utils/all'];
 /** Same launch and receipt in each case; no application module is preloaded by the parent. */
@@ -35,7 +36,8 @@ async function load(format: 'esm' | 'cjs', name?: string): Promise<number> {
 	const count: unknown = JSON.parse(new TextDecoder().decode(output.stdout));
 	if (
 		typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0 || (name === undefined && count !== 0) ||
-		(name !== undefined && count === 0)
+		// Runtime and Storage roots are documented type-only contracts in both emitted formats.
+		(name === '@okikio/runtime' || name === '@okikio/storage' ? count !== 0 : name !== undefined && count === 0)
 	) throw new Error('Packed import lost runtime exports or its complete receipt.');
 	return count;
 }

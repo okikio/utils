@@ -1,0 +1,33 @@
+{
+	"name": "@okikio/input",
+	"version": "0.0.0",
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"exports": {
+		".": "./mod.ts",
+		"./keys": "./keys.ts",
+		"./gestures": "./gestures.ts",
+		"./text": "./text.ts",
+		"./forms": "./forms.ts",
+		"./files": "./files.ts",
+		"./clipboard": "./clipboard.ts",
+		"./gamepad": "./gamepad.ts",
+		"./feedback": "./feedback.ts",
+		"./commands": "./commands.ts",
+		"./pointer": "./pointer.ts",
+		"./types": "./types.ts"
+	},
+	"dependencies": {
+		"@okikio/dispose": "workspace:^",
+		"@okikio/collection": "workspace:^",
+		"@okikio/schema": "workspace:^",
+		"@okikio/duration": "workspace:^",
+		"@okikio/context": "workspace:^",
+		"@okikio/observables": "^1.4.0"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
+		"mitata": "^1.0.34"
+	}
+}

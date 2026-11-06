@@ -16,7 +16,7 @@ import {
 	redirects,
 } from '@okikio/server/gateway';
 import { create as createHttp, mount, route } from '@okikio/server/http';
-import type { ProxyMode } from './corpus.ts';
+import type { ProxyMode } from '#fixtures/hono-proxy/corpus.ts';
 
 export type Transport = (request: Request) => Promise<Response>;
 export interface ProxyApi {

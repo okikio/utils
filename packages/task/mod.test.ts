@@ -1,8 +1,34 @@
 import { expect } from '@std/expect';
 import { describe, it } from 'node:test';
 import * as task from './mod.ts';
+import * as context from '@okikio/context';
+import type { EffectDefinition } from '@okikio/capability/effect';
 
 describe('@okikio/task', () => {
+	it('joins child timers when capability setup fails before the operation begins', async () => {
+		const logical = new context.TestClock();
+		let activeTimers = 0;
+		const clock: context.Clock = {
+			now: () => logical.now(),
+			sleep(milliseconds, signal) {
+				activeTimers++;
+				return logical.sleep(milliseconds, signal).finally(() => {
+					activeTimers--;
+				});
+			},
+		};
+		await using parent = context.create({ id: 'task-parent', clock, deadline: clock.now().add({ hours: 1 }) });
+		let calls = 0;
+		const work = task.start(() => {
+			calls++;
+		}, { ctx: parent, effects: [{} as EffectDefinition] });
+		await expect(work.done).rejects.toBeInstanceOf(TypeError);
+		expect(calls).toBe(0);
+		expect(work.signal.aborted).toBe(true);
+		expect(work.status).toBe('failed');
+		expect(parent.signal.aborted).toBe(false);
+		expect(activeTimers).toBe(1);
+	});
 	it('completes and cleans one local operation', async () => {
 		let cleaned = false;
 		await using work = task.start(async (ctx) => {

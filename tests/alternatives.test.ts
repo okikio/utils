@@ -1,4 +1,4 @@
-/** Qualification of comparable operations, rejection boundaries and deliberate differences. */
+/** Checks of comparable operations, rejection boundaries and deliberate differences. */
 import '@okikio/duration/polyfill';
 import '@okikio/dispose/polyfill';
 import { describe, it } from 'node:test';
@@ -7,31 +7,28 @@ import pLimit from 'p-limit';
 import { pooledMap } from '@std/async';
 import { err, ok } from 'neverthrow';
 import { z } from 'zod';
-import { mapPooledOrdered } from '@okikio/concurrency';
+import { mapPooledOrdered } from '@okikio/scheduler/concurrency';
 import { parse as parseSchema, SchemaValidationError } from '@okikio/schema';
-import { decode, encode } from '@okikio/codec';
-import { CsvParseError, parse as parseCsv } from '@okikio/csv';
-import { EnvironmentError, record as environmentRecord } from '@okikio/env/zod';
+import { decode, encode } from '@okikio/schema/codec';
+import { CsvParseError, parse as parseCsv } from '@okikio/format/csv';
+import { EnvironmentError, record as environmentRecord } from '@okikio/env';
 import { fail, match, ok as resultOk } from '@okikio/result';
 import type { Result } from '@okikio/result';
-import { snapshot } from '@okikio/record';
-import { semanticVersionScheme } from '@okikio/version';
-import { tryParse } from '@std/semver';
+import { snapshot } from '@okikio/collection/record';
 import { parseJson, readBody, RequestTransportError } from '@okikio/http/request';
 import {
 	alternatives,
-	cssTree,
-	cssUtility,
 	csvNpm,
 	csvStd,
 	Environment,
 	EnvironmentSchema,
+	OwnedPortSchema,
 	PortSchema,
 	sitemapSaxes,
 	sitemapUtility,
 	TimestampCodec,
 	ZodTimestampCodec,
-} from './fixtures/alternatives.ts';
+} from '#fixtures/alternatives.ts';
 
 describe('established alternatives on explicit overlapping contracts', () => {
 	for (const candidate of alternatives) {
@@ -43,7 +40,7 @@ describe('established alternatives on explicit overlapping contracts', () => {
 
 	it('rejects invalid schema and environment input without equating diagnostic formats', async () => {
 		for (const input of ['0', '65536', 'not-a-port', Number.NaN]) {
-			await expect(parseSchema(PortSchema, input)).rejects.toBeInstanceOf(SchemaValidationError);
+			await expect(parseSchema(OwnedPortSchema, input)).rejects.toBeInstanceOf(SchemaValidationError);
 			expect(() => PortSchema.parse(input)).toThrow(z.ZodError);
 		}
 		const input = { PORT: '0', MODE: 'test' };
@@ -123,21 +120,6 @@ describe('established alternatives on explicit overlapping contracts', () => {
 			expect(active).toBe(0);
 		});
 	}
-
-	it('coarse version evidence is a deliberate extension of exact SemVer parsing', () => {
-		expect(semanticVersionScheme.parse('2.4')?.release).toEqual([2, 4]);
-		expect(tryParse('2.4')).toBeUndefined();
-		for (const value of ['01.2.3', '2.x.3', '2.4.6.8']) {
-			expect(semanticVersionScheme.parse(value)).toBeUndefined();
-			expect(tryParse(value)).toBeUndefined();
-		}
-	});
-
-	it('CSS resource metadata and string-valued imports exceed a raw URL-token walk', () => {
-		const source = '@import "theme.css"; .hero {background:url("hero.webp")}';
-		expect(cssUtility(source)).toEqual(['theme.css', 'hero.webp']);
-		expect(cssTree(source)).toEqual(['hero.webp']);
-	});
 
 	it('Sitemap safety policy rejects DOCTYPE while a general XML parser can still read its loc', () => {
 		const source =

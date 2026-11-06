@@ -5,10 +5,18 @@ signature matches the exact bytes received. Parsing and rewriting JSON first can
 message appears equivalent. This package verifies or signs webhook messages and leaves event processing to your
 application.
 
+A **webhook** is an HTTP request another service sends to notify your application about an event. Unlike a person
+clicking a button, that caller is a program. A **signature** lets you check that the message matches a shared secret and
+its original bytes. It does not tell you that the same valid message has never been delivered before.
+
+Treat delivery as repeatable: check the signature and timestamp, validate the event fields, and make the business action
+safe to repeat using the provider's event identity. The example below signs and checks a local message so you can see
+both sides without needing an account with an external provider.
+
 ```text
 Provider sends headers + exact body bytes
   -> verify bounded Request clone -> rejected: stop application work
-                                  -> verified: parse original -> apply event once
+                                  -> verified: check identity + parse original -> application-owned effect
 ```
 
 The signature check reads a bounded clone, so a later parser can still read the original request. The final step belongs
@@ -17,15 +25,25 @@ actions. Store and check the event identity when duplicates would matter.
 
 ## Check a signed event before reading its JSON
 
+Sign a small event with the chosen webhook contract, then verify the received bytes before reading their JSON. The
+example supplies its own key and request so it runs locally; real peers must agree on the protocol and key.
+
+These examples use the current experimental source checkout, not an assumed registry release. From the `utils`
+repository root, review `mise.toml`, run `mise trust`, then `mise install` and `mise run prepare -- --kind deps`.
+Save the following module as `example.ts` and run `mise exec -- deno run example.ts`.
+[Checkout prerequisites](../../../README.md#work-on-the-repository) explain installing Mise.
+
 ```ts runnable
 import * as webhook from '@okikio/http/webhook';
 import * as standard from '@okikio/http/webhook/standard';
 const verifier = standard.create({ secret: 'whsec_' + btoa(String.fromCharCode(...new Uint8Array(32).fill(1))) });
+// Sign the exact text that will be sent. Reformatting equivalent JSON would change its signature.
 const body = '{"kind":"payment.received","invoiceId":"invoice-42"}';
 const headers = await verifier.sign({ id: 'event-1', timestamp: 1000, body });
 const request = new Request('https://service.invalid/webhook', { method: 'POST', headers, body });
 const verified = await webhook.verifyRequest(request, verifier, { now: new Date(1000_000) });
 if (!verified.ok) throw new Error(`Payment event rejected: ${verified.code}`);
+// Verification reads a bounded clone, leaving the original request available for parsing.
 const event = await request.json();
 console.log(verified.id, event.kind, event.invoiceId);
 ```
@@ -42,121 +60,93 @@ an inbound payment route needs without pretending to contact a payment provider.
 deduplicate deliveries. Validate the event schema and commit its identity with the business update in your application.
 Use application-owned secrets and the real clock in deployment; this key and timestamp only make the demo reproducible.
 
-## The contract beneath verification
+## Signed time and injected clocks
 
-| Call or value                                 | Contract                                                                     | Why it exists                                                            |
-| --------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `standard.create(options)`                    | Reusable signer/verifier; application supplies one secret or a rotation list | Keeps protocol and key policy together without owning an HTTP route      |
-| `sign({ id, body, timestamp? })`              | `Promise` of `webhook-id`, `webhook-timestamp`, `webhook-signature` headers  | Signs exactly the bytes the sender will transmit                         |
-| `WebhookVerifier.verify(input)`               | Receives `{ body: Uint8Array, headers: Headers, now: Date }`                 | Allows a protocol adapter to operate on the same raw-input contract      |
-| `verifyRequest(incoming, verifier, options?)` | `Promise<WebhookVerificationResult>`                                         | Reads a bounded clone and invokes that verifier                          |
-| Successful result                             | `{ ok: true, id, timestamp, version, keyIndex }`                             | Identifies the authenticated message and accepted key                    |
-| Rejected result                               | `{ ok: false, code }`                                                        | Gives a stable reason such as `invalid-signature` or `timestamp-too-old` |
+The Standard Webhooks wire timestamp is a positive, safe integer count of Unix seconds. Its digits-only guard defines
+signed protocol text; it is not a calendar-date parser. Verification accepts the existing `now: Date` injection, while
+signing accepts a Date or epoch seconds. Date access here adapts that public host contract, and tolerance compares the
+signed epoch value with the verification epoch value. A monotonic process clock cannot replace those instants because
+the sender and verifier are separate hosts. Calendar ISO parsing is not involved.
 
-For Standard Webhooks v1 the signed input is `id + "." + timestamp + "." + exact body bytes`. Verification checks the
-header syntax and timestamp window, bounds the number of signatures and keys, then verifies HMAC-SHA256 through Web
-Crypto. That is why parsing JSON first is unsafe: changing whitespace changes the signed bytes.
+## Admit a signed delivery once
 
-`verifyRequest()` translates body admission failures into rejection codes, but unexpected reader or verifier faults
-reject its promise. Treat `ok: false` as an authentication decision and a thrown failure as a separate operational
-failure. The clone keeps the original body available, but cloning is not free: a stream tee can retain bytes for the
-other reader. The configured byte budget bounds this verification read, not every upstream transport allocation. See the
-[full contracts](../API.md#webhook) for the available codes and options.
+`protect(verifier, options)` adds replay admission to an existing protocol verifier. Pass the returned verifier to
+`verifyRequest` to retain its bounded raw-body read and original Request ownership. Supply
+`store.claim(identity, expiresAt)` with the cross-process atomicity and retention required by the receiving service.
 
-## Build on the example
+Save this independent continuation as `payment-replay.ts` and run `mise exec -- deno run payment-replay.ts`.
+The Map is a **single-process demonstration store**: its synchronous claim has no await between lookup and insertion.
+It is neither durable nor shared between replicas; deployment needs a store with the atomic cross-process contract.
 
-For a provider callback, place verification before JSON validation in
-[service middleware](../../server/middleware/README.md), then let an [endpoint](../../server/endpoint/README.md)
-validate the verified event shape. Reject verification failures before changing domain state. The
-[request package](../request/README.md) explains body admission; set a budget appropriate to your provider's events.
-
-For an event that starts background work, record its ID together with the application's accepted work, then use your
-chosen [workflow](../../workflow/README.md) to run it. Design the recording and duplicate check to fit your persistence
-owner. Signature checks, timestamp tolerance and key rotation are not a durable replay store; subscriptions, delivery
-retries and delivery history remain application-owned.
-
-## Inbound webhooks
-
-An inbound webhook is normally an HTTP endpoint. Verify the exact request bytes before the endpoint parses JSON or form
-content.
-
-`verifyRequest()` reads a bounded clone, so the endpoint can still parse the original request after authentication:
-
-```typescript
+```ts runnable=payment-replay.ts
 import * as webhook from '@okikio/http/webhook';
 import * as standard from '@okikio/http/webhook/standard';
-
-const verifier = standard.create({ secret });
-const verified = await webhook.verifyRequest(request, verifier);
-
-if (!verified.ok) {
-	return new Response('Invalid webhook', { status: 401 });
-}
-
-const payload = await request.json();
-```
-
-A server integration should run this work before normal body parsing. The verification result contains stable failure
-codes. It does not expose the secret, raw payload, or received signature.
-
-## Outbound webhooks
-
-An outbound sender should serialize a payload once, sign those exact bytes, and send the same bytes.
-
-```typescript
-const body = new TextEncoder().encode(JSON.stringify(event));
-const headers = await verifier.sign({ id: event.id, body });
-
-await fetch(destination, {
-	method: 'POST',
-	headers: {
-		'content-type': 'application/json',
-		...headers,
+const now = new Date(1000_000);
+const retained = new Map<string, number>();
+let claims = 0;
+const verifier = standard.create({ secret: 'whsec_' + btoa(String.fromCharCode(...new Uint8Array(32).fill(1))) });
+const guarded = webhook.protect(verifier, {
+	namespace: 'payments:invoice-service',
+	maximumIdentityBytes: 256,
+	maximumAgeSeconds: 10,
+	maximumFutureSeconds: 1,
+	store: {
+		claim(identity, expiresAt) {
+			claims++;
+			if ((retained.get(identity) ?? 0) > now.getTime()) return false;
+			retained.set(identity, expiresAt);
+			return true;
+		},
 	},
-	body,
 });
+const body = '{"kind":"payment.received","invoiceId":"invoice-42"}';
+const headers = await verifier.sign({ id: 'event-1', timestamp: 1000, body });
+for (const delivered of [body, body, body + ' ']) {
+	const request = new Request('https://service.invalid/webhook', { method: 'POST', headers, body: delivered });
+	const result = await webhook.verifyRequest(request, guarded, { maximumBodyBytes: 1024, now });
+	console.log(
+		result.ok ? 'Accepted event-1' : result.code === 'duplicate' ? 'Duplicate rejected' : 'Changed bytes rejected',
+	);
+}
+console.log('Store claims:', claims);
 ```
 
-The signer returns the webhook ID, timestamp, and signatures together. This prevents a caller from combining headers
-from different signing attempts.
-
-## Bidirectional integrations
-
-A bidirectional integration uses both roles independently:
-
-```text
-provider  -> service endpoint -> verify -> application behavior
-provider  <- HTTP sender      <- sign   <- application event
+```text output
+Accepted event-1
+Duplicate rejected
+Changed bytes rejected
+Store claims: 2
 ```
 
-There is no separate bidirectional wire protocol. Each direction has its own credentials, replay window, delivery
-policy, and failure handling.
+The duplicate reaches storage after authentication. The whitespace-modified JSON is still parseable but its signed
+bytes differ, so it fails before storage. This is why a parser must not normalize the body before verification. The
+example stores only admission identities; it deliberately performs no invoice update.
 
-## Standard Webhooks v1
+The protocol authenticates first, including its own timestamp policy. The wrapper then applies the explicit age/future
+window and atomically claims the encoded `[namespace, authenticated ID]`. The identity byte bound includes both
+namespace and ID. Exact body bytes are unchanged. Invalid signature/time/body outcomes do not claim storage. A duplicate
+returns `{ ok: false, code: 'duplicate' }`; a store fault throws and cannot admit a message. The wrapper borrows both
+capabilities and never closes or clears either.
 
-`@okikio/http/webhook/standard` implements the symmetric Standard Webhooks v1 format with Web Crypto HMAC-SHA256.
+Store retention ends **after** the final valid timestamp second, not at its start. For timestamp 1000 seconds and
+maximum age 10 seconds, a delivery remains valid at 1010.999 seconds; the claim must remain until 1011.000 seconds.
+Replicas must share namespace, atomic store and clock policy. Early eviction breaks the replay contract. There is no
+implicit global in-memory cache.
 
-The implementation supports secret rotation and places explicit limits on work:
+Claim success is admission, not a transaction containing the application's effect. A crash after claim but before the
+effect can lose that delivery. A durable inbox or effect requiring reliable recovery must join admission and its state
+transition in the service's own transaction. This wrapper does not add retries or exactly-once effect guarantees.
 
-- 24 to 64 decoded secret bytes per key
-- at most 10 configured keys
-- at most 10 accepted signatures
-- a bounded signature header
-- a bounded webhook ID
-- a strict past and future timestamp window
-- a bounded request body when `verifyRequest()` reads the request
+## Choose adjacent capabilities
 
-`maximumKeys`, `maximumSignatures`, `maximumSignatureHeaderBytes`, `maximumIdBytes`, and `toleranceSeconds` can tighten
-the defaults. The configured key and signature counts cannot raise the protocol work cap above 10.
+Use Webhook for an incoming signed event and Signature for lower-level authenticated bytes. Verify the raw body before
+parsing JSON. The application owns secrets, protocol choice, clock policy, the atomic replay store and the accepted event destination.
+Use `protect()` above when admission must reject duplicate authenticated IDs; that wrapper still cannot commit an
+invoice update atomically.
 
-The package does not implement asymmetric `v1a` signing. The current code does not have enough stable upstream protocol
-evidence to make that a compatibility promise.
+The [package choice map](../README.md#choose-an-entry-point) lists the other public entries and when to use them.
 
-## Delivery orchestration
+## Read further
 
-HTTP signing and verification are complete without a top-level webhook package. A separate `@okikio/webhook` becomes
-useful when Okikio owns durable delivery semantics such as subscriptions, delivery attempts, retries, replay,
-dead-letter records, endpoint health, and secret rotation workflows.
-
-Until those concepts exist, services own inbound endpoints and outbound delivery policy. `@okikio/http/webhook` owns
-only the reusable HTTP authentication mechanics.
+Continue in the [numbered guide](https://github.com/okikio/utils/blob/main/docs/http/07-webhook.md) for composition,
+ownership, and failure behavior.

@@ -1,6 +1,7 @@
-/** Build and qualify the additional npm projection without changing canonical JSR manifests. @module */
-import { cp, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+/** Build and test the additional npm projection without changing canonical JSR manifests. @module */
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { cp, mkdir, mkdtemp, readdir, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
+import { dirname, relative, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -21,31 +22,61 @@ interface Manifest {
 	[key: string]: unknown;
 }
 const root = fileURLToPath(new URL('../', import.meta.url));
-const output = resolve(root, '.artifacts/npm');
+const output = resolve(root, '.tmp/artifacts/npm');
 const mode = process.argv[2] ?? 'build';
 if (!['build', 'check', 'consumer', 'pack', 'verify', 'member'].includes(mode)) {
 	throw new Error(`Unknown npm operation ${mode}.`);
 }
 const manifests = new Map<string, Manifest>();
-for (const directory of await readdir(resolve(root, 'packages'))) {
+for (const entry of await readdir(resolve(root, 'packages'), { withFileTypes: true })) {
+	if (!entry.isDirectory()) continue;
+	const directory = entry.name;
 	const manifest = JSON.parse(await readFile(resolve(root, 'packages', directory, 'package.json'), 'utf8')) as Manifest;
 	manifests.set(directory, manifest);
 }
-const portable = [...manifests].filter(([name]) => name !== 'deno');
+const requested = mode === 'build' ? process.argv.slice(3) : [];
+const selected = new Set(requested);
+/** Include workspace dependencies so selected artifacts resolve outside workspace links. */
+function include(name: string): void {
+	const manifest = manifests.get(name);
+	if (!manifest) throw new TypeError(`Unknown npm project ${name}.`);
+	for (
+		const dependency of Object.keys({
+			...manifest.dependencies,
+			...manifest.peerDependencies,
+			...manifest.optionalDependencies as Record<string, string>,
+		})
+	) {
+		const member = [...manifests].find(([, value]) => value.name === dependency)?.[0];
+		if (member && !selected.has(member)) {
+			selected.add(member);
+			include(member);
+		}
+	}
+}
+for (const name of requested) include(name);
+const portable = [...manifests].filter(([name]) => requested.length === 0 || selected.has(name));
 
 /** Reuse canonical tests through public imports in both emitted formats; never substitute artifact-only oracles. */
 const scenarioSources = {
 	discovery: 'tests/discovery.test.ts',
 	coordination: 'tests/coordination.test.ts',
+	capabilities: 'tests/capabilities.test.ts',
 	host: 'tests/host.test.ts',
 	workflow: 'tests/workflow.test.ts',
 	provider: 'tests/provider.test.ts',
 	'http-parity': 'tests/http-parity.test.ts',
-	bounded: 'packages/concurrency/bounded.test.ts',
+	bounded: 'packages/scheduler/concurrency/bounded.test.ts',
+	expansion: 'tests/expansion.test.ts',
+	protocol: 'tests/protocol.test.ts',
 };
 
 if (mode === 'build' || mode === 'verify') {
-	await rm(output, { recursive: true, force: true });
+	try {
+		await rename(output, `${output}-before-${Date.now()}`);
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+	}
 	await mkdir(output, { recursive: true });
 	// A fresh member process owns each declaration graph and releases it before the next package starts.
 	for (const [name] of portable) command('node', [fileURLToPath(import.meta.url), 'member', name], root);
@@ -56,20 +87,20 @@ if (mode === 'member') {
 	for (const [name, source] of selected) {
 		const stage = resolve(output, name);
 		const documents = (await readdir(resolve(root, 'packages', name))).filter((file) =>
-			['API.md', 'API.json', 'diagram.png', 'diagram.mmd'].includes(file)
+			['diagram.png', 'diagram.mmd'].includes(file)
 		);
 		await mkdir(resolve(stage, 'src'), { recursive: true });
 		await symlink(resolve(root, 'packages', name, 'node_modules'), resolve(stage, 'node_modules'), 'dir');
 		await cp(resolve(root, 'packages', name), resolve(stage, 'src'), {
 			recursive: true,
 			filter: (path) =>
-				!/(?:\.test\.ts|\.bench\.ts|\/fixtures(?:\/|$)|\/dist(?:\/|$)|\/node_modules(?:\/|$))/.test(path),
+				!/(?:\.test\.ts|\.bench\.ts|\/\.example-[^/]+(?:\/|$)|\/fixtures(?:\/|$)|\/dist(?:\/|$)|\/node_modules(?:\/|$))/
+					.test(path),
 		});
-		if (name === 'utils') {
-			for (const file of ['all.ts', 'mod.ts']) {
-				const path = resolve(stage, 'src', file);
-				await writeFile(path, (await readFile(path, 'utf8')).replace(/^.*['"]@okikio\/deno['"].*\n/gm, ''));
-			}
+		// Package-local guides must accompany root README links, including focused pages such as record/json.md.
+		for await (const file of files(resolve(stage, 'src'))) {
+			const document = relative(resolve(stage, 'src'), file).replaceAll('\\', '/');
+			if (document.endsWith('.md') && document !== 'README.md') documents.push(document);
 		}
 		const exports: Record<string, unknown> = {};
 		const entries: Record<string, string> = {};
@@ -100,12 +131,15 @@ if (mode === 'member') {
 			);
 			if (Object.keys(manifest.imports).length === 0) delete manifest.imports;
 		}
-		for (const field of ['dependencies', 'peerDependencies'] as const) {
+		for (const field of ['dependencies', 'peerDependencies', 'optionalDependencies'] as const) {
 			if (!manifest[field]) continue;
 			manifest[field] = Object.fromEntries(
-				Object.entries(manifest[field]!).filter(([dependency]) => dependency !== '@okikio/deno').map(
+				Object.entries(manifest[field] as Record<string, string>).map(
 					([dependency, version]) => {
 						const member = [...manifests.values()].find((value) => value.name === dependency);
+						if (version.startsWith('workspace:') && member === undefined) {
+							throw new Error(`Unknown workspace dependency ${dependency} in ${name}.`);
+						}
 						return [dependency, version.startsWith('workspace:') ? member!.version : version];
 					},
 				),
@@ -123,6 +157,7 @@ if (mode === 'member') {
 		await cp(resolve(root, 'LICENSE'), resolve(stage, 'LICENSE'));
 		await cp(resolve(root, 'packages', name, 'README.md'), resolve(stage, 'README.md'));
 		for (const document of documents) {
+			await mkdir(dirname(resolve(stage, document)), { recursive: true });
 			await cp(resolve(root, 'packages', name, document), resolve(stage, document));
 		}
 		await writeFile(
@@ -140,14 +175,15 @@ if (mode === 'member') {
 		await rm(resolve(stage, 'node_modules'));
 	}
 }
+
 if (['check', 'pack', 'consumer', 'verify'].includes(mode)) await inspect();
 if (['pack', 'consumer', 'verify'].includes(mode)) await pack();
 if (['consumer', 'verify'].includes(mode)) await consumer();
 
-/** Runtime-specific adapters remain JSR-only; generic protocols and Node adapters remain portable. */
+/** Deno adapters remain JSR-only; generic protocols and Node, Bun and browser adapters ship on npm. */
 function excluded(name: string, key: string): boolean {
-	return (name === 'process' || name === 'worker') && key === './deno' || name === 'utils' &&
-			(key === './deno' || key.startsWith('./deno/') || key === './process/deno' || key === './worker/deno');
+	return name === 'runtime' && (key === './deno' || key.startsWith('./deno/')) ||
+		name === 'utils' && (key === './runtime/deno' || key.startsWith('./runtime/deno/'));
 }
 
 /** Inspect all staged public targets and runtime modules, not merely the root entry. */
@@ -213,8 +249,17 @@ async function pack(): Promise<void> {
 		await rm(extracted, { recursive: true, force: true });
 		await mkdir(extracted, { recursive: true });
 		command('tar', ['-xzf', archive, '-C', extracted]);
-		command('pnpm', ['exec', 'publint', resolve(extracted, 'package'), '--strict'], root);
-		command('pnpm', ['exec', 'attw', '--profile', 'node16', archive], root);
+		// Run the installed pinned tools directly; validation must not trigger a package-manager reinstall.
+		command(
+			'node',
+			[resolve(root, 'node_modules/publint/src/cli.js'), resolve(extracted, 'package'), '--strict'],
+			root,
+		);
+		command(
+			'node',
+			[resolve(root, 'node_modules/@arethetypeswrong/cli/dist/index.js'), '--profile', 'node16', archive],
+			root,
+		);
 	}
 	await writeFile(resolve(archives, 'manifest.json'), `${JSON.stringify(packed, null, 2)}\n`);
 	await writeFile(
@@ -239,7 +284,11 @@ async function consumer(): Promise<void> {
 	// A consumer below the checkout could resolve missing packages from workspace ancestors.
 	const directory = await mkdtemp(resolve(tmpdir(), 'okikio-utils-npm-consumer-'));
 	await writeFile(resolve(output, 'consumer-location.json'), `${JSON.stringify({ directory }, null, 2)}\n`);
-	await writeFile(resolve(directory, 'package.json'), '{"private":true,"type":"module"}\n');
+	// Copied scenarios retain their authored fixture imports in the physically isolated consumer.
+	await writeFile(
+		resolve(directory, 'package.json'),
+		JSON.stringify({ private: true, type: 'module', imports: { '#fixtures/*': './fixtures/*' } }) + '\n',
+	);
 	await writeFile(resolve(directory, '.npmrc'), '@jsr:registry=https://npm.jsr.io\n');
 	const archives = JSON.parse(await readFile(resolve(output, 'archives/manifest.json'), 'utf8')) as string[];
 	await writeFile(resolve(directory, 'archives.json'), `${JSON.stringify(archives, null, 2)}\n`);
@@ -250,11 +299,19 @@ async function consumer(): Promise<void> {
 			'--ignore-scripts',
 			'--no-audit',
 			'--no-fund',
+			'--cache',
+			resolve(root, '.tmp/cache/npm'),
 			...archives,
 			'zod@4.5.4',
 			'valibot@1.4.2',
 			'hono@4.13.5',
+			'fast-check@4.9.0',
+			'ajv@8.20.0',
+			'ajv-formats@3.0.1',
+			'typebox@1.4.3',
+			'@sinclair/typebox@0.34.52',
 			'@types/node@26.4.0',
+			'@std/expect@npm:@jsr/std__expect@1.0.20',
 		],
 		directory,
 	);
@@ -283,9 +340,21 @@ async function consumer(): Promise<void> {
 				skipLibCheck: false,
 				allowImportingTsExtensions: true,
 			},
-			include: ['public.mts', 'public.cts', 'scenario-*.test.ts', 'typed-scenario-*.cts'],
+			include: [
+				'public.mts',
+				'public.cts',
+				'public-inference.mts',
+				'public-inference.cts',
+				'scenario-*.test.ts',
+				'typed-scenario-*.cts',
+			],
 		}),
 	);
+	// Check the same literal, field-selection and codec inference promises against
+	// physical declaration files in both Node module-resolution branches.
+	for (const extension of ['mts', 'cts']) {
+		await cp(resolve(root, 'tests/publication.types.test.ts'), resolve(directory, `public-inference.${extension}`));
+	}
 	for (const [name, source] of Object.entries(scenarioSources)) {
 		await cp(resolve(root, source), resolve(directory, `scenario-${name}.test.ts`));
 		await cp(resolve(root, source), resolve(directory, `typed-scenario-${name}.cts`));
@@ -337,7 +406,7 @@ async function consumer(): Promise<void> {
 		}\n`,
 	);
 	console.log(diagnostics);
-	await cp(resolve(root, 'tools/npm-consumer.mjs'), resolve(directory, 'consumer.mjs'));
+	await cp(resolve(root, 'tests/npm-consumer.mjs'), resolve(directory, 'consumer.mjs'));
 	command('node', ['consumer.mjs'], directory);
 	await bundles(directory);
 	await scenarios(directory);
@@ -352,15 +421,41 @@ async function* files(directory: string): AsyncGenerator<string> {
 	}
 }
 
-/** Run one bounded qualification command and preserve complete subprocess diagnostics on failure. */
+/** Run one bounded checks command and preserve complete subprocess diagnostics on failure. */
 function command(binary: string, args: string[], cwd = root, capture = false): string {
 	const result = spawnSync(binary, args, {
 		cwd,
 		encoding: 'utf8',
-		stdio: capture ? 'pipe' : 'inherit',
+		stdio: 'pipe',
 		timeout: 300_000,
 		maxBuffer: 32 * 1024 * 1024,
 	});
+	// Keep complete native diagnostics even when a compiler or install fails before
+	// its normal report exists. Commands own no credentials in argv or environment logs.
+	const commands = resolve(output, 'commands');
+	mkdirSync(commands, { recursive: true });
+	const evidence = mkdtempSync(resolve(commands, `${Date.now()}-`));
+	writeFileSync(resolve(evidence, 'stdout.log'), result.stdout ?? '');
+	writeFileSync(resolve(evidence, 'stderr.log'), result.stderr ?? '');
+	writeFileSync(
+		resolve(evidence, 'result.json'),
+		JSON.stringify(
+			{
+				binary,
+				args,
+				cwd,
+				status: result.status,
+				signal: result.signal,
+				error: result.error?.message,
+			},
+			null,
+			2,
+		) + '\n',
+	);
+	if (!capture) {
+		process.stdout.write(result.stdout ?? '');
+		process.stderr.write(result.stderr ?? '');
+	}
 	if (result.error) throw result.error;
 	if (result.status !== 0) {
 		throw new Error(
@@ -407,7 +502,7 @@ async function bundles(directory: string): Promise<void> {
 			throw new Error(`${item.name}: result was not bundled from the installed artifact.`);
 		}
 		for (const path of modules) {
-			if (/\/@okikio\/(?:deno|process|worker|server|html|css)\//.test(path)) {
+			if (/\/@okikio\/(?:runtime|worker|server|storage)\//.test(path)) {
 				throw new Error(`${item.name} retained unrelated capability ${path}.`);
 			}
 		}
@@ -472,6 +567,6 @@ async function scenarios(directory: string): Promise<void> {
 	}
 	for (const result of results) await result[Symbol.asyncDispose]();
 	console.log(
-		'Installed ESM and CommonJS artifacts passed discovery, coordination, HTTP host, workflow, provider ownership, bounded mapper failures and independent Hono parity scenarios.',
+		'Installed ESM and CommonJS artifacts passed discovery, coordination, HTTP host, workflow, durable client, provider ownership, bounded mapper failures and independent Hono parity scenarios.',
 	);
 }

@@ -103,6 +103,7 @@ export function create(options: StandardWebhookOptions): StandardWebhook {
 	);
 
 	return Object.freeze({
+		/** Verify timestamp and bounded signatures before returning an authenticated ID. */
 		async verify(input: WebhookVerificationInput): Promise<WebhookVerificationResult> {
 			assertVerificationInput(input);
 			const id = input.headers.get('webhook-id');
@@ -128,6 +129,8 @@ export function create(options: StandardWebhookOptions): StandardWebhook {
 				signatures.push(value);
 			}
 			if (signatures.length === 0) return failure('malformed-signature');
+			// Exact bytes matter: JSON whitespace and key order change the signature.
+			// No replay claim or business effect occurs at this authentication boundary.
 			const message = signedBytes(id, timestampValue, input.body);
 			for (let keyIndex = 0; keyIndex < keys.length; keyIndex += 1) {
 				const key = await keys[keyIndex]!;
@@ -139,6 +142,7 @@ export function create(options: StandardWebhookOptions): StandardWebhook {
 			}
 			return failure('invalid-signature');
 		},
+		/** Sign the same framed bytes with every configured rotation key. */
 		async sign(input: SignStandardWebhookOptions): Promise<StandardWebhookHeaders> {
 			if (typeof input !== 'object' || input === null || Array.isArray(input)) {
 				throw new TypeError('Standard Webhooks sign options must be an object.');
@@ -165,6 +169,7 @@ export function create(options: StandardWebhookOptions): StandardWebhook {
 	});
 }
 
+/** Select exactly one configured key source and bound rotation work before importing keys. */
 function normalizeSecrets(options: StandardWebhookOptions, maximumKeys: number): readonly Uint8Array[] {
 	if (options.secret !== undefined && options.secrets !== undefined) {
 		throw new TypeError('Provide secret or secrets, not both.');
@@ -177,6 +182,7 @@ function normalizeSecrets(options: StandardWebhookOptions, maximumKeys: number):
 	return Object.freeze(values.map((secret) => decodeSecret(secret)));
 }
 
+/** Decode the optional whsec_ prefix and admit only 24–64 bytes of key material. */
 function decodeSecret(secret: string): Uint8Array {
 	if (typeof secret !== 'string') throw new TypeError('Standard Webhooks secrets must be strings.');
 	const encoded = secret.startsWith('whsec_') ? secret.slice(6) : secret;
@@ -192,17 +198,20 @@ function decodeSecret(secret: string): Uint8Array {
 	return value;
 }
 
+/** Bound the signed identity and exclude dots that would make the signature prefix ambiguous. */
 function validId(id: string, maximumBytes: number): boolean {
 	return id.length > 0 && !id.includes('.') && !whitespaceOrControlPattern.test(id) &&
 		encoder.encode(id).byteLength <= maximumBytes;
 }
 
+/** Accept positive decimal epoch seconds without floating-point or unsafe-integer ambiguity. */
 function parseTimestamp(value: string): number | undefined {
 	if (!timestampPattern.test(value)) return undefined;
 	const timestamp = Number(value);
 	return Number.isSafeInteger(timestamp) && timestamp > 0 ? timestamp : undefined;
 }
 
+/** Convert a supplied Date to whole epoch seconds, using the clock only when omitted. */
 function signTimestamp(value: number | Date | undefined): number {
 	const timestamp = value instanceof Date ? Math.floor(value.getTime() / 1000) : value ?? Math.floor(Date.now() / 1000);
 	if (!Number.isSafeInteger(timestamp) || timestamp <= 0) {
@@ -211,12 +220,14 @@ function signTimestamp(value: number | Date | undefined): number {
 	return timestamp;
 }
 
+/** Encode string input as UTF-8; byte input retains its exact signed representation. */
 function payloadBytes(payload: WebhookPayload): Uint8Array {
 	if (typeof payload === 'string') return encoder.encode(payload);
 	if (!(payload instanceof Uint8Array)) throw new TypeError('Webhook body must be a string or Uint8Array.');
 	return payload;
 }
 
+/** Join id.timestamp. and the exact body bytes. Never parse and reserialize signed JSON. */
 function signedBytes(id: string, timestamp: string, body: Uint8Array): Uint8Array {
 	const prefix = encoder.encode(`${id}.${timestamp}.`);
 	const value = new Uint8Array(prefix.byteLength + body.byteLength);
@@ -232,6 +243,7 @@ function buffer(value: Uint8Array): ArrayBuffer {
 	return copy.buffer;
 }
 
+/** Treat malformed Base64 or a non-SHA-256 signature length as invalid input. */
 function decodeSignature(value: string): Uint8Array | undefined {
 	try {
 		const decoded = decodeBase64(value);
@@ -241,6 +253,7 @@ function decodeSignature(value: string): Uint8Array | undefined {
 	}
 }
 
+/** Require native byte/header/clock inputs before inspecting the signed protocol fields. */
 function assertVerificationInput(input: WebhookVerificationInput): void {
 	if (
 		typeof input !== 'object' || input === null || !(input.body instanceof Uint8Array) ||
@@ -250,13 +263,16 @@ function assertVerificationInput(input: WebhookVerificationInput): void {
 	}
 }
 
+/** Return a stable verification rejection code without copying secrets or payload bytes. */
 function failure(code: WebhookVerificationFailureCode): WebhookVerificationResult {
 	return Object.freeze({ ok: false, code });
 }
+/** Admit a positive safe-integer work bound; zero cannot enable an operation. */
 function positive(value: number, name: string): number {
 	if (!Number.isSafeInteger(value) || value < 1) throw new TypeError(`${name} must be a positive safe integer.`);
 	return value;
 }
+/** Admit a whole-second tolerance, including zero, without unsafe numeric precision. */
 function nonNegative(value: number, name: string): number {
 	if (!Number.isSafeInteger(value) || value < 0) throw new TypeError(`${name} must be a non-negative safe integer.`);
 	return value;

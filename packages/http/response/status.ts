@@ -101,26 +101,167 @@ const serverErrorValues = [500, 501, 502, 503, 504, 505, 506, 507, 508, 510, 511
 const contentlessValues = [101, 204, 205, 304] as const;
 
 /** Informational status schema. */
-export const informational = createStatusSchema(informationalValues);
+export const informational: HttpStatusSchema<100 | 101 | 102 | 103 | 104> = createStatusSchema(informationalValues);
 /** Successful status schema. */
-export const success = createStatusSchema(successValues);
+export const success: HttpStatusSchema<200 | 201 | 202 | 203 | 204 | 205 | 206 | 207 | 208 | 226> = createStatusSchema(
+	successValues,
+);
 /** Redirect status schema. */
-export const redirect = createStatusSchema(redirectValues);
+export const redirect: HttpStatusSchema<300 | 301 | 302 | 303 | 304 | 307 | 308 | 305 | 306> = createStatusSchema(
+	redirectValues,
+);
 /** Client-error status schema. */
-export const clientError = createStatusSchema(clientErrorValues);
+export const clientError: HttpStatusSchema<
+	| 400
+	| 401
+	| 402
+	| 403
+	| 404
+	| 405
+	| 406
+	| 407
+	| 408
+	| 409
+	| 410
+	| 411
+	| 412
+	| 413
+	| 414
+	| 415
+	| 416
+	| 417
+	| 418
+	| 421
+	| 422
+	| 423
+	| 424
+	| 425
+	| 426
+	| 428
+	| 429
+	| 431
+	| 451
+> = createStatusSchema(clientErrorValues);
 /** Server-error status schema. */
-export const serverError = createStatusSchema(serverErrorValues);
+export const serverError: HttpStatusSchema<500 | 501 | 502 | 503 | 504 | 505 | 506 | 507 | 508 | 510 | 511> =
+	createStatusSchema(serverErrorValues);
 /** RFC problem status schema. */
-export const problem = createStatusSchema([...clientErrorValues, ...serverErrorValues] as const);
+export const problem: HttpStatusSchema<
+	| 400
+	| 401
+	| 402
+	| 403
+	| 404
+	| 405
+	| 406
+	| 407
+	| 408
+	| 409
+	| 410
+	| 411
+	| 412
+	| 413
+	| 414
+	| 415
+	| 416
+	| 417
+	| 418
+	| 421
+	| 422
+	| 423
+	| 424
+	| 425
+	| 426
+	| 428
+	| 429
+	| 431
+	| 451
+	| 500
+	| 501
+	| 502
+	| 503
+	| 504
+	| 505
+	| 506
+	| 507
+	| 508
+	| 510
+	| 511
+> = createStatusSchema([...clientErrorValues, ...serverErrorValues] as const);
 /** Contentless status schema. */
-export const contentless = createStatusSchema(contentlessValues);
+export const contentless: HttpStatusSchema<204 | 205 | 304 | 101> = createStatusSchema(contentlessValues);
 /** Contentful status schema. */
-export const contentful = createStatusSchema(
+export const contentful: HttpStatusSchema<ContentfulStatus> = createStatusSchema(
 	[...informationalValues, ...successValues, ...redirectValues, ...clientErrorValues, ...serverErrorValues]
 		.filter((value) => !contentlessValues.includes(value as ContentlessStatus)) as ContentfulStatus[],
 );
 /** All recognized HTTP statuses. */
-export const any = createStatusSchema(
+export const any: HttpStatusSchema<
+	| 200
+	| 201
+	| 202
+	| 203
+	| 204
+	| 205
+	| 206
+	| 207
+	| 208
+	| 226
+	| 300
+	| 301
+	| 302
+	| 303
+	| 304
+	| 307
+	| 308
+	| 100
+	| 101
+	| 102
+	| 103
+	| 104
+	| 305
+	| 306
+	| 400
+	| 401
+	| 402
+	| 403
+	| 404
+	| 405
+	| 406
+	| 407
+	| 408
+	| 409
+	| 410
+	| 411
+	| 412
+	| 413
+	| 414
+	| 415
+	| 416
+	| 417
+	| 418
+	| 421
+	| 422
+	| 423
+	| 424
+	| 425
+	| 426
+	| 428
+	| 429
+	| 431
+	| 451
+	| 500
+	| 501
+	| 502
+	| 503
+	| 504
+	| 505
+	| 506
+	| 507
+	| 508
+	| 510
+	| 511
+> = createStatusSchema(
 	[
 		...informationalValues,
 		...successValues,
@@ -162,9 +303,8 @@ function createStatusSchema<const Values extends readonly number[]>(values: Valu
 			version: 1 as const,
 			vendor: 'utils-http-status',
 			/**
-			 * Checks state and preserves the deterministic issues needed by callers.
-			 *
-			 * @internal
+			 * Return a Standard Schema issue for any non-integer or unlisted status.
+			 * No string-to-number coercion is applied.
 			 */
 			validate(value: unknown) {
 				return typeof value === 'number' && Number.isInteger(value) && allowed.has(value)
@@ -177,9 +317,7 @@ function createStatusSchema<const Values extends readonly number[]>(values: Valu
 			}),
 		}),
 		/**
-		 * Checks whether the value satisfies the condition required by logical HTTP response construction.
-		 *
-		 * @internal
+		 * Narrow an unknown value by exact numeric membership in this status set.
 		 */
 		is(value: unknown): value is Values[number] {
 			return typeof value === 'number' && Number.isInteger(value) && allowed.has(value);

@@ -7,7 +7,10 @@
  *
  * @module
  */
-import type { CatalogEntryIdentity } from '@okikio/catalog';
+import { rejection } from '@okikio/workflow/dispatch';
+import type { PlacementActivityType, PlacementHostType, PlacementReasonType } from '@okikio/workflow/dispatch';
+export type { PlacementActivityType, PlacementHostType, PlacementReasonType } from '@okikio/workflow/dispatch';
+import type { CatalogEntryIdentity } from '@okikio/collection/catalog';
 
 /** Immutable execution-target contract used by activity placement. */
 export interface EngineDefinition<Id extends string = string> extends CatalogEntryIdentity {
@@ -165,7 +168,7 @@ function rank(mode: EngineChoiceModeType): number {
 	return 1;
 }
 
-/** Reject a forged or malformed engine definition before it enters placement state. */
+/** Check the engine shape and ID spelling; exact candidate identity is enforced at activity execution. */
 function assertDefinition(value: EngineDefinition): void {
 	if (typeof value !== 'object' || value === null || value.kind !== 'activity-engine' || typeof value.id !== 'string') {
 		throw new TypeError('Activity engine placement requires an engine definition.');
@@ -176,4 +179,61 @@ function assertDefinition(value: EngineDefinition): void {
 /** Reject an invalid stable engine identifier before definition creation. */
 function assertId(id: string): void {
 	if (!/^[a-z0-9][a-z0-9._:-]*$/i.test(id)) throw new TypeError(`Invalid activity engine id ${JSON.stringify(id)}.`);
+}
+
+/** Bounded credential-free placement report. `selected` is an observation, never a reservation. */
+export interface PlacementReportType {
+	/** First authored engine with an eligible host; undefined means no current candidate. */
+	readonly selected: string | undefined;
+	/** One diagnostic per supplied host, in caller order. */
+	readonly hosts: readonly Readonly<
+		{
+			id: string;
+			hostId: string;
+			engineId: string;
+			eligible: boolean;
+			selected: boolean;
+			reason: PlacementReasonType | undefined;
+		}
+	>[];
+}
+/**
+ * Inspect a normalized placement against explicit host facts and time. All hosts must fit maximumHosts;
+ * truncation could conceal an earlier fallback candidate, so excess input rejects. No provider callback runs.
+ * Pass fresh registration state from the dispatch owner; this snapshot does not authorize or reserve capacity.
+ */
+export function inspect(
+	activity: PlacementActivityType & { readonly placement: EnginePlacementInputType },
+	hosts: readonly PlacementHostType[],
+	options: { readonly maximumHosts: number; readonly now: number },
+): PlacementReportType {
+	if (!Number.isSafeInteger(options.maximumHosts) || options.maximumHosts < 1 || hosts.length > options.maximumHosts) {
+		throw new RangeError('Placement hosts exceed maximumHosts.');
+	}
+	const choices = compose(activity.placement).choices;
+	let selected: string | undefined;
+	for (const choice of choices) {
+		if (hosts.some((host) => rejection(activity, host, choice.engine.id, options.now) === undefined)) {
+			selected = choice.engine.id;
+			break;
+		}
+		if (choice.mode === 'required') break;
+	}
+	return Object.freeze({
+		selected,
+		hosts: Object.freeze(hosts.map((host) => {
+			const choice = choices.find((entry) => entry.engine.id === host.engineId);
+			const reason = choice === undefined
+				? 'engine' as const
+				: rejection(activity, host, choice.engine.id, options.now);
+			return Object.freeze({
+				id: host.id,
+				hostId: host.hostId,
+				engineId: host.engineId,
+				eligible: reason === undefined,
+				selected: reason === undefined && host.engineId === selected,
+				reason,
+			});
+		})),
+	});
 }

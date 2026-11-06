@@ -1,0 +1,38 @@
+{
+	"name": "@okikio/storage",
+	"version": "0.0.0",
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"exports": {
+		".": "./mod.ts",
+		"./workflow/postgres": "./workflow/postgres/mod.ts",
+		"./queue": "./queue/mod.ts",
+		"./queue/postgres": "./queue/postgres.ts",
+		"./workflow": "./workflow/mod.ts",
+		"./state": "./state/mod.ts",
+		"./state/web": "./state/web.ts",
+		"./state/postgres": "./state/postgres.ts",
+		"./session/postgres": "./session/postgres.ts",
+		"./outbox/postgres": "./outbox/postgres.ts",
+		"./outbox/effect": "./outbox/effect.ts"
+	},
+	"dependencies": {
+		"@okikio/workflow": "workspace:^",
+		"@okikio/schema": "workspace:^",
+		"postgres": "4.0.0",
+		"@okikio/collection": "workspace:^",
+		"@okikio/telemetry": "workspace:^",
+		"@okikio/scheduler": "workspace:^",
+		"@okikio/context": "workspace:^",
+		"@okikio/result": "workspace:^",
+		"@okikio/observables": "^1.4.0",
+		"@okikio/capability": "workspace:^",
+		"@okikio/dispose": "workspace:^"
+	},
+	"devDependencies": {
+		"zod": "^4.5.4",
+		"@standard-schema/spec": "^1.1.0",
+		"mitata": "^1.0.34"
+	}
+}

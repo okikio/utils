@@ -1,4 +1,4 @@
-import * as recordCore from '@okikio/record';
+import * as recordCore from '@okikio/collection/record';
 
 import type {
 	AnyEndpointHandler,
@@ -109,6 +109,7 @@ export function handlers(
 ): readonly AnyEndpointHandlerBinding[] {
 	const result: AnyEndpointHandlerBinding[] = [];
 	const seenBindings = new Map<EndpointDefinition, Map<EndpointOperation, AnyEndpointHandlerBinding>>();
+	/** Flatten in order; reusing one binding is harmless, replacing it with another is ambiguous. */
 	const visit = (value: EndpointHandlerInput): void => {
 		if (isHandlerArray(value)) {
 			for (const item of value) visit(item);
@@ -163,7 +164,7 @@ function erasedBinding(
 }
 
 /**
- * Checks whether handler input array satisfies the condition required by endpoint definition and request contracts.
+ * Recognize nested binding arrays for recursive flattening.
  *
  * @internal
  */
@@ -172,7 +173,7 @@ function isHandlerArray(value: EndpointHandlerInput): value is readonly Endpoint
 }
 
 /**
- * Checks whether handler record satisfies the condition required by endpoint definition and request contracts.
+ * Require an ordinary data record before reading a method-to-handler map.
  *
  * @internal
  */
@@ -181,7 +182,7 @@ function isHandlerRecord(value: unknown): value is Readonly<Record<string, unkno
 }
 
 /**
- * Checks whether operation satisfies the condition required by endpoint definition and request contracts.
+ * Recognize an operation candidate; handler() then checks exact endpoint membership.
  *
  * @internal
  */

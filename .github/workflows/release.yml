@@ -9,9 +9,7 @@ concurrency:
   group: bumpy-release-${{ github.ref }}
   cancel-in-progress: false
 
-# Essential block to grant OIDC token generation permissions
 permissions:
-  id-token: write
   contents: read
 
 jobs:
@@ -41,7 +39,7 @@ jobs:
           install: true
 
       - name: Install dependencies
-        run: mise run install
+        run: mise run prepare -- --kind deps
 
       - id: plan
         name: Inspect release state
@@ -72,7 +70,7 @@ jobs:
           install: true
 
       - name: Install dependencies
-        run: mise run install
+        run: mise run prepare -- --kind deps
 
       - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         id: app-token
@@ -100,9 +98,19 @@ jobs:
             git push --force-with-lease origin bumpy/version-packages
           fi
 
+  tested:
+    name: Test release commit
+    needs: plan
+    if: needs.plan.outputs.mode == 'publish'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/quality.yml
+    with:
+      full: true
+
   publish:
     name: Publish packages
-    needs: plan
+    needs: [plan, tested]
     if: needs.plan.outputs.mode == 'publish'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -115,6 +123,7 @@ jobs:
       - name: Check out source and release history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -126,13 +135,12 @@ jobs:
           install: true
 
       - name: Install dependencies
-        run: mise run install
+        run: mise run prepare -- --kind deps
 
-      - name: Verify release candidates
-        run: mise run verify
-
-      - name: Qualify exact npm candidates
-        run: mise run npm-verify
+      # The exact source revision already passed full checks above.
+      # JSR publishes source, so there is no independently rebuilt npm candidate here.
+      - name: Check immutable JSR publication candidates
+        run: mise run check -- --kind jsr
 
       - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         id: app-token

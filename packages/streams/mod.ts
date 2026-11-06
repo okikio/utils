@@ -1,7 +1,13 @@
 /**
- * Consume asynchronous data with explicit item, byte and line budgets. A successful Array.fromAsync can still exhaust memory if the source never ends or one record is enormous.
+ * Read asynchronous data a piece at a time instead of collecting the complete source. For example, split
+ * incoming bytes into lines or group records into bounded batches for a database write.
  *
- * Batch for database writes, fold streams without collecting, and use bounded collect() only when a finite materialized result is needed. Pass cancellation into the source operation as well as the adapter. Early iteration exit cancels owned Web streams unless preventCancel explicitly keeps borrowed ownership. Byte estimates for object batches are caller policy; line framing counts actual encoded bytes.
+ * Item, byte, and line limits bound the adapter's retained state. They cannot bound an array that the
+ * consumer keeps growing. Use collect() only when a finite in-memory result is intended.
+ *
+ * Pass cancellation to source I/O as well as to the adapter. Early return releases owned readers promptly,
+ * although source cleanup may finish later. Object byte estimates come from the caller; line framing
+ * counts original encoded bytes.
  *
  * @example
  * ```ts
@@ -17,6 +23,8 @@
  * @module
  */
 import type { BatchOptions, IterableOptions, LimitOptions, LineOptions } from './types.ts';
+import * as readers from './reader.ts';
+import type { CleanupOutcome } from './reader.ts';
 
 /** Materialization or batching exceeded an explicit item or byte limit. */
 export class StreamLimitError extends Error {
@@ -43,11 +51,7 @@ export function readable<Value>(
 ): ReadableStream<Value> {
 	const iterator = toAsyncIterator(source);
 	return new ReadableStream<Value>({
-		/**
-		 * Pulls the next value only when stream and async-iterator adaptation is ready to accept it.
-		 *
-		 * @internal
-		 */
+		/** Request one iterator value when the Web Stream has capacity; the stream owns subsequent demand. */
 		async pull(controller) {
 			try {
 				const next = await iterator.next();
@@ -57,11 +61,7 @@ export function readable<Value>(
 				controller.error(error);
 			}
 		},
-		/**
-		 * Checks whether cel is currently allowed by stream and async-iterator adaptation.
-		 *
-		 * @internal
-		 */
+		/** Forward cancellation to the source iterator and wait for its return hook. */
 		async cancel(reason) {
 			await iterator.return?.(reason);
 		},
@@ -73,22 +73,15 @@ export async function* iterable<Value>(
 	source: ReadableStream<Value>,
 	options: IterableOptions = {},
 ): AsyncIterableIterator<Value> {
-	const reader = source.getReader();
-	let completed = false;
+	const reader = readers.open(source, options);
 	try {
 		while (true) {
 			const next = await reader.read();
-			if (next.done) {
-				completed = true;
-				return;
-			}
+			if (next.done) return;
 			yield next.value;
 		}
 	} finally {
-		if (completed || options.preventCancel === true) reader.releaseLock();
-		else {void reader.cancel('ReadableStream iteration ended early.').catch(() => {}).finally(() =>
-				reader.releaseLock()
-			);}
+		void reader.close('ReadableStream iteration ended early.');
 	}
 }
 
@@ -113,39 +106,43 @@ export class StreamLineLimitError extends RangeError {
  *
  * The line-feed separator is not returned. A carriage return immediately
  * before the separator is removed. The final unterminated line is returned.
+ * Early exit requests cancellation and releases the reader without waiting for
+ * unbounded source cleanup. The source owner remains responsible for that cleanup.
  */
 export async function* lines(
 	source: ReadableStream<Uint8Array>,
 	options: LineOptions = {},
 ): AsyncIterableIterator<string> {
-	const reader = source.getReader();
 	const maximum = options.maximumLineBytes === undefined
 		? undefined
 		: positiveInteger(options.maximumLineBytes, 'maximumLineBytes');
-	let completed = false;
+	const totalLimit = options.maximumBytes === undefined
+		? undefined
+		: positiveInteger(options.maximumBytes, 'maximumBytes');
+	const reader = readers.open(source, options);
+	let totalBytes = 0;
 	let parts: Uint8Array[] = [];
 	let lineBytes = 0;
-	const abort = options.signal === undefined
-		? undefined
-		: () => void reader.cancel(abortReason(options.signal!)).catch(() => undefined);
-	options.signal?.addEventListener('abort', abort!, { once: true });
 
 	try {
 		while (true) {
 			throwIfAborted(options.signal);
 			const next = await reader.read();
 			throwIfAborted(options.signal);
-			if (next.done) {
-				completed = true;
-				break;
-			}
+			if (next.done) break;
 			const chunk = next.value;
+			totalBytes += chunk.byteLength;
+			if (totalLimit !== undefined && totalBytes > totalLimit) {
+				throw new StreamLimitError('bytes', totalLimit, totalBytes);
+			}
 			let start = 0;
 			for (let index = 0; index < chunk.byteLength; index += 1) {
 				if (chunk[index] !== 0x0a) continue;
 				appendLinePart(parts, chunk.subarray(start, index), maximum, lineBytes);
 				lineBytes += index - start;
-				yield decodeLine(parts, lineBytes);
+				// Decode only after joining the complete line, so a UTF-8 character may span chunks.
+				yield decodeLine(parts, lineBytes, options.fatal);
+				throwIfAborted(options.signal);
 				parts = [];
 				lineBytes = 0;
 				start = index + 1;
@@ -156,14 +153,9 @@ export async function* lines(
 				lineBytes += part.byteLength;
 			}
 		}
-		if (lineBytes > 0) yield decodeLine(parts, lineBytes);
+		if (lineBytes > 0) yield decodeLine(parts, lineBytes, options.fatal);
 	} finally {
-		if (abort !== undefined) options.signal?.removeEventListener('abort', abort);
-		if (completed || options.preventCancel === true) reader.releaseLock();
-		else {
-			await reader.cancel('ReadableStream line iteration ended early.').catch(() => undefined);
-			reader.releaseLock();
-		}
+		void reader.close('ReadableStream line iteration ended early.');
 	}
 }
 
@@ -181,10 +173,11 @@ export async function collect<Value>(
 	source: Iterable<Value> | AsyncIterable<Value>,
 	options: LimitOptions<Value> = {},
 ): Promise<readonly Value[]> {
+	throwIfAborted(options.signal);
 	const limits = normalizeLimits(options, false);
 	const values: Value[] = [];
 	let bytes = 0;
-	for await (const value of source) {
+	for await (const value of observed(source, options)) {
 		throwIfAborted(options.signal);
 		const nextItems = values.length + 1;
 		if (limits.maximumItems !== undefined && nextItems > limits.maximumItems) {
@@ -205,10 +198,18 @@ export async function* batch<Value>(
 	source: Iterable<Value> | AsyncIterable<Value>,
 	options: BatchOptions<Value>,
 ): AsyncIterableIterator<readonly Value[]> {
+	throwIfAborted(options.signal);
 	const limits = normalizeLimits(options, true);
+	if (options.maximumDelay !== undefined) {
+		if (!Number.isFinite(options.maximumDelay) || options.maximumDelay <= 0 || options.clock === undefined) {
+			throw new TypeError('Timed batching requires positive finite maximumDelay and a cancellable clock.');
+		}
+		yield* timedBatch(source, options, limits);
+		return;
+	}
 	let values: Value[] = [];
 	let bytes = 0;
-	for await (const value of source) {
+	for await (const value of observed(source, options)) {
 		throwIfAborted(options.signal);
 		const size = estimateSize(value, limits);
 		if (limits.maximumBytes !== undefined && size > limits.maximumBytes) {
@@ -230,6 +231,84 @@ export async function* batch<Value>(
 	if (values.length > 0) yield Object.freeze(values);
 }
 
+/**
+ * Retain one pending read across deadline flushes. Consumer suspension starts no
+ * additional reads. Cancellation observes late producer rejection and requests
+ * owned cleanup without claiming that an uncooperative producer has stopped.
+ */
+async function* timedBatch<Value>(
+	source: Iterable<Value> | AsyncIterable<Value>,
+	options: BatchOptions<Value>,
+	limits: NormalizedLimits<Value>,
+): AsyncIterableIterator<readonly Value[]> {
+	const lifetime = new AbortController();
+	const signal = options.signal === undefined ? lifetime.signal : AbortSignal.any([options.signal, lifetime.signal]);
+	const iterator = observed(source, { signal, onCleanup: options.onCleanup });
+	let pending: Promise<IteratorResult<Value>> | undefined;
+	let timer: AbortController | undefined;
+	let deadline: Promise<{ readonly kind: 'deadline' }> | undefined;
+	let values: Value[] = [];
+	let bytes = 0;
+	/** Abort removes the clock's owned timer; its rejection is already observed by each race. */
+	const stopTimer = (): void => {
+		timer?.abort();
+		timer = undefined;
+		deadline = undefined;
+	};
+	try {
+		while (true) {
+			throwIfAborted(signal);
+			pending ??= iterator.next();
+			const read = pending.then((next) => ({ kind: 'read' as const, next }));
+			const result = deadline === undefined ? await read : await Promise.race([read, deadline]);
+			throwIfAborted(signal);
+			// Keep pending after a deadline flush: starting another read would overlap producer work.
+			if (result.kind === 'deadline') {
+				stopTimer();
+				yield Object.freeze(values);
+				values = [];
+				bytes = 0;
+				continue;
+			}
+			pending = undefined;
+			if (result.next.done) break;
+			const value = result.next.value;
+			const size = estimateSize(value, limits);
+			if (limits.maximumBytes !== undefined && size > limits.maximumBytes) {
+				throw new StreamLimitError('bytes', limits.maximumBytes, size);
+			}
+			if (limits.maximumBytes !== undefined && values.length > 0 && bytes + size > limits.maximumBytes) {
+				stopTimer();
+				yield Object.freeze(values);
+				values = [];
+				bytes = 0;
+				throwIfAborted(signal);
+			}
+			values.push(value);
+			bytes += size;
+			if (limits.maximumItems !== undefined && values.length >= limits.maximumItems) {
+				stopTimer();
+				yield Object.freeze(values);
+				values = [];
+				bytes = 0;
+			} else if (deadline === undefined) {
+				timer = new AbortController();
+				deadline = options.clock!.sleep(options.maximumDelay!, AbortSignal.any([signal, timer.signal])).then(() => ({
+					kind: 'deadline' as const,
+				}));
+				void deadline.catch(() => {});
+			}
+		}
+		stopTimer();
+		if (values.length > 0) yield Object.freeze(values);
+	} finally {
+		stopTimer();
+		lifetime.abort();
+		void pending?.catch(() => {});
+		void iterator.return?.(undefined).catch(() => {});
+	}
+}
+
 /** Append one byte segment after enforcing the per-line byte limit. */
 function appendLinePart(
 	parts: Uint8Array[],
@@ -243,7 +322,7 @@ function appendLinePart(
 }
 
 /** Decode one complete line and remove a CR immediately before LF or end-of-stream. */
-function decodeLine(parts: readonly Uint8Array[], bytes: number): string {
+function decodeLine(parts: readonly Uint8Array[], bytes: number, fatal = false): string {
 	if (bytes === 0) return '';
 	const joined = new Uint8Array(bytes);
 	let offset = 0;
@@ -252,20 +331,17 @@ function decodeLine(parts: readonly Uint8Array[], bytes: number): string {
 		offset += part.byteLength;
 	}
 	const end = joined[joined.byteLength - 1] === 0x0d ? joined.byteLength - 1 : joined.byteLength;
-	return new TextDecoder().decode(joined.subarray(0, end));
+	return new TextDecoder('utf-8', { fatal }).decode(joined.subarray(0, end));
 }
 
 /** Normalize an AbortSignal into the reason propagated by stream operations. */
 function abortReason(signal: AbortSignal): unknown {
-	return signal.reason ?? new DOMException('The stream operation was cancelled.', 'AbortError');
+	return signal.reason;
 }
 
 /**
- * Converts the source value to async iterator expected by stream and async-iterator adaptation.
- *
- * Stream internals preserve cancellation and pull pressure unless the caller explicitly requests bounded materialization.
- *
- * @internal
+ * Preserve an existing async iterator, or adapt a synchronous iterator whose values may be Promises.
+ * Only each yielded value is awaited; iteration remains pull-based and creates no background queue.
  */
 function toAsyncIterator<Value>(
 	source: Iterable<Value | PromiseLike<Value>> | AsyncIterable<Value>,
@@ -273,20 +349,12 @@ function toAsyncIterator<Value>(
 	if (Symbol.asyncIterator in Object(source)) return (source as AsyncIterable<Value>)[Symbol.asyncIterator]();
 	const iterator = (source as Iterable<Value | PromiseLike<Value>>)[Symbol.iterator]();
 	return {
-		/**
-		 * Advances to the next value without crossing ownership between independent consumers of stream and async-iterator adaptation.
-		 *
-		 * @internal
-		 */
+		/** Await a yielded Promise like native for-await, without awaiting the iterator's completion value. */
 		async next() {
 			const result = iterator.next();
 			return result.done ? { done: true, value: undefined } : { done: false, value: await result.value };
 		},
-		/**
-		 * Returns from iteration and triggers the cleanup required by stream and async-iterator adaptation.
-		 *
-		 * @internal
-		 */
+		/** Request source cleanup once the consumer stops and await its returned value. */
 		async return(value?: unknown) {
 			const result = iterator.return?.(value as never) ?? { done: true, value: value as never };
 			return { done: true, value: await result.value };
@@ -301,11 +369,9 @@ interface NormalizedLimits<Value> {
 }
 
 /**
- * Normalizes limits into the canonical internal form used by later phases.
- *
- * It preserves streaming cancellation and pressure unless the caller explicitly chooses bounded materialization.
- *
- * @internal
+ * Validate count/byte policy before acquiring the source. A batch requires at least one bound;
+ * collect permits no bound because its caller may already own a known finite input.
+ * Byte limits require an explicit estimator rather than guessing an object's heap size.
  */
 function normalizeLimits<Value>(options: LimitOptions<Value>, required: boolean): NormalizedLimits<Value> {
 	const maximumItems = options.maximumItems === undefined
@@ -327,11 +393,7 @@ function normalizeLimits<Value>(options: LimitOptions<Value>, required: boolean)
 	});
 }
 
-/**
- * Estimates the size used for bounded admission in stream and async-iterator adaptation.
- *
- * @internal
- */
+/** Call the caller's byte estimator only for byte-bounded work and reject invalid accounting. */
 function estimateSize<Value>(value: Value, limits: NormalizedLimits<Value>): number {
 	if (limits.maximumBytes === undefined) return 0;
 	const size = limits.size!(value);
@@ -341,24 +403,82 @@ function estimateSize<Value>(value: Value, limits: NormalizedLimits<Value>): num
 	return size;
 }
 
-/**
- * Validates positive integer before it is used by stream and async-iterator adaptation.
- *
- * @internal
- */
+/** Reject fractional, zero or unsafe capacities before counters or buffers depend on them. */
 function positiveInteger(value: number, name: string): number {
 	if (!Number.isSafeInteger(value) || value < 1) throw new TypeError(`${name} must be a positive safe integer.`);
 	return value;
 }
 
-/**
- * Propagates if aborted through the controlled iterator path used by stream and async-iterator adaptation.
- *
- * @internal
- */
+/** Propagate the caller's exact abort reason instead of converting cancellation into EOF. */
 function throwIfAborted(signal?: AbortSignal): void {
 	if (!signal?.aborted) return;
-	throw signal.reason ?? new DOMException('The stream operation was cancelled.', 'AbortError');
+	throw signal.reason;
 }
 
 export type { BatchOptions, IterableOptions, LimitOptions, LineOptions } from './types.ts';
+
+export { bytes } from './bytes.ts';
+
+/**
+ * Observe arbitrary iterator reads under cancellation without claiming to stop a
+ * producer-owned Promise. Early exit requests return() once; onCleanup retains
+ * its eventual outcome when the producer cannot finish promptly.
+ */
+async function* observed<Value>(
+	source: Iterable<Value> | AsyncIterable<Value>,
+	options: Pick<LimitOptions<Value>, 'signal' | 'onCleanup'>,
+): AsyncIterableIterator<Value> {
+	throwIfAborted(options.signal);
+	const iterator = toAsyncIterator(source);
+	let complete = false;
+	let resolveCleanup!: (outcome: CleanupOutcome) => void;
+	const cleanup = new Promise<CleanupOutcome>((resolve) => {
+		resolveCleanup = resolve;
+	});
+	try {
+		options.onCleanup?.(cleanup);
+		while (true) {
+			throwIfAborted(options.signal);
+			const next = await observe(iterator.next(), options.signal);
+			throwIfAborted(options.signal);
+			if (next.done) {
+				complete = true;
+				return;
+			}
+			yield next.value;
+		}
+	} finally {
+		if (complete || iterator.return === undefined) {
+			resolveCleanup(Object.freeze({ status: complete ? 'completed' : 'released' }));
+		} else {
+			try {
+				void Promise.resolve(iterator.return()).then(
+					() => resolveCleanup(Object.freeze({ status: 'released' })),
+					(error: unknown) => resolveCleanup(Object.freeze({ status: 'failed', error })),
+				);
+			} catch (error) {
+				resolveCleanup(Object.freeze({ status: 'failed', error }));
+			}
+		}
+	}
+}
+
+/** Consume late rejection while removing the observer's abort listener after either outcome. */
+function observe<Value>(value: PromiseLike<Value>, signal?: AbortSignal): Promise<Value> {
+	if (signal === undefined) return Promise.resolve(value);
+	return new Promise<Value>((resolve, reject) => {
+		const abort = (): void => {
+			signal.removeEventListener('abort', abort);
+			reject(abortReason(signal));
+		};
+		signal.addEventListener('abort', abort, { once: true });
+		Promise.resolve(value).then((value) => {
+			signal.removeEventListener('abort', abort);
+			resolve(value);
+		}, (error: unknown) => {
+			signal.removeEventListener('abort', abort);
+			reject(error);
+		});
+		if (signal.aborted) abort();
+	});
+}

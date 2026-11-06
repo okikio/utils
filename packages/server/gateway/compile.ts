@@ -1,11 +1,15 @@
-import * as catalog from '@okikio/catalog';
-import type { CatalogEntryIdentity } from '@okikio/catalog';
-import type { EndpointDefinition } from '@okikio/server/endpoint';
 import { prepareRoutes } from '../http/mod.ts';
+import type { Temporal } from '@okikio/duration/temporal';
+import { isArtifactMount } from './artifact.ts';
+import type { GatewayArtifactPolicy } from './artifact.ts';
+import * as catalog from '@okikio/collection/catalog';
+import type { CatalogEntryIdentity } from '@okikio/collection/catalog';
+import type { EndpointDefinition } from '@okikio/server/endpoint';
 import { leafEndpoints } from '../service/definition.ts';
 import { validate as validateService } from '../service/compile.ts';
 import type {
 	CompiledService,
+	CompiledServiceDefinition,
 	ServiceDefinition,
 	ServiceManifest,
 	ServiceRoute,
@@ -29,29 +33,28 @@ import type {
 	GatewayValidationSubject,
 } from './types.ts';
 
-const defaultCache = Object.freeze({ kind: 'gateway-cache', mode: 'no-store' } satisfies GatewayCachePolicy);
-const defaultCredentials = Object.freeze(
-	{
-		kind: 'gateway-credentials',
-		requestCookies: 'strip',
-		requestAuthorization: 'strip',
-		responseCookies: 'strip',
-	} satisfies GatewayCredentialPolicy,
-);
-const defaultRedirects = Object.freeze(
-	{
-		kind: 'gateway-redirects',
-		mode: 'rewrite-origin',
-		allowedOrigins: Object.freeze([]),
-	} satisfies GatewayRedirectPolicy,
-);
+/** Forbid response caching unless a route policy explicitly permits it. */
+const defaultCache: GatewayCachePolicy = Object.freeze({ kind: 'gateway-cache', mode: 'no-store' });
+/** Strip reusable request credentials and upstream cookies unless a route opts in. */
+const defaultCredentials: GatewayCredentialPolicy = Object.freeze({
+	kind: 'gateway-credentials',
+	requestCookies: 'strip',
+	requestAuthorization: 'strip',
+	responseCookies: 'strip',
+});
+/** Rewrite private service origins to the incoming public origin by default. */
+const defaultRedirects: GatewayRedirectPolicy = Object.freeze({
+	kind: 'gateway-redirects',
+	mode: 'rewrite-origin',
+	allowedOrigins: Object.freeze([]),
+});
 
 /** Error raised when a gateway cannot be compiled safely. */
 export class GatewayCompilationError extends Error {
-	/** Structured validation issues retained for inspection without matching error messages. */
+	/** Composition failures rejected before creating the gateway runtime. */
 	readonly issues: readonly GatewayValidationIssue[];
 
-	/** Retain gateway validation issues when compilation cannot produce a valid route set. */
+	/** Collect all known graph issues into one composition failure. */
 	constructor(issues: readonly GatewayValidationIssue[]) {
 		super(
 			`Gateway compilation failed with ${issues.length} issue${issues.length === 1 ? '' : 's'}:\n${
@@ -99,6 +102,19 @@ export function validate(definition: GatewayDefinition): GatewayValidationResult
 			}
 		}
 	}
+	const serviceIds = new Set(mountedServices.keys());
+	for (const artifact of definition.artifacts ?? []) {
+		if (!isArtifactMount(artifact)) {
+			issues.push(issue('invalid-definition', 'Gateway artifact was not created through the checked data boundary.'));
+			continue;
+		}
+		if (serviceIds.has(artifact.manifest.id)) {
+			issues.push(
+				issue('duplicate-mount', `Service ${JSON.stringify(artifact.manifest.id)} is mounted more than once.`),
+			);
+		}
+		serviceIds.add(artifact.manifest.id);
+	}
 	return issues.length === 0
 		? Object.freeze({ valid: true })
 		: Object.freeze({ valid: false, issues: Object.freeze(issues) });
@@ -133,15 +149,16 @@ export function compile<Definition extends GatewayDefinition>(
 		}
 
 		const selected = new Set(selectedEndpoints(mounted.target));
+		const admittedInternal = new Set(mounted.internal);
 		const artifact = artifacts.get(service.id);
 		for (const route of serviceValidation.routes) {
-			if (!selected.has(route.endpoint) || isInternal(route)) continue;
+			if (!selected.has(route.endpoint) || (isInternal(route) && !admittedInternal.has(route.endpoint))) continue;
 			const artifactRoute = artifact?.manifest.routes.find((candidate) => candidate.id === route.id);
 			if (artifact !== undefined && artifactRoute === undefined) {
 				issues.push(
 					issue(
 						'invalid-definition',
-						`Service artifact ${JSON.stringify(service.id)} is missing public route ${JSON.stringify(route.id)}.`,
+						`Service artifact ${JSON.stringify(service.id)} is missing gateway route ${JSON.stringify(route.id)}.`,
 						artifact.manifest,
 					),
 				);
@@ -159,27 +176,25 @@ export function compile<Definition extends GatewayDefinition>(
 			}
 			const policies = definition.policies.filter((policy) => policyTargets.get(policy)?.has(route.endpoint));
 			const effective = effectivePolicy(policies, issues, route);
-			const compiledRoute = Object.freeze(
-				{
-					id: `${definition.id}:${route.id}`,
-					gateway: definition,
-					serviceId: service.id,
-					serviceRouteId: route.id,
-					endpointId: route.endpoint.id,
-					operationId: route.operation.operationId,
-					method: route.method.toUpperCase() as Uppercase<typeof route.method>,
-					path: route.path,
-					origin: mounted.origin.toString(),
-					authenticate: effective.authenticate,
-					assertions: effective.assertions,
-					...(effective.timeout !== undefined ? { timeout: effective.timeout } : {}),
-					...(effective.bodyLimit !== undefined ? { bodyLimit: effective.bodyLimit } : {}),
-					cache: effective.cache,
-					credentials: effective.credentials,
-					redirects: effective.redirects,
-					observers: definition.observers,
-				} satisfies CompiledGatewayRoute,
-			);
+			const compiledRoute: CompiledGatewayRoute = Object.freeze({
+				id: `${definition.id}:${route.id}`,
+				gateway: definition,
+				serviceId: service.id,
+				serviceRouteId: route.id,
+				endpointId: route.endpoint.id,
+				operationId: route.operation.operationId,
+				method: route.method.toUpperCase() as Uppercase<typeof route.method>,
+				path: route.path,
+				origin: mounted.origin.toString(),
+				authenticate: effective.authenticate,
+				assertions: effective.assertions,
+				...(effective.timeout !== undefined ? { timeout: effective.timeout } : {}),
+				...(effective.bodyLimit !== undefined ? { bodyLimit: effective.bodyLimit } : {}),
+				cache: effective.cache,
+				credentials: effective.credentials,
+				redirects: effective.redirects,
+				observers: definition.observers,
+			});
 			const key = `${compiledRoute.method} ${normalizeRouteShape(compiledRoute.path)}`;
 			const owner = routeOwners.get(key);
 			if (owner && owner.serviceId !== compiledRoute.serviceId) {
@@ -196,15 +211,69 @@ export function compile<Definition extends GatewayDefinition>(
 			routes.push(compiledRoute);
 		}
 	}
+	for (const mounted of definition.artifacts ?? []) {
+		if (!isArtifactMount(mounted)) continue;
+		for (const route of mounted.routes) {
+			const effective = effectivePolicy([mounted.policy], issues, route);
+			const compiledRoute: CompiledGatewayRoute = Object.freeze({
+				id: `${definition.id}:${route.id}`,
+				gateway: definition,
+				artifact: mounted,
+				artifactRoute: route,
+				serviceId: mounted.manifest.id,
+				serviceRouteId: route.id,
+				endpointId: route.endpointId,
+				operationId: route.operationId,
+				method: route.method,
+				path: route.path,
+				origin: mounted.origin,
+				authenticate: Object.freeze(route.authentication.flatMap((id) => mounted.authentication[id]!)),
+				assertions: effective.assertions,
+				...(effective.timeout === undefined ? {} : { timeout: effective.timeout }),
+				...(effective.bodyLimit === undefined ? {} : { bodyLimit: effective.bodyLimit }),
+				cache: effective.cache,
+				credentials: effective.credentials,
+				redirects: effective.redirects,
+				observers: definition.observers,
+			});
+			const shape = normalizeRouteShape(route.path);
+			if (routeOwners.has(`${route.method} ${shape}`)) {
+				issues.push(
+					issue('route-conflict', `Artifact ${route.method} ${route.path} conflicts with an existing gateway route.`),
+				);
+			}
+			if (routes.some((existing) => existing.operationId === route.operationId)) {
+				issues.push(
+					issue(
+						'route-conflict',
+						`Artifact operation ID ${JSON.stringify(route.operationId)} conflicts with an existing gateway operation.`,
+					),
+				);
+			}
+			if (routes.some((existing) => existing.id === compiledRoute.id)) {
+				issues.push(
+					issue(
+						'route-conflict',
+						`Artifact route ID ${JSON.stringify(route.id)} conflicts with an existing gateway route identity.`,
+					),
+				);
+			}
+			if (routes.some((existing) => normalizeRouteShape(existing.path) === shape && existing.path !== route.path)) {
+				issues.push(issue('route-conflict', `Artifact template ${route.path} changes existing path parameter names.`));
+			}
+			routeOwners.set(`${route.method} ${shape}`, compiledRoute);
+			routes.push(compiledRoute);
+		}
+	}
 	if (issues.length > 0) throw new GatewayCompilationError(Object.freeze(issues));
 	const frozenRoutes = Object.freeze(routes.toSorted(compareRoutes));
 	return Object.freeze({
 		kind: 'compiled-gateway',
-		definition,
-		routes: frozenRoutes,
 		routePlan: prepareRoutes(
 			frozenRoutes.map((route) => Object.freeze({ kind: 'route' as const, method: route.method, path: route.path })),
 		),
+		definition,
+		routes: frozenRoutes,
 		manifest: manifest(definition, frozenRoutes),
 	});
 }
@@ -215,11 +284,8 @@ export function document(compiled: CompiledGateway): GatewayManifest {
 }
 
 /**
- * Indexes artifacts for exact validation and lookup in later phases.
- *
- * It compiles and executes trusted service routing without letting gateway policy become service-domain behavior.
- *
- * @internal
+ * Index optional owner manifests by service ID for later drift checks. Reusing the same manifest is
+ * allowed; different manifests with one ID add a compilation issue.
  */
 function indexArtifacts(
 	input: readonly GatewayServiceArtifact[],
@@ -241,16 +307,13 @@ function indexArtifacts(
 }
 
 /**
- * Resolves the effective policy after inherited and contributed state is combined by compiled gateway routing.
- *
- * Gateway internals route only definitions selected by the composition root and keep gateway trust policy out of service-domain behavior.
- *
- * @internal
+ * Append authentication and assertion requirements from every matching policy. Scalar controls must
+ * agree; composition does not grant a later policy permission to override an earlier one.
  */
 function effectivePolicy(
-	policies: readonly GatewayPolicy[],
+	policies: readonly (GatewayPolicy | GatewayArtifactPolicy)[],
 	issues: GatewayValidationIssue[],
-	route: ServiceRoute | ServiceRouteManifestEntry,
+	route: ServiceRoute | ServiceRouteManifestEntry | import('./artifact.ts').GatewayArtifactRoute,
 ): Readonly<{
 	readonly authenticate: readonly CatalogEntryIdentity[];
 	readonly assertions: readonly CatalogEntryIdentity[];
@@ -260,7 +323,9 @@ function effectivePolicy(
 	readonly credentials: GatewayCredentialPolicy;
 	readonly redirects: GatewayRedirectPolicy;
 }> {
-	const authenticate = Object.freeze(policies.flatMap((policy) => definitionValues(policy.authenticate)));
+	const authenticate = Object.freeze(
+		policies.flatMap((policy) => 'authenticate' in policy ? definitionValues(policy.authenticate) : []),
+	);
 	const assertions = Object.freeze(policies.flatMap((policy) => definitionValues(policy.assertion)));
 	const timeout = singleValue(
 		policies.flatMap((policy) => policy.timeout === undefined ? [] : [policy.timeout]),
@@ -308,16 +373,13 @@ function effectivePolicy(
 }
 
 /**
- * Returns the single value in the representation expected by compiled gateway routing.
- *
- * Gateway internals route only definitions selected by the composition root and keep gateway trust policy out of service-domain behavior.
- *
- * @internal
+ * Retain the first value and report unequal contributors as a conflict. Returning the first lets
+ * validation continue collecting issues; compile still rejects the graph.
  */
 function singleValue<Value>(
 	values: readonly Value[],
 	label: string,
-	route: ServiceRoute | ServiceRouteManifestEntry,
+	route: ServiceRoute | ServiceRouteManifestEntry | import('./artifact.ts').GatewayArtifactRoute,
 	issues: GatewayValidationIssue[],
 	equal: (left: Value, right: Value) => boolean = Object.is,
 ): Value | undefined {
@@ -369,7 +431,8 @@ function serviceOf(target: ServiceDefinition | ServiceSelection): ServiceDefinit
 }
 
 /**
- * Builds the manifest that records the state consumed by compiled gateway routing.
+ * Describe the compiled gateway without retaining handler implementations.
+ * Route entries expose effective policy and target IDs for inspection, not runtime authority.
  *
  * @internal
  */
@@ -382,9 +445,8 @@ function manifest(definition: GatewayDefinition, routes: readonly CompiledGatewa
 }
 
 /**
- * Builds the route manifest that records the state consumed by compiled gateway routing.
- *
- * Gateway internals route only definitions selected by the composition root and keep gateway trust policy out of service-domain behavior.
+ * Project the selected target, method, public path and effective forwarding policy.
+ * Imported definitions become descriptive IDs; this cannot reconstruct their authority.
  *
  * @internal
  */
@@ -414,9 +476,8 @@ function routeManifest(route: CompiledGatewayRoute): GatewayRouteManifestEntry {
 }
 
 /**
- * Derives the definition id from exact imported definitions used by compiled gateway routing.
- *
- * @internal
+ * Use a declared ID when available, otherwise label anonymous diagnostic entries by their local
+ * position. The fallback is not a durable definition identity.
  */
 function definitionId(value: unknown, index: number): string {
 	return typeof value === 'object' && value !== null && typeof (value as { id?: unknown }).id === 'string'
@@ -429,16 +490,15 @@ function definitionId(value: unknown, index: number): string {
  *
  * @internal
  */
-function definitionValues<Entry extends import('@okikio/catalog').CatalogEntryIdentity>(
-	input: import('@okikio/catalog').DefinitionInput<Entry> | undefined,
+function definitionValues<Entry extends import('@okikio/collection/catalog').CatalogEntryIdentity>(
+	input: import('@okikio/collection/catalog').DefinitionInput<Entry> | undefined,
 ): readonly Entry[] {
 	return input === undefined ? Object.freeze([]) : catalog.values(input);
 }
 
 /**
- * Checks whether duration are equivalent for the purposes of compiled gateway routing.
- *
- * @internal
+ * Compare authored duration spelling, not elapsed-time equivalence. Distinct duration representations
+ * therefore conflict even when a caller could interpret them as equal.
  */
 function sameDuration(left: Temporal.Duration, right: Temporal.Duration): boolean {
 	return left.toString() === right.toString();
@@ -464,41 +524,32 @@ function sameCredentials(left: GatewayCredentialPolicy, right: GatewayCredential
 		left.responseCookies === right.responseCookies;
 }
 
-/**
- * Checks whether redirects are equivalent for the purposes of compiled gateway routing.
- *
- * @internal
- */
+/** Compare redirect mode and the ordered origin list. This is authored policy equality, not set equality. */
 function sameRedirects(left: GatewayRedirectPolicy, right: GatewayRedirectPolicy): boolean {
 	return left.mode === right.mode && left.allowedOrigins.join('\n') === right.allowedOrigins.join('\n');
 }
 
 /**
- * Normalizes route shape into the canonical internal form used by later phases.
- *
- * @internal
+ * Erase parameter names before collision checks so /items/:id and /items/:name cannot claim the same
+ * method and route shape.
  */
 function normalizeRouteShape(path: string): string {
 	return path.replace(/:[^/]+/g, ':parameter').replace(/\/+/g, '/');
 }
 
-/**
- * Compares routes using the stable ordering required by compiled gateway routing.
- *
- * @internal
- */
+/** Sort by public path, method, then route ID so manifests do not depend on definition traversal order. */
 function compareRoutes(left: CompiledGatewayRoute, right: CompiledGatewayRoute): number {
 	return left.path.localeCompare(right.path) || left.method.localeCompare(right.method) ||
 		left.id.localeCompare(right.id);
 }
 
 /**
- * Checks whether compiled service satisfies the condition required by compiled gateway routing.
+ * Recognize either supported compiled-service artifact kind before reading its route graph.
  *
  * @internal
  */
-function isCompiledService(value: GatewayServiceArtifact): value is CompiledService {
-	return (value as CompiledService).kind === 'compiled-service';
+function isCompiledService(value: GatewayServiceArtifact): value is CompiledService | CompiledServiceDefinition {
+	return 'kind' in value && (value.kind === 'compiled-service' || value.kind === 'compiled-service-definition');
 }
 
 /**

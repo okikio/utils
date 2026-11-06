@@ -14,7 +14,7 @@
  * @module
  */
 export { parseAuthorization } from './authorization.ts';
-export { parseForm, parseJson, readBody } from './body.ts';
+export { bodyCleanup, parseForm, parseJson, readBody } from './body.ts';
 export { negotiateContent, parseMediaType, requireContentType } from './content.ts';
 export { parseCookies } from './cookies.ts';
 export { forwardHeaders } from './forward.ts';

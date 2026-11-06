@@ -1,9 +1,9 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
-import * as catalog from '@okikio/catalog';
-import * as effect from '@okikio/effect';
-import type { CatalogEntryIdentity, DefinitionInput } from '@okikio/catalog';
-import * as resilience from '@okikio/resilience';
-import * as recordCore from '@okikio/record';
+import * as catalog from '@okikio/collection/catalog';
+import * as effect from '@okikio/capability/effect';
+import type { CatalogEntryIdentity, DefinitionInput } from '@okikio/collection/catalog';
+import * as resilience from '@okikio/capability/resilience';
+import * as recordCore from '@okikio/collection/record';
 import { joinPath, normalizePathTemplate, pathParameters } from './path.ts';
 import type { ProblemDefinition } from '@okikio/http/problem';
 
@@ -167,9 +167,9 @@ export type SingleEndpointDefinition<
 >;
 
 /**
- * Requires a catalog selection to contain exactly one definition when an endpoint field permits only one owner.
- *
- * Endpoint internals keep routes, schemas, responses, problems, resources, and documentation metadata in one import-safe definition model.
+ * Build the single-method convenience declaration from one authored object.
+ * Path parameters belong to the endpoint; method-specific inputs and results
+ * belong to its one operation. Their imported definition identities are retained.
  *
  * @internal
  */
@@ -439,19 +439,39 @@ export async function match<Schema extends EndpointSchema>(
 }
 
 /**
- * Builds the operation helper consumed by endpoint definition and request contracts.
+ * Capture one HTTP method so operation.get/post/etc. share definition validation.
  *
  * @internal
  */
-function bindMethod<const Method extends EndpointMethod>(method: Method) {
+function bindMethod<const Method extends EndpointMethod>(
+	method: Method,
+): <const Input extends EndpointOperationInput>(definition: Input) => DefinedEndpointOperation<Method, Input> {
 	return <const Input extends EndpointOperationInput>(definition: Input) => defineOperation(method, definition);
 }
 
 /** Path-independent operation constructors. */
-export const operation = Object.freeze({
+export const operation: Readonly<
+	{
+		define: <const Method extends EndpointMethod, const Input extends EndpointOperationInput>(
+			definition: Input & { readonly method: Method },
+		) => DefinedEndpointOperation<Method, Input & { readonly method: Method }>;
+		get: <const Input extends EndpointOperationInput>(definition: Input) => DefinedEndpointOperation<'get', Input>;
+		post: <const Input extends EndpointOperationInput>(definition: Input) => DefinedEndpointOperation<'post', Input>;
+		put: <const Input extends EndpointOperationInput>(definition: Input) => DefinedEndpointOperation<'put', Input>;
+		patch: <const Input extends EndpointOperationInput>(definition: Input) => DefinedEndpointOperation<'patch', Input>;
+		delete: <const Input extends EndpointOperationInput>(
+			definition: Input,
+		) => DefinedEndpointOperation<'delete', Input>;
+		options: <const Input extends EndpointOperationInput>(
+			definition: Input,
+		) => DefinedEndpointOperation<'options', Input>;
+		head: <const Input extends EndpointOperationInput>(definition: Input) => DefinedEndpointOperation<'head', Input>;
+	}
+> = Object.freeze({
 	define: <const Method extends EndpointMethod, const Input extends EndpointOperationInput>(
 		definition: Input & { readonly method: Method },
-	) => defineOperation(definition.method, definition),
+	): DefinedEndpointOperation<Method, Input & { readonly method: Method }> =>
+		defineOperation(definition.method, definition),
 	get: bindMethod('get'),
 	post: bindMethod('post'),
 	put: bindMethod('put'),
@@ -462,9 +482,9 @@ export const operation = Object.freeze({
 });
 
 /**
- * Traverses composition in deterministic order for endpoint definition and request contracts.
- *
- * Endpoint internals keep routes, schemas, responses, problems, resources, and documentation metadata in one import-safe definition model.
+ * Visit endpoint leaves with the accumulated group path and contributions.
+ * A selection visits its chosen members at the current prefix; it does not
+ * automatically reapply the source group's prefix or policies.
  *
  * @internal
  */
@@ -488,7 +508,7 @@ function walkComposition(
 }
 
 /**
- * Flattens composition into the ordered representation consumed by endpoint definition and request contracts.
+ * Flatten nested arrays in authored order while retaining endpoint/group objects.
  *
  * @internal
  */
@@ -498,7 +518,8 @@ function flattenComposition(input: EndpointCompositionInput): EndpointEntry[] {
 }
 
 /**
- * Selects inputs needed by the next phase without redefining them.
+ * Retain declared input slots after checking their Standard Schema method.
+ * This validates schema availability, not a request value.
  *
  * @internal
  */
@@ -514,9 +535,9 @@ function pickInputs<Input extends EndpointInputSlots>(definition: Input): PickEn
 }
 
 /**
- * Selects contributions needed by the next phase without redefining them.
- *
- * It keeps route, input, response, resource, and generated-documentation semantics in one import-safe endpoint model.
+ * Collect reusable policy and capability contributions without acquiring resources.
+ * Effects and resilience policies use their own composers; other nested arrays
+ * are copied while imported definitions retain exact identity.
  *
  * @internal
  */
@@ -538,11 +559,11 @@ function pickContributions(definition: object): EndpointContributionsRecord {
 		const value = source[key];
 		if (value === undefined) continue;
 		if (key === 'resiliency') {
-			result[key] = resilience.compose(value as import('@okikio/resilience').ResilienceInput);
+			result[key] = resilience.compose(value as import('@okikio/capability/resilience').ResilienceInput);
 			continue;
 		}
 		if (key === 'effects') {
-			result[key] = effect.compose(value as import('@okikio/effect').EffectDefinitions);
+			result[key] = effect.compose(value as import('@okikio/capability/effect').EffectDefinitions);
 			continue;
 		}
 		result[key] = snapshotInput(value);
@@ -553,7 +574,8 @@ function pickContributions(definition: object): EndpointContributionsRecord {
 type EndpointContributionsRecord = Record<string, unknown>;
 
 /**
- * Captures the snapshot input as immutable state for endpoint definition and request contracts.
+ * Copy and freeze nested composition arrays, retaining non-array definitions.
+ * This is not a deep snapshot of arbitrary objects.
  *
  * @internal
  */
@@ -563,9 +585,8 @@ function snapshotInput<Value>(value: Value): Value {
 }
 
 /**
- * Selects documentation needed by the next phase without redefining them.
- *
- * It keeps route, input, response, resource, and generated-documentation semantics in one import-safe endpoint model.
+ * Copy known documentation fields and snapshot tag membership.
+ * This does not infer authentication, response behavior or operation uniqueness.
  *
  * @internal
  */
@@ -585,7 +606,8 @@ function pickDocumentation(
 }
 
 /**
- * Checks body and preserves the deterministic issues needed by callers.
+ * Append declaration issues for competing body readers and GET/HEAD bodies.
+ * A request body can be consumed in only one of json, form or raw modes.
  *
  * @internal
  */
@@ -616,7 +638,7 @@ function validateBody(operation: EndpointOperation, issues: EndpointValidationIs
 }
 
 /**
- * Rejects invalid body compatibility before it can enter authoritative module state.
+ * Reuse body-mode validation during operation construction and throw its first issue.
  *
  * @internal
  */
@@ -638,7 +660,9 @@ function assertBodyCompatibility(method: EndpointMethod, inputs: EndpointInputSl
 }
 
 /**
- * Collects the contribution ids used to preserve stable identity in endpoint definition and request contracts.
+ * Read contribution IDs for descriptive output.
+ * Unsupported composition yields an empty list here; it is not proof of a valid
+ * runtime contribution and does not replace startup validation.
  *
  * @internal
  */
@@ -652,7 +676,8 @@ function contributionIds(value: unknown): readonly string[] {
 }
 
 /**
- * Derives a stable camel-case OpenAPI operation ID from the endpoint method and route identity.
+ * Derive a camel-case operation ID from the authored ID.
+ * No route or HTTP method is added, and collisions are not resolved here.
  *
  * @internal
  */
@@ -663,7 +688,7 @@ function camelOperationId(id: string): string {
 }
 
 /**
- * Checks whether named member record satisfies the condition required by endpoint definition and request contracts.
+ * Recognize a plain named group-member record rather than an endpoint definition.
  *
  * @internal
  */
@@ -682,7 +707,7 @@ function freezeNamedEntries<Entries extends Readonly<Record<string, EndpointEntr
 }
 
 /**
- * Checks whether entry satisfies the condition required by endpoint definition and request contracts.
+ * Recognize the three endpoint composition kinds without validating their contents.
  *
  * @internal
  */
@@ -692,7 +717,7 @@ function isEntry(value: unknown): value is EndpointEntry {
 }
 
 /**
- * Rejects invalid schema before it can enter authoritative module state.
+ * Reject inputs without the Standard Schema validation method.
  *
  * @internal
  */
@@ -701,7 +726,7 @@ function assertSchema(value: unknown): asserts value is EndpointSchema {
 }
 
 /**
- * Checks whether schema satisfies the condition required by endpoint definition and request contracts.
+ * Check for the Standard Schema method without invoking a validator.
  *
  * @internal
  */
@@ -711,7 +736,7 @@ function isSchema(value: unknown): value is EndpointSchema {
 }
 
 /**
- * Rejects invalid id before it can enter authoritative module state.
+ * Require the stable identifier grammar used by endpoint and operation metadata.
  *
  * @internal
  */
@@ -720,7 +745,8 @@ function assertId(id: string, label: string): void {
 }
 
 /**
- * Rejects invalid path before it can enter authoritative module state.
+ * Reject relative paths, queries, fragments, empty segments and trailing slashes.
+ * The HTTP router performs its own stricter route-grammar validation later.
  *
  * @internal
  */

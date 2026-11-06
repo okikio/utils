@@ -34,7 +34,7 @@ describe('Zod environment authoring', () => {
 	});
 
 	it('reads descriptions added through Zod describe()', () => {
-		const definition = env.environment({
+		const definition = env.define({
 			MODE: z.enum(['development', 'production']).describe('Service runtime mode.'),
 		});
 

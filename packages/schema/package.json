@@ -6,12 +6,32 @@
 	"license": "MIT",
 	"exports": {
 		".": "./mod.ts",
-		"./types": "./types.ts"
+		"./types": "./types.ts",
+		"./time": "./time.ts",
+		"./zod": "./zod.ts",
+		"./codec": "./codec/mod.ts",
+		"./codec/types": "./codec/types.ts"
 	},
 	"dependencies": {
-		"@standard-schema/spec": "^1.1.0"
+		"@standard-schema/spec": "^1.1.0",
+		"@okikio/collection": "workspace:^",
+		"@okikio/duration": "workspace:^"
 	},
 	"devDependencies": {
-		"@std/expect": "npm:@jsr/std__expect@^1.0.20"
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
+		"zod": "^4.5.4",
+		"ajv": "8.20.0",
+		"ajv-formats": "3.0.1",
+		"typebox": "1.4.3",
+		"@sinclair/typebox": "0.34.52",
+		"mitata": "^1.0.34"
+	},
+	"peerDependencies": {
+		"zod": "^4.4.3"
+	},
+	"peerDependenciesMeta": {
+		"zod": {
+			"optional": true
+		}
 	}
 }

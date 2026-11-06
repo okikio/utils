@@ -1,14 +1,20 @@
 /**
- * Compose a portable fetch application from route and middleware values. A large if chain mixes routing, exception mapping and security headers, making it hard to mount the same service on another host.
+ * Build a Fetch application from routes and middleware, then choose a host that listens for requests.
+ * Start with Web Request and Response values, as in a POST route that validates and saves a note.
  *
- * Start with Web Request/Response routes, then move stable schemas into endpoint definitions and bind implementations through services. A gateway composes host services; an explicit Deno or framework adapter starts the listener. Definitions do not create connections. Middleware and response bodies have real ownership and cancellation costs, so choose buffering only for bounded payloads.
+ * Endpoint definitions describe stable input and output contracts. Services bind those definitions to
+ * implementations, and a gateway composes services. Definitions do not open connections or start
+ * listeners.
+ *
+ * The executable selects the host adapter. Middleware and response bodies still have cancellation and
+ * cleanup costs; buffer only payloads with an explicit bound.
  *
  * @example
  * ```ts
  * import * as http from '@okikio/server/http';
  * const app = http.create({
- *   routes: [http.route('GET', '/health', () => Response.json({ ok: true }))],
- *   middleware: [http.securityHeaders()],
+ * 	routes: [http.route('GET', '/health', () => Response.json({ ok: true }))],
+ * 	middleware: [http.securityHeaders()],
  * });
  * const response = await app.fetch(new Request('https://service.invalid/health'));
  * console.log(response.status, (await response.json()).ok);

@@ -3,11 +3,11 @@ import '@okikio/duration/polyfill';
 import '@okikio/dispose/polyfill';
 import { deepStrictEqual } from 'node:assert';
 import { bench, do_not_optimize, group } from 'mitata';
-import { cases, gatewayCases, observe, request, routingCases } from '../tests/fixtures/http-parity/corpus.ts';
-import type { CaseType, ParityApiType } from '../tests/fixtures/http-parity/corpus.ts';
-import { createHonoApi, createHonoGateway, createHonoRouting } from '../tests/fixtures/http-parity/hono.ts';
-import { createUtilsApi, createUtilsGateway, createUtilsRouting } from '../tests/fixtures/http-parity/utils.ts';
-import { run } from './run.ts';
+import { cases, gatewayCases, observe, request, routingCases } from '#fixtures/http-parity/corpus.ts';
+import type { CaseType, ParityApiType } from '#fixtures/http-parity/corpus.ts';
+import { createHonoApi, createHonoGateway, createHonoRouting } from '#fixtures/http-parity/hono.ts';
+import { createUtilsApi, createUtilsGateway, createUtilsRouting } from '#fixtures/http-parity/utils.ts';
+import { run } from '#tools/bench/run.ts';
 
 /** One trial consumes every response; creation/warmup/disposal stay outside warm dispatch timing for both candidates. */
 async function batch(app: ParityApiType, values: readonly CaseType[], origin?: string): Promise<readonly unknown[]> {

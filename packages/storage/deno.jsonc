@@ -1,0 +1,51 @@
+{
+	"name": "@okikio/storage",
+	"version": "0.0.0",
+	"publish": {
+		"exclude": [
+			"**/*.test.ts",
+			"**/*.bench.ts",
+			"**/fixtures/**"
+		]
+	},
+	"exports": {
+		".": "./mod.ts",
+		"./workflow/postgres": "./workflow/postgres/mod.ts",
+		"./queue": "./queue/mod.ts",
+		"./queue/postgres": "./queue/postgres.ts",
+		"./workflow": "./workflow/mod.ts",
+		"./state": "./state/mod.ts",
+		"./state/web": "./state/web.ts",
+		"./state/postgres": "./state/postgres.ts",
+		"./session/postgres": "./session/postgres.ts",
+		"./outbox/postgres": "./outbox/postgres.ts",
+		"./outbox/effect": "./outbox/effect.ts"
+	},
+	"imports": {
+	},
+	"license": "MIT",
+	"tasks": {
+		"check": "mise run check -- --project storage",
+		"test": "mise run test -- --project storage",
+		"bench": "mise run bench -- --project storage",
+		"bench:check": "mise run bench -- --project storage --check"
+	},
+	"permissions": {
+		"test": {},
+		"bench": {
+			"env": [
+				"NODE_DISABLE_COLORS",
+				"NO_COLOR",
+				"FORCE_COLOR"
+			]
+		}
+	},
+	"test": {
+		"exclude": [
+			"**/*.types.test.ts",
+			"**/types.test.ts",
+			"queue/postgres.test.ts",
+			"state/postgres.test.ts"
+		]
+	}
+}

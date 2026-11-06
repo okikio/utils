@@ -34,7 +34,8 @@ const indexes = new WeakMap<RoutePlan, RouteIndexType>();
  * The returned value contains only inert data. It can therefore be retained by a
  * service compiler, serialized into a build artifact, or shared by a gateway
  * without retaining handler functions. Static routes are separated from dynamic
- * templates and dynamic candidates are preordered by specificity.
+ * templates when the runtime index is first requested. That private index is
+ * cached by plan identity; this function only validates and snapshots the plan.
  */
 export function prepare(input: readonly RoutePlanInput[]): RoutePlan {
 	if (!Array.isArray(input)) throw new TypeError('HTTP route plan input must be an array.');
@@ -123,6 +124,8 @@ function runtimeIndex(plan: RoutePlan): RouteIndexType {
 		bucket.push(route);
 		dynamic.set(key, bucket);
 	}
+	// Prefixes reduce the candidate scan, but global specificity ranks remain
+	// authoritative when a generic earlier route also matches a deeper prefix.
 	const partitions = new Map<string, PrefixType>();
 	for (const [key, bucket] of dynamic) {
 		bucket.sort((a, b) => compareRouteSpecificity(b.path, a.path));
@@ -229,4 +232,84 @@ function assertPlan(plan: RoutePlan): void {
 	if (typeof plan !== 'object' || plan === null || plan.kind !== 'http-route-plan' || !Array.isArray(plan.routes)) {
 		throw new TypeError('HTTP route plan is invalid.');
 	}
+}
+
+/** One overlap witness evaluated by the real prepared router, not a predicted handler invocation. */
+export interface OverlapType {
+	/** First route key in authored order. */
+	readonly left: string;
+	/** Second route key in authored order. */
+	readonly right: string;
+	/** Concrete method used for the witness. */
+	readonly method: string;
+	/** Concrete path accepted by both declarations. It contains no request data. */
+	readonly path: string;
+	/** Actual global route-or-mount winner; a third declaration may win. */
+	readonly winner: string;
+}
+
+/**
+ * Inspect overlaps in an already valid plan. Uses prepare's canonical grammar and matchRoute/matchMount
+ * for actual precedence, including HEAD fallback and route-before-mount. Pair and report caps make
+ * incomplete evidence explicit. This does not invoke handlers or assert that one route is unreachable.
+ */
+export function inspect(
+	plan: RoutePlan,
+	options: Readonly<{ maximumRoutes: number; maximumComparisons: number; maximumOverlaps: number }>,
+): Readonly<{ overlaps: readonly OverlapType[]; comparisons: number; capped: boolean }> {
+	for (const value of [options.maximumRoutes, options.maximumComparisons, options.maximumOverlaps]) {
+		if (!Number.isSafeInteger(value) || value < 0) {
+			throw new RangeError('Route inspection bounds must be non-negative safe integers.');
+		}
+	}
+	assertPlan(plan);
+	if (plan.routes.length > options.maximumRoutes) throw new RangeError('Route inspection exceeds maximumRoutes.');
+	const overlaps: OverlapType[] = [];
+	let comparisons = 0;
+	for (let left = 0; left < plan.routes.length; left++) {
+		for (let right = left + 1; right < plan.routes.length; right++) {
+			if (comparisons === options.maximumComparisons) {
+				return Object.freeze({ overlaps: Object.freeze(overlaps), comparisons, capped: true });
+			}
+			comparisons++;
+			const a = plan.routes[left]!, b = plan.routes[right]!;
+			const method = a.kind === 'mount'
+				? b.kind === 'mount' ? 'GET' : b.method
+				: b.kind === 'mount' || a.method === b.method
+				? a.method
+				: [a.method, b.method].every((value) => value === 'HEAD' || value === 'GET')
+				? 'HEAD'
+				: undefined;
+			if (method === undefined) {
+				continue;
+			}
+			const path = witness(a, b);
+			if (path === undefined) continue;
+			if (overlaps.length === options.maximumOverlaps) {
+				return Object.freeze({ overlaps: Object.freeze(overlaps), comparisons, capped: true });
+			}
+			const winner = matchRoute(plan, method, path) ?? matchMount(plan, path);
+			if (winner === undefined) {
+				throw new Error('Prepared route overlap has no winner.');
+			}
+			overlaps.push(Object.freeze({ left: routeKey(a), right: routeKey(b), method, path, winner }));
+		}
+	}
+	return Object.freeze({ overlaps: Object.freeze(overlaps), comparisons, capped: false });
+}
+
+/** Construct one intersection point for this router's literal/one-segment-parameter/prefix grammar. */
+function witness(left: RoutePlanInput, right: RoutePlanInput): string | undefined {
+	const a = routeParts(left.path), b = routeParts(right.path);
+	if (left.kind === 'route' && right.kind === 'route' && a.length !== b.length) return undefined;
+	if (left.kind === 'route' && a.length < b.length || right.kind === 'route' && b.length < a.length) return undefined;
+	const parts: string[] = [];
+	for (let index = 0; index < Math.max(a.length, b.length); index++) {
+		const x = a[index], y = b[index];
+		const literalX = x !== undefined && !(left.kind === 'route' && x.startsWith(':'));
+		const literalY = y !== undefined && !(right.kind === 'route' && y.startsWith(':'));
+		if (literalX && literalY && x !== y) return undefined;
+		parts.push(literalX ? x! : literalY ? y! : 'inspection');
+	}
+	return parts.length === 0 ? '/' : `/${parts.join('/')}`;
 }

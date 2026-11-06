@@ -29,8 +29,8 @@ const NumberSchema: StandardSchemaV1<unknown, number> = {
 const Definition = query.define({
 	fields: {
 		id: query.field(StringSchema, { sortable: true }),
-		name: query.field(StringSchema, { sortable: true }),
-		score: query.field(NumberSchema, { sortable: true }),
+		name: query.field(StringSchema, { sortable: true, jsonSchema: { type: 'string', minLength: 1 } }),
+		score: query.field(NumberSchema, { sortable: true, jsonSchema: { type: ['string', 'number'] } }),
 		deletedAt: query.field(StringSchema),
 		secret: query.field(StringSchema, { selectable: false }),
 	},
@@ -53,11 +53,30 @@ const Definition = query.define({
 });
 
 describe('query definitions', () => {
+	it('uses the shared Standard Schema check for callable carriers and protocol identity', async () => {
+		const Callable = Object.assign(() => undefined, { '~standard': StringSchema['~standard'] });
+		const definition = query.define({
+			fields: { name: query.field(Callable) },
+			filters: { name: [query.eq] },
+			pagination: query.offset(),
+		});
+		expect(definition.fields.name.schema).toBe(Callable);
+		expect(query.conjunction((await definition.parse({ 'filter[name]': 'ok' })).filter)![0]?.value).toBe('ok');
+		for (const identity of [{ version: 2 }, { version: '1' }, { vendor: undefined }, { vendor: 42 }]) {
+			// JavaScript and third-party callers can provide structurally invalid
+			// contracts even when this package's own TypeScript authors cannot.
+			const malformed = { '~standard': { ...StringSchema['~standard'], ...identity } };
+			expect(() => query.field(malformed as unknown as StandardSchemaV1)).toThrow(
+				'Query fields must use Standard Schema-compatible validators.',
+			);
+		}
+	});
+
 	it('roundtrips the requested-sort limit with its stable field for offset and cursor consumers', async () => {
 		const Limited = query.define({
 			fields: {
 				id: query.field(StringSchema, { sortable: true }),
-				name: query.field(StringSchema, { sortable: true }),
+				name: query.field(StringSchema, { sortable: true, jsonSchema: { type: 'string', minLength: 1 } }),
 				priority: query.field(NumberSchema, { sortable: true }),
 				seniority: query.field(NumberSchema, { sortable: true }),
 				domain: query.field(StringSchema, { sortable: true }),
@@ -108,7 +127,7 @@ describe('query definitions', () => {
 		}
 
 		const unrelated = await Definition.parse(new URLSearchParams({ someOtherMiddlewareParameter: 'value' }));
-		expect(unrelated.filters).toEqual([]);
+		expect(query.conjunction(unrelated.filter)!).toEqual([]);
 		expect(unrelated.pagination.limit).toBe(
 			Definition.pagination.kind === 'query-pagination-modes'
 				? Definition.pagination.cursor?.defaultLimit ?? Definition.pagination.offset?.defaultLimit
@@ -123,7 +142,7 @@ describe('query definitions', () => {
 
 		const many = await Definition.safeParse(new URLSearchParams({ 'filter[name][in]': 'a,b,c' }));
 		expect(many.success).toBe(true);
-		if (many.success) expect(many.value.filters[0]?.value).toEqual(['a', 'b', 'c']);
+		if (many.success) expect(query.conjunction(many.value.filter)![0]?.value).toEqual(['a', 'b', 'c']);
 
 		const Limited = query.define({
 			fields: { id: query.field(StringSchema, { sortable: true }), name: query.field(StringSchema) },
@@ -155,7 +174,7 @@ describe('query definitions', () => {
 			page: '2',
 			per_page: '10',
 		});
-		expect(value.filters).toEqual([{ field: 'name', operator: 'icontains', value: 'example' }]);
+		expect(query.conjunction(value.filter)!).toEqual([{ field: 'name', operator: 'icontains', value: 'example' }]);
 		expect(value.order).toEqual([
 			{ field: 'score', direction: 'desc', tiebreaker: false },
 			{ field: 'id', direction: 'asc', tiebreaker: true },
@@ -194,8 +213,8 @@ describe('query definitions', () => {
 		});
 	});
 
-	it('projects the actual flat URL parameters for OpenAPI rather than a fictitious pagination object', async () => {
-		const schema = await Definition['~standard-json-schema'].jsonSchema() as {
+	it('documents flat URL parameters for OpenAPI through the explicit wire schema', () => {
+		const schema = Definition.wireSchema() as {
 			readonly properties: Readonly<Record<string, unknown>>;
 		};
 		expect(Object.keys(schema.properties)).toEqual([

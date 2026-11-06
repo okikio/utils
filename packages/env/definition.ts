@@ -1,9 +1,8 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 
-import * as fault from '@okikio/fault';
-import * as recordCore from '@okikio/record';
+import * as recordCore from '@okikio/collection/record';
 
-import { EnvironmentError } from './error.ts';
+import { EnvironmentError, EnvironmentValidatorError } from './error.ts';
 import { isSource, record } from './source.ts';
 import type {
 	EnvironmentDefinition,
@@ -29,7 +28,7 @@ export type ComposeEnvironmentFields<Definitions extends readonly EnvironmentDef
 	: Record<never, never>;
 
 /**
- * Builds the source adapter consumed by environment definition and resolution.
+ * Borrow an existing get() source or snapshot a plain record for this parse.
  *
  * @internal
  */
@@ -60,15 +59,21 @@ function issuePath(issue: StandardSchemaV1.Issue): readonly PropertyKey[] | unde
 }
 
 /**
- * Normalizes issue into the canonical internal form used by later phases.
+ * Keep the authored field key and missing/invalid category, redacting secret
+ * validator messages and paths that could embed the raw value.
  *
  * @internal
  */
-function normalizeIssue(key: string, rawValue: string | undefined, issue: StandardSchemaV1.Issue): EnvironmentIssue {
-	const path = issuePath(issue);
+function normalizeIssue(
+	key: string,
+	rawValue: string | undefined,
+	issue: StandardSchemaV1.Issue,
+	secret: boolean,
+): EnvironmentIssue {
+	const path = secret ? undefined : issuePath(issue);
 	return {
 		key,
-		message: issue.message,
+		message: secret ? 'Invalid secret value.' : issue.message,
 		...(path ? { path } : {}),
 		source: rawValue === undefined ? 'missing' : 'invalid',
 	};
@@ -122,21 +127,21 @@ export function secret<const Schema extends StandardSchemaV1>(
 }
 
 /**
- * Parses fields into the validated internal model used by later phases.
- *
- * It keeps environment definitions import-safe and leaves ambient source selection to the application composition root.
+ * Read and validate declared fields sequentially, accumulating expected input issues.
+ * A validator defect aborts parsing rather than becoming invalid configuration.
+ * Secret validator causes are omitted; source.get() failures remain source-owned.
  *
  * @internal
  */
 async function parseFields<Fields extends EnvironmentFields>(
 	fields: Fields,
-	keys: readonly Extract<keyof Fields, string>[],
+	keys: readonly string[],
 	sourceInput: EnvironmentSourceInput,
 ): Promise<EnvironmentParseResult<InferEnvironmentFields<Fields>>> {
 	const values = source(sourceInput);
 	const entries: Array<
-		| Readonly<{ key: Extract<keyof Fields, string>; value: unknown }>
-		| Readonly<{ key: Extract<keyof Fields, string>; issues: readonly EnvironmentIssue[] }>
+		| Readonly<{ key: string; value: unknown }>
+		| Readonly<{ key: string; issues: readonly EnvironmentIssue[] }>
 	> = [];
 	for (const key of keys) {
 		const field = fields[key]!;
@@ -144,21 +149,15 @@ async function parseFields<Fields extends EnvironmentFields>(
 		try {
 			const result = await field.schema['~standard'].validate(rawValue);
 			if (result.issues) {
-				entries.push({ key, issues: result.issues.map((issue) => normalizeIssue(key, rawValue, issue)) });
+				entries.push({
+					key,
+					issues: result.issues.map((issue) => normalizeIssue(key, rawValue, issue, field.kind === 'secret')),
+				});
 				continue;
 			}
 			entries.push({ key, value: result.value });
 		} catch (cause) {
-			entries.push({
-				key,
-				issues: [
-					{
-						key,
-						message: fault.message(cause),
-						source: rawValue === undefined ? 'missing' : 'invalid',
-					} satisfies EnvironmentIssue,
-				],
-			});
+			throw new EnvironmentValidatorError(key, field.kind === 'secret' ? undefined : cause);
 		}
 	}
 
@@ -177,15 +176,15 @@ async function parseFields<Fields extends EnvironmentFields>(
 }
 
 /**
- * Parses fields sync into the validated internal model used by later phases.
- *
- * It keeps environment definitions import-safe and leaves ambient source selection to the application composition root.
+ * Validate without awaiting. A thenable is observed to avoid an unhandled
+ * rejection, but it becomes an issue directing the caller to asynchronous parse.
+ * Secret issues are redacted; unexpected validator exceptions still throw.
  *
  * @internal
  */
 function parseFieldsSync<Fields extends EnvironmentFields>(
 	fields: Fields,
-	keys: readonly Extract<keyof Fields, string>[],
+	keys: readonly string[],
 	sourceInput: EnvironmentSourceInput,
 ): EnvironmentParseResult<InferEnvironmentFields<Fields>> {
 	const values = source(sourceInput);
@@ -198,6 +197,8 @@ function parseFieldsSync<Fields extends EnvironmentFields>(
 		try {
 			const result = field.schema['~standard'].validate(rawValue);
 			if (isPromiseLike(result)) {
+				// The validator has already started. Observe rejection while refusing sync use.
+				void Promise.resolve(result).catch(() => {});
 				issues.push({
 					key,
 					message: 'This field validates asynchronously. Use environment.parse() instead of parseSync().',
@@ -206,16 +207,12 @@ function parseFieldsSync<Fields extends EnvironmentFields>(
 				continue;
 			}
 			if (result.issues) {
-				issues.push(...result.issues.map((issue) => normalizeIssue(key, rawValue, issue)));
+				issues.push(...result.issues.map((issue) => normalizeIssue(key, rawValue, issue, field.kind === 'secret')));
 				continue;
 			}
 			parsed.set(key, result.value);
 		} catch (cause) {
-			issues.push({
-				key,
-				message: fault.message(cause),
-				source: rawValue === undefined ? 'missing' : 'invalid',
-			});
+			throw new EnvironmentValidatorError(key, field.kind === 'secret' ? undefined : cause);
 		}
 	}
 
@@ -229,10 +226,10 @@ function snapshotEnvironmentFields<const Fields extends EnvironmentFields>(field
 	return recordCore.snapshot(fields, 'environment fields');
 }
 
-/** Return exact field keys from the validated immutable snapshot. @internal */
+/** Return runtime field names; structural typing does not prove an exhaustive key set. @internal */
 function environmentFieldKeys<const Fields extends EnvironmentFields>(
 	fields: Fields,
-): readonly Extract<keyof Fields, string>[] {
+): readonly string[] {
 	return recordCore.keys(fields, 'environment fields');
 }
 
@@ -247,12 +244,12 @@ function environmentFieldKeys<const Fields extends EnvironmentFields>(
  * ```ts
  * import * as env from '@okikio/env/standard';
  *
- * const ServiceEnvironment = env.environment({
+ * const ServiceEnvironment = env.define({
  *   PORT: env.variable(PortSchema, { description: 'HTTP listener port.' }),
  * });
  * ```
  */
-export function environment<const Fields extends EnvironmentFields>(fields: Fields): EnvironmentDefinition<Fields> {
+export function define<const Fields extends EnvironmentFields>(fields: Fields): EnvironmentDefinition<Fields> {
 	const fieldSnapshot = snapshotEnvironmentFields(fields);
 	const keys = environmentFieldKeys(fieldSnapshot);
 
@@ -260,7 +257,7 @@ export function environment<const Fields extends EnvironmentFields>(fields: Fiel
 		fields: fieldSnapshot,
 		keys,
 		/**
-		 * Parses input into the validated internal model used by later phases.
+		 * Await each field and return all parsed values, or throw EnvironmentError for input issues.
 		 *
 		 * @internal
 		 */
@@ -270,7 +267,7 @@ export function environment<const Fields extends EnvironmentFields>(fields: Fiel
 			return result.value;
 		},
 		/**
-		 * Parses sync into the validated internal model used by later phases.
+		 * Parse synchronously; input issues and asynchronous validators produce EnvironmentError.
 		 *
 		 * @internal
 		 */
@@ -280,7 +277,7 @@ export function environment<const Fields extends EnvironmentFields>(fields: Fiel
 			return result.value;
 		},
 		/**
-		 * Attempts parse and returns structured failure information instead of throwing inside environment definition and resolution.
+		 * Return expected input issues as data; source and validator defects still reject.
 		 *
 		 * @internal
 		 */
@@ -288,7 +285,7 @@ export function environment<const Fields extends EnvironmentFields>(fields: Fiel
 			return parseFields(fieldSnapshot, keys, sourceInput);
 		},
 		/**
-		 * Attempts parse sync and returns structured failure information instead of throwing inside environment definition and resolution.
+		 * Return synchronous input issues as data; source and validator defects still throw.
 		 *
 		 * @internal
 		 */
@@ -297,9 +294,6 @@ export function environment<const Fields extends EnvironmentFields>(fields: Fiel
 		},
 	});
 }
-
-/** Descriptive alias for `environment()` when the call reads better as a verb. */
-export const define = environment;
 
 /**
  * Compose definitions through canonical field identity.
@@ -338,7 +332,7 @@ export function compose<const Definitions extends readonly EnvironmentDefinition
 	// infer that intersection from `Map`/`Object.fromEntries`, so this is the one
 	// construction assertion at the composition seam.
 	const composedFields = Object.fromEntries(fields) as ComposeEnvironmentFields<Definitions>;
-	return environment(composedFields);
+	return define(composedFields);
 }
 
 /**

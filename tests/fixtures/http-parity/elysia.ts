@@ -10,8 +10,8 @@
  */
 import { Elysia, t } from 'elysia';
 import { WebStandardAdapter } from 'elysia/adapter/web-standard';
-import { bodyLimit, jsonLimit } from './corpus.ts';
-import type { ParityApiType } from './corpus.ts';
+import { bodyLimit, jsonLimit } from '#fixtures/http-parity/corpus.ts';
+import type { ParityApiType } from '#fixtures/http-parity/corpus.ts';
 
 /** Actual challenger configuration; native listener routing remains outside this Fetch boundary. */
 export const elysiaConfiguration = Object.freeze({

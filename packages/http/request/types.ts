@@ -32,11 +32,11 @@ export interface RequestIssue {
 	readonly path?: readonly PropertyKey[];
 }
 
-/** Error containing one or more transport issues safe for validation reporting. */
+/** Error containing structured transport issues. Message redaction remains the issue author's responsibility. */
 export class RequestTransportError extends Error {
 	/** Structured validation issues retained for inspection without matching error messages. */
 	readonly issues: readonly RequestIssue[];
-	/** Retain safe wire issues; an optional cause holds private diagnostics outside validation reporting. */
+	/** Snapshot issue records; retain an optional cause separately from the public issue array. */
 	constructor(issues: RequestIssue | readonly RequestIssue[], options?: ErrorOptions) {
 		const values = Array.isArray(issues) ? issues : [issues];
 		super(values.map((value) => value.message).join('; '), options);

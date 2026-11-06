@@ -1,5 +1,5 @@
 import * as httpResponse from '@okikio/http/response';
-import * as recordCore from '@okikio/record';
+import * as recordCore from '@okikio/collection/record';
 import type { App, CreateOptionsType, Handler, Middleware, MountOptions, RoutePlanInput, RouteType } from './types.ts';
 import { normalizePath } from './path.ts';
 import { matchMount, matchRoute, normalizeMountPath, prepare, routeKey, stripMountPrefix } from './router.ts';
@@ -43,6 +43,8 @@ export function compose(handler: Handler, middleware: readonly Middleware[] = []
 	if (typeof handler !== 'function') throw new TypeError('HTTP handler must be a function.');
 	const layers = middlewareList(middleware);
 	let current = handler;
+	// Build from the last layer inward so the first authored middleware sees
+	// the request first and the response last. No request runs during this loop.
 	for (let index = layers.length - 1; index >= 0; index -= 1) {
 		const next = current;
 		const layer = layers[index]!;
@@ -83,6 +85,8 @@ export function create(options: CreateOptionsType = {}): App {
 			const selected = handlers.get(key)!;
 			return selected.handler(request);
 		}
+		// Exact routes have already had their chance. A mount delegates the
+		// remaining path to another Fetch application rather than a network proxy.
 		const mountKey = matchMount(plan, url.pathname);
 		if (mountKey !== undefined) {
 			const selected = handlers.get(mountKey)!;
@@ -96,6 +100,7 @@ export function create(options: CreateOptionsType = {}): App {
 	const fetch = compose(dispatch, middleware);
 	return Object.freeze({
 		routes,
+		/** Dispatch one request and suppress its final body for HEAD, including GET fallback. */
 		fetch(request: Request): Promise<Response> {
 			try {
 				const response = Promise.resolve(fetch(request));
@@ -122,6 +127,7 @@ function bind(plan: import('./types.ts').RoutePlan, routes: readonly RouteType[]
 	return actual;
 }
 
+/** Keep only inert matching metadata; handler ownership stays in the binding map. */
 function routeDescriptor(value: RouteType): RoutePlanInput {
 	return value.kind === 'mount'
 		? Object.freeze({ kind: 'mount', path: value.path })

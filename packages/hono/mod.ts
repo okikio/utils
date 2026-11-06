@@ -1,7 +1,10 @@
 /**
- * Reuse framework-neutral HTTP middleware around a Hono application. Reimplementing request correlation and response headers inside each framework makes the host contracts drift.
+ * Wrap a Hono Fetch application with the same HTTP middleware used by other hosts. For example, add
+ * security headers around existing Hono routes without moving those routes into another router.
  *
- * Start with the adapter around an existing Hono app, then share middleware with a portable service or gateway. Hono still owns its route handlers; the utility adapter owns the surrounding fetch composition. Host code starts the network listener and configures logging. Read or cancel response bodies so tests and callers release stream ownership.
+ * Hono owns route selection. This adapter wraps app.fetch and starts no listener. The executable starts
+ * the network listener and configures logging. Consumers must read or cancel response bodies to release
+ * their streams.
  *
  * @example
  * ```ts
@@ -46,6 +49,7 @@ export function catchErrors(
 		await http.errorResponse(error, ctx.req.raw, {
 			...options,
 			async map(normalized, request) {
+				// Preserve Hono's authored HTTP response before consulting the optional generic error map.
 				if (error instanceof HTTPException) return error.getResponse();
 				return await options.map?.(normalized, request);
 			},

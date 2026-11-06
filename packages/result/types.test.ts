@@ -19,3 +19,20 @@ function checkFallbackTypes(value: result.Result<() => number, Error>): void {
 }
 
 void checkFallbackTypes;
+
+function compositionTypes(value: result.Result<number, 'missing'>): void {
+	const composed = result.flatMap(
+		value,
+		(number) => number > 0 ? result.ok(String(number)) : result.fail('invalid' as const),
+	);
+	const exact: result.Result<string, 'missing' | 'invalid'> = composed;
+	void exact;
+	// @ts-expect-error The second operation's failure cannot disappear.
+	const erased: result.Result<string, 'missing'> = composed;
+	void erased;
+	// @ts-expect-error Capture invokes the callback with no arguments.
+	result.capture((required: string) => required.length);
+	const asynchronous: Promise<result.Result<number, unknown>> = result.captureAsync(() => Promise.resolve(1));
+	void asynchronous;
+}
+void compositionTypes;

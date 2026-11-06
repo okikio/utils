@@ -1,0 +1,36 @@
+{
+	"name": "@okikio/format",
+	"version": "0.0.0",
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"exports": {
+		"./csv": "./csv/mod.ts",
+		"./csv/dialect": "./csv/dialect.ts",
+		"./csv/encoding": "./csv/encoding.ts",
+		"./csv/headers": "./csv/headers.ts",
+		"./csv/options": "./csv/options.ts",
+		"./csv/parse": "./csv/parse.ts",
+		"./csv/stream": "./csv/stream.ts",
+		"./csv/types": "./csv/types.ts",
+		"./csv/write": "./csv/write.ts",
+		"./csv/validate": "./csv/validate.ts",
+		"./csv/source": "./csv/source.ts",
+		"./sitemap": "./sitemap/mod.ts",
+		".": "./mod.ts"
+	},
+	"dependencies": {
+		"@okikio/collection": "workspace:^",
+		"@std/csv": "npm:@jsr/std__csv@^1.0.6",
+		"@okikio/schema": "workspace:^",
+		"@okikio/streams": "workspace:^",
+		"@std/xml": "npm:@jsr/std__xml@^0.2.0"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
+		"fast-check": "^4.9.0",
+		"saxes": "^6.0.0",
+		"mitata": "^1.0.34",
+		"csv-parse": "7.0.3"
+	}
+}

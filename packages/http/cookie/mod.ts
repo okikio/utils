@@ -6,8 +6,14 @@
  * @example
  * ```ts
  * import * as cookie from '@okikio/http/cookie';
- * import { z } from 'zod';
- * const Session = cookie.define({ id: 'session', name: '__Host-session', description: 'Opaque session token.', value: z.string().min(1), attributes: { secure: true, httpOnly: true, path: '/', sameSite: 'lax' } });
+ * import * as schema from '@okikio/schema';
+ * const Session = cookie.define({
+ * 	id: 'session',
+ * 	name: '__Host-session',
+ * 	description: 'Opaque session token.',
+ * 	value: schema.string({ minLength: 1 }),
+ * 	attributes: { secure: true, httpOnly: true, path: '/', sameSite: 'lax' },
+ * });
  * console.log(await cookie.get(new Headers({ cookie: '__Host-session=token-1' }), Session));
  * const output = new Headers();
  * cookie.set(output, Session, 'token-2');
@@ -16,10 +22,10 @@
  *
  * @module
  */
-import * as catalog from '@okikio/catalog';
+import * as catalog from '@okikio/collection/catalog';
 import { getCookies, setCookie as appendSetCookie } from '@std/http/cookie';
 import type { Cookie as StandardCookie } from '@std/http/cookie';
-import type { Catalog, CatalogSelection, DefinitionInput } from '@okikio/catalog';
+import type { Catalog, CatalogSelection, DefinitionInput } from '@okikio/collection/catalog';
 import type {
 	CookieAttributes,
 	CookieDefinition,
@@ -75,7 +81,12 @@ export function compose<Entry extends CookieDefinition>(
 	return catalog.compose(...input);
 }
 
-/** Parse one cookie from a Request or Headers object. */
+/**
+ * Read and validate one named cookie without throwing for ordinary schema issues.
+ * An absent cookie succeeds with undefined. Percent decoding falls back to the
+ * original text if malformed. The validator checks shape; authentication and
+ * duplicate-name policy remain application concerns.
+ */
 export async function safeGet<Definition extends CookieDefinition>(
 	input: Request | Headers,
 	definition: Definition,
@@ -116,7 +127,11 @@ export function set<Definition extends CookieDefinition>(
 	appendSetCookie(headers, occurrence(definition, String(value), options));
 }
 
-/** Append an expired Set-Cookie field for one definition. */
+/**
+ * Expire the exact authored cookie identity without changing its path, domain, prefix or SameSite policy.
+ * Expiry bypasses the value validator because an empty deletion marker is not a new application value.
+ * Appends one Set-Cookie field; existing occurrences remain intact. remove and delete share this operation.
+ */
 function deleteCookie(headers: Headers, definition: CookieDefinition): void {
 	appendSetCookie(
 		headers,
@@ -142,9 +157,9 @@ export function document(input: DefinitionInput<CookieDefinition>): readonly Coo
 }
 
 /**
- * Normalizes a cookie attribute occurrence so duplicate-attribute handling can report the exact source position.
- *
- * The helper stays internal so callers depend on the module contract rather than its implementation mechanics.
+ * Combine the declared security attributes with this write's expiry options.
+ * Percent-encode the value before passing it to the standard cookie serializer.
+ * This prepares output; it does not validate the value against the cookie schema.
  *
  * @internal
  */
@@ -193,9 +208,9 @@ function sameSite(value: NonNullable<CookieAttributes['sameSite']>): NonNullable
 }
 
 /**
- * Normalizes attributes into the canonical internal form used by later phases.
- *
- * It keeps this internal phase aligned with the module's public contract and lifecycle rules.
+ * Snapshot the cookie attributes and reject unsafe prefix combinations.
+ * __Host- requires Secure, Path=/ and no Domain; SameSite=None and
+ * partitioned cookies require Secure. These checks do not authenticate tokens.
  *
  * @internal
  */
@@ -218,7 +233,7 @@ function normalizeAttributes(name: string, input: CookieAttributes): CookieAttri
 }
 
 /**
- * Collects all Set-Cookie header values without collapsing independent cookie occurrences.
+ * Select the Headers object already owned by the request or caller.
  *
  * @internal
  */
@@ -227,7 +242,7 @@ function headersOf(input: Request | Headers): Headers {
 }
 
 /**
- * Normalizes path into the canonical internal form used by later phases.
+ * Require an absolute cookie path; no path normalization or authorization is applied.
  *
  * @internal
  */
@@ -246,7 +261,7 @@ function capitalize(value: string): string {
 }
 
 /**
- * Rejects invalid identifier before it can enter authoritative module state.
+ * Require a stable definition ID using the package identifier grammar.
  *
  * @internal
  */
@@ -255,7 +270,7 @@ function assertIdentifier(value: string): void {
 }
 
 /**
- * Rejects invalid cookie name before it can enter authoritative module state.
+ * Reject cookie names that cannot be written as one HTTP token.
  *
  * @internal
  */
@@ -266,7 +281,8 @@ function assertCookieName(value: string): void {
 }
 
 /**
- * Rejects invalid schema before it can enter authoritative module state.
+ * Check that the supplied validator exposes the Standard Schema method.
+ * Its asynchronous result and application constraints are checked when reading a value.
  *
  * @internal
  */
@@ -281,7 +297,7 @@ function assertSchema(
 	}
 }
 
-export { cookieCatalog as catalog, deleteCookie as delete };
+export { cookieCatalog as catalog, deleteCookie as delete, deleteCookie as remove };
 export type {
 	CookieAttributes,
 	CookieDefinition,

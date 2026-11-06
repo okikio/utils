@@ -7,6 +7,11 @@
 	],
 	"license": "MIT",
 	"exports": {
+		"./arithmetic": "./arithmetic.ts",
+		"./format": "./format.ts",
+		"./units": "./units.ts",
+		"./conversion": "./conversion.ts",
+		"./instant": "./instant.ts",
 		".": "./mod.ts",
 		"./types": "./types.ts",
 		"./temporal": "./temporal.ts",
@@ -16,6 +21,7 @@
 		"temporal-polyfill": "1.0.5"
 	},
 	"devDependencies": {
-		"@std/expect": "npm:@jsr/std__expect@^1.0.20"
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
+		"mitata": "^1.0.34"
 	}
 }

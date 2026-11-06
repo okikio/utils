@@ -1,7 +1,7 @@
-import * as catalog from '@okikio/catalog';
-import * as effect from '@okikio/effect';
+import * as catalog from '@okikio/collection/catalog';
+import * as effect from '@okikio/capability/effect';
 import * as endpoint from '@okikio/server/endpoint/definition';
-import * as resilience from '@okikio/resilience';
+import * as resilience from '@okikio/capability/resilience';
 import type {
 	EndpointCompositionInput,
 	EndpointDefinition,
@@ -189,9 +189,8 @@ export function leafEndpoints(input: EndpointCompositionInput): readonly Endpoin
 }
 
 /**
- * Selects contributions needed by the next phase without redefining them.
- *
- * It links service definitions to exact implementations before traffic and keeps request-stage ownership visible at runtime.
+ * Snapshot authored contribution containers while retaining their canonical definition objects.
+ * This stage declares contracts; implementation linking and resource acquisition happen later.
  *
  * @internal
  */
@@ -208,7 +207,7 @@ function pickContributions(input: ServiceDefinitionInput | ServicePolicyInput) {
 }
 
 /**
- * Captures the snapshot input as immutable state for the compiled service runtime.
+ * Copy nested composition arrays only. Definition objects remain borrowed canonical identities.
  *
  * @internal
  */
@@ -218,7 +217,7 @@ function snapshotInput<Value>(value: Value): Value {
 }
 
 /**
- * Rejects invalid path before it can enter authoritative module state.
+ * Require an absolute route prefix without query, fragment, empty segments, or a trailing slash.
  *
  * @internal
  */
@@ -236,7 +235,7 @@ function assertPath(value: string): void {
 }
 
 /**
- * Rejects invalid identifier before it can enter authoritative module state.
+ * Require a printable stable service/policy/observer ID before catalogs and diagnostics retain it.
  *
  * @internal
  */

@@ -30,5 +30,7 @@ export function projection(stage: string, entry: Record<string, string>, _root: 
 
 // Package staging owns the dynamic manifest inventory; invoking the CLI directly is deliberately unsupported.
 export default defineConfig(() => {
-	throw new Error('Use mise run npm-build or npm-verify so canonical exports are staged before tsdown builds them.');
+	throw new Error(
+		'Use mise run build or mise run test -- --suite packages so canonical exports are staged before tsdown builds them.',
+	);
 });

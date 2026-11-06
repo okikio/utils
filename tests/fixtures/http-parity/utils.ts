@@ -19,9 +19,9 @@ import {
 	define as defineService,
 	implement,
 } from '@okikio/server/service';
-import { implementations } from '@okikio/resource';
-import { bodyLimit, jsonLimit, upstream } from './corpus.ts';
-import type { ParityApiType } from './corpus.ts';
+import { implementations } from '@okikio/capability/resource';
+import { bodyLimit, jsonLimit, upstream } from '#fixtures/http-parity/corpus.ts';
+import type { ParityApiType } from '#fixtures/http-parity/corpus.ts';
 
 const NameSchema: StandardSchemaV1<unknown, { readonly name: string }> = {
 	'~standard': {
@@ -36,7 +36,10 @@ const NameSchema: StandardSchemaV1<unknown, { readonly name: string }> = {
 		},
 	},
 };
-const SavedSchema: StandardSchemaV1<unknown, { readonly name: string; readonly saved: boolean }> = {
+const SavedSchema: StandardSchemaV1<
+	{ readonly name: string; readonly saved: boolean },
+	{ readonly name: string; readonly saved: boolean }
+> = {
 	'~standard': {
 		version: 1,
 		vendor: 'parity',

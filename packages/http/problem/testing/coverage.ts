@@ -1,5 +1,5 @@
-import * as catalog from '@okikio/catalog';
-import type { Catalog, CatalogSelection } from '@okikio/catalog';
+import * as catalog from '@okikio/collection/catalog';
+import type { Catalog, CatalogSelection } from '@okikio/collection/catalog';
 import type { ProblemDefinition } from '../types.ts';
 
 /** Coverage summary for one problem catalog or selection. */

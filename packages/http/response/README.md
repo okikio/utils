@@ -4,27 +4,38 @@ An API may return a saved record, a page of results or a file download. Repeatin
 in every handler makes those answers drift. This package gives each successful answer a reusable description and creates
 individual result values from it. A schema is the executable rule describing the permitted body shape.
 
+A **definition** describes the answers an operation is allowed to return, such as status 200 with `{ id: string }`.
+An **occurrence** is one answer, such as `{ id: "asset-1" }`. A native Web `Response` is the HTTP value a caller can read.
+These are three stages, not three network requests. Keeping the definition separate lets documentation and many calls
+share the same rule without opening a listener or producing a response at import time.
+
 ```text
 Response definition + result body -> create -> logical result
-Logical result -> service validates -> finalize -> service sends native Response
-Download filename -> attachmentDisposition -> safe Content-Disposition value
+Logical result -> materialize validates and presents -> Response constructor -> native Response -> caller
 ```
 
-The upper flow describes a result before a server writes it to the caller. `finalize()` still returns a plain finalized
-value, not a native `Response`, and it does not replace the service's output validation. The filename flow prepares a
-header value; it does not open a file or grant permission to download it.
+A logical result is a checked body/status/header value, not a Web Response. `materialize()` validates and presents
+that value; the native Response constructor below adapts it to Fetch. Server's service runtime normally performs
+these stages for its handlers. The caller owns reading or cancelling the resulting body.
 
-## Return a saved record and name a download
+## Return a saved asset record
+
+Define the saved-asset response once, materialize a value against it, and construct a native Response. The application then sends the checked status, headers and body through a native Response.
+
+These examples use the current experimental source checkout, not an assumed registry release. From the `utils`
+repository root, review `mise.toml`, run `mise trust`, then `mise install` and `mise run prepare -- --kind deps`.
+Save the following module as `example.ts` and run `mise exec -- deno run example.ts`.
+[Checkout prerequisites](../../../README.md#work-on-the-repository) explain installing Mise.
 
 ```ts runnable
 import * as response from '@okikio/http/response';
-import { z } from 'zod';
-const Saved = response.ok(z.object({ id: z.string() }), { id: 'asset.saved', description: 'Saved asset.' });
-const value = response.finalize(response.create(Saved, { id: 'asset-1' }));
+import * as schema from '@okikio/schema';
+const Saved = response.ok(schema.object({ id: schema.string() }), { id: 'asset.saved', description: 'Saved asset.' });
+// Validate and materialize the declared body before adapting it to a Web Response.
+const value = await response.materialize(response.create(Saved, { id: 'asset-1' }));
 console.log(value.status);
 const outgoing = Response.json(value.body, { status: value.status, headers: response.toHeaders(value.headers) });
 console.log(await outgoing.text());
-console.log(response.attachmentDisposition('reports/quarterly.csv'));
 ```
 
 Expected output:
@@ -32,144 +43,74 @@ Expected output:
 ```text output
 200
 {"id":"asset-1"}
-attachment; filename="quarterly.csv"
 ```
 
 The demo describes a `200` result whose body has a string `id`, then creates the occurrence `{ id: 'asset-1' }`.
-`finalize()` exposes the status, body and prepared transport metadata. The next line turns those values into an ordinary
-`Response` and reads its JSON text. Separately, `attachmentDisposition()` reduces `reports/quarterly.csv` to the
-download name `quarterly.csv`. That second line can become a `Content-Disposition` header. No file or network connection
-is opened in this mini-demo.
+`materialize()` validates the body and exposes its converted value with status and transport metadata. The next line
+turns those values into an ordinary `Response` and reads its JSON text. No file or network connection is opened in this local example.
 
-## Definition, occurrence, native response
+## Conditional request dates
 
-These are three different values. Keeping them separate lets the same contract describe many individual responses:
+`Last-Modified` and `If-Modified-Since` carry HTTP-date text, including the protocol's older weekday/month spellings.
+Their existing Date parser stays local to conditional-request evaluation; Temporal's ISO parser accepts a different
+language. Invalid parse results do not satisfy the condition. ETag comparison continues to use `@std/http/etag` and
+takes precedence when `If-None-Match` is present. These wall timestamps do not measure elapsed execution time.
 
-| Value                                                       | Representative fields                                      | Purpose                                                                     |
-| ----------------------------------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `ResponseDefinition` from `ok(schema, options)`             | `id`, `status`, `schema`, `mode`, `contentType`, `headers` | Reusable rule for a class of successful answers                             |
-| `ResponseResult` from `create(Saved, body)`                 | Readonly `[body, status, headers]` tuple                   | One answer, with hidden metadata retaining the exact definition             |
-| `FinalizedResponseResult` from `finalize(result, options?)` | `{ definition, body, status, headers }`                    | Request-aware representation, including configured envelopes and pagination |
-| Web `Response`                                              | `status`, native `Headers`, readable `body`                | Transport value the caller can consume                                      |
+## One response direction
 
-`create()` merges fixed and occurrence headers and records the definition association in a `WeakMap`; it does not run
-the body schema. `finalize()` applies presentation policy, such as pagination links using the public URL; it also does
-not run that schema. In the example the body is known locally. A service checks unknown handler output against the
-declared schema before materialization. A manual host must perform that validation itself when needed.
+For an ordinary Standard Schema, `create()` accepts the schema input. `prepare()` validates it once and retains the
+returned output, including removed private fields and transformations. For an explicit `schema/codec`, `create()`
+accepts the application value and `prepare()` uses its encoder. Page definitions apply the same rule to every item;
+validation issues include the item index. Handlers never need to pre-parse a value and then feed the output back into a
+different input type.
 
-This separation avoids baking one framework's response object into the API contract. It also gives TypeScript the exact
-declared body type at construction. Use native `Response.json()` directly when no shared response contract is needed.
-The [full contracts](../API.md#response) include the less common empty, redirect, pagination and streaming modes.
+Server calls `prepare()` before its transport step. Standalone adapters use `await materialize(result, options)`, which
+composes preparation and presentation. The lower-level synchronous `finalize()` only adds envelopes, links, headers and
+timestamps to an already prepared result. It does not validate or transform data.
 
-## Build on the example
+Body and page definitions default to `application/json`, including primitive strings and null. Server serializes those
+values as JSON and rejects values with no faithful JSON representation. Use an explicit `contentType: 'text/plain'` for
+raw text. HTML, stream and download modes carry pre-encoded bodies; the same `mediaType()` policy drives OpenAPI. Dates
+and other application objects need a codec that emits JSON values before a JSON response is written.
 
-For an upload API, declare a saved-record result on an [endpoint](../../server/endpoint/README.md), return it from the
-handler, and let the [service](../../server/service/README.md) validate and materialize it. Declare a
-[problem](../problem/README.md) for expected rejections so success and failure each have a documented shape.
+For bounded `readBytes()` or `readText()`, `bodyCleanup(response)` exposes eventual source cancellation as an outcome.
+Overflow and abort release the reader promptly; a delayed cancellation failure remains inspectable separately from the
+read's primary failure. The same rule applies when Content-Length rejects a response before reading starts.
 
-For a CSV export, combine a download response with a safe filename and the [CSV writer](../../csv/README.md). Choose a
-bounded buffered result or an intentional stream according to the export size. For search results, use pagination with
-[request query parsing](../request/README.md). A response body must be read or cancelled by its consumer so stream-owned
-cleanup can finish.
+## Download the same asset as a CSV file
 
-## Response flow
+A download is still a Response. This variation sends actual file text and a safe filename header; the helper does not
+open a file. Save as `asset-download.ts` and run `mise exec -- deno run asset-download.ts`.
 
-```text
-endpoint handler
-  -> logical response result
-  -> verify declared definition and body
-  -> finalize request-aware headers and pagination
-  -> server framework materialization
-  -> native Response
-```
-
-`response.create()` combines one exact definition with the logical body. `response.finalize()` performs the last
-request-aware transformation, such as building pagination links from the public request URL.
-
-A raw native `Response` remains an explicit escape hatch for proxying, WebSockets, server-sent events, or provider
-responses. It is not the normal handler result.
-
-## Headers and pagination
-
-Header inputs preserve repeated fields. This is required for fields such as `Set-Cookie` that must not be flattened into
-one comma-joined value.
-
-Prepare reusable response headers with `headers()` when their values are fixed. The returned record owns frozen values
-and keeps an admitted occurrence projection, so repeated reads and merges avoid revalidating the same data. Mutable
-records, tuple lists and native `Headers` still receive fresh checks. This reuse preserves separate cookies and record
-ordering; freezing an arbitrary caller record does not grant it the library's admission identity.
-
-Storage adapters return transport-neutral cursor or offset page windows. They do not construct public URLs.
-`response.finalize()` can add RFC 8288 links and count metadata according to the response definition.
-
-```typescript
-return response.create(WidgetPage, {
-	kind: 'cursor',
-	items,
-	limit: 50,
-	hasMore: true,
-	nextCursor,
+```ts runnable=asset-download.ts
+import { attachmentDisposition } from '@okikio/http/response';
+const outgoing = new Response('id\nasset-1\n', {
+	headers: {
+		'content-type': 'text/csv',
+		'content-disposition': attachmentDisposition('reports/assets.csv'),
+	},
 });
+console.log(outgoing.headers.get('content-disposition'));
+console.log((await outgoing.text()).trim());
 ```
 
-## Discarding an unread body
-
-A native `Response` owns a readable body until the caller consumes it, transfers that body to another response, or
-deliberately abandons it. Use `discard()` when the body is no longer part of the result. The operation cancels an
-unlocked body and keeps cleanup failure secondary to the HTTP decision that made the body unnecessary.
-
-```typescript
-import * as response from '@okikio/http/response';
-
-const upstream = await fetch(url, { signal });
-if (!upstream.ok) {
-	await response.discard(upstream);
-	throw new Error(`Upstream returned ${upstream.status}.`);
-}
+```text output
+attachment; filename="assets.csv"
+id
+asset-1
 ```
 
-If a reader already owns the body, cancel that reader instead. `discard()` does not take a locked stream away from its
-current owner.
+The caller consumes the body once. If real bytes come from a file or remote stream, its owner must also arrange
+cancellation and release; constructing a filename header supplies neither authorization nor file ownership.
 
-## Special HTTP helpers
+## Choose adjacent capabilities
 
-`onComplete()` observes response-body drain, cancellation, abort, or stream failure exactly once.
+Use Response to construct protocol output. Endpoint declares which output variants a checked operation may return, and
+Service binds that operation to a host. Creating a Response does not open a listener.
 
-Conditional response helpers support declared `304` results. Byte-range helpers support single open, suffix, bounded,
-and unsatisfiable ranges for artifact and download adapters.
+The [package choice map](../README.md#choose-an-entry-point) lists the other public entries and when to use them.
 
-The server package owns content negotiation, endpoint membership checks, and conversion to the framework response
-object.
+## Read further
 
-## Recognized status is not the same as constructible status
-
-The status helpers can recognize historical wire values that the response constructors should not emit. RFC 9110 keeps
-`305 Use Proxy` as deprecated and `306` as reserved/unused. `response.redirectStatus` therefore recognizes them when
-inspecting external HTTP, while `response.redirect()` only constructs currently supported redirect responses.
-
-```ts
-response.redirectStatus.is(305); // true: recognized historical status
-response.redirectStatus.is(306); // true: recognized reserved status
-
-response.redirect(308, {
-	description: 'Resource moved permanently.',
-}); // supported
-```
-
-There is no convenience constructor for 305 or 306. Manually, the distinction is the same as keeping one set for
-protocol recognition and a smaller set for statuses your application is willing to produce.
-
-## Current status registry
-
-The recognition schemas follow the current IANA HTTP Status Code Registry rather than only the original RFC 9110 table.
-As of August 2026, `104 Upload Resumption Supported` is a temporary informational status registered through November
-13, 2026. It is recognized by `response.informationalStatus` and `response.statusAny`, but this package does not provide
-a response constructor for informational statuses.
-
-```ts
-response.informationalStatus.is(104); // true while the IANA registration is current
-```
-
-The manual equivalent is a reviewed status-code set derived from the IANA registry. Temporary and obsolete codes should
-remain visibly annotated so recognition policy can be revisited without changing application response constructors by
-accident.
+Continue in the [numbered guide](https://github.com/okikio/utils/blob/main/docs/http/06-response.md) for composition,
+ownership, and failure behavior.

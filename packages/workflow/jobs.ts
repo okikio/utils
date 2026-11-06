@@ -1,3 +1,4 @@
+import * as codec from '@okikio/schema/codec';
 /**
  * Activity item admission and independently hosted executor lifecycles.
  *
@@ -8,14 +9,15 @@
  * @module
  */
 import * as context from '@okikio/context';
-import * as failures from '@okikio/failure';
-import * as faultCore from '@okikio/fault';
-import * as record from '@okikio/record';
-import * as schema from '@okikio/schema';
-import { retryDelay, type RetryPolicy, type TimeoutPolicy } from '@okikio/resilience';
+import * as failures from '@okikio/result/failure';
+import * as faultCore from '@okikio/result/fault';
+import * as record from '@okikio/collection/record';
+
+import { retryDelay, type RetryPolicy, type TimeoutPolicy } from '@okikio/capability/resilience';
 import { freeze as freezeAffinity } from './affinity.ts';
 import * as assert from './assert.ts';
 import * as compute from './compute.ts';
+import * as placement from './placement.ts';
 import * as dispatch from './dispatch.ts';
 import * as durable from './durable.ts';
 import * as retry from './retry.ts';
@@ -114,7 +116,10 @@ export class ActivityJobs implements AsyncDisposable {
 			{
 				activityId: activity.id,
 				activityVersion: activity.version,
-				input: durable.snapshot(command.input, 'activity item input'),
+				input: durable.snapshot(
+					await codec.write(activity.input, await codec.read(activity.input, command.input)),
+					'activity item input',
+				),
 				origin: Object.freeze({
 					workflowId: ctx.workflow.id,
 					workflowVersion: ctx.version,
@@ -123,6 +128,9 @@ export class ActivityJobs implements AsyncDisposable {
 					instructionFingerprint: fingerprint,
 				}),
 				context: context.snapshot(ctx),
+				...(command.options.location === undefined ? {} : {
+					location: placement.SelectionSchema.parse(command.options.location),
+				}),
 				...(command.options.affinity === undefined ? {} : {
 					affinity: freezeAffinity(command.options.affinity, 'activity item affinity'),
 				}),
@@ -296,6 +304,7 @@ class ExecutorRuntime {
 		return this.#registration;
 	}
 
+	/** Join dispatch before starting renewal and claiming; the registration exposes this same live generation. */
 	async open(): Promise<void> {
 		this.#lease = await this.#dispatch.join(this.#control, {
 			engineId: this.#engine.id,
@@ -319,6 +328,7 @@ class ExecutorRuntime {
 		this.#loop = this.#serve();
 	}
 
+	/** Claim only local free slots; retain each attempt in the active set until its run path settles. */
 	async #serve(): Promise<void> {
 		try {
 			while (!this.#draining && !this.#claimCtx.signal.aborted) {
@@ -348,6 +358,7 @@ class ExecutorRuntime {
 		}
 	}
 
+	/** Run one claim while watching storage authority. A fenced provider loses its slot; only a still-live claim may publish. */
 	async #run(initial: ActivityClaimType): Promise<void> {
 		let claim = initial;
 		const activity = this.#provider.activities.find((candidate) =>
@@ -425,7 +436,7 @@ class ExecutorRuntime {
 			await renewal;
 			if (result.type === 'success') {
 				try {
-					const value = await schema.parse(activity.result, result.value);
+					const value = await codec.write(activity.result, result.value);
 					await this.#commit(claim, Object.freeze({ type: 'success', value: durable.value(value, 'activity result') }));
 				} catch (error) {
 					if (retryFault(activity, claim.attempt)) {
@@ -478,10 +489,14 @@ class ExecutorRuntime {
 		}
 	}
 
+	/** Project the exact saved origin and current executor generation into the provider request. */
 	#attempt(claim: ActivityClaimType, ctx: context.Context): ActivityAttemptType {
 		const lease = this.#requiredLease();
 		return Object.freeze({
 			jobId: claim.itemId,
+			...(claim.value.location === undefined
+				? {}
+				: { location: placement.SelectionSchema.parse(claim.value.location) }),
 			attempt: claim.attempt,
 			claimId: claim.id,
 			activityId: claim.value.activityId,
@@ -519,10 +534,12 @@ class ExecutorRuntime {
 		}
 	}
 
+	/** Let dispatch validate live claim authority before accepting the encoded result. */
 	async #commit(claim: ActivityClaimType, result: ActivityJobResultType): Promise<void> {
 		await this.#dispatch.complete(this.#control, claim, result);
 	}
 
+	/** Stop claiming and cancel active contexts if this registration can no longer renew. */
 	async #renewLease(): Promise<void> {
 		if (this.#closed || this.#draining || this.#lease === undefined) return;
 		try {
@@ -536,15 +553,18 @@ class ExecutorRuntime {
 		}
 	}
 
+	/** Explicit renewal still passes through dispatch fencing; it cannot revive a replaced registration. */
 	async #renewExecutor(duration: Temporal.Duration | Temporal.DurationLike | string): Promise<void> {
 		this.#lease = await this.#dispatch.renewExecutor(this.#control, this.#requiredLease(), duration);
 	}
 
+	/** Change the claim budget; already running attempts keep their slots until they settle. */
 	async #resize(capacity: number): Promise<void> {
 		this.#capacity = assert.positive(capacity, 'executor capacity');
 		this.#lease = await this.#dispatch.resize(this.#control, this.#requiredLease(), capacity);
 	}
 
+	/** Stop the blocking claim wait, mark dispatch draining, then join already admitted attempts. */
 	async #drain(): Promise<void> {
 		if (this.#draining) {
 			await Promise.allSettled([...this.#active]);
@@ -557,6 +577,7 @@ class ExecutorRuntime {
 		await Promise.all([...this.#active]);
 	}
 
+	/** Drain before leaving dispatch and disposing an owned provider; preserve cancellation-hook and renewal failures. */
 	async #close(): Promise<void> {
 		if (this.#closed) return;
 		this.#closed = true;
@@ -590,6 +611,7 @@ class ExecutorRuntime {
 		if (errors.length > 0) throw new AggregateError(errors, 'Executor shutdown failed.');
 	}
 
+	/** Refuse registration-dependent operations until dispatch has granted the initial lease. */
 	#requiredLease(): ExecutorLeaseType {
 		if (this.#lease === undefined) throw new Error('Executor has not joined activity dispatch.');
 		return this.#lease;
@@ -615,13 +637,17 @@ async function decode(result: ActivityJobResultType, activity: ActivityReference
 	if (result.type === 'failure') {
 		return Object.freeze({ type: 'failure', failure: await failures.decode(result.failure, activity.failures) });
 	}
-	if (result.type === 'success') return Object.freeze({ type: 'success', value: durable.restore(result.value) });
+	if (result.type === 'success') {
+		return Object.freeze({ type: 'success', value: await codec.read(activity.result, durable.restore(result.value)) });
+	}
 	if (result.type === 'fault') return Object.freeze({ type: 'fault', fault: durable.restore(result.fault) });
 	return Object.freeze({ type: 'cancelled', reason: durable.restore(result.reason) });
 }
 
 /** Return the activity retry policy when exactly one was compiled. */
-function retryPolicy(input: readonly import('@okikio/resilience').ResiliencePolicy[]): RetryPolicy | undefined {
+function retryPolicy(
+	input: readonly import('@okikio/capability/resilience').ResiliencePolicy[],
+): RetryPolicy | undefined {
 	return input.find((entry): entry is RetryPolicy => entry.type === 'retry');
 }
 

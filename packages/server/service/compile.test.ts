@@ -3,15 +3,16 @@ import { describe, it } from 'node:test';
 import type { StandardJSONSchemaV1, StandardSchemaV1 } from '@standard-schema/spec';
 
 import * as endpoint from '@okikio/server/endpoint';
-import * as effect from '@okikio/effect';
-import * as failure from '@okikio/failure';
+import * as effect from '@okikio/capability/effect';
+import * as failure from '@okikio/result/failure';
 import * as response from '@okikio/http/response';
-import * as resilience from '@okikio/resilience';
+import * as resilience from '@okikio/capability/resilience';
 import * as problem from '@okikio/http/problem';
-import * as resource from '@okikio/resource';
-import * as permissions from '@okikio/permission';
+import * as resource from '@okikio/capability/resource';
+import * as permissions from '@okikio/authz/permission';
 import * as service from './mod.ts';
 
+/** Supply fixed JSON Schema for compiler fixtures; the cast-only validator is not evidence of runtime input validation. */
 function schema<Output>(
 	jsonSchema: Readonly<Record<string, unknown>>,
 ): StandardSchemaV1<unknown, Output> & StandardJSONSchemaV1<unknown, Output> {
@@ -282,5 +283,17 @@ describe('service compiler', () => {
 			const compilationError = error as service.ServiceCompilationError;
 			expect(compilationError.issues.some((entry) => entry.code === 'invalid-definition')).toBe(true);
 		}
+	});
+});
+
+describe('definition-only service compilation', () => {
+	it('keeps effective effects, requirements and resource contracts without live bindings', async () => {
+		const contract = service.compileDefinition(definition);
+		expect(contract.definition).toBe(definition);
+		expect(contract.operations[0]!.effects).toContain(WidgetRead);
+		expect(contract.operations[0]!.resources).toContain(WidgetRepository);
+		expect('handler' in contract.operations[0]!).toBe(false);
+		const document = await service.openapi(contract, { title: 'Widgets', version: '1' });
+		expect(document.paths['/api/dashboard/v1/widgets/{widgetId}']).toBeDefined();
 	});
 });

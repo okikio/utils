@@ -1,5 +1,5 @@
 /** Adapted upstream literal observations. See README.md and HONO-LICENSE. @module */
-import type { RouterCaseType } from './types.ts';
+import type { RouterCaseType } from '#fixtures/hono-contracts/types.ts';
 
 export const routerCases: readonly RouterCaseType[] = [
 	{

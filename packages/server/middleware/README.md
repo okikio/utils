@@ -1,233 +1,103 @@
-# `@okikio/server/middleware`
+# Provide request values before another step uses them
 
-Authentication should run before code that needs the authenticated actor. If that ordering is hidden in a callback list,
-a missing producer can become a request-time failure. This package describes what each middleware step needs and
-provides, so validation and service compilation can check the plan before traffic arrives. Middleware is code that wraps
-another step in the request flow.
+An authentication step checks a credential and produces an actor for one request. A later step needs that actor.
+Middleware declarations make the dependency visible; bound callbacks do the actual checking and populate the value.
+Declaring `provides: [Actor]` does not create or authenticate anyone.
 
-```text
-Authentication step: provides Actor -> available Actor value
-Business step:       requires Actor -> allowed only after Actor is available
-No producer or initial Actor        -> invalid plan
-```
+These examples use the experimental Utils source checkout. From its root, review `mise.toml`, then run `mise trust`,
+`mise install`, and `mise run prepare -- --kind deps`. Save each named file at that root. The examples use workspace exports;
+they do not assume a newly published registry version.
 
-The arrows mean availability in the ordered plan, not proof of authentication. `Actor` is a named slot for a typed
-value; your authentication implementation checks credentials and supplies that value. The plan can verify that the slot
-exists, but it cannot decide whether your authentication provider is correct.
+## Follow one greeting through a producer and a consumer
 
-## Catch a missing value before serving requests
+Save `actor-greeting.ts`. The public `demo-token` is a fixed teaching credential, not a real authentication scheme.
+Only the example's local comparison accepts it. A deployed host must verify its own credential and authorization rules.
+The first request reaches both middleware steps and the handler; the second is rejected before the actor consumer runs.
 
-```ts runnable
+`await` waits for an operation's result while allowing other ready JavaScript callbacks to run.
+`await using runtime` also registers the service for cleanup when the current block ends, including after an error.
+That declaration does not open a network listener. Here, `runtime.fetch()` receives a local `Request` directly:
+
+```ts runnable=actor-greeting.ts
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as endpoint from '@okikio/server/endpoint';
+import * as response from '@okikio/http/response';
+import * as problem from '@okikio/http/problem';
+import * as service from '@okikio/server/service';
 import * as middleware from '@okikio/server/middleware';
-const Actor = middleware.context<{ id: string }>()({ id: 'actor', description: 'Authenticated actor.' });
-const Read = middleware.define({
-	id: 'actor.read',
-	description: 'Read actor after authentication.',
-	requires: [Actor],
+import * as schema from '@okikio/schema';
+const Actor = middleware.context<{ name: string }>()({ id: 'actor', description: 'Verified actor for one request.' });
+const Unauthorized = problem.define({
+	id: 'auth.required',
+	type: 'https://problems.example.invalid/auth',
+	status: 401,
+	title: 'Authentication required',
+	description: 'No accepted demo credential.',
 });
-console.log(middleware.validate([Read]).valid);
-console.log(middleware.validate([Read], [Actor]).valid);
+// Describe which checked value authentication provides. Its implementation must supply that value before Read runs.
+const Authentication = middleware.define({
+	id: 'authenticate',
+	description: 'Check the demo credential.',
+	provides: [Actor],
+	problems: [Unauthorized],
+});
+const Read = middleware.define({ id: 'read-actor', description: 'Use the checked actor.', requires: [Actor] });
+const Greeting = response.ok(schema.object({ message: schema.string() }), {
+	id: 'greeting',
+	description: 'Greeting result.',
+});
+const Greet = endpoint.get({ id: 'greet', path: '/greeting', responses: [Greeting] });
+const Api = service.define({ id: 'greetings', path: '/', endpoints: [Greet], middleware: [Authentication, Read] });
+const implementation = service.implement(Api, {
+	endpoints: [endpoint.handler(Greet, () => response.create(Greeting, { message: 'Hello!' }))],
+	middleware: [
+		middleware.handler(Authentication, async ({ request, values }, next) => {
+			if (request.headers.get('authorization') !== 'Bearer demo-token') return problem.create(Unauthorized);
+			values.set(Actor, { name: 'Sam' });
+			return await next();
+		}),
+		middleware.handler(Read, async ({ values }, next) => {
+			console.log('Actor', values.get(Actor).name);
+			return await next();
+		}),
+	],
+});
+await using runtime = service.create(service.compile(implementation), { host: {} });
+for (const headers of [new Headers({ authorization: 'Bearer demo-token' }), new Headers()]) {
+	const outgoing = await runtime.fetch(new Request('http://localhost/greeting', { headers }));
+	console.log(outgoing.status, (await outgoing.json()).title ?? 'Greeting returned');
+}
+console.log(middleware.validate([Read]).valid, middleware.validate([Authentication, Read]).valid);
 ```
 
-Expected output:
+Run `mise exec -- deno run actor-greeting.ts`. It prints:
 
 ```text output
-false
-true
+Actor Sam
+200 Greeting returned
+401 Authentication required
+false true
 ```
 
-The demo defines an `Actor` slot containing an `id`, then declares a middleware step that needs it. Validation of
-`[Read]` returns `false` because nothing has supplied that slot. Supplying `[Actor]` as initially available makes the
-second plan valid, so it prints `true`. This checks declarations only: it neither runs authentication nor creates an
-actual actor value. Runtime bindings must still populate the declared values when the service handles a request.
-
-## The declarations are data; the behavior is a normal callback
-
-`context<{ id: string }>()({ ... })` can look like a new language. The first call selects the TypeScript value type; the
-second constructs an immutable key from ordinary object data. It does not run authentication or create a nested runtime.
-The key later identifies a value stored for one request.
-
-| Contract                             | Important fields or operations                                               | Job                                                                |
-| ------------------------------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `MiddlewareContextDefinition<Value>` | `kind`, `id`, `description`; retains the inferred value type                 | Typed key for one request value                                    |
-| `MiddlewareDefinition`               | `requires`, `provides`, resources, problems and other declared contributions | Says what a step needs and may expose                              |
-| `MiddlewareHandler`                  | Exact `definition` and `handle(context, next)` callback                      | Supplies the code that actually runs                               |
-| Callback `context`                   | `request`, `host`, `values`, `resources`, `ctx`                              | Borrowed request data and declared capabilities                    |
-| `context.values`                     | `has(Key)`, `get(Key)`, `set(Key, value)`                                    | Identity-keyed store restricted to declared required/provided keys |
-| `next()`                             | `Promise<Result>`                                                            | Executes downstream work, then returns its result                  |
-
-For example, an authentication binding can call `values.set(Actor, checkedActor)` before `await next()`. A later binding
-that declares `requires: [Actor]` can call `values.get(Actor)`. Use the exact imported `Actor` object for both calls;
-another key with the same textual ID is not the same key. The handler must supply the promised value: a `provides`
-declaration does not manufacture it.
-
-### Time a request with ordinary try/finally
-
-The callback shape is the same wrapper pattern used by many web frameworks. This composition sketch uses the definition
-from the first example; the application supplies `authenticate` and `recordDuration`:
-
-```ts
-const Authentication = middleware.define({
-	id: 'actor.authenticate',
-	description: 'Check the session and provide its actor.',
-	provides: [Actor],
-});
-const AuthenticationHandler = middleware.handler(Authentication, async ({ request, values }, next) => {
-	const actor = await authenticate(request);
-	values.set(Actor, actor);
-	const started = performance.now();
-	try {
-		return await next();
-	} finally {
-		recordDuration(performance.now() - started);
-	}
-});
-```
-
-Under the hood, definitions snapshot their arrays, validation walks the ordered lanes and tracks available keys, and the
-service links each declaration to its exact binding. Each request gets its own store and callback sequence. This lets
-startup reject a missing producer while keeping runtime behavior as readable JavaScript. Timing around `next()` measures
-the wrapped work through its result; it does not measure the final drain of a streaming response body. Use a completion
-observer for that separate lifetime. See the [full middleware contracts](../API.md#middleware).
-
-## Build on the example
-
-For an authenticated account API, bind the authentication producer and the actor reader with `handler()`, declare their
-placement, and let the [service compiler](../service/README.md) validate the combined plan. Use
-[permission requirements](../../permission/README.md) for access decisions rather than treating an available actor value
-as permission to read every record.
-
-For a transaction around one endpoint invocation, choose `aroundOperation` and make resource ownership explicit with
-[resources](../../resource/README.md). Earlier lanes suit whole-request work or work before and after validation. Use
-`once()` when repeated contributions of the same exact binding should run its inner work once for one Request; other
-contributions still continue downstream. This contract middleware is distinct from the simple Fetch middleware in
-[server/http](../http/README.md).
-
-## Definitions and context
-
-```ts
-import * as middleware from '@okikio/server/middleware';
-
-export const Authentication = middleware.context<{
-	readonly actorId: string;
-}>()({
-	id: 'identity.authentication',
-	description: 'Verified application authentication.',
-});
-
-export const Organization = middleware.context<{
-	readonly organizationId: string;
-}>()({
-	id: 'identity.organization',
-	description: 'Active organization.',
-});
-
-export const ResolveOrganization = middleware.define({
-	id: 'identity.resolve-organization',
-	description: 'Resolve the active organization.',
-	requires: [Authentication],
-	provides: [Organization],
-	resources: [OrganizationRepository],
-	problems: [OrganizationRequired],
-});
-```
-
-Definitions are static data. A middleware definition may also declare `effects` when its runtime handler can announce an
-externally visible side effect. The service compiler carries those effect definitions into every operation where the
-middleware is active, so `effect.emit()` remains checked against the compiled execution contract.
-
-Runtime behavior is supplied separately and bound by direct identity:
-
-```ts
-export const ResolveOrganizationHandler = middleware.handler(
-	ResolveOrganization,
-	async (context, next) => {
-		// Resolve and set the declared context value.
-		return await next();
-	},
-);
-```
-
-## Placement and ordering
-
-A plain middleware definition uses the normal `afterValidation` lane. Special placement is explicit at the composition
-site:
-
-```ts
-middleware: [
-	middleware.wholeRequest(RequestDiagnostics),
-	middleware.beforeValidation(VerifyWebhookSignature),
-	ResolveOrganization,
-	middleware.aroundOperation(TransactionScope),
-];
-```
-
-The lane names describe **what they surround**, not what the middleware itself does:
-
-1. `wholeRequest`: surrounds every application stage from raw request guards through the declared handler result. It
-   does not imply that a streamed body has finished reaching the client.
-2. `beforeValidation`: runs after whole-request setup and before endpoint input parsing/Standard Schema validation. Use
-   it for exact raw webhook signatures and other pre-parsing guards.
-3. `afterValidation`: the default lane. It receives validated inputs and runs before generic requirement interpretation
-   and the operation.
-4. `aroundOperation`: the innermost lane immediately around the endpoint handler. Use it for transactions and units of
-   work.
+The final two booleans check the declarations: `Read` alone has no producer; `Authentication` followed by `Read` has one.
+The earlier output proves the callbacks actually ran. `Actor` is an identity-keyed slot, not a global variable. Each
+request has its own store. Use the exact key object in `provides`, `requires`, `set` and `get`.
 
 ```text
-incoming Request
-│
-├─ wholeRequest.before
-│  │
-│  ├─ beforeValidation.before
-│  │  ├─ authentication
-│  │  ├─ parse request locations
-│  │  ├─ Standard Schema validation
-│  │  │
-│  │  └─ afterValidation.before        ← default lane
-│  │     ├─ requirement families
-│  │     │   permission / entitlement / meter / future families
-│  │     │
-│  │     └─ aroundOperation.before
-│  │        └─ endpoint handler
-│  │        aroundOperation.after
-│  │     afterValidation.after
-│  │  beforeValidation.after
-│  wholeRequest.after
-│
-├─ verify declared result/problem
-├─ materialize with the service request state
-└─ response-completion observer
-   body drained, cancelled, aborted, or errored
+valid credential -> Authentication sets Actor -> Read gets Actor -> greeting result
+invalid credential -> declared 401 problem; Read and the greeting do not run
 ```
 
-Authored order is preserved within each lane. Each lane uses normal onion semantics, so post-`next()` work unwinds in
-reverse order. Response completion is deliberately a separate host lifecycle because returning a streaming response is
-not the same as finishing delivery.
+`middleware.context<{ name: string }>()(...)` first selects the TypeScript type, then creates the key. The annotation
+does not validate a credential at runtime. `next()` runs downstream work and returns its eventual result; returning a
+problem without calling `next()` stops this request. Code after `await next()` runs on the return path.
 
-## Once-per-request handlers
+## Choose the right middleware layer
 
-When the same imported middleware definition is intentionally contributed at several composition layers, wrap its
-runtime binding rather than storing state in a framework context or module-global sets:
+This package declares request lanes, required/provided values and exact bindings for a compiled Service. For a plain
+`Request -> Response` application, use [HTTP middleware](../http/README.md). For authorization, use
+[permission checks](../../authz/permission/README.md); an available actor is not permission to read every record.
 
-```ts
-export const RequestMetricsHandler = middleware.once(
-	middleware.handler(RequestMetrics, async (context, next) => {
-		return await recordRequest(context, next);
-	}),
-);
-```
-
-The wrapper is keyed by the actual `Request` object and exact middleware definition. Duplicate occurrences still call
-`next()`, while the wrapped inner work runs once. A different request is never suppressed.
-
-## Validation and documentation
-
-- `middleware.plan()` normalizes nested middleware input into deterministic lanes.
-- `middleware.validate()` detects duplicate IDs, unavailable required context, and conflicting context providers before
-  runtime creation.
-- `middleware.middlewareCatalog()`, `select()`, and `compose()` provide reusable immutable collections without global
-  registration.
-- `middleware.document()` produces JSON-safe context, resource, problem, requirement, effect, and resiliency
-  inventories.
-
-Definitions snapshot nested contribution arrays, so later mutation of authoring inputs cannot change a compiled graph.
+The [middleware guide](../../../docs/server/07-middleware.md) explains lane placement, timing, once-per-request behavior
+and declaration inspection. The [public contracts](./mod.ts) list the independently useful planning functions.

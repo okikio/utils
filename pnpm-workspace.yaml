@@ -1,2 +1,14 @@
 packages:
   - 'packages/*'
+  - 'examples/*'
+
+allowBuilds:
+  # Docker's SSH transport can use its JavaScript fallback; no native compiler is needed.
+  cpu-features: false
+  ssh2: false
+  # This install script only prints dependency-version advice; distributed code is already built.
+  protobufjs: false
+
+# Keep LogTape and the selected SDK family on the API version their peer ranges support.
+overrides:
+  '@opentelemetry/api': '1.9.0'

@@ -3,10 +3,10 @@ import { deepStrictEqual } from 'node:assert';
 import { Hono } from 'hono';
 import { create, route } from '@okikio/server/http';
 import type { Middleware } from '@okikio/server/http';
-import { createHonoRouting } from '../../tests/fixtures/http-parity/hono.ts';
-import { createUtilsRouting } from '../../tests/fixtures/http-parity/utils.ts';
-import { createHonoProxy, createUtilsProxy } from '../../tests/fixtures/hono-proxy/implementations.ts';
-import type { Transport } from '../../tests/fixtures/hono-proxy/implementations.ts';
+import { createHonoRouting } from '#fixtures/http-parity/hono.ts';
+import { createUtilsRouting } from '#fixtures/http-parity/utils.ts';
+import { createHonoProxy, createUtilsProxy } from '#fixtures/hono-proxy/implementations.ts';
+import type { Transport } from '#fixtures/hono-proxy/implementations.ts';
 
 export type Candidate = 'utils' | 'hono';
 /** Setup is owned by open(), and run() consumes or cancels every finite body it produces. */

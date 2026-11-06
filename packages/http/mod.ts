@@ -1,7 +1,12 @@
 /**
- * Preserve HTTP syntax and trust decisions before application validation. Collapsing repeated query parameters or forwarding incoming credentials blindly changes what the caller asked for and what the next service can see.
+ * Read and write HTTP data without losing syntax or silently changing trust decisions. For example, keep
+ * both tag values in a repeated query parameter instead of overwriting the first one.
  *
- * Use request helpers to bound and parse incoming data, response and problem definitions to declare outputs, and webhook helpers to verify exact raw bytes. headers.forward() strips fixed connection fields and fields named by Connection while retaining separate Set-Cookie values. request.forwardHeaders() adds credential and host trust policy. The application still authenticates actors and decides what credentials may cross an origin.
+ * Request helpers parse bounded incoming data. Response and problem definitions describe outgoing data.
+ * Webhook helpers verify the exact received bytes before application parsing.
+ *
+ * Header forwarding removes connection-specific fields. Forwarding credentials and trusting a host still
+ * require application policy. Parsing a request does not authenticate its caller.
  *
  * @example
  * ```ts

@@ -1,38 +1,40 @@
 /**
- * Convert human-readable Temporal durations to one deterministic numeric value. A month needs a calendar anchor; repeating that decision across queues, retries and timeouts produces inconsistent answers.
+ * Represent a time setting with its unit, then convert it for the consumer. For example, sec(2.5) creates
+ * a Temporal.Duration and elapsed() converts it to 2500 milliseconds.
  *
- * Use milliseconds() for shared conversion and compare() for shared ordering. Calendar units use 2000-01-01, so this is deterministic mechanics rather than a business calendar. A timer may still reject years and months; a lease may require positive time. On hosts without Temporal, import the explicit polyfill first. Use the temporal ponyfill export when your own application wants a local Temporal value without changing globals.
+ * Unit functions construct durations; they do not wait or start timers. Use total() to choose an output
+ * unit and elapsedNanoseconds() for an exact bigint count. Calendar conversions need a reference date when
+ * the length depends on that date.
  *
- * @example
+ * @example A readable retry setting
  * ```ts
- * import '@okikio/duration/polyfill';
- * import '@okikio/dispose/polyfill';
- * import * as duration from '@okikio/duration';
- * console.log(duration.milliseconds('PT2.5S'));
- * console.log(duration.compare({ months: 1 }, { days: 31 }));
+ * import { sec, min, elapsed, total } from '@okikio/duration';
+ * console.log(elapsed(sec(2.5))); // 2500
+ * console.log(total(min(90), 'hours')); // 1.5
  * ```
  *
  * @module
  */
-import type { DurationInput } from './types.ts';
-
-/**
- * Fixed calendar anchor used when a duration contains calendar units.
- *
- * Keeping the anchor private prevents callers from coupling business meaning to
- * an implementation detail. It also preserves the deterministic conversion
- * semantics historically used by the surrounding utilities.
- */
-const relativeTo = Temporal.PlainDate.from('2000-01-01');
-
-/** Convert one Temporal duration input to deterministic milliseconds. */
-export function milliseconds(value: DurationInput): number {
-	return Temporal.Duration.from(value).total({ unit: 'milliseconds', relativeTo });
-}
-
-/** Compare two Temporal duration inputs using the same deterministic calendar anchor. */
-export function compare(left: DurationInput, right: DurationInput): number {
-	return Temporal.Duration.compare(Temporal.Duration.from(left), Temporal.Duration.from(right), { relativeTo });
-}
-
+export {
+	days,
+	from,
+	hours,
+	hr,
+	microseconds,
+	milliseconds,
+	min,
+	minutes,
+	months,
+	ms,
+	nanoseconds,
+	ns,
+	s,
+	sec,
+	seconds,
+	us,
+	weeks,
+	years,
+} from './units.ts';
+export { compare, convert, elapsed, elapsedNanoseconds, round, total } from './conversion.ts';
+export { formatInstant, parseInstant } from './instant.ts';
 export type * from './types.ts';

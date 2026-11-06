@@ -1,0 +1,45 @@
+{
+	"name": "@okikio/capability",
+	"version": "0.0.0",
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"exports": {
+		"./effect": "./effect/mod.ts",
+		"./effect/types": "./effect/types.ts",
+		"./effect/observe": "./effect/observe.ts",
+		"./effect/meter": "./effect/meter/mod.ts",
+		"./effect/meter/types": "./effect/meter/types.ts",
+		"./effect/meter/schema": "./effect/meter/schema.ts",
+		"./requirement": "./requirement/mod.ts",
+		"./requirement/types": "./requirement/types.ts",
+		"./requirement/definition": "./requirement/definition.ts",
+		"./resilience": "./resilience/mod.ts",
+		"./resilience/types": "./resilience/types.ts",
+		"./resilience/poll": "./resilience/poll.ts",
+		"./resource": "./resource/mod.ts",
+		"./resource/types": "./resource/types.ts",
+		"./execution": "./execution.ts",
+		".": "./mod.ts",
+		"./resilience/attempt": "./resilience/attempt.ts",
+		"./resource/session": "./resource/session/mod.ts"
+	},
+	"dependencies": {
+		"@okikio/collection": "workspace:^",
+		"@okikio/context": "workspace:^",
+		"@okikio/schema": "workspace:^",
+		"@okikio/scheduler": "workspace:^",
+		"@okikio/observables": "^1.4.0",
+		"@std/encoding": "npm:@jsr/std__encoding@^1.0.11",
+		"@okikio/telemetry": "workspace:^",
+		"@okikio/duration": "workspace:^",
+		"@okikio/env": "workspace:^",
+		"@okikio/dispose": "workspace:^"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
+		"@okikio/authz": "workspace:^",
+		"@standard-schema/spec": "^1.1.0",
+		"mitata": "^1.0.34"
+	}
+}

@@ -13,9 +13,7 @@ import type {
 } from './kernel.ts';
 
 /**
- * Owns the internal cause error state used by the live structured-concurrency kernel.
- *
- * The kernel gives every branch one active Step and child Scope while the Reducer serializes generator advancement, cancellation, and cleanup.
+ * Carry a structured terminal cause through generator throws without losing its cancellation or cleanup classification.
  *
  * @internal
  */
@@ -32,9 +30,7 @@ class CauseError extends Error {
 export function value<Value>(result: Value): WorkflowOperation<Value> {
 	return Object.freeze({
 		/**
-		 * Returns the native iterator view used by synchronous iteration protocols.
-		 *
-		 * It implements live structured concurrency: a Branch owns one active Step and child Scope, while the Reducer serializes state transitions.
+		 * Build the operation lazily; Branch owns advancement and any yielded Step.
 		 *
 		 * @internal
 		 */
@@ -60,9 +56,7 @@ export function fromPromise<Value>(
 	return stepOperation<Value>(Object.freeze({
 		name,
 		/**
-		 * Enters the operation and returns the cleanup/discard path owned by the live structured-concurrency kernel.
-		 *
-		 * The kernel gives every branch one active Step and child Scope while the Reducer serializes generator advancement, cancellation, and cleanup.
+		 * Start this Step and return its discard acknowledgement path; Branch waits for that acknowledgement before unwind.
 		 *
 		 * @internal
 		 */
@@ -113,9 +107,7 @@ export function fromCallback<Value>(
 	return stepOperation<Value>(Object.freeze({
 		name,
 		/**
-		 * Enters the operation and returns the cleanup/discard path owned by the live structured-concurrency kernel.
-		 *
-		 * The kernel gives every branch one active Step and child Scope while the Reducer serializes generator advancement, cancellation, and cleanup.
+		 * Start this Step and return its discard acknowledgement path; Branch waits for that acknowledgement before unwind.
 		 *
 		 * @internal
 		 */
@@ -158,9 +150,7 @@ export function defer(dispose: () => void | PromiseLike<void>): WorkflowOperatio
 	return stepOperation(Object.freeze({
 		name: 'defer cleanup',
 		/**
-		 * Enters the operation and returns the cleanup/discard path owned by the live structured-concurrency kernel.
-		 *
-		 * The kernel gives every branch one active Step and child Scope while the Reducer serializes generator advancement, cancellation, and cleanup.
+		 * Start this Step and return its discard acknowledgement path; Branch waits for that acknowledgement before unwind.
 		 *
 		 * @internal
 		 */
@@ -180,9 +170,7 @@ export function spawn<Value>(
 	return stepOperation(Object.freeze({
 		name: 'spawn child branch',
 		/**
-		 * Enters the operation and returns the cleanup/discard path owned by the live structured-concurrency kernel.
-		 *
-		 * The kernel gives every branch one active Step and child Scope while the Reducer serializes generator advancement, cancellation, and cleanup.
+		 * Start this Step and return its discard acknowledgement path; Branch waits for that acknowledgement before unwind.
 		 *
 		 * @internal
 		 */
@@ -198,9 +186,7 @@ export function spawn<Value>(
 export function scoped<Value>(child: WorkflowOperation<Value>): WorkflowOperation<Value> {
 	return Object.freeze({
 		/**
-		 * Returns the native iterator view used by synchronous iteration protocols.
-		 *
-		 * It implements live structured concurrency: a Branch owns one active Step and child Scope, while the Reducer serializes state transitions.
+		 * Build the operation lazily; Branch owns advancement and any yielded Step.
 		 *
 		 * @internal
 		 */
@@ -226,9 +212,7 @@ export function all<const Values extends readonly WorkflowOperation<unknown>[]>(
 	assertBranchCount(operations.length, 'workflow all');
 	return Object.freeze({
 		/**
-		 * Returns the native iterator view used by synchronous iteration protocols.
-		 *
-		 * It implements live structured concurrency: a Branch owns one active Step and child Scope, while the Reducer serializes state transitions.
+		 * Build the operation lazily; Branch owns advancement and any yielded Step.
 		 *
 		 * @internal
 		 */
@@ -282,9 +266,7 @@ export function allSettled<const Values extends readonly WorkflowOperation<unkno
 	assertBranchCount(operations.length, 'workflow allSettled');
 	return Object.freeze({
 		/**
-		 * Returns the native iterator view used by synchronous iteration protocols.
-		 *
-		 * It implements live structured concurrency: a Branch owns one active Step and child Scope, while the Reducer serializes state transitions.
+		 * Build the operation lazily; Branch owns advancement and any yielded Step.
 		 *
 		 * @internal
 		 */
@@ -319,9 +301,7 @@ export function race<const Values extends readonly WorkflowOperation<unknown>[]>
 	if (operations.length === 0) throw new TypeError('Workflow race requires at least one operation.');
 	return Object.freeze({
 		/**
-		 * Returns the native iterator view used by synchronous iteration protocols.
-		 *
-		 * It implements live structured concurrency: a Branch owns one active Step and child Scope, while the Reducer serializes state transitions.
+		 * Build the operation lazily; Branch owns advancement and any yielded Step.
 		 *
 		 * @internal
 		 */
@@ -332,6 +312,8 @@ export function race<const Values extends readonly WorkflowOperation<unknown>[]>
 				await Promise.race(
 					handles.map(async (handle, index) => ({ index, exit: await handle.result() })),
 				))[Symbol.iterator]();
+			// Selecting a result does not stop its siblings. Keep the winner private until
+			// every losing branch has acknowledged cancellation and finished cleanup.
 			const cancellations = handles.map((handle, index) =>
 				index === first.index ? Promise.resolve() : handle.cancel(first.exit)
 			);
@@ -396,9 +378,7 @@ export function fromReadableStream<Value>(
 ): WorkflowOperation<PullSource<Value, undefined>> {
 	return Object.freeze({
 		/**
-		 * Returns the native iterator view used by synchronous iteration protocols.
-		 *
-		 * It implements live structured concurrency: a Branch owns one active Step and child Scope, while the Reducer serializes state transitions.
+		 * Build the operation lazily; Branch owns advancement and any yielded Step.
 		 *
 		 * @internal
 		 */
@@ -431,16 +411,12 @@ export function fromReadableStream<Value>(
 /**
  * Adapts a Step factory into a live WorkflowOperation whose settlement remains owned by the executing Branch.
  *
- * The kernel gives every branch one active Step and child Scope while the Reducer serializes generator advancement, cancellation, and cleanup.
- *
  * @internal
  */
 function stepOperation<Value>(step: Step<Value>): WorkflowOperation<Value> {
 	return Object.freeze({
 		/**
-		 * Returns the native iterator view used by synchronous iteration protocols.
-		 *
-		 * It implements live structured concurrency: a Branch owns one active Step and child Scope, while the Reducer serializes state transitions.
+		 * Build the operation lazily; Branch owns advancement and any yielded Step.
 		 *
 		 * @internal
 		 */
@@ -467,9 +443,7 @@ export function failureFromCause(cause: Cause): unknown {
 }
 
 /**
- * Builds the source operation adapter consumed by the live structured-concurrency kernel.
- *
- * The kernel gives every branch one active Step and child Scope while the Reducer serializes generator advancement, cancellation, and cleanup.
+ * Register iterator closure on the current branch before returning its pull source.
  *
  * @internal
  */
@@ -479,9 +453,7 @@ function sourceOperation<Value, Return>(
 ): WorkflowOperation<PullSource<Value, Return>> {
 	return Object.freeze({
 		/**
-		 * Returns the native iterator view used by synchronous iteration protocols.
-		 *
-		 * It implements live structured concurrency: a Branch owns one active Step and child Scope, while the Reducer serializes state transitions.
+		 * Build the operation lazily; Branch owns advancement and any yielded Step.
 		 *
 		 * @internal
 		 */
@@ -495,8 +467,6 @@ function sourceOperation<Value, Return>(
 
 /**
  * Wraps an iterator as a pull source whose `return()` cleanup is owned and invoked exactly once.
- *
- * The kernel gives every branch one active Step and child Scope while the Reducer serializes generator advancement, cancellation, and cleanup.
  *
  * @internal
  */
@@ -523,9 +493,7 @@ function iteratorSource<Value, Return>(
 	const source = Object.freeze(
 		{
 			/**
-			 * Advances to the next value without crossing ownership between independent consumers of the live structured-concurrency kernel.
-			 *
-			 * The kernel gives every branch one active Step and child Scope while the Reducer serializes generator advancement, cancellation, and cleanup.
+			 * Request one value from this owned source. Discard closes the source before Branch resumes cleanup.
 			 *
 			 * @internal
 			 */
@@ -546,8 +514,6 @@ function iteratorSource<Value, Return>(
 			/**
 			 * Releases owned state and waits for cleanup completion when used with `await using`.
 			 *
-			 * It implements live structured concurrency: a Branch owns one active Step and child Scope, while the Reducer serializes state transitions.
-			 *
 			 * @internal
 			 */
 			async [Symbol.asyncDispose](): Promise<void> {
@@ -559,9 +525,7 @@ function iteratorSource<Value, Return>(
 }
 
 /**
- * Reads a ReadableStream source under the module's cancellation and ownership rules.
- *
- * It implements live structured concurrency: a Branch owns one active Step and child Scope, while the Reducer serializes state transitions.
+ * Own one stream reader through completion or cancellation, releasing its lock exactly once.
  *
  * @internal
  */
@@ -593,9 +557,7 @@ function readableSource<Value>(reader: ReadableStreamDefaultReader<Value>): Pull
 	};
 	return Object.freeze({
 		/**
-		 * Advances to the next value without crossing ownership between independent consumers of the live structured-concurrency kernel.
-		 *
-		 * The kernel gives every branch one active Step and child Scope while the Reducer serializes generator advancement, cancellation, and cleanup.
+		 * Request one value from this owned source. Discard closes the source before Branch resumes cleanup.
 		 *
 		 * @internal
 		 */
@@ -626,8 +588,6 @@ function readableSource<Value>(reader: ReadableStreamDefaultReader<Value>): Pull
 		close,
 		/**
 		 * Releases owned state and waits for cleanup completion when used with `await using`.
-		 *
-		 * It implements live structured concurrency: a Branch owns one active Step and child Scope, while the Reducer serializes state transitions.
 		 *
 		 * @internal
 		 */

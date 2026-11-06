@@ -1,9 +1,19 @@
-import type { StandardSchemaV1 } from '@standard-schema/spec';
-import type { CatalogEntryIdentity } from '@okikio/catalog';
+import type {
+	Codec,
+	Contract,
+	ContractEncoded,
+	ContractInput,
+	ContractOutput,
+	EncodeInput,
+} from '@okikio/schema/codec';
+import type { CatalogEntryIdentity } from '@okikio/collection/catalog';
 import type { HeaderInput, ResponseHeaders } from './headers.ts';
 
 /** Standard Schema-compatible response body contract. */
-export type ResponseSchema<Input = unknown, Output = Input> = StandardSchemaV1<Input, Output>;
+export type ResponseSchema<Input = unknown, Output = Input, Encoded = Input> = Contract<Input, Output, Encoded>;
+
+/** Materialization mode retained in every response definition's type. */
+export type ResponseMode = 'body' | 'empty' | 'redirect' | 'stream' | 'download' | 'page' | 'html';
 
 /** HTTP success and redirect status codes supported by response definitions. */
 export type ResponseStatus =
@@ -58,6 +68,7 @@ export interface PaginationResponsePolicy {
 export interface ResponseDefinition<
 	Schema extends ResponseSchema | undefined = ResponseSchema | undefined,
 	Status extends ResponseStatus = ResponseStatus,
+	Mode extends ResponseMode = ResponseMode,
 > extends CatalogEntryIdentity {
 	/** Discriminant used to recognize this contract without inspecting its other fields. */
 	readonly kind: 'response';
@@ -76,7 +87,7 @@ export interface ResponseDefinition<
 	/** Concrete authored examples retained for API documentation. */
 	readonly examples?: readonly ResponseExample[];
 	/** Selected materialization or forwarding behavior for this definition. */
-	readonly mode: 'body' | 'empty' | 'redirect' | 'stream' | 'download' | 'page' | 'html';
+	readonly mode: Mode;
 	/** Whether HTTP materialization wraps the body in the data envelope. */
 	readonly envelope: ResponseEnvelope;
 	/** Whether materialization includes the configured response timestamp. */
@@ -88,7 +99,11 @@ export interface ResponseDefinition<
 }
 
 /** Input accepted by {@link define}. */
-export interface ResponseDefinitionInput<Schema extends ResponseSchema | undefined, Status extends ResponseStatus> {
+export interface ResponseDefinitionInput<
+	Schema extends ResponseSchema | undefined,
+	Status extends ResponseStatus,
+	Mode extends ResponseMode = ResponseMode,
+> {
 	/** Stable declaration identity used for exact lookup and diagnostic correlation. */
 	readonly id: string;
 	/** HTTP status selected by this response or reported by this lifecycle observation. */
@@ -106,7 +121,7 @@ export interface ResponseDefinitionInput<Schema extends ResponseSchema | undefin
 	/** Concrete authored examples retained for API documentation. */
 	readonly examples?: readonly ResponseExample[];
 	/** Selected materialization or forwarding behavior for this definition. */
-	readonly mode?: ResponseDefinition['mode'];
+	readonly mode?: Mode;
 	/** Whether HTTP materialization wraps the body in the data envelope. */
 	readonly envelope?: ResponseEnvelope;
 	/** Whether materialization includes the configured response timestamp. */
@@ -166,13 +181,26 @@ export interface OffsetPageWindow<Item> {
 /** Transport-neutral page window supplied to a paginated response definition. */
 export type PageWindow<Item> = CursorPageWindow<Item> | OffsetPageWindow<Item>;
 
+/** Handler-owned value: ordinary validators accept input; codecs accept the declared encoder input. */
+export type ResponseInput<Schema extends ResponseSchema> = Schema extends Codec ? EncodeInput<Schema>
+	: ContractInput<Schema>;
+/** Serialized representation after one schema validation or explicit encoding. */
+export type ResponseOutput<Schema extends ResponseSchema> = Schema extends Codec ? ContractEncoded<Schema>
+	: ContractOutput<Schema>;
 /** Logical body accepted when instantiating one response definition. */
 export type ResponseBody<Definition extends ResponseDefinition> = Definition['mode'] extends 'empty' | 'redirect'
 	? undefined
 	: Definition extends ResponseDefinition<infer Schema>
 		? Schema extends ResponseSchema
-			? Definition['mode'] extends 'page' ? PageWindow<StandardSchemaV1.InferOutput<Schema>>
-			: StandardSchemaV1.InferOutput<Schema>
+			? Definition['mode'] extends 'page' ? PageWindow<ResponseInput<Schema>> : ResponseInput<Schema>
+		: unknown
+	: unknown;
+/** Checked wire body carried after preparation. Page metadata retains its original independent contract. */
+export type PreparedResponseBody<Definition extends ResponseDefinition> = Definition['mode'] extends
+	'empty' | 'redirect' ? null
+	: Definition extends ResponseDefinition<infer Schema>
+		? Schema extends ResponseSchema
+			? Definition['mode'] extends 'page' ? PageWindow<ResponseOutput<Schema>> : ResponseOutput<Schema>
 		: unknown
 	: unknown;
 

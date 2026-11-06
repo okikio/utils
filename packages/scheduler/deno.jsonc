@@ -1,0 +1,52 @@
+{
+	"name": "@okikio/scheduler",
+	"version": "0.0.0",
+	"publish": {
+		"exclude": [
+			"**/*.test.ts",
+			"**/*.bench.ts",
+			"**/fixtures/**"
+		]
+	},
+	"exports": {
+		"./capacity": "./capacity/mod.ts",
+		"./capacity/standard": "./capacity/standard.ts",
+		"./capacity/types": "./capacity/types.ts",
+		"./concurrency": "./concurrency/mod.ts",
+		"./concurrency/bounded": "./concurrency/bounded.ts",
+		"./concurrency/channel": "./concurrency/channel.ts",
+		"./queue": "./queue/mod.ts",
+		"./queue/types": "./queue/types.ts",
+		"./queue/fifo": "./queue/fifo.ts",
+		"./queue/policy": "./queue/policy.ts",
+		".": "./mod.ts"
+	},
+	"imports": {
+		"@okikio/observables": "jsr:@okikio/observables@1.4.0",
+		"#/": "./",
+		"@std/async": "jsr:@std/async@^1.5.0"
+	},
+	"license": "MIT",
+	"tasks": {
+		"check": "mise run check -- --project scheduler",
+		"test": "mise run test -- --project scheduler",
+		"bench": "mise run bench -- --project scheduler",
+		"bench:check": "mise run bench -- --project scheduler --check"
+	},
+	"permissions": {
+		"test": {},
+		"bench": {
+			"env": [
+				"NODE_DISABLE_COLORS",
+				"NO_COLOR",
+				"FORCE_COLOR"
+			]
+		}
+	},
+	"test": {
+		"exclude": [
+			"**/*.types.test.ts",
+			"**/types.test.ts"
+		]
+	}
+}

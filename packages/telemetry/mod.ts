@@ -1,13 +1,18 @@
 /**
- * Report correlated diagnostic events without letting a broken reporter fail the operation. Console messages have no shared correlation contract and cannot buffer the useful history preceding a failure.
+ * Report what an operation is doing with fields such as a request ID. Reporter failures stay separate from
+ * the operation's result.
  *
- * Start with a memory reporter to inspect behavior, then choose an explicit LogTape or OpenTelemetry adapter. Scope fields attach correlation, and buffering can retain a bounded recent history until failure. Applications configure logging and exporting. Telemetry is observation; it cannot authorize cancellation, settle a job or prove an authoritative effect was accepted.
+ * Use a memory reporter to inspect events, then select a LogTape or OpenTelemetry adapter. A scope adds
+ * shared fields. A bounded buffer can retain recent events until a failure makes them useful.
+ *
+ * Applications configure exporters and logging. Events cannot grant permission, settle a job, or prove
+ * that an external write committed.
  *
  * @example
  * ```ts
  * import * as telemetry from '@okikio/telemetry';
  * const output = telemetry.memory();
- * const buffered = telemetry.buffer(output, { capacity: 2 });
+ * const buffered = telemetry.buffer(output, { capacity: 2, maximumKeys: 64, maximumRecords: 1024 });
  * const scope = telemetry.create(buffered, { fields: { request_id: 'request-1' } });
  * await scope.report({ name: 'import.started', level: 'debug' });
  * await scope.report({ name: 'import.failed', level: 'error' });
@@ -16,7 +21,8 @@
  *
  * @module
  */
-import * as faultCore from '@okikio/fault';
+import * as json from '@okikio/collection/record/json';
+import * as faultCore from '@okikio/result/fault';
 import type {
 	BufferedReporter,
 	BufferOptions,
@@ -26,6 +32,7 @@ import type {
 	Fields,
 	Level,
 	MemoryReporter,
+	ProjectionOptions,
 	Reporter,
 	ReporterErrorHandler,
 	Scope,
@@ -42,12 +49,13 @@ const EVENT_NAME = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/;
 const FALLBACK_BUFFER_KEY = '__telemetry__';
 
 /** Reporter that intentionally drops every record. */
-export const noop = Object.freeze({ report() {} } satisfies Reporter);
+export const noop: Readonly<{ report(): void }> = Object.freeze({ report() {} } satisfies Reporter);
 
 /** Create one explicit telemetry scope around a reporter and stable correlation fields. */
 export function create(reporter: Reporter = noop, options: ScopeOptions = {}): Scope {
 	assertReporter(reporter);
-	const fields = freezeFields(options.fields ?? {});
+	const projection = Object.freeze({ ...options.projection });
+	const fields = freezeFields(options.fields ?? {}, projection);
 	const now = options.now ?? isoNow;
 	if (typeof now !== 'function') throw new TypeError('Telemetry now must be a function.');
 	const onReporterError = options.onReporterError;
@@ -55,11 +63,16 @@ export function create(reporter: Reporter = noop, options: ScopeOptions = {}): S
 		throw new TypeError('Telemetry reporter error observer must be a function.');
 	}
 
-	return scope(reporter, fields, now, onReporterError);
+	return scope(reporter, fields, now, onReporterError, projection);
 }
 
 /** Create one immutable telemetry record without delivering it. */
-export function event(input: EventInput, fields: Fields = {}, now: () => string = isoNow): Event {
+export function event(
+	input: EventInput,
+	fields: Fields = {},
+	now: () => string = isoNow,
+	projection: ProjectionOptions = {},
+): Event {
 	assertEventName(input.name);
 	const level = input.level ?? 'info';
 	assertLevel(level);
@@ -67,10 +80,10 @@ export function event(input: EventInput, fields: Fields = {}, now: () => string 
 	if (typeof at !== 'string' || at.length === 0) {
 		throw new TypeError('Telemetry event timestamp must be a non-empty string.');
 	}
-	const merged = mergeFields(fields, input.fields ?? {});
+	const merged = mergeFields(projection, fields, input.fields ?? {});
 	const projected = input.fault ??
 		(input.error === undefined ? undefined : faultCore.encode(input.error, input.faultOptions));
-	const frozenFault = projected === undefined ? undefined : snapshotValue(projected, 'fault');
+	const frozenFault = projected === undefined ? undefined : freezeValue(json.copy(projected, projection));
 	return Object.freeze({
 		kind: 'telemetry-event',
 		name: input.name,
@@ -111,6 +124,12 @@ export function traceFields(trace: TraceFields | undefined): Fields {
 export function fanout(...reporters: readonly Reporter[]): Reporter {
 	for (const reporter of reporters) assertReporter(reporter);
 	return Object.freeze({
+		/**
+		 * Keep ordinary records until this operation emits a trigger-level event.
+		 * Flush that operation's retained history before the triggering record so
+		 * an error is preceded by its context. Eviction bounds diagnostics only;
+		 * the buffer is never the operation's saved result or recovery history.
+		 */
 		async report(value: Event): Promise<void> {
 			const settled = await Promise.allSettled(reporters.map(async (reporter) => await reporter.report(value)));
 			const failures = settled.flatMap((result) => result.status === 'rejected' ? [result.reason] : []);
@@ -148,31 +167,63 @@ export function memory(): MemoryReporter {
  * after successful completion and `flush(key)` when a warning or domain-specific
  * condition should reveal the preceding history.
  */
-export function buffer(target: Reporter, options: BufferOptions = {}): BufferedReporter {
+/** One ordered retained record. Identity stays distinct when a caller reports the same Event twice. */
+interface Retained {
+	readonly key: string;
+	readonly value: Event;
+}
+
+/** Retain bounded FIFO failure history. Both global limits are required; dropped history is counted by stats(). */
+export function buffer(target: Reporter, options: BufferOptions): BufferedReporter {
 	assertReporter(target);
-	const capacity = options.capacity ?? 64;
-	if (!Number.isSafeInteger(capacity) || capacity < 0) {
-		throw new TypeError('Telemetry buffer capacity must be a non-negative safe integer.');
-	}
+	const limit = (value: number, name: string): number => {
+		if (!Number.isSafeInteger(value) || value < 0) {
+			throw new TypeError(`Telemetry ${name} must be a non-negative safe integer.`);
+		}
+		return value;
+	};
+	const capacity = limit(options.capacity ?? 64, 'capacity');
+	const maximumKeys = limit(options.maximumKeys, 'maximumKeys');
+	const maximumRecords = limit(options.maximumRecords, 'maximumRecords');
 	const trigger = options.trigger ?? 'error';
 	assertLevel(trigger);
 	if (options.key !== undefined && typeof options.key !== 'function') {
 		throw new TypeError('Telemetry buffer key must be a function.');
 	}
 	const keyOf = options.key ?? defaultBufferKey;
-	const buffers = new Map<string, Event[]>();
-
-	const flushKey = async (key: string): Promise<void> => {
-		const retained = buffers.get(key);
-		buffers.delete(key);
-		if (retained === undefined) return;
-		for (const value of retained) await target.report(value);
+	/** Both indexes own the same tokens. Removing a token releases both references before any await. */
+	const buffers = new Map<string, Set<Retained>>();
+	const ordered = new Set<Retained>();
+	let dropped = 0;
+	const remove = (entry: Retained): void => {
+		ordered.delete(entry);
+		const retained = buffers.get(entry.key)!;
+		retained.delete(entry);
+		if (retained.size === 0) buffers.delete(entry.key);
 	};
-
+	const evict = (entry: Retained): void => {
+		remove(entry);
+		dropped++;
+	};
+	const discard = (key?: string): void => {
+		if (key === undefined) {
+			buffers.clear();
+			ordered.clear();
+			return;
+		}
+		for (const entry of buffers.get(key) ?? []) remove(entry);
+	};
+	/** Detach this history before delivery, so reentrant reports belong to a new buffer rather than this flush. */
+	const flushKey = async (key: string): Promise<void> => {
+		const retained = [...(buffers.get(key) ?? [])];
+		discard(key);
+		for (const entry of retained) await target.report(entry.value);
+	};
 	return Object.freeze({
 		get keys(): readonly string[] {
 			return Object.freeze([...buffers.keys()]);
 		},
+		stats: () => Object.freeze({ keys: buffers.size, records: ordered.size, dropped }),
 		async report(value: Event): Promise<void> {
 			assertEvent(value);
 			const key = keyOf(value);
@@ -184,25 +235,29 @@ export function buffer(target: Reporter, options: BufferOptions = {}): BufferedR
 				await target.report(value);
 				return;
 			}
-			if (capacity === 0) return;
-			const retained = buffers.get(key) ?? [];
-			retained.push(value);
-			if (retained.length > capacity) retained.splice(0, retained.length - capacity);
-			buffers.set(key, retained);
-		},
-		async flush(key?: string): Promise<void> {
-			if (key !== undefined) {
-				await flushKey(key);
-				await target.flush?.();
+			if (capacity === 0 || maximumKeys === 0 || maximumRecords === 0) {
+				dropped++;
 				return;
 			}
-			for (const candidate of [...buffers.keys()]) await flushKey(candidate);
+			if (!buffers.has(key) && buffers.size >= maximumKeys) {
+				// FIFO key eviction discards all history of the oldest retained correlation.
+				const oldest = buffers.values().next().value!;
+				for (const entry of oldest) evict(entry);
+			}
+			const retained = buffers.get(key);
+			if (retained !== undefined && retained.size >= capacity) evict(retained.values().next().value!);
+			if (ordered.size >= maximumRecords) evict(ordered.values().next().value!);
+			const entry = Object.freeze({ key, value });
+			const group = buffers.get(key) ?? new Set<Retained>();
+			group.add(entry);
+			buffers.set(key, group);
+			ordered.add(entry);
+		},
+		async flush(key?: string): Promise<void> {
+			for (const candidate of key === undefined ? [...buffers.keys()] : [key]) await flushKey(candidate);
 			await target.flush?.();
 		},
-		discard(key?: string): void {
-			if (key === undefined) buffers.clear();
-			else buffers.delete(key);
-		},
+		discard,
 	});
 }
 
@@ -218,12 +273,14 @@ function scope(
 	reporter: Reporter,
 	fields: Fields,
 	now: () => string,
-	onReporterError?: ReporterErrorHandler,
+	onReporterError: ReporterErrorHandler | undefined,
+	projection: ProjectionOptions,
 ): Scope {
 	return Object.freeze({
 		fields,
+		/** Validate and build the event first; contain delivery failures without hiding malformed event input. */
 		async report(input: EventInput): Promise<Event> {
-			const value = event(input, fields, now);
+			const value = event(input, fields, now, projection);
 			try {
 				await reporter.report(value);
 			} catch (error) {
@@ -234,7 +291,7 @@ function scope(
 			return value;
 		},
 		child(extra: Fields): Scope {
-			return scope(reporter, mergeFields(fields, extra), now, onReporterError);
+			return scope(reporter, mergeFields(projection, fields, extra), now, onReporterError, projection);
 		},
 		async flush(): Promise<void> {
 			try {
@@ -249,78 +306,39 @@ function scope(
 }
 
 /** Merge field maps without invoking accessor properties. @internal */
-function mergeFields(...sources: readonly Fields[]): Fields {
+function mergeFields(projection: ProjectionOptions, ...sources: readonly Fields[]): Fields {
 	const output: Record<string, Value> = Object.create(null);
 	for (const fields of sources) {
-		const snapshot = snapshotFields(fields);
+		const snapshot = snapshotFields(fields, projection);
 		for (const [key, value] of Object.entries(snapshot)) output[key] = value;
 	}
-	return Object.freeze(output);
+	return snapshotFields(output, projection);
 }
 
 /** Snapshot one structured field map without invoking accessor properties. @internal */
-function freezeFields(fields: Fields): Fields {
-	return snapshotFields(fields);
+function freezeFields(fields: Fields, projection: ProjectionOptions = {}): Fields {
+	return snapshotFields(fields, projection);
 }
 
-/** Clone JSON-safe values so later caller mutation cannot rewrite emitted telemetry history. @internal */
-function snapshotFields(fields: Fields): Fields {
+/** Use the shared JSON limits so cycles, aliases and aggregate text have one bounded-copy owner. */
+function snapshotFields(fields: Fields, projection: ProjectionOptions): Fields {
 	if (fields === null || typeof fields !== 'object' || Array.isArray(fields)) {
 		throw new TypeError('Telemetry fields must be a record.');
 	}
-	const prototype = Object.getPrototypeOf(fields);
-	if (prototype !== Object.prototype && prototype !== null) {
-		throw new TypeError('Telemetry fields must use a plain record.');
-	}
-	const output: Record<string, Value> = Object.create(null);
-	for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(fields))) {
-		if (!descriptor.enumerable) continue;
+	const copied = json.copy(fields, projection) as Fields;
+	for (const key of Object.keys(copied)) {
 		if (key.length === 0) throw new TypeError('Telemetry field names cannot be empty.');
-		if (!('value' in descriptor)) throw new TypeError(`Telemetry field ${JSON.stringify(key)} cannot be an accessor.`);
-		output[key] = snapshotValue(descriptor.value as Value, key);
 	}
-	return Object.freeze(output);
+	return freezeValue(copied) as Fields;
 }
 
-/** Snapshot one JSON-safe field value recursively without invoking user accessors. @internal */
-function snapshotValue(value: Value, name: string): Value {
-	if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
-	if (typeof value === 'number') {
-		if (!Number.isFinite(value)) {
-			throw new TypeError(`Telemetry field ${JSON.stringify(name)} must contain finite numbers.`);
-		}
-		return value;
+/** Freeze only the already-validated, bounded copy; never visit the caller's live object a second time. */
+function freezeValue(value: Value): Value {
+	if (value !== null && typeof value === 'object') {
+		for (const child of Object.values(value)) freezeValue(child);
+		Object.freeze(value);
 	}
-	if (Array.isArray(value)) {
-		const output: Value[] = [];
-		const descriptors = Object.getOwnPropertyDescriptors(value);
-		for (let index = 0; index < value.length; index += 1) {
-			const descriptor = descriptors[String(index)];
-			if (descriptor === undefined) {
-				output[index] = null;
-				continue;
-			}
-			if (!('value' in descriptor)) {
-				throw new TypeError(`Telemetry field ${JSON.stringify(name)} cannot contain accessors.`);
-			}
-			output[index] = snapshotValue(descriptor.value as Value, name);
-		}
-		return Object.freeze(output);
-	}
-	if (typeof value !== 'object') throw new TypeError(`Telemetry field ${JSON.stringify(name)} must be JSON-safe.`);
-	const prototype = Object.getPrototypeOf(value);
-	if (prototype !== Object.prototype && prototype !== null) {
-		throw new TypeError(`Telemetry field ${JSON.stringify(name)} must use plain records.`);
-	}
-	const output: Record<string, Value> = Object.create(null);
-	for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(value))) {
-		if (!descriptor.enumerable) continue;
-		if (!('value' in descriptor)) {
-			throw new TypeError(`Telemetry field ${JSON.stringify(name)} cannot contain accessors.`);
-		}
-		output[key] = snapshotValue(descriptor.value as Value, name);
-	}
-	return Object.freeze(output);
+	return value;
 }
 
 /** Reject malformed event names before they become stable diagnostic keys. @internal */
@@ -374,6 +392,7 @@ export type {
 	Fields,
 	Level,
 	MemoryReporter,
+	ProjectionOptions,
 	Reporter,
 	ReporterErrorHandler,
 	Scope,

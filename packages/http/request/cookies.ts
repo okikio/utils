@@ -4,7 +4,13 @@ import { RequestTransportError } from './types.ts';
 
 const cookieNamePattern = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
-/** Parse a Cookie field with explicit duplicate and decoding policy. Provider cookies remain opaque strings. */
+/**
+ * Parse cookie pairs without authenticating their values.
+ * Repeated names become arrays by default; choose reject, first or last when
+ * the application requires one value. Percent decoding is opt-in because cookie
+ * contents are otherwise opaque. Byte admission precedes parsing; count admission
+ * follows it, so the count limit does not prevent every intermediate allocation.
+ */
 export function parseCookies(
 	header: string | null,
 	options: RequestParsingOptions & { readonly duplicates?: DuplicateCookiePolicy; readonly percentDecode?: boolean } =
@@ -26,6 +32,8 @@ export function parseCookies(
 			path: ['cookie'],
 		});
 	}
+	// Cookie names are untrusted keys. A null prototype prevents names such as
+	// __proto__ from changing how the accumulator behaves.
 	const collected: Record<string, string[]> = Object.create(null);
 	let count = 0;
 	for (const part of header.split(';')) {

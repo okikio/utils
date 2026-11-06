@@ -13,8 +13,9 @@ export type RequestInputSource =
 	| 'raw';
 
 /**
- * Stable, value-free validation detail suitable for RFC problem extensions,
- * diagnostics, tests, and structured logging.
+ * Structured validation detail with paths and stable transport issue codes.
+ * Rejected values are not copied into fields. Messages come from the supplied
+ * issue, so the schema author must keep secrets out of those messages.
  */
 export interface RequestValidationDetail {
 	/** Request input location whose validation failed. */
@@ -32,8 +33,8 @@ export interface RequestValidationDetail {
 }
 
 /**
- * Normalize transport and Standard Schema issues without copying rejected
- * request values into diagnostics.
+ * Normalize transport and Standard Schema issues without adding rejected values.
+ * Supplied messages are retained; review their content before public logging.
  */
 export function validationDetails(
 	source: RequestInputSource,

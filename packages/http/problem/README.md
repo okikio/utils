@@ -4,6 +4,10 @@ When an asset is missing or an input is unacceptable, callers need an answer the
 such as `404` gives the broad reason, but a stable problem type distinguishes this rejection from other failures with
 the same status. This package describes expected HTTP rejections and creates their values consistently.
 
+A **status** is HTTP's numeric result, such as 200 for success or 404 for a missing resource. A **problem body** adds
+machine-readable information to a rejected request. Its stable `type` tells client code which case occurred; `detail`
+explains this particular occurrence to a person. Keep internal stack traces and secrets out of that public body.
+
 ```text
 Application result
   found   -> declared success response
@@ -16,6 +20,13 @@ creating it does not fetch that URL or create a documentation page.
 
 ## Give a missing record a useful HTTP answer
 
+Give a missing asset a stable problem type and a 404 response. The diagnostic detail explains this occurrence, while the
+type URL lets a caller recognize the failure independently of its wording.
+
+After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+Save the next complete TypeScript block as
+`example.ts` at that root, then run `mise exec -- deno run example.ts`.
+
 ```ts runnable
 import * as problem from '@okikio/http/problem';
 const Missing = problem.define({
@@ -25,6 +36,7 @@ const Missing = problem.define({
 	title: 'Asset missing',
 	description: 'The asset could not be found.',
 });
+// Build the declared problem body and use its HTTP status when creating the actual Response.
 const [body, status] = problem.create(Missing, { detail: 'No asset has that ID.' });
 console.log(status, body.type);
 const outgoing = Response.json(body, { status, headers: { 'content-type': 'application/problem+json' } });
@@ -46,63 +58,14 @@ Web response and reads its exact JSON. No network connection is made and no inte
 You can send this value without a service compiler. Its JSON contains `type`, `title`, `status` and the supplied
 `detail`; it does not contain an exception stack.
 
-## The reusable rule and the individual rejection
+## Choose adjacent capabilities
 
-| Contract               | Contents                                                                                            | What it does                                 |
-| ---------------------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| `ProblemDefinition`    | Stable `id`, absolute `type` URI, error `status`, `title`, `description`, optional extension schema | Describes one kind of rejection              |
-| `CreateProblemOptions` | Optional safe `detail`, `instance`, extensions, headers and private `cause`                         | Describes this occurrence of that rejection  |
-| `ProblemResult`        | Readonly `[body, status, headers]`                                                                  | Ready-to-materialize RFC 9457 representation |
+Use Problem for an expected HTTP rejection with a declared wire shape. Result Failure names domain rejection
+independently of HTTP, while Fault projects unexpected exceptions into diagnostics.
 
-`define()` checks the ID, absolute type URI, error status and required text, then snapshots the description. `create()`
-builds the public body, protects canonical members from extension collisions, and keeps the exact definition and
-optional cause in hidden metadata. A service can therefore check that this result was declared on its endpoint, rather
-than accepting any object that happens to contain `status: 404`.
+The [package choice map](../README.md#choose-an-entry-point) lists the other public entries and when to use them.
 
-When an extension schema is supplied, a service validates it before sending the response. `create()` does not perform
-that asynchronous schema check; a manual host can call `validateExtensions()` when receiving unknown extension values.
-This is why construction, validation and transport remain separate. The [complete contracts](../API.md#problem) explain
-exposure and retry metadata too.
+## Read further
 
-## Build on the example
-
-For an asset download, declare both the download [response](../response/README.md) and the missing-asset problem on the
-[endpoint](../../server/endpoint/README.md). The handler returns the success value when it finds the asset and the
-declared problem when it does not. A [service](../../server/service/README.md) checks the returned declaration and sends
-the native HTTP response.
-
-For an unexpected storage outage, keep exception details in application diagnostics and use the host's
-[safe error response](../../server/http/README.md). Do not put credentials, stack traces or private record contents in
-caller-visible problem detail. The application decides which information is safe to disclose.
-
-## How it fits
-
-`@okikio/failure` defines an expected operation failure that can exist without HTTP. `@okikio/http/problem` defines what
-an HTTP caller is allowed to see.
-
-A service can translate one expected failure into a declared problem. The failure definition should not gain HTTP status
-codes merely because one API exposes it.
-
-Some problems have no domain failure at all. Unsupported media type, malformed request syntax, and an undeclared handler
-result are examples of protocol or server conditions.
-
-## Public safety
-
-Problem extensions cannot overwrite canonical RFC 9457 members. An optional Standard Schema validates extension data
-before the server sends it.
-
-Definitions distinguish public and internal exposure. Provider causes can be retained in hidden local metadata for
-diagnostics while the public problem body stays controlled.
-
-```typescript
-const NotFound = problem.define({
-	id: 'widgets.not-found',
-	type: 'https://api.example.invalid/problems/widget-not-found',
-	status: 404,
-	title: 'Widget not found',
-	description: 'The widget does not exist or is not visible.',
-});
-```
-
-`problem.catalog()`, `select()`, and `compose()` build declared problem universes. `problem.is()` and `match()` preserve
-exact definition identity at runtime.
+Continue in the [numbered guide](https://github.com/okikio/utils/blob/main/docs/http/04-problem.md) for composition,
+ownership, and failure behavior.

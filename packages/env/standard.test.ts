@@ -19,7 +19,7 @@ const RequiredString: StandardSchemaV1<unknown, string> = {
 const DatabaseUrl = env.secret(RequiredString, {
 	description: 'PostgreSQL connection string.',
 });
-const DatabaseEnvironment = env.environment({ DATABASE_URL: DatabaseUrl });
+const DatabaseEnvironment = env.define({ DATABASE_URL: DatabaseUrl });
 
 describe('Standard Schema environment definitions', () => {
 	it('keeps definition and source selection separate', () => {
@@ -46,7 +46,7 @@ describe('Standard Schema environment definitions', () => {
 	});
 
 	it('collects every field issue in one validation pass', () => {
-		const definition = env.environment({
+		const definition = env.define({
 			FIRST: env.variable(RequiredString, { description: 'First value.' }),
 			SECOND: env.variable(RequiredString, { description: 'Second value.' }),
 		});
@@ -71,7 +71,7 @@ describe('Standard Schema environment definitions', () => {
 				},
 			},
 		};
-		const definition = env.environment({
+		const definition = env.define({
 			VALUE: env.variable(AsyncUppercase, { description: 'Asynchronously normalized value.' }),
 		});
 
@@ -83,7 +83,7 @@ describe('Standard Schema environment definitions', () => {
 	});
 
 	it('deduplicates the same canonical field across definitions', () => {
-		const worker = env.environment({ DATABASE_URL: DatabaseUrl });
+		const worker = env.define({ DATABASE_URL: DatabaseUrl });
 		const composed = env.compose(DatabaseEnvironment, worker);
 
 		expect(composed.keys).toEqual(['DATABASE_URL']);
@@ -91,7 +91,7 @@ describe('Standard Schema environment definitions', () => {
 	});
 
 	it('rejects a different field object that reuses the same key', () => {
-		const conflicting = env.environment({
+		const conflicting = env.define({
 			DATABASE_URL: env.secret(RequiredString, { description: 'Conflicting declaration.' }),
 		});
 
@@ -103,14 +103,14 @@ describe('Standard Schema environment definitions', () => {
 
 		const hidden = { VISIBLE: field } as Record<string, typeof field>;
 		Object.defineProperty(hidden, 'HIDDEN', { value: field, enumerable: false });
-		expect(() => env.environment(hidden)).toThrow(TypeError);
+		expect(() => env.define(hidden)).toThrow(TypeError);
 
 		const accessor = {} as Record<string, typeof field>;
 		Object.defineProperty(accessor, 'VALUE', { get: () => field, enumerable: true });
-		expect(() => env.environment(accessor)).toThrow(TypeError);
+		expect(() => env.define(accessor)).toThrow(TypeError);
 
 		const inherited = Object.create({ INHERITED: field }) as Record<string, typeof field>;
-		expect(() => env.environment(inherited)).toThrow(TypeError);
+		expect(() => env.define(inherited)).toThrow(TypeError);
 	});
 
 	it('supports prototype-shaped definition keys without false conflicts', () => {
@@ -118,7 +118,7 @@ describe('Standard Schema environment definitions', () => {
 			['__proto__', env.variable(RequiredString, { description: 'Prototype-shaped key.' })],
 			['constructor', env.variable(RequiredString, { description: 'Constructor-shaped key.' })],
 		]);
-		const definition = env.environment(fields);
+		const definition = env.define(fields);
 
 		expect(Object.getPrototypeOf(definition.fields)).toBeNull();
 		expect(definition.parseSync(Object.fromEntries([
@@ -133,7 +133,7 @@ describe('Standard Schema environment definitions', () => {
 
 describe('environment projections and requirements', () => {
 	it('separates variables from secrets without leaking secret examples', () => {
-		const definition = env.environment({
+		const definition = env.define({
 			PORT: env.variable(RequiredString, {
 				title: 'HTTP port',
 				description: 'Port used by the HTTP listener.',
@@ -176,7 +176,7 @@ describe('environment projections and requirements', () => {
 		const OtherDatabaseUrl = env.secret(RequiredString, {
 			description: 'Unrelated database connection string.',
 		});
-		const other = env.environment({ DATABASE_URL: OtherDatabaseUrl });
+		const other = env.define({ DATABASE_URL: OtherDatabaseUrl });
 		const requirement = env.requirement('other-database', other, {
 			DATABASE_URL: 'Create an unrelated connection.',
 		});

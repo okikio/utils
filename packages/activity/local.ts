@@ -8,13 +8,14 @@
  * @module
  */
 import * as context from '@okikio/context';
-import type { EffectEmitter } from '@okikio/effect';
-import type { PermissionChecker } from '@okikio/permission';
-import type { RequirementRuntime } from '@okikio/requirement';
-import type { ResourceCollection } from '@okikio/resource';
+import type { EffectEmitter } from '@okikio/capability/effect';
+import type { PermissionChecker } from '@okikio/authz/permission';
+import type { RequirementRuntime } from '@okikio/capability/requirement';
+import type { ResourceCollection } from '@okikio/capability/resource';
 import type { ActivityAttemptResultType, EngineProvider } from '@okikio/workflow';
 import * as activity from './mod.ts';
 import * as remote from './remote.ts';
+import { HostSelectionError } from './selection.ts';
 import type { ActivityDefinition, ActivityImplementation } from './types.ts';
 import type { EngineDefinition } from './engine.ts';
 
@@ -82,11 +83,16 @@ export function create(options: LocalProviderOptions): EngineProvider {
 
 	return Object.freeze({
 		activities: Object.freeze([...byDefinition.keys()]),
+		/**
+		 * Run the matching implementation in this process. A requested physical host cannot be substituted
+		 * with local execution.
+		 */
 		async run(
 			ctx: import('@okikio/context').Context,
 			attempt: import('@okikio/workflow').ActivityAttemptType,
 			control: import('@okikio/workflow').ActivityAttemptControl,
 		): Promise<ActivityAttemptResultType> {
+			if (attempt.location?.host) return Object.freeze({ type: 'lost', reason: new HostSelectionError('lost') });
 			if (attempt.engineId !== options.engine.id) {
 				return Object.freeze({
 					type: 'fault',

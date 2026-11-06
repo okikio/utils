@@ -1,37 +1,45 @@
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
+import * as response from './mod.ts';
 
-import { readText } from './body.ts';
-
-describe('readText', () => {
-	it('reads a response within the byte limit', async () => {
-		const response = new Response('hello');
-		expect(await readText(response, 5)).toBe('hello');
-	});
-
-	it('rejects a declared body larger than the byte limit', async () => {
-		const response = new Response('ignored', { headers: { 'Content-Length': '12' } });
-		await expect(readText(response, 4)).rejects.toThrow(RangeError);
-	});
-
-	it('enforces the streamed byte count when Content-Length is missing', async () => {
-		const body = new ReadableStream<Uint8Array>({
-			start(controller) {
-				controller.enqueue(new TextEncoder().encode('abc'));
-				controller.enqueue(new TextEncoder().encode('def'));
-				controller.close();
-			},
+describe('response byte cleanup', () => {
+	it('retains delayed source cleanup failure after prompt overflow rejection', async () => {
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
 		});
-		await expect(readText(new Response(body), 5)).rejects.toThrow(RangeError);
+		const error = new Error('Source teardown failed.');
+		const value = new Response(
+			new ReadableStream<Uint8Array>({
+				start(controller) {
+					controller.enqueue(new Uint8Array([1, 2]));
+				},
+				async cancel() {
+					await gate;
+					throw error;
+				},
+			}),
+		);
+		try {
+			await expect(response.readBytes(value, 1)).rejects.toBeInstanceOf(RangeError);
+			expect(value.body!.locked).toBe(false);
+		} finally {
+			release();
+		}
+		expect(await response.bodyCleanup(value)).toEqual({ status: 'failed', error });
 	});
 
-	it('counts bytes rather than UTF-16 characters', async () => {
-		const response = new Response('😀');
-		expect(await readText(response, 4)).toBe('😀');
-	});
-
-	it('rejects invalid limits before reading', async () => {
-		await expect(readText(new Response('body'), -1)).rejects.toThrow(RangeError);
-		await expect(readText(new Response('body'), 1.5)).rejects.toThrow(RangeError);
+	it('retains cancellation failure when Content-Length rejects before acquiring a reader', async () => {
+		const value = new Response(
+			new ReadableStream<Uint8Array>({
+				cancel() {
+					throw undefined;
+				},
+			}),
+			{ headers: { 'content-length': '2' } },
+		);
+		await expect(response.readBytes(value, 1)).rejects.toBeInstanceOf(RangeError);
+		expect(await response.bodyCleanup(value)).toEqual({ status: 'failed', error: undefined });
+		expect(value.body!.locked).toBe(false);
 	});
 });

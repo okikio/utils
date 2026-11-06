@@ -1,3 +1,4 @@
+// @benchmark register-only
 import { bench, do_not_optimize, group } from 'mitata';
 
 import * as server from '@okikio/server/http';
@@ -25,6 +26,11 @@ async function verify(): Promise<void> {
 	}
 }
 
+/**
+ * Dispatch 100 fresh requests and release each response body before the next.
+ * The default measures headers plus cancellation; consumption adds JSON decoding
+ * and checks that each body still belongs to its requested route.
+ */
 async function batch(consume = false): Promise<number> {
 	let status = 0;
 	for (let index = 0; index < 100; index += 1) {

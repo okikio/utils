@@ -29,8 +29,8 @@ const NumberSchema: StandardSchemaV1<unknown, number> = {
 const Definition = query.define({
 	fields: {
 		id: query.field(StringSchema, { sortable: true }),
-		name: query.field(StringSchema, { sortable: true }),
-		score: query.field(NumberSchema, { sortable: true }),
+		name: query.field(StringSchema, { sortable: true, jsonSchema: { type: 'string', minLength: 1 } }),
+		score: query.field(NumberSchema, { sortable: true, jsonSchema: { type: ['string', 'number'] } }),
 		deletedAt: query.field(StringSchema),
 		secret: query.field(StringSchema, { selectable: false }),
 	},
@@ -112,7 +112,7 @@ describe('query definitions', () => {
 				cursor: 'opaque',
 			}),
 		);
-		expect(value.filters).toEqual([
+		expect(query.conjunction(value.filter)!).toEqual([
 			{ field: 'name', operator: 'icontains', value: 'example' },
 			{ field: 'score', operator: 'gte', value: 10 },
 			{ field: 'deletedAt', operator: 'isNull' },
@@ -154,7 +154,7 @@ describe('query definitions', () => {
 		};
 		expect(() =>
 			(Definition.encode as (input: unknown) => URLSearchParams)({
-				filters: [{ field: 'name', operator: 'eq', value }],
+				filter: { field: 'name', operator: 'eq', value },
 				order: Definition.order,
 				fields: { kind: 'simple', fields: Definition.defaultFields },
 				pagination: { kind: 'cursor', limit: 25 },
@@ -222,7 +222,7 @@ describe('query definitions', () => {
 
 		const many = await Definition.safeParse(new URLSearchParams({ 'filter[name][in]': 'a,b,c' }));
 		expect(many.success).toBe(true);
-		if (many.success) expect(many.value.filters[0]?.value).toEqual(['a', 'b', 'c']);
+		if (many.success) expect(query.conjunction(many.value.filter)![0]?.value).toEqual(['a', 'b', 'c']);
 
 		const Limited = query.define({
 			fields: { id: query.field(StringSchema, { sortable: true }), name: query.field(StringSchema) },
@@ -252,7 +252,7 @@ describe('query definitions', () => {
 		params.append('filter[score][gte]', '20');
 		params.set('sort', 'name');
 		const value = await Definition.parse(params);
-		expect(value.filters).toEqual([
+		expect(query.conjunction(value.filter)!).toEqual([
 			{ field: 'score', operator: 'gte', value: 10 },
 			{ field: 'score', operator: 'gte', value: 20 },
 		]);
@@ -289,7 +289,7 @@ describe('query definitions', () => {
 			fields: { widgets: 'id,name' },
 			pagination: { offset: 20, limit: 10 },
 		});
-		expect(value.filters).toEqual([
+		expect(query.conjunction(value.filter)!).toEqual([
 			{ field: 'score', operator: 'gte', value: 25 },
 			{ field: 'deletedAt', operator: 'isNotNull' },
 		]);
@@ -375,7 +375,7 @@ describe('query definitions', () => {
 		const definition = query.define({
 			fields: {
 				id: query.field(StringSchema, { sortable: true }),
-				name: query.field(StringSchema, { sortable: true }),
+				name: query.field(StringSchema, { sortable: true, jsonSchema: { type: 'string', minLength: 1 } }),
 			},
 			order: [query.asc('id', { tiebreaker: true })],
 			pagination: query.cursor(),
@@ -405,7 +405,7 @@ describe('query definitions', () => {
 		const defaults = query.define({
 			fields: {
 				id: query.field(StringSchema, { sortable: true }),
-				name: query.field(StringSchema, { sortable: true }),
+				name: query.field(StringSchema, { sortable: true, jsonSchema: { type: 'string', minLength: 1 } }),
 				score: query.field(StringSchema, { sortable: true }),
 			},
 			order: [query.asc('name'), query.asc('score'), query.asc('id', { tiebreaker: true })],

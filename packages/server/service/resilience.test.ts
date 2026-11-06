@@ -1,14 +1,14 @@
 import { expect } from '@std/expect';
 import { describe, it } from 'node:test';
 import * as requestContext from '@okikio/context';
-import * as effect from '@okikio/effect';
-import * as requirement from '@okikio/requirement';
-import * as resilience from '@okikio/resilience';
+import * as effect from '@okikio/capability/effect';
+import * as requirement from '@okikio/capability/requirement';
+import * as resilience from '@okikio/capability/resilience';
 
 import { resilience as resilienceHost, retry as retryHost, RetryableOperationError } from './resilience.ts';
 import type { ServiceRequestState, ServiceResilienceAdapter } from './types.ts';
 
-/** Create a fresh request owner; immediate sleep qualifies retry classification, not elapsed delay. */
+/** Create a fresh request owner; immediate sleep tests retry classification, not elapsed delay. */
 function owner(): requestContext.Owned {
 	return requestContext.create({
 		id: 'request_test',

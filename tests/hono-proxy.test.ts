@@ -3,11 +3,11 @@ import '@okikio/duration/polyfill';
 import '@okikio/dispose/polyfill';
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
-import { vectors } from './fixtures/hono-proxy/corpus.ts';
-import type { ProxyExpectation } from './fixtures/hono-proxy/corpus.ts';
-import { createHonoProxy, createUtilsProxy } from './fixtures/hono-proxy/implementations.ts';
-import type { ProxyApi, Transport } from './fixtures/hono-proxy/implementations.ts';
-import { createUpstream } from './fixtures/hono-proxy/upstream.ts';
+import { vectors } from '#fixtures/hono-proxy/corpus.ts';
+import type { ProxyExpectation } from '#fixtures/hono-proxy/corpus.ts';
+import { createHonoProxy, createUtilsProxy } from '#fixtures/hono-proxy/implementations.ts';
+import type { ProxyApi, Transport } from '#fixtures/hono-proxy/implementations.ts';
+import { createUpstream } from '#fixtures/hono-proxy/upstream.ts';
 
 /** Assert every originally inspected header and outcome while always consuming the response body. */
 async function verify(result: Response, requests: readonly Request[], expected: ProxyExpectation): Promise<void> {

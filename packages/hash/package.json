@@ -1,0 +1,32 @@
+{
+	"name": "@okikio/hash",
+	"version": "0.0.0",
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"exports": {
+		".": "./mod.ts",
+		"./digest": "./digest.ts",
+		"./sync": "./sync.ts",
+		"./stream": "./stream.ts",
+		"./encoding": "./encoding.ts",
+		"./random": "./random.ts",
+		"./id": "./id.ts",
+		"./uuid": "./uuid.ts",
+		"./sha3": "./sha3.ts",
+		"./blake": "./blake.ts",
+		"./checksum": "./checksum.ts",
+		"./hmac": "./hmac/mod.ts",
+		"./hmac/sync": "./hmac/sync.ts"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
+		"mitata": "^1.0.34"
+	},
+	"dependencies": {
+		"@noble/hashes": "^2.4.0",
+		"@okikio/streams": "workspace:^",
+		"@std/encoding": "npm:@jsr/std__encoding@^1.0.11",
+		"@std/uuid": "npm:@jsr/std__uuid@^1.1.2"
+	}
+}

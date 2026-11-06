@@ -1,14 +1,18 @@
 /**
- * Keep a successful representation tied to one schema and attach a safe download name.
+ * Describe a successful HTTP answer once, then create individual results from that rule.
+ * A definition holds the status, body schema and representation policy. A result contains
+ * one answer. materialize() checks and prepares that answer for a native Web Response.
  *
- * Add pagination, repeated headers, conditional responses or byte ranges as the representation needs them. The server validates an occurrence against its endpoint declarations and materializes the native Response; a filename header does not authorize access to a file.
+ * Add pagination, repeated headers, conditional responses or byte ranges when the caller
+ * needs them. Server checks that the result belongs to the endpoint's declarations before
+ * sending it. A download filename changes presentation; it does not grant file access.
  *
  * @example
  * ```ts
  * import * as response from '@okikio/http/response';
- * import { z } from 'zod';
- * const Saved = response.ok(z.object({ id: z.string() }), { id: 'asset.saved', description: 'Saved asset.' });
- * const value = response.finalize(response.create(Saved, { id: 'asset-1' }));
+ * import * as schema from '@okikio/schema';
+ * const Saved = response.ok(schema.object({ id: schema.string() }), { id: 'asset.saved', description: 'Saved asset.' });
+ * const value = await response.materialize(response.create(Saved, { id: 'asset-1' }));
  * console.log(value.status);
  * console.log(response.attachmentDisposition('reports/quarterly.csv'));
  * ```
@@ -23,6 +27,7 @@ export {
 	document,
 	download,
 	html,
+	mediaType,
 	noContent,
 	notModified,
 	ok,
@@ -35,9 +40,15 @@ export {
 } from './definition.ts';
 export { onComplete } from './completion.ts';
 export { discard } from './discard.ts';
-export { readText } from './body.ts';
-export { byteRange, byteRangeHeaders, conditionalHeaders, notModified as isNotModified } from './http.ts';
-export type { ByteRange } from './http.ts';
+export { bodyCleanup, readBytes, readText } from './body.ts';
+export {
+	byteRange,
+	byteRangeHeaders,
+	conditionalHeaders,
+	notModified as isNotModified,
+	preconditions,
+} from './http.ts';
+export type { ByteRange, PreconditionsType, RepresentationType } from './http.ts';
 export type { ResponseCompletion } from './completion.ts';
 export { appendHeaders, headerEntries, headers, headerValues, mergeHeaders, mergeVary, toHeaders } from './headers.ts';
 export {
@@ -68,7 +79,18 @@ export type {
 	ServerErrorStatus,
 	SuccessStatus,
 } from './status.ts';
-export { create, definitionOf, finalize, is, pageHeaders, pageLinks, withHeaders, withMeta } from './result.ts';
+export {
+	create,
+	definitionOf,
+	finalize,
+	is,
+	materialize,
+	pageHeaders,
+	pageLinks,
+	prepare,
+	withHeaders,
+	withMeta,
+} from './result.ts';
 export type {
 	CreateResponseOptions,
 	CursorPageWindow,
@@ -87,6 +109,7 @@ export type {
 	PaginationMetadata,
 	PaginationParameters,
 	PaginationResponsePolicy,
+	PreparedResponseBody,
 	ResponseBody,
 	ResponseDefinition,
 	ResponseDefinitionInput,
@@ -94,6 +117,9 @@ export type {
 	ResponseEnvelope,
 	ResponseExample,
 	ResponseHeaders,
+	ResponseInput,
+	ResponseMode,
+	ResponseOutput,
 	ResponseResult,
 	ResponseResultMetadata,
 	ResponseSchema,
@@ -102,3 +128,7 @@ export type {
 } from './types.ts';
 
 export { attachmentDisposition } from './filename.ts';
+
+/** Bounded native JSONL responses and their body/cleanup outcome. */
+export { jsonl, jsonlCompletion } from './jsonl.ts';
+export type { JsonlCompletionType, JsonlOptions } from './jsonl.ts';

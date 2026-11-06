@@ -48,3 +48,17 @@ export function forward(input: Headers): Headers {
 	for (const name of hopHeaders) headers.delete(name);
 	return headers;
 }
+
+/** Copy and freeze header names or prefixes. Reject holes and accessors; do not impose header-name syntax. */
+export function list(values: readonly string[], name: string): readonly string[] {
+	if (!Array.isArray(values)) throw new TypeError(`${name} must be an array of strings.`);
+	const result: string[] = [];
+	for (let index = 0; index < values.length; index += 1) {
+		const descriptor = Object.getOwnPropertyDescriptor(values, String(index));
+		if (descriptor === undefined || !('value' in descriptor) || typeof descriptor.value !== 'string') {
+			throw new TypeError(`${name} must contain dense string data elements.`);
+		}
+		result.push(descriptor.value);
+	}
+	return Object.freeze(result);
+}

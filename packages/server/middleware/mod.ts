@@ -1,7 +1,10 @@
 /**
  * Declare middleware ordering and context needs so startup can reject a missing producer.
  *
- * Bind runtime behavior with handler(), place it in a declared request lane, and use once() when one exact binding should run once per Request. These declarations validate availability and ordering; they do not authenticate an actor.
+ * Bind the checking code with handler(). Choose a request lane to place it
+ * before validation, after validation, or around the endpoint operation. Use
+ * once() when contributions from several layers must share one execution.
+ * These declarations check ordering; the callback still has to verify credentials.
  *
  * @example
  * ```ts
@@ -9,19 +12,23 @@
  * import '@okikio/dispose/polyfill';
  * import * as middleware from '@okikio/server/middleware';
  * const Actor = middleware.context<{ id: string }>()({ id: 'actor', description: 'Authenticated actor.' });
- * const Read = middleware.define({ id: 'actor.read', description: 'Read actor after authentication.', requires: [Actor] });
+ * const Read = middleware.define({
+ * 	id: 'actor.read',
+ * 	description: 'Read actor after authentication.',
+ * 	requires: [Actor],
+ * });
  * console.log(middleware.validate([Read]).valid);
  * console.log(middleware.validate([Read], [Actor]).valid);
  * ```
  *
  * @module
  */
-import * as catalogProtocol from '@okikio/catalog';
-import * as effect from '@okikio/effect';
-import * as recordCore from '@okikio/record';
-import * as resilience from '@okikio/resilience';
-import * as requirement from '@okikio/requirement';
-import type { Catalog, CatalogEntryIdentity, CatalogSelection, DefinitionInput } from '@okikio/catalog';
+import * as catalogProtocol from '@okikio/collection/catalog';
+import * as effect from '@okikio/capability/effect';
+import * as recordCore from '@okikio/collection/record';
+import * as resilience from '@okikio/capability/resilience';
+import * as requirement from '@okikio/capability/requirement';
+import type { Catalog, CatalogEntryIdentity, CatalogSelection, DefinitionInput } from '@okikio/collection/catalog';
 
 import type {
 	MiddlewareContextDefinition,
@@ -52,7 +59,12 @@ const lanes = Object.freeze(
 	] as const satisfies readonly MiddlewareLane[],
 );
 
-/** Define a typed request-context value. */
+/**
+ * Create a key for a value that one middleware step supplies to later steps.
+ * Use the same key object in provides, requires, set and get; matching text IDs
+ * do not make separately created keys interchangeable. The type parameter
+ * describes the value to TypeScript and does not validate a credential.
+ */
 export function context<Value>(): (
 	input: MiddlewareContextDefinitionInput,
 ) => MiddlewareContextDefinition<Value>;
@@ -78,7 +90,11 @@ function createContext(input: MiddlewareContextDefinitionInput): MiddlewareConte
 	return Object.freeze({ kind: 'middleware-context', ...input }) as MiddlewareContextDefinition;
 }
 
-/** Define one import-safe middleware contract. */
+/**
+ * Describe a middleware step without running its callback or opening resources.
+ * requires names values that earlier steps must supply; provides names values
+ * this step promises to set. Bind the checking code separately with handler().
+ */
 export function define<
 	const Input extends MiddlewareDefinitionInput,
 >(input: Input): MiddlewareDefinition<
@@ -116,7 +132,8 @@ export function define<
 }
 
 /**
- * Captures the snapshot input as immutable state for middleware definition and execution.
+ * Copy nested composition arrays without invoking accessor elements.
+ * Definition objects remain borrowed so exact identity survives composition.
  *
  * @internal
  */
@@ -169,14 +186,20 @@ export function handler<
 	return Object.freeze({ kind: 'middleware-handler', definition, handle });
 }
 
+/**
+ * Remember which steps have started for this exact Request object. Weak keys let
+ * completed requests be collected without a separate global cleanup operation.
+ */
 const onceByRequest = new WeakMap<Request, Set<MiddlewareOnceKey>>();
 
 /**
  * Wrap an exact middleware handler so its inner work executes at most once for
  * one Request, even when the same definition is contributed by several layers.
  *
- * Duplicate occurrences still call `next()`, preserving the compiled onion.
- * The request-keyed state is weak and cannot suppress another request.
+ * Duplicate occurrences still call next(), so later handlers continue to run.
+ * The mark is set before the inner callback starts: even if it fails, another
+ * occurrence on this Request does not repeat its side effects. Another Request
+ * object has its own marks.
  */
 export function once<
 	Definition extends MiddlewareDefinition,
@@ -193,6 +216,7 @@ export function once<
 			onceByRequest.set(context.request, executed);
 		}
 		if (executed.has(key)) return await next();
+		// Mark before awaiting user code so re-entry cannot run this step twice.
 		executed.add(key);
 		return await binding.handle(context, next);
 	});
@@ -253,7 +277,13 @@ export function plan(input: MiddlewareInput | undefined): MiddlewarePlan {
 	return freezePlan(result);
 }
 
-/** Validate ordering, IDs, and context guarantees for one middleware input. */
+/**
+ * Check whether request steps can obtain their required values in execution order.
+ * initialContexts lists keys the host promises to supply before those steps.
+ * Report missing producers, conflicting producers and reused text IDs without
+ * calling any handler. A valid plan does not prove that a credential was checked
+ * or that a callback will actually set its promised value.
+ */
 export function validate(
 	input: MiddlewareInput | undefined,
 	initialContexts: readonly MiddlewareContextDefinition[] = [],
@@ -264,6 +294,8 @@ export function validate(
 	const available = new Set(initialContexts);
 	const providers = new Map<MiddlewareContextDefinition, MiddlewareDefinition>();
 
+	// Walk in request execution order. A later producer cannot satisfy a value
+	// that an earlier consumer needs, even if both appear somewhere in the plan.
 	for (const lane of lanes) {
 		for (const definition of normalized[lane]) {
 			const owner = idOwners.get(definition.id);
@@ -343,9 +375,9 @@ function use<Definition extends MiddlewareDefinition, Lane extends MiddlewareLan
 }
 
 /**
- * Walks nested input while preserving the module's deterministic traversal rules.
- *
- * It keeps middleware definitions import-safe while making request-phase contribution and execution order explicit.
+ * Visit nested middleware contributions in authored order.
+ * Explicit lane wrappers retain their lane; plain definitions default to
+ * afterValidation. This arranges declarations without executing their handlers.
  *
  * @internal
  */
@@ -366,7 +398,7 @@ function visit(
 }
 
 /**
- * Checks whether middleware array satisfies the condition required by middleware definition and execution.
+ * Recognize nested middleware composition arrays.
  *
  * @internal
  */
@@ -375,7 +407,7 @@ function isMiddlewareArray(input: MiddlewareInput): input is readonly Middleware
 }
 
 /**
- * Snapshots plan so later compilation cannot observe caller mutation.
+ * Freeze each prepared lane and the plan that contains them.
  *
  * @internal
  */
@@ -389,7 +421,7 @@ function freezePlan(input: Record<MiddlewareLane, MiddlewareDefinition[]>): Midd
 }
 
 /**
- * Collects the ids used to preserve stable identity in middleware definition and execution.
+ * Expand a capability composition into descriptive IDs without acquiring values.
  *
  * @internal
  */
@@ -400,7 +432,7 @@ function ids(input: DefinitionInput<CatalogEntryIdentity> | undefined): readonly
 }
 
 /**
- * Rejects invalid context list before it can enter authoritative module state.
+ * Require context-definition entries and reject repeated exact identities.
  *
  * @internal
  */
@@ -416,7 +448,7 @@ function assertContextList(values: readonly MiddlewareContextDefinition[], field
 }
 
 /**
- * Rejects invalid id before it can enter authoritative module state.
+ * Require the stable identifier grammar used by middleware metadata.
  *
  * @internal
  */
@@ -425,9 +457,7 @@ function assertId(id: string, label: string): void {
 }
 
 /**
- * Create one immutable middleware-validation issue for definition or ordering defects.
- *
- * Middleware internals make context contribution, ordering, and request-phase ownership explicit before the server runtime executes them.
+ * Retain the failing declaration and optional context beside a stable issue code.
  *
  * @internal
  */

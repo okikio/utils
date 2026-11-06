@@ -5,6 +5,14 @@ all the user's values while limiting how much request data enters memory. This p
 before application validation. Its limits govern bytes and HTTP fields; your application's validation rules govern what
 those values mean.
 
+A `Request` is the incoming HTTP message. Its URL and headers are text; a JSON body only becomes a JavaScript value
+after it has been read and decoded. That decoded value still needs field validation. For example, valid JSON can contain
+`{ "age": "many" }` even when the application requires a number.
+
+A request body is a stream that is normally read once. These helpers share one bounded byte read for the same Request,
+then decode it for the selected format. They deliberately buffer the accepted body; use a separately owned streaming
+upload path when the whole file must not be retained in memory.
+
 ```text
 Repeated query: tag=a&tag=b -> { tag: [a, b] }
 Body stream -> count bytes against budget -> complete Uint8Array -> decode/validate
@@ -15,12 +23,19 @@ The query line preserves both choices. The body line admits a complete bounded b
 not return a successful partial upload. A byte limit is not a character limit, so non-ASCII text can consume several
 bytes per character.
 
+From the Utils checkout, review `mise.toml`, then run `mise trust`, `mise install`, and `mise run prepare -- --kind deps`.
+Save each runnable block as a `.ts` file in your project and run it with `mise exec -- deno run <file>.ts`.
+
 ## Read search filters and a small upload
+
+Parse repeated search tags and read an upload with an explicit three-byte ceiling. The first result retains both tags;
+the second returns the accepted body bytes for the application to interpret.
 
 ```ts runnable
 import * as request from '@okikio/http/request';
 console.log(JSON.stringify(request.parseQuery('?tag=a&tag=b')));
 const incoming = new Request('https://service.invalid/import', { method: 'POST', body: 'abc' });
+// The three-byte limit accepts this exact body; larger input must fail before application parsing.
 console.log(new TextDecoder().decode(await request.readBody(incoming, { maximumBodyBytes: 3 })));
 ```
 
@@ -33,126 +48,74 @@ abc
 
 The query input contains two `tag` fields, and the first output proves that neither was lost. The POST body `abc`
 contains three bytes. `readBody()` accepts those bytes with a budget of three, and `TextDecoder` turns the returned byte
-array back into `abc`. Adding another ASCII byte would exceed this budget. Reading consumes the request body, so choose
-when to read or deliberately clone it before another reader needs it.
+array back into `abc`. Adding another ASCII byte would exceed this budget. The first read owns the request body. Later
+`readBody()`, `parseJson()` or `parseForm()` calls on the same Request reuse its bounded byte result and receive
+independent byte copies. A later smaller byte limit still rejects oversized data.
 
-## The values and limits behind these calls
+## Cancellation and cleanup
 
-| Call                            | Returns                                                                    | Important boundary                                                                                        |
-| ------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `parseQuery(search, options?)`  | `WireRecord`: readonly string keys, string or readonly string-array values | Decodes transport text; does not convert `"true"` to a boolean                                            |
-| `readBody(incoming, options?)`  | `Promise<Uint8Array>`                                                      | Buffers all admitted bytes; consumes the body once                                                        |
-| `parseJson(incoming, options?)` | `Promise<unknown>`                                                         | Requires a JSON content type, bounded bytes and valid UTF-8/JSON; your schema checks the resulting object |
-| `parseForm(incoming, options?)` | `Promise<FormWireRecord>`                                                  | Keeps text, `File` values and repeated fields; applies body and field-count limits                        |
+Abort and overflow reject the read promptly and release its stream lock. Underlying source cancellation can continue,
+for example when an application supplied one branch of a tee. `await bodyCleanup(request)` observes the eventual
+`completed`, `cancelled`, `released` or `failed` outcome. A failed outcome retains its exact error without replacing the
+caller's primary read failure. Await that outcome only when the source owner is ready to join cleanup; waiting for a tee
+branch can require its sibling owner to finish first.
 
-`maximumBodyBytes` is an override on `RequestParsingOptions`; omitted limits use the package's bounded defaults. Choose
-an explicit budget for the route's job rather than using the default as an application policy. See the
-[complete option fields](../API.md#request).
+## Share one request-owned resource, then release it
 
-Under the hood, `readBody()` checks `Content-Length` when framing allows it, takes a body reader, and counts each
-chunk's `byteLength`. A declared length does not bypass that actual count. At success it copies the chunks into one
-`Uint8Array`. At overflow or abort it cancels the reader, waits for cancellation, and releases the lock. This is why the
-function is useful for small JSON/uploads but is not a streaming processor for multi-gigabyte files.
+A request may need the same capability in several parts of a handler. `memoize()` shares the pending load under an exact
+key, so concurrent callers do not acquire duplicate resources. The handler must join its consumers before disposing the
+request cache. Save `request-memo.ts`:
 
-If a header/content-type/declared-length check rejects before reading starts, the helper has not taken a body reader.
-The surrounding transport still owns that unread body. Once a reader is taken, the helper owns releasing its lock and
-joining any cancellation it starts.
-
-### Turn a JSON request into a familiar response
-
-The reader does the byte and syntax work; the ordinary `if` decides whether this application accepts the value:
-
-```ts runnable=request-json.ts
-import { parseJson } from '@okikio/http/request';
-
-async function save(incoming: Request): Promise<Response> {
-	const input = await parseJson(incoming, { maximumBodyBytes: 1024 });
-	if (typeof input !== 'object' || input === null || !('title' in input) || typeof input.title !== 'string') {
-		return Response.json({ error: 'A title is required.' }, { status: 400 });
-	}
-	return Response.json({ title: input.title.trim() });
+```ts runnable=request-memo.ts
+import { disposeMemo, memoize } from '@okikio/http/request';
+const incoming = new Request('http://localhost/search');
+const key = Symbol('search-index');
+let opened = 0;
+try {
+	const load = () => {
+		opened += 1;
+		return {
+			find: () => ['photo-1'],
+			[Symbol.dispose]() {
+				console.log('Closed index.');
+			},
+		};
+	};
+	const [first, second] = await Promise.all([memoize(incoming, key, load), memoize(incoming, key, load)]);
+	console.log('opened', opened, 'same', first === second);
+	console.log(first.find().join(','));
+} finally {
+	await disposeMemo(incoming);
 }
-
-const incoming = new Request('https://service.invalid/notes', {
-	method: 'POST',
-	headers: { 'content-type': 'application/json' },
-	body: '{"title":"  First note  "}',
-});
-console.log(await (await save(incoming)).text());
 ```
 
 ```text output
-{"title":"First note"}
+opened 1 same true
+photo-1
+Closed index.
 ```
 
-Malformed or oversized input rejects the parsing call. For expected transport failures, branch on
-`RequestTransportError.issues[*].code`, such as `body-too-large`, rather than matching its message. Decide at the host
-whether to convert those failures to HTTP responses; the reader does not silently return partial or invalid data.
+A failed load can be retried by default; `cacheRejected` changes that policy. Disposal attempts every unique resolved
+resource in reverse cache-entry order. Multiple failures use the shared disposal package's `SuppressedError`; one failed
+loader or disposer cannot skip unrelated cleanup. `invalidateMemo()` removes cached entries without disposing their
+values, so the caller must already own any resources it removes.
 
-## Build on the example
+## Accept JSON, forms and signed provider messages
 
-For a filterable catalogue, parse repeated query values and let an [endpoint](../../server/endpoint/README.md) validate
-which filters and values your search accepts. Pair the result with [pagination responses](../response/README.md) so
-callers can request the next page without losing their filters.
+The [complete greeting request workflow](../../../docs/server/09-http-input.md) uses this reader in POST routes and
+checks malformed JSON, unsupported media, oversized bodies, repeated form names, uploaded files, forged signatures and
+duplicates. It also shows the difference between liveness, readiness and response-created observation. The parser reads
+a bounded complete body; it is not a large-file streaming upload API. Use [streamed responses](../../../docs/server/10-http-streaming.md)
+when the caller should receive results progressively instead.
 
-For an import form, choose body and field limits before reading, decode the admitted input, and then validate its shape.
-Use [webhook verification](../webhook/README.md) first when a provider signs the raw bytes. `readBody()` buffers the
-admitted body in memory; use an explicitly designed streaming path for work that must process a large upload
-incrementally. Cancellation and over-limit reads reject rather than returning a partial body.
+## Choose adjacent capabilities
 
-## Request flow
+Use Request to preserve repeated fields, bound input, and choose forwarding behavior. Schema validates business meaning
+after input is read; Server connects the checked input to application behavior.
 
-```text
-untrusted HTTP request
-  -> syntax and size checks
-  -> normalized HTTP values
-  -> endpoint Standard Schema validation
-  -> typed application input
-```
+The [package choice map](../README.md#choose-an-entry-point) lists the other public entries and when to use them.
 
-`parseParameters()`, `parseQuery()`, `parseHeaders()`, and `parseCookies()` retain the information needed by later
-validation instead of silently choosing one repeated value.
+## Read further
 
-`readBody()`, `parseJson()`, and `parseForm()` enforce independent body limits. `parseAuthorization()` parses credential
-syntax but redacts the credential when it is stringified or serialized.
-
-`readBody()` owns its reader until pending cancellation settles, then releases the lock. If cancellation succeeds, an
-abort rejects with the caller's exact signal reason, including `null`. If overflow cancellation fails, the rejection
-still contains the `body-too-large` transport issue; its `cause` retains the cleanup failure for private diagnostics.
-Other combined read or abort and cleanup failures use `AggregateError`, with the primary failure in `cause` and both
-failures in `errors`, in primary-then-cleanup order. A rejection with `undefined` still counts as a cleanup failure.
-Applications may report safe transport `issues` to clients, but should keep `cause` and aggregate `errors` private.
-
-## Trust and correlation
-
-`externalUrl()` ignores forwarding headers unless the caller supplies an explicit trusted-proxy policy. Host and
-protocol allowlists prevent a caller from selecting the public origin used for links or redirects.
-
-`correlation()` validates W3C trace fields and request IDs. The HTTP value is named `requestId` because it identifies an
-HTTP request. A server can copy that value into the generic execution context as `ctx.id`.
-
-`correlationFields()` returns safe structured identifiers for logging. It does not include authorization values,
-cookies, query values, or request bodies.
-
-## Request-owned memoization
-
-`memoize()` shares pending request work such as authentication, body reads, hashes, or canonical-origin resolution.
-Failed loads are removed so an explicit retry can run.
-
-`disposeMemo()` releases disposable memoized values after the response body finishes, cancels, aborts, or fails.
-Releasing values only when headers are created would end request-owned resources too early for streaming responses.
-
-## Content length
-
-`parseContentLength()` is the small wire-level parser used by bounded body readers. An absent header returns
-`undefined`. A present header must contain only decimal digits and fit inside JavaScript's safe-integer range. Malformed
-values fail with `RequestTransportError` code `invalid-content-length`; they are not reclassified as an oversized body.
-
-```ts
-request.parseContentLength(null); // undefined
-request.parseContentLength('0012'); // 12
-request.parseContentLength('12.5'); // throws invalid-content-length
-```
-
-The convenience is intentionally thin. Manually, the same rule is: check the HTTP `1*DIGIT` shape, convert it to a
-number, reject values outside the safe-integer range, and only then compare it with the body policy.
+Continue in the [numbered guide](https://github.com/okikio/utils/blob/main/docs/http/05-request.md) for composition,
+ownership, and failure behavior.

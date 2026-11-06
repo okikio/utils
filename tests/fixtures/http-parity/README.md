@@ -1,9 +1,9 @@
 # Independent HTTP API parity
 
 `elysia.ts` and `vixeny.ts` also implement the complete authored API and routing corpora through their native compiled
-Fetch handlers. Read the [challenger guide](../../../docs/http-challengers.md) for runtime selection, dependency
-preparation, literal preflights and repeated measurements. Their application adapters reproduce selected observations;
-gateway forwarding and proxy lifetimes remain the two-candidate Hono/Utils fixtures below.
+Fetch handlers. Read the [challenger guide](../../../docs/benchmarks/04-challengers.md) for runtime selection,
+dependency preparation, literal preflights and repeated measurements. Their application adapters reproduce selected
+observations; gateway forwarding and proxy lifetimes remain the two-candidate Hono/Utils fixtures below.
 
 Each candidate implements the same small account API, using its own production stack. `hono.ts` uses Hono, native Fetch
 values, and Hono's body-limit middleware. `utils.ts` uses direct HTTP, server/http, endpoint, compiled service,
@@ -35,7 +35,7 @@ the oversized input.
 Benchmark preflights must compare both candidates independently with the explicit expected results. Timed work can reuse
 the application but must rebuild one-shot requests and consume response bodies. Report app construction and router
 warm-up separately from steady-state dispatch. The full application has middleware and a compiled service; the
-route-table workload deliberately isolates dispatch and response materialization. Neither workload qualifies every
+route-table workload deliberately isolates dispatch and response materialization. Neither workload tests every
 feature or determines which stack an application should choose.
 
 ## Upstream provenance
@@ -47,7 +47,7 @@ resolves to immutable commit **06880c4a2b04de9dd74217f26dd831209b9c01f1**.
   slash cases, encoded Unicode/slash parameters, middleware response modification, context variables, GET/HEAD.
 - [body-limit/index.test.ts](https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/middleware/body-limit/index.test.ts):
   exact/over byte limits, streamed bodies, conflicting framing headers, and rejection before a non-reading handler.
-- [HONO-LICENSE](HONO-LICENSE) preserves Hono's MIT copyright and permission notice.
+- [HONO-LICENSE](./HONO-LICENSE) preserves Hono's MIT copyright and permission notice.
 
 The fixtures reconstruct these observable contracts with real streams and independently written handlers. They do not
 copy Vitest machinery, private call counts, internal router classes, incidental diagnostic wording, or whole suites.

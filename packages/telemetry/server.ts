@@ -6,19 +6,19 @@
  *
  * @module
  */
-import type { FaultValue } from '@okikio/fault';
+import type { FaultValue } from '@okikio/result/fault';
 import type {
 	GatewayObserverDefinition,
 	GatewayObserverEvent,
 	GatewayObserverEventKind,
 	GatewayObserverHandler,
-} from '@okikio/server/gateway/types';
+} from './events.ts';
 import type {
 	ServiceObserverDefinition,
 	ServiceObserverEvent,
 	ServiceObserverEventKind,
 	ServiceObserverHandler,
-} from '@okikio/server/service/types';
+} from './events.ts';
 import type { EventInput, Fields, Level, Scope } from './types.ts';
 
 const SERVICE_LEVEL = Object.freeze(

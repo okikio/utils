@@ -1,4 +1,4 @@
-import * as recordCore from '@okikio/record';
+import * as recordCore from '@okikio/collection/record';
 
 /** One HTTP field occurrence. Repeated fields are represented by repeated entries. */
 export type HeaderField = readonly [name: string, value: string];
@@ -120,9 +120,10 @@ function normalizeHeaderValues(name: string, values: readonly string[]): HeaderF
 }
 
 /**
- * Normalizes source into the canonical internal form used by later phases.
- *
- * It builds deterministic logical HTTP representations before a framework creates the native Response.
+ * Convert each supported input shape into separate header occurrences.
+ * Native Headers may have already combined fields; getSetCookie() preserves
+ * independent cookies where available. Only exact library-created snapshots
+ * bypass validation; caller freezing is not proof of admission.
  *
  * @internal
  */
@@ -149,7 +150,8 @@ function normalizeSource(input: HeaderInput): readonly HeaderField[] {
 }
 
 /**
- * Normalizes field into the canonical internal form used by later phases.
+ * Validate one name/value pair before it can enter a response field list.
+ * Reject NUL and line breaks, trim surrounding whitespace and normalize name case.
  *
  * @internal
  */
@@ -165,9 +167,8 @@ function normalizeField(name: unknown, value: unknown): HeaderField {
 }
 
 /**
- * Groups values into the structure consumed by logical HTTP response construction.
- *
- * Response internals build framework-neutral response data before a server adapter creates the native Response.
+ * Group names case-insensitively while retaining each value as a separate item.
+ * Commas inside field values are never treated as occurrence separators.
  *
  * @internal
  */
@@ -190,7 +191,9 @@ function group(
 }
 
 /**
- * Converts a `Headers` collection into the immutable record representation used by logical response definitions.
+ * Create and remember a frozen grouped header record.
+ * Repeated values remain arrays; a null prototype keeps untrusted field names
+ * from changing object behavior. Integer-like keys follow record key ordering.
  *
  * @internal
  */

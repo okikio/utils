@@ -3,28 +3,28 @@ import '@okikio/duration/polyfill';
 import '@okikio/dispose/polyfill';
 import { strictEqual } from 'node:assert';
 import { bench, do_not_optimize, group } from 'mitata';
-import { z } from 'zod';
+import * as schema from '@okikio/schema';
 import * as activity from '@okikio/activity';
 import * as engine from '@okikio/activity/engine';
 import * as context from '@okikio/context';
 import * as workflow from '@okikio/workflow';
 import * as dispatch from '@okikio/workflow/dispatch';
 import * as history from '@okikio/workflow/history';
-import { run } from './run.ts';
+import { run } from '#tools/bench/run.ts';
 
 const Local = engine.define({ id: 'benchmark-local' });
 const Echo = activity.define({
 	id: 'bench.echo',
 	version: '1',
-	input: z.string(),
-	result: z.string(),
+	input: schema.string(),
+	result: schema.string(),
 	placement: engine.require(Local),
 });
 const Definition = workflow.define({
 	id: 'bench.recovery',
 	version: '1',
-	input: z.string(),
-	result: z.string(),
+	input: schema.string(),
+	result: schema.string(),
 	activities: [Echo],
 });
 const implementation = workflow.implement(Definition, function* (ctx) {

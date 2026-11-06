@@ -1,4 +1,6 @@
-import * as recordCore from '@okikio/record';
+import * as recordCore from '@okikio/collection/record';
+import * as schema from '@okikio/schema';
+import * as codec from '@okikio/schema/codec';
 import { headers as normalizeHeaders, mergeHeaders } from './headers.ts';
 import type {
 	CreateResponseOptions,
@@ -12,6 +14,7 @@ import type {
 	PaginationLinks,
 	PaginationMetadata,
 	PaginationParameters,
+	PreparedResponseBody,
 	ResponseBody,
 	ResponseDefinition,
 	ResponseHeaders,
@@ -41,7 +44,12 @@ const defaultParameters = Object.freeze(
 	} satisfies PaginationParameters,
 );
 
-/** Instantiate a definition-associated logical result. Request-dependent work happens in {@link finalize}. */
+/**
+ * Associate [body, status, headers] with its exact response declaration.
+ * This does not validate or serialize the body. prepare() validates it;
+ * finalize() adds request-dependent links and optional metadata. Adapters can
+ * call materialize() for both stages before creating the native Response.
+ */
 export function create<Definition extends ResponseDefinition>(
 	definition: Definition,
 	body: ResponseBody<Definition>,
@@ -76,6 +84,56 @@ export function create<Definition extends ResponseDefinition>(
 }
 
 /**
+ * Validate handler input once and retain the actual transformed wire representation.
+ * Codecs explicitly encode application values; ordinary schemas parse their declared input.
+ * The logical input tuple stays unchanged, and page item issues retain their index paths.
+ */
+export async function prepare<Definition extends ResponseDefinition>(
+	result: ResponseResult<Definition>,
+): Promise<ResponseResult<Definition, PreparedResponseBody<Definition>>> {
+	const definition = definitionOf(result);
+	if (definition.schema === undefined || definition.mode === 'empty' || definition.mode === 'redirect') {
+		return clone(result, result[0], result[2], metadataOf(result).options) as ResponseResult<
+			Definition,
+			PreparedResponseBody<Definition>
+		>;
+	}
+	const contract = definition.schema;
+	// A codec writes application values into wire values; an ordinary schema
+	// parses the authored input. Keep those directions explicit at this boundary.
+	const convert = (value: unknown): Promise<unknown> =>
+		codec.is(contract) ? codec.write(contract, value) : schema.parse(contract, value);
+	let body: unknown;
+	if (definition.mode === 'page') {
+		const page = asPageWindow(result[0]);
+		const items: unknown[] = [];
+		const issues: import('@standard-schema/spec').StandardSchemaV1.Issue[] = [];
+		for (let index = 0; index < page.items.length; index++) {
+			try {
+				items.push(await convert(page.items[index]));
+			} catch (error) {
+				if (!(error instanceof schema.SchemaValidationError)) throw error;
+				issues.push(...schema.prefixIssues(error.issues, 'items', index));
+			}
+		}
+		if (issues.length > 0) throw new schema.SchemaValidationError(issues);
+		body = Object.freeze({ ...page, items: Object.freeze(items) });
+	} else body = await convert(result[0]);
+	return clone(result, body, result[2], metadataOf(result).options) as ResponseResult<
+		Definition,
+		PreparedResponseBody<Definition>
+	>;
+}
+
+/** Validate and finalize a logical response for a standalone HTTP adapter. */
+export async function materialize<Definition extends ResponseDefinition>(
+	result: ResponseResult<Definition>,
+	options: FinalizeResponseOptions = {},
+): Promise<FinalizedResponseResult<Definition>> {
+	return finalize(await prepare(result), options);
+}
+
+/**
  * Finalize one logical result with request-aware transport metadata.
  *
  * Handlers call {@link create} before a public request URL, current time, or
@@ -92,7 +150,7 @@ export function create<Definition extends ResponseDefinition>(
  * including prepared middleware headers and repeated Set-Cookie fields.
  */
 export function finalize<Definition extends ResponseDefinition>(
-	result: ResponseResult<Definition>,
+	result: ResponseResult<Definition, unknown>,
 	options: FinalizeResponseOptions = {},
 ): FinalizedResponseResult<Definition> {
 	const normalizedOptions = finalizeOptions(options);
@@ -139,19 +197,19 @@ export function finalize<Definition extends ResponseDefinition>(
 }
 
 /** Return a copy of a logical result with occurrence headers merged in. */
-export function withHeaders<Definition extends ResponseDefinition>(
-	result: ResponseResult<Definition>,
+export function withHeaders<Definition extends ResponseDefinition, Body>(
+	result: ResponseResult<Definition, Body>,
 	headers: import('./headers.ts').HeaderInput,
-): ResponseResult<Definition> {
+): ResponseResult<Definition, Body> {
 	if (!is(result)) throw new TypeError('Value is not a response result.');
 	return clone(result, result[0], mergeHeaders(result[2], headers), metadataOf(result).options);
 }
 
 /** Return a copy whose final body contains merged metadata in a data envelope. */
-export function withMeta<Definition extends ResponseDefinition>(
-	result: ResponseResult<Definition>,
+export function withMeta<Definition extends ResponseDefinition, Body>(
+	result: ResponseResult<Definition, Body>,
 	meta: Readonly<Record<string, unknown>>,
-): ResponseResult<Definition> {
+): ResponseResult<Definition, Body> {
 	if (!is(result)) throw new TypeError('Value is not a response result.');
 	recordCore.assert(meta, 'response metadata');
 	const current = metadataOf(result);
@@ -223,7 +281,8 @@ export function pageHeaders<Item>(
 }
 
 /**
- * Builds the cursor links used to navigate a cursor-paginated result in logical HTTP response construction.
+ * Build cursor navigation from opaque authored cursors.
+ * No last-page link is inferred because a cursor does not reveal a page number.
  *
  * @internal
  */
@@ -244,9 +303,9 @@ function cursorLinks(
 }
 
 /**
- * Builds self, first, previous, next, and last links for an offset-paginated result.
- *
- * Response internals build framework-neutral response data before a server adapter creates the native Response.
+ * Build page-number or offset navigation from the selected window.
+ * A known total permits a last link; hasMore independently controls next.
+ * Each link removes only pagination parameters so filters survive navigation.
  *
  * @internal
  */
@@ -258,6 +317,7 @@ function offsetLinks(
 	const usePage = page.source === 'page' || page.page !== undefined;
 	const currentPage = page.page ?? Math.floor(page.offset / page.limit) + 1;
 	const totalPages = page.total === undefined ? undefined : Math.max(1, Math.ceil(page.total / page.limit));
+	/** Build each relation from a fresh URL so one relation cannot alter another. */
 	const create = (offset: number, pageNumber: number): string => {
 		const url = cleanPagination(base, names);
 		if (usePage) {
@@ -281,7 +341,7 @@ function offsetLinks(
 }
 
 /**
- * Builds the cursor url used to navigate a cursor-paginated result in logical HTTP response construction.
+ * Copy the base URL, replace pagination fields and retain non-pagination filters.
  *
  * @internal
  */
@@ -304,9 +364,8 @@ function cleanPagination(base: URL, names: PaginationParameters): URL {
 }
 
 /**
- * Builds the response metadata that describes the current cursor or offset page window.
- *
- * Response internals build framework-neutral response data before a server adapter creates the native Response.
+ * Describe the selected window without querying or counting its data source.
+ * Include exact or estimated totals only when the response policy permits them.
  *
  * @internal
  */
@@ -338,9 +397,9 @@ function pageMetadata(page: PageWindow<unknown>, includeTotals: boolean): Pagina
 }
 
 /**
- * Derives the pagination headers from the query contract used by logical HTTP response construction.
- *
- * Response internals build framework-neutral response data before a server adapter creates the native Response.
+ * Render declared counts and page coordinates as transport fields.
+ * Exact totals take precedence over estimated totals in Preference-Applied;
+ * this function does not verify the data source's count.
  *
  * @internal
  */
@@ -366,7 +425,8 @@ function paginationHeaders(page: PageWindow<unknown>, metadata: PaginationMetada
 }
 
 /**
- * Links header idempotently for logical HTTP response construction.
+ * Render existing pagination links as one Link field.
+ * Translate the application relation previous to the protocol relation prev.
  *
  * @internal
  */
@@ -381,9 +441,9 @@ function linkHeader(links: PaginationLinks): string {
 }
 
 /**
- * Builds meta from validated inputs without changing source identity.
- *
- * It builds deterministic logical HTTP representations before a framework creates the native Response.
+ * Merge custom metadata with authoritative pagination and optional timestamp.
+ * Generated fields replace custom fields of the same name. Read the clock only
+ * when the declaration enables a timestamp.
  *
  * @internal
  */
@@ -402,9 +462,9 @@ function buildMeta(
 }
 
 /**
- * Recognizes supported page-window result shapes before pagination headers or envelopes are generated.
- *
- * Response internals build framework-neutral response data before a server adapter creates the native Response.
+ * Validate a handler-supplied pagination window before constructing links.
+ * Snapshot item membership and check coordinates/counts; item values remain
+ * borrowed until prepare() validates them against the declared response schema.
  *
  * @internal
  */
@@ -531,7 +591,8 @@ function instantString(value: unknown, name: string): string {
 }
 
 /**
- * Parses base url into the validated internal model used by later phases.
+ * Copy an absolute URL or resolve a relative URL against a temporary origin.
+ * Remember relative input so formatting removes that placeholder origin later.
  *
  * @internal
  */
@@ -543,7 +604,7 @@ function parseBaseUrl(value: string | URL): { readonly url: URL; readonly relati
 }
 
 /**
- * Formats url for the representation emitted by logical HTTP response construction.
+ * Remove the temporary origin for relative links while retaining query and fragment.
  *
  * @internal
  */
@@ -553,7 +614,7 @@ function formatUrl(value: string, relative: boolean): string {
 }
 
 /**
- * Checks whether header is present for logical HTTP response construction.
+ * Compare record field names without case sensitivity.
  *
  * @internal
  */
@@ -563,7 +624,7 @@ function hasHeader(headers: ResponseHeaders, name: string): boolean {
 }
 
 /**
- * Returns the safe header value in the representation expected by logical HTTP response construction.
+ * Reject NUL and line breaks before a Location value enters the header record.
  *
  * @internal
  */
@@ -573,7 +634,9 @@ function safeHeaderValue(value: string, name: string): string {
 }
 
 /**
- * Escapes the filename before logical HTTP response construction emits it into an external syntax.
+ * Escape quoting characters and remove line breaks for a quoted filename.
+ * This is not filesystem path sanitization; use attachmentDisposition() for
+ * a standalone Content-Disposition field with path-component handling.
  *
  * @internal
  */
@@ -699,7 +762,8 @@ function assertKnownKeys(
 }
 
 /**
- * Returns the metadata of required to interpret values handled by logical HTTP response construction.
+ * Read definition identity and creation options from this package's private tuple registry.
+ * An array with the same visible elements is not a registered response result.
  *
  * @internal
  */
@@ -713,20 +777,19 @@ function metadataOf<Definition extends ResponseDefinition>(
 }
 
 /**
- * Clones response metadata before enrichment so finalization does not mutate handler-owned values.
- *
- * Response internals build framework-neutral response data before a server adapter creates the native Response.
+ * Create a new tuple with the same declaration identity and fresh option snapshot.
+ * Enrichment leaves the original handler result unchanged.
  *
  * @internal
  */
-function clone<Definition extends ResponseDefinition>(
+function clone<Definition extends ResponseDefinition, Body>(
 	original: ResponseResult<Definition>,
-	body: unknown,
+	body: Body,
 	headers: ResponseHeaders,
 	options: CreateResponseOptions,
-): ResponseResult<Definition> {
+): ResponseResult<Definition, Body> {
 	const metadata = metadataOf(original);
-	const tuple = responseTuple<Definition, unknown>(body, original[1], headers);
+	const tuple = responseTuple<Definition, Body>(body, original[1], headers);
 	responseResultMetadata.set(
 		tuple,
 		Object.freeze({ definition: metadata.definition, options: normalizeCreateOptions(options) }),

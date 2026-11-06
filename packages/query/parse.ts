@@ -1,21 +1,22 @@
 import { withFilter } from './normalize.ts';
-import type { QueryDefinition, QueryFields, QueryIssue, QueryParseResult, QueryValue } from './types.ts';
+import type { QueryFields, QueryIssue, QueryParseResult, QueryPolicy, QueryValue } from './types.ts';
 import { parseFields } from './fields.ts';
 import { parseSorts } from './sort.ts';
 import { parsePagination } from './pagination.ts';
 import { failure, issue } from './validation.ts';
 import { parseFilters } from './filters.ts';
-import { normalizeInput } from './url.ts';
+import { normalizeInput } from './wire.ts';
 
 /**
- * Attempts parse and returns structured failure information instead of throwing inside provider-neutral query definitions.
- *
- * Query internals validate and normalize public query semantics while leaving SQL or provider execution to concrete adapters.
+ * Validate one wire request, applying the definition's field schemas and budgets.
+ * Parameter bounds are checked before asynchronous field validation. The result
+ * combines checked filters, ordered sorts, selected fields, and one page. Schema
+ * issues become query issues; exceptions thrown by a validator remain exceptions.
  *
  * @internal
  */
 export async function safeParse<Fields extends QueryFields>(
-	definition: QueryDefinition<Fields>,
+	definition: QueryPolicy<Fields>,
 	input: unknown,
 ): Promise<QueryParseResult<QueryValue<Fields>>> {
 	const issues: QueryIssue[] = [];

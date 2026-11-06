@@ -33,9 +33,9 @@ test('explicit Temporal polyfill enables duration, clocks, queue expiry and work
 		await import(${module('duration/polyfill.ts')});
 		const duration = await import(${module('duration/mod.ts')});
 		const context = await import(${module('context/mod.ts')});
-		const queue = await import(${module('queue/mod.ts')});
+		const queue = await import(${module('scheduler/queue/mod.ts')});
 		await import(${module('workflow/mod.ts')});
-		if (duration.milliseconds('PT2.5S') !== 2500) throw new Error('Duration conversion failed');
+		if (duration.elapsed('PT2.5S') !== 2500) throw new Error('Duration conversion failed');
 		const clock = new context.TestClock();
 		const ctx = context.create({ id: 'compatibility', clock });
 		const jobs = queue.memory({ clock });

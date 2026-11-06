@@ -1,4 +1,5 @@
-import type { CatalogEntryIdentity, DefinitionInput } from '@okikio/catalog';
+import type { ServiceObserverDefinition, ServiceObserverHandler } from '@okikio/telemetry/events';
+import type { CatalogEntryIdentity, DefinitionInput } from '@okikio/collection/catalog';
 import type {
 	AnyEndpointHandlerBinding,
 	EmptyEndpointHost,
@@ -15,7 +16,7 @@ import type {
 } from '@okikio/server/endpoint/types';
 import type { EnvironmentDefinition, EnvironmentManifest } from '@okikio/env';
 import type { Context } from '@okikio/context';
-import type { EffectContext, EffectDefinition, EffectDefinitions, EffectEmitter } from '@okikio/effect';
+import type { EffectContext, EffectDefinition, EffectDefinitions, EffectEmitter } from '@okikio/capability/effect';
 import type {
 	MiddlewareContextDefinition,
 	MiddlewareContextValue,
@@ -23,7 +24,7 @@ import type {
 	MiddlewareInput,
 	MiddlewarePlan,
 } from '@okikio/server/middleware/types';
-import type { ResilienceDocument, ResilienceInput, ResiliencePolicy } from '@okikio/resilience';
+import type { ResilienceDocument, ResilienceInput, ResiliencePolicy } from '@okikio/capability/resilience';
 import type { ProblemDefinition, ProblemResult } from '@okikio/http/problem';
 import type { ResponseDefinition, ResponseResult } from '@okikio/http/response';
 import type { RequestParsingOptions } from '@okikio/http/request';
@@ -35,7 +36,7 @@ import type {
 	ResourceImplementationAny,
 	ResourceImplementationSet,
 	ResourceResolver,
-} from '@okikio/resource';
+} from '@okikio/capability/resource';
 import type { WorkflowDefinition } from '@okikio/workflow';
 import type {
 	RequirementContext,
@@ -43,7 +44,7 @@ import type {
 	RequirementDocument,
 	RequirementInput,
 	RequirementRuntime,
-} from '@okikio/requirement';
+} from '@okikio/capability/requirement';
 
 /** Static cross-cutting values contributed by a service or service policy. */
 export interface ServiceContributions {
@@ -81,57 +82,16 @@ export type ServicePolicyInput =
 	& ServiceContributions;
 
 /** Service lifecycle events available to observational handlers. */
-export type ServiceObserverEventKind = 'started' | 'response' | 'completed' | 'failed' | 'aborted';
+export type { ServiceObserverEventKind } from '@okikio/telemetry/events';
 
 /** Import-safe subscription to selected service request lifecycle events. */
-export interface ServiceObserverDefinition extends CatalogEntryIdentity {
-	/** Discriminant used to recognize this contract without inspecting its other fields. */
-	readonly kind: 'service-observer';
-	/** Purpose and behavior of this contract, supplied by its author. */
-	readonly description: string;
-	/** Service lifecycle event kinds selected for observation; receiving headers and completing a body are separate events. */
-	readonly events: readonly ServiceObserverEventKind[];
-}
+export type { ServiceObserverDefinition } from '@okikio/telemetry/events';
 
 /** Credential-free service request metadata emitted by the framework-neutral runtime. Error text still requires host redaction before external export. */
-export interface ServiceObserverEvent {
-	/** Discriminant used to recognize this contract without inspecting its other fields. */
-	readonly kind: ServiceObserverEventKind;
-	/** Identity of the service selected for this route or observation. */
-	readonly serviceId: string;
-	/** Request correlation identity; it is diagnostic data rather than authorization. */
-	readonly requestId?: string;
-	/** Trace correlation identity retained for diagnostic propagation. */
-	readonly traceId?: string;
-	/** Span correlation identity for the current operation. */
-	readonly spanId?: string;
-	/** HTTP method selected for this operation or route. */
-	readonly method: string;
-	/** Declared route pathname or prefix; path parameters retain the endpoint grammar. */
-	readonly path: string;
-	/** Identity of the selected endpoint path contract. */
-	readonly endpointId: string;
-	/** Stable operation identity used by generated clients, routing and diagnostics. */
-	readonly operationId: string;
-	/** HTTP status selected by this response or reported by this lifecycle observation. */
-	readonly status?: number;
-	/** Observed response-body bytes; response headers alone do not prove body completion. */
-	readonly responseBytes?: number;
-	/** Response-body terminal outcome and delivered byte count, distinct from receiving headers. */
-	readonly completion?: Readonly<{ readonly outcome: 'completed' | 'cancelled' | 'errored'; readonly bytes: number }>;
-	/** Diagnostic failure retained for this observation; it does not replace the authoritative operation result. */
-	readonly error?: Readonly<{ readonly name: string; readonly message: string }>;
-}
+export type { ServiceObserverEvent } from '@okikio/telemetry/events';
 
 /** Runtime handler bound to one exact import-safe service observer definition. */
-export interface ServiceObserverHandler<Definition extends ServiceObserverDefinition = ServiceObserverDefinition> {
-	/** Discriminant used to recognize this contract without inspecting its other fields. */
-	readonly kind: 'service-observer-handler';
-	/** Exact declaration involved in this binding, result or validation issue. */
-	readonly definition: Definition;
-	/** Observe a redacted service lifecycle event; this callback cannot settle the request. */
-	readonly handle: (event: ServiceObserverEvent) => void | Promise<void>;
-}
+export type { ServiceObserverHandler } from '@okikio/telemetry/events';
 
 /** Import-safe service definition. */
 export interface ServiceDefinition<
@@ -285,6 +245,21 @@ export interface EffectiveServiceOperation extends ServiceRoute {
 	readonly execution: ServiceExecutionPlan;
 	/** Exact endpoint handler selected during compilation. */
 	readonly handler: AnyEndpointHandlerBinding;
+}
+
+/** Handler-free static operation contract. Prepared validation does not acquire resources. */
+export type ServiceOperationContract = Omit<EffectiveServiceOperation, 'handler'>;
+
+/** Import-safe service contract compiled without runtime bindings. */
+export interface CompiledServiceDefinition<Definition extends ServiceDefinition = ServiceDefinition> {
+	/** Static artifact discriminator. It cannot be passed to the runtime. */
+	readonly kind: 'compiled-service-definition';
+	/** Exact owner definition. */
+	readonly definition: Definition;
+	/** Resolved inherited contributions and prepared validation for every route. */
+	readonly operations: readonly ServiceOperationContract[];
+	/** JSON-safe owner projection without implementation availability assertions. */
+	readonly manifest: ServiceManifest;
 }
 
 /** JSON-safe route manifest used by gateways, tests, and deployments. */
@@ -534,6 +509,8 @@ export interface CreateServiceOptions<
 > {
 	/** Declared environment contract or explicit host inputs; importing it does not read ambient values. */
 	readonly environment?: Readonly<Record<string, unknown>>;
+	/** Raw configuration admitted lazily by each owning resource; mutually exclusive with environment. */
+	readonly source?: import('@okikio/env').EnvironmentSourceInput;
 	/** Application-owned host values supplied by the composition root. */
 	readonly host: Host;
 	/** Host-supplied authentication, requirement or transport capabilities; no provider is chosen implicitly. */
@@ -544,6 +521,8 @@ export interface CreateServiceOptions<
 		state: ServiceRequestState<Host, Values>,
 		reachable: readonly RequirementDefinition[],
 	) => ServiceExecutionContext;
+	/** Optional request instrumentation inherited by service and request contexts. */
+	readonly instrument?: import('@okikio/telemetry/instrument').Instrument;
 	/** Bounded wire parsing policy and limit overrides for this runtime. */
 	readonly requestParsing?: RequestParsingOptions;
 	/** Exact observer handlers required by observer definitions imported by this service. */

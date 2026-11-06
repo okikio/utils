@@ -42,6 +42,7 @@ if (mode === 'sync' || mode === 'check') {
 	else {
 		// Bumpy may temporarily replace workspace ranges in package.json. JSR's Deno manifests remain canonical.
 		const status = await new Deno.Command(Deno.execPath(), {
+			// Public annotations retain inference and must pass JSR declaration extraction.
 			args: ['publish', '--allow-dirty'],
 			stdout: 'inherit',
 			stderr: 'inherit',

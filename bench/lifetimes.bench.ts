@@ -6,14 +6,14 @@
 import { deepStrictEqual, strictEqual } from 'node:assert';
 import { bench, do_not_optimize, group } from 'mitata';
 import { pooledMap } from '@std/async';
-import * as capacity from '@okikio/capacity';
-import * as concurrency from '@okikio/concurrency';
+import * as capacity from '@okikio/scheduler/capacity';
+import * as concurrency from '@okikio/scheduler/concurrency';
 import * as context from '@okikio/context';
-import * as resource from '@okikio/resource';
+import * as resource from '@okikio/capability/resource';
 import * as streams from '@okikio/streams';
 import * as task from '@okikio/task';
 import * as telemetry from '@okikio/telemetry';
-import { run } from './run.ts';
+import { run } from '#tools/bench/run.ts';
 
 const values = Array.from({ length: 100 }, (_, index) => index);
 const bytes = new TextEncoder().encode(values.map((value) => `asset-${value}\n`).join(''));
@@ -85,7 +85,7 @@ async function report(verify = false): Promise<number> {
 			if (verify) names.push(event.name);
 		},
 	};
-	const buffered = telemetry.buffer(target, { capacity: 16 });
+	const buffered = telemetry.buffer(target, { capacity: 16, maximumKeys: 64, maximumRecords: 1024 });
 	const scope = telemetry.create(buffered, { fields: { request_id: 'bench-import' } });
 	for (let index = 0; index < 32; index++) await scope.report({ name: `asset.read.${index}`, level: 'debug' });
 	await scope.report({ name: 'asset.failed', level: 'error' });
@@ -150,57 +150,40 @@ await using initial = task.start(async (ctx) => {
 strictEqual(await initial.done, 42);
 strictEqual(initial.status, 'completed');
 
-group('Joined local lifetimes', () => {
-	bench('cancel 100 admitted children + join asynchronous cleanup', async () => do_not_optimize(await cancellation()))
-		.gc('once');
-	bench('context owner + child deadline + joined cleanup', async () => do_not_optimize(await lifetime()));
-	bench('task checkpoint + terminal result + cleanup', async () => {
-		await using work = task.start(async (ctx) => {
-			await ctx.checkpoint();
-			return 42;
-		}, { id: 'task-benchmark' });
-		do_not_optimize(await work.done);
-	});
-	bench('declared resource create + borrow + dispose', async () => do_not_optimize(await acquire()));
-	bench('atomic two-resource capacity acquire + release', async () => {
-		const lease = await capacity.acquire(Slots, { readers: 1, writers: 1 });
-		lease.release();
-		do_not_optimize(capacity.available(Slots));
-	});
-});
-group('Bounded transformations and observation', () => {
-	bench('ordered cancellable map: 100 records, concurrency 4', async () => {
-		do_not_optimize(
-			await Array.fromAsync(concurrency.mapPooledOrdered({
-				items: values,
+/** One owner admits a stream import, borrows a resource through Task and joins bounded mapping and cleanup. */
+async function pipeline(blocks: number): Promise<number> {
+	await using owner = context.create({ id: 'bounded-import' });
+	await using collection = resource.create(factories, { ctx: owner, host: {} });
+	await using _lease = await capacity.acquire(Slots, { readers: 1, writers: 1 }, owner);
+	await using work = task.start(async (ctx) => {
+		const store = await ctx.get(Store);
+		let count = 0;
+		for await (
+			const value of concurrency.mapPooledOrdered({
+				items: streams.lines(source(blocks)),
 				concurrency: 4,
-				async map(value) {
-					return value * 2;
+				async map(line) {
+					await ctx.checkpoint();
+					return store.read(line);
 				},
-			})),
-		);
-	});
-	bench('@std/async pooledMap: same successful output, different failure contract', async () => {
-		do_not_optimize(await Array.fromAsync(pooledMap(4, values, (value) => Promise.resolve(value * 2))));
-	});
-	bench(
-		'chunked UTF-8 stream to 100 lines',
-		async () => do_not_optimize(await Array.fromAsync(streams.lines(source()))),
-	);
-	bench('bounded 16-record batches: 100 records', async () => {
-		do_not_optimize(await Array.fromAsync(streams.batch(values, { maximumItems: 16 })));
-	});
-	bench(
-		'bounded telemetry ring: 32 debug records, retain 16 + triggering error',
-		async () => do_not_optimize(await report()),
-	);
-});
-group('stream scaling without application row retention', () => {
+			})
+		) {
+			if (!value.startsWith('value:asset-')) throw new Error('Pipeline lost resource output.');
+			count++;
+		}
+		return count;
+	}, { ctx: owner, resources: collection, allowed: [Store] });
+	return await work.done;
+}
+strictEqual(await pipeline(1), 100);
+strictEqual(await pipeline(1024), 102400);
+group('bounded import: capacity, owned resource, Task, stream and ordered mapping', () => {
 	for (const blocks of [1, 1024]) {
 		bench(
-			`${blocks * values.length} UTF-8 lines, 31-byte source chunks`,
-			async () => do_not_optimize(await largeStream(blocks)),
-		).gc('once');
+			`${blocks * 100} records, 31-byte chunks, concurrency 4, joined cleanup`,
+			async () => do_not_optimize(await pipeline(blocks)),
+		);
 	}
+	bench('cancel 100 related children and join asynchronous cleanup', async () => do_not_optimize(await cancellation()));
 });
 await run();

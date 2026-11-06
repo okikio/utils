@@ -4,21 +4,38 @@ Your service reads its port from configuration. The value arrives as text, but t
 invalid value should be caught before the service starts. `env` keeps the allowed fields, defaults and secret labels in
 one definition, then parses the source you explicitly choose.
 
-![An environment rule converts port text to a checked value or reports a diagnostic](diagram.png)
+For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters keep their native runtime requirements.
 
-[Editable diagram source](diagram.mmd). The diagram shows startup configuration checking. The valid branch returns
+![An environment rule converts port text to a checked value or reports a diagnostic](./diagram.png)
+
+[Editable diagram source](./diagram.mmd). The diagram shows startup configuration checking. The valid branch returns
 values for your application to use; it does not open a listener. It omits merging several sources and handling secrets.
 
-The [full API reference](API.md) includes field metadata, source and definition contracts.
+The [public source contracts](./mod.ts) includes field metadata, source and definition contracts.
 
-## Run a complete example
+An environment variable is a named value supplied when a program starts, usually as text. A **source** answers where a
+value comes from, such as a supplied object or the host environment. A **definition** says which values are allowed.
+Separating them lets a test supply `PORT` without changing the machine, while production uses the same validation rule.
+Parsing configuration does not start the configured service.
+
+## Convert port text into a checked startup value
+
+Supply port text explicitly and parse it before service startup. The definition owns the conversion and allowed range;
+the application retains the choice of configuration source and when to open its listener.
+
+From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare -- --kind deps` at the repository root. Save the following program as `example.ts` and run `mise exec -- deno run example.ts`. These commands use the workspace export maps; they do not assume a published registry version.
 
 ```ts runnable
-import * as env from '@okikio/env/zod';
-import { z } from 'zod';
+import * as env from '@okikio/env';
+import * as schema from '@okikio/schema';
+// Define validation once. Parsing reads only the explicit source supplied below.
 const Service = env.define({
-	PORT: z.coerce.number().int().min(1).max(65535).default(8787).describe('TCP port used by the service.'),
+	PORT: env.variable(
+		schema.defaults(schema.coerce.number({ integer: true, minimum: 1, maximum: 65535 }), () => 8787),
+		{ description: 'TCP port used by the service.' },
+	),
 });
+// The source contains text; the schema converts and checks it before application use.
 const values = Service.parseSync(env.record({ PORT: '4321' }));
 console.log('Listen on port', values.PORT);
 ```
@@ -42,13 +59,20 @@ fails validation.
 A source is just an object with `get(name)`. Use supplied records first so precedence is visible without access to the
 machine's environment. The resulting configuration is a normal object you can pass to existing code.
 
+Save this complete variation as `startup-config.ts` and run `mise exec -- deno run startup-config.ts` after the same checkout setup.
+
 ```ts runnable=startup-config.ts
-import { define, merge, record } from '@okikio/env/zod';
-import { z } from 'zod';
+import { define, merge, record, variable } from '@okikio/env';
+import * as schema from '@okikio/schema';
 
 const Service = define({
-	HOST: z.string().default('localhost').describe('Address on which the service listens.'),
-	PORT: z.coerce.number().int().min(1).max(65535).default(8787).describe('Port on which the service listens.'),
+	HOST: variable(schema.defaults(schema.string(), () => 'localhost'), {
+		description: 'Address on which the service listens.',
+	}),
+	PORT: variable(
+		schema.defaults(schema.coerce.number({ integer: true, minimum: 1, maximum: 65535 }), () => 8787),
+		{ description: 'Port on which the service listens.' },
+	),
 });
 const source = merge(record({ HOST: '127.0.0.1', PORT: '8787' }), record({ PORT: '4321' }));
 const config = Service.parseSync(source);
@@ -74,270 +98,105 @@ The split is deliberate: a reusable library can describe its settings without re
 The executable decides when to parse and which overrides apply. Mark credentials with `secret()` for redacted package
 diagnostics; your code still receives the actual credential and must control where it is logged.
 
-## Build on the example
+## Check settings before starting a server or client
 
 - Parse the listener configuration before starting a [Server](../server/README.md). The executable chooses the source
   and startup time; reusable packages can export definitions without reading ambient state.
-- Combine [Resource](../resource/README.md) requirements with environment definitions when a database or API client
-  needs credentials. Mark secret fields explicitly and let the provider own its live connection.
+- Combine [Resource](../capability/resource/README.md) requirements with environment definitions when a database or API
+  client needs credentials. Mark secret fields explicitly and let the provider own its live connection.
 
-## How it fits
+## Validate settings before starting clients
 
-Concrete packages define the environment fields they need. An executable host selects raw sources and parses those
-definitions during startup. Importing a definition never reads ambient process state.
+A service port, a worker concurrency limit, and a CLI credential all start as external text. Declare their validation
+and choose the source at startup.
 
-Metadata can produce an operator's configuration checklist. `secret()` keeps the credential value out of that generated
-template, so the same definitions used for startup checks can also produce safe deployment instructions:
+Use the Standard Schema entry when validator interoperability matters; choose a validator-specific adapter only when its
+authoring behavior is needed.
 
-```ts
-import * as env from '@okikio/env/zod';
-import { z } from 'zod';
+Validate before opening clients or listeners. Mark secrets through the environment contract and keep actual credential
+values out of documentation, telemetry, and committed fixtures.
 
-const ServiceEnvironment = env.define({
-	PORT: z.coerce.number().int().positive().default(8787).describe('TCP port used by the service.').meta({
-		title: 'HTTP port',
-		description: 'Port used by the service listener.',
-		examples: ['8787'],
-	}),
-	DATABASE_URL: env.secret(
-		z.string().min(1).describe('PostgreSQL connection string.'),
-	),
-});
+## Choose an entry point
 
-console.log(env.example(ServiceEnvironment));
-```
+Use the table to find a focused import for the job you need. Contract links open the exact public source, including its
+options and types.
 
-The definition is import-safe. Creating it does not read ambient state, connect to a provider, or configure a process.
-The service entrypoint owns the source and decides when startup validation occurs.
+| Import                 | Use it to                                                                | Exact contract            |
+| ---------------------- | ------------------------------------------------------------------------ | ------------------------- |
+| `@okikio/env/resolve` | Resolve explicit named sources and inspect key-only provenance. | [Contract](./resolve.ts) |
+| `@okikio/env`          | Use the package entry shown in the complete examples above.              | [Contract](./mod.ts)      |
+| `@okikio/env/standard` | Define and read environment fields using Standard Schema validators.     | [Contract](./standard.ts) |
+| `@okikio/env/valibot`  | Use the Valibot-specific environment authoring adapter.                  | [Contract](./valibot.ts)  |
+| `@okikio/env/zod`      | Use the Zod-specific environment authoring adapter.                      | [Contract](./zod.ts)      |
+| `@okikio/env/types`    | Import public types for this capability; this entry does not start work. | [Contract](./types.ts)    |
 
-Field collections are ordinary records. Use an object literal or a null-prototype record with own enumerable string
-properties. `env.environment()` snapshots that record into a frozen null-prototype object so keys such as `__proto__`
-and `constructor` stay ordinary environment keys. It rejects class instances, hidden properties, accessors, and symbol
-keys rather than silently dropping data that the TypeScript field type claimed was present.
+## Resolve once and retain key-only provenance
 
-## Public vocabulary
+Supply explicit named records so both the selected port and its origin can be inspected without reading your machine's environment. This standalone variation continues the same port definition. The limits bound keys and sources that resolution may inspect; they do not make a foreign validator interruptible.
 
-Import the package as a namespace so the verbs stay short without becoming ambiguous:
+Save this complete variation as `port-provenance.ts` and run `mise exec -- deno run port-provenance.ts` after the same checkout setup.
 
-```text
-env.define(...)       create a definition
-env.environment(...)  equivalent concise authoring form
-env.compose(...)      combine definitions through canonical field identity
-
-env.env               lazy Deno/Node ambient source
-env.record(...)       capture deterministic raw values
-env.merge(...)        combine sparse sources by precedence
-env.select(...)       read a bounded raw record without defining schemas
-env.isSource(...)     detect an existing pull-based environment source
-
-env.variable(...)     classify an ordinary host variable
-env.secret(...)       classify protected secret material
-
-env.manifest(...)     project deployment metadata
-env.example(...)      generate a safe .env.example
-env.requirement(...)  explain why a resource selects canonical fields
-env.requirementReport(...) project selected requirements without exposing secret values
-```
-
-`compose` combines definitions. `merge` combines sources. The different verbs make the two halves visible at the call
-site.
-
-`isSource()` is mainly for adapters that accept either an existing source or a raw record. `requirementReport()` is
-useful at deployment and startup checks when an operator needs to see which canonical keys are required and why without
-printing the corresponding secret values.
-
-## Author metadata with your validator
-
-### Zod
-
-Bare Zod schemas become ordinary variables. The adapter reads metadata through Zod 4's public `.meta()` and
-`.describe()` APIs:
-
-```ts
-import * as env from '@okikio/env/zod';
-import { z } from 'zod';
-
-const ServiceEnvironment = env.define({
-	LOG_LEVEL: z.enum(['debug', 'info', 'warning', 'error']).default('info').meta({
-		title: 'Log level',
-		description: 'Minimum diagnostic severity emitted by the service.',
-		examples: ['info'],
-	}),
-});
-console.log(ServiceEnvironment.parseSync({}).LOG_LEVEL); // info
-```
-
-Secret classification remains explicit because secrecy is a deployment rule, not a validation property:
-
-```ts
-import * as env from '@okikio/env/zod';
-import { z } from 'zod';
-
-const ServiceEnvironment = env.define({
-	API_TOKEN: env.secret(
-		z.string().min(1).describe('Token used to call the provider API.'),
-	),
-});
-console.log(env.example(ServiceEnvironment)); // API_TOKEN=<secret>, with its description
-```
-
-### Valibot
-
-```ts
-import * as env from '@okikio/env/valibot';
-import * as v from 'valibot';
-
-const PortSchema = v.pipe(
-	v.string(),
-	v.title('HTTP port'),
-	v.description('Port used by the service listener.'),
-	v.examples(['8787']),
-);
-
-const ServiceEnvironment = env.define({ PORT: PortSchema });
-console.log(ServiceEnvironment.parseSync({ PORT: '8787' }).PORT); // '8787': this schema keeps text
-```
-
-The adapter uses Valibot's public `getTitle`, `getDescription`, `getMetadata`, and `getExamples` functions. The original
-Valibot schema remains the runtime validator and the source of inferred output types.
-
-### Generic Standard Schema
-
-Standard Schema defines validation interoperability but does not define a shared metadata protocol. Generic callers
-therefore provide environment metadata explicitly:
-
-```ts
-import * as env from '@okikio/env/standard';
-import { z } from 'zod';
-
-const PortSchema = z.coerce.number().int().min(1).max(65535);
-const ServiceEnvironment = env.define({
-	PORT: env.variable(PortSchema, {
-		description: 'Port used by the service listener.',
-		example: '8787',
-	}),
-});
-console.log(ServiceEnvironment.parseSync({ PORT: '8787' }).PORT); // 8787, a number
-```
-
-The generic entrypoint never inspects private Zod or Valibot properties.
-
-## Metadata ownership and precedence
-
-Schema metadata should describe the value itself:
-
-```text
-title
-description
-examples
-deprecated
-```
-
-Environment metadata describes the deployment binding:
-
-```text
-variable or secret classification
-documentation URL
-deployment availability
-replacement key
-```
-
-Explicit metadata passed to `env.variable()` or `env.secret()` overrides schema metadata. This lets one reusable schema
-carry a general description while a service gives the binding a more specific operational meaning.
-
-Secrets never project examples, including examples attached to the schema.
-
-## Raw-source ownership
-
-`@okikio/env` consumes raw environment records. It does not discover `.env` files, read a filesystem, or choose which
-runtime source has precedence. That decision belongs to the executable host.
-
-At the executable root, pass `env.env` to read only the declared keys from the runtime. You can also supply
-`process.env` in Node or `Deno.env.toObject()` in Deno when an existing host already owns a complete raw snapshot.
-
-A browser-like host can pass deployment bindings. A test can pass a literal record. If a CLI chooses to parse dotenv
-syntax, the parser remains CLI/runtime composition and its result is still just `Record<string, string | undefined>`.
-
-## Source-only usage
-
-Not every value needs an environment definition. A deployment adapter may need only a few opaque strings:
-
-```ts
+```ts runnable=port-provenance.ts
 import * as env from '@okikio/env';
-
-const values = env.select(
-	env.merge({ RELEASE_ID: 'stable', REGION: 'us-east' }, { RELEASE_ID: 'preview' }),
-	['RELEASE_ID', 'REGION'],
-);
-console.log(JSON.stringify(values)); // {"RELEASE_ID":"preview","REGION":"us-east"}
+import * as schema from '@okikio/schema';
+import { inspect, resolve } from '@okikio/env/resolve';
+// Define validation once. Parsing reads only the explicit source supplied below.
+const Service = env.define({
+	PORT: env.variable(schema.coerce.number({ integer: true, minimum: 1, maximum: 65535 }), {
+		description: 'TCP port used by the service.',
+	}),
+});
+const sources = [
+	{ name: 'deployment', source: { PORT: '8787' } },
+	{ name: 'test', source: { PORT: '4321', PORRT: '9000' } },
+];
+const limits = { maximumKeys: 4, maximumSources: 2 };
+const resolved = await resolve(Service, sources, limits);
+console.log(resolved.values.PORT, resolved.provenance[0]?.source);
+const report = await inspect(Service, sources, { ...limits, unknownKeys: 'reject' });
+console.log(report.valid, JSON.stringify(report.unknown));
 ```
 
-This path has no Zod or Valibot dependency.
-
-## Canonical field identity
-
-Composition permits the same field object to arrive through several imported definitions:
-
-```ts
-import * as env from '@okikio/env/zod';
-import { z } from 'zod';
-
-const DatabaseUrl = env.secret(
-	z.string().min(1).describe('PostgreSQL connection string.'),
-);
-
-const DatabaseEnvironment = env.define({ DATABASE_URL: DatabaseUrl });
-const WorkerEnvironment = env.define({ DATABASE_URL: DatabaseUrl });
-
-const HostEnvironment = env.compose(DatabaseEnvironment, WorkerEnvironment);
-console.log(env.manifest(HostEnvironment).secrets.map((field) => field.key)); // ['DATABASE_URL'], once
+```text output
+4321 test
+false ["PORRT"]
 ```
 
-Independently declaring another field under `DATABASE_URL` is rejected. Silently choosing one declaration would lose
-validation or deployment metadata.
+The later source wins for `PORT`; the misspelled extra key is visible without printing its value. `resolve` validates declared settings, while `inspect` can additionally reject unknown source keys. Correct `PORRT` before starting a listener. Neither function opens that listener. Keep credentials out of application logs even though provenance itself contains no values.
 
-Bare Zod and Valibot schemas are canonicalized by schema-object identity, so reusing the same schema object in several
-definitions composes safely.
+Import `resolve` and `inspect` from `@okikio/env/resolve`. Supply named sources in lowest-to-highest precedence order
+and explicit `{ maximumKeys, maximumSources }`. Each declared key is read once per source. Undefined allows a lower
+source to win; blank strings remain concrete inputs for the validator's existing blank/default policy. Resolved values
+may contain secrets; provenance contains only keys, source names/indexes, shadowed indexes and deprecation metadata.
+Source names must be safe labels.
 
-## Runtime behavior
+A missing raw value is marked `selected: 'schema'`; the utility does not guess whether an opaque schema applied a
+default or coercion. A read failure throws `EnvironmentSourceError` with key/source index and no possibly secret-bearing
+cause. It is distinct from missing configuration.
 
-- `env.env` is lazy and performs no read during import.
-- Deno reads remain per-key so hosts can grant narrow environment permissions.
-- Node access reads ambient `process.env` without static `node:` imports in browser-compatible graphs.
-- `env.record()` snapshots values through `Map`, so prototype-shaped external keys remain ordinary data.
-- `env.merge()` is sparse: `undefined` falls through to a lower-precedence source.
-- Definitions collect all schema issues before throwing `EnvironmentError`; its message lists each field while `.issues`
-  preserves structured failures.
-- `parseSync()` rejects schemas that validate asynchronously and directs callers to `parse()`.
+`inspect(..., { maximumKeys, maximumSources, unknownKeys: 'report' | 'reject' })` returns validation categories and
+key-only diagnostics without values or vendor messages. Get-only sources need explicit `keys` inventories for complete
+unknown-key detection. Report mode marks incomplete inventory; reject mode refuses an incomplete inventory. Existing
+Zod/Valibot/Standard Schema definitions retain their normal parsing owner.
 
-## Progressive usage
+## Measure parsing and source resolution
 
-Read [complete compositions](../../docs/composition.md) for a bounded CSV import, allowed-page discovery and a
-resource-backed operation. Each example names its result and owner. Use [the outcome guide](../../docs/outcomes.md) to
-choose additional mechanisms when the application needs them.
+The focused benchmarks measure typed field parsing and validated two-source provenance. The benchmark compares against
+direct Zod parsing. Direct parsing omits source diagnostics and provenance.
 
-## Convenience and the manual equivalent
+From the repository root, run the package's tests and untimed benchmark checks before collecting timings:
 
-| Convenience                          | Manual equivalent                                                                       | Concrete value                                                                  |
-| ------------------------------------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `env.environment()`                  | validate field definitions, snapshot the field map, parse raw strings and prefix issues | one schema-derived environment contract                                         |
-| `env.merge()` / `env.select()`       | copy raw source records in precedence order or pick exact keys manually                 | source acquisition stays outside the utility while composition is deterministic |
-| `definition.parse()` / `parseSync()` | resolve the definition and throw one structured report for missing/invalid fields       | typed startup failure instead of scattered `Deno.env.get()` checks              |
+```sh
+deno task --cwd=packages/env test
+deno task --cwd=packages/env bench:check
+deno task --cwd=packages/env bench
+```
 
-`@okikio/env` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics by passing a
-`Record<string, string | undefined>` into Zod, Valibot, or another Standard Schema.
+These commands use package-owned fixtures and development dependencies. The
+[benchmark protocol](../../docs/benchmarks/01-running.md#choose-a-comparison-that-answers-the-question) explains fair
+comparisons, raw report collection and the limits of local measurements.
 
-The utility adds canonical field identity, source composition, secret classification, manifests, examples, and
-requirement metadata. It deliberately does not discover files or load dotenv documents.
+## Read further
 
-## Source guide
-
-Start with this README, then use the source in this order when you need more detail:
-
-1. `mod.ts` shows the supported runtime operations and the composition shape.
-2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
-4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
-
-The [generated API reference](API.md) lists every public function and type. These examples teach the common paths and
-the design decisions behind those contracts.
+The [Env guide](https://github.com/okikio/utils/blob/main/docs/env.md) explains the model, manual alternatives, and
+composition.

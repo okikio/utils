@@ -1,4 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-mise run verify
-pnpm exec bumpy ci check --strict

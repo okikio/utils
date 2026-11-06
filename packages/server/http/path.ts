@@ -1,4 +1,4 @@
-import * as recordCore from '@okikio/record';
+import * as recordCore from '@okikio/collection/record';
 import type { Middleware } from './types.ts';
 
 /** Canonicalize one HTTP route path without applying filesystem semantics. */

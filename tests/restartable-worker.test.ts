@@ -3,10 +3,10 @@ import { test } from 'node:test';
 
 import * as activityWorker from '@okikio/activity/worker';
 import * as context from '@okikio/context';
-import type { EffectOccurrence } from '@okikio/effect';
+import type { EffectOccurrence } from '@okikio/capability/effect';
 import * as workflow from '@okikio/workflow';
 import * as dispatch from '@okikio/workflow/dispatch';
-import { Committed, Engine, InputSchema, Persist, ResultSchema } from './fixtures/restartable-activity.ts';
+import { Committed, Engine, InputSchema, Persist, ResultSchema } from '#fixtures/restartable-activity.ts';
 
 interface DurableEntry {
 	readonly fingerprint: string;
@@ -87,6 +87,7 @@ const Implementation = workflow.implement(Definition, function* (ctx) {
 });
 
 test('worker activity survives Scheduler restart without duplicating the external commit', async () => {
+	const expected = Object.assign(Object.create(null), { stored: 'acme' });
 	const clock = new context.TestClock();
 	await using parent = context.create({ id: 'scenario.restartable-worker.parent', clock });
 	await using jobs = dispatch.memory({
@@ -193,7 +194,7 @@ test('worker activity survives Scheduler restart without duplicating the externa
 	// Attempt 1 renewed immediately before committing. Replica B must observe the
 	// same durable logical job after the logical lease expires and own attempt 2.
 	await within(secondCommit.promise, 'replacement attempt external commit');
-	assert.deepEqual(await within(recovered, 'replacement workflow completion'), { stored: 'acme' });
+	assert.deepEqual(await within(recovered, 'replacement workflow completion'), expected);
 	assert.deepEqual(attempts, [1, 2]);
 	assert.equal(committed.size, 1, 'external sink must expose one idempotent commit');
 	assert.equal((await jobs.stats()).completed, 1);
@@ -201,13 +202,13 @@ test('worker activity survives Scheduler restart without duplicating the externa
 	// Tear down the abandoned worker after recovery. Its late result/fault cannot
 	// replace the terminal queue result or the durable history completion.
 	await within(Promise.resolve(firstProvider[Symbol.asyncDispose]()), 'abandoned Worker provider teardown');
-	assert.deepEqual(await within(firstRun, 'stale Scheduler convergence'), { stored: 'acme' });
+	assert.deepEqual(await within(firstRun, 'stale Scheduler convergence'), expected);
 	assert.deepEqual(
 		await within(
 			workflow.run({ ctx: secondCtx, implementation: Implementation, scheduler: secondScheduler }),
 			'durable replay',
 		),
-		{ stored: 'acme' },
+		expected,
 	);
 	assert.deepEqual(attempts, [1, 2]);
 	assert.equal(committed.size, 1);

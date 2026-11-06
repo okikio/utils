@@ -1,7 +1,22 @@
 import * as problem from '@okikio/http/problem';
 
 /** Framework-level public and internal problems contributed by the service compiler. */
-export const ServerProblems = problem.catalog('server', {
+export const ServerProblems: ReturnType<
+	typeof problem.catalog<'server', {
+		readonly NotFound: problem.ProblemDefinition<problem.ProblemExtensionContract | undefined, 404>;
+		readonly InvalidRequest: problem.ProblemDefinition<problem.ProblemExtensionContract | undefined, 400>;
+		readonly UnsupportedMediaType: problem.ProblemDefinition<problem.ProblemExtensionContract | undefined, 415>;
+		readonly NotAcceptable: problem.ProblemDefinition<problem.ProblemExtensionContract | undefined, 406>;
+		readonly IdempotencyConflict: problem.ProblemDefinition<problem.ProblemExtensionContract | undefined, 409>;
+		readonly RateLimited: problem.ProblemDefinition<problem.ProblemExtensionContract | undefined, 429>;
+		readonly CapacityUnavailable: problem.ProblemDefinition<problem.ProblemExtensionContract | undefined, 503>;
+		readonly BodyTooLarge: problem.ProblemDefinition<problem.ProblemExtensionContract | undefined, 413>;
+		readonly DeadlineExceeded: problem.ProblemDefinition<problem.ProblemExtensionContract | undefined, 504>;
+		readonly RuntimeUnavailable: problem.ProblemDefinition<problem.ProblemExtensionContract | undefined, 503>;
+		readonly UndeclaredResult: problem.ProblemDefinition<problem.ProblemExtensionContract | undefined, 500>;
+		readonly Internal: problem.ProblemDefinition<problem.ProblemExtensionContract | undefined, 500>;
+	}>
+> = problem.catalog('server', {
 	NotFound: problem.define({
 		id: 'server:not-found',
 		type: 'urn:utils:server:not-found',
@@ -73,6 +88,7 @@ export const ServerProblems = problem.catalog('server', {
 		status: 503,
 		title: 'Service unavailable',
 		description: 'A required service runtime capability is unavailable.',
+		retry: { kind: 'after', header: 'Retry-After' },
 	}),
 	UndeclaredResult: problem.define({
 		id: 'server:undeclared-result',

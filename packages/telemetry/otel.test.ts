@@ -2,6 +2,7 @@ import { expect } from '@std/expect';
 import { describe, it } from 'node:test';
 import { active, type OpenTelemetryApi } from './otel.ts';
 
+/** Model only active-span lookup; this structural fixture does not run an SDK, propagate context, or export telemetry. */
 function api(
 	spanContext?: Readonly<{
 		traceId: string;

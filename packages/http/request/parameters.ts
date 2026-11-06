@@ -2,7 +2,11 @@ import { limits } from './limits.ts';
 import type { RequestParsingOptions } from './types.ts';
 import { RequestTransportError } from './types.ts';
 
-/** Parse canonical `:name` route parameters from a matched path. */
+/**
+ * Extract and decode `:name` segments after a router has selected this route.
+ * This is not a route matcher: literal segments and total segment count are not
+ * compared. The caller must establish the match before extracting parameters.
+ */
 export function parseParameters(
 	routePath: string,
 	pathname: string,

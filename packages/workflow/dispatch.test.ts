@@ -90,6 +90,24 @@ function trackedClock() {
 }
 
 describe('activity dispatch memory contract', () => {
+	it('preserves an explicit null reason when an active watch is cancelled', async () => {
+		const tracked = trackedClock();
+		await using ctx = context.create({ id: 'dispatch-null-cancellation', clock: tracked.clock });
+		await using store = dispatch.memory({ clock: tracked.clock });
+		const executor = await store.join(ctx, host('engine', 'host'));
+		await store.add(ctx, item(ctx, 'watched', [{ engine: 'engine', mode: 'required' }]), {
+			key: 'watched',
+		});
+		const claim = (await store.claim(ctx, executor, { duration: { seconds: 5 } }))[0]!;
+		const terminal = Promise.allSettled([store.watch(ctx, claim)]);
+		await tracked.nextSleep();
+		context.cancel(ctx, null);
+		const result = (await terminal)[0]!;
+		expect(result.status).toBe('rejected');
+		if (result.status === 'rejected') expect(result.reason).toBe(null);
+		expect(tracked.active()).toBe(0);
+	});
+
 	for (const action of ['complete', 'cancel', 'close', 'abort'] as const) {
 		it(`releases a watched claim's timer after ${action} without canceling borrowed ownership`, async () => {
 			const tracked = trackedClock();

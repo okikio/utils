@@ -3,6 +3,7 @@ export type WebhookPayload = string | Uint8Array;
 
 /** Stable failures produced while authenticating a webhook request. */
 export type WebhookVerificationFailureCode =
+	| 'duplicate'
 	| 'body-too-large'
 	| 'invalid-content-length'
 	| 'missing-header'

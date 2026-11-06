@@ -1,42 +1,42 @@
-import * as catalog from '@okikio/catalog';
-import type { CatalogEntryIdentity } from '@okikio/catalog';
-import { joinPath } from '@okikio/server/endpoint/path';
+import { routes as serviceRoutes } from './route.ts';
+import * as catalog from '@okikio/collection/catalog';
+import type { CatalogEntryIdentity } from '@okikio/collection/catalog';
 import * as endpoint from '@okikio/server/endpoint';
 import * as env from '@okikio/env';
-import * as effect from '@okikio/effect';
-import type { EffectDefinition } from '@okikio/effect';
+import * as effect from '@okikio/capability/effect';
+import type { EffectDefinition } from '@okikio/capability/effect';
 import type {
 	AnyEndpointHandlerBinding,
 	EmptyEndpointHost,
 	EndpointContributions,
 	EndpointDefinition,
-	EndpointEntry,
-	EndpointGroup,
 	EndpointMethod,
 	EndpointOperation,
 } from '@okikio/server/endpoint';
 import * as middleware from '@okikio/server/middleware';
 import type { MiddlewareDefinition, MiddlewareHandler, MiddlewareInput } from '@okikio/server/middleware';
-import * as resilience from '@okikio/resilience';
-import type { ResilienceInput, ResiliencePolicy } from '@okikio/resilience';
+import * as resilience from '@okikio/capability/resilience';
+import type { ResilienceInput, ResiliencePolicy } from '@okikio/capability/resilience';
 import type { ProblemDefinition } from '@okikio/http/problem';
 import type { ResponseDefinition } from '@okikio/http/response';
-import * as requirement from '@okikio/requirement';
-import type { RequirementDefinition } from '@okikio/requirement';
-import * as resource from '@okikio/resource';
-import type { ResourceDefinition, ResourceImplementationAny } from '@okikio/resource';
+import * as requirement from '@okikio/capability/requirement';
+import type { RequirementDefinition } from '@okikio/capability/requirement';
+import * as resource from '@okikio/capability/resource';
+import type { ResourceDefinition, ResourceImplementationAny } from '@okikio/capability/resource';
 import { ServerProblems } from '../problems.ts';
 import { prepareRoutes } from '../http/mod.ts';
 
 import { leafEndpoints } from './definition.ts';
 import type {
 	CompiledService,
+	CompiledServiceDefinition,
 	EffectiveServiceOperation,
 	ServiceContributions,
 	ServiceDefinition,
 	ServiceExecutionPlan,
 	ServiceImplementation,
 	ServiceManifest,
+	ServiceOperationContract,
 	ServicePolicy,
 	ServiceRoute,
 	ServiceRouteManifestEntry,
@@ -115,18 +115,34 @@ export function compile<
 }
 
 /**
- * Compiles implementation into the immutable runtime form used by execution.
+ * Resolve inherited operation contracts from definitions alone.
  *
- * It links service definitions to exact implementations before traffic and keeps request-stage ownership visible at runtime.
- *
- * @internal
+ * Validates routes, policies, middleware ordering, resource dependencies,
+ * environment declarations, and resiliency without requiring runtime bindings.
+ * No environment values are read and no resources are acquired.
  */
-function compileImplementation<
-	Definition extends ServiceDefinition,
-	Host extends object = EmptyEndpointHost,
->(implementation: ServiceImplementation<Definition, Host>): CompiledService<Definition, Host> {
-	const definition = implementation.definition;
+export function compileDefinition<Definition extends ServiceDefinition>(
+	definition: Definition,
+): CompiledServiceDefinition<Definition> {
+	try {
+		return resolveDefinition(definition);
+	} catch (error) {
+		if (error instanceof ServiceCompilationError) throw error;
+		throw new ServiceCompilationError(Object.freeze([
+			issue(
+				'invalid-definition',
+				`Service ${JSON.stringify(definition.id)} could not be compiled: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			),
+		]));
+	}
+}
 
+/** Resolve static contributions once for documentation and runtime binding. @internal */
+function resolveDefinition<Definition extends ServiceDefinition>(
+	definition: Definition,
+): CompiledServiceDefinition<Definition> {
 	// Phase 1: validate and flatten the static route graph before considering
 	// runtime implementations. This preserves authoring provenance for later
 	// diagnostics and generated artifacts.
@@ -134,33 +150,16 @@ function compileImplementation<
 	const issues: ServiceValidationIssue[] = validation.valid ? [] : [...validation.issues];
 	const routes = validation.valid ? validation.routes : collectRoutes(definition);
 
-	// Phase 2: index every supplied runtime binding by exact imported identity.
-	// String IDs remain diagnostic projections and never select behavior.
-	const handlerByEndpoint = indexEndpointHandlers(implementation.endpoints, routes, issues);
-	const middlewareByDefinition = indexMiddlewareHandlers(implementation.middleware, issues);
-	const resourceByDefinition = indexResourceImplementations(implementation.resources.implementations, issues);
 	const policyTargets = new Map(
 		definition.policies.map((policy) => [policy, new Set(leafEndpoints(policy.endpoints))] as const),
 	);
-	const effective: EffectiveServiceOperation[] = [];
-	const usedMiddleware = new Set<MiddlewareDefinition>();
+	const effective: ServiceOperationContract[] = [];
 	const usedResources = new Set<ResourceDefinition>();
 
 	// Phase 3: resolve the effective contract for each concrete method/path.
 	// Contributions are additive from service -> targeted policies -> groups ->
 	// endpoint -> operation; inner layers cannot silently erase outer contributions.
 	for (const route of routes) {
-		const handler = handlerByEndpoint.get(route.endpoint)?.get(route.operation);
-		if (!handler) {
-			issues.push(
-				issue(
-					'missing-endpoint-handler',
-					`Operation ${JSON.stringify(route.operation.id)} has no endpoint handler.`,
-					route.operation,
-				),
-			);
-			continue;
-		}
 		const sources = contributionSources(definition, route, policyTargets);
 		const middlewareInput: readonly MiddlewareInput[] = sources.flatMap(
 			(source) => source.middleware === undefined ? [] : [source.middleware],
@@ -172,18 +171,6 @@ function compileImplementation<
 			}
 			continue;
 		}
-		for (const candidate of middlewareDefinitions(middlewareValidation.plan)) {
-			usedMiddleware.add(candidate);
-			if (!middlewareByDefinition.has(candidate)) {
-				issues.push(
-					issue(
-						'missing-middleware-handler',
-						`Middleware ${JSON.stringify(candidate.id)} has no runtime handler.`,
-						candidate,
-					),
-				);
-			}
-		}
 
 		const resourceRoots = concreteResourceDefinitions([
 			...definitions<CatalogEntryIdentity>(sources, 'resources'),
@@ -192,18 +179,7 @@ function compileImplementation<
 			),
 		], issues);
 		const resources = collectResourceClosure(resourceRoots);
-		for (const resourceDefinition of resources) {
-			usedResources.add(resourceDefinition);
-			if (!resourceByDefinition.has(resourceDefinition)) {
-				issues.push(
-					issue(
-						'missing-resource-implementation',
-						`Resource ${JSON.stringify(resourceDefinition.id)} has no runtime implementation.`,
-						resourceDefinition,
-					),
-				);
-			}
-		}
+		for (const resourceDefinition of resources) usedResources.add(resourceDefinition);
 
 		const resiliencyInput = [
 			...sources.flatMap((source) => source.resiliency === undefined ? [] : [source.resiliency]),
@@ -234,7 +210,7 @@ function compileImplementation<
 			...middlewareDefinitions(middlewareValidation.plan).flatMap((candidate) =>
 				candidate.problems === undefined ? [] : catalog.values(candidate.problems)
 			),
-			...generatedServerProblems(route, resiliencyValidation.policies),
+			...generatedServerProblems(route, resiliencyValidation.policies, resources.length > 0),
 		]);
 		const responses = route.operation.responses === undefined
 			? Object.freeze([])
@@ -264,12 +240,76 @@ function compileImplementation<
 			responses: Object.freeze(responses),
 			resiliency: resiliencyValidation.policies,
 			execution,
-			handler,
 		}));
 	}
 
+	validateEnvironment(definition, [...usedResources], issues);
+	// Phase 4: fail atomically. A partially linked service is never returned.
+	if (issues.length > 0) throw new ServiceCompilationError(Object.freeze(issues));
+	const operations = Object.freeze(effective);
+	return Object.freeze({
+		kind: 'compiled-service-definition',
+		definition,
+		operations,
+		manifest: manifest(definition, operations),
+	});
+}
+
+/** Bind exact runtime implementations to an admitted static contract. @internal */
+function compileImplementation<
+	Definition extends ServiceDefinition,
+	Host extends object = EmptyEndpointHost,
+>(implementation: ServiceImplementation<Definition, Host>): CompiledService<Definition, Host> {
+	const definition = implementation.definition;
+	const contract = compileDefinition(definition);
+	const routes = contract.operations;
+	const issues: ServiceValidationIssue[] = [];
+	const handlerByEndpoint = indexEndpointHandlers(implementation.endpoints, routes, issues);
+	const middlewareByDefinition = indexMiddlewareHandlers(implementation.middleware, issues);
+	const resourceByDefinition = indexResourceImplementations(implementation.resources.implementations, issues);
+	const effective: EffectiveServiceOperation[] = [];
+	const usedMiddleware = new Set<MiddlewareDefinition>();
+	const usedResources = new Set<ResourceDefinition>();
+	for (const operation of routes) {
+		const handler = handlerByEndpoint.get(operation.endpoint)?.get(operation.operation);
+		if (handler === undefined) {
+			issues.push(
+				issue(
+					'missing-endpoint-handler',
+					`Operation ${JSON.stringify(operation.operation.id)} has no endpoint handler.`,
+					operation.operation,
+				),
+			);
+		} else {
+			effective.push(Object.freeze({ ...operation, handler }));
+		}
+		for (const candidate of middlewareDefinitions(operation.middleware)) {
+			usedMiddleware.add(candidate);
+			if (!middlewareByDefinition.has(candidate)) {
+				issues.push(
+					issue(
+						'missing-middleware-handler',
+						`Middleware ${JSON.stringify(candidate.id)} has no runtime handler.`,
+						candidate,
+					),
+				);
+			}
+		}
+		for (const candidate of operation.resources) {
+			usedResources.add(candidate);
+			if (!resourceByDefinition.has(candidate)) {
+				issues.push(
+					issue(
+						'missing-resource-implementation',
+						`Resource ${JSON.stringify(candidate.id)} has no runtime implementation.`,
+						candidate,
+					),
+				);
+			}
+		}
+	}
 	for (const binding of implementation.endpoints) {
-		if (!routes.some((route) => route.operation === binding.operation)) {
+		if (!routes.some((route) => route.endpoint === binding.endpoint && route.operation === binding.operation)) {
 			issues.push(
 				issue(
 					'extraneous-endpoint-handler',
@@ -308,73 +348,38 @@ function compileImplementation<
 		}
 	}
 
-	validateEnvironment(definition, [...usedResources], issues);
-	// Phase 4: fail atomically. A partially linked service is never returned.
 	if (issues.length > 0) throw new ServiceCompilationError(Object.freeze(issues));
 	const operations = Object.freeze(effective);
-	// Phase 5: emit the immutable execution plan and its drift-checkable manifest.
 	return Object.freeze({
 		kind: 'compiled-service',
-		definition,
-		implementation,
-		operations,
 		routePlan: prepareRoutes(
 			operations.map((operation) =>
 				Object.freeze({ kind: 'route' as const, method: operation.method, path: operation.path })
 			),
 		),
+		definition,
+		implementation,
+		operations,
 		manifest: manifest(definition, operations, implementation.resources),
 	});
 }
 
 /** Return the deterministic manifest retained by a compiled service. */
-export function document(compiled: CompiledService): ServiceManifest {
+export function document(compiled: CompiledService | CompiledServiceDefinition): ServiceManifest {
 	return compiled.manifest;
 }
 
 /**
- * Collects routes while preserving deterministic identity and order.
- *
- * It links service definitions to exact implementations before traffic and keeps request-stage ownership visible at runtime.
+ * Copy the shared flattened service route graph so validation can retain its own ordered list.
  *
  * @internal
  */
 function collectRoutes(definition: ServiceDefinition): ServiceRoute[] {
-	const routes: ServiceRoute[] = [];
-	const walk = (
-		entries: readonly EndpointEntry[],
-		prefix: string,
-		groups: readonly EndpointGroup[],
-	): void => {
-		for (const entry of entries) {
-			if (entry.kind === 'endpoint') {
-				const path = joinPath(prefix, entry.path);
-				for (const operation of entry.operations) {
-					routes.push(Object.freeze({
-						id: `${definition.id}:${operation.id}:${operation.method}`,
-						service: definition,
-						endpoint: entry,
-						operation,
-						groups: Object.freeze([...groups]),
-						method: operation.method,
-						path,
-					}));
-				}
-				continue;
-			}
-			if (entry.kind === 'endpoint-group-selection') {
-				walk(entry.endpoints, prefix, groups);
-				continue;
-			}
-			walk(entry.endpoints, joinPath(prefix, entry.path), [...groups, entry]);
-		}
-	};
-	walk(definition.endpoints, definition.path, []);
-	return routes;
+	return [...serviceRoutes(definition)];
 }
 
 /**
- * Checks policies and preserves the deterministic issues needed by callers.
+ * Reject policy targets outside the service by endpoint object identity; equal IDs do not import authority.
  *
  * @internal
  */
@@ -398,9 +403,8 @@ function validatePolicies(definition: ServiceDefinition, issues: ServiceValidati
 }
 
 /**
- * Checks route identity and preserves the deterministic issues needed by callers.
- *
- * It links service definitions to exact implementations before traffic and keeps request-stage ownership visible at runtime.
+ * Reject conflicting method/path shapes and operation IDs before any router is constructed.
+ * Parameter names do not distinguish otherwise identical route shapes.
  *
  * @internal
  */
@@ -431,9 +435,8 @@ function validateRouteIdentity(routes: readonly ServiceRoute[], issues: ServiceV
 }
 
 /**
- * Collects the definition sources that contribute requirements, effects, resilience, problems, and resources to an operation.
- *
- * Service internals link exact endpoint and middleware definitions to implementations before traffic and preserve request-stage ownership at runtime.
+ * Order additive contributions from service, targeted policies, groups, endpoint, then operation.
+ * Returning all scopes prevents an inner declaration from silently removing outer requirements.
  *
  * @internal
  */
@@ -452,7 +455,7 @@ function contributionSources(
 }
 
 /**
- * Returns the exact definitions selected by a heterogeneous service composition input.
+ * Expand one contribution field through the shared catalog, preserving exact definition objects and source order.
  *
  * @internal
  */
@@ -462,14 +465,14 @@ function definitions<Entry extends CatalogEntryIdentity>(
 ): Entry[] {
 	const result: Entry[] = [];
 	for (const source of sources) {
-		const input = source[field] as import('@okikio/catalog').DefinitionInput<Entry> | undefined;
+		const input = source[field] as import('@okikio/collection/catalog').DefinitionInput<Entry> | undefined;
 		if (input !== undefined) result.push(...catalog.values(input));
 	}
 	return result;
 }
 
 /**
- * Collects middleware definitions from service, group, endpoint, and operation scopes in execution order.
+ * Flatten middleware stage lists for dependency/implementation coverage checks; runtime stages remain separate.
  *
  * @internal
  */
@@ -483,9 +486,8 @@ function middlewareDefinitions(plan: import('@okikio/server/middleware').Middlew
 }
 
 /**
- * Indexes endpoint handlers for exact validation and lookup in later phases.
- *
- * It links service definitions to exact implementations before traffic and keeps request-stage ownership visible at runtime.
+ * Index handlers by exact endpoint and operation objects, recording duplicate runtime bindings.
+ * Outside-service bindings are omitted here and reported by the later coverage pass.
  *
  * @internal
  */
@@ -526,9 +528,7 @@ function indexEndpointHandlers(
 }
 
 /**
- * Indexes middleware handlers for exact validation and lookup in later phases.
- *
- * It links service definitions to exact implementations before traffic and keeps request-stage ownership visible at runtime.
+ * Index one handler per exact middleware definition and accumulate duplicate-binding issues.
  *
  * @internal
  */
@@ -554,9 +554,7 @@ function indexMiddlewareHandlers(
 }
 
 /**
- * Indexes resource implementations for exact validation and lookup in later phases.
- *
- * It links service definitions to exact implementations before traffic and keeps request-stage ownership visible at runtime.
+ * Require one definition object per resource ID and one runtime implementation per exact definition.
  *
  * @internal
  */
@@ -594,9 +592,7 @@ function indexResourceImplementations(
 }
 
 /**
- * Filters contributed resource selections to concrete resource definitions before implementation coverage is checked.
- *
- * Service internals link exact endpoint and middleware definitions to implementations before traffic and preserve request-stage ownership at runtime.
+ * Reject generic catalog references that do not carry a concrete Resource dependency declaration.
  *
  * @internal
  */
@@ -620,7 +616,7 @@ function concreteResourceDefinitions(
 }
 
 /**
- * Checks whether concrete resource definition satisfies the condition required by the compiled service runtime.
+ * Admit the concrete resource shape needed for dependency traversal; string identity alone is insufficient.
  *
  * @internal
  */
@@ -633,9 +629,8 @@ function isConcreteResource(value: CatalogEntryIdentity): value is ResourceDefin
 }
 
 /**
- * Collects resource closure while preserving deterministic identity and order.
- *
- * It links service definitions to exact implementations before traffic and keeps request-stage ownership visible at runtime.
+ * Traverse dependencies before dependants while rejecting active-path cycles and conflicting resource IDs.
+ * Shared dependencies are retained once, in deterministic acquisition order.
  *
  * @internal
  */
@@ -668,9 +663,7 @@ function collectResourceClosure(roots: readonly ResourceDefinition[]): ResourceD
 }
 
 /**
- * Generates the unique by identity without colliding with identities already owned by the compiled service runtime.
- *
- * Service internals link exact endpoint and middleware definitions to implementations before traffic and preserve request-stage ownership at runtime.
+ * Deduplicate repeated definition objects while rejecting distinct objects that claim the same ID.
  *
  * @internal
  */
@@ -693,20 +686,19 @@ function uniqueByIdentity<Entry extends CatalogEntryIdentity>(input: readonly En
 }
 
 /**
- * Returns the definition values consumed by the compiled service runtime.
+ * Read optional authored catalog input as exact definitions; absence contributes an empty immutable list.
  *
  * @internal
  */
-function definitionValues<Entry extends import('@okikio/catalog').CatalogEntryIdentity>(
-	input: import('@okikio/catalog').DefinitionInput<Entry> | undefined,
+function definitionValues<Entry extends import('@okikio/collection/catalog').CatalogEntryIdentity>(
+	input: import('@okikio/collection/catalog').DefinitionInput<Entry> | undefined,
 ): readonly Entry[] {
 	return input === undefined ? Object.freeze([]) : catalog.values(input);
 }
 
 /**
- * Checks environment and preserves the deterministic issues needed by callers.
- *
- * It links service definitions to exact implementations before traffic and keeps request-stage ownership visible at runtime.
+ * Check that each resource imports the exact environment field declared by the service.
+ * This validates declaration coverage without reading environment values or acquiring a provider.
  *
  * @internal
  */
@@ -748,20 +740,21 @@ function validateEnvironment(
 }
 
 /**
- * Derives the server-generated HTTP problems that request parsing, validation, and runtime execution can emit.
- *
- * Service internals link exact endpoint and middleware definitions to implementations before traffic and preserve request-stage ownership at runtime.
+ * Include framework problem envelopes reachable through declared input, response, resource, and resilience behavior.
+ * Documentation then describes failures the runtime can emit even when the endpoint did not author them.
  *
  * @internal
  */
 function generatedServerProblems(
 	route: ServiceRoute,
-	policies: readonly import('@okikio/resilience').ResiliencePolicy[],
+	policies: readonly import('@okikio/capability/resilience').ResiliencePolicy[],
+	hasResources: boolean,
 ): readonly ProblemDefinition[] {
 	const definitions: ProblemDefinition[] = [
 		ServerProblems.UndeclaredResult,
 		ServerProblems.Internal,
 	];
+	if (hasResources) definitions.unshift(ServerProblems.RuntimeUnavailable);
 	const hasInput = Object.keys(route.endpoint.inputs).length > 0 ||
 		Object.keys(route.operation.inputs).length > 0;
 	if (hasInput) definitions.unshift(ServerProblems.InvalidRequest);
@@ -786,11 +779,11 @@ function generatedServerProblems(
 }
 
 /**
- * Builds the operation safety consumed by the compiled service runtime.
+ * Classify HTTP method replay expectations for resilience validation; this does not prove handler idempotency.
  *
  * @internal
  */
-function operationSafety(method: EndpointMethod): import('@okikio/resilience').ResilienceOperationSafety {
+function operationSafety(method: EndpointMethod): import('@okikio/capability/resilience').ResilienceOperationSafety {
 	if (method === 'get' || method === 'head' || method === 'options') return 'safe';
 	if (method === 'put' || method === 'delete') return 'idempotent';
 	return 'unsafe';
@@ -843,7 +836,7 @@ function executionPlan(
 }
 
 /**
- * Normalizes route shape into the canonical internal form used by later phases.
+ * Erase parameter spelling when detecting route conflicts so /people/:id and /people/:name collide.
  *
  * @internal
  */
@@ -852,16 +845,15 @@ function normalizeRouteShape(path: string): string {
 }
 
 /**
- * Builds the manifest that records the state consumed by the compiled service runtime.
- *
- * Service internals link exact endpoint and middleware definitions to implementations before traffic and preserve request-stage ownership at runtime.
+ * Project the resolved graph into stable diagnostic data, including reachable resources and requirements.
+ * IDs describe the graph; runtime lookup still uses exact definition objects.
  *
  * @internal
  */
 function manifest(
 	definition: ServiceDefinition,
-	operations: readonly EffectiveServiceOperation[],
-	implementations: import('@okikio/resource').ResourceImplementationSet,
+	operations: readonly ServiceOperationContract[],
+	implementations?: import('@okikio/capability/resource').ResourceImplementationSet,
 ): ServiceManifest {
 	const resources = uniqueByIdentity(operations.flatMap((operation) => operation.resources));
 	const effects = uniqueByIdentity(operations.flatMap((operation) => operation.effects));
@@ -898,13 +890,11 @@ function manifest(
 }
 
 /**
- * Builds the route manifest that records the state consumed by the compiled service runtime.
- *
- * Service internals link exact endpoint and middleware definitions to implementations before traffic and preserve request-stage ownership at runtime.
+ * Describe one effective method/path with its inherited contracts and precomputed input/policy stages.
  *
  * @internal
  */
-function routeManifest(operation: EffectiveServiceOperation): ServiceRouteManifestEntry {
+function routeManifest(operation: ServiceOperationContract): ServiceRouteManifestEntry {
 	return Object.freeze({
 		id: operation.id,
 		method: operation.method.toUpperCase() as Uppercase<EndpointMethod>,
@@ -934,7 +924,7 @@ function routeManifest(operation: EffectiveServiceOperation): ServiceRouteManife
 }
 
 /**
- * Derives the definition id from exact imported definitions used by the compiled service runtime.
+ * Use an authored diagnostic ID when available; anonymous positions are display labels, not authority.
  *
  * @internal
  */

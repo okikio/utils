@@ -10,8 +10,8 @@
  * import * as endpoint from '@okikio/server/endpoint';
  * import * as response from '@okikio/http/response';
  * import * as service from '@okikio/server/service';
- * import { z } from 'zod';
- * const Healthy = response.ok(z.object({ ok: z.boolean() }), { id: 'health.ok', description: 'Service health.' });
+ * import * as schema from '@okikio/schema';
+ * const Healthy = response.ok(schema.object({ ok: schema.boolean() }), { id: 'health.ok', description: 'Service health.' });
  * const Health = endpoint.get({ id: 'health.read', path: '/health', responses: [Healthy] });
  * const Api = service.define({ id: 'health-api', path: '/api', endpoints: [Health] });
  * import * as gateway from '@okikio/server/gateway';
@@ -68,3 +68,15 @@ export type {
 	GatewayValidationResult,
 	GatewayValidationSubject,
 } from './types.ts';
+
+export { mountArtifact } from './artifact.ts';
+export type {
+	GatewayArtifactManifest,
+	GatewayArtifactMount,
+	GatewayArtifactPolicy,
+	GatewayArtifactRoute,
+	GatewayArtifactSecurityMapping,
+	MountGatewayArtifactOptions,
+} from './artifact.ts';
+export { openapi } from './openapi.ts';
+export type { GatewayOpenApiOptions, GatewayOpenApiSecurity } from './openapi.ts';

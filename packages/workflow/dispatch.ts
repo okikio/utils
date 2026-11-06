@@ -9,10 +9,13 @@
  * @module
  */
 import * as context from '@okikio/context';
-import * as record from '@okikio/record';
-import { freeze as freezeAffinity, matches as affinityMatches } from './affinity.ts';
+import * as record from '@okikio/collection/record';
+import { freeze as freezeAffinity, rejection } from './affinity.ts';
+export { rejection } from './affinity.ts';
+export type { PlacementActivityType, PlacementHostType, PlacementReasonType } from './affinity.ts';
 import * as assert from './assert.ts';
 import * as compute from './compute.ts';
+import * as placement from './placement.ts';
 import * as durable from './durable.ts';
 import type {
 	ActivityAddOptions,
@@ -122,6 +125,8 @@ interface ItemState {
 
 /** Mutable state for one executor generation. */
 interface ExecutorState {
+	/** Validated immutable registration path reused during matching; generations remain authority-checked. */
+	readonly lineage: readonly placement.BoundaryType[];
 	lease: ExecutorLeaseType;
 	active: number;
 	draining: boolean;
@@ -156,6 +161,8 @@ class Runtime {
 	readonly #executors = new Map<string, ExecutorState>();
 	readonly #current = new Map<string, ExecutorState>();
 	readonly #generations = new Map<string, number>();
+	/** Trusted namespace registration and incarnation authority, independent of live executor leases. */
+	readonly #topology = new placement.Registry();
 	readonly #claimWaiters = new Set<Waiter>();
 	readonly #resultWaiters = new Map<string, Set<Waiter>>();
 	readonly #stateWaiters = new Set<Waiter>();
@@ -192,10 +199,12 @@ class Runtime {
 		);
 	}
 
+	/** Return the stable public view; its methods keep the state owner as their receiver. */
 	get dispatch(): ActivityDispatch {
 		return this.#dispatch;
 	}
 
+	/** Retain a detached logical item once per key; duplicates reuse the existing item even after terminal completion. */
 	async #add(ctx: context.Context, value: ActivityJobType, options: ActivityAddOptions): Promise<ActivityRefType> {
 		context.check(ctx);
 		this.#open();
@@ -205,7 +214,10 @@ class Runtime {
 		if (existing !== undefined) return Object.freeze({ id: existing } satisfies ActivityRefType);
 		if (this.#activeItems() >= this.#capacity) throw new DispatchCapacityError(this.#capacity);
 		const id = unique(this.#id, this.#items);
-		const snapshot = durable.snapshot(value, 'activity item') as unknown as ActivityJobType;
+		const snapshot = durable.snapshot({
+			...value,
+			...(value.location === undefined ? {} : { location: placement.SelectionSchema.parse(value.location) }),
+		}, 'activity item') as unknown as ActivityJobType;
 		const item: ItemState = {
 			id,
 			key: options.key,
@@ -221,6 +233,7 @@ class Runtime {
 		return Object.freeze({ id } satisfies ActivityRefType);
 	}
 
+	/** Recheck stored terminal state after each mutation or future lease boundary; ready work requires an executor, not a polling spin. */
 	async #result(ctx: context.Context, ref: ActivityRefType): Promise<ActivityJobResultType> {
 		while (true) {
 			context.check(ctx);
@@ -241,6 +254,7 @@ class Runtime {
 		}
 	}
 
+	/** Save cancellation and release occupancy before waking result consumers; remote work must stop cooperatively. */
 	async #cancel(ctx: context.Context, ref: ActivityRefType, reason?: HistoryValueType): Promise<void> {
 		context.check(ctx);
 		const item = this.#item(ref.id);
@@ -259,6 +273,7 @@ class Runtime {
 		this.#settle(item);
 	}
 
+	/** Replace the prior engine/host generation and return a detached advertised capability lease. */
 	async #join(ctx: context.Context, options: ExecutorJoinOptions): Promise<ExecutorLeaseType> {
 		context.check(ctx);
 		this.#open();
@@ -282,6 +297,9 @@ class Runtime {
 		const duration = options.duration === undefined
 			? undefined
 			: assert.duration(options.duration, 'executor lease duration');
+		const lineage = placement.path(computeValue);
+		this.#topology.register(lineage);
+		this.#expire();
 		const key = executorKey(options.engineId, options.hostId);
 		const previous = this.#current.get(key);
 		if (previous !== undefined) this.#revoke(previous);
@@ -301,13 +319,14 @@ class Runtime {
 				...(duration === undefined ? {} : { expiresAt: this.#clock.now().add(duration) }),
 			} satisfies ExecutorLeaseType,
 		);
-		const state: ExecutorState = { lease, active: 0, draining: false, closed: false };
+		const state: ExecutorState = { lease, lineage, active: 0, draining: false, closed: false };
 		this.#executors.set(lease.id, state);
 		this.#current.set(key, state);
 		this.#wake(this.#claimWaiters);
 		return lease;
 	}
 
+	/** Extend a current executor registration. Expiry and generation checks run before changing its deadline. */
 	async #renewExecutor(
 		ctx: context.Context,
 		lease: ExecutorLeaseType,
@@ -324,6 +343,7 @@ class Runtime {
 		return state.lease;
 	}
 
+	/** Change future admission capacity without revoking already active attempts, then wake waiting claimers. */
 	async #resize(ctx: context.Context, lease: ExecutorLeaseType, capacity: number): Promise<ExecutorLeaseType> {
 		context.check(ctx);
 		const state = this.#executor(lease);
@@ -334,6 +354,7 @@ class Runtime {
 		return state.lease;
 	}
 
+	/** Stop admission to this executor and wait until completion or expiry releases all active attempts. */
 	async #drain(ctx: context.Context, lease: ExecutorLeaseType): Promise<void> {
 		const state = this.#executor(lease);
 		state.draining = true;
@@ -348,6 +369,7 @@ class Runtime {
 		}
 	}
 
+	/** Remove an executor only after its active attempts have drained; leaving cannot abandon occupied slots. */
 	async #leave(ctx: context.Context, lease: ExecutorLeaseType): Promise<void> {
 		context.check(ctx);
 		const state = this.#executor(lease);
@@ -355,6 +377,7 @@ class Runtime {
 		this.#revoke(state);
 	}
 
+	/** Expire stale permission, filter placement and FIFO order, then reserve no more than this executor can own. */
 	async #claim(
 		ctx: context.Context,
 		lease: ExecutorLeaseType,
@@ -370,17 +393,22 @@ class Runtime {
 			const executor = this.#executor(lease);
 			if (executor.draining) return Object.freeze([]);
 			const available = Math.max(0, executor.lease.capacity - executor.active);
-			const items = [...this.#items.values()]
+			const ready = [...this.#items.values()]
 				.filter((item) => item.state === 'queued' && Temporal.Instant.compare(item.availableAt, observed) <= 0)
-				.filter((item) => this.#selects(item, executor))
-				.sort((left, right) => left.order - right.order)
-				.slice(0, Math.min(limit, available));
-			if (items.length > 0) return Object.freeze(items.map((item) => this.#take(item, executor, duration)));
+				.sort((left, right) => left.order - right.order);
+			const claims: ActivityClaimType[] = [];
+			for (const item of ready) {
+				if (claims.length >= Math.min(limit, available)) break;
+				// Re-evaluate ancestor budgets after each synchronous reservation.
+				if (this.#selects(item, executor)) claims.push(this.#take(item, executor, duration));
+			}
+			if (claims.length > 0) return Object.freeze(claims);
 			if (options.wait !== true) return Object.freeze([]);
 			await wait(ctx, this.#claimWaiters, this.#clock, this.#delay(this.#soonest(observed)));
 		}
 	}
 
+	/** Extend this exact live attempt; a replaced or expired claim cannot regain permission by renewing. */
 	async #renew(
 		ctx: context.Context,
 		claim: ActivityClaimType,
@@ -398,6 +426,7 @@ class Runtime {
 		return renewed;
 	}
 
+	/** Observe cancellation or replacement of this exact attempt; notification only requests another authoritative state check. */
 	async #watch(ctx: context.Context, claim: ActivityClaimType): Promise<'cancelled' | 'lost'> {
 		while (true) {
 			context.check(ctx);
@@ -411,6 +440,7 @@ class Runtime {
 		}
 	}
 
+	/** Snapshot the result before releasing occupancy, then publish one terminal answer to waiting callers. */
 	async #complete(ctx: context.Context, claim: ActivityClaimType, result: ActivityJobResultType): Promise<void> {
 		context.check(ctx);
 		const item = this.#claimed(claim);
@@ -422,6 +452,7 @@ class Runtime {
 		this.#settle(item);
 	}
 
+	/** Release this attempt and requeue the same logical item, preserving its identity through the delay. */
 	async #retry(ctx: context.Context, claim: ActivityClaimType, options: ActivityRetryOptions = {}): Promise<void> {
 		context.check(ctx);
 		const item = this.#claimed(claim);
@@ -432,6 +463,7 @@ class Runtime {
 		this.#wake(this.#claimWaiters);
 	}
 
+	/** Apply elapsed lease boundaries before counting current queue states. Retained terminal items count separately. */
 	async #stats(): Promise<ActivityDispatchStatsType> {
 		this.#expire();
 		let queued = 0;
@@ -457,6 +489,7 @@ class Runtime {
 		);
 	}
 
+	/** Reject pending waits once. Closing local dispatch does not prove that external work stopped. */
 	async #close(reason?: unknown): Promise<void> {
 		if (this.#closed) return;
 		this.#closed = true;
@@ -468,6 +501,7 @@ class Runtime {
 		this.#resultWaiters.clear();
 	}
 
+	/** Use the first placement choice with eligible hosts; a required unavailable choice prevents fallback. */
 	#selects(item: ItemState, executor: ExecutorState): boolean {
 		for (const choice of item.value.placement) {
 			const candidates = [...this.#executors.values()].filter((state) => this.#matches(item, state, choice.engine));
@@ -477,19 +511,36 @@ class Runtime {
 		return false;
 	}
 
+	/**
+	 * Check location and every ancestor's shared capacity before matching the executor.
+	 * Hosts under the same compute boundary spend the same budget, even when their local slots are free.
+	 */
 	#matches(item: ItemState, executor: ExecutorState, engineId: string): boolean {
-		if (executor.closed || executor.draining || executor.lease.engineId !== engineId) return false;
-		if (executor.active >= executor.lease.capacity) return false;
-		if (
-			executor.lease.expiresAt !== undefined &&
-			Temporal.Instant.compare(this.#clock.now(), executor.lease.expiresAt) >= 0
-		) return false;
-		if (!affinityMatches(item.value.affinity, executor.lease.affinity)) return false;
-		return executor.lease.activities.some((activity) =>
-			activity.id === item.value.activityId && activity.version === item.value.activityVersion
-		);
+		const lineage = executor.lineage;
+		if (!this.#topology.current(lineage) || !placement.matches(item.value.location, lineage)) return false;
+		for (const boundary of lineage) {
+			if (boundary.capacity === undefined) continue;
+			let active = 0;
+			for (const host of this.#executors.values()) {
+				if (
+					host.lineage.some((node) => node.id === boundary.id && node.generation === boundary.generation)
+				) active += host.active;
+			}
+			if (active >= boundary.capacity) return false;
+		}
+		return rejection(
+			{
+				id: item.value.activityId,
+				version: item.value.activityVersion,
+				...(item.value.affinity === undefined ? {} : { affinity: item.value.affinity }),
+			},
+			{ ...executor.lease, active: executor.active, closed: executor.closed, draining: executor.draining },
+			engineId,
+			this.#clock.now().epochNanoseconds,
+		) === undefined;
 	}
 
+	/** Publish a new claim and increment executor occupancy in one synchronous transition. */
 	#take(item: ItemState, executor: ExecutorState, duration: Temporal.Duration): ActivityClaimType {
 		const claimedAt = this.#clock.now();
 		const claim = Object.freeze(
@@ -510,6 +561,7 @@ class Runtime {
 		return claim;
 	}
 
+	/** Expire elapsed permission before accepting a mutation from this exact claim and executor. */
 	#claimed(claim: ActivityClaimType): ItemState {
 		this.#expire();
 		const item = this.#item(claim.itemId);
@@ -519,6 +571,7 @@ class Runtime {
 		return item;
 	}
 
+	/** Expire old registrations before accepting a lease; the ID and generation must still name a live owner. */
 	#executor(lease: ExecutorLeaseType): ExecutorState {
 		this.#expire();
 		const state = this.#executors.get(lease.id);
@@ -528,6 +581,7 @@ class Runtime {
 		return state;
 	}
 
+	/** Release executor occupancy while its registration remains addressable, then wake admission and drain waiters. */
 	#release(item: ItemState): void {
 		const executorId = item.claim?.executorId;
 		if (executorId !== undefined) {
@@ -538,6 +592,7 @@ class Runtime {
 		this.#wake(this.#claimWaiters);
 	}
 
+	/** Fence one registration, requeue its attempts, and release occupancy before removing it from the executor map. */
 	#revoke(executor: ExecutorState): void {
 		if (executor.closed) return;
 		executor.closed = true;
@@ -558,9 +613,14 @@ class Runtime {
 		this.#wake(this.#claimWaiters);
 	}
 
+	/** Apply elapsed executor and item leases lazily at state-observation boundaries. */
 	#expire(): void {
 		const now = this.#clock.now();
 		for (const executor of [...this.#executors.values()]) {
+			if (!this.#topology.current(executor.lineage)) {
+				this.#revoke(executor);
+				continue;
+			}
 			if (executor.lease.expiresAt !== undefined && Temporal.Instant.compare(now, executor.lease.expiresAt) >= 0) {
 				this.#revoke(executor);
 			}
@@ -575,6 +635,7 @@ class Runtime {
 		}
 	}
 
+	/** Remove terminal-result waiters before resuming them, then allow new claims to observe the freed capacity. */
 	#settle(item: ItemState): void {
 		const waiters = this.#resultWaiters.get(item.id);
 		if (waiters !== undefined) {
@@ -608,6 +669,7 @@ class Runtime {
 		return next;
 	}
 
+	/** Return the next time that can change eligibility; terminal items have no future scheduling boundary. */
 	#next(item: ItemState): Temporal.Instant | undefined {
 		if (item.state === 'queued') return item.availableAt;
 		if (item.state === 'claimed') return item.claim?.expiresAt;
@@ -623,22 +685,26 @@ class Runtime {
 		return Number(milliseconds > 2_147_483_647n ? 2_147_483_647n : milliseconds);
 	}
 
+	/** Look up retained logical identity. Unknown IDs are errors, not empty queue results. */
 	#item(id: string): ItemState {
 		const item = this.#items.get(id);
 		if (item === undefined) throw new Error(`Unknown activity item ${JSON.stringify(id)}.`);
 		return item;
 	}
 
+	/** Count only unfinished logical items against admission; retained results do not consume this limit. */
 	#activeItems(): number {
 		let active = 0;
 		for (const item of this.#items.values()) if (!terminal(item)) active += 1;
 		return active;
 	}
 
+	/** Reject new admission and waits after dispatch closure, preserving the owner's close reason. */
 	#open(): void {
 		if (this.#closed) throw new DispatchClosedError(this.#reason);
 	}
 
+	/** Detach each waiter before resolving it, so listener cleanup precedes any resumed caller code. */
 	#wake(waiters: Set<Waiter>): void {
 		for (const waiter of [...waiters]) {
 			waiters.delete(waiter);
@@ -699,10 +765,10 @@ function wait(ctx: context.Context, waiters: Set<Waiter>, clock: context.Clock, 
 			unlink();
 			action();
 		};
-		const abort = () => settle(() => rejectValue(ctx.signal.reason ?? new context.ContextCancelledError()));
+		const abort = () => settle(() => rejectValue(ctx.signal.reason));
 		const waiter: Waiter = { resolve, reject: rejectValue, unlink };
 		if (ctx.signal.aborted) {
-			rejectValue(ctx.signal.reason ?? new context.ContextCancelledError());
+			rejectValue(ctx.signal.reason);
 			return;
 		}
 		waiters.add(waiter);

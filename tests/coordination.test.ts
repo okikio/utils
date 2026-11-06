@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import * as context from '@okikio/context';
 import * as pool from '@okikio/pool';
-import * as queue from '@okikio/queue';
+import * as queue from '@okikio/scheduler/queue';
 import * as task from '@okikio/task';
 
 /** Return stable identifiers in scenario order so queue assertions never depend on random IDs. */
@@ -21,6 +21,7 @@ test('queue retry releases an invalid provider before durable work resumes', asy
 	await using providers = await pool.create({
 		ctx: owner,
 		maximum: 1,
+		maximumWaiting: 32,
 		create() {
 			return { generation: ++generation };
 		},
@@ -50,6 +51,7 @@ test('queue retry releases an invalid provider before durable work resumes', asy
 		state: 'active',
 		minimum: 0,
 		maximum: 1,
+		maximumWaiting: 32,
 		idle: 0,
 		leased: 0,
 		creating: 0,

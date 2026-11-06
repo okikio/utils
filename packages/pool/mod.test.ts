@@ -14,12 +14,38 @@ function deferred<Value = void>(): Readonly<{
 }
 
 describe('reusable value pool', () => {
+	it('retains acquisition and cleanup outcomes when event subscribers fail', async () => {
+		await using owner = context.create({ id: 'pool-observer' });
+		let closed = 0;
+		const values = await pool.create({
+			ctx: owner,
+			maximum: 1,
+			maximumWaiting: 32,
+			create: () => 42,
+			close: () => {
+				closed++;
+			},
+		});
+		using _sync = values.events.subscribe(() => {
+			throw new Error('synchronous observer');
+		});
+		using _async = values.events.subscribe(async () => {
+			throw new Error('asynchronous observer');
+		});
+		const lease = await values.acquire(owner);
+		expect(lease.value).toBe(42);
+		await lease[Symbol.asyncDispose]();
+		await values[Symbol.asyncDispose]();
+		expect(closed).toBe(1);
+	});
+
 	it('bounds creation and serves waiting acquisitions in order', async () => {
 		await using owner = context.create({ id: 'pool-owner', clock: new context.TestClock() });
 		let next = 0;
 		const values = await pool.create({
 			ctx: owner,
 			maximum: 1,
+			maximumWaiting: 32,
 			create: () => ({ id: ++next }),
 			close: () => {},
 		});
@@ -46,6 +72,7 @@ describe('reusable value pool', () => {
 		await using values = await pool.create({
 			ctx: owner,
 			maximum: 1,
+			maximumWaiting: 32,
 			create: () => ({ id: ++next }),
 			close: (value) => {
 				closed.push(value.id);
@@ -62,7 +89,13 @@ describe('reusable value pool', () => {
 
 	it('removes cancelled waiters promptly', async () => {
 		await using owner = context.create({ id: 'pool-cancel-owner', clock: new context.TestClock() });
-		await using values = await pool.create({ ctx: owner, maximum: 1, create: () => ({}), close: () => {} });
+		await using values = await pool.create({
+			ctx: owner,
+			maximum: 1,
+			maximumWaiting: 32,
+			create: () => ({}),
+			close: () => {},
+		});
 		await using first = await values.acquire(owner);
 		void first;
 		const controller = new AbortController();
@@ -80,6 +113,7 @@ describe('reusable value pool', () => {
 		await using values = await pool.create({
 			ctx: owner,
 			maximum: 1,
+			maximumWaiting: 32,
 			acquireTimeout: { seconds: 5 },
 			create: () => ({}),
 			close: () => {},
@@ -100,6 +134,7 @@ describe('reusable value pool', () => {
 			ctx: owner,
 			minimum: 1,
 			maximum: 1,
+			maximumWaiting: 32,
 			create: () => ({}),
 			close: () => closed.resolve(),
 		});
@@ -125,6 +160,7 @@ describe('reusable value pool', () => {
 			ctx: owner,
 			minimum: 1,
 			maximum: 2,
+			maximumWaiting: 32,
 			maximumIdleAge: { seconds: 5 },
 			create: () => ({ id: ++next }),
 			close: (value) => {
@@ -148,6 +184,7 @@ describe('reusable value pool', () => {
 		await using values = await pool.create({
 			ctx: owner,
 			maximum: 1,
+			maximumWaiting: 32,
 			create() {
 				calls += 1;
 				if (calls === 1) throw new Error('creation failed');
@@ -170,6 +207,7 @@ describe('reusable value pool', () => {
 		await using values = await pool.create({
 			ctx: owner,
 			maximum: 1,
+			maximumWaiting: 32,
 			create: () => created.promise,
 			close: (value) => {
 				closed.push(value.id);
@@ -189,6 +227,7 @@ describe('reusable value pool', () => {
 		const values = await pool.create({
 			ctx: owner,
 			maximum: 1,
+			maximumWaiting: 32,
 			maximumIdle: 0,
 			create: () => ({ id: ++next }),
 			close(value) {
@@ -209,10 +248,27 @@ describe('reusable value pool', () => {
 	it('rejects idle and timeout options that contradict pool ownership', async () => {
 		await using owner = context.create({ id: 'pool-invalid-options', clock: new context.TestClock() });
 		await expect(
-			pool.create({ ctx: owner, minimum: 1, maximum: 1, maximumIdle: 0, create: () => ({}), close: () => {} }),
+			pool.create({
+				ctx: owner,
+				minimum: 1,
+				maximum: 1,
+				maximumWaiting: 32,
+				maximumIdle: 0,
+				create: () => ({}),
+				close: () => {},
+			}),
 		)
 			.rejects.toThrow(TypeError);
-		await expect(pool.create({ ctx: owner, maximum: 1, acquireTimeout: {}, create: () => ({}), close: () => {} }))
+		await expect(
+			pool.create({
+				ctx: owner,
+				maximum: 1,
+				maximumWaiting: 32,
+				acquireTimeout: {},
+				create: () => ({}),
+				close: () => {},
+			}),
+		)
 			.rejects.toThrow(TypeError);
 	});
 
@@ -224,6 +280,7 @@ describe('reusable value pool', () => {
 		const values = await pool.create({
 			ctx: owner,
 			maximum: 1,
+			maximumWaiting: 32,
 			create: () => created.promise,
 			async close() {
 				closeStarted.resolve();
@@ -254,6 +311,7 @@ describe('reusable value pool', () => {
 		const values = await pool.create({
 			ctx: owner,
 			maximum: 1,
+			maximumWaiting: 32,
 			create: () => ({ id: 1 }),
 			async check() {
 				healthStarted.resolve();
@@ -292,6 +350,7 @@ describe('pool capacity during ownership transitions', () => {
 			ctx: owner,
 			minimum: 1,
 			maximum: 1,
+			maximumWaiting: 32,
 			create: () => ({ id: ++created }),
 			close: () => {},
 			check: () => {
@@ -323,6 +382,7 @@ describe('pool capacity during ownership transitions', () => {
 			ctx: owner,
 			minimum: 1,
 			maximum: 1,
+			maximumWaiting: 32,
 			create: () => ({}),
 			close: () => {
 				closed++;
@@ -345,4 +405,41 @@ describe('pool capacity during ownership transitions', () => {
 		expect(values.stats().leased).toBe(1);
 		expect(values.stats().waiting).toBe(0);
 	});
+});
+
+describe('pool slot identity', () => {
+	for (const value of [undefined, 7, Object.freeze({ shared: true })]) {
+		it(`counts two acquisitions with equal ${typeof value} values separately`, async () => {
+			await using ctx = context.create({ id: 'equal-values' });
+			let created = 0;
+			let closed = 0;
+			await using values = await pool.create({
+				ctx,
+				maximum: 2,
+				maximumWaiting: 32,
+				create() {
+					created += 1;
+					return value;
+				},
+				close() {
+					closed += 1;
+				},
+			});
+			const first = await values.acquire(ctx);
+			const second = await values.acquire(ctx);
+			expect(values.stats().leased).toBe(2);
+			const third = values.acquire(ctx);
+			expect(values.stats().waiting).toBe(1);
+			expect(created).toBe(2);
+			await first[Symbol.asyncDispose]();
+			const reused = await third;
+			expect(reused.value).toBe(value);
+			expect(created).toBe(2);
+			expect(values.stats().leased).toBe(2);
+			await second[Symbol.asyncDispose]();
+			await reused[Symbol.asyncDispose]();
+			await values.drain();
+			expect(closed).toBe(2);
+		});
+	}
 });

@@ -4,6 +4,7 @@ import type { StandardSchemaV1 } from '@standard-schema/spec';
 import * as query from './mod.ts';
 
 type Scalar = string | number | boolean | null | bigint | Date;
+/** Adapt each test validator to Standard Schema and turn thrown values into one stable issue for URL failure assertions. */
 function schema<T>(validate: (input: unknown) => T): StandardSchemaV1<unknown, T> {
 	return {
 		'~standard': {
@@ -30,7 +31,11 @@ const scalar = schema<Scalar>((input) => {
 	) return input;
 	throw new Error();
 });
-const fields = { id: query.field(string, { sortable: true }), value: query.field(scalar), name: query.field(string) };
+const fields = {
+	id: query.field(string, { sortable: true, jsonSchema: { type: 'string' } }),
+	value: query.field(scalar, { jsonSchema: { type: ['string', 'number', 'boolean', 'null'] } }),
+	name: query.field(string, { jsonSchema: { type: 'string' } }),
+};
 const definition = query.define({
 	fields,
 	filters: { id: [query.eq], value: [query.eq, query.in, query.nin], name: [query.eq, query.contains] },
@@ -53,7 +58,8 @@ describe('collection Boolean URLs', () => {
 				{ kind: 'not', filter: { field: 'name', operator: 'eq', value: 'first' } },
 			],
 		});
-		expect(() => value.filters).toThrow(TypeError);
+		expect(query.conjunction(value.filter)).toBeUndefined();
+		expect(Object.hasOwn(value, 'filters')).toBe(false);
 		expect(definition.inspect(value).filter).toBe(value.filter);
 		expect(definition.inspect(value).expression).toEqual({ maximumDepth: 3, leafCount: 2, maximumSiblings: 2 });
 		expect(JSON.parse(JSON.stringify(value)).filter.kind).toBe('any');
@@ -111,10 +117,11 @@ describe('collection Boolean URLs', () => {
 			order: [query.asc('id', { tiebreaker: true })],
 			pagination: query.offset(),
 		});
-		expect((await flat.parse(new URLSearchParams('filter[name]=one&filter[name]=two'))).filters).toEqual([
-			{ field: 'name', operator: 'eq', value: 'one' },
-			{ field: 'name', operator: 'eq', value: 'two' },
-		]);
+		expect(query.conjunction((await flat.parse(new URLSearchParams('filter[name]=one&filter[name]=two'))).filter)!)
+			.toEqual([
+				{ field: 'name', operator: 'eq', value: 'one' },
+				{ field: 'name', operator: 'eq', value: 'two' },
+			]);
 		const unsupported = await flat.safeParse(new URLSearchParams('filter[$any][0][name]=one'));
 		expect(unsupported.success).toBe(false);
 		if (!unsupported.success) expect(unsupported.issues[0]!.code).toBe('unsupported-expression');
@@ -162,7 +169,7 @@ describe('collection projection and documentation', () => {
 	});
 	it('describes the actual canonical Boolean URL keys and configured budgets', async () => {
 		const value = await definition.parse({ filter: { $any: [{ name: 'a' }, { $not: { value: { eq: false } } }] } });
-		const description = definition['~standard-json-schema'].jsonSchema() as {
+		const description = definition.wireSchema() as {
 			properties: Record<string, unknown>;
 			patternProperties: Record<string, unknown>;
 			'x-query': Record<string, unknown>;
@@ -203,18 +210,18 @@ describe('lossless collection URL values', () => {
 		) {
 			const value = await definition.parse({ filter: { value: { eq: literal } } });
 			const roundtrip = await definition.parse(new URLSearchParams(definition.stringify(value)));
-			expect(roundtrip.filters[0]!.value).toEqual(literal);
+			expect(query.conjunction(roundtrip.filter)![0]!.value).toEqual(literal);
 			expect(definition.stringify(roundtrip)).toBe(definition.stringify(value));
-			expect((await definition.parse(definition.encode(value))).filters[0]!.value).toEqual(literal);
+			expect(query.conjunction((await definition.parse(definition.encode(value))).filter)![0]!.value).toEqual(literal);
 		}
 	});
 	it('preserves list members that cannot use comma serialization', async () => {
 		const literals = ['a,b', '', ' 雪 ', '~json:literal', null, false, 0, 1n];
 		const value = await definition.parse({ filter: { value: { in: literals } } });
-		expect(value.filters[0]!.value).toEqual(literals);
-		expect((await definition.parse(definition.encode(value))).filters[0]!.value).toEqual(literals);
+		expect(query.conjunction(value.filter)![0]!.value).toEqual(literals);
+		expect(query.conjunction((await definition.parse(definition.encode(value))).filter)![0]!.value).toEqual(literals);
 		const typed = await definition.parse(new URLSearchParams('filter[value][eq]=~json:"null"'));
-		expect(typed.filters[0]).toEqual({ field: 'value', operator: 'eq', value: 'null' });
+		expect(query.conjunction(typed.filter)![0]).toEqual({ field: 'value', operator: 'eq', value: 'null' });
 	});
 	it('rejects malformed tags, mixed raw/tagged repeats and decoded schema violations', async () => {
 		for (

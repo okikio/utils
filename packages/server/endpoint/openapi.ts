@@ -1,10 +1,12 @@
 import { joinPath, pathParameters } from './path.ts';
-import * as catalog from '@okikio/catalog';
-import * as record from '@okikio/record';
+import * as catalog from '@okikio/collection/catalog';
+import * as record from '@okikio/collection/record';
+import * as codec from '@okikio/schema/codec';
 import { freeze as freezeOpenApi } from '../openapi/value.ts';
 import type { StandardJSONSchemaV1, StandardSchemaV1 } from '@standard-schema/spec';
 import type { ProblemDefinition } from '@okikio/http/problem';
 import type { ResponseDefinition, ResponseExample } from '@okikio/http/response';
+import { mediaType } from '@okikio/http/response';
 
 import { schemaOf, validate } from './definition.ts';
 import type {
@@ -45,8 +47,22 @@ export interface OpenApiServer {
 	readonly description?: string;
 }
 
+/** One host-authored authentication scheme; validated at the portable artifact boundary. */
+export type OpenApiSecurityScheme = Readonly<Record<string, unknown>>;
+/** Schemes in one object are required together; separate objects are alternatives. */
+export type OpenApiSecurityRequirement = Readonly<Record<string, readonly string[]>>;
+/** Reusable owner components, grouped by the OpenAPI component category. */
+export interface OpenApiComponents {
+	/** Named groups such as schemas, responses and parameters. */
+	readonly [group: string]: Readonly<Record<string, unknown>> | undefined;
+	/** Host-authored authentication mechanisms referenced by operations. */
+	readonly securitySchemes?: Readonly<Record<string, OpenApiSecurityScheme>>;
+}
+
 /** OpenAPI 3.1 document generated from one endpoint composition. */
 export interface OpenApiDocument {
+	/** Reusable local components. All references are data, never network fetches. */
+	readonly components?: OpenApiComponents;
 	/** OpenAPI document version emitted by this projection. */
 	readonly openapi: OpenApiSpecVersion;
 	/** API title, application version and description for generated clients and references. */
@@ -145,9 +161,9 @@ export async function openapi(
 }
 
 /**
- * Projects one endpoint operation into its OpenAPI request parameters, body, responses, and internal-operation metadata.
- *
- * The projection is derived from the exact imported endpoint graph so generated documentation cannot drift from executable contracts.
+ * Project one operation's effective input slots and declared output descriptions.
+ * Operation input overrides endpoint input. Tags combine group, endpoint and
+ * operation metadata; runtime middleware is not invoked.
  *
  * @internal
  */
@@ -205,9 +221,9 @@ async function operationObject(
 }
 
 /**
- * Projects a validated endpoint input slot into OpenAPI parameter objects with the correct source and requiredness.
- *
- * The projection is derived from the exact imported endpoint graph so generated documentation cannot drift from executable contracts.
+ * Describe flat wire fields as OpenAPI parameters.
+ * Path properties must match the template exactly. Repeated query arrays use
+ * form/explode syntax; nested query objects reject because no parser is declared.
  *
  * @internal
  */
@@ -273,9 +289,8 @@ function parameterObjects(
 }
 
 /**
- * Projects JSON, form, or raw endpoint input into the OpenAPI request-body shape.
- *
- * The projection is derived from the exact imported endpoint graph so generated documentation cannot drift from executable contracts.
+ * Describe the selected body mode and its authored media type.
+ * Required defaults to true; this declaration does not parse a request body.
  *
  * @internal
  */
@@ -299,9 +314,9 @@ function requestBodyObject(
 }
 
 /**
- * Projects declared successful responses and problems into the OpenAPI response map for one operation.
- *
- * The projection is derived from the exact imported endpoint graph so generated documentation cannot drift from executable contracts.
+ * Group success and public problem declarations under their HTTP status.
+ * Multiple declarations at one status merge their media schemas. A raw operation
+ * with no declarations receives an explicitly undocumented default response.
  *
  * @internal
  */
@@ -334,9 +349,8 @@ async function responseObjects(
 }
 
 /**
- * Builds the success response object consumed by the endpoint OpenAPI projection.
- *
- * The projection is derived from the exact imported endpoint graph so generated documentation cannot drift from executable contracts.
+ * Describe response headers and the schema of the emitted wire body.
+ * Codec output describes the wire direction; empty and redirect modes omit bodies.
  *
  * @internal
  */
@@ -345,7 +359,7 @@ async function successResponseObject(
 	internal: boolean,
 	options: OpenApiOptions,
 ): Promise<Readonly<Record<string, unknown>>> {
-	const contentType = definition.contentType ?? responseMedia(definition);
+	const contentType = mediaType(definition) ?? 'application/json';
 	const result: Record<string, unknown> = {
 		description: definition.description,
 	};
@@ -360,7 +374,12 @@ async function successResponseObject(
 	if (definition.schema !== undefined && definition.mode !== 'empty' && definition.mode !== 'redirect') {
 		const projected = definition.jsonSchema !== undefined
 			? freezeOpenApi(definition.jsonSchema)
-			: await projectBareSchema(definition.schema, internal, options, 'response');
+			: await projectBareSchema(
+				codec.is(definition.schema) ? codec.output(definition.schema) : definition.schema,
+				internal,
+				options,
+				'response',
+			);
 		result.content = {
 			[contentType]: {
 				schema: responseBodySchema(definition, projected),
@@ -378,9 +397,9 @@ async function successResponseObject(
 }
 
 /**
- * Builds the response body schema used to validate data entering the endpoint OpenAPI projection.
- *
- * The projection is derived from the exact imported endpoint graph so generated documentation cannot drift from executable contracts.
+ * Wrap the projected item schema in the response's actual envelope shape.
+ * Page mode describes an array plus pagination metadata. This builds JSON Schema
+ * data; it does not validate or materialize a response.
  *
  * @internal
  */
@@ -426,9 +445,7 @@ function responseBodySchema(definition: ResponseDefinition, schema: unknown): un
 }
 
 /**
- * Builds the pagination metadata schema used to validate data entering the endpoint OpenAPI projection.
- *
- * The projection is derived from the exact imported endpoint graph so generated documentation cannot drift from executable contracts.
+ * Describe emitted page coordinates and optional totals as JSON Schema data.
  *
  * @internal
  */
@@ -458,7 +475,7 @@ function paginationMetadataSchema(includeTotals: boolean): Readonly<Record<strin
 }
 
 /**
- * Builds the pagination links schema used to validate data entering the endpoint OpenAPI projection.
+ * Describe optional navigation relations as URI-reference strings.
  *
  * @internal
  */
@@ -472,9 +489,8 @@ function paginationLinksSchema(): Readonly<Record<string, unknown>> {
 }
 
 /**
- * Builds the problem response object consumed by the endpoint OpenAPI projection.
- *
- * The projection is derived from the exact imported endpoint graph so generated documentation cannot drift from executable contracts.
+ * Describe fixed RFC problem fields and optional extension properties.
+ * Internal problems are filtered by the caller before this projection.
  *
  * @internal
  */
@@ -512,9 +528,9 @@ async function problemResponseObject(
 }
 
 /**
- * Merges response projections while rejecting status-code collisions between success and problem definitions.
- *
- * The projection is derived from the exact imported endpoint graph so generated documentation cannot drift from executable contracts.
+ * Merge declarations sharing a status into one OpenAPI response.
+ * Shared media types use oneOf when several schemas remain; headers merge by
+ * field name and later descriptions join earlier ones. Collisions do not reject.
  *
  * @internal
  */
@@ -548,7 +564,7 @@ function mergeResponses(
 }
 
 /**
- * Adds one status-code response to the OpenAPI map and rejects a duplicate status owner.
+ * Collect another declaration under its status; responseObjects() merges them later.
  *
  * @internal
  */
@@ -563,7 +579,7 @@ function appendStatus(
 }
 
 /**
- * Projects schema into the narrower representation used by the endpoint OpenAPI projection.
+ * Prefer an explicit request JSON Schema override; otherwise project its validator.
  *
  * @internal
  */
@@ -574,8 +590,7 @@ async function projectSchema(
 ): Promise<unknown> {
 	const input = documented(slot);
 	if (input?.jsonSchema !== undefined) return freezeOpenApi(input.jsonSchema);
-	const schema = schemaOf(slot) as StandardSchemaV1 & { readonly wireSchema?: () => unknown };
-	if (typeof schema.wireSchema === 'function') return freezeOpenApi(schema.wireSchema());
+	const schema = schemaOf(slot);
 	return await projectBareSchema(schema, internal, options, 'request');
 }
 
@@ -613,7 +628,7 @@ async function projectBareSchema(
 }
 
 /**
- * Collects the problem definitions that the endpoint OpenAPI projection can expose as transport failures.
+ * Collect group, endpoint and operation problems, retaining unique imported identities.
  *
  * @internal
  */
@@ -630,7 +645,7 @@ function problemDefinitions(
 }
 
 /**
- * Returns the definition values consumed by the endpoint OpenAPI projection.
+ * Expand a catalog composition, or return no definitions for an absent contribution.
  *
  * @internal
  */
@@ -642,14 +657,14 @@ function definitionValues<Entry extends { readonly id: string; readonly kind: st
 }
 
 /**
- * Traverses walk in deterministic order for the endpoint OpenAPI projection.
- *
- * The projection is derived from the exact imported endpoint graph so generated documentation cannot drift from executable contracts.
+ * Collect endpoint leaves with their effective group paths and metadata.
+ * Selections retain only chosen members; they do not reapply the source group.
  *
  * @internal
  */
 function walk(input: EndpointCompositionInput): readonly EndpointVisit[] {
 	const result: EndpointVisit[] = [];
+	/** Carry path/policy ancestry only when entering a real group. */
 	const visit = (
 		value: EndpointCompositionInput,
 		prefix: string,
@@ -672,7 +687,7 @@ function walk(input: EndpointCompositionInput): readonly EndpointVisit[] {
 }
 
 /**
- * Flattens flatten into the ordered representation consumed by the endpoint OpenAPI projection.
+ * Flatten nested composition arrays in order, leaving definition objects intact.
  *
  * @internal
  */
@@ -683,7 +698,7 @@ function flatten(input: EndpointCompositionInput): readonly EndpointEntry[] {
 }
 
 /**
- * Checks whether internal satisfies the condition required by the endpoint OpenAPI projection.
+ * Treat an operation as internal when it or any enclosing endpoint/group says so.
  *
  * @internal
  */
@@ -698,7 +713,8 @@ function isInternal(
 }
 
 /**
- * Projects schema documentation metadata only when the Standard Schema implementation exposes it.
+ * Read explicit endpoint.input() metadata when a slot wraps a schema.
+ * A bare validator supplies no transport examples or media-type overrides.
  *
  * @internal
  */
@@ -709,7 +725,7 @@ function documented(slot: EndpointInputSlot) {
 }
 
 /**
- * Builds the examples object consumed by the endpoint OpenAPI projection.
+ * Index authored input examples by key for OpenAPI output.
  *
  * @internal
  */
@@ -725,7 +741,7 @@ function examplesObject(examples: readonly EndpointExample[] | undefined): Reado
 }
 
 /**
- * Builds the response examples object consumed by the endpoint OpenAPI projection.
+ * Index authored successful-response examples by key for OpenAPI output.
  *
  * @internal
  */
@@ -741,9 +757,8 @@ function responseExamplesObject(examples: readonly ResponseExample[] | undefined
 }
 
 /**
- * Builds the problem examples object consumed by the endpoint OpenAPI projection.
- *
- * The projection is derived from the exact imported endpoint graph so generated documentation cannot drift from executable contracts.
+ * Combine each authored example with its problem's standard fields.
+ * Example values remain author-controlled and are frozen by the output boundary.
  *
  * @internal
  */
@@ -763,7 +778,7 @@ function problemExamplesObject(definition: ProblemDefinition): Readonly<Record<s
 }
 
 /**
- * Creates the fallback request media type used when the endpoint OpenAPI projection receives no explicit value.
+ * Choose the default documented media type for JSON, form or raw body input.
  *
  * @internal
  */
@@ -771,17 +786,6 @@ function requestMedia(source: 'json' | 'form' | 'raw'): string {
 	if (source === 'json') return 'application/json';
 	if (source === 'form') return 'application/x-www-form-urlencoded';
 	return 'application/octet-stream';
-}
-
-/**
- * Creates the fallback response media type used when the endpoint OpenAPI projection receives no explicit value.
- *
- * @internal
- */
-function responseMedia(definition: ResponseDefinition): string {
-	if (definition.mode === 'download' || definition.mode === 'stream') return 'application/octet-stream';
-	if (definition.mode === 'html') return 'text/html; charset=utf-8';
-	return 'application/json';
 }
 
 /** Normalize OpenAPI options before projection can observe caller mutation or accessors. @internal */
@@ -848,7 +852,7 @@ function normalizeServers(servers: readonly OpenApiServer[]): readonly OpenApiSe
 }
 
 /**
- * Opens api path for the endpoint OpenAPI projection and leaves its cleanup with the established owner.
+ * Replace :name route tokens with OpenAPI {name} parameter notation.
  *
  * @internal
  */
@@ -857,7 +861,7 @@ function openApiPath(path: string): string {
 }
 
 /**
- * Builds the as json object consumed by the endpoint OpenAPI projection.
+ * Return non-array object candidates for JSON Schema property inspection.
  *
  * @internal
  */
@@ -866,7 +870,7 @@ function asJsonObject(value: unknown): Readonly<Record<string, unknown>> | undef
 }
 
 /**
- * Checks whether record satisfies the condition required by the endpoint OpenAPI projection.
+ * Recognize non-null object candidates, excluding arrays; this is not full data validation.
  *
  * @internal
  */
@@ -875,7 +879,7 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
 }
 
 /**
- * Checks whether string satisfies the condition required by the endpoint OpenAPI projection.
+ * Narrow a schema required-list element to a string.
  *
  * @internal
  */
@@ -884,7 +888,7 @@ function isString(value: unknown): value is string {
 }
 
 /**
- * Generates the unique strings without colliding with identities already owned by the endpoint OpenAPI projection.
+ * Remove repeated string values while preserving their first occurrence.
  *
  * @internal
  */
@@ -893,9 +897,7 @@ function uniqueStrings(values: readonly string[]): readonly string[] {
 }
 
 /**
- * Generates the unique definitions without colliding with identities already owned by the endpoint OpenAPI projection.
- *
- * The projection is derived from the exact imported endpoint graph so generated documentation cannot drift from executable contracts.
+ * Deduplicate exact definition objects and reject different objects claiming one ID.
  *
  * @internal
  */

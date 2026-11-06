@@ -3,6 +3,7 @@ import type { QueryBooleanExpression, QueryExpression } from './expression.ts';
 import type { QueryFields, QueryFilter, QueryInspection, QueryValue } from './types.ts';
 import { encodeValue } from './value-codec.ts';
 
+/** Distinguish a validated field condition from a Boolean node by its field discriminant. */
 export function isFilter<Fields extends QueryFields>(
 	value: QueryExpression<QueryFilter<Fields>>,
 ): value is QueryFilter<Fields> {
@@ -11,9 +12,10 @@ export function isFilter<Fields extends QueryFields>(
 
 /** Preserve the conjunction view without ever flattening ANY or NOT. */
 export function conjunction<Fields extends QueryFields>(
-	value: QueryExpression<QueryFilter<Fields>>,
+	value: QueryExpression<QueryFilter<Fields>> | undefined,
 ): readonly QueryFilter<Fields>[] | undefined {
-	if (isFilter(value)) return [value];
+	if (value === undefined) return Object.freeze([]);
+	if (isFilter(value)) return Object.freeze([value]);
 	if (value.kind !== 'all') return undefined;
 	const result: QueryFilter<Fields>[] = [];
 	for (const child of value.filters) {
@@ -21,35 +23,22 @@ export function conjunction<Fields extends QueryFields>(
 		if (leaves === undefined) return undefined;
 		result.push(...leaves);
 	}
-	return result;
+	return Object.freeze(result);
 }
 
+/** Read the original expression without canonicalizing or flattening its groups. */
 export function authoredFilter<Fields extends QueryFields>(
 	value: QueryValue<Fields>,
 ): QueryExpression<QueryFilter<Fields>> | undefined {
-	return value.filter ?? (value.filters.length === 0 ? undefined : { kind: 'all', filters: value.filters });
+	return value.filter;
 }
 
-/** Create a parsed value whose legacy adapter view fails closed on richer trees. */
+/** Create one immutable query value with one explicit expression representation. */
 export function withFilter<Fields extends QueryFields>(
 	filter: QueryExpression<QueryFilter<Fields>> | undefined,
-	rest: Omit<QueryValue<Fields>, 'filter' | 'filters'>,
+	rest: Omit<QueryValue<Fields>, 'filter'>,
 ): QueryValue<Fields> {
-	const leaves = filter === undefined ? [] : conjunction(filter);
-	if (leaves !== undefined) {
-		return Object.freeze({
-			...(filter === undefined ? {} : { filter }),
-			filters: Object.freeze([...leaves]),
-			...rest,
-		});
-	}
-	// Non-enumerable keeps an expression value JSON-safe while explicit legacy
-	// adapter access fails instead of silently changing ANY/NOT into conjunction.
-	return Object.freeze(Object.defineProperty({ filter, ...rest }, 'filters', {
-		get() {
-			throw new TypeError('This query contains ANY/NOT. Use an expression-capable adapter and value.filter.');
-		},
-	})) as QueryValue<Fields>;
+	return Object.freeze({ ...(filter === undefined ? {} : { filter }), ...rest });
 }
 
 /** Canonical semantics; the input's authored expression and field order stay intact. */
@@ -96,11 +85,12 @@ export function inspect<Fields extends QueryFields>(value: QueryValue<Fields>): 
 	});
 }
 
+/** Canonicalize commutative groups and membership values while retaining NOT and typed scalar identity. */
 function normalizeFilter<Fields extends QueryFields>(
 	value: QueryExpression<QueryFilter<Fields>>,
 ): QueryExpression<QueryFilter<Fields>> {
 	if (isFilter(value)) {
-		if (value.operator !== 'in' && value.operator !== 'nin') return Object.freeze({ ...value });
+		if (value.operator !== 'in' && value.operator !== 'nin') return Object.freeze({ ...value }) as QueryFilter<Fields>;
 		const values = value.value as readonly unknown[];
 		const unique = new Map(values.map((entry) => [encodeValue(entry), entry]));
 		return Object.freeze({
@@ -121,6 +111,7 @@ function normalizeFilter<Fields extends QueryFields>(
 	return filters.length === 1 ? filters[0]! : Object.freeze({ kind: value.kind, filters });
 }
 
+/** Encode unambiguous typed identity for deduplication; author order remains in the original tree. */
 function expressionKey<Fields extends QueryFields>(value: QueryExpression<QueryFilter<Fields>>): string {
 	if (isFilter(value)) {
 		return JSON.stringify([value.field, value.operator, value.value === undefined ? '' : encodeValue(value.value)]);
@@ -131,6 +122,7 @@ function expressionKey<Fields extends QueryFields>(value: QueryExpression<QueryF
 		: JSON.stringify([node.kind, node.filters.map(expressionKey)]);
 }
 
+/** Compare canonical text by code units, independent of machine locale. */
 function compare(a: string, b: string): number {
 	return a < b ? -1 : a > b ? 1 : 0;
 }

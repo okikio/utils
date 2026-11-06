@@ -6,9 +6,21 @@
 	"license": "MIT",
 	"exports": {
 		".": "./mod.ts",
-		"./types": "./types.ts"
+		"./types": "./types.ts",
+		"./bytes": "./bytes.ts",
+		"./json": "./json.ts",
+		"./reader": "./reader.ts",
+		"./text": "./text.ts",
+		"./frame": "./frame.ts",
+		"./events": "./events.ts"
 	},
 	"devDependencies": {
-		"@std/expect": "npm:@jsr/std__expect@^1.0.20"
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
+		"mitata": "^1.0.34"
+	},
+	"dependencies": {
+		"@okikio/dispose": "workspace:^",
+		"@okikio/schema": "workspace:^",
+		"@okikio/observables": "^1.4.0"
 	}
 }

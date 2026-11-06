@@ -1,24 +1,27 @@
-import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { BoundaryType, SelectionType } from './placement.ts';
+import type { Contract, ContractOutput } from '@okikio/schema/codec';
+import type { DefinitionEntry } from '@okikio/collection/catalog';
+
 import type {
 	Catalog,
 	CatalogEntryIdentity,
 	CatalogSelection,
 	DefinitionInput as CatalogDefinitionInput,
-} from '@okikio/catalog';
+} from '@okikio/collection/catalog';
 import type { Context as BaseContext, Snapshot as ContextSnapshot } from '@okikio/context';
-import type { EffectDefinition, EffectDefinitions, EffectEmitter } from '@okikio/effect';
-import type { Definition as FailureDefinition, Occurrence as FailureOccurrence } from '@okikio/failure';
+import type { EffectDefinition, EffectDefinitions, EffectEmitter } from '@okikio/capability/effect';
+import type { Definition as FailureDefinition, Occurrences as FailureOccurrences } from '@okikio/result/failure';
 import type {
 	RequirementDefinition,
 	RequirementDocument,
 	RequirementInput,
 	RequirementScopeOptions,
-} from '@okikio/requirement';
+} from '@okikio/capability/requirement';
 import type { Result as ExplicitResult } from '@okikio/result';
-import type { ResiliencePolicy } from '@okikio/resilience';
+import type { ResiliencePolicy } from '@okikio/capability/resilience';
 
 /** Static schema accepted by workflow definitions, signals, and events. */
-export type WorkflowSchema<WorkflowInput = unknown, Output = WorkflowInput> = StandardSchemaV1<WorkflowInput, Output>;
+export type WorkflowSchema<WorkflowInput = unknown, Output = WorkflowInput> = Contract<WorkflowInput, Output>;
 
 /** Structural activity-engine identity referenced without importing the activity package. */
 export interface EngineReference extends CatalogEntryIdentity {
@@ -117,6 +120,10 @@ export interface WorkflowOptions {
 
 /** Immutable workflow contract independent from a concrete interpreter. */
 export interface WorkflowDefinition<Authoring extends WorkflowOptions = WorkflowOptions> extends WorkflowReference {
+	/** Exact authored identity retained for typed catalogs and invocation. */
+	readonly id: Authoring['id'];
+	/** Exact authored version used by invocation and replay. */
+	readonly version: Authoring['version'];
 	/** Human-readable workflow purpose used by documentation and diagnostics. */
 	readonly description?: string;
 	/** Authoring input schema retained with its exact inferred type. */
@@ -124,34 +131,36 @@ export interface WorkflowDefinition<Authoring extends WorkflowOptions = Workflow
 	/** Authoring result schema retained with its exact inferred type. */
 	readonly result: Authoring['result'];
 	/** Expected failure definitions or data declared by this workflow. */
-	readonly failures: readonly FailureDefinition[];
+	readonly failures: readonly DefinitionEntry<Authoring['failures']>[];
 	/** Effect definitions that code in this workflow may announce. */
-	readonly effects: readonly EffectDefinition[];
+	readonly effects: readonly DefinitionEntry<Authoring['effects']>[];
 	/** Exact activity definitions admitted by this immutable workflow contract. */
-	readonly activities: readonly ActivityReference[];
+	readonly activities: readonly DefinitionEntry<Authoring['activities']>[];
 	/** Exact child-workflow definitions admitted by this immutable workflow contract. */
-	readonly workflows: readonly WorkflowReference[];
+	readonly workflows: readonly DefinitionEntry<Authoring['workflows']>[];
 }
 
 /** WorkflowInput value inferred from a workflow definition. */
-export type WorkflowInput<WorkflowDefinition extends WorkflowReference> = StandardSchemaV1.InferOutput<
+export type WorkflowInput<WorkflowDefinition extends WorkflowReference> = ContractOutput<
 	WorkflowDefinition['input']
 >;
 
 /** Result value inferred from a workflow definition. */
-export type WorkflowResult<WorkflowDefinition extends WorkflowReference> = StandardSchemaV1.InferOutput<
+export type WorkflowResult<WorkflowDefinition extends WorkflowReference> = ContractOutput<
 	WorkflowDefinition['result']
 >;
 
 /** Declared failure occurrence union inferred from a workflow definition. */
-export type WorkflowFailures<WorkflowDefinition extends WorkflowReference> =
-	WorkflowDefinition['failures'][number] extends infer Failure_ extends FailureDefinition ? FailureOccurrence<Failure_>
-		: never;
+export type WorkflowFailures<WorkflowDefinition extends WorkflowReference> = FailureOccurrences<
+	WorkflowDefinition['failures'][number]
+>;
 
 /** Runtime workflow context. It deliberately has no resource resolver. */
 export interface WorkflowContext<Workflow extends WorkflowDefinition = WorkflowDefinition> extends BaseContext {
 	/** Exact workflow definition whose deterministic program is active. */
 	readonly workflow: Workflow;
+	/** Request declared work. Background requests return after the effect owner accepts them. */
+	readonly trigger: import('./trigger.ts').Trigger<Workflow['activities'][number] | Workflow['workflows'][number]>;
 	/** Stable workflow-run identity shared across replay activations. */
 	readonly runId: string;
 	/** Schema-validated workflow input for this run. */
@@ -199,11 +208,35 @@ export interface WorkflowCommandOptions {
 	readonly annotations?: WorkflowAnnotations;
 }
 
+/** Wait for one event addressed to this run and key. The deadline must remain the same on replay. */
+export type EventWaitType<Value = unknown> = WorkflowCommandOptions & {
+	readonly event: WorkflowSignal<Value>;
+	readonly key: string;
+	readonly until?: string;
+	readonly duration?: never;
+};
+
+/** Start a timer once. A durable host keeps its original deadline after a restart. */
+export type DurationWaitType = WorkflowCommandOptions & {
+	readonly duration: Temporal.DurationLike | string;
+	readonly event?: never;
+	readonly until?: never;
+};
+
+/** Wait until an absolute UTC instant. */
+export type UntilWaitType = WorkflowCommandOptions & {
+	readonly until: string;
+	readonly event?: never;
+	readonly duration?: never;
+};
+
 /** Serializable affinity requested from a registered activity engine. */
 export type EngineAffinityType = Readonly<Record<string, string | number | boolean>>;
 
 /** Public options accepted by activity requests. */
 export interface ActivityCommandOptions extends WorkflowCommandOptions {
+	/** Intersected required compute boundaries, retained in instruction identity and claims. */
+	readonly location?: SelectionType;
 	/** Exact host-affinity fields that a live registration must match. */
 	readonly affinity?: EngineAffinityType;
 }
@@ -232,6 +265,14 @@ export interface WorkflowSleepCommand extends WorkflowCommandBase {
 	readonly duration: Temporal.Duration;
 }
 
+/** Absolute timer persisted by a durable host; no local execution slot is held while waiting. */
+export interface WorkflowTimerCommand extends WorkflowCommandBase {
+	/** Timer instruction discriminant. */
+	readonly type: 'sleep-until';
+	/** Canonical UTC instant. */
+	readonly until: string;
+}
+
 /** Stable signal definition. */
 export interface WorkflowSignal<Value = unknown> extends CatalogEntryIdentity {
 	/** Stable discriminant for this workflow signal value. */
@@ -242,11 +283,22 @@ export interface WorkflowSignal<Value = unknown> extends CatalogEntryIdentity {
 	readonly value: WorkflowSchema<unknown, Value>;
 }
 
+/** Result of a named event wait. A received undefined value is distinct from timeout. */
+export type EventResult<Value> = Readonly<{ type: 'received'; value: Value }> | Readonly<{ type: 'timeout' }>;
+/** One saved wait. Use a different eventKey for each logical wait in a run. */
+export interface WorkflowEventCommand<Value = unknown> extends WorkflowCommandBase {
+	readonly type: 'wait-event';
+	readonly event: WorkflowSignal<Value>;
+	readonly eventKey: string;
+	/** Absolute UTC deadline. Replay must request the same deadline. */
+	readonly until?: string;
+}
+
 /** Wait for one matching signal value. */
 export interface WorkflowWaitCommand<Value = unknown> extends WorkflowCommandBase {
 	/** Stable discriminant for this workflow wait variant. */
 	readonly type: 'wait';
-	/** Abort signal controlling this workflow wait local lifetime. */
+	/** Event declaration understood by a custom command host. */
 	readonly signal: WorkflowSignal<Value>;
 	/** Optional correlation or matching data supplied to the signal host. */
 	readonly input: unknown;
@@ -254,6 +306,8 @@ export interface WorkflowWaitCommand<Value = unknown> extends WorkflowCommandBas
 
 /** Public options accepted by child workflow operations. */
 export interface ChildOptions extends WorkflowCommandOptions {
+	/** Intersected required compute boundaries, retained in instruction identity and claims. */
+	readonly location?: SelectionType;
 	/** Policy that relates child-work cancellation to the parent lifetime. */
 	readonly cancellation?: 'follow-parent' | 'request' | 'independent';
 	/** Whether the parent waits for the child result or deliberately discards it. */
@@ -440,7 +494,9 @@ export interface WorkflowInstructionIdentity {
 export type WorkflowCommand =
 	| ActivityCommand
 	| WorkflowSleepCommand
+	| WorkflowTimerCommand
 	| WorkflowWaitCommand
+	| WorkflowEventCommand
 	| ChildWorkflowCommand
 	| WorkflowEffectCommand
 	| WorkflowDeferCommand
@@ -550,7 +606,7 @@ export interface WorkflowImplementation<Workflow extends WorkflowDefinition = Wo
 	/** Exact import-safe definition bound to this workflow implementation. */
 	readonly definition: Workflow;
 	/** Deterministic generator program bound to the exact workflow definition. */
-	readonly program: (ctx: WorkflowContext<Workflow>) => WorkflowProgram<WorkflowResult<Workflow>>;
+	program(ctx: WorkflowContext<Workflow>): WorkflowProgram<WorkflowResult<Workflow>>;
 }
 
 /** Leaf-command execution supplied for non-activity workflow commands. */
@@ -678,6 +734,8 @@ export interface ActivityOriginType {
 
 /** One serializable logical activity job stored by the Scheduler queue. */
 export interface ActivityJobType {
+	/** Intersected required compute boundaries, retained in instruction identity and claims. */
+	readonly location?: SelectionType;
 	/** Stable activity definition ID resolved from the replayed workflow instruction. */
 	readonly activityId: string;
 	/** Activity contract version that must match the replayed instruction and selected provider. */
@@ -709,6 +767,12 @@ export interface ActivityRefType {
 
 /** Optional compute identity advertised by an executor. */
 export interface ComputeType {
+	/** Incarnation fence. Defaults to 1; replacements must increase it. */
+	readonly generation?: number;
+	/** Shared whole-attempt limit at this boundary, across descendant executors. */
+	readonly capacity?: number;
+	/** Trusted complete root-to-parent path; parent-only metadata does not establish ancestry. */
+	readonly ancestors?: readonly BoundaryType[];
 	/** Stable identity chosen by the compute owner. */
 	readonly id: string;
 	/** Open compute class such as `process`, `thread`, `container`, or an application-owned term. */
@@ -893,6 +957,10 @@ export interface MemoryDispatchOptions {
 
 /** Serializable identity and input for one fenced activity attempt. */
 export interface ActivityAttemptType {
+	/** Saved placement reaches the provider unchanged; host selection is resolved only inside that provider. */
+	readonly location?: import('./placement.ts').SelectionType;
+	/** Actual native host selected by the provider, available to the receiving activity. */
+	readonly physicalHost?: import('./placement.ts').HostType;
 	/** Stable logical job ID shared by every attempt of the same activity request. */
 	readonly jobId: string;
 	/** One-based Scheduler attempt number for this logical activity job. */
@@ -927,19 +995,22 @@ export type ActivityAttemptResultType =
 	| Readonly<{ readonly type: 'failure'; readonly failure: unknown }>
 	| Readonly<{ readonly type: 'fault'; readonly fault: unknown }>
 	| Readonly<{ readonly type: 'cancelled'; readonly reason: unknown }>
-	| Readonly<{ readonly type: 'lost'; readonly reason: unknown }>;
+	| Readonly<{ readonly type: 'lost'; readonly reason: unknown; readonly code?: 'busy' | 'lost' }>;
 
 /** Host controls available while one provider owns a fenced attempt. */
 export interface ActivityAttemptControl {
 	/** Renew the authoritative queue claim after provider liveness evidence. */
 	heartbeat(value?: unknown): Promise<void>;
+	/** Attempt-owned services; providers must not replace these with unrelated global owners. */
+	readonly effect?: import('@okikio/capability/effect').EffectEmitter;
+	readonly permission?: import('@okikio/authz/permission').PermissionChecker;
 }
 
 /** Live execution target registered with one Scheduler. */
 export interface EngineProvider {
 	/** Exact activity definitions this provider can run. */
 	readonly activities: readonly ActivityReference[];
-	/** Fulfill one fenced attempt without creating another logical retry. */
+	/** Fulfill one fenced attempt without creating another logical retry. Honor location.host exactly or return lost; providers without physical selection must never ignore it. */
 	run(
 		ctx: BaseContext,
 		attempt: ActivityAttemptType,
@@ -1005,6 +1076,8 @@ export interface EngineRegistration extends AsyncDisposable {
 
 /** Options accepted by the standard workflow Scheduler. */
 export interface SchedulerOptions {
+	/** Borrowed local inbox for event waits. The scheduler never closes it. */
+	readonly events?: import('./events.ts').EventInbox;
 	/** Optional Scheduler identity used to namespace process-local coordination and diagnostics. */
 	readonly id?: string;
 	/** Clock used for queue claims, registration leases, and retry scheduling. */

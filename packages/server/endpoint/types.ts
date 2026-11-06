@@ -5,15 +5,15 @@ import type {
 	DefinitionEntry,
 	DefinitionInput,
 	ValuedCatalogEntry,
-} from '@okikio/catalog';
+} from '@okikio/collection/catalog';
 import type { ProblemDefinition, ProblemResult } from '@okikio/http/problem';
 import type { ResponseDefinition, ResponseResult } from '@okikio/http/response';
 import type { Context } from '@okikio/context';
-import type { EffectContext, EffectDefinitions } from '@okikio/effect';
+import type { EffectContext, EffectDefinitions } from '@okikio/capability/effect';
 import type { RequestParsingOptions } from '@okikio/http/request';
 import type { MiddlewareInput } from '@okikio/server/middleware';
-import type { ResilienceInput } from '@okikio/resilience';
-import type { RequirementInput } from '@okikio/requirement';
+import type { ResilienceInput } from '@okikio/capability/resilience';
+import type { RequirementInput } from '@okikio/capability/requirement';
 
 /** Static resource reference accepted by portable endpoint contracts. */
 export type EndpointResourceDefinition<Value = unknown> = ValuedCatalogEntry<'resource', Value>;

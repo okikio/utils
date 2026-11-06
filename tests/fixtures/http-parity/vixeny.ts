@@ -1,8 +1,8 @@
 /** Independent Vixeny 0.1.53 compiled Fetch routes; no Utils production imports. @module */
-import { bodyLimit, jsonLimit } from './corpus.ts';
-import type { ParityApiType } from './corpus.ts';
-import { loadVixeny } from './vixeny-runtime.ts';
-import type { Vixeny, VixenyRouteType } from './vixeny-runtime.ts';
+import { bodyLimit, jsonLimit } from '#fixtures/http-parity/corpus.ts';
+import type { ParityApiType } from '#fixtures/http-parity/corpus.ts';
+import { loadVixeny } from '#fixtures/http-parity/vixeny-runtime.ts';
+import type { Vixeny, VixenyRouteType } from '#fixtures/http-parity/vixeny-runtime.ts';
 
 type RouteType = VixenyRouteType;
 type FetchType = (request: Request) => Response | Promise<Response>;
@@ -24,7 +24,7 @@ export const vixenyContract = Object.freeze({
 	]),
 	gaps: Object.freeze([
 		'No gateway, proxy lifecycle, deadline, descendant cancellation, or resource-owner parity is claimed by this fixture.',
-		'The archive ships TypeScript as main.ts; tools/challenger-build.mjs must emit the exact-source ESM artifact before this fixture runs on Deno, Node or Bun.',
+		'The archive ships TypeScript as main.ts; tools/bench/prepare.mjs must emit the exact-source ESM artifact before this fixture runs on Deno, Node or Bun.',
 		'The selected factory signatures are explicitly modeled and checked at artifact loading; upstream strict TypeScript 6/7 compatibility is not claimed.',
 	]),
 });

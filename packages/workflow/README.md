@@ -4,40 +4,97 @@ A workflow is a named sequence of jobs whose instruction results can be recorded
 means reading its dimensions, creating a preview, and saving the preview's location. If the last step fails, starting
 the whole sequence again can repeat work you already finished.
 
+For Deno, Node, and Bun execution, see
+[run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters
+keep their native runtime requirements.
+
 This package separates the sequence from the code that performs each job. An [activity](../activity/README.md) describes
 one job; the workflow requests those jobs in order. A scheduler consults recorded results and sends new work to an
 executor. An executor is the host that runs the supplied job implementation.
 
-## Run a complete example
+For work that must survive process loss, use `client` and `serve` with the optional
+[`@okikio/storage/workflow/postgres`](../storage/workflow/postgres/README.md) adapter. The
+[durable workflow guide](https://github.com/okikio/utils/blob/main/docs/workflows/01-basics.md) links complete Core
+import and Intelligence consumer examples, including policy, resources, health checks, transaction receipts and
+shutdown. The example below uses in-memory history to teach the local programming model; its arrays and history do not
+survive a restart.
+
+## Save a photo and reuse its completed steps
 
 Save a photo title, then add its returned ID to an album. Running the same logical upload again should return that ID
 without adding a second title or album entry. The two arrays at the end let you inspect whether either write repeated.
 
-The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
-implementation is preserved.
+Save this first program as `ordinary-upload.ts` and run `mise exec -- deno run ordinary-upload.ts`. It uses only
+ordinary JavaScript and needs no package setup. Before recording anything, consider those calls. Each call to `save`
+appends a title. Repeating the function therefore appends twice, even though its input is unchanged:
 
-```ts runnable
+```ts runnable=ordinary-upload.ts
+const titles: string[] = [];
+const album: string[] = [];
+/** Simulate a write without deduplication, so repeated calls expose the problem replay must address. */
+async function save(title: string): Promise<string> {
+	titles.push(title.toUpperCase());
+	return `asset-${titles.length}`;
+}
+/** This ordinary function repeats both writes on every call, even when the title is unchanged. */
+async function upload(title: string): Promise<string> {
+	const id = await save(title);
+	album.push(id);
+	return id;
+}
+console.log(await upload('summer trip'), await upload('summer trip'));
+console.log(titles.length, album.length);
+```
+
+```text output
+asset-1 asset-2
+2 2
+```
+
+## Record the same two writes
+
+Keep those two writes, but ask the scheduler for each result instead of calling it directly. In a workflow generator,
+`yield* ctx.trigger(SaveTitle, input)` means “request this named job, then continue with its result.” JavaScript pauses
+this generator at the instruction. The scheduler either supplies a compatible recorded answer or runs the job. `await`
+still belongs inside the ordinary activity implementation that actually writes the data.
+
+These objects divide responsibility for running and remembering the two photo writes:
+
+| Owner                                | Role in this upload                                                                     |
+| ------------------------------------ | --------------------------------------------------------------------------------------- |
+| Activity definition / implementation | Describe checked save/album calls / supply their ordinary async functions.              |
+| Resource collection                  | Acquire the photo store and own its cleanup; activities borrow it.                      |
+| Engine and local provider            | Select and execute implementations in this process. Declaring an engine starts nothing. |
+| Dispatch and executor                | Retain pending jobs / take those jobs and run the provider.                             |
+| History and scheduler                | Retain completed instructions / decide whether a request reuses or runs work.           |
+| Context                              | Supply cancellation and local cleanup lifetime. It does not persist an execution.       |
+
+From the repository root, run `mise run prepare -- --kind deps` once. Save the next block as `recorded-upload.ts` and
+run `mise exec -- deno run recorded-upload.ts`. The polyfills supply Temporal/disposal globals when absent, preserving
+native implementations. These workspace imports need no published package or network service.
+
+```ts runnable=recorded-upload.ts
 import '@okikio/duration/polyfill';
 import '@okikio/dispose/polyfill';
 import * as activity from '@okikio/activity';
 import * as engine from '@okikio/activity/engine';
 import * as local from '@okikio/activity/local';
 import * as context from '@okikio/context';
-import * as resource from '@okikio/resource';
+import * as resource from '@okikio/capability/resource';
 import * as dispatch from '@okikio/workflow/dispatch';
 import * as history from '@okikio/workflow/history';
 import * as workflow from '@okikio/workflow';
-import { z } from 'zod';
+import * as schema from '@okikio/schema';
 
-const TextSchema = z.string();
+const TextSchema = schema.string();
 const Local = engine.define({ id: 'local' });
 const Store = resource.define<{
 	save(title: string): Promise<string>;
 	addToAlbum(id: string): Promise<string>;
-}>()({ id: 'photo.store', description: 'Save titles and append photo IDs to an album.' });
+}>({ id: 'photo.store', description: 'Save titles and append photo IDs to an album.' });
 const titles: string[] = [];
 const album: string[] = [];
-const StoreLive = resource.implement(Store, {
+const store = resource.implement(Store, {
 	create: () => ({
 		async save(title) {
 			titles.push(title);
@@ -52,7 +109,7 @@ const StoreLive = resource.implement(Store, {
 const SaveTitle = activity.define({
 	id: 'photo.save-title',
 	version: '1',
-	input: z.string().trim().min(1),
+	input: schema.string({ minLength: 1 }),
 	result: TextSchema,
 	placement: engine.require(Local),
 	resources: [Store],
@@ -65,12 +122,12 @@ const AddToAlbum = activity.define({
 	placement: engine.require(Local),
 	resources: [Store],
 });
-const SaveTitleLive = activity.implement(SaveTitle, {
+const saveTitle = activity.implement(SaveTitle, {
 	async run(ctx) {
 		return await (await ctx.get(Store)).save(ctx.input.toUpperCase());
 	},
 });
-const AddToAlbumLive = activity.implement(AddToAlbum, {
+const addToAlbum = activity.implement(AddToAlbum, {
 	async run(ctx) {
 		return await (await ctx.get(Store)).addToAlbum(ctx.input);
 	},
@@ -82,13 +139,13 @@ const UploadPhoto = workflow.define({
 	result: TextSchema,
 	activities: [SaveTitle, AddToAlbum],
 });
-const UploadPhotoLive = workflow.implement(UploadPhoto, function* (ctx) {
-	const id = yield* activity.request(SaveTitle, ctx.input);
-	return yield* activity.request(AddToAlbum, id);
+const uploadPhoto = workflow.implement(UploadPhoto, function* (ctx) {
+	const id = yield* ctx.trigger(SaveTitle, ctx.input);
+	return yield* ctx.trigger(AddToAlbum, id);
 });
 
 await using parent = context.create({ id: 'photo-parent' });
-await using stores = resource.create(resource.implementations(StoreLive), { ctx: parent, host: {} });
+await using stores = resource.create(resource.implementations(store), { ctx: parent, host: {} });
 await using jobs = dispatch.memory();
 await using records = history.memory();
 await using scheduler = workflow.scheduler({
@@ -100,16 +157,16 @@ await using executor = await workflow.executor({
 	engine: Local,
 	hostId: 'photo-host',
 	capacity: 1,
-	provider: local.create({ engine: Local, implementations: [SaveTitleLive, AddToAlbumLive], resources: stores }),
+	provider: local.create({ engine: Local, implementations: [saveTitle, addToAlbum], resources: stores }),
 });
 for (const pass of ['first run', 'replay']) {
 	await using run = await workflow.context({
 		definition: UploadPhoto,
 		runId: 'photo-upload-1',
-		input: ' summer trip ',
+		input: 'summer trip',
 		ctx: parent,
 	});
-	console.log(pass, await workflow.run({ ctx: run, implementation: UploadPhotoLive, scheduler }));
+	console.log(pass, await workflow.run({ ctx: run, implementation: uploadPhoto, scheduler }));
 }
 console.log('Saved titles:', titles.join(','));
 console.log('Album entries:', album.join(','));
@@ -128,6 +185,31 @@ The first activity checks and saves the title, returning `asset-1`. The second a
 two lines inspect the actual arrays used by the supplied store: one saved title and one album entry after two passes.
 The scheduler records returned values; the activity implementations perform the writes.
 
+Read this diagram as one call to save the title. The album call follows the same path. History owns the reusable answer;
+the executor owns the live activity call. A history hit skips the executor and therefore skips the write.
+
+```mermaid
+sequenceDiagram
+  participant Program as UploadPhoto generator
+  participant Scheduler
+  participant History as In-memory history
+  participant Executor as Local executor
+  participant Store as Photo store
+  Program->>Scheduler: Request SaveTitle for this run and instruction
+  Scheduler->>History: Look for a compatible completion
+  alt First pass
+    History-->>Scheduler: No recorded answer
+    Scheduler->>Executor: Admit and claim the activity
+    Executor->>Store: save(title)
+    Store-->>Executor: asset-1
+    Executor-->>Scheduler: Completed activity result
+    Scheduler->>History: Record completion
+  else Replay
+    History-->>Scheduler: Recorded asset-1
+  end
+  Scheduler-->>Program: Resume generator with asset-1
+```
+
 The loop then repeats the same run identity, input and program while the same stores remain alive. The replay returns
 the recorded instruction results, so neither write runs a second time. Change the title and give it a new `runId` to
 start a different logical run. Reusing a run's identity with changed instruction data is a conflict, not a request to
@@ -139,211 +221,192 @@ activities. The arrays are deliberately not idempotent: calling their methods ag
 shows replay of accepted completions, not recovery from a crash between a write and recording its result. A production
 store needs stable write keys or another duplicate-write policy for that gap.
 
-## Save a photo, then add it to an album
+## Wall instants and local scheduling
 
-An album upload has two writes: save the photo's title and add its returned ID to the album. Calling the same functions
-again could create a second photo or album entry. The example above runs those two jobs, then runs the same workflow
-again. Its recorded completions provide the answer without repeating either write.
+The durable worker uses monotonic host time for polling intervals, registration-renewal cadence, recovery spacing, and
+scan-age readiness. The first recovery scan is immediate even at process startup. Its `checkedAt` diagnostic uses the
+selected Temporal implementation and canonical UTC millisecond text. Persisted deadlines and lease expiry remain the
+store's authority, and workflow execution keeps the Context clock chosen by its owner. A wall-clock correction can
+change a reported instant without changing an already-running local grace or scan interval.
 
-`yield* activity.request(SaveTitle, input)` is the unfamiliar part. Read it as “ask for the SaveTitle job's result, then
-continue.” It uses JavaScript's generator protocol: a request yields an instruction object; the scheduler supplies a
-completion; the request returns the completion's value to the program. It is not an async function call hidden behind
-new spelling. Use `await` for ordinary live promises; use `yield*` inside this workflow program when the scheduler must
-identify and record the instruction.
+## Execution and wake-ups
 
-| Contract                      | Simplified contents                                                     | Role in the album example                                  |
-| ----------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `WorkflowDefinition`          | ID, version, input/result schemas, declared activities and dependencies | Describe what the program accepts and returns.             |
-| `WorkflowImplementation`      | Definition plus a generator function                                    | Describe the order of instructions.                        |
-| `WorkflowOperation<Value>`    | An iterable yielding a `WorkflowInstruction` and returning `Value`      | Connect one requested instruction to its typed completion. |
-| Completion                    | Success with a value, declared failure, fault, or cancellation          | Tell the suspended request how that step finished.         |
-| History / dispatch / executor | Recorded instructions / admitted activity items / supplied provider     | Decide whether to reuse a completion or run new work.      |
+The [execution guide](https://github.com/okikio/utils/blob/main/docs/workflows/13-execution.md) explains the common
+activity and workflow operations across local and durable hosts. It also covers saved parallel branches, relative
+timers, race cancellation, notification ownership, and crash tests. A PostgreSQL worker listens before scanning and
+keeps a bounded fallback scan. `serve({ pollIntervalMs })` sets the maximum idle interval; its default is 1000 ms.
+`postgres.open({ database, namespace, notifications: false })` selects polling for transaction-pooled connections. The
+worker owns its notification session. The application owns its query pool and closes it after worker drain.
 
-Underneath `workflow.run()`, the runner validates the run's input and steps through the generator. For each instruction,
-the scheduler computes an identity at that instruction's path and asks history for a compatible completion. A matching
-record supplies the value. New activity work goes through dispatch to an eligible executor, whose accepted completion
-returns through the scheduler. The runner then resumes the generator and validates its eventual result.
+Draining stops new claims and joins claims already awaiting a storage reply, then waits for their admitted work and
+cleanup. `worker.state().pendingClaims` distinguishes that acquisition wait from active code. A drain timeout leaves
+`closed` pending; it does not release borrowed resources while an attempt can still use them. After repeated scan
+failures exhaust the retry budget, the worker starts the same drain automatically. `closed`, `drain()` and asynchronous
+disposal reject on a terminal scan or release failure. All release steps are attempted, and an `AggregateError` retains
+multiple failures. A successful `closed` means admission, work and cleanup have joined and registration was released.
 
-That separation lets a program describe “prepare, then save” without choosing a thread or transport in its call sites.
-It also requires more setup than an async function. Stable run/instruction identities and trustworthy adapters matter;
-neither an in-memory record nor replay alone guarantees that a remote side effect happens exactly once.
+## Preserve authored types through storage and replay
 
-## See the sequence and the record of completed work
+Definitions retain their literal ID, version and declared activity, child, resource, failure and effect unions.
+`ctx.trigger()` accepts the exact activities and children declared by its workflow. Selecting a subset of a catalog
+narrows the resulting declarations as well.
 
-Read this diagram from top to bottom. A recorded completion can provide the step's result without another provider call.
-A step without a completion needs the configured dispatch and executor.
+Caller input, validated execution input and encoded storage data have distinct types. A codec can, for example, accept a
+date string, provide a `Date` to the implementation, and save an ISO string. Admission decodes and then encodes before
+storage; replay decodes the saved representation; result observation decodes through the declared result contract. A
+transforming schema without an encoder rejects before a durable value is written.
 
-![A workflow reuses recorded completions or asks an activity executor for new results](diagram.png)
+Local history uses the same result codecs for individual instructions and for nested parallel, race, map and retry
+results. Composite history stores explicit completion envelopes so `undefined`, a success value and a declared failure
+remain distinct. Saved history from an older representation requires an explicit migration or a new workflow version.
 
-[Editable diagram source](diagram.mmd). This is the successful path. It omits retry timing, cancellation and stale-claim
-rejection, which the later sections explain. Reusing a result does not rewind the JavaScript process. Durable recovery
-needs authoritative storage and host services: the memory stores in the demo above disappear when their process exits.
+Instrumentation is borrowed explicitly through `client({ instrument, ... })` and `serve({ instrument, ... })`. The
+worker propagates that instrument to local activity and resource contexts. Omitting it keeps the portable runtime
+independent of OpenTelemetry or LogTape; the optional telemetry adapter provides those integrations.
 
-Use a regular function for a simple sequence that can start over safely. Use [task](../task/README.md) for an owned
-local operation. Use a workflow when named instruction results, independently executed jobs or controlled replay are
-part of the application's requirements.
+## Move from local replay to saved execution
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
+A photo pipeline and a report pipeline can reuse recorded step completions. A local history demonstrates replay; a saved
+execution needs a persistent store and a running executor.
 
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
+Use a regular function until work needs recorded instructions or recovery. Activity owns individual checked calls;
+Scheduler and Storage own dispatch and saved state.
 
-## Apply the same shape to a larger job
+Replay does not make arbitrary remote writes exactly-once. Preserve deterministic instruction order and define
+transactions, receipts, or receiver idempotency where writes can repeat.
 
-| Scenario                  | Named activity steps                                                          | What the application must supply                                         |
-| ------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Prepare a photo           | Inspect dimensions, create preview, save preview location                     | Image tools, storage resources and a duplicate-write policy.             |
-| Import customer records   | Validate a batch, store accepted records, publish import result               | Input limits, authoritative storage and stable commit identities.        |
-| Send work to another host | Request a job, let an eligible executor claim it, receive its accepted result | Shared authoritative dispatch/history and that host's activity provider. |
+The [connected consumer guide](../../docs/workflows/14-consumers.md) shows `ctx.trigger()` for activities and children,
+background acceptance through effects, event-only `wait()`, `sleep()`, standard progress, and durable `defer()` cleanup.
+It links the complete service, process, thread, policy, and recovery tests.
 
-For resource use, start with
-[the activity save-title demo](../activity/README.md#save-a-photo-title-with-a-supplied-store). For a simpler local
-import, start with [the bounded CSV composition](../../docs/composition.md#import-rows-with-bounded-work). Adding
-workflow is useful when replay and dispatch solve a real problem; it is not necessary just to run two functions.
+The library's saved-work schemas use `@okikio/schema` and implement Standard Schema. Native validators provide
+`parse(value)`. Explicit codecs describe a different application and saved representation without guessing how to
+reverse a transformation.
 
-## Understand the local host
+## Choose an entry point
 
-The first example runs two activities through the process-local reference stores. `workflow.run()` resolves to the
-validated workflow result: here `Promise<string>` containing `asset-1`. The generator yields a declared request; it does
-not call the provider directly. The executor produces the activity result and the scheduler resumes the generator.
+Use the table to find a focused import for the job you need. Contract links open the exact public source, including its
+options and types.
 
-`await using` closes the run, executor, scheduler and stores in reverse declaration order. Cancellation remains
-cooperative and the owners join cleanup. Both `memory()` stores disappear when their process exits. Read the
-[workflow recovery scenario](../../docs/scenarios.md) for failure, replacement and replay qualification; a deployed
-durable scheduler is an application responsibility.
+| Import                       | Use it to                                                                | Exact contract                |
+| ---------------------------- | ------------------------------------------------------------------------ | ----------------------------- |
+| `@okikio/workflow`           | Use the package entry shown in the complete examples above.              | [Contract](./mod.ts)          |
+| `@okikio/workflow/dispatch`  | Admit activity jobs, register executors, and own attempt leases.         | [Contract](./dispatch.ts)     |
+| `@okikio/workflow/history`   | Record instructions and reuse their completions during replay.           | [Contract](./history.ts)      |
+| `@okikio/workflow/types`     | Import public types for this capability; this entry does not start work. | [Contract](./types.ts)        |
+| `@okikio/workflow/execution` | Use the saved execution contracts shared by clients and stores.          | [Contract](./execution.ts)    |
+| `@okikio/workflow/testing`   | Record and archive bounded completed workflow fixtures.                  | [Contract](./testing.ts)      |
+| `@okikio/workflow/replay`    | Check saved completions against the current exact workflow definition.   | [Contract](./replay/check.ts) |
 
-The generator never holds a queue, Worker, process, database connection, or provider callback. It only creates an
-`activity.request()` instruction. The Scheduler copies the serializable item to dispatch. The executor claims the item,
-owns the live provider call, and conditionally stores the terminal result.
+## Record a bounded fixture and check a code change
 
-## What the package provides today
+Use `/testing` to run a trusted implementation with explicit command services and retain its completed instruction
+history. Use `/replay` to check that fixture through the same production scheduler, with no command services available:
 
-| Capability                            | Current behavior                                                                                               | Limit                                                         |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| Workflow definitions and instructions | Immutable definitions, JSON-safe descriptions, stable fingerprints, replayable paths                           | Definitions and schemas stay in the importing program         |
-| Scheduler                             | Interprets activity and workflow-control instructions, requirements, effects, cleanup, cancellation, and retry | It is not an activation or timer service                      |
-| `history.memory()`                    | Bounds local instruction history, coalesces local scheduling, replays recorded completions                     | Process-local only                                            |
-| `dispatch.memory()`                   | Stores logical items, placement, fenced executor generations, claims, retry timing, cancellation, and results  | Process-local only                                            |
-| `workflow.executor()`                 | Independently claims matching work through `ActivityDispatch` with bounded capacity                            | A remote or process host needs a shared authoritative adapter |
-| Compute metadata                      | Optional `id`, open `kind`, optional `parent`, and attributes                                                  | Describes topology; it does not enforce one                   |
+```ts runnable
+import * as context from '@okikio/context';
+import * as schema from '@okikio/schema';
+import * as workflow from '@okikio/workflow';
+import * as testing from '@okikio/workflow/testing';
+import * as replay from '@okikio/workflow/replay';
 
-The interfaces are ready for a durable adapter, but this package does **not** provide SQLite, Postgres, OPFS, Deno KV,
-activation claims, durable timers, external signal storage, an outbox, or a reconciler. An in-memory implementation that
-has the same methods is still not durable.
-
-## Owners and handoffs
-
-```text
-workflow program
-    | yields a serializable instruction
-    v
-Scheduler ---- History
-    | admits one logical activity item
-    v
-ActivityDispatch <---- Executor ----> provider resources
-    |                         |
-    | stores claim/result      `-- runs one fenced attempt
-    v
-replayed workflow completion
+const Greeting = workflow.define({
+	id: 'example.greeting',
+	version: '1',
+	input: schema.string(),
+	result: schema.string(),
+});
+const implementation = workflow.implement(Greeting, function* (ctx) {
+	yield* workflow.sleep('PT1S');
+	return ctx.input;
+});
+await using parent = context.create({ id: 'fixture-owner' });
+const limits = { maximumEntries: 1000, maximumBytes: 1_000_000 };
+const recorded = await testing.run(implementation, {
+	...limits,
+	ctx: parent,
+	input: 'hello',
+	runId: 'compatibility-fixture',
+	scheduler: {
+		async command() {
+			return workflow.success(Temporal.Instant.from('2026-01-01T00:00:00Z'));
+		},
+	},
+});
+const archive = await testing.encode(recorded.fixture, limits);
+const fixture = await testing.decode(archive, limits);
+const checked = await replay.check(implementation, fixture, { ...limits, ctx: parent });
+console.log(JSON.stringify([checked.value, checked.matched, checked.opaqueControls]));
 ```
 
-The Scheduler owns deterministic instruction identity and workflow-control semantics. `History` owns whether an existing
-instruction completion can be replayed or new work can advance. `ActivityDispatch` owns the logical item, placement,
-claim, retry, cancellation, and terminal result. An executor owns provider resources, local capacity, claim renewal, and
-attempt delivery.
-
-This separation matters when an executor changes host. Replaying the same workflow instruction adds the same logical
-dispatch key. A late completion from an old executor generation is fenced, and a new claim can create the next attempt
-without producing a second logical item.
-
-```text
-logical item
-   |
-   +-- attempt 1, host generation 4 -> host lost
-   `-- attempt 2, host generation 5 -> terminal result
+```text output
+["hello",1,[]]
 ```
 
-`scheduler.register()` is only a local convenience. It creates an executor against the Scheduler's configured dispatch
-owner. It does not use a separate placement path.
+The recording owner bounds retained entry count and encoded metadata/completion bytes before publication. The final
+fixture has its own complete byte check, including input and contract identity. Input uses an explicit undefined marker
+when a workflow accepts no JSON value; its archive never silently substitutes null or drops that input. Individual
+application codecs and command callbacks remain trusted code; this does not bound their private allocations. A failed or
+suspended recording is not exported as a complete fixture. The SHA-256 archive detects accidental corruption; it does
+not authenticate a sender. Decode does not schedule work or import definitions. Supply the trusted exact definition
+explicitly when checking; a different ID/version rejects before execution.
 
-## Workflow programs
+The checker rejects a missing step before dispatch, reports a changed instruction's exact path and fingerprints, and
+rejects extra retained steps. Saved payloads pass through current instruction codecs. Generator and schema code still
+runs and must obey the normal rule that external work goes through yielded instructions. As with native memory history,
+a completed control result is atomic: nested programs beneath it are not reinterpreted. `opaqueControls` names those
+coverage boundaries. This check cannot prove every internal branch remains compatible; use the durable replay and
+recovery suites for that claim. Cleanup failures retain their production error boundary.
 
-`workflow.define()` declares input, result, direct requirements, activities, effects, child workflows, and expected
-failures. `workflow.implement()` binds one exact definition to a generator program. `workflow.context()` validates one
-run input and creates a local cancellation/checkpoint lifetime.
+These fixtures describe process-local instruction history. PostgreSQL's existing inspector remains the owner of
+paginated lifecycle events, attempts, waits, host leases, pauses and continuation chains. Importing a diagnostic fixture
+does not create a durable run, grant a claim, restore a continuation reservation or authorize external effects.
 
-| Operation                                  | Meaning                                                        |
-| ------------------------------------------ | -------------------------------------------------------------- |
-| `activity()` or `activity.request()`       | Request one declared external activity                         |
-| `sleep()`                                  | Ask the command host to interpret a timer instruction          |
-| `wait()`                                   | Ask the command host to interpret one declared external signal |
-| `child()`                                  | Request a declared child workflow                              |
-| `effect()`                                 | Announce one declared workflow effect                          |
-| `defer()`                                  | Register serializable cleanup before the program advances      |
-| `continue()`                               | End this run and validate the next input                       |
-| `parallel()`, `map()`, `race()`, `retry()` | Scheduler-owned deterministic control operations               |
+## Measure dispatch admission and completion
 
-Every yielded instruction is a cooperative checkpoint. Context snapshots contain serializable identity and timing only.
-Do not put an `AbortSignal`, browser handle, process, Worker, provider client, or resource collection in workflow input
-or history.
+The focused benchmarks measure 1,000 deterministic jobs through add/claim/complete. The benchmark compares against
+native Map bookkeeping without placement, validation or leases. This local component benchmark is not process-death
+recovery; composed recovery stays at root.
 
-## History and durable values
+From the repository root, run the package's tests and untimed benchmark checks before collecting timings:
 
-`workflow.describe()` returns JSON-safe instruction data. `workflow.identify()` adds a stable SHA-256 fingerprint. A
-`History` implementation must record that identity before it starts external work, return a stored completion on replay,
-and reject a different fingerprint at the same deterministic path.
+```sh
+mise run test -- --project workflow
+mise run bench -- --project workflow --check
+mise run bench -- --project workflow
+```
 
-History and activity results retain JSON-safe data. `undefined` has an explicit marker so storage does not erase the
-difference between an absent JavaScript value and a stored value. Expected failures are reduced to stable definition ID,
-data, and message; the replayed definition reconstructs the occurrence. Live schemas, functions, errors, and provider
-objects do not cross the storage seam.
+These commands use package-owned fixtures and development dependencies. The
+[benchmark protocol](../../docs/benchmarks/01-running.md#choose-a-comparison-that-answers-the-question) explains fair
+comparisons, raw report collection and the limits of local measurements.
 
-`history.memory()` is useful for local replay tests. A durable implementation needs storage-authoritative ownership and
-an atomic or recoverable protocol for identity, completion, and concurrent claims. It must record committed outcomes,
-not merely attempted work.
+The package separates [declarations](./mod.test.ts), [deterministic composition](./composition.test.ts) and
+[cleanup](./cleanup.test.ts). Their [local runner fixture](./fixtures/program.ts) owns a fresh Context and Scheduler per
+run and borrows any supplied history. Durable dispatch and native host recovery have separate integration suites; the
+local fixture does not establish those capabilities.
 
-## Placement and compute
+## Read further
 
-An activity declares ordered engine choices. An executor advertises one exact engine, supported activities, capacity,
-optional affinity, protocol version, and optional compute metadata. Dispatch matches activity version and affinity
-before it grants a claim.
+The [Workflow guide](https://github.com/okikio/utils/blob/main/docs/workflows/README.md) explains the model, manual
+alternatives, and composition.
 
-Compute metadata is topology-neutral. A flat host can omit it. A deployment that models a process and child threads can
-use `parent`; another deployment can use different open `kind` names or no hierarchy at all. The contract carries facts
-for placement and diagnostics without imposing a cluster/pod/container taxonomy.
+Use `yield* workflow.sleep({ seconds: 5 })` for a relative timer. Use `yield* workflow.sleep({ until })` for an absolute
+UTC deadline. Both return a `Temporal.Instant`. Use `yield* workflow.wait(Approved, { key: 'approval', until })` for a
+saved event with a deadline. It returns received data or a timeout. Keep `defer()` for cleanup. See the
+[execution guide](https://github.com/okikio/utils/blob/main/docs/workflows/13-execution.md) for composition and
+recovery.
 
-## Requirements, effects, cleanup, and cancellation
+See [event waits](https://github.com/okikio/utils/blob/main/docs/workflows/11-events.md) for `wait(Event, { key })` and
+`client.send()`. See [saved progress](https://github.com/okikio/utils/blob/main/docs/workflows/12-progress.md) for
+progress effects and `client.watch()`.
 
-Workflow definitions keep direct requirements. Activity definitions keep their own direct requirements. The Scheduler
-applies an activity's active direct requirements before placement; target-bearing permissions remain declarations until
-activity code checks a concrete target.
+For bounded host sharing and inherited required locations, read [Placement](../../docs/workflows/17-placement.md). It
+connects registration, ancestor capacity, durable claims, replacement fences, and cooperative host turns.
 
-Workflow effects must be declared by the workflow definition. The Scheduler gives an occurrence a deterministic default
-key and waits for the configured effect owner to accept it. Durable delivery still needs a concrete outbox or equivalent
-owner.
+## Return activity work to one pooled host
 
-`workflow.defer()` records cleanup before the generator moves forward. Required cleanup runs after a failure and during
-cancellation. Cancellation asks work to stop cooperatively; it does not make an uncooperative provider safe to abandon
-without fencing or lease recovery.
-
-## Building a durable host
-
-A concrete host can implement `History` and `ActivityDispatch`, but must add:
-
-1. Persisted and fenced workflow-run or activation ownership.
-2. Instruction identity before external dispatch and terminal completion through the same authority.
-3. Atomic activity claims using storage-authoritative lease time.
-4. Reconciliation for expired registrations and claims that rejects late results.
-5. Timer and signal storage, wake-ups, and an outbox or equivalent idempotent effect commitment.
-
-Do not persist definitions, schemas, callbacks, live errors, or provider resources. Import the exact definitions in the
-host, then resolve stored identity through the replayed workflow contract.
-
-## Source guide
-
-1. `mod.ts` owns definitions, instructions, identity, and the Scheduler.
-2. `types.ts` defines public contracts and storage documents.
-3. `history.ts` and `dispatch.ts` provide bounded process-local references.
-4. `jobs.ts` owns executor admission, provider snapshots, and lease delivery.
-5. `*.test.ts` demonstrates replay, stale-generation fencing, cancellation, virtual-clock retry, and accessor-safe
-   durable snapshots.
+`placement.host(executor, hostReference)` selects a particular thread or child process inside a registered provider. It
+survives saved-job and nested-workflow serialization, while the referenced native host remains live. Retirement or
+replacement makes the old reference lost; retries cannot choose a sibling. See
+[Physical hosts](../../docs/workflows/19-hosts.md) for the complete setup and
+[Resource sessions](../../docs/workflows/18-sessions.md) for resource ownership.

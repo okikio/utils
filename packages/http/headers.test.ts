@@ -1,3 +1,4 @@
+import { list } from './headers.ts';
 import { expect } from '@std/expect';
 import { describe, it } from 'node:test';
 import { forward } from '@okikio/http/headers';
@@ -39,4 +40,23 @@ describe('HTTP forwarding headers', () => {
 		expect(request.has('x-private-hop')).toBe(false);
 		expect(request.has('x-second-hop')).toBe(false);
 	});
+});
+
+it('copies header prefixes and rejects sparse or accessor lists without executing them', () => {
+	expect(list(['x-private-', 'authorization'], 'headers')).toEqual(['x-private-', 'authorization']);
+	const source = ['x-private-'];
+	const copied = list(source, 'headers');
+	source[0] = 'changed';
+	expect(copied).toEqual(['x-private-']);
+	expect(Object.isFrozen(copied)).toBe(true);
+	expect(() => list(new Array(1), 'headers')).toThrow(TypeError);
+	let reads = 0;
+	const getter = Object.defineProperty(['value'], '0', {
+		get() {
+			reads++;
+			return 'value';
+		},
+	});
+	expect(() => list(getter, 'headers')).toThrow(TypeError);
+	expect(reads).toBe(0);
 });

@@ -4,9 +4,21 @@ An activity is one named job that accepts an input and returns a checked result.
 have jobs to read a photo's dimensions, create its preview, and save its description. Each job does one useful piece of
 work. The application decides how to connect those pieces.
 
+For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters keep their native runtime requirements.
+
 Start with a regular function when that is all you need. Activities become useful when several callers or execution
 locations need the same rules: what input is accepted, what result comes back, which dependencies are available, and
 what should stop when the caller cancels. You declare those rules once and attach the actual function separately.
+
+An activity definition is a description. Its implementation is a function. A queued job requests that activity for one
+input. An attempt is one invocation of its implementation. Neither `define()` nor `implement()` runs the work. Use
+`activity.run()` for a local call or `client.submit()` for saved background work with an explicit store and policy. The
+[background-work guide](../../docs/workflows/01-basics.md) explains that service-to-worker path.
+
+For example, a request handler can call a local title-saving activity and await its answer. A background service can
+accept that same named activity into a saved queue and let another executor run it later. The activity declares the
+operation; it does not choose a queue, start a worker, or make a write safe to repeat. That separation lets the same
+business function work in either setting.
 
 ## Save a photo title with a supplied store
 
@@ -15,26 +27,39 @@ it needs no account, network, database or credentials. The result is a receipt: 
 The explicit polyfills support the Temporal clock and disposal stack used by the context and resource collection when
 the host lacks those APIs.
 
+The business operation is still an ordinary function: trim the submitted title, uppercase it, then
+`await store.save(label)`. The declaration adds input/result checks around that call. Nothing is saved until
+`activity.run()` invokes the implementation.
+
+`Local` names the permitted execution environment; it launches no process. `Store` describes a dependency,
+`StoreLive` supplies it, and `stores` owns the acquired instance. `owner` supplies cancellation and cleanup. The activity
+borrows that store through `ctx.get(Store)` and must not close it itself.
+
+From the repository root, run `mise run prepare -- --kind deps` once. Save the complete block as the named `.ts` file and run
+`mise exec -- deno run save-title.ts`. These examples use workspace imports; they need no published package or network service.
+
 ```ts runnable=save-title.ts
 import '@okikio/duration/polyfill';
 import '@okikio/dispose/polyfill';
 import * as activity from '@okikio/activity';
 import * as engine from '@okikio/activity/engine';
 import * as context from '@okikio/context';
-import * as resource from '@okikio/resource';
+import * as resource from '@okikio/capability/resource';
 import { SchemaValidationError } from '@okikio/schema';
-import { z } from 'zod';
+import * as schema from '@okikio/schema';
 
 const Local = engine.define({ id: 'local' });
-const InputSchema = z.object({ title: z.string().trim().min(1) });
-const ReceiptSchema = z.object({ id: z.string(), label: z.string() });
+const InputSchema = schema.object({ title: schema.string({ pattern: /\S/ }) });
+const ReceiptSchema = schema.object({ id: schema.string(), label: schema.string() });
 const Store = resource.define<{ save(label: string): Promise<string> }>()({
 	id: 'photo.store',
 	description: 'Save a photo label and return its ID.',
 });
 const labels: string[] = [];
+// Supply a local demo store. The declaration above describes the resource; this implementation creates it.
 const StoreLive = resource.implement(Store, {
 	create: () => ({
+		/** Keep demo data in memory; this method does not persist across process loss. */
 		async save(label) {
 			labels.push(label);
 			return `asset-${labels.length}`;
@@ -49,10 +74,12 @@ const SaveTitle = activity.define({
 	placement: engine.require(Local),
 	resources: [Store],
 });
+// Bind behavior to the checked activity definition before running an attempt.
 const SaveTitleLive = activity.implement(SaveTitle, {
+	/** Borrow the declared store through this attempt's context, then return the declared result. */
 	async run(ctx) {
 		const store = await ctx.get(Store);
-		const label = ctx.input.title.toUpperCase();
+		const label = ctx.input.title.trim().toUpperCase();
 		return { id: await store.save(label), label };
 	},
 });
@@ -101,227 +128,81 @@ Try changing the input title to `Family visit`. Both output labels become `FAMIL
 schema before the save function runs. This array is a teaching store, not durable storage, and repeating the call adds
 another entry. A real save operation needs its own duplicate-write policy.
 
-## Keep a save operation behind one checked contract
+## Reuse the same job contract in another caller
 
-A photo title arrives from a form. Before a storage client sees it, the activity checks that it contains text. After the
-client saves it, the activity checks the receipt. Different callers can use that same contract without copying
-validation around every save. The example above shows both an accepted title and a rejected empty one.
+A photo preview and an invoice calculation can share the same checked-call model. Define each input and result
+separately; implementations supply the business work.
 
-The three main calls have different jobs:
+Use a normal function for one local transformation. Add Workflow when accepted work must be scheduled or resumed, and
+select an engine only when placement matters.
 
-| Call or contract                                            | What it contains or returns                                                              | What actually runs                                                       |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `define()` → `ActivityDefinition`                           | ID, version, input/result schemas, placement, and optional dependencies/failures/effects | Declaration only; no job starts.                                         |
-| `implement(definition, { run })` → `ActivityImplementation` | The exact definition and your function                                                   | Registration only; the function has not been called.                     |
-| `run(options)` → `Promise<ActivityResult<Activity>>`        | A result inferred from the definition's result schema                                    | One checked local attempt with supplied input and dependencies.          |
-| `ActivityContext` supplied to `run`                         | Typed `input`, `signal`, job ID, attempt number, `get()`, checkpoint and cleanup methods | Your function uses this state; it still returns its normal result value. |
+The activity result is authoritative. Progress and effects have separate recipients; an engine choice alone does not
+make a job durable.
 
-The result schema determines the Promise's value type. Changing a definition's input schema changes the implementation's
-typed `ctx.input`. Keeping those schemas on one definition prevents separate callers and remote hosts from quietly
-drifting into different versions of the same job.
+## Choose an entry point
 
-Underneath a direct `run()`, the runner checks engine and attempt identity, validates input, and creates an owned child
-context. It adds the declared resource/permission/effect views, applies admission requirements, calls your function,
-validates its result, and awaits attempt cleanup. Invalid input never reaches the function. Schemas may be asynchronous,
-so the outward result is a Promise even when your function returns a string immediately.
+Use the table to find a focused import for the job you need. Contract links open the exact public source, including its
+options and types.
 
-The caller still supplies a resource collection and engine identity. That setup costs more than a direct function call;
-it becomes useful when the same rules must survive a change of caller or execution location. It does not launch a remote
-host or make an external write durable by itself.
+| Import                     | Use it to                                                                | Exact contract           |
+| -------------------------- | ------------------------------------------------------------------------ | ------------------------ |
+| `@okikio/activity`         | Use the package entry shown in the complete examples above.              | [Contract](./mod.ts)     |
+| `@okikio/activity/engine`  | Declare execution targets and select placement without starting a host.  | [Contract](./engine.ts)  |
+| `@okikio/activity/local`   | Bind activity implementations to the process-local engine.               | [Contract](./local.ts)   |
+| `@okikio/activity/process` | Run activities in an owned pool of child processes.                      | [Contract](./process.ts) |
+| `@okikio/activity/selection` | Validate physical host references and recognize busy/lost selection. | [Contract](./selection.ts) |
+| `@okikio/activity/types`   | Import public types for this capability; this entry does not start work. | [Contract](./types.ts)   |
+| `@okikio/activity/worker`  | Run activities in an owned pool of Web Workers.                          | [Contract](./worker.ts)  |
 
-## Follow one job from input to result
+## Inspect placement before reserving work
 
-Imagine saving a title for an uploaded photo. The activity checks the submitted title, asks the supplied store to save
-it, and checks the returned receipt before giving it to the caller. Read this diagram from top to bottom; the caller,
-activity runner and store are separate participants.
+`engine.inspect(activity, hosts, { maximumHosts: 1000, now: Date.now() })` reports each registration's eligibility and
+the first authored engine with a current eligible host. Supply registration ID, stable host ID, engine ID, supported
+activity ID/version pairs, capacity and active counts. Optional expiry, closed/draining flags and affinity facts reject
+candidates in that order. A full host rejects before the activity match; an expired preferred host allows the next
+authored fallback. Excess hosts reject rather than returning a misleading selection from a truncated list. The report
+contains identities and reasons, without copying credentials or calling a provider. It shares the in-memory dispatch
+constraints; dispatch still owns the later atomic claim. Refresh stale snapshots before presenting diagnostics. Nothing
+in the report grants capacity, permissions or a reusable claim. Activity payload schemas remain the provider boundary's
+responsibility.
 
-![A photo application checks a save job, borrows its supplied store, and receives the saved receipt](diagram.png)
+Worker and process Activity peers now negotiate internal contract `okikio.activity.attempt`, version 1, with required
+cleanup and reverse-call features before encoding an attempt. Upgrade both host and provider together: a legacy or
+incompatible host fails the handshake instead of accepting unchecked payloads. This negotiation does not authenticate a
+remote host. Process framing limits must match both peers, including envelope overhead above the application value. The
+native conformance corpus checks failure identity, heartbeat and predispatch cancellation across all three providers;
+remote pool cancellation may reject the original context reason while local execution can return a cancelled outcome.
+Neither form publishes late success. The dispatch claim remains the authority for accepting a terminal result.
 
-[Editable diagram source](diagram.mmd). The store does the saving; the activity adds one consistent call contract around
-it. Resource declarations describe and type the job's dependencies; they are not a sandbox for untrusted
-implementations. This picture shows a successful local attempt. A failed input check stops before the implementation
-runs. Cancellation asks cooperative work to stop; it does not undo a write that the store has already accepted. Retries
-and durable scheduling belong to a host such as [workflow](../workflow/README.md), rather than to this direct call.
+## Measure attempts and host selection
 
-The examples use a few names that can otherwise make this small idea feel larger:
+The focused benchmarks measure local validated attempts and placement across 10–1,000 hosts. The benchmark compares
+against direct validated arithmetic; selection without a diagnostic report. Provider startup and remote execution remain
+root scenarios.
 
-| Name           | Meaning in this guide                                                                              |
-| -------------- | -------------------------------------------------------------------------------------------------- |
-| Definition     | The job's name, version, input and result rules. Declaring it starts no work.                      |
-| Implementation | The function that actually performs the job.                                                       |
-| Engine         | A declared execution category that must match the chosen runner. A name does not launch a process. |
-| Attempt        | One execution of the job. A later retry is another attempt.                                        |
-| Resource       | A supplied dependency, such as a store or browser. The job borrows it.                             |
-| Context        | The attempt's identity, cancellation signal, deadline and cleanup lifetime.                        |
+From the repository root, run the package's tests and untimed benchmark checks before collecting timings:
 
-For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
-
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
-
-## Choose the next piece for your scenario
-
-| You need to achieve                                   | Combine                                                                 | What changes for the caller                                                                              |
-| ----------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Validate and save one submitted title                 | Activity + [resource](../resource/README.md)                            | The caller receives a checked receipt and the job borrows a declared store.                              |
-| Stop an upload when its caller leaves                 | Activity + [context](../context/README.md)                              | Pass cancellation to the actual upload operation and release its local resources.                        |
-| Create a preview, then save its location              | Activities + [workflow](../workflow/README.md)                          | The sequence requests named steps and can reuse recorded completions through its configured history.     |
-| Run costly work outside the caller's execution thread | Activity [Worker provider](./worker.ts) + [worker](../worker/README.md) | Serializable input and results cross a transport; the receiving host supplies its own live dependencies. |
-
-The workflow guide runs two real activity implementations through a local provider. Start there before adding a remote
-host. Sharing dispatch and history across computers needs authoritative adapters; drawing an engine in a diagram does
-not supply that infrastructure.
-
-## Request a job from a workflow
-
-`activity.request()` creates one serializable workflow operation. It does not execute the implementation.
-
-```ts
-const receipt = yield * activity.request(SaveTitle, { title: 'Summer trip' });
+```sh
+mise run test -- --project activity
+mise run bench -- --project activity --check
+mise run bench -- --project activity
 ```
 
-`activity.try()` creates the same request but converts only declared activity failures into `@okikio/result`. Unexpected
-faults and cancellation still escape.
+These commands use package-owned fixtures and development dependencies. The
+[benchmark protocol](../../docs/benchmarks/01-running.md#choose-a-comparison-that-answers-the-question) explains fair
+comparisons, raw report collection and the limits of local measurements.
 
-## Direct attempts
+## Read further
 
-`activity.run()` executes one exact implementation in the current host. A host supplies the engine identity, input,
-parent context, resource collection, job identity, attempt number, and optional permission/effect services.
+The [Activity guide](https://github.com/okikio/utils/blob/main/docs/activity.md) explains the model, manual
+alternatives, and composition.
 
-The complete local calls above supply every dependency. The following larger composition sketch instead assumes your
-application declares a `Download` activity with `Http` and `Storage` resources, a `ReadSource` permission, and a
-`DownloadCommitted` effect. It also supplies `openWriter()`. Its input includes `url` and `id`; those are application
-contracts rather than additional exports from this package.
+## Select a host inside a provider
 
-```ts
-const DownloadLive = activity.implement(Download, {
-	async run(ctx) {
-		await permission.assert(ctx, ReadSource, { url: ctx.input.url });
-		const http = await ctx.get(Http);
-		const writer = ctx.use(await openWriter());
-
-		for await (const chunk of http.get(ctx.input.url, ctx.signal)) {
-			await ctx.checkpoint();
-			await writer.write(chunk);
-			await ctx.heartbeat({ bytes: chunk.byteLength });
-		}
-
-		await effect.emit(ctx, DownloadCommitted, {
-			url: ctx.input.url,
-		}, {
-			key: `download:${ctx.input.id}`,
-		});
-
-		return { ok: true };
-	},
-});
-```
-
-The direct attempt performs this sequence:
-
-1. Validate the job and attempt identities.
-2. Validate input with the activity schema.
-3. Create one owned child context.
-4. Attach the requirement runtime and reachable permission view.
-5. Attach only the effects declared by the activity.
-6. Expose the declared resource types to the implementation and retain collection requirement checks.
-7. Apply direct active requirements unless a Scheduler already admitted them.
-8. Run the initial cooperative checkpoint.
-9. Invoke the exact implementation.
-10. Validate the result schema.
-11. Reject an expected failure that the activity did not declare.
-12. Dispose attempt-owned values.
-
-An implementation receives `ctx.get()` for borrowed resources and standard owned-context operations such as `use()`,
-`adopt()`, and `defer()` for values it creates itself.
-
-## Scheduler admission
-
-The default workflow Scheduler applies an activity's direct active requirements before it reserves engine capacity. It
-then marks the fenced attempt as already admitted. The provider calls `activity.run()` with that attempt, which binds
-dynamic permission/effect/resource scopes without repeating the admission check.
-
-A caller that invokes `activity.run()` directly has no Scheduler above it, so direct requirements are applied by `run()`
-itself.
-
-## Engine placement
-
-`@okikio/activity/engine` owns static execution-target definitions and placement choices:
-
-```ts
-const placement = engine.oneOf(
-	engine.prefer(Browser),
-	engine.allow(Server),
-);
-```
-
-`require()` selects one exact engine. `prefer()` and `allow()` define an ordered fallback choice. Placement does not
-start a process or Worker. Live engine providers run through `workflow.executor()`; `scheduler.register()` is the
-attached-host convenience.
-
-## Provider subpaths
-
-The package includes generic providers that compose existing runtime utilities:
-
-- `@okikio/activity/local` executes an implementation in the executor host.
-- `@okikio/activity/worker` composes `@okikio/pool` and `@okikio/worker`.
-- `@okikio/activity/process` composes `@okikio/pool`, `@okikio/process`, and the typed process channel.
-
-Activity dispatch remains the authority for logical item identity, attempt number, and terminal result. Providers report
-success, declared failure, fault, cancellation, or loss. Executors commit retry decisions through dispatch rather than
-silently creating another logical item.
-
-Permissions, effects, and heartbeats cross Worker/process transports as correlated reverse calls. The authoritative host
-validates the permission target or effect definition again before it answers. A heartbeat becomes meaningful only after
-the executor renews the exact active dispatch claim.
-
-## Pause and cancellation
-
-Pause is cooperative. A running implementation pauses only when it calls `ctx.checkpoint()` or returns control. A
-`fetch()`, codec call, filesystem mutation, or database operation is not suspended at an arbitrary JavaScript
-instruction.
-
-Cancellation changes the local `AbortSignal` immediately. Worker and process providers also send the matching
-cancellation message. Cleanup still follows the owned activity context.
-
-## Convenience and the manual equivalent
-
-| Convenience                                  | Manual equivalent                                                                                                 | Concrete value                                                |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `activity.define()` + `activity.implement()` | freeze metadata, keep a handler map, then validate input/result/failure schemas around every call                 | one activity identity and validation contract                 |
-| `activity.request()`                         | construct a typed workflow instruction, suspend the generator, dispatch it, then validate the completion yourself | scheduler-facing request semantics without transport coupling |
-| `activity.try()`                             | catch declared failures separately from unexpected faults and rebuild the discriminated result                    | declared failure stays data instead of becoming an exception  |
-
-`@okikio/activity` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics with a function
-call plus your own attempt IDs, permission checks, resource lookup, cancellation, and result transport.
-
-Use the utility when those rules must stay identical across local, Worker, and process execution.
-
-## Operations and failures you will reach for next
-
-After the basic definition/request/run path, these exports cover composition and result handling:
-
-- `catalog()` and `select()` build and narrow named activity definition sets.
-- `document()` produces deterministic, JSON-safe definition metadata for tooling.
-- `try()` converts a declared activity failure into a Result branch. Unexpected faults and cancellation still throw.
-- `isFailure()` checks whether a result contains one declared activity failure.
-- `InvalidEngineError` reports a provider that claims the wrong engine definition.
-- `UndeclaredFailureError` reports an implementation that returns a failure the activity definition did not declare.
-
-## Source guide
-
-Start with this README, then use the source in this order when you need more detail:
-
-1. `mod.ts` shows the supported runtime operations and the composition shape.
-2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
-4. `remote.ts` owns the common activity identity, catalog checks, and protocol schemas for process and Worker providers.
-   `process.ts` and `worker.ts` retain their separate host startup, transport, and shutdown behavior.
-5. Read other internal implementation files only when you need the exact state transition or performance-sensitive loop.
-
-Use this README for scenarios and design decisions, and [API.md](API.md) for the source-derived exported contracts.
-
-## Unexpected runtime diagnostics
-
-Unexpected thrown values are projected through `@okikio/fault` before they cross runtime or durable seams. This is
-separate from `@okikio/failure`, which represents expected declared failures with stable application identity.
+Worker and process providers expose `hosts()` for live references and
+`retire(reference)` for joined graceful removal. Use
+`workflow.placement.host(executor, reference)` to select one pool entry in memory
+or saved work; busy/lost selection never falls back to another host. Activities
+can return `ctx.physicalHost` with their result for later work.
+See the [complete physical-host example](../../docs/workflows/19-hosts.md) for
+identity, bounded admission, errors and resource-session ownership.

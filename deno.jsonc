@@ -1,71 +1,33 @@
 {
 	"nodeModulesDir": "manual",
 	"workspace": [
-		"packages/*"
+		"packages/*",
+		"examples/*"
 	],
 	"tasks": {
-		"fmt": "deno fmt --check",
-		"check": "deno task type",
-		"type": "deno run --no-lock --no-check --allow-read --allow-run tools/typecheck.ts",
-		"test": "deno task bench:prepare && deno test -A",
-		"test:node": "deno task bench:prepare && deno run --allow-run tools/check-node.ts",
-		"lint": "deno lint",
-		"docs:check": "deno run --allow-read --allow-run tools/check-docs.ts",
-		"docs:api": "deno run --allow-read --allow-write --allow-run tools/build-docs.ts write",
-		"docs:api:check": "deno run --allow-read --allow-run tools/build-docs.ts check",
-		"docs:html": "deno run --allow-read --allow-write --allow-run tools/build-docs.ts html",
-		"hono:check": "deno run --allow-read --allow-env tools/hono-inventory.ts check",
-		"verify": "deno task fmt && deno task lint && deno task check && deno task utils:check && deno task docs:check && deno task docs:api:check && deno task hono:check && deno task test && deno task test:node && deno task audit:fragile && deno task qualification:check && deno task package:check && deno task treeshake:check && deno task bench:check && deno task consumer:check && deno task release:versions",
-		"bench": "deno task bench:prepare && deno run -A bench/measure.ts",
-		"bench:compare": "deno run -A bench/repeat.ts",
-		"bench:profile": "deno task bench:prepare && node bench/profile.mjs",
-		"bench:prepare": "node tools/challenger-build.mjs",
-		"bench:challengers": "deno task bench:prepare && node bench/challenger-repeat.mjs",
-		"bench:profile:bun": "deno task bench:prepare && node bench/profile-bun.mjs",
-		"package:check": "deno run -A tools/check-packaging.ts",
-		"utils:sync": "deno run -A tools/sync-utils-exports.ts --write",
-		"utils:check": "deno run -A tools/sync-utils-exports.ts --check",
-		"treeshake:check": "deno run -A tools/check-treeshake.ts",
-		"audit:duplicates": "deno run --no-lock --no-check --allow-read --allow-env --allow-ffi tools/audit-duplicates.ts",
-		"audit:code": "deno run --no-lock --no-check --allow-read --allow-env --allow-ffi tools/audit-duplicates.ts",
-		"bench:check": "deno task bench:prepare && deno run -A bench/check.ts --check",
-		"consumer:check": "deno run -A tools/check-consumers.ts",
-		"npm:build": "node tools/npm.ts build",
-		"npm:check": "node tools/npm.ts check",
-		"npm:pack": "node tools/npm.ts pack",
-		"npm:consumer": "node tools/npm.ts consumer",
-		"npm:verify": "node tools/npm.ts verify",
-		"audit:fragile": "deno run --no-check --allow-read --allow-env --allow-ffi tools/audit-fragile-tests.ts",
-		"qualification:check": "deno run --no-check --allow-read --allow-env --allow-ffi tools/check-qualification.ts",
-		"release:versions": "deno run --allow-read .bumpy/release.ts check",
-		"bench:npm": "deno run --no-check --allow-read --allow-run bench/npm-imports.bench.ts"
+		"fmt": "mise run check -- --kind format",
+		"lint": "mise run check -- --kind lint",
+		"check": "mise run check",
+		"test": "mise run test",
+		"test:docs": "mise run test -- --suite docs"
+	},
+	"test": {
+		"exclude": [
+			"tests/workflows/",
+			"packages/storage/queue/postgres.test.ts",
+			"packages/storage/state/postgres.test.ts"
+		]
 	},
 	"exports": {},
 	"imports": {
-		"csv-parse/sync": "npm:csv-parse@7.0.3/sync",
-		"@std/csv": "npm:@jsr/std__csv@1.0.6",
-		"elysia": "npm:elysia@1.4.30",
+		"#tools/": "./tools/",
+		"#fixtures/": "./tests/fixtures/",
+		"#bench/": "./bench/",
 		"elysia/": "npm:elysia@1.4.30/",
-		"vixeny": "npm:vixeny@0.1.53",
-		"hono": "npm:hono@4.13.5",
-		"hono/": "npm:hono@4.13.5/",
-		"parse5": "npm:parse5@8.0.1",
-		"saxes": "npm:saxes@6.0.0",
-		"p-limit": "npm:p-limit@7.3.3",
-		"neverthrow": "npm:neverthrow@8.2.0",
 		"@okikio/observables": "jsr:@okikio/observables@^1.4.0",
-		"@standard-schema/spec": "npm:@standard-schema/spec@^1.1.0",
 		"@std/async": "jsr:@std/async@^1.5.0",
 		"@std/encoding": "jsr:@std/encoding@^1.0.11",
-		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
-		"@std/semver": "npm:@jsr/std__semver@1.0.8",
-		"@std/jsonc": "npm:@jsr/std__jsonc@1.0.2",
-		"@std/xml": "jsr:@std/xml@^0.2.0",
-		"fast-check": "npm:fast-check@^4.9.0",
-		"mitata": "npm:mitata@^1.0.34",
-		"oxc-parser": "npm:oxc-parser@^0.145.0",
-		"css-tree": "npm:css-tree@^3.2.1",
-		"zod": "npm:zod@^4.5.4"
+		"@std/xml": "jsr:@std/xml@^0.2.0"
 	},
 	"compilerOptions": {
 		"lib": [
@@ -82,8 +44,18 @@
 		"verbatimModuleSyntax": true
 	},
 	"fmt": {
-		// PNPM owns the generated lockfile format; installs can rewrite it.
-		"exclude": ["pnpm-lock.yaml"],
+		// Markdown keeps authored wrapping and code-block layout; review its meaning and examples separately.
+		// Generated evidence and archived research retain exact source provenance.
+		"exclude": [
+			"pnpm-lock.yaml",
+			"**/*.md",
+			".bumpy/*.md",
+			"**/.example-*/**",
+			".tmp/artifacts/**",
+			".tmp/**",
+			".tmp/docs/design/**",
+			".tmp/docs/history/**"
+		],
 		"lineWidth": 120,
 		"semiColons": true,
 		"singleQuote": true,
@@ -91,6 +63,7 @@
 		"indentWidth": 2
 	},
 	"lint": {
+		"exclude": [".tmp/**", "**/.example-*/**"],
 		"rules": {
 			"tags": [
 				"recommended"

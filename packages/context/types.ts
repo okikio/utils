@@ -1,3 +1,6 @@
+import type { Temporal } from '@okikio/duration/temporal';
+import type { Instrument } from '@okikio/telemetry/instrument';
+
 /** Provider-neutral clock used by requests, activities, workflows, and tests. */
 export interface Clock {
 	/** Return the current absolute instant. */
@@ -52,6 +55,8 @@ export interface Context {
 	readonly signal: AbortSignal;
 	/** Clock used for operation time and waits; tests can supply a logical clock. */
 	readonly clock: Clock;
+	/** Borrowed process-local observations; omitted from transport snapshots and never disposed here. */
+	readonly instrument?: Instrument;
 }
 
 /** Standard resource ownership operations available on one owned context. */
@@ -66,8 +71,10 @@ export interface Resources {
 
 /** Independently owned context with deterministic cancellation and resource cleanup. */
 export interface Owned extends Context, Resources, AsyncDisposable {
-	/** Resolves after the context and every resource it owns have been disposed. */
+	/** Resolves after every owned cleanup is attempted, even when disposal rejects with a cleanup failure. */
 	readonly closed: Promise<void>;
+	/** Cancel admission and join cleanup. Repeated and reentrant calls receive this owner's same completion Promise. */
+	[Symbol.asyncDispose](): Promise<void>;
 }
 
 /** Inputs accepted while creating one owned operation context. */
@@ -88,6 +95,8 @@ export interface CreateOptions {
 	readonly signal?: AbortSignal;
 	/** Clock used for operation time and waits; tests can supply a logical clock. */
 	readonly clock?: Clock;
+	/** Borrowed process-local observations; omitted from transport snapshots and never disposed here. */
+	readonly instrument?: Instrument;
 }
 
 /** Inputs accepted while deriving a child context. */
@@ -102,4 +111,6 @@ export interface RestoreOptions {
 	readonly signal?: AbortSignal;
 	/** Clock used for operation time and waits; tests can supply a logical clock. */
 	readonly clock?: Clock;
+	/** Borrowed process-local observations; omitted from transport snapshots and never disposed here. */
+	readonly instrument?: Instrument;
 }

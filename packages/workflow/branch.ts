@@ -133,13 +133,7 @@ export class Branch<Value> implements BranchView {
 		return child;
 	}
 
-	/**
-	 * Advances state by one controlled transition under the live structured-concurrency kernel.
-	 *
-	 * The kernel gives every branch one active Step and child Scope while the Reducer serializes generator advancement, cancellation, and cleanup.
-	 *
-	 * @internal
-	 */
+	/** Advance the iterator once, then retain one active Step discard function until its callback queues the next transition. */
 	#advance(resume: Exit<unknown> | undefined): void {
 		if (this.#state === 'terminal' || this.#state === 'closing') return;
 		if (this.#cancelRequested) return this.#beginCancellation();
@@ -169,13 +163,7 @@ export class Branch<Value> implements BranchView {
 		}
 	}
 
-	/**
-	 * Marks the branch as cancelling, aborts its active Step, and waits for discard acknowledgement before generator unwind.
-	 *
-	 * The kernel gives every branch one active Step and child Scope while the Reducer serializes generator advancement, cancellation, and cleanup.
-	 *
-	 * @internal
-	 */
+	/** Discard the active Step and wait for its acknowledgement before running generator cleanup. */
 	#beginCancellation(): void {
 		if (this.#state === 'terminal' || this.#state === 'closing' || this.#discarding) return;
 		const activeExit = this.#activeExit;
@@ -231,28 +219,28 @@ export class Branch<Value> implements BranchView {
 		this.#unwindFailure(cause);
 	}
 
-	/**
-	 * Calls `iterator.return()` after cancellation is armed and rejects any later yield so cancelled body code cannot resume.
-	 *
-	 * The kernel gives every branch one active Step and child Scope while the Reducer serializes generator advancement, cancellation, and cleanup.
-	 *
-	 * @internal
-	 */
+	/** Enter generator return-mode after cancellation; retain discard, generator and scope failures alongside the cancellation. */
 	#unwind(discardCause?: Cause): void {
 		if (this.#state === 'terminal' || this.#state === 'closing') return;
 		this.#state = 'closing';
+		// A thrown undefined is still a failure; keep presence separate from its value.
+		let hasUnwindFailure = false;
 		let unwindFailure: unknown;
 		try {
 			const step = this.#iterator.return?.(undefined as never);
-			if (step !== undefined && !step.done) unwindFailure = new CleanupStepError(step.value);
+			if (step !== undefined && !step.done) {
+				hasUnwindFailure = true;
+				unwindFailure = new CleanupStepError(step.value);
+			}
 		} catch (error) {
+			hasUnwindFailure = true;
 			unwindFailure = error;
 		}
 		const cancellation = Object.freeze({ type: 'cancelled', reason: this.#cancelReason } satisfies Cause);
 		void this.scope.close(this.#cancelReason).then((cleanupCauses) => {
 			const causes: Cause[] = [cancellation];
 			if (discardCause !== undefined) causes.push(discardCause);
-			if (unwindFailure !== undefined) causes.push(Object.freeze({ type: 'failure', failure: unwindFailure }));
+			if (hasUnwindFailure) causes.push(Object.freeze({ type: 'failure', failure: unwindFailure }));
 			causes.push(...cleanupCauses);
 			this.#settleFailure(
 				causes.length === 1 ? causes[0]! : Object.freeze({ type: 'multiple', causes: Object.freeze(causes) }),
@@ -260,27 +248,27 @@ export class Branch<Value> implements BranchView {
 		});
 	}
 
-	/**
-	 * Builds the unwind failure used when the live structured-concurrency kernel cannot complete as intended.
-	 *
-	 * The kernel gives every branch one active Step and child Scope while the Reducer serializes generator advancement, cancellation, and cleanup.
-	 *
-	 * @internal
-	 */
+	/** Unwind after a child failure, preserving that primary cause while appending discard and scope cleanup failures. */
 	#unwindFailure(cause: Cause, discardCause?: Cause): void {
 		if (this.#state === 'terminal' || this.#state === 'closing') return;
 		this.#state = 'closing';
+		// A thrown undefined is still a failure; keep presence separate from its value.
+		let hasUnwindFailure = false;
 		let unwindFailure: unknown;
 		try {
 			const step = this.#iterator.return?.(undefined as never);
-			if (step !== undefined && !step.done) unwindFailure = new CleanupStepError(step.value);
+			if (step !== undefined && !step.done) {
+				hasUnwindFailure = true;
+				unwindFailure = new CleanupStepError(step.value);
+			}
 		} catch (error) {
+			hasUnwindFailure = true;
 			unwindFailure = error;
 		}
 		void this.scope.close(cause).then((cleanupCauses) => {
 			const causes: Cause[] = [cause];
 			if (discardCause !== undefined) causes.push(discardCause);
-			if (unwindFailure !== undefined) causes.push(Object.freeze({ type: 'failure', failure: unwindFailure }));
+			if (hasUnwindFailure) causes.push(Object.freeze({ type: 'failure', failure: unwindFailure }));
 			causes.push(...cleanupCauses);
 			this.#settleFailure(
 				causes.length === 1 ? causes[0]! : Object.freeze({ type: 'multiple', causes: Object.freeze(causes) }),
@@ -288,13 +276,7 @@ export class Branch<Value> implements BranchView {
 		});
 	}
 
-	/**
-	 * Closes success and waits for the cleanup that the current owner is responsible for.
-	 *
-	 * It implements live structured concurrency: a Branch owns one active Step and child Scope, while the Reducer serializes state transitions.
-	 *
-	 * @internal
-	 */
+	/** Join children and dispose resources before publishing success. Any required cleanup failure replaces success. */
 	#closeSuccess(value: Value): void {
 		if (this.#state === 'terminal' || this.#state === 'closing') return;
 		this.#state = 'closing';
@@ -306,13 +288,7 @@ export class Branch<Value> implements BranchView {
 		});
 	}
 
-	/**
-	 * Closes owned state and waits for the cleanup that the current owner is responsible for.
-	 *
-	 * It implements live structured concurrency: a Branch owns one active Step and child Scope, while the Reducer serializes state transitions.
-	 *
-	 * @internal
-	 */
+	/** Close the scope after a generator defect; retain its cause before any cleanup failures. */
 	#close(cause: Cause): void {
 		if (this.#state === 'terminal' || this.#state === 'closing') return;
 		this.#state = 'closing';
@@ -324,24 +300,12 @@ export class Branch<Value> implements BranchView {
 		});
 	}
 
-	/**
-	 * Settles the branch with one structured failure after owned cleanup has completed.
-	 *
-	 * The kernel gives every branch one active Step and child Scope while the Reducer serializes generator advancement, cancellation, and cleanup.
-	 *
-	 * @internal
-	 */
+	/** Publish a structured failure after the caller has completed scope cleanup. */
 	#settleFailure(cause: Cause): void {
 		this.#settle(Object.freeze({ type: 'failure', cause }));
 	}
 
-	/**
-	 * Settles the branch exactly once with its final live exit.
-	 *
-	 * The kernel gives every branch one active Step and child Scope while the Reducer serializes generator advancement, cancellation, and cleanup.
-	 *
-	 * @internal
-	 */
+	/** Resolve the shared result once and mark the branch terminal before notifying observers. */
 	#settle(exit: Exit<Value>): void {
 		if (this.#state === 'terminal') return;
 		this.#state = 'terminal';

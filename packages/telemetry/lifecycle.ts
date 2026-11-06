@@ -7,12 +7,12 @@
  *
  * @module
  */
-import type { FaultValue } from '@okikio/fault';
-import type { Event as PoolEvent } from '@okikio/pool';
-import type { QueueEventType } from '@okikio/queue';
-import type { ProcessEventType } from '@okikio/process';
-import type { ProcessEventType as ProcessChannelEventType } from '@okikio/process/channel';
-import type { WorkerEventType } from '@okikio/worker';
+import type { FaultValue } from '@okikio/result/fault';
+import type { PoolEventType as PoolEvent } from './events.ts';
+import type { QueueEventType } from './events.ts';
+import type { ProcessEventType } from './events.ts';
+import type { ProcessChannelEventType } from './events.ts';
+import type { WorkerEventType } from './events.ts';
 import type { EventInput, Fields, Level, Scope } from './types.ts';
 
 /** Event callback that can be passed directly to an observable subscription. */
@@ -92,6 +92,8 @@ function queueInput(event: QueueEventType): EventInput {
 			return input('queue.item.cancelled', 'info', { item_id: event.itemId });
 		case 'claim-expired':
 			return input('queue.claim.expired', 'warning', { item_id: event.itemId, claim_id: event.claimId });
+		case 'pruned':
+			return input('queue.item.pruned', 'debug', { item_id: event.itemId });
 		case 'closed':
 			return input('queue.closed', 'info');
 	}

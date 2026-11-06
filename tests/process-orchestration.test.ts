@@ -4,22 +4,14 @@ import type { StandardSchemaV1 } from '@standard-schema/spec';
 
 import * as activityProcess from '@okikio/activity/process';
 import * as context from '@okikio/context';
-import type { EffectOccurrence } from '@okikio/effect';
-import * as denoProcess from '@okikio/process/deno';
+import type { EffectOccurrence } from '@okikio/capability/effect';
+import * as denoProcess from '@okikio/runtime/deno/process';
 import * as schema from '@okikio/schema';
 import * as workflow from '@okikio/workflow';
 import * as dispatch from '@okikio/workflow/dispatch';
-import { Attempted, Engine, Execute, ResultSchema } from './fixtures/process-activity.ts';
+import { Attempted, Engine, Execute, ResultSchema } from '#fixtures/process-activity.ts';
 
-const AnySchema = Object.freeze({
-	'~standard': Object.freeze({
-		version: 1 as const,
-		vendor: 'process-orchestration-scenario',
-		validate(value: unknown) {
-			return { value };
-		},
-	}),
-});
+const AnySchema = schema.unknown();
 
 type ProcessResult = StandardSchemaV1.InferOutput<typeof ResultSchema>;
 type ProcessOutput = Readonly<{
@@ -28,17 +20,10 @@ type ProcessOutput = Readonly<{
 	>;
 	readonly final: ProcessResult;
 }>;
-const OutputSchema = Object.freeze(
-	{
-		'~standard': Object.freeze({
-			version: 1 as const,
-			vendor: 'process-orchestration-scenario',
-			validate(value: unknown) {
-				return { value: value as ProcessOutput };
-			},
-		}),
-	} satisfies StandardSchemaV1<unknown, ProcessOutput>,
-);
+const OutputSchema = schema.object({
+	first: schema.object({ left: ResultSchema, fragile: ResultSchema, right: ResultSchema }),
+	final: ResultSchema,
+});
 
 const Definition = workflow.define({
 	id: 'scenario.process-orchestration.workflow',

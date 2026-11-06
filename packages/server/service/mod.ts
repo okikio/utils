@@ -10,11 +10,11 @@
  * import * as endpoint from '@okikio/server/endpoint';
  * import * as response from '@okikio/http/response';
  * import * as service from '@okikio/server/service';
- * import { z } from 'zod';
- * const Healthy = response.ok(z.object({ ok: z.boolean() }), { id: 'health.ok', description: 'Service health.' });
+ * import * as schema from '@okikio/schema';
+ * const Healthy = response.ok(schema.object({ ok: schema.boolean() }), { id: 'health.ok', description: 'Service health.' });
  * const Health = endpoint.get({ id: 'health.read', path: '/health', responses: [Healthy] });
  * const Api = service.define({ id: 'health-api', path: '/api', endpoints: [Health] });
- * import * as resource from '@okikio/resource';
+ * import * as resource from '@okikio/capability/resource';
  * const live = service.implement(Api, { endpoints: [endpoint.handler(Health, () => response.create(Healthy, { ok: true }))], resources: resource.implementations() });
  * await using runtime = service.create(service.compile(live), { host: {} });
  * const result = await runtime.fetch(new Request('https://service.invalid/api/health'));
@@ -26,14 +26,15 @@
 export { compose, define, leafEndpoints, observer, policy, select } from './definition.ts';
 export { joinPath } from '@okikio/server/endpoint/path';
 export { implement } from './implementation.ts';
-export { authenticated, compile, document, ServiceCompilationError, validate } from './compile.ts';
+export { authenticated, compile, compileDefinition, document, ServiceCompilationError, validate } from './compile.ts';
 export { create, ServiceRuntimeConfigurationError } from './runtime.ts';
 export { resilience, retry, RetryableOperationError } from './resilience.ts';
 export type { ServiceRetryOptions } from './resilience.ts';
 export { openapi } from './openapi.ts';
-export type { ServiceOpenApiOptions } from './openapi.ts';
+export type { ServiceOpenApiOptions, ServiceOpenApiSecurity } from './openapi.ts';
 export type {
 	CompiledService,
+	CompiledServiceDefinition,
 	CreateServiceOptions,
 	EffectiveServiceOperation,
 	ServiceContextStore,
@@ -48,6 +49,7 @@ export type {
 	ServiceObserverEvent,
 	ServiceObserverEventKind,
 	ServiceObserverHandler,
+	ServiceOperationContract,
 	ServicePolicy,
 	ServicePolicyInput,
 	ServiceRequestState,
@@ -66,3 +68,6 @@ export type {
 	ServiceValidationSubject,
 	ServiceValuePatch,
 } from './types.ts';
+
+export { route, routePath, routes } from './route.ts';
+export type { ServiceRouteParam, ServiceRouteParams } from './route.ts';

@@ -140,8 +140,12 @@ export class DisposableStack implements globalThis.DisposableStack {
  * Use defer() or adopt() when cleanup returns a promise that must be awaited.
  */
 export class AsyncDisposableStack implements globalThis.AsyncDisposableStack {
-	/** Captured callbacks in acquisition order; the owner awaits each one after removing it. */
-	#entries: (() => unknown)[] = [];
+	/**
+	 * Captured cleanup in acquisition order. An undefined entry represents a
+	 * nullish resource, which requires one asynchronous turn but has no method.
+	 * Keeping that distinction lets a following cleanup begin before the turn.
+	 */
+	#entries: ((() => unknown) | undefined)[] = [];
 	/** Close registration synchronously before the first asynchronous cleanup starts. */
 	#disposed = false;
 	/** Report whether asynchronous disposal or ownership transfer has started. */
@@ -152,11 +156,11 @@ export class AsyncDisposableStack implements globalThis.AsyncDisposableStack {
 	get [Symbol.toStringTag](): string {
 		return 'AsyncDisposableStack';
 	}
-	/** Capture an owned resource's method and receiver; nullish values retain an await boundary. */
+	/** Capture an owned resource's method and receiver; nullish values retain the required asynchronous turn. */
 	use<Value extends Disposable | AsyncDisposable | null | undefined>(value: Value): Value {
 		this.#assertOpen();
 		if (value == null) {
-			this.#entries.push(() => undefined);
+			this.#entries.push(undefined);
 			return value;
 		}
 		object(value);
@@ -165,8 +169,9 @@ export class AsyncDisposableStack implements globalThis.AsyncDisposableStack {
 		else {
 			const synchronous = method(value, dispose);
 			if (synchronous === undefined) throw new TypeError('The resource needs a disposal method.');
-			// The standard sync-to-async adapter discards the synchronous method's result.
-			this.#entries.push(() => {
+			// Convert a synchronous throw to a rejected promise so the next cleanup
+			// waits for it. The method's return value is deliberately discarded.
+			this.#entries.push(async () => {
 				Reflect.apply(synchronous, value, []);
 			});
 		}
@@ -194,22 +199,37 @@ export class AsyncDisposableStack implements globalThis.AsyncDisposableStack {
 		this.#disposed = true;
 		return moved;
 	}
-	/** Close ownership synchronously, then await every LIFO callback and reject on accumulated failure. */
+	/**
+	 * Close registration synchronously, then await every LIFO callback. Failures
+	 * accumulate through SuppressedError. A repeat call returns immediately even
+	 * while the first cleanup is pending; use once() when callers need a shared join.
+	 */
 	async disposeAsync(): Promise<void> {
 		if (this.#disposed) return;
 		this.#disposed = true;
 		let failure: unknown;
 		// A rejection with undefined must not be mistaken for successful disposal.
 		let failed = false;
+		let needsAwait = false;
+		let hasAwaited = false;
 		while (this.#entries.length > 0) {
-			const callback = this.#entries.pop()!;
+			const callback = this.#entries.pop();
+			if (callback === undefined) {
+				needsAwait = true;
+				continue;
+			}
 			try {
-				await callback();
+				const result = callback();
+				// A rejected awaited value still supplies the turn. A method that
+				// throws before returning does not, so set this only after the call.
+				hasAwaited = true;
+				await result;
 			} catch (next) {
 				failure = failed ? new SuppressedError(next, failure, 'An error was suppressed during disposal.') : next;
 				failed = true;
 			}
 		}
+		if (needsAwait && !hasAwaited) await undefined;
 		if (failed) throw failure;
 	}
 	/** Participate in asynchronous protocol disposal; aliases disposeAsync() on the prototype. */

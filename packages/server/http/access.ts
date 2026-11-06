@@ -1,6 +1,12 @@
 import type { AccessEventType, Middleware } from './types.ts';
 
-/** Observe request start, response creation, and failure without selecting a logging implementation. */
+/**
+ * Observe request start, response creation and thrown failures.
+ * Response timing stops when a Response exists, before its body finishes. Use
+ * onComplete() for body outcomes. Observer rejections are contained, but their
+ * Promises are awaited; observers must bound their own delivery and redact the
+ * supplied request/error before logging.
+ */
 export function access(
 	observe: (event: AccessEventType) => void | Promise<void>,
 ): Middleware {
@@ -41,14 +47,14 @@ export function access(
 	};
 }
 
-/** Prevent observational failures from changing request execution. */
+/** Contain observer rejection while still waiting for its Promise to settle. */
 async function safeObserve(
 	observe: (event: AccessEventType) => void | Promise<void>,
 	event: AccessEventType,
 ): Promise<void> {
 	try {
 		await observe(event);
-	} catch { /* observers do not control request completion */ }
+	} catch { /* observer rejection cannot replace the request result */ }
 }
 
 /** Preserve Error instances while retaining a thrown non-Error as cause. */

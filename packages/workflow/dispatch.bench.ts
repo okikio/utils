@@ -1,9 +1,9 @@
-import { run } from '../../bench/run.ts';
+import { run } from './fixtures/bench.ts';
 import { bench, do_not_optimize, group } from 'mitata';
 
 import * as context from '@okikio/context';
-import * as dispatch from './dispatch.ts';
-import type { ActivityJobResultType, ActivityJobType } from './types.ts';
+import * as dispatch from '@okikio/workflow/dispatch';
+import type { ActivityJobResultType, ActivityJobType } from '@okikio/workflow/types';
 
 const ITEMS = 1_000;
 
@@ -14,7 +14,7 @@ function ids(): () => string {
 }
 
 /** Run admission, placement, claiming, and completion for one bounded batch. */
-async function cycle(verify = false): Promise<import('./types.ts').ActivityDispatchStatsType> {
+async function cycle(verify = false): Promise<import('@okikio/workflow/types').ActivityDispatchStatsType> {
 	const clock = new context.TestClock();
 	await using ctx = context.create({ id: 'dispatch-benchmark', clock });
 	await using store = dispatch.memory({ clock, id: ids() });
@@ -26,7 +26,7 @@ async function cycle(verify = false): Promise<import('./types.ts').ActivityDispa
 		protocolVersion: 1,
 	});
 	const snapshot = context.snapshot(ctx);
-	const refs: import('./types.ts').ActivityRefType[] = [];
+	const refs: import('@okikio/workflow/types').ActivityRefType[] = [];
 
 	for (let index = 0; index < ITEMS; index += 1) {
 		const item = Object.freeze(
@@ -80,10 +80,25 @@ if (initial.completed !== ITEMS || initial.queued !== 0 || initial.claimed !== 0
 	throw new Error('Dispatch lifecycle benchmark did not complete its fixed work set.');
 }
 
+/** Primitive bookkeeping reference deliberately omits placement, leases and validated job envelopes. */
+function reference(): number {
+	const queued = new Map(Array.from({ length: ITEMS }, (_, index) => [index, index]));
+	const completed = new Map<number, number>();
+	for (const [id, value] of queued) {
+		completed.set(id, value);
+		queued.delete(id);
+	}
+	if (queued.size !== 0 || completed.size !== ITEMS || completed.get(ITEMS - 1) !== ITEMS - 1) {
+		throw new Error('Map bookkeeping oracle failed.');
+	}
+	return completed.size;
+}
+reference();
 group('memory activity dispatch lifecycle', () => {
 	bench('dispatch.memory: add + place + claim + complete 1k items', async () => {
 		do_not_optimize(await cycle());
 	});
+	bench('native Map bookkeeping only: no placement, leases or validation', () => do_not_optimize(reference()));
 });
 
 await run();

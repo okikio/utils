@@ -1,6 +1,6 @@
 import { expect } from '@std/expect';
 import { describe, it } from 'node:test';
-import * as permissions from '@okikio/permission';
+import * as permissions from '@okikio/authz/permission';
 
 import * as middleware from './mod.ts';
 

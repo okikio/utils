@@ -154,6 +154,42 @@ describe('workflow live iterator kernel', () => {
 		expect(failures[1]).toMatchObject({ type: 'failure', failure: cleanup });
 	});
 
+	for (const mode of ['cancel', 'failure'] as const) {
+		it(`retains an explicit undefined thrown during generator unwind after ${mode}`, async () => {
+			const entered = new Deferred<void>();
+			const primary = new Error('primary child failure');
+			const branch = new Branch(program(function* () {
+				try {
+					if (mode === 'failure') {
+						yield* operation.spawn(
+							operation.fromCallback<void>('child failure', (_resolve, reject) => reject(primary)),
+							'fail-fast',
+						)[Symbol.iterator]();
+					}
+					yield* operation.fromCallback<void>('wait for interruption', () => entered.resolve())[Symbol.iterator]();
+					return 'unreachable';
+				} finally {
+					// Deliberately exercise a cleanup defect that replaces generator return.
+					// deno-lint-ignore no-unsafe-finally
+					throw undefined;
+				}
+			}));
+			const result = branch.start();
+			if (mode === 'cancel') {
+				await entered.promise;
+				await branch.cancel('stop');
+			}
+			const exit = await result;
+			expect(exit.type).toBe('failure');
+			if (exit.type !== 'failure') return;
+			const terminal = causes(exit.cause);
+			expect(terminal).toHaveLength(2);
+			if (mode === 'cancel') expect(terminal[0]).toEqual({ type: 'cancelled', reason: 'stop' });
+			else expect(terminal[0]).toEqual({ type: 'failure', failure: primary });
+			expect(terminal[1]).toEqual({ type: 'failure', failure: undefined });
+		});
+	}
+
 	it('preserves a discard failure beside the cancellation cause', async () => {
 		const entered = new Deferred<void>();
 		const cleanup = new Error('discard failed');

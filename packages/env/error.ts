@@ -13,10 +13,22 @@ export class EnvironmentError extends Error {
 	/** Normalized field and composition failures associated with this error. */
 	readonly issues: readonly EnvironmentIssue[];
 
-	/** Create this EnvironmentError from the explicit contract values supplied by its caller. */
+	/** Copy structured issues and render their already-redacted messages for startup logs. */
 	constructor(message: string, issues: readonly EnvironmentIssue[]) {
 		const details = issues.map((issue) => `${issue.key}: ${issue.message}`);
 		super(details.length > 0 ? `${message}\n${details.join('\n')}` : message);
 		this.issues = [...issues];
+	}
+}
+
+/** A validator implementation failed; this is distinct from rejected configuration data. */
+export class EnvironmentValidatorError extends Error {
+	/** Authored environment field whose validator failed. */
+	readonly key: string;
+	/** Secret validators deliberately omit their possibly secret-bearing cause. */
+	constructor(key: string, cause?: unknown) {
+		super('Environment validator failed for ' + JSON.stringify(key) + '.', cause === undefined ? undefined : { cause });
+		this.name = 'EnvironmentValidatorError';
+		this.key = key;
 	}
 }

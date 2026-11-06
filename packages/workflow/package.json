@@ -8,27 +8,30 @@
 		".": "./mod.ts",
 		"./dispatch": "./dispatch.ts",
 		"./history": "./history.ts",
-		"./types": "./types.ts"
+		"./types": "./types.ts",
+		"./execution": "./execution.ts",
+		"./testing": "./testing.ts",
+		"./replay": "./replay/check.ts"
 	},
 	"dependencies": {
-		"@standard-schema/spec": "^1.1.0",
 		"@std/encoding": "npm:@jsr/std__encoding@^1.0.11",
-		"@okikio/catalog": "workspace:^",
+		"@okikio/collection": "workspace:^",
 		"@okikio/context": "workspace:^",
-		"@okikio/dispose": "workspace:^",
 		"@okikio/duration": "workspace:^",
-		"@okikio/effect": "workspace:^",
-		"@okikio/failure": "workspace:^",
-		"@okikio/fault": "workspace:^",
-		"@okikio/queue": "workspace:^",
-		"@okikio/requirement": "workspace:^",
-		"@okikio/resilience": "workspace:^",
+		"@okikio/capability": "workspace:^",
 		"@okikio/result": "workspace:^",
 		"@okikio/schema": "workspace:^",
-		"@okikio/record": "workspace:^"
+		"@okikio/telemetry": "workspace:^",
+		"@okikio/observables": "^1.4.0",
+		"@okikio/task": "workspace:^",
+		"@okikio/authz": "workspace:^"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
-		"@okikio/task": "workspace:^"
+		"zod": "^4.5.4",
+		"@standard-schema/spec": "^1.1.0",
+		"@okikio/dispose": "workspace:^",
+		"@okikio/scheduler": "workspace:^",
+		"mitata": "^1.0.34"
 	}
 }

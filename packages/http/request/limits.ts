@@ -1,4 +1,4 @@
-import * as recordCore from '@okikio/record';
+import * as recordCore from '@okikio/collection/record';
 import type { RequestParsingLimits, RequestParsingOptions } from './types.ts';
 
 /** These defaults allow common web requests and keep parsing work within a clear bound. */
@@ -6,7 +6,7 @@ export const DefaultRequestParsingLimits = Object.freeze(
 	{
 		// Allow common auth, trace, and forwarding fields. Reject very large header sets.
 		maximumHeaders: 128,
-		// Allow normal headers from browsers and proxies. Stop very large headers before they raise memory use or smuggling risk.
+		// Allow normal headers from browsers and proxies. Bound validation of the Headers object already supplied by the host.
 		maximumHeaderBytes: 64 * 1024,
 		// Allow large single fields such as cookies, policy headers, and auth data. Reject very large field values.
 		maximumHeaderValueBytes: 16 * 1024,
@@ -22,7 +22,7 @@ export const DefaultRequestParsingLimits = Object.freeze(
 		maximumCookies: 128,
 		// Limit read-to-completion body parsing to a practical size for JSON and forms. This helps prevent large memory spikes from one request.
 		maximumBodyBytes: 8 * 1024 * 1024,
-		// Allow large forms with repeated fields. Reject very large field counts that can turn form parsing into a denial-of-service path.
+		// Allow large forms with repeated fields. Reject excessive fields after native parsing; the body-byte limit bounds the input first.
 		maximumFormFields: 1_000,
 	} satisfies RequestParsingLimits,
 );

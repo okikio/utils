@@ -1,10 +1,13 @@
-import type { CatalogEntryIdentity, DefinitionInput } from '@okikio/catalog';
+import type { GatewayObserverDefinition, GatewayObserverHandler } from '@okikio/telemetry/events';
+import type { GatewayArtifactMount, GatewayArtifactRoute } from './artifact.ts';
+import type { CatalogEntryIdentity, DefinitionInput } from '@okikio/collection/catalog';
 import type { RoutePlan } from '../http/types.ts';
 import type { EndpointCompositionInput, EndpointDefinition, EndpointMethod } from '@okikio/server/endpoint/types';
 import type { ProblemResult } from '@okikio/http/problem';
 import type { RequestCorrelation } from '@okikio/http/request';
 import type {
 	CompiledService,
+	CompiledServiceDefinition,
 	ServiceDefinition,
 	ServiceManifest,
 	ServiceRoute,
@@ -25,6 +28,8 @@ export interface GatewayMount<
 	readonly target: Target;
 	/** Host-resolved upstream service origin for this mount or route. */
 	readonly origin: GatewayOrigin;
+	/** Exact internal endpoints explicitly admitted by this mount. Others remain private. */
+	readonly internal: readonly EndpointDefinition[];
 }
 
 /** Gateway cache behavior. */
@@ -55,7 +60,7 @@ export interface GatewayRedirectPolicy {
 }
 
 /** Gateway lifecycle events available to redacted observers. */
-export type GatewayObserverEventKind = 'denied' | 'forwarding' | 'response' | 'completed' | 'failed' | 'aborted';
+export type { GatewayObserverEventKind } from '@okikio/telemetry/events';
 
 /**
  * Import-safe subscription to redacted gateway lifecycle events.
@@ -65,14 +70,7 @@ export type GatewayObserverEventKind = 'denied' | 'forwarding' | 'response' | 'c
  * telemetry/audit requirement visible to compilation; the host supplies the
  * matching handler separately.
  */
-export interface GatewayObserverDefinition extends CatalogEntryIdentity {
-	/** Discriminant used to recognize this contract without inspecting its other fields. */
-	readonly kind: 'gateway-observer';
-	/** Purpose and behavior of this contract, supplied by its author. */
-	readonly description: string;
-	/** Gateway lifecycle event kinds selected for observation; response means headers, and completed means body EOF. */
-	readonly events: readonly GatewayObserverEventKind[];
-}
+export type { GatewayObserverDefinition } from '@okikio/telemetry/events';
 
 /**
  * Redacted gateway lifecycle event.
@@ -82,50 +80,10 @@ export interface GatewayObserverDefinition extends CatalogEntryIdentity {
  * distinct is necessary for streamed downloads and proxy responses whose body
  * may continue long after the status code is known.
  */
-export interface GatewayObserverEvent {
-	/** Discriminant used to recognize this contract without inspecting its other fields. */
-	readonly kind: GatewayObserverEventKind;
-	/** Gateway identity retained for route and lifecycle correlation. */
-	readonly gatewayId: string;
-	/** Request correlation identity; it is diagnostic data rather than authorization. */
-	readonly requestId: string;
-	/** Trace correlation identity retained for diagnostic propagation. */
-	readonly traceId: string;
-	/** Span correlation identity for the current operation. */
-	readonly spanId: string;
-	/** HTTP method selected for this operation or route. */
-	readonly method: string;
-	/** Request pathname retained for redacted lifecycle observation. */
-	readonly pathname: string;
-	/** Identity of the selected compiled route, when routing has completed. */
-	readonly routeId?: string;
-	/** Identity of the service selected for this route or observation. */
-	readonly serviceId?: string;
-	/** Identity of the selected endpoint path contract. */
-	readonly endpointId?: string;
-	/** Stable operation identity used by generated clients, routing and diagnostics. */
-	readonly operationId?: string;
-	/** HTTP status selected by this response or reported by this lifecycle observation. */
-	readonly status?: number;
-	/** Observed request-body bytes at this transport boundary. */
-	readonly requestBytes?: number;
-	/** Observed response-body bytes; response headers alone do not prove body completion. */
-	readonly responseBytes?: number;
-	/** Response-body terminal outcome and delivered byte count, distinct from receiving headers. */
-	readonly completion?: Readonly<{ readonly outcome: 'completed' | 'cancelled' | 'errored'; readonly bytes: number }>;
-	/** Diagnostic failure retained for this observation; it does not replace the authoritative operation result. */
-	readonly error?: Readonly<{ readonly name: string; readonly message: string }>;
-}
+export type { GatewayObserverEvent } from '@okikio/telemetry/events';
 
 /** Runtime handler bound to an exact observer definition. */
-export interface GatewayObserverHandler<Definition extends GatewayObserverDefinition = GatewayObserverDefinition> {
-	/** Discriminant used to recognize this contract without inspecting its other fields. */
-	readonly kind: 'gateway-observer-handler';
-	/** Exact declaration involved in this binding, result or validation issue. */
-	readonly definition: Definition;
-	/** Observe a redacted gateway lifecycle event; this callback cannot settle the request. */
-	readonly handle: (event: GatewayObserverEvent) => void | Promise<void>;
-}
+export type { GatewayObserverHandler } from '@okikio/telemetry/events';
 
 /** Additive edge behavior for exact imported endpoints. */
 export interface GatewayPolicy extends CatalogEntryIdentity {
@@ -181,6 +139,8 @@ export interface GatewayDefinition<Id extends string = string> extends CatalogEn
 	readonly id: Id;
 	/** Mounted service declarations or their projected identities. */
 	readonly services: readonly GatewayMount[];
+	/** Checked portable data mounts, kept distinct from local definition identity. */
+	readonly artifacts?: readonly GatewayArtifactMount[];
 	/** Additive policies that apply to exact declarations in this composition. */
 	readonly policies: readonly GatewayPolicy[];
 	/** Observer declarations or exact host-supplied handlers; observers remain outside result authority. */
@@ -194,7 +154,9 @@ export interface GatewayDefinitionInput<Id extends string = string> {
 	/** Purpose and behavior of this contract, supplied by its author. */
 	readonly description?: string;
 	/** Mounted service declarations or their projected identities. */
-	readonly services: readonly (GatewayMount | readonly GatewayMount[])[];
+	readonly services?: readonly (GatewayMount | readonly GatewayMount[])[];
+	/** Checked owner artifacts with explicit route and authentication admission. */
+	readonly artifacts?: readonly GatewayArtifactMount[];
 	/** Additive policies that apply to exact declarations in this composition. */
 	readonly policies?: readonly GatewayPolicy[];
 	/** Observer declarations or exact host-supplied handlers; observers remain outside result authority. */
@@ -212,7 +174,7 @@ export interface GatewaySelection<Gateway extends GatewayDefinition = GatewayDef
 }
 
 /** One concrete service artifact supplied to gateway compilation. */
-export type GatewayServiceArtifact = CompiledService | ServiceManifest;
+export type GatewayServiceArtifact = CompiledService | CompiledServiceDefinition | ServiceManifest;
 
 /** Options supplied to `gateway.compile()`. */
 export interface CompileGatewayOptions {
@@ -222,6 +184,10 @@ export interface CompileGatewayOptions {
 
 /** Fully resolved edge route. */
 export interface CompiledGatewayRoute {
+	/** Checked portable owner, present only for an artifact route. */
+	readonly artifact?: GatewayArtifactMount;
+	/** Exact admitted serialized owner route, present with artifact. */
+	readonly artifactRoute?: GatewayArtifactRoute;
 	/** Stable declaration identity used for exact lookup and diagnostic correlation. */
 	readonly id: string;
 	/** Exact gateway declaration retained by this route or selection. */
@@ -326,6 +292,7 @@ export interface CompiledGateway<Definition extends GatewayDefinition = GatewayD
 
 /** Definition value that may be attached to one gateway compiler issue. */
 export type GatewayValidationSubject =
+	| GatewayArtifactRoute
 	| CatalogEntryIdentity
 	| GatewayMount
 	| GatewayServiceArtifact

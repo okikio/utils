@@ -1,5 +1,5 @@
 /** Adapted upstream literal observations. See README.md and HONO-LICENSE. @module */
-import type { ResponseCaseType } from './types.ts';
+import type { ResponseCaseType } from '#fixtures/hono-contracts/types.ts';
 
 export const responseCases: readonly ResponseCaseType[] = [
 	{

@@ -2,18 +2,12 @@ import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { QueryExpression } from './expression.ts';
 import { inspectExpression } from './expression.ts';
 import { isFilter } from './normalize.ts';
-import type {
-	QueryDefinition,
-	QueryFields,
-	QueryFilter,
-	QueryIssue,
-	QueryOperator,
-	QueryOperatorName,
-} from './types.ts';
+import type { QueryFields, QueryFilter, QueryIssue, QueryOperator, QueryOperatorName, QueryPolicy } from './types.ts';
 import { implicitOperator, listValues, scalarValues } from './values.ts';
 import { decodeValue, isTagged } from './value-codec.ts';
 import { issue } from './validation.ts';
 
+/** Accepted wire spellings map to one canonical operator name before permission checks. */
 const operatorAliases: Readonly<Record<string, QueryOperatorName>> = Object.freeze({
 	eq: 'eq',
 	ne: 'ne',
@@ -36,6 +30,7 @@ const operatorAliases: Readonly<Record<string, QueryOperatorName>> = Object.free
 	isnotnull: 'isNotNull',
 });
 
+/** A bounded bracket-token node; values are terminal raw operands, children are grammar tokens. */
 interface WireNode {
 	readonly children: Map<string, WireNode>;
 	values?: readonly unknown[];
@@ -43,7 +38,7 @@ interface WireNode {
 
 /** Parse the public field grammar into the existing domain-neutral Boolean AST. */
 export async function parseFilters<Fields extends QueryFields>(
-	definition: QueryDefinition<Fields>,
+	definition: QueryPolicy<Fields>,
 	entries: ReadonlyMap<string, readonly unknown[]>,
 	issues: QueryIssue[],
 ): Promise<QueryExpression<QueryFilter<Fields>> | undefined> {
@@ -79,7 +74,11 @@ export async function parseFilters<Fields extends QueryFields>(
 	if (issues.length > 0 || root.children.size === 0) return undefined;
 	const result = await condition(root, ['filter'], 1);
 	if (result !== undefined) {
-		const dimensions = inspectExpression(result, isFilter<Fields>);
+		const dimensions = inspectExpression(result, isFilter<Fields>, undefined, {
+			maximumDepth: definition.maximumDepth,
+			maximumLeaves: definition.maximumFilters,
+			maximumSiblings: definition.maximumSiblings,
+		});
 		if (dimensions.maximumDepth > definition.maximumDepth) {
 			issues.push(issue('expression-too-deep', `Filter depth may not exceed ${definition.maximumDepth}.`, ['filter']));
 		}
@@ -91,6 +90,7 @@ export async function parseFilters<Fields extends QueryFields>(
 	}
 	return result;
 
+	/** Lower bracket groups in explicit index order; reject structure before invoking field validators. */
 	async function condition(
 		node: WireNode,
 		path: readonly PropertyKey[],
@@ -178,6 +178,7 @@ export async function parseFilters<Fields extends QueryFields>(
 		return children.length === 1 ? children[0] : Object.freeze({ kind: 'all', filters: Object.freeze(children) });
 	}
 
+	/** Resolve allowed operator and arity before decoding and validating each operand once. */
 	async function leaf(
 		fieldName: string,
 		explicit: string | undefined,
@@ -246,9 +247,9 @@ export async function parseFilters<Fields extends QueryFields>(
 }
 
 /**
- * Parses operator value into the validated internal model used by later phases.
- *
- * It keeps public query semantics provider-neutral so storage adapters can compile the same validated request differently.
+ * Enforce operator arity, then validate each raw operand through its field schema.
+ * Typed list input preserves commas and empty strings; legacy raw lists use the
+ * documented comma grammar. Independent schema issues retain their operand path.
  *
  * @internal
  */
@@ -257,7 +258,7 @@ export async function parseOperatorValue<Fields extends QueryFields>(
 	operator: QueryOperator,
 	raw: unknown,
 	path: readonly PropertyKey[],
-	definition: QueryDefinition<Fields>,
+	definition: QueryPolicy<Fields>,
 	issues: QueryIssue[],
 	typed = false,
 ): Promise<Readonly<{ readonly accepted: boolean; readonly hasValue: boolean; readonly value?: unknown }>> {

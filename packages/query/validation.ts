@@ -7,7 +7,7 @@ export class QueryValidationError extends Error {
 	/** Structured rejection details; branch on their codes or paths rather than explanation wording. */
 	readonly issues: readonly QueryIssue[];
 
-	/** Create this QueryValidationError from the explicit contract values supplied by its caller. */
+	/** Retain a stable issue list while joining human-readable messages for an ordinary thrown Error. */
 	constructor(issues: readonly QueryIssue[]) {
 		super(issues.map((entry) => entry.message).join('; '));
 		this.name = 'QueryValidationError';
@@ -25,7 +25,7 @@ export function issue(code: QueryIssue['code'], message: string, path: readonly 
 }
 
 /**
- * Builds the failure used when provider-neutral query definitions cannot complete as intended.
+ * Snapshot accumulated issues into the nonthrowing parse result; no partial query value escapes.
  *
  * @internal
  */
@@ -34,7 +34,7 @@ export function failure(issues: readonly QueryIssue[]): QueryParseResult<never> 
 }
 
 /**
- * Rejects invalid positive integer before it can enter authoritative module state.
+ * Require integral nonnegative or positive policy counts; this helper does not enforce safe-integer magnitude.
  *
  * @internal
  */
@@ -45,7 +45,7 @@ export function assertPositiveInteger(value: number, name: string, allowZero = f
 }
 
 /**
- * Rejects invalid parameter name before it can enter authoritative module state.
+ * Reject parameter names that could collide with bracket syntax in the public URL grammar.
  *
  * @internal
  */

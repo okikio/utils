@@ -3933,7 +3933,7 @@
 			"sha256": "57e1f6bfc597beaf806e58ebf7c71a223ddcfa0556c6e6956ed4b71109e222dd",
 			"scope": {
 				"category": "build-contract",
-				"target": "tools/check-packaging.ts; tools/npm.ts",
+				"target": "tools/packages/check.ts; tools/npm.ts",
 				"reason": "Hono build transforms and export validation use Hono manifests; review equivalent Utils artifact guarantees independently."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/build/remove-private-fields.test.ts",
@@ -4040,7 +4040,7 @@
 			"sha256": "9a6c774c5491b9d5879d7f9fd0931b91d3087ad0646235281ed6af05c611e57f",
 			"scope": {
 				"category": "build-contract",
-				"target": "tools/check-packaging.ts; tools/npm.ts",
+				"target": "tools/packages/check.ts; tools/npm.ts",
 				"reason": "Hono build transforms and export validation use Hono manifests; review equivalent Utils artifact guarantees independently."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/build/validate-exports.test.ts",
@@ -4154,8 +4154,8 @@
 			"sha256": "81b03cb5798421b91914344a68d3e035be1f102e476d9476cd111251783b17ff",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/runtime-tests/bun/color.test.ts",
 			"registrations": [
@@ -4244,8 +4244,8 @@
 			"sha256": "0ad8a48b6b04226fffa0e77a3ecf28735d4a31f1a918b1d3480eef20aa6675b1",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/runtime-tests/bun/index.test.tsx",
 			"registrations": [
@@ -6651,8 +6651,8 @@
 			"sha256": "6c2634155860e94821545294bd5fa5306927c8ac0a9be428c3c7638637897d28",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/runtime-tests/deno-jsx/jsx.test.tsx",
 			"registrations": [
@@ -7270,8 +7270,8 @@
 			"sha256": "10a0f5512ce88c569c7fab1021af27376b9c538c019522e292140576a880596b",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/runtime-tests/deno/hono.test.ts",
 			"registrations": [
@@ -7500,8 +7500,8 @@
 			"sha256": "2da031c6f835e709680490fd8ad5e7f815f20a78fa2df35ed869c5c978ba5f8e",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/runtime-tests/deno/middleware.test.tsx",
 			"registrations": [
@@ -8295,8 +8295,8 @@
 			"sha256": "00d2123c135f4af3adeff3485b449dceec3c18745e1099b9ce42cde2c5647c86",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/runtime-tests/deno/ssg.test.tsx",
 			"registrations": [
@@ -8399,8 +8399,8 @@
 			"sha256": "379bb14635baf5343bbb405b92887e526abc19156f0c97f89c1b4c5008c72840",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/runtime-tests/deno/stream.test.ts",
 			"registrations": [
@@ -8669,8 +8669,8 @@
 			"sha256": "31057ba34ffc5faa0532a72c13bd24d4aad1b8e0286224ece97ca3aa9fa9982e",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/runtime-tests/fastly/index.test.ts",
 			"registrations": [
@@ -9292,8 +9292,8 @@
 			"sha256": "747d86c65571191788a6d28c60071adbe22dafcb013de5e1e48174f9c7d0b3f3",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/runtime-tests/lambda-edge/index.test.ts",
 			"registrations": [
@@ -10212,8 +10212,8 @@
 			"sha256": "29cdd536faf8b7612686ef145fad4a09f61c9a5426cd5093cad96520221ea778",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/runtime-tests/lambda/index.test.ts",
 			"registrations": [
@@ -12791,8 +12791,8 @@
 			"sha256": "2273d395a4979a6484d3ccf661b412d515115dc2f573b78d8a2fbd2508f29147",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/runtime-tests/lambda/stream.test.ts",
 			"registrations": [
@@ -12899,8 +12899,8 @@
 			"sha256": "83bcec81a2ff14552b3a435cce560a8cd33cf22369aaee29fd6b9cfbf36c36bb",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/runtime-tests/node/index.test.ts",
 			"registrations": [
@@ -14159,8 +14159,8 @@
 			"sha256": "a1c592b22f71ff4ceea427735fbfd68d1b045d8f73c346536bbea3e837c4b252",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/runtime-tests/workerd/index.test.ts",
 			"registrations": [
@@ -14652,8 +14652,8 @@
 			"sha256": "d7ad9e7b45ae0ee100dad71ae58a9dfee5ad770a3850ad7c89741c129ba74330",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/adapter/aws-lambda/conninfo.test.ts",
 			"registrations": [
@@ -15054,8 +15054,8 @@
 			"sha256": "f15dd0a1304d9a40c7079378d13dbfe0007ae1de4588745ad1346c080ed32870",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/adapter/aws-lambda/handler.test.ts",
 			"registrations": [
@@ -16750,8 +16750,8 @@
 			"sha256": "8e22fdfe4dbd8b3acbba42a12814c0d9a88b2389a353fc46c94f2876ef9b988b",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/adapter/bun/conninfo.test.ts",
 			"registrations": [
@@ -17175,8 +17175,8 @@
 			"sha256": "1f4b37eacfdf781894d6b1a4b6f7158282113741471fdccbf5047cfbbf333ab7",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/adapter/bun/server.test.ts",
 			"registrations": [
@@ -17297,8 +17297,8 @@
 			"sha256": "625510b4fd1d8e0cf674eae68920a81135a1ba165e86bd9306a5b10fe1fdd1b7",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/adapter/bun/websocket.test.ts",
 			"registrations": [
@@ -17905,8 +17905,8 @@
 			"sha256": "c41e4f22bdf7d81838fae30625532f3bc1ecf6ac5ccd0bd5eb65a9e3b24268ec",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/adapter/cloudflare-pages/conninfo.test.ts",
 			"registrations": [
@@ -18075,8 +18075,8 @@
 			"sha256": "764f07efa7e6993cbba40ffc36167f8bc9a9f5344be68eb97bdfc73d3e59bf64",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/adapter/cloudflare-pages/handler.test.ts",
 			"registrations": [
@@ -19271,8 +19271,8 @@
 			"sha256": "38ff6b65f5e2bb494acab410567699ebde2e0816e5a337095104d749e6832ba8",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/adapter/cloudflare-workers/conninfo.test.ts",
 			"registrations": [
@@ -19386,8 +19386,8 @@
 			"sha256": "5f8ecbd5c1f55c1ac2f60d3219f11e2295de69df8bfd2ebdd6b07557993fbc92",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/adapter/cloudflare-workers/serve-static.test.ts",
 			"registrations": [
@@ -20764,8 +20764,8 @@
 			"sha256": "cf0a89258bf3f4f267fe3053aeb263e710b09d9461b956f18bec054ef9d95a0a",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/adapter/cloudflare-workers/utils.test.ts",
 			"registrations": [
@@ -20892,8 +20892,8 @@
 			"sha256": "a479666c660cf02ded71de9e8bdf235d654747f80be6eb0e1ef6d1a761717465",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/adapter/cloudflare-workers/websocket.test.ts",
 			"registrations": [
@@ -21275,8 +21275,8 @@
 			"sha256": "9d25d1070723b2387ad589c9877a7f64f9e3fb570aeef52f596b0b1f01dadd6d",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/adapter/deno/conninfo.test.ts",
 			"registrations": [
@@ -21404,8 +21404,8 @@
 			"sha256": "86f81533125a70f8958d3479b3ac96b54aae5699281a1b8455ffdcea07fcf55d",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/adapter/deno/websocket.test.ts",
 			"registrations": [
@@ -21830,8 +21830,8 @@
 			"sha256": "8032d69ceea53992e9c50de835924845fcbee453449a5e64674557d6c69bf442",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/adapter/lambda-edge/conninfo.test.ts",
 			"registrations": [
@@ -21938,8 +21938,8 @@
 			"sha256": "5cdc3aa691bc65bd79461aa2937d32b0ecbb01c1f2d1c28ee5885e901621c187",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/adapter/lambda-edge/handler.test.ts",
 			"registrations": [
@@ -23088,8 +23088,8 @@
 			"sha256": "ae563c12743bb2fed1c6fee8c96584da397bbfe70197188c66fbdd9500910178",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/adapter/netlify/conninfo.test.ts",
 			"registrations": [
@@ -23306,8 +23306,8 @@
 			"sha256": "f9e7e8b0fb8caf9d61a66fce7357278c9fb25e91cb42da5d6a50fc881631997b",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/adapter/service-worker/handler.test.ts",
 			"registrations": [
@@ -23719,8 +23719,8 @@
 			"sha256": "8ab45b4a328d574ad574e89c00ce4254dbfeb7d77e8f1807b0a97fbf1439bc11",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/adapter/vercel/conninfo.test.ts",
 			"registrations": [
@@ -23827,8 +23827,8 @@
 			"sha256": "ee296808ad16dd9ae75088f9f4f3bd8454fc98b1049c1c216c6a016f58782a75",
 			"scope": {
 				"category": "host-integration",
-				"target": "packages/server; packages/deno; packages/process; packages/worker",
-				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not qualify these adapters."
+				"target": "packages/server; packages/runtime; packages/worker",
+				"reason": "Host bindings, connection metadata, websocket and streaming callbacks need the named host. Generic Fetch tests do not test these adapters."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/adapter/vercel/handler.test.ts",
 			"registrations": [
@@ -32433,7 +32433,7 @@
 			"scope": {
 				"category": "type-contract",
 				"target": "packages/server/service; packages/server/endpoint; packages/http/response",
-				"reason": "Compile-time input/output inference must be qualified against each public programming model; preserved expectTypeOf expressions are not runtime tests."
+				"reason": "Compile-time input/output inference must be tested against each public programming model; preserved expectTypeOf expressions are not runtime tests."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/client/types.test.ts",
 			"registrations": [
@@ -43384,7 +43384,7 @@
 			"sha256": "61ddbdc05d009c5ff770f747b37711c366028e24986e02e6bf44a2530c4f9a95",
 			"scope": {
 				"category": "helper-component",
-				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"target": "packages/http; packages/server; packages/capability/resource; packages/markup",
 				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/helper/accepts/accepts.test.ts",
@@ -44266,7 +44266,7 @@
 			"sha256": "f066cf06d57bb830700adf92c18d1c4a42500dcf7ec8854ea96e55920a010820",
 			"scope": {
 				"category": "helper-component",
-				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"target": "packages/http; packages/server; packages/capability/resource; packages/markup",
 				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/helper/adapter/index.test.ts",
@@ -44586,7 +44586,7 @@
 			"sha256": "397848e882e77280b4078938e9218b5e45bb0f60900a033c9a0c24efca977be1",
 			"scope": {
 				"category": "helper-component",
-				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"target": "packages/http; packages/server; packages/capability/resource; packages/markup",
 				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/helper/cookie/index.test.ts",
@@ -46894,7 +46894,7 @@
 			"sha256": "01e3e4b519fe2023f922336eb2358002f2b62e6e2ff547a83644733cb9378284",
 			"scope": {
 				"category": "helper-component",
-				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"target": "packages/http; packages/server; packages/capability/resource; packages/markup",
 				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/helper/css/common.case.test.tsx",
@@ -48081,7 +48081,7 @@
 			"sha256": "36d22b9109d826f204cef36d35fa3b96e88ce36128d970753894393d12eee53a",
 			"scope": {
 				"category": "helper-component",
-				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"target": "packages/http; packages/server; packages/capability/resource; packages/markup",
 				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/helper/css/index.test.tsx",
@@ -49796,7 +49796,7 @@
 			"sha256": "030833ab6d61592ef3fc1f1d4f261e5c8391f26f4a1d356d076e3780ded99a7c",
 			"scope": {
 				"category": "helper-component",
-				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"target": "packages/http; packages/server; packages/capability/resource; packages/markup",
 				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/helper/dev/index.test.ts",
@@ -50394,7 +50394,7 @@
 			"sha256": "7de1451f50411df9317adeda46492a1bf6495b6aaea8faab215b2fd486de8165",
 			"scope": {
 				"category": "helper-component",
-				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"target": "packages/http; packages/server; packages/capability/resource; packages/markup",
 				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/helper/factory/index.test.ts",
@@ -52015,7 +52015,7 @@
 			"sha256": "4039494f9c595a16916fcf06925e986dc73becbc438a15f436c9d198b41e284d",
 			"scope": {
 				"category": "helper-component",
-				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"target": "packages/http; packages/server; packages/capability/resource; packages/markup",
 				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/helper/html/index.test.ts",
@@ -54175,7 +54175,7 @@
 			"sha256": "79660e9986eff79dce5d79e6432a7d349c46295aa91c35fc1a8d49e4fa7a47a3",
 			"scope": {
 				"category": "helper-component",
-				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"target": "packages/http; packages/server; packages/capability/resource; packages/markup",
 				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/helper/route/index.test.ts",
@@ -54919,7 +54919,7 @@
 			"sha256": "a09b879895eed859282b30aae4da67d5b2484352dce7a3d9bc75ba3d9d20d619",
 			"scope": {
 				"category": "helper-component",
-				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"target": "packages/http; packages/server; packages/capability/resource; packages/markup",
 				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/helper/ssg/plugins.test.tsx",
@@ -55705,7 +55705,7 @@
 			"sha256": "092e27912dd14b01bbbf5324b6a559bfbd7f100fad4919b7a2c5b4f294da7405",
 			"scope": {
 				"category": "helper-component",
-				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"target": "packages/http; packages/server; packages/capability/resource; packages/markup",
 				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/helper/ssg/ssg.test.tsx",
@@ -59769,7 +59769,7 @@
 			"sha256": "408efed2d5f75a1a586b3db8b3a8576afe78b9d5e92e092e34696036fb6dc7ca",
 			"scope": {
 				"category": "helper-component",
-				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"target": "packages/http; packages/server; packages/capability/resource; packages/markup",
 				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/helper/ssg/utils.test.ts",
@@ -60634,7 +60634,7 @@
 			"sha256": "e2fdc29812ea1ee87fd42790411773738af9f605405ce2f481ac8ce3a3da8fd0",
 			"scope": {
 				"category": "helper-component",
-				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"target": "packages/http; packages/server; packages/capability/resource; packages/markup",
 				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/helper/streaming/sse.test.tsx",
@@ -61808,7 +61808,7 @@
 			"sha256": "f90c5457c0d99a483b09397abc27cb06ad8fe3b777143a5fdffe2a03b0f584d9",
 			"scope": {
 				"category": "helper-component",
-				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"target": "packages/http; packages/server; packages/capability/resource; packages/markup",
 				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/helper/streaming/stream.test.ts",
@@ -62170,7 +62170,7 @@
 			"sha256": "6f5b5aaab5562f831f8c2684b720e49f6ee575fbc97512633be7e4d979c7408e",
 			"scope": {
 				"category": "helper-component",
-				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"target": "packages/http; packages/server; packages/capability/resource; packages/markup",
 				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/helper/streaming/text.test.ts",
@@ -62314,7 +62314,7 @@
 			"sha256": "7727effcfe0dcff2877f47cc78fe247b8722c78e6d0c3bd5a2023e2bd9b1e03e",
 			"scope": {
 				"category": "helper-component",
-				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"target": "packages/http; packages/server; packages/capability/resource; packages/markup",
 				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/helper/testing/index.test.ts",
@@ -62670,7 +62670,7 @@
 			"sha256": "a42cecd3506e56e7013952e1021a659843689ae7a608a11a9c1be96c1bd838fe",
 			"scope": {
 				"category": "helper-component",
-				"target": "packages/http; packages/server; packages/resource; packages/markup",
+				"target": "packages/http; packages/server; packages/capability/resource; packages/markup",
 				"reason": "HTTP cookie, accepts, route, streaming and HTML outcomes may translate; Hono factory, dev, testing, SSG and websocket APIs require separate capability decisions."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/helper/websocket/index.test.ts",
@@ -205944,7 +205944,7 @@
 			"scope": {
 				"category": "type-contract",
 				"target": "packages/server/service; packages/server/endpoint; packages/http/response",
-				"reason": "Compile-time input/output inference must be qualified against each public programming model; preserved expectTypeOf expressions are not runtime tests."
+				"reason": "Compile-time input/output inference must be tested against each public programming model; preserved expectTypeOf expressions are not runtime tests."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/types.test.ts",
 			"registrations": [
@@ -236765,7 +236765,7 @@
 			"scope": {
 				"category": "type-contract",
 				"target": "packages/server/service; packages/server/endpoint; packages/http/response",
-				"reason": "Compile-time input/output inference must be qualified against each public programming model; preserved expectTypeOf expressions are not runtime tests."
+				"reason": "Compile-time input/output inference must be tested against each public programming model; preserved expectTypeOf expressions are not runtime tests."
 			},
 			"upstreamUrl": "https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/utils/types.test.ts",
 			"registrations": [

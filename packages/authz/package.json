@@ -1,0 +1,29 @@
+{
+	"name": "@okikio/authz",
+	"version": "0.0.0",
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"exports": {
+		".": "./mod.ts",
+		"./permission": "./permission/mod.ts",
+		"./permission/definition": "./permission/definition.ts",
+		"./permission/types": "./permission/types.ts",
+		"./role": "./role/mod.ts",
+		"./role/types": "./role/types.ts",
+		"./entitlement": "./entitlement/mod.ts",
+		"./entitlement/types": "./entitlement/types.ts",
+		"./entitlement/definition": "./entitlement/definition.ts"
+	},
+	"dependencies": {
+		"@okikio/collection": "workspace:^",
+		"@okikio/capability": "workspace:^",
+		"@standard-schema/spec": "^1.1.0",
+		"@okikio/context": "workspace:^",
+		"@okikio/schema": "workspace:^"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
+		"mitata": "^1.0.34"
+	}
+}

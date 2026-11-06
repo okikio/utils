@@ -8,7 +8,14 @@ export interface ResponseCompletion {
 	readonly reason?: unknown;
 }
 
-/** Observe full response-body completion without buffering or cloning the body. */
+/**
+ * Return a response whose body reports EOF, cancellation or read failure.
+ *
+ * The wrapper owns the original body's reader and forwards chunks without
+ * collecting them. Counted bytes reached this wrapper, not necessarily a remote
+ * client. The observer is diagnostic: its failure cannot replace the response.
+ * It is invoked once, and its returned Promise is not a shutdown receipt.
+ */
 export function onComplete(
 	response: Response,
 	observe: (completion: ResponseCompletion) => void | Promise<void>,
@@ -16,6 +23,7 @@ export function onComplete(
 	if (!(response instanceof Response)) throw new TypeError('Response completion requires a Response.');
 	if (typeof observe !== 'function') throw new TypeError('Response completion observer must be a function.');
 	let settled = false;
+	// EOF, read failure and cancellation race to report one terminal result.
 	const notify = (completion: ResponseCompletion): void => {
 		if (settled) return;
 		settled = true;
@@ -33,12 +41,19 @@ export function onComplete(
 		return response;
 	}
 	const reader = response.body.getReader();
+	let released = false;
+	// Terminal actors submit native release once, even if that release throws.
+	const release = (): void => {
+		if (released) return;
+		released = true;
+		reader.releaseLock();
+	};
 	let bytes = 0;
 	const body = new ReadableStream<Uint8Array>({
 		/**
-		 * Pulls the next value only when logical HTTP response construction is ready to accept it.
-		 *
-		 * Response internals build framework-neutral response data before a server adapter creates the native Response.
+		 * Forward one native body chunk and count it only after the read succeeds.
+		 * EOF releases the reader before publishing completion. A read failure
+		 * retains any release failure alongside the original reason.
 		 *
 		 * @internal
 		 */
@@ -46,6 +61,7 @@ export function onComplete(
 			try {
 				const { done, value } = await reader.read();
 				if (done) {
+					release();
 					controller.close();
 					notify({ outcome: 'completed', bytes });
 					return;
@@ -53,20 +69,39 @@ export function onComplete(
 				bytes += value.byteLength;
 				controller.enqueue(value);
 			} catch (reason) {
-				controller.error(reason);
-				notify({ outcome: 'errored', bytes, reason });
+				let failure = reason;
+				try {
+					release();
+				} catch (cleanup) {
+					failure = new AggregateError([reason, cleanup], 'Response read and reader release failed.', {
+						cause: reason,
+					});
+				}
+				controller.error(failure);
+				notify({ outcome: 'errored', bytes, reason: failure });
 			}
 		},
 		/**
-		 * Checks whether cel is currently allowed by logical HTTP response construction.
+		 * Cancel the original body, then release its reader even if cancellation fails.
 		 *
 		 * @internal
 		 */
 		async cancel(reason) {
+			const failures: unknown[] = [];
 			try {
 				await reader.cancel(reason);
-			} finally {
-				notify({ outcome: 'cancelled', bytes, reason });
+			} catch (failure) {
+				failures.push(failure);
+			}
+			try {
+				release();
+			} catch (failure) {
+				failures.push(failure);
+			}
+			notify({ outcome: 'cancelled', bytes, reason });
+			if (failures.length === 1) throw failures[0];
+			if (failures.length > 1) {
+				throw new AggregateError(failures, 'Response cancellation and reader release failed.', { cause: failures[0] });
 			}
 		},
 	});

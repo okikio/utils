@@ -1,29 +1,35 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
-import * as catalog from '@okikio/catalog';
-import type { Catalog, CatalogSelection, DefinitionInput } from '@okikio/catalog';
+import * as catalog from '@okikio/collection/catalog';
+import type { Catalog, CatalogSelection, DefinitionInput } from '@okikio/collection/catalog';
 
-import { headers } from './headers.ts';
+import { headers, headerValues } from './headers.ts';
 import type {
 	HtmlBody,
 	PaginationResponsePolicy,
 	ResponseDefinition,
 	ResponseDefinitionInput,
 	ResponseDocument,
+	ResponseMode,
 	ResponseSchema,
 	ResponseStatus,
 } from './types.ts';
 
 const defaultPaginationPolicy = Object.freeze({ links: 'both', totals: 'both' } satisfies PaginationResponsePolicy);
 
-const htmlBodySchema = Object.freeze(
+const htmlBodySchema: Readonly<
+	{
+		'~standard': Readonly<
+			{ version: 1; vendor: 'utils-http-response'; validate(value: unknown): StandardSchemaV1.Result<HtmlBody> }
+		>;
+	}
+> = Object.freeze(
 	{
 		'~standard': Object.freeze({
 			version: 1,
 			vendor: 'utils-http-response',
 			/**
-			 * Checks state and preserves the deterministic issues needed by callers.
-			 *
-			 * @internal
+			 * Accept supported HTML body containers without consuming their contents.
+			 * Actual stream chunks are checked later when the native response reads them.
 			 */
 			validate(value: unknown): StandardSchemaV1.Result<HtmlBody> {
 				return typeof value === 'string' || value instanceof ReadableStream || isAsyncIterable(value)
@@ -34,12 +40,21 @@ const htmlBodySchema = Object.freeze(
 	} satisfies ResponseSchema<unknown, HtmlBody>,
 );
 
-/** Define one immutable successful HTTP response contract. */
-export function define<const Schema extends ResponseSchema | undefined, const Status extends ResponseStatus>(
-	input: ResponseDefinitionInput<Schema, Status>,
-): ResponseDefinition<Schema, Status> {
+/**
+ * Declare the status, body mode and schema used to validate a response result.
+ * This builds metadata, not a native Response and not a body reader. Body-mode
+ * constraints reject here, before a handler can return an incompatible result.
+ * Schema behavior is borrowed; freezing this declaration does not freeze it.
+ */
+export function define<
+	const Schema extends ResponseSchema | undefined,
+	const Status extends ResponseStatus,
+	const Mode extends ResponseMode = 'body',
+>(
+	input: ResponseDefinitionInput<Schema, Status, Mode>,
+): ResponseDefinition<Schema, Status, Mode> {
 	assertDefinition(input);
-	const mode = input.mode ?? 'body';
+	const mode = (input.mode ?? 'body') as Mode;
 	return Object.freeze({
 		kind: 'response',
 		id: input.id,
@@ -63,26 +78,26 @@ export function define<const Schema extends ResponseSchema | undefined, const St
 }
 
 /** Define a `200 OK` response. */
-export function ok<const Schema extends ResponseSchema>(
+export function ok<const Schema extends ResponseSchema, const Mode extends ResponseMode = 'body'>(
 	schema: Schema,
-	options: Omit<ResponseDefinitionInput<Schema, 200>, 'id' | 'status' | 'schema'> & { readonly id?: string },
-): ResponseDefinition<Schema, 200> {
+	options: Omit<ResponseDefinitionInput<Schema, 200, Mode>, 'id' | 'status' | 'schema'> & { readonly id?: string },
+): ResponseDefinition<Schema, 200, Mode> {
 	return define({ ...options, id: options.id ?? defaultId(200, options.description), status: 200, schema });
 }
 
 /** Define a `201 Created` response. */
-export function created<const Schema extends ResponseSchema>(
+export function created<const Schema extends ResponseSchema, const Mode extends ResponseMode = 'body'>(
 	schema: Schema,
-	options: Omit<ResponseDefinitionInput<Schema, 201>, 'id' | 'status' | 'schema'> & { readonly id?: string },
-): ResponseDefinition<Schema, 201> {
+	options: Omit<ResponseDefinitionInput<Schema, 201, Mode>, 'id' | 'status' | 'schema'> & { readonly id?: string },
+): ResponseDefinition<Schema, 201, Mode> {
 	return define({ ...options, id: options.id ?? defaultId(201, options.description), status: 201, schema });
 }
 
 /** Define a `202 Accepted` response. */
-export function accepted<const Schema extends ResponseSchema>(
+export function accepted<const Schema extends ResponseSchema, const Mode extends ResponseMode = 'body'>(
 	schema: Schema,
-	options: Omit<ResponseDefinitionInput<Schema, 202>, 'id' | 'status' | 'schema'> & { readonly id?: string },
-): ResponseDefinition<Schema, 202> {
+	options: Omit<ResponseDefinitionInput<Schema, 202, Mode>, 'id' | 'status' | 'schema'> & { readonly id?: string },
+): ResponseDefinition<Schema, 202, Mode> {
 	return define({ ...options, id: options.id ?? defaultId(202, options.description), status: 202, schema });
 }
 
@@ -92,7 +107,7 @@ export function noContent(
 		readonly id?: string;
 		readonly description?: string;
 	} = {},
-): ResponseDefinition<undefined, 204> & { readonly mode: 'empty' } {
+): ResponseDefinition<undefined, 204, 'empty'> {
 	const description = options.description ?? 'No content.';
 	return define({
 		...options,
@@ -100,7 +115,7 @@ export function noContent(
 		description,
 		status: 204,
 		mode: 'empty',
-	}) as ResponseDefinition<undefined, 204> & { readonly mode: 'empty' };
+	}) as ResponseDefinition<undefined, 204, 'empty'>;
 }
 
 /** Define a bodyless `304 Not Modified` response for explicit conditional contracts. */
@@ -109,7 +124,7 @@ export function notModified(
 		readonly id?: string;
 		readonly description?: string;
 	} = {},
-): ResponseDefinition<undefined, 304> & { readonly mode: 'empty' } {
+): ResponseDefinition<undefined, 304, 'empty'> {
 	const description = options.description ?? 'Not modified.';
 	return define({
 		...options,
@@ -117,17 +132,24 @@ export function notModified(
 		description,
 		status: 304,
 		mode: 'empty',
-	}) as ResponseDefinition<undefined, 304> & { readonly mode: 'empty' };
+	}) as ResponseDefinition<undefined, 304, 'empty'>;
 }
 
 /** Define a `206 Partial Content` response whose body is produced by an artifact adapter. */
 export function partialContent<const Schema extends ResponseSchema>(
 	schema: Schema,
-	options: Omit<ResponseDefinitionInput<Schema, 206>, 'id' | 'status' | 'schema'> & { readonly id?: string },
-): ResponseDefinition<Schema, 206> & { readonly mode: 'body' } {
-	return define({ ...options, id: options.id ?? defaultId(206, options.description), status: 206, schema }) as
-		& ResponseDefinition<Schema, 206>
-		& { readonly mode: 'body' };
+	options: Omit<ResponseDefinitionInput<Schema, 206, 'body'>, 'id' | 'status' | 'schema' | 'mode'> & {
+		readonly id?: string;
+	},
+): ResponseDefinition<Schema, 206, 'body'> {
+	return define({
+		...options,
+		id: options.id ?? defaultId(206, options.description),
+		status: 206,
+		schema,
+		mode: 'body',
+		contentType: options.contentType ?? 'application/octet-stream',
+	});
 }
 
 /** Define an HTTP redirect response. */
@@ -136,45 +158,58 @@ export function redirect<const Status extends 300 | 301 | 302 | 303 | 307 | 308>
 	options: Omit<ResponseDefinitionInput<undefined, Status>, 'id' | 'status' | 'schema' | 'mode'> & {
 		readonly id?: string;
 	},
-): ResponseDefinition<undefined, Status> & { readonly mode: 'redirect' } {
-	return define({ ...options, id: options.id ?? defaultId(status, options.description), status, mode: 'redirect' }) as
-		& ResponseDefinition<undefined, Status>
-		& { readonly mode: 'redirect' };
+): ResponseDefinition<undefined, Status, 'redirect'> {
+	return define({ ...options, id: options.id ?? defaultId(status, options.description), status, mode: 'redirect' });
 }
 
-/** Define a streaming response. */
+/** Resolve the declaration's media type for both documentation and native HTTP serialization. */
+export function mediaType(definition: ResponseDefinition): string | undefined {
+	const header = definition.headers === undefined ? undefined : headerValues(definition.headers, 'Content-Type')[0];
+	if (header !== undefined) return header;
+	if (definition.contentType !== undefined) return definition.contentType;
+	if (definition.mode === 'empty' || definition.mode === 'redirect') return undefined;
+	if (definition.mode === 'html') return 'text/html; charset=utf-8';
+	if (definition.mode === 'stream' || definition.mode === 'download') return 'application/octet-stream';
+	return 'application/json';
+}
+
+/**
+ * Declare a 200 byte-stream response; this does not start or buffer its source.
+ * The schema validates the body container, while the host owns cancellation and
+ * the source owns producing valid chunks. Late failures terminate the body.
+ */
 export function stream<const Schema extends ResponseSchema>(
 	schema: Schema,
 	options: Omit<ResponseDefinitionInput<Schema, 200>, 'id' | 'status' | 'schema' | 'mode'> & { readonly id?: string },
-): ResponseDefinition<Schema, 200> & { readonly mode: 'stream' } {
+): ResponseDefinition<Schema, 200, 'stream'> {
 	return define({
 		...options,
 		id: options.id ?? defaultId(200, options.description),
 		status: 200,
 		schema,
 		mode: 'stream',
-	}) as ResponseDefinition<Schema, 200> & { readonly mode: 'stream' };
+	}) as ResponseDefinition<Schema, 200, 'stream'>;
 }
 
 /** Define a paginated collection response. */
 export function paginated<const Schema extends ResponseSchema>(
 	schema: Schema,
 	options: Omit<ResponseDefinitionInput<Schema, 200>, 'id' | 'status' | 'schema' | 'mode'> & { readonly id?: string },
-): ResponseDefinition<Schema, 200> & { readonly mode: 'page' } {
+): ResponseDefinition<Schema, 200, 'page'> {
 	return define({
 		...options,
 		id: options.id ?? defaultId(200, options.description),
 		status: 200,
 		schema,
 		mode: 'page',
-	}) as ResponseDefinition<Schema, 200> & { readonly mode: 'page' };
+	}) as ResponseDefinition<Schema, 200, 'page'>;
 }
 
 /** Define a downloadable response. */
 export function download<const Schema extends ResponseSchema>(
 	schema: Schema,
 	options: Omit<ResponseDefinitionInput<Schema, 200>, 'id' | 'status' | 'schema' | 'mode'> & { readonly id?: string },
-): ResponseDefinition<Schema, 200> {
+): ResponseDefinition<Schema, 200, 'download'> {
 	return define({
 		...options,
 		id: options.id ?? defaultId(200, options.description),
@@ -192,7 +227,7 @@ export function html(
 			readonly id?: string;
 			readonly contentType?: string;
 		},
-): ResponseDefinition<typeof htmlBodySchema, 200> & { readonly mode: 'html' } {
+): ResponseDefinition<typeof htmlBodySchema, 200, 'html'> {
 	return define({
 		...options,
 		id: options.id ?? defaultId(200, options.description),
@@ -201,7 +236,7 @@ export function html(
 		jsonSchema: Object.freeze({ type: 'string', description: 'HTML document or streamed HTML representation.' }),
 		mode: 'html',
 		contentType: options.contentType ?? 'text/html; charset=utf-8',
-	}) as ResponseDefinition<typeof htmlBodySchema, 200> & { readonly mode: 'html' };
+	}) as ResponseDefinition<typeof htmlBodySchema, 200, 'html'>;
 }
 
 /** Create a named immutable response catalog. */
@@ -222,7 +257,7 @@ export function select<
 >(
 	source: Catalog<Entries[keyof Entries], Entries>,
 	keys: Keys,
-): CatalogSelection<Entries[keyof Entries], Pick<Entries, Keys[number]>> {
+): CatalogSelection<Entries[Keys[number]], Pick<Entries, Keys[number]>> {
 	return catalog.select(source, keys);
 }
 
@@ -255,7 +290,9 @@ export function document(input: DefinitionInput<ResponseDefinition>): readonly R
 }
 
 /**
- * Creates the fallback id used when logical HTTP response construction receives no explicit value.
+ * Derive an identifier from the status and description when no ID was supplied.
+ * Descriptions with no ASCII letters or digits need an explicit ID; the slug is
+ * bounded to 80 characters and is not a uniqueness guarantee.
  *
  * @internal
  */
@@ -273,9 +310,9 @@ function defaultId(status: ResponseStatus, description: string): string {
 }
 
 /**
- * Rejects invalid definition before it can enter authoritative module state.
- *
- * It builds deterministic logical HTTP representations before a framework creates the native Response.
+ * Reject combinations the response serializer cannot honor.
+ * Bodyless statuses need empty mode; pagination needs its envelope; only a
+ * download may carry a filename. These are declaration errors, not client input.
  *
  * @internal
  */
@@ -309,7 +346,8 @@ function assertDefinition(input: ResponseDefinitionInput<ResponseSchema | undefi
 }
 
 /**
- * Checks whether async iterable satisfies the condition required by logical HTTP response construction.
+ * Recognize an async-iterator container without advancing it.
+ * Chunk validation and cancellation remain the later consumer's responsibility.
  *
  * @internal
  */

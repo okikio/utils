@@ -141,13 +141,39 @@ export async function sync(root: URL, mode: 'check' | 'write' = 'check'): Promis
 	}
 	const projection = project(focused);
 	const planned = new Map(Object.entries(projection.bridges).map(([path, source]) => [path, source]));
+	// Focused npm manifests own source export names. Deno metadata is a projection,
+	// while permissions and JSR-only aliases stay authored by their runtime owner.
+	for (const member of focused) {
+		const name = member.name.slice('@okikio/'.length);
+		const path = `../${name}/deno.jsonc`;
+		const source = await Deno.readTextFile(new URL(path, umbrella));
+		planned.set(
+			path,
+			patch(source, {
+				exports: member.exports,
+				tasks: {
+					check: `mise run check -- --project ${name}`,
+					test: `mise run test -- --project ${name}`,
+					bench: `mise run bench -- --project ${name}`,
+					'bench:check': `mise run bench -- --project ${name} --check`,
+				},
+			}),
+		);
+	}
 	for (const name of ['package.json', 'deno.jsonc']) {
 		const source = await Deno.readTextFile(new URL(name, umbrella));
 		planned.set(
 			name,
 			patch(source, {
 				exports: projection.exports,
-				...(name === 'package.json' ? { sideEffects: projection.sideEffects } : {}),
+				...(name === 'package.json' ? { sideEffects: projection.sideEffects } : {
+					tasks: {
+						check: 'mise run check -- --project utils',
+						test: 'mise run test -- --project utils',
+						bench: 'mise run bench -- --project utils',
+						'bench:check': 'mise run bench -- --project utils --check',
+					},
+				}),
 			}),
 		);
 	}

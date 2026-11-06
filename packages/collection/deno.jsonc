@@ -1,0 +1,46 @@
+{
+	"name": "@okikio/collection",
+	"version": "0.0.0",
+	"publish": {
+		"exclude": [
+			"**/*.test.ts",
+			"**/*.bench.ts",
+			"**/fixtures/**"
+		]
+	},
+	"exports": {
+		"./iterable": "./iterable.ts",
+		"./catalog": "./catalog/mod.ts",
+		"./catalog/types": "./catalog/types.ts",
+		"./record": "./record/mod.ts",
+		"./record/types": "./record/types.ts",
+		"./record/json": "./record/json.ts",
+		"./record/change": "./record/change.ts",
+		".": "./mod.ts"
+	},
+	"imports": {
+	},
+	"license": "MIT",
+	"tasks": {
+		"check": "mise run check -- --project collection",
+		"test": "mise run test -- --project collection",
+		"bench": "mise run bench -- --project collection",
+		"bench:check": "mise run bench -- --project collection --check"
+	},
+	"permissions": {
+		"test": {},
+		"bench": {
+			"env": [
+				"NODE_DISABLE_COLORS",
+				"NO_COLOR",
+				"FORCE_COLOR"
+			]
+		}
+	},
+	"test": {
+		"exclude": [
+			"**/*.types.test.ts",
+			"**/types.test.ts"
+		]
+	}
+}

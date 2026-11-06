@@ -22,8 +22,8 @@ const Name = env.variable(schema<string | undefined, string>((value) => value ??
 	description: 'Service name.',
 });
 
-const NetworkEnvironment = env.environment({ PORT: Port });
-const IdentityEnvironment = env.environment({ NAME: Name });
+const NetworkEnvironment = env.define({ PORT: Port });
+const IdentityEnvironment = env.define({ NAME: Name });
 const ServiceEnvironment = env.compose(NetworkEnvironment, IdentityEnvironment);
 
 const direct = NetworkEnvironment.parseSync({ PORT: '4321' });

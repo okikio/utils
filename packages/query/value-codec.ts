@@ -1,14 +1,17 @@
 /** Lossless values for collection URL filters; field schemas own the accepted types. */
 const prefix = '~json:';
 
+/** Recognize the reserved typed-value prefix; matching it is not evidence that its JSON payload is valid. */
 export function isTagged(value: unknown): value is `~json:${string}` {
 	return typeof value === 'string' && value.startsWith(prefix);
 }
 
+/** Wrap supported scalar identity in tagged JSON so literal commas, null-like text, and negative zero survive URLs. */
 export function encodeValue(value: unknown): string {
 	return prefix + JSON.stringify(payload(value));
 }
 
+/** Decode only tagged input under encoded-size/list budgets; untagged operands remain for legacy/schema parsing. */
 export function decodeValue(value: unknown, maximumLength: number, maximumValues: number): unknown {
 	if (!isTagged(value)) return value;
 	if (value.length > maximumValues * (maximumLength * 6 + 64) + prefix.length + 2) {
@@ -29,11 +32,13 @@ export function encodeLegacyValue(value: unknown): string {
 	return encodeValue(value);
 }
 
+/** Use legacy spelling only when it cannot be mistaken for a typed payload, null token, or trimmed list member. */
 function safeString(value: string, list: boolean): boolean {
 	return value.isWellFormed() && !isTagged(value) && value !== 'null' && value !== 'not_null' &&
 		(!list || (value.length > 0 && value.trim() === value && !value.includes(',')));
 }
 
+/** Represent supported JavaScript scalars explicitly; reject nested lists and arbitrary object serialization. */
 function payload(value: unknown): unknown {
 	if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
 	if (typeof value === 'number' && Number.isFinite(value)) {
@@ -50,6 +55,7 @@ function payload(value: unknown): unknown {
 	throw new TypeError('Query wire values must be scalar values, valid Dates, bigints, or scalar lists.');
 }
 
+/** Accept only the finite scalar tag grammar; field schemas still own the final operand type and string limits. */
 function decoded(value: unknown, maximumLength: number, maximumValues: number): unknown {
 	if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
 	if (typeof value === 'number' && Number.isFinite(value)) return value;

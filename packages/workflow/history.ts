@@ -107,6 +107,10 @@ export function memory(options: HistoryOptions = {}): MemoryHistory {
 
 	const history = Object.freeze(
 		{
+			/**
+			 * Reuse a compatible recorded completion or join its pending call. A changed instruction
+			 * fingerprint rejects instead of applying another operation's result.
+			 */
 			async schedule(input: HistoryInput): Promise<WorkflowCompletionAny> {
 				if (closed) throw new Error('Workflow history is closed.');
 				context.check(input.ctx);

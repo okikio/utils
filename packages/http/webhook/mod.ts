@@ -1,7 +1,15 @@
 /**
- * Authenticate the exact received bytes while keeping the original request available to its parser.
+ * Check a signed provider message before reading its event fields.
+ * A webhook is an HTTP request another service sends to announce an event. Its signature
+ * covers the original bytes, so JSON parsing and reformatting must not happen first.
  *
- * The fixed test key and clock make this example reproducible. A real application supplies secrets and replay policy. Verify before parsing, then add key rotation and bounded raw-body admission; delivery retries and deduplication belong to the receiving service.
+ * verifyRequest() reads a bounded clone and leaves the original request available for parsing.
+ * A successful signature check establishes message authenticity under the chosen verifier;
+ * it does not prove that this delivery is new or that the business action completed.
+ *
+ * The fixed local key and clock make the example reproducible. A real host supplies secrets,
+ * key rotation and a replay policy. The receiving application owns retries, duplicate event
+ * handling and the persistent business write.
  *
  * @example
  * ```ts
@@ -28,6 +36,9 @@ const defaultMaximumBodyBytes = 1024 * 1024;
  * This is intended for `beforeValidation`-style middleware. Signature
  * verification observes exact bytes first; ordinary parsing and Standard Schema
  * validation can then consume a separate clone or the original request.
+ * The clone is buffered within maximumBodyBytes; cloning tees the body and can
+ * buffer bytes for the unread original. This helper does not authenticate the
+ * destination, claim replay identity or commit an application effect.
  */
 export async function verifyRequest(
 	request: Request,
@@ -74,3 +85,7 @@ export type {
 	WebhookVerificationSuccess,
 	WebhookVerifier,
 } from './types.ts';
+
+/** Authenticate before caller-owned atomic replay admission. */
+export { protect } from './replay.ts';
+export type { ReplayOptions, ReplayStore } from './replay.ts';

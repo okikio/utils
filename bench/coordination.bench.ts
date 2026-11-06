@@ -1,8 +1,10 @@
+// @benchmark register-only
 import { bench, do_not_optimize, group } from 'mitata';
 
 import * as context from '@okikio/context';
 import * as pool from '@okikio/pool';
-import * as queue from '@okikio/queue';
+import * as queue from '@okikio/scheduler/queue';
+import { mapPooledOrdered } from '@okikio/scheduler/concurrency';
 
 const JOBS = 100;
 
@@ -20,6 +22,7 @@ async function cycle(
 		ctx: owner,
 		minimum: 4,
 		maximum: 4,
+		maximumWaiting: 32,
 		create: () => ({ id: ++next }),
 		close: () => {
 			closed++;
@@ -29,10 +32,18 @@ async function cycle(
 	const refs: queue.QueueRef[] = [];
 	for (let index = 0; index < JOBS; index += 1) refs.push(await jobs.add(owner, index));
 	const claims = await jobs.claim(owner, { limit: JOBS, owner: 'bench' });
-	await Promise.all(claims.map(async (claim) => {
-		await using lease = await providers.acquire(owner);
-		await jobs.complete(owner, claim, claim.value + lease.value.id);
-	}));
+	for await (
+		const _completed of mapPooledOrdered({
+			items: claims,
+			concurrency: 4,
+			async map(claim) {
+				await using lease = await providers.acquire(owner);
+				await jobs.complete(owner, claim, claim.value + lease.value.id);
+				return claim.itemId;
+			},
+		})
+	) { /* Joining each completion keeps admission bounded before the next claim enters the pool. */ }
+
 	if (verify) {
 		for (let index = 0; index < refs.length; index += 1) {
 			const value = await jobs.result(owner, refs[index]!);

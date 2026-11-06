@@ -1,8 +1,8 @@
 import { retry as retryAsync, RetryError } from '@std/async/retry';
 import * as durationCore from '@okikio/duration';
 import type { EmptyEndpointHost } from '@okikio/server/endpoint/types';
-import type { ResiliencePolicy, RetryPolicy } from '@okikio/resilience';
-import * as fault from '@okikio/fault';
+import type { ResiliencePolicy, RetryPolicy } from '@okikio/capability/resilience';
+import * as fault from '@okikio/result/fault';
 
 import type {
 	ServiceRequestState,
@@ -81,8 +81,8 @@ export function retry<
 			try {
 				return await retryAsync(next, {
 					maxAttempts: policy.maximumAttempts,
-					minTimeout: durationCore.milliseconds(policy.initialDelay),
-					maxTimeout: durationCore.milliseconds(policy.maximumDelay),
+					minTimeout: durationCore.elapsed(policy.initialDelay),
+					maxTimeout: durationCore.elapsed(policy.maximumDelay),
 					multiplier: policy.multiplier,
 					jitter: policy.jitter ? 1 : 0,
 					signal: state.ctx.signal,
@@ -159,6 +159,7 @@ export function resilience<
 				owned.push(policy);
 			}
 
+			// Build inside out so the first declared owner enters first and unwinds last.
 			let invoke = next;
 			for (let index = plans.length - 1; index >= 0; index -= 1) {
 				const plan = plans[index]!;
@@ -205,7 +206,7 @@ function defaultRetryDecision(error: Error, policy: RetryPolicy): boolean {
 }
 
 /**
- * Normalizes error into the canonical internal form used by later phases.
+ * Wrap non-Error failures with their original value as cause before invoking Error-based retry classifiers.
  *
  * @internal
  */

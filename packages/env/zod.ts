@@ -3,14 +3,14 @@ import { blank } from './value.ts';
 
 import {
 	compose as composeStandard,
+	define as environmentStandard,
 	defineEnvironmentField,
-	environment as environmentStandard,
 	requirement,
 } from './definition.ts';
 import { EnvironmentError } from './error.ts';
-import { resolveMetadata } from './metadata.ts';
+import * as field from './field.ts';
 import { example, manifest, requirementReport } from './projection.ts';
-import * as recordCore from '@okikio/record';
+import * as recordCore from '@okikio/collection/record';
 import { env, isSource, merge, record, select } from './source.ts';
 import type {
 	EnvironmentDefinition,
@@ -59,62 +59,13 @@ export type InferZodEnvironmentFields<Inputs extends ZodEnvironmentFieldInputs> 
 const bareVariables = new WeakMap<object, EnvironmentField<ZodEnvironmentSchema, 'variable'>>();
 
 /**
- * Returns the metadata required to interpret values handled by environment definition and resolution.
+ * Read the public Zod metadata object without consulting environment values.
  *
  * @internal
  */
 function metadata(schema: ZodEnvironmentSchema): Readonly<Record<string, unknown>> | undefined {
 	const value = schema.meta();
 	return typeof value === 'object' && value !== null ? value as Readonly<Record<string, unknown>> : undefined;
-}
-
-/**
- * Return whether an authoring input is already an explicitly classified environment field.
- *
- * @internal
- */
-function isField(value: ZodEnvironmentFieldInput): value is EnvironmentField<ZodEnvironmentSchema> {
-	return typeof value === 'object' && value !== null &&
-		('kind' in value && (value.kind === 'variable' || value.kind === 'secret')) &&
-		'schema' in value && 'metadata' in value;
-}
-
-/**
- * Normalize schema metadata into the canonical environment-field metadata contract.
- *
- * It keeps environment definitions import-safe and leaves ambient source selection to the application composition root.
- *
- * @internal
- */
-function normalizedMetadata(
-	kind: 'variable' | 'secret',
-	schema: ZodEnvironmentSchema,
-	explicit?: EnvironmentFieldMetadataInput,
-	key?: string,
-) {
-	if (kind === 'secret' && explicit?.example !== undefined) {
-		throw new TypeError('Secret environment fields cannot include example values.');
-	}
-	const resolved = resolveMetadata(metadata(schema), explicit, key);
-	if (kind === 'variable' || resolved.example === undefined) return resolved;
-	const { example: _example, ...safe } = resolved;
-	return safe;
-}
-
-/**
- * Reuse or create the canonical environment field for one schema authoring input.
- *
- * @internal
- */
-function normalizeField(input: ZodEnvironmentFieldInput, key: string): EnvironmentField<ZodEnvironmentSchema> {
-	if (isField(input)) return input;
-
-	const existing = bareVariables.get(input);
-	if (existing) return existing;
-
-	const field = defineEnvironmentField('variable', input, normalizedMetadata('variable', input, undefined, key));
-	bareVariables.set(input, field);
-	return field;
 }
 
 /**
@@ -145,18 +96,15 @@ function normalizeField(input: ZodEnvironmentFieldInput, key: string): Environme
  * });
  * ```
  */
-export function environment<const Inputs extends ZodEnvironmentFieldInputs>(
+export function define<const Inputs extends ZodEnvironmentFieldInputs>(
 	inputs: Inputs,
 ): EnvironmentDefinition<InferZodEnvironmentFields<Inputs>> {
 	recordCore.assert(inputs, 'zod environment inputs');
 	const fields = Object.fromEntries(
-		Object.entries(inputs).map(([key, input]) => [key, normalizeField(input, key)]),
+		Object.entries(inputs).map(([key, input]) => [key, field.normalize(input, key, bareVariables, metadata)]),
 	) as InferZodEnvironmentFields<Inputs>;
 	return environmentStandard(fields);
 }
-
-/** Descriptive alias for `environment()` in Zod authoring code. */
-export const define = environment;
 
 /** Define an ordinary Zod-backed deployment variable. */
 export function variable<const Schema extends ZodEnvironmentSchema>(
@@ -166,7 +114,7 @@ export function variable<const Schema extends ZodEnvironmentSchema>(
 	return defineEnvironmentField(
 		'variable',
 		schema,
-		normalizedMetadata('variable', schema, metadataOverride),
+		field.metadata('variable', metadata(schema), metadataOverride),
 	);
 }
 
@@ -178,7 +126,7 @@ export function secret<const Schema extends ZodEnvironmentSchema>(
 	return defineEnvironmentField(
 		'secret',
 		schema,
-		normalizedMetadata('secret', schema, metadataOverride),
+		field.metadata('secret', metadata(schema), metadataOverride),
 	);
 }
 

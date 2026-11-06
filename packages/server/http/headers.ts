@@ -1,5 +1,6 @@
+import { list } from '@okikio/http/headers';
 import * as responseCore from '@okikio/http/response';
-import * as recordCore from '@okikio/record';
+import * as recordCore from '@okikio/collection/record';
 import type { Middleware } from './types.ts';
 import { withHeaders } from './response.ts';
 
@@ -60,7 +61,7 @@ export function securityHeaders(options: SecurityHeadersOptionsType = {}): Middl
 /** Add or replace static response headers after downstream work completes. */
 export function headers(values: responseCore.HeaderInput, remove: readonly string[] = []): Middleware {
 	const configured = responseCore.toHeaders(values);
-	const removals = stringList(remove, 'removed response header names');
+	const removals = list(remove, 'removed response header names');
 	return async (request, next) => withHeaders(await next(request), configured, removals);
 }
 
@@ -105,18 +106,4 @@ function normalizeSecurityHeaders(options: SecurityHeadersOptionsType): Security
 		...Object.fromEntries(keys.flatMap((key) => options[key] === undefined ? [] : [[key, options[key]]])),
 		...(additional === undefined ? {} : { additional }),
 	});
-}
-
-/** Snapshot one dense list of response header names without invoking accessors. @internal */
-function stringList(values: readonly string[], name: string): readonly string[] {
-	if (!Array.isArray(values)) throw new TypeError(`${name} must be an array of strings.`);
-	const result: string[] = [];
-	for (let index = 0; index < values.length; index += 1) {
-		const descriptor = Object.getOwnPropertyDescriptor(values, String(index));
-		if (descriptor === undefined || !('value' in descriptor) || typeof descriptor.value !== 'string') {
-			throw new TypeError(`${name} must contain dense string data elements.`);
-		}
-		result.push(descriptor.value);
-	}
-	return Object.freeze(result);
 }

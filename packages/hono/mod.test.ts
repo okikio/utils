@@ -5,7 +5,7 @@ import { Hono } from 'hono';
 import * as endpoint from '@okikio/server/endpoint';
 import * as http from '@okikio/server/http';
 import * as response from '@okikio/http/response';
-import * as resource from '@okikio/resource';
+import * as resource from '@okikio/capability/resource';
 import * as service from '@okikio/server/service';
 import * as hono from './mod.ts';
 

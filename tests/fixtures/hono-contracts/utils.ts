@@ -12,7 +12,13 @@ import { appendHeaders, mergeHeaders, toHeaders } from '@okikio/http/response';
 import type { ResponseHeaders } from '@okikio/http/response';
 import { catchErrors, create, matchRoute, mount, prepareRoutes, route, routeKey } from '@okikio/server/http';
 import type { Middleware, RouteType } from '@okikio/server/http';
-import type { ApplicationType, MatchType, RequestCaseType, ResponseCaseType, RouterCaseType } from './types.ts';
+import type {
+	ApplicationType,
+	MatchType,
+	RequestCaseType,
+	ResponseCaseType,
+	RouterCaseType,
+} from '#fixtures/hono-contracts/types.ts';
 
 /** Select one prepared route owner, then use the actual bounded parameter parser. */
 export function matchUtils(

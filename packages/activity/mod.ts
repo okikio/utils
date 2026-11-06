@@ -1,7 +1,13 @@
 /**
- * Turn a provider operation into a named, versioned unit of work with validated inputs, results and engine placement. A plain function leaves every caller to repeat those checks and decide which runtime may run it.
+ * Define one named operation with checked input and output. For example, a photo activity can require a
+ * storage resource, save a label, and return the new photo ID.
  *
- * Start with a direct local attempt, then register the same definition with a workflow executor. Add resource declarations when the operation needs a browser or storage client; add permission requirements and effects when it changes authoritative state. The activity owns its attempt context and borrows the collection. A Worker or process provider changes execution location; it does not move live closures, sockets or promises. Dispatch and storage adapters still own durable placement, leases and recovery.
+ * A definition describes the operation. Its implementation performs the work. A local call runs one
+ * attempt; a workflow executor can run the same definition as a saved job. The activity owns its attempt
+ * context and borrows its resources.
+ *
+ * An engine selects where work may run. Moving work to a thread or process does not transfer live
+ * connections or closures. Dispatch and storage adapters own saved claims, leases, and recovery.
  *
  * @example
  * ```ts
@@ -10,38 +16,50 @@
  * import * as activity from '@okikio/activity';
  * import * as engine from '@okikio/activity/engine';
  * import * as context from '@okikio/context';
- * import * as resource from '@okikio/resource';
- * import { z } from 'zod';
+ * import * as resource from '@okikio/capability/resource';
+ * import * as schema from '@okikio/schema';
+ * import { HostSelectionError } from './selection.ts';
  *
  * const Local = engine.define({ id: 'local' });
  * const Upper = activity.define({
- *   id: 'text.upper', version: '1', input: z.string(), result: z.string(),
- *   placement: engine.require(Local),
+ * 	id: 'text.upper',
+ * 	version: '1',
+ * 	input: schema.string(),
+ * 	result: schema.string(),
+ * 	placement: engine.require(Local),
  * });
  * const UpperLive = activity.implement(Upper, { run: (ctx) => ctx.input.toUpperCase() });
  * await using ctx = context.create({ id: 'uppercase' });
  * await using resources = resource.create(resource.implementations(), { ctx, host: {} });
  * const value = await activity.run({
- *   ctx, engine: Local, resources, implementation: UpperLive, input: 'hello',
- *   jobId: 'uppercase-1', attempt: 1,
+ * 	ctx,
+ * 	engine: Local,
+ * 	resources,
+ * 	implementation: UpperLive,
+ * 	input: 'hello',
+ * 	jobId: 'uppercase-1',
+ * 	attempt: 1,
  * });
  * console.log(value);
  * ```
  *
  * @module
  */
-import * as catalogCore from '@okikio/catalog';
-import type { DefinitionInput as CatalogDefinitionInput } from '@okikio/catalog';
+import * as codec from '@okikio/schema/codec';
+import * as catalogCore from '@okikio/collection/catalog';
+import type { DefinitionInput as CatalogDefinitionInput } from '@okikio/collection/catalog';
 import * as contextCore from '@okikio/context';
-import * as effectCore from '@okikio/effect';
-import * as failureCore from '@okikio/failure';
-import * as permissionCore from '@okikio/permission';
-import * as requirementCore from '@okikio/requirement';
-import type { RequirementDefinition } from '@okikio/requirement';
-import * as resourceCore from '@okikio/resource';
-import * as resilienceCore from '@okikio/resilience';
+import * as capability from '@okikio/capability/execution';
+import * as effectCore from '@okikio/capability/effect';
+import * as failureCore from '@okikio/result/failure';
+import * as permissionCore from '@okikio/authz/permission';
+import * as requirementCore from '@okikio/capability/requirement';
+import type { RequirementDefinition } from '@okikio/capability/requirement';
+import * as resourceCore from '@okikio/capability/resource';
+import * as resilienceCore from '@okikio/capability/resilience';
 import * as resultCore from '@okikio/result';
 import * as schema from '@okikio/schema';
+import { HostSelectionError } from './selection.ts';
 import * as workflow from '@okikio/workflow';
 import * as engineCore from './engine.ts';
 import type {
@@ -56,7 +74,6 @@ import type {
 	ActivityOperation,
 	ActivityOptions,
 	ActivityRequestOptions,
-	ActivityResources,
 	ActivityResult,
 	ActivityRunOptions,
 	ActivitySelection,
@@ -84,10 +101,10 @@ export class UndeclaredFailureError extends Error {
 	/** Activity declaration or reference whose validated attempt is requested. */
 	readonly activity: ActivityDefinition;
 	/** Expected failure data retained under its declared contract. */
-	readonly failure: import('@okikio/failure').Occurrence;
+	readonly failure: import('@okikio/result/failure').Occurrence;
 
-	/** Create this UndeclaredFailureError from the explicit contract values supplied by its caller. */
-	constructor(activity: ActivityDefinition, failure: import('@okikio/failure').Occurrence) {
+	/** Retain the activity and rejected failure occurrence so the declaration defect can be diagnosed. */
+	constructor(activity: ActivityDefinition, failure: import('@okikio/result/failure').Occurrence) {
 		super(
 			`Activity ${JSON.stringify(activity.id)} threw undeclared failure ${JSON.stringify(failure.definition.id)}.`,
 			{
@@ -104,8 +121,8 @@ export class UndeclaredFailureError extends Error {
 export function define<const Authoring extends ActivityOptions>(input: Authoring): ActivityDefinition<Authoring> {
 	assertId(input.id, 'activity');
 	assertId(input.version, 'activity version');
-	schema.assert(input.input, 'activity input schema');
-	schema.assert(input.result, 'activity result schema');
+	schema.assert(codec.input(input.input), 'activity input schema');
+	schema.assert(codec.input(input.result), 'activity result schema');
 
 	const placement = engineCore.compose(input.placement);
 	const failures = input.failures === undefined ? Object.freeze([]) : catalogCore.compose(input.failures);
@@ -138,7 +155,12 @@ export function implement<Activity extends ActivityDefinition>(
 	input: ActivityImplementationOptions<Activity>,
 ): ActivityImplementation<Activity> {
 	if (typeof input.run !== 'function') throw new TypeError('Activity implementation run must be a function.');
-	return Object.freeze({ definition, run: input.run });
+	const implementation: ActivityImplementation<Activity> = Object.freeze({
+		definition,
+		run: input.run,
+		invoke: (options: import('@okikio/workflow').InvocationType) => run({ ...options, implementation }),
+	});
+	return implementation;
 }
 
 /** Create a named immutable activity catalog. */
@@ -156,7 +178,7 @@ export function select<
 >(
 	source: ActivityCatalog<Entries>,
 	keys: Keys,
-): ActivitySelection<Entries[keyof Entries], Pick<Entries, Keys[number]>> {
+): ActivitySelection<Entries[Keys[number]], Pick<Entries, Keys[number]>> {
 	return catalogCore.select(source, keys);
 }
 
@@ -170,7 +192,7 @@ export function compose<Entry extends ActivityDefinition>(
 /** Create one serializable workflow request for an activity. No external work starts. */
 export function request<Activity extends ActivityDefinition>(
 	definition: Activity,
-	input: ActivityInput<Activity>,
+	input: codec.ContractInput<Activity['input']>,
 	options: ActivityRequestOptions = {},
 ): ActivityOperation<Activity> {
 	return workflow.activity<ActivityResult<Activity>, ActivityFailures<Activity>>(definition, input, options);
@@ -179,7 +201,7 @@ export function request<Activity extends ActivityDefinition>(
 /** Create one workflow request that converts only declared failures into an explicit result. */
 function attempt<Activity extends ActivityDefinition>(
 	definition: Activity,
-	input: ActivityInput<Activity>,
+	input: codec.ContractInput<Activity['input']>,
 	options: ActivityRequestOptions = {},
 ): workflow.WorkflowOperation<ActivityTryResult<Activity>, never> {
 	return Object.freeze({
@@ -201,11 +223,18 @@ function attempt<Activity extends ActivityDefinition>(
 /**
  * Run one concrete activity attempt immediately in the current host.
  *
- * The attempt validates input/result schemas, applies direct active
- * requirements, exposes every statically reachable permission only for later
- * explicit checks, provides typed resource access, and disposes attempt-owned values.
- * Resource declarations constrain the TypeScript dependency model. They do not
- * sandbox untrusted implementation code at runtime.
+ * Check the input, prepare the attempt context, and call the implementation once.
+ * Apply its direct requirements unless the caller already admitted the attempt.
+ * Declared permissions make later explicit checks possible; declaration alone
+ * does not approve access to a target.
+ *
+ * The attempt borrows its resource collection and releases values owned by its
+ * child context before returning. Resource declarations guide typed access;
+ * they do not isolate untrusted code. Retry settings do not start retries here.
+ *
+ * Encode and decode the result before returning it, so a local caller receives
+ * the same representation as a remote consumer. Cleanup failure can still make
+ * the attempt reject after the implementation produced a value.
  */
 export async function run<Activity extends ActivityDefinition>(
 	options: ActivityRunOptions<Activity>,
@@ -216,25 +245,33 @@ export async function run<Activity extends ActivityDefinition>(
 	}
 
 	const definition = options.implementation.definition;
+	if (options.location?.host && !options.physicalHost) throw new HostSelectionError('lost');
 	assertEngine(definition, options.engine);
-	const input = await schema.parse(definition.input, options.input) as ActivityInput<Activity>;
+	// Convert and validate before the application receives input. Local execution
+	// follows the same wire/application contract as a remote invocation.
+	const input = await codec.read(definition.input, options.input) as ActivityInput<Activity>;
 	await using owned = contextCore.child(options.ctx, { id: options.jobId });
 
+	// Attach declarations to this attempt's lifetime before checking admission or running application code.
 	const requirementCtx = requirementScope(owned, options);
 	const governedCtx = requirementCore.bind(requirementCtx, reachableRequirements(definition));
-	const effectCtx = effectCore.scope(governedCtx, {
-		effects: definition.effects,
-		...(options.effect === undefined ? {} : { emitter: options.effect }),
+	const capabilities = capability.scope(governedCtx, {
+		resources: { collection: options.resources, allowed: definition.resources },
+		effects: {
+			effects: definition.effects,
+			...(options.effect === undefined ? {} : { emitter: options.effect }),
+		},
 	});
-	const resources = resourceCore.scope(options.resources, effectCtx);
 
-	const ctx = contextCore.view(effectCtx, {
+	const ctx = contextCore.view(capabilities, {
 		activity: definition,
 		engine: options.engine,
 		jobId: options.jobId,
+		physicalHost: options.physicalHost,
 		attempt: options.attempt,
 		input,
-		get: <Resource extends ActivityResources<Activity>>(resource: Resource) => resources.get(resource),
+		claim: options.claim,
+		// Check both sides of an awaited host checkpoint: cancellation can arrive while that hook is suspended.
 		checkpoint: async () => {
 			contextCore.check(owned);
 			await options.checkpoint?.();
@@ -247,7 +284,8 @@ export async function run<Activity extends ActivityDefinition>(
 	try {
 		await ctx.checkpoint();
 		const value = await options.implementation.run(ctx);
-		return await schema.parse(definition.result, value) as ActivityResult<Activity>;
+		// A local attempt must obey the same result conversion as a transported attempt.
+		return await codec.read(definition.result, await codec.write(definition.result, value)) as ActivityResult<Activity>;
 	} catch (reason) {
 		if (isFailureOccurrence(reason) && !isFailure(definition, reason)) {
 			throw new UndeclaredFailureError(definition, reason);
@@ -272,8 +310,8 @@ export function document(input: CatalogDefinitionInput<ActivityDefinition>): rea
 				id: definition.id,
 				version: definition.version,
 				...(definition.description === undefined ? {} : { description: definition.description }),
-				inputVendor: definition.input['~standard'].vendor,
-				resultVendor: definition.result['~standard'].vendor,
+				inputVendor: codec.input(definition.input)['~standard'].vendor,
+				resultVendor: codec.input(definition.result)['~standard'].vendor,
 				failures: Object.freeze(definition.failures.map((entry) => entry.id)),
 				effects: Object.freeze(definition.effects.map((entry) => entry.id)),
 				placement: engineCore.document(definition.placement),
@@ -289,7 +327,7 @@ export function document(input: CatalogDefinitionInput<ActivityDefinition>): rea
 function requirementScope<Activity extends ActivityDefinition>(
 	ctx: import('@okikio/context').Context,
 	options: ActivityRunOptions<Activity>,
-): import('@okikio/requirement').RequirementContext {
+): import('@okikio/capability/requirement').RequirementContext {
 	const interpreters = { ...(options.requirements?.interpreters ?? {}) };
 	if (options.permission !== undefined || interpreters.permission === undefined) {
 		interpreters.permission = permissionCore.interpreter(options.permission);
@@ -313,7 +351,7 @@ function assertEngine(definition: ActivityDefinition, engine: engineCore.EngineD
 }
 
 /** Return whether a reason is a package-created expected-failure occurrence. */
-function isFailureOccurrence(value: unknown): value is import('@okikio/failure').Occurrence {
+function isFailureOccurrence(value: unknown): value is import('@okikio/result/failure').Occurrence {
 	return failureCore.isOccurrence(value);
 }
 

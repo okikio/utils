@@ -1,4 +1,4 @@
-import { ifNoneMatch } from '@std/http/etag';
+import { matches } from './preconditions.ts';
 import type { HeaderInput, ResponseHeaders } from './headers.ts';
 import { headers, headerValues } from './headers.ts';
 
@@ -31,7 +31,7 @@ export function notModified(request: Request, responseHeaders: HeaderInput): boo
 		// evaluated after the caller selected a representation, so the wildcard
 		// condition is false and GET/HEAD must return 304 even without an ETag.
 		if (/^\s*\*\s*$/.test(ifNoneMatchValue)) return true;
-		return !ifNoneMatch(ifNoneMatchValue, etag);
+		return etag !== undefined && matches(ifNoneMatchValue, etag, true) === true;
 	}
 	const lastModified = firstHeader(responseHeaders, 'last-modified');
 	const ifModifiedSince = request.headers.get('if-modified-since');
@@ -116,10 +116,12 @@ export function byteRangeHeaders(
 }
 
 /**
- * Selects or builds the first header used by logical HTTP response construction.
+ * Read the first matching header value without joining repeated fields.
  *
  * @internal
  */
 function firstHeader(headers: HeaderInput, name: string): string | undefined {
 	return headerValues(headers, name)[0];
 }
+export { preconditions } from './preconditions.ts';
+export type { PreconditionsType, RepresentationType } from './preconditions.ts';

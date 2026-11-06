@@ -1,5 +1,5 @@
 import * as requestWire from '@okikio/http/request';
-import * as recordCore from '@okikio/record';
+import * as recordCore from '@okikio/collection/record';
 
 import type { Middleware } from './types.ts';
 
@@ -9,7 +9,11 @@ export interface CorrelationOptions extends requestWire.RequestCorrelationOption
 	readonly observe?: (value: requestWire.RequestCorrelation, request: Request) => void | Promise<void>;
 }
 
-/** Establish one memoized W3C/request correlation value without selecting a tracing or logging provider. */
+/**
+ * Establish shared diagnostic IDs before calling the next middleware.
+ * Observation failures are contained, but the observer is awaited and must bound
+ * its own work. These IDs correlate requests; they do not authenticate a caller.
+ */
 export function correlation(options: CorrelationOptions = {}): Middleware {
 	recordCore.assert(options, 'correlation middleware options');
 	if (options.observe !== undefined && typeof options.observe !== 'function') {
@@ -22,7 +26,7 @@ export function correlation(options: CorrelationOptions = {}): Middleware {
 		if (observe !== undefined) {
 			try {
 				await observe(value, request);
-			} catch { /* observation cannot control request completion */ }
+			} catch { /* observer rejection cannot replace the request result */ }
 		}
 		return await next(request);
 	};

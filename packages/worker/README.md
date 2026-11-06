@@ -1,53 +1,46 @@
-# `@okikio/worker`
+# Worker
 
-An application needs to analyze a large file without putting all of that work in its main JavaScript execution thread. A
-standard Worker runs another module in a separate execution environment. `@okikio/worker` lets the parent call that
-module with validated requests, receive the matching result, and own shutdown without writing its own message protocol.
+Run an operation in another JavaScript thread or operating-system process, send it checked input, and receive its
+answer. Use this when CPU-heavy work should leave the main thread, or when a native program needs its own lifetime.
+A **thread** runs another JavaScript module; a **process** runs a separate program with input/output streams. Both
+need an owner that stops accepting calls, requests shutdown, and waits for cleanup.
 
-A **protocol** describes the request and response shapes. **Correlation** matches each response to its request. A Worker
-can provide CPU parallelism when the host supports it; message transfer and setup still have costs, so the small text
-demo teaches the communication boundary rather than demonstrating a speedup.
+For Deno, Node, and Bun execution, see
+[run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters
+keep their native runtime requirements.
 
-```text
-Parent module                         Worker module
-open(thread.ts) --------------------> serve(protocol)
-request: title + report text + ID --> validate -> count words and paragraphs
-matching summary + same ID <--------- validate response -> settle this request
-await using ends -------------------> cooperative stop / bounded termination
-```
+## Summarize a report in a separate Worker module
 
-Read across each row as a message crossing the boundary, then down as the lifecycle. The Worker owns its local
-execution; the parent owns the handle and shutdown. This diagram omits progress notices and reverse calls, which have
-separate meanings from a terminal response.
+An ordinary function is sufficient for a small string. Choose a Worker when expensive analysis should run in a separate
+JavaScript environment. The parent owns the handle; the companion owns the analysis. The returned value is still an
+ordinary Promise result, not a queue item or durable workflow.
 
-## Summarize a report in a separate module
-
-A document screen can send report text to an analysis module and receive a small summary for display. Save the parent
-and Worker modules below together. This fixture is deliberately short so its counts are inspectable. The same handler
-can analyze a larger text; choose a Worker when isolating that CPU work is worth module startup and message-copy costs.
-
-The explicit polyfill imports let this example run when the host lacks Temporal or disposal globals. An existing native
-implementation is preserved.
+From the repository root run `mise run prepare -- --kind deps`, save `main.ts` and `thread.ts` below together, then run
+`mise exec -- deno run --allow-read main.ts`. The pinned Deno 2.9.7 host supplies Web Workers; read permission permits
+loading the companion module and its imports. The data is local and no network service is used. Plain Node needs an
+explicit Runtime Worker factory rather than assuming a browser-style global constructor.
 
 ```ts runnable=main.ts
 import '@okikio/duration/polyfill';
 import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
-import * as worker from '@okikio/worker';
-import { z } from 'zod';
+import * as worker from '@okikio/worker/thread';
+import * as schema from '@okikio/schema';
 await using ctx = context.create({ id: 'thread-owner' });
+// The session owns the thread. Scope exit waits for its cleanup; the module runs in that thread.
 await using thread = worker.open(ctx, {
 	module: new URL('./thread.ts', import.meta.url),
 	protocol: worker.protocol({
-		request: z.object({ title: z.string(), text: z.string() }),
-		response: z.object({
-			title: z.string(),
-			words: z.number().int().nonnegative(),
-			paragraphs: z.number().int().nonnegative(),
-			characters: z.number().int().nonnegative(),
+		request: schema.object({ title: schema.string(), text: schema.string() }),
+		response: schema.object({
+			title: schema.string(),
+			words: schema.number({ integer: true, minimum: 0 }),
+			paragraphs: schema.number({ integer: true, minimum: 0 }),
+			characters: schema.number({ integer: true, minimum: 0 }),
 		}),
 	}),
 });
+// Only checked data crosses the boundary. The caller's context carries cancellation for this request.
 const summary = await thread.request(ctx, {
 	title: 'Family photo notes',
 	text: 'Ada keeps the family photo.\n\nLin records its date.',
@@ -68,16 +61,16 @@ Worker module, saved as `thread.ts`:
 ```ts support=thread.ts
 import '@okikio/duration/polyfill';
 import '@okikio/dispose/polyfill';
-import * as worker from '@okikio/worker';
-import { z } from 'zod';
+import * as worker from '@okikio/worker/thread';
+import * as schema from '@okikio/schema';
 worker.serve({
 	protocol: worker.protocol({
-		request: z.object({ title: z.string(), text: z.string() }),
-		response: z.object({
-			title: z.string(),
-			words: z.number().int().nonnegative(),
-			paragraphs: z.number().int().nonnegative(),
-			characters: z.number().int().nonnegative(),
+		request: schema.object({ title: schema.string(), text: schema.string() }),
+		response: schema.object({
+			title: schema.string(),
+			words: schema.number({ integer: true, minimum: 0 }),
+			paragraphs: schema.number({ integer: true, minimum: 0 }),
+			characters: schema.number({ integer: true, minimum: 0 }),
 		}),
 	}),
 	run(request) {
@@ -92,184 +85,228 @@ worker.serve({
 });
 ```
 
-## Read the mini-demo
+The report has nine whitespace-separated words and two blank-line-separated paragraphs. The parent sends
+`{ title, text }`; the Worker validates it, calculates the summary, and replies with the matching request ID.
+`await using thread` joins shutdown when the parent block ends. The count is a display rule, not language-aware
+segmentation or a benchmark.
 
-The first paragraph has five words and the second has four. The handler counts whitespace-separated chunks as words,
-blank-line-separated blocks as paragraphs, and JavaScript string code units as characters. Those are explicit display
-rules, not language-aware word segmentation. An empty report returns zero words and paragraphs. Both modules validate
-the request and summary shapes, and the parent uses the inferred fields directly to render the result.
+Follow one summary request through those owners. Progress messages can arrive before the result; they do not settle the
+request. Closing the parent scope joins shutdown before the handle is considered closed.
 
-The benefit is a separate analysis module with a checked request/result boundary. The utility supplies validation,
-request IDs, matching Promise settlement, and owned shutdown around standard Worker messaging. A plain function call is
-sufficient when the report is small and isolation is unnecessary. This fixture makes no speedup claim. A host must
-supply the standard Worker contract or an appropriate factory.
-
-The ordinary call is `await thread.request(ctx, input)`. With these schemas it takes `{ title, text }` and resolves to
-`{ title, words, paragraphs, characters }`; there is no additional result container. The Context supplies cancellation,
-identity, and a serializable clock/deadline snapshot. `await using thread` owns shutdown when the block ends. It is the
-Worker handle, not the summary object, that needs disposal.
-
-| Contract                                              | Why it exists                                                                          |
-| ----------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `WorkerProtocol<Request, Response>`                   | Request and response schemas shared in meaning by the parent and Worker.               |
-| `WorkerHandle.request(ctx, input): Promise<Response>` | Ordinary async call; it validates both sides and matches the response to this request. |
-| `run(request, ctx, control)`                          | The Worker-side function returning your response value or Promise.                     |
-| `control.checkpoint(): Promise<void>`                 | An explicit place for cooperative pause to wait for resume.                            |
-| Request envelope                                      | `{ type: 'request', id, context: snapshot, request: validatedInput }`.                 |
-| Result envelope                                       | `{ type: 'result', id, response: validatedOutput }`.                                   |
-
-The parent validates input, assigns a request ID, and remembers its pending Promise before sending a message. The Worker
-reconstructs a local Context, validates input, calls `run()`, validates the output, and sends a result with the same ID.
-The parent resolves that one Promise. Cancellation uses a control message and local AbortController in the receiving
-realm; an AbortSignal is not sent as a transferable object. The [contract reference](API.md) includes the failure,
-notice, and reverse-call envelopes when you need them.
-
-## Keep results attached to the report that requested them
-
-While the first parent's handle is open, it can send several reports using the same protocol. The utility assigns each
-call a request ID; each Promise receives the matching summary. `Promise.all()` returns the summaries in input order, so
-a screen can keep its report list in that order even if a later request returns first.
-
-This extension continues the parent module above with its existing `thread` and `ctx`:
-
-```ts
-const reports = [
-	{ title: 'Photo notes', text: 'Ada keeps the family photo.' },
-	{ title: 'Date notes', text: 'Lin records its date.' },
-];
-const summaries = await Promise.all(reports.map((report) => thread.request(ctx, report)));
-console.log(summaries.map((summary) => `${summary.title}: ${summary.words} words`).join('\n'));
-// Photo notes: 5 words
-// Date notes: 4 words
+```mermaid
+sequenceDiagram
+  participant Parent as main.ts
+  participant Handle as Thread handle
+  participant Worker as thread.ts
+  Parent->>Handle: request(ctx, report)
+  Handle->>Worker: Validated request with ID
+  Worker->>Worker: Count words and paragraphs
+  Worker-->>Handle: Validated response with matching ID
+  Handle-->>Parent: Resolve summary Promise
+  Parent->>Handle: Leave await using scope
+  Handle->>Worker: Stop and join termination
+  Handle-->>Parent: Disposal completes
 ```
 
-One Worker still runs its JavaScript on one execution thread. Multiple outstanding requests exercise correlation; they
-do not create additional CPU threads or guarantee that two synchronous analyses run in parallel.
+If the call fails, catch its rejection at the caller. Forward cancellation through its Context. An interrupted call may
+have performed external work before losing its reply, so reconcile an upload or charge before repeating it. A returned
+summary means request cleanup has joined; an observation message alone does not. The
+[thread guide](./thread/README.md#replace-an-interrupted-report-worker-without-silently-resending-it) extends this exact
+report into a controlled generation replacement and an explicitly chosen resubmission.
 
-- **Analyze uploaded files:** combine a [Context](../context/README.md) for cancellation with this protocol for the
-  analysis request. Transferable buffers can move across the boundary when ownership is deliberately transferred;
-  ordinary resource handles and AbortSignals do not become transferable merely by being in a request.
-- **Reuse several analysis threads:** let [Pool](../pool/README.md) own Worker handles and
-  [Concurrency](../concurrency/README.md) limit admitted analysis calls. Add [Queue](../queue/README.md) for pending
-  logical work; the Worker itself supplies neither durable attempts nor cross-machine placement.
+## Select a transport and read its exact contracts
 
-## Build on the example
+| Import                           | Responsibility                                                                    |
+| -------------------------------- | --------------------------------------------------------------------------------- |
+| `@okikio/worker/supervisor`      | Replace one confirmed-terminated generation without replaying uncertain requests. |
+| `@okikio/worker/protocol`        | Shared input, output, progress, request and response contracts.                   |
+| `@okikio/worker/thread`          | Host-independent worker-thread clients and servers.                               |
+| `@okikio/worker/process`         | Host-independent subprocess clients, framing and servers.                         |
+| `@okikio/worker/process/channel` | Framed byte-channel contracts.                                                    |
 
-Save the second module beside the first. Start with request/result, then add notices for progress and reverse calls for
-host-owned policy. A notice is not completion. Transfer lists move ownership of transferable data; they do not move
-arbitrary resources. Pause is cooperative and requires handler checkpoints. Cancellation can stop waiting for a schema,
-but an external validator still owns its resources. The parent owns Worker shutdown; each realm needs its own optional
-polyfill imports.
+The root exports `protocol`, `thread` and `process` namespaces. Select native adapters explicitly from Runtime:
+`@okikio/runtime/node/worker`, `/node/process`, `/deno/worker`, `/deno/process`, `/bun/worker` or `/browser/worker`. No
+Worker import launches a host.
 
-## Purpose
+All five protocol payload types flow through clients, handlers and adapters. Directional codecs encode application
+values and decode wire values. Remote cancellation settles after validation, execution, result encoding and registered
+cleanup have joined. A noncooperative host is retired and its actual termination is joined before Pool releases its
+capacity. Progress subscriber exceptions cannot change the result of the work being observed.
 
-`@okikio/worker` provides a validated correlated protocol over standard Worker threads. The generic package owns request
-IDs, request and response validation, expected failures, transfer lists, cancellation, protocol invalidation,
-cooperative shutdown, and final termination.
+Read the [Thread](./thread/README.md) and [Process](./process/README.md) guides. Thread placement is an execution
+choice; durable resumption requires Workflow and a persistent Storage adapter. Arbitrary JavaScript stacks cannot
+migrate between hosts.
 
-The default opener uses the Web `Worker` constructor. Tests or another host can inject a `WorkerFactory`, while
-Deno-specific permission policy remains on the explicit `@okikio/worker/deno` subpath. This keeps the root usable
-anywhere the standard Worker contract is available without embedding one runtime's options in the public model.
+The shared receipt owner uses Dispose to release request correlation before disposing its Context. Every release is
+attempted and its asynchronous cleanup is joined before a terminal result, cancellation, or fault is sent. A cleanup
+failure takes the fault path; the bounded fault projection preserves nested `SuppressedError.error`,
+`SuppressedError.suppressed`, and `AggregateError.errors`, including exact undefined markers. Failure diagnostics remain
+bounded data and cannot execute getters on the original error.
 
-Use this utility only when the runtime resource is a Worker thread. A media or analysis package should still name the
-concrete resource it exposes to its callers.
+Thread stop and process stop publish their completion promise before notifying synchronous lifecycle observers or
+cancelling request signals. Reentrant stop and repeated disposal therefore join the same shutdown. Process-group grace
+and force periods measure elapsed monotonic time, so a wall-clock adjustment cannot silently shorten or prolong them.
 
-## Know what happens when a message is invalid or late
+## Choose a thread or a subprocess for the job
 
-Each request carries a unique ID and a serialized context snapshot. The Worker creates local cancellation state for that
-request and returns exactly one result, expected failure, or fault. Unknown IDs, duplicate active IDs, malformed
-envelopes, and invalid response data invalidate the Worker because request correlation can no longer be trusted.
+CPU-heavy analysis fits a thread; an external encoder fits a subprocess. Both need requests, cancellation, bounded
+transport, and joined cleanup.
 
-Cancellation before dispatch prevents a request from being sent. Cancellation after dispatch sends a cancel envelope and
-rejects the local request. A late response for a recently cancelled ID is ignored for a bounded period so one
-cooperative cancellation does not invalidate a healthy Worker.
+Declare the protocol first, choose Thread or Process, then select a Runtime adapter for the actual host. Activity adds a
+checked job and Workflow adds saved scheduling.
 
-## Serve the same protocol inside the Worker
+A validated contract alone starts nothing. Host termination and registered cleanup must finish before reuse; durable
+recovery requires an explicit store and repeat-safe effects.
 
-This extension sketch assumes an application-owned `MediaProtocol` and `convert()` function. Use the complete report
-pair above when learning only the request/result path.
+## Choose an entry point
 
-```ts
-await using server = worker.serve({
-	protocol: MediaProtocol,
-	async run(request, ctx, control) {
-		await control.checkpoint();
-		return convert(request, ctx);
-	},
-});
+Use the table to find a focused import for the job you need. Contract links open the exact public source, including its
+options and types.
 
-await server.closed;
+| Import                                 | Use it to                                                                | Exact contract                         |
+| -------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------- |
+| `@okikio/worker/process`               | Own a subprocess, bounded output, cancellation, and termination.         | [Contract](./process/mod.ts)           |
+| `@okikio/worker/process/types`         | Import public types for this capability; this entry does not start work. | [Contract](./process/types.ts)         |
+| `@okikio/worker/process/channel`       | Frame validated calls over a byte channel.                               | [Contract](./process/channel/mod.ts)   |
+| `@okikio/worker/process/channel/types` | Import public types for this capability; this entry does not start work. | [Contract](./process/channel/types.ts) |
+| `@okikio/worker/thread`                | Use correlated calls over a supplied Worker host.                        | [Contract](./thread/mod.ts)            |
+| `@okikio/worker/thread/types`          | Import public types for this capability; this entry does not start work. | [Contract](./thread/types.ts)          |
+| `@okikio/worker`                       | Import the protocol, thread and process namespaces.                      | [Contract](./mod.ts)                   |
+| `@okikio/worker/protocol`              | Declare validated requests, responses, progress, and cleanup receipts.   | [Contract](./protocol.ts)              |
+
+## Negotiate a version and bound admission
+
+Set `compatibility: { contract: 'image.resize', version: 1, features: ['notice'], required: ['notice'] }` on both
+protocol definitions. The peers exchange their contract, exact version and supported/required features before encoding
+the first request. Missing required features or a different version closes the session. This is compatibility checking,
+not peer authentication. Omitting compatibility explicitly retains the legacy unnegotiated protocol.
+
+Thread and process-channel options accept `maximumRequests` (default 1000), including requests awaiting negotiation or
+validation and requests awaiting remote cleanup. Excess requests reject immediately; they do not form a waiter queue. An
+optional `budget` requires `maximumMessageBytes`, `maximumInFlightBytes` and `maximumNodes`; `maximumDepth` defaults
+to 128. Raw input is charged before encoding, replaced by the encoded envelope and retained until the terminal cleanup
+receipt. Incoming decoding and queued process writes also reserve capacity. Process `maximumFrameBytes` remains the
+separate limit on actual JSON frame bytes.
+
+Logical costs count UTF-8 keys/strings, eight bytes per number/date/signed-64-bit BigInt, one byte per boolean and each
+full binary backing store once within a message. Aliased views and transferred buffers retain their measured cost after
+detachment. Larger BigInts, accessors, functions, symbols and unsupported host objects reject; use a narrower wire
+codec. Native collection iteration avoids caller overrides. These costs do not measure JavaScript object overhead or the
+native `postMessage` queue. A borrowed asynchronous validator can continue its own allocations after cancellation; the
+transport cannot impose a VM heap quota on it. Native termination and cleanup receipts retain their existing authority.
+
+## Measure joined request receipts
+
+The focused benchmarks measure 1–256 local successful/fault receipts with released correlations. The benchmark compares
+against explicit successful finally cleanup. This excludes transport, serialization and native Worker startup; root host
+scenarios measure those.
+
+Thread protocol tests are split by the caller's concern: [handle](./thread/mod.test.ts),
+[server](./thread/server.test.ts), [intermediate messages](./thread/protocol.test.ts),
+[admission](./thread/admission.test.ts), [cleanup receipts](./thread/cleanup.test.ts) and
+[payload validation](./thread/payload.test.ts). Their shared fixture contains explicit protocol doubles; native runtime
+and process suites establish actual host behavior separately. Each scenario owns its live resources.
+
+From the repository root, run the package's tests and untimed benchmark checks before collecting timings:
+
+```sh
+mise run test -- --project worker
+mise run bench -- --project worker --check
+mise run bench -- --project worker
 ```
 
-The parent and Worker share the same protocol definition. Cancellation crosses the message seam as a control frame; the
-utility does not pretend an `AbortSignal` itself is transferable.
+These commands use package-owned fixtures and development dependencies. The
+[benchmark protocol](../../docs/benchmarks/01-running.md#choose-a-comparison-that-answers-the-question) explains fair
+comparisons, raw report collection and the limits of local measurements.
 
-## Cancellation and progress
+The [native process-group integration test](../../tests/worker-groups.test.ts) also checks the explicit system-kill
+host. It belongs to the root suite because it combines the Runtime adapter with real POSIX process-group control.
 
-The request Context remains the cancellation authority. The Worker receives a serializable Context snapshot plus
-protocol control messages rather than a transferred `AbortSignal`:
+## Own restart policy without replay
 
-```ts
-await using requestCtx = context.child(ctx, { id: 'thumbnail-42' });
+`@okikio/worker/supervisor` exports `create(ctx, factory, { maximumRestarts,
+maximumRequests, backoff })`. The factory
+receives a zero-based generation and cancellation signal and transfers one started generation with `request`, `stop` and
+an authoritative `closed` receipt. Thread handles now expose that receipt: it settles after native termination and local
+correlation release, separately from cooperative shutdown messages and Observable lifecycle notifications.
 
-const pending = handle.request(requestCtx, { assetId: '42' }, {
-	id: 'thumbnail-42',
-});
+Await `ready` before the first call. `request` sends once to the current ready generation; startup, backoff and full
+capacity reject `UnavailableError`. There is no waiting queue. A lost generation rejects outstanding calls with
+`UncertainRequestError`; an external side effect may already have committed. Reconcile with application-owned stable
+operation IDs before deciding whether to resend. Late old-generation replies cannot complete calls in a replacement.
 
-context.cancel(requestCtx, new Error('caller stopped waiting'));
-await pending; // rejects with the cancellation reason
+Restarts use the context clock and a fixed cancellable millisecond delay, up to the explicit replacement-attempt budget.
+Startup failures count as attempts. Failed factory calls must retain no live worker. Stop waits for in-progress startup,
+then stops any late acquired generation. An uncooperative factory or worker cleanup can therefore keep stop pending;
+cancellation alone is not proof of release. A failed native termination ends supervision without acquiring a
+replacement. `closed` reports stopped/exhausted/failed plus exact final reason.
+
+`events` uses the existing `@okikio/observables` EventBus for small immutable status projections with no retained
+history or internal queue. Read `status` for the current phase. Events cannot complete requests, cancel work or prove
+termination. Successful requests remove their loss listeners rather than accumulating callbacks on a long-lived terminal
+promise. Use Pool separately for worker leasing; this owner supervises one generation at a time.
+
+## Pipe bounded bytes over a dedicated MessagePort
+
+`@okikio/worker/stream` provides a versioned byte-stream family separate from request/reply and notices.
+`@okikio/worker/stream/types` exposes its resource and policy contracts. A caller transfers one dedicated MessagePort to
+the producer's runtime, then opens the other endpoint. Both calls explicitly transfer ownership of their port to this
+protocol; the enclosing Worker remains caller-owned.
+
+This complete local example uses the same native MessageChannel protocol as the browser Worker tests. Replace the local
+producer with a module Worker that receives the transferred port when the source belongs in another thread.
+
+```ts runnable=port-bytes.ts
+import * as context from '@okikio/context';
+import * as stream from '@okikio/worker/stream';
+
+await using ctx = context.create({ id: 'byte-owner' });
+const { port1, port2 } = new MessageChannel();
+const policy = { maximumChunkBytes: 64, maximumChunks: 2, maximumBytes: 64 };
+let released = false;
+await using producer = stream.serve(ctx, port1, async function* (owner) {
+	owner.defer(() => {
+		released = true;
+	});
+	yield new TextEncoder().encode('hello ');
+	yield new TextEncoder().encode('world');
+}, policy);
+await using receiver = stream.open(ctx, port2, { ...policy, id: 'words', timeout: 1000 });
+const words: string[] = [];
+await receiver.readable.pipeThrough(new TextDecoderStream()).pipeTo(
+	new WritableStream<string>({
+		write(value) {
+			words.push(value);
+		},
+	}),
+);
+console.log(words.join(''));
+console.log((await receiver.closed).status, released);
 ```
 
-If the protocol declares notices, Worker code can call `control.notify(...)` for progress. Notices are observations
-only. The validated terminal response or declared failure remains authoritative.
+```text output
+hello world
+complete true
+```
 
-## Runtime-specific opening
+Revision one negotiates exact family/version/ID and the minimum of both peers' limits. One downstream read grants one
+sequenced chunk; there is no prefetch or pending chunk queue. A final read is needed to discover EOF. Empty chunks count
+toward `maximumChunks`. Chunks and their full backing stores must fit `maximumChunkBytes`; shared buffers are rejected.
+The sender copies into an exact-sized owned buffer before transfer, so it never detaches the source's buffer. Limits
+count payload bytes and frames, not native queue overhead or VM heap. An untrusted peer can allocate or flood its native
+transport before validation; this is not a sandbox quota or peer authentication.
 
-`worker.open()` constructs a standard module Worker unless the caller supplies `create`. `@okikio/worker/deno` wraps the
-same generic opener and adds Deno's Worker permission option during construction. Request correlation, validation,
-lifecycle, and shutdown still remain in `@okikio/worker`.
+The lazy source receives an owned child Context for cooperative cancellation and deferred cleanup. Terminal frames
+follow iterator return and child cleanup. `closed` owns that evidence independently of `events` and the native
+`target`'s `state` CustomEvents. Both projections use the same small immutable values and retain no history. Use
+`@okikio/streams/events` to observe native state events or pipe EventBus values with an explicit overflow policy.
 
-`handle.stop()` asks the Worker server to stop cooperatively. If the Worker does not acknowledge shutdown before
-`shutdownMs`, the generic owner terminates the raw Worker. Disposing the handle follows the same path, so explicit stop
-and resource cleanup remain coordinated.
-
-## Convenience and the manual equivalent
-
-| Convenience         | Manual equivalent                                                                                                                                   | Concrete value                    |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| `worker.protocol()` | define request/response/notice/call schemas and message discriminants yourself                                                                      | one typed cloneable wire contract |
-| `worker.open()`     | create correlation maps, post messages, transfer values, link cancellation, validate replies, surface failures/faults, and stop the Worker manually | one owned Worker client lifetime  |
-| `worker.serve()`    | install message listeners, validate requests, execute handlers, encode expected failures/faults, and reply with correlation IDs                     | one server-side protocol loop     |
-
-`@okikio/worker` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics with
-Worker.postMessage(), correlation IDs, a pending-request Map, and explicit termination/error cleanup.
-
-The utility standardizes that protocol and its cancellation/result behavior without owning scheduling or durable
-attempts.
-
-## Replies and protocol failures
-
-Worker-side implementations use `reply()` to create a correlated response for the current request instead of
-hand-assembling protocol envelopes. Expected host-side failures are:
-
-- `WorkerProtocolError` for malformed or mismatched protocol messages.
-- `WorkerFailureError` for a declared remote failure response.
-- `WorkerFaultError` for an unexpected remote fault.
-- `WorkerStoppedError` when the owned Worker terminates before a pending request settles.
-
-## Unexpected faults
-
-Unexpected thrown values are projected through `@okikio/fault` before they cross the Worker message seam. That
-projection is bounded, detects cycles, and does not intentionally invoke accessor-backed diagnostic fields. Expected
-declared failures still use `@okikio/failure` and remain a separate protocol branch.
-
-## Source guide
-
-Start with this README, then use the source in this order when you need more detail:
-
-1. `mod.ts` shows the supported runtime operations and the composition shape.
-2. `types.ts`, when present, shows the public value and behavior contracts.
-3. `*.test.ts` files show edge cases, cancellation, invalid input, and lifecycle behavior as executable examples.
-4. Read internal implementation files only when you need the exact state transition or performance-sensitive loop.
-
-Read the [generated API reference](API.md) for the complete exported contracts and field descriptions.
+Calling `receiver.cancel()` or aborting its Context errors the readable immediately. Native reader/pipe cancellation
+closes its own stream under Web Stream rules. Both paths send one cancellation frame and wait for a terminal receipt.
+`timeout` is a positive millisecond budget on `ctx.clock` for each handshake, requested chunk or cancellation receipt.
+It does not time out an idle consumer between reads. An absent peer or hung source yields receiver status `unconfirmed`;
+inspect it after `pipeTo()` cancellation rather than treating local cancellation as proof of remote release. The
+producer's `stop()`/`closed` continue to await actual source cleanup. The Worker owner can terminate a noncooperative
+host and await its termination separately. There is no automatic request replay, process-channel integration,
+multiplexing, reconnection or application authorization. Remote fault details remain local to the producer; the receiver
+gets a typed protocol error.

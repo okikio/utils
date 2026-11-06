@@ -3,8 +3,8 @@ import '@okikio/duration/polyfill';
 import '@okikio/dispose/polyfill';
 import { deepStrictEqual } from 'node:assert';
 import { bench, do_not_optimize, group } from 'mitata';
-import { alternatives } from '../tests/fixtures/alternatives.ts';
-import { run } from './run.ts';
+import { alternatives } from '#fixtures/alternatives.ts';
+import { run } from '#tools/bench/run.ts';
 
 for (const candidate of alternatives) {
 	deepStrictEqual(await candidate.utils(), candidate.expected);

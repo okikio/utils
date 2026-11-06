@@ -1,210 +1,282 @@
-# `@okikio/server`
+# Build a notes API with `@okikio/server`
 
-To expose an API, you need to match requests to code, check inputs, return understandable answers and close resources
-when work ends. `@okikio/server` lets you start with a small Fetch application and add declared endpoints and services
-when you need those checks. Fetch is a function that accepts a Web `Request` and returns a `Response`; a network
-listener is a separate host concern.
+A notes API receives a title, saves it, and returns the title it accepted. Start with a normal request handler. Add a
+shared endpoint contract when several callers need the same input and response rules. A service checks those declared
+rules and owns the resources created for its requests; the deployment host still owns the network listener.
 
-```text
-Small app: Request -> HTTP routes + middleware -> Response
+For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters keep their native runtime requirements.
 
-Declared service: endpoint descriptions + handler implementations
-                    -> compile once -> service Fetch runtime -> Response
+These examples use the experimental Utils source checkout. From its root, review `mise.toml`, then run `mise trust`,
+`mise install`, and `mise run prepare -- --kind deps`. Save each named file at that root. The examples use workspace exports;
+they do not assume a newly published registry version.
 
-Deployment host: opens the listener and calls the chosen Fetch runtime
-```
+## Save one note with ordinary Request and Response values
 
-The small app uses ordinary request and response values. A declared service adds reusable input/output rules and startup
-checks before requests arrive. Compilation links those declarations and implementations; it does not transpile your
-TypeScript, open a port or connect to a database.
+Save `plain-notes.ts`. The JSON reader admits at most 1,024 bytes; the handler then checks what those bytes mean:
 
-## Return JSON from a small API
-
-```ts runnable
+```ts runnable=plain-notes.ts
 import * as http from '@okikio/server/http';
+import { parseJson, RequestTransportError } from '@okikio/http/request';
+
+const notes: string[] = [];
 const app = http.create({
-	routes: [http.route('GET', '/health', () => Response.json({ ok: true }))],
-	middleware: [http.securityHeaders()],
+	routes: [http.route('POST', '/notes', async (request) => {
+		// Bound transport parsing before checking the application's title field.
+		const value = await parseJson(request, { maximumBodyBytes: 1024 });
+		if (value === null || typeof value !== 'object' || !('title' in value) || typeof value.title !== 'string') {
+			return Response.json({ error: 'Supply a text title.' }, { status: 400 });
+		}
+		const title = value.title.trim();
+		if (title === '') return Response.json({ error: 'Supply a nonblank title.' }, { status: 400 });
+		notes.push(title);
+		return Response.json({ title });
+	})],
+	middleware: [http.catchErrors(), async (request, next) => {
+		try {
+			return await next(request);
+		} catch (error) {
+			// Map known request-format failures here. Unexpected exceptions reach the outer catchErrors middleware.
+			if (!(error instanceof RequestTransportError)) throw error;
+			const code = error.issues[0]?.code;
+			return Response.json({ error: 'Request format rejected.' }, {
+				status: code === 'body-too-large' ? 413 : code === 'unsupported-content-type' ? 415 : 400,
+			});
+		}
+	}],
 });
-const response = await app.fetch(new Request('https://service.invalid/health'));
-console.log(response.status, (await response.json()).ok);
-console.log(response.headers.get('x-content-type-options'));
-```
-
-Expected output:
-
-```text output
-200 true
-nosniff
-```
-
-The demo registers one GET route at `/health` and wraps it with security-header middleware. Calling `app.fetch()`
-directly selects that route and returns JSON with `ok: true`. The output `200 true` means the response succeeded and its
-body has the expected flag. `nosniff` shows the configured security policy reached the response. The example reads the
-body completely. It runs without opening a network listener, which also makes this shape useful for local tests.
-
-## Start with the level your application needs
-
-| Need                                                  | Smallest useful entry                | Function or value you work with                                 |
-| ----------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------- |
-| Return a response from a route                        | `server/http`                        | `(request: Request) => Response \| Promise<Response>`           |
-| Check input/output and share API descriptions         | `server/endpoint` + `server/service` | Endpoint definition, typed handler binding, compiled service    |
-| Check that middleware values exist in the right order | `server/middleware`                  | `requires`/`provides` declarations and ordinary async callbacks |
-| Forward declared routes to other origins              | `server/gateway`                     | Compiled route/policy data and `(request) => Promise<Response>` |
-
-There is no need to learn all four levels to use the first example. A route callback can contain familiar `if`,
-`await fetch(...)` and `Response.json(...)` code. A service adds checks around the same application work.
-
-One level deeper, `http.create()` snapshots route metadata, prepares matching tables and wraps the selected handler in
-the requested middleware. A service compiler goes further: it joins imported definitions with exact handler/resource
-bindings, rejects inconsistent graphs, and prepares per-operation parsing and result plans. Creating the runtime makes
-an owned, lazy resource collection. The first request that borrows a resource acquires it; unused resources need not
-open at all. The network listener stays with the host in both cases.
-
-The design keeps static API descriptions independent from live database connections and from a particular router. It
-costs a few more setup lines when you choose a declared service, but catches missing bindings before traffic and lets
-the same descriptions feed a gateway or OpenAPI. The [full contracts](API.md) document each layer separately.
-
-## Build on the example
-
-For a small health endpoint or embedded tool, begin with [HTTP routes](http/README.md). Add CORS, error mapping or other
-HTTP middleware only where the deployment needs it. For a records API with validated input, declared rejections and a
-shared database, use [endpoint definitions](endpoint/README.md) and a [service runtime](service/README.md), with
-[resources](../resource/README.md) that state who opens and closes the client.
-
-For several independently deployed services, use a [gateway](gateway/README.md) to derive forwarding routes from their
-imported definitions. An existing Hono host can use the [Hono adapter](../hono/README.md). In every case the deployment
-host owns listener startup and shutdown; the chosen service runtime owns its own request and resource cleanup.
-
-[Choose related utilities by outcome](../../docs/outcomes.md). Later examples that introduce application-owned clients
-or schemas are composition sketches; supply those dependencies before running them.
-
-## How it fits
-
-Static definitions are import-safe. They do not read the environment, start a listener, configure logging, open a
-database, or create a provider client.
-
-A composition root follows this sequence:
-
-```text
-import definitions and implementations
-  -> compile the selected graph
-  -> reject missing or conflicting contracts
-  -> create the runtime's lazy resource owner
-  -> serve requests
-  -> dispose the runtime
-```
-
-`service.compile()` verifies the imported service graph and derives its route, resource, response, problem, and policy
-plans.
-
-`service.create()` creates a resource owner and a framework-neutral Fetch runtime for a compiled service. The runtime
-exposes its exact routes plus a native `Request -> Response` entry point. It does not import Hono.
-
-`@okikio/server/http` owns optional host behavior such as routing, liveness, readiness, safe error completion, request
-correlation, CORS, security headers, timing, trailing-slash redirects, pretty JSON, and request observation. Each
-capability is enabled separately.
-
-```ts
-const runtime = service.create(compiled, options);
-const app = http.create({
-	routes: [
-		http.route('GET', '/health', http.health({ service: 'example' })),
-		...runtime.routes.map((route) => http.route(route.method, route.path, route.handler)),
-	],
-	middleware: [http.catchErrors(), http.requestId(), http.securityHeaders()],
-});
-```
-
-Hono integration lives in the separate `@okikio/hono` adapter package. A host can therefore adopt Hono without making
-Hono part of the service compiler or core server runtime.
-
-`gateway.compile()` resolves mounted service manifests and edge policies.
-
-`gateway.create()` creates the Fetch-compatible gateway runtime.
-
-## Larger service composition
-
-The complete version below serves the same familiar health response, this time with a reusable checked body rule. The
-two side-effect imports provide Temporal for request timestamps and `AsyncDisposableStack` for runtime ownership when
-the environment lacks them. They are runtime dependencies of this service flow, not part of route definition itself:
-
-```ts runnable=declared-service.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
-import * as endpoint from '@okikio/server/endpoint';
-import * as service from '@okikio/server/service';
-import * as response from '@okikio/http/response';
-import { z } from 'zod';
-
-const Healthy = response.ok(z.object({ ok: z.boolean() }), {
-	id: 'health.ok',
-	description: 'Service health.',
-});
-const Health = endpoint.get({
-	id: 'health.read',
-	path: '/health',
-	responses: [Healthy],
-});
-const Api = service.define({ id: 'api', path: '/', endpoints: [Health] });
-const implementation = service.implement(Api, {
-	endpoints: [endpoint.handler(Health, () => response.create(Healthy, { ok: true }))],
-});
-await using runtime = service.create(service.compile(implementation), { host: {} });
-const outgoing = await runtime.fetch(new Request('https://service.invalid/health'));
+// Call the Fetch application directly. A deployment host can mount the same app on a real listener.
+const outgoing = await app.fetch(
+	new Request('http://localhost/notes', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify({ title: 'First note' }),
+	}),
+);
 console.log(outgoing.status, await outgoing.text());
 ```
 
+Run `mise exec -- deno run plain-notes.ts`. It prints:
+
 ```text output
-200 {"ok":true}
+200 {"title":"First note"}
 ```
 
-Definitions remain import-safe. Runtime construction is where resources and host behavior are supplied. Generic built-in
-server/gateway failures use stable `urn:utils:...` problem types. Product APIs can define their own HTTP problem
-namespaces with `@okikio/http/problem.url()`.
+`app.fetch()` calls the route locally. It does not connect to localhost. `await` obtains the eventual response, and
+`response.text()` reads its body separately. The array belongs to this application instance; restarting loses it. It is
+not a database. The transport parser and your field checks solve different jobs. Known format failures become 400, oversized bodies
+become 413 and unsupported media become 415. For forms, signed callbacks and rejection checks, use the [request workflows](../../docs/server/09-http-input.md).
 
-## Observability remains host policy
+The [HTTP README](./http/README.md) shows a real listener and curl. For streaming and reconnect, continue with
+[streaming greetings](../../docs/server/10-http-streaming.md); for an AI tool, use the
+[MCP example](../../docs/server/11-mcp.md).
 
-Service and Gateway can declare import-safe observer definitions. Their runtimes emit lifecycle metadata but do not
-configure a logging backend. Applications can bind those observers directly or use `@okikio/telemetry/server` to
-translate them into portable telemetry records.
+## Declare the same operation once callers need a shared contract
 
-```ts
-const scope = telemetry.create(reporter, { fields: { deployment_id: 'blue' } });
-const runtime = service.create(compiled, {
-	host,
-	observers: [serverTelemetry.service(Diagnostics, scope)],
+The manual handler repeats checks at its call site. An endpoint describes accepted JSON and allowed answers as data.
+A handler supplies the saving code. A service links the exact descriptions to those handlers before receiving traffic:
+
+```text
+Save: POST /notes + title schema + Saved response
+  -> implement: bind the saving function
+  -> compile: verify every declared operation has the right binding
+  -> create: own one live runtime
+  -> fetch: parse, validate, call the saving function, validate and write its answer
+```
+
+Compilation does not transpile TypeScript or open a port. Save this complete reusable module as `notes-contract.ts`:
+
+```ts support=notes-contract.ts
+import '@okikio/duration/polyfill';
+import '@okikio/dispose/polyfill';
+import * as endpoint from '@okikio/server/endpoint';
+import * as response from '@okikio/http/response';
+import * as service from '@okikio/server/service';
+import * as schema from '@okikio/schema';
+export const Saved = response.ok(schema.object({ title: schema.string() }), {
+	id: 'note.saved',
+	description: 'Saved note title.',
 });
+export const Save = endpoint.post({
+	id: 'note.save',
+	path: '/notes',
+	json: schema.object({ title: schema.string({ minLength: 1, pattern: /\S/u }) }),
+	responses: [Saved],
+});
+export const Api = service.define({ id: 'notes', path: '/api', endpoints: [Save] });
+export function createNotes() {
+	const notes: string[] = [];
+	const implementation = service.implement(Api, {
+		endpoints: [endpoint.handler(Save, ({ input }) => {
+			const title = input.json.title.trim();
+			notes.push(title);
+			return response.create(Saved, { title });
+		})],
+	});
+	return service.create(service.compile(implementation), { host: {} });
+}
 ```
 
-This preserves the same ownership rule as the listener: reusable server code owns HTTP lifecycle semantics; the
-executable host owns logging, tracing, redaction, exporters, and vendor configuration.
+`response.ok()` describes an allowed answer; `response.create()` produces one occurrence. The schema checks the title
+before the handler runs. `createNotes()` creates an independent in-memory notes instance each time it is called.
+The polyfill imports supply Temporal and disposal globals used by the service on hosts that lack them.
 
-## HTTP relationship
+Save `checked-notes.ts` beside it:
 
-Use these packages for protocol values:
+```ts runnable=checked-notes.ts
+import { createNotes } from './notes-contract.ts';
+await using runtime = createNotes();
+for (const title of ['First note', 42]) {
+	const result = await runtime.fetch(
+		new Request('http://localhost/api/notes', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ title }),
+		}),
+	);
+	console.log(result.status, (await result.json()).title);
+}
+```
 
-- `@okikio/http/request`
-- `@okikio/http/cookie`
-- `@okikio/http/response`
-- `@okikio/http/problem`
+Run `mise exec -- deno run checked-notes.ts`. It prints:
 
-The server package consumes those values. It does not redefine them.
+```text output
+200 First note
+400 Invalid request
+```
 
-## Security-header configuration is ordinary data
+The numeric title is rejected before the saving callback. `await using` disposes the live runtime at scope exit and
+waits for its owned cleanup. It leaves borrowed host clients under their caller's ownership. Read or cancel every
+response body before disposing its owner, especially when the body streams.
 
-`server.http.securityHeaders()` accepts a plain/null-prototype options record. Accessor, hidden, inherited, and
-symbol-backed configuration is rejected before header values are read, including the `additional` header map. This keeps
-static security policy deterministic and visible in the object being reviewed.
+## Call that exact contract from a client
 
-## Framework problem catalogs
+An ordinary `fetch` caller can build JSON itself. The optional typed client reuses `Save` and its response definitions.
+This complete check routes the client's HTTP request into the same runtime; it opens no network connection.
+Save `notes-client.ts` beside `notes-contract.ts`:
 
-The root module exports two neutral framework problem sets:
+```ts runnable=notes-client.ts
+import { createNotes, Save } from './notes-contract.ts';
+import * as client from '@okikio/server/client';
 
-- `ServerProblems` contains service-runtime problems such as malformed framework input.
-- `GatewayProblems` contains failures owned by the gateway before an origin service handles the request.
+await using runtime = createNotes();
+const notes = client.create(Save, {
+	baseUrl: 'http://localhost/api',
+	fetch: async (input, init) => await runtime.fetch(new Request(input, init)),
+	maximumDeclarations: 10,
+	maximumRequestBytes: 4096,
+	maximumResponseBytes: 4096,
+});
+const result = await notes.call(Save.operations[0], { json: { title: 'Second note' } });
+if (result.kind === 'success') console.log(result.value.title);
+```
 
-Product-specific problem namespaces remain application composition, not generic server defaults.
+Run `mise exec -- deno run notes-client.ts`. It prints:
 
-Read [the service lifecycle guide](../../docs/server.md) when you need the complete compiler, middleware and resource
-ownership model.
+```text output
+Second note
+```
+
+Put the service prefix `/api` in `baseUrl`. The client adds the endpoint path `/notes`. A real deployment supplies the
+network `fetch` instead of this local bridge. Construction makes no request; `call()` does the work.
+
+## Choose an entry point
+
+Use the table to find a focused import for the job you need. Contract links open the exact public source, including its
+options and types.
+
+| Import                               | Use it to                                                                   | Exact contract                       |
+| ------------------------------------ | --------------------------------------------------------------------------- | ------------------------------------ |
+| `@okikio/server`                     | Use the package entry shown in the complete examples above.                 | [Contract](./mod.ts)                 |
+| `@okikio/server/endpoint`            | Declare and bind a validated endpoint contract.                             | [Contract](./endpoint/mod.ts)        |
+| `@okikio/server/endpoint/definition` | Declare import-safe endpoints without acquiring live resources.             | [Contract](./endpoint/definition.ts) |
+| `@okikio/server/endpoint/handler`    | Bind endpoint behavior to its exact declaration.                            | [Contract](./endpoint/handler.ts)    |
+| `@okikio/server/endpoint/openapi`    | Derive OpenAPI from endpoint definitions.                                   | [Contract](./endpoint/openapi.ts)    |
+| `@okikio/server/endpoint/path`       | Join and inspect route-template paths.                                      | [Contract](./endpoint/path.ts)       |
+| `@okikio/server/endpoint/types`      | Import public types for this capability; this entry does not start work.    | [Contract](./endpoint/types.ts)      |
+| `@okikio/server/gateway`             | Forward imported service routes to explicitly selected upstreams.           | [Contract](./gateway/mod.ts)         |
+| `@okikio/server/gateway/definition`  | Declare upstream ownership without making a network request.                | [Contract](./gateway/definition.ts)  |
+| `@okikio/server/gateway/types`       | Import public types for this capability; this entry does not start work.    | [Contract](./gateway/types.ts)       |
+| `@okikio/server/http`                | Compose portable Fetch handlers without opening a listener.                 | [Contract](./http/mod.ts)            |
+| `@okikio/server/http/router`         | Compile immutable route plans into a router.                                | [Contract](./http/router.ts)         |
+| `@okikio/server/http/types`          | Import public types for this capability; this entry does not start work.    | [Contract](./http/types.ts)          |
+| `@okikio/server/middleware`          | Declare request lanes, ordering, and context requirements.                  | [Contract](./middleware/mod.ts)      |
+| `@okikio/server/middleware/types`    | Import public types for this capability; this entry does not start work.    | [Contract](./middleware/types.ts)    |
+| `@okikio/server/service`             | Compile exact definitions and implementations into a live service runtime.  | [Contract](./service/mod.ts)         |
+| `@okikio/server/service/definition`  | Declare service contracts independently of host startup.                    | [Contract](./service/definition.ts)  |
+| `@okikio/server/service/resilience`  | Apply service retry and protection policy.                                  | [Contract](./service/resilience.ts)  |
+| `@okikio/server/service/types`       | Import public types for this capability; this entry does not start work.    | [Contract](./service/types.ts)       |
+| `@okikio/server/gateway/artifact`    | Read a serialized gateway contract instead of importing live service code.  | [Contract](./gateway/artifact.ts)    |
+| `@okikio/server/gateway/openapi`     | Derive OpenAPI for a gateway contract.                                      | [Contract](./gateway/openapi.ts)     |
+| `@okikio/server/service/route`       | Inspect and compose routes derived from a service definition.               | [Contract](./service/route.ts)       |
+| `@okikio/server/client`              | Call an endpoint through its exact wire contract and explicit byte budgets. | [Contract](./client.ts)              |
+
+The focused client accepts an exact imported operation from one endpoint. Put group/service mount prefixes in `baseUrl`;
+it contains no credentials, query or fragment. Construction performs no I/O. Request input types are wire inputs, before
+schema transforms. Each location validates once locally after transport normalization; the server independently
+validates its boundary. Repeated query, cookie and form fields remain repeated. Path parameters are encoded as one
+segment; empty and dot-only segments reject. Headers and cookies follow HTTP's native grammar. Browsers can prohibit
+authored Cookie headers. Native credentials default to `omit`, redirect handling is `manual`, and retries are
+application-owned. Both policies are passed in the native Request and the Fetch init argument. Injected transports must
+honor that init argument. The browser lane checks the native Request properties too; Bun 1.4.2 in this checks
+reports `include` for a Request constructed with `omit`, so its property alone is not used as evidence of browser cookie
+behavior.
+
+Body responses need an explicit Codec or an owned identity schema. A transforming Standard Schema supplies no inverse.
+Declare identity for a third-party identity validator with `codec.identity()` or provide both Codec directions. OpenAPI
+also needs an explicit wire JSON Schema for arbitrary transformations. The client rejects ambiguous successful status
+declarations, unknown status/problem type, incorrect media type and malformed or oversized materialized bodies. Declared
+problems return `kind: 'problem'`; protocol defects throw `ClientResponseError`. Validator and transport defects retain
+their original errors. The application owns redaction before showing an error cause.
+
+`maximumRequestBytes` bounds JSON/raw bytes and form name/value bytes plus declared Blob sizes; multipart framing is
+additional. It is not a complete network or heap quota. Raw input consumes its supplied Request under that limit. JSON
+projections reject accessors and cycles. Request locations keep their own authored HTTP parsing limits.
+`maximumResponseBytes` bounds materialized success/problem bytes; byte limits require a signal to interrupt a peer that
+never sends data. Page items decode serially. Successful stream/download/HTML responses return the exact native Response
+as `value`; the caller owns reading/cancelling that body. Other success/problem bodies are consumed once with HTTP's
+bounded reader. Receiving a response or aborting a call does not prove a remote effect committed or was undone.
+
+## Inspect the authoritative service and router
+
+Use `service.document(compiled)` for the existing immutable manifest: it already contains routes, middleware lane order,
+resource dependency graphs and declared policy owners without acquiring resources. These are compiler/deployment
+declarations, not proof that a remote adapter enforces them. Requirement apply-mode explanation and live resource
+inspection have separate owners.
+
+`router.inspect(plan, { maximumRoutes, maximumComparisons, maximumOverlaps })` at `@okikio/server/http/router` returns
+overlap witnesses and the actual router winner. It shares `prepare()`'s canonical grammar and
+`matchRoute()`/`matchMount()` precedence, including explicit HEAD versus GET fallback and route-before-mount dispatch.
+It invokes no handler. `capped` means the report is incomplete. A witness shows an overlap; it does not claim either
+declaration is unreachable for every request. Invalid duplicate shapes still reject in `prepare()`.
+
+## Measure prepared routing
+
+The focused benchmarks measure 16, 256 and 4,096 routes with HEAD and misses. The benchmark compares against independent
+linear route-selection reference. This isolates routing. Complete validated services and network behavior remain root
+workflows.
+
+From the repository root, run the package's tests and untimed benchmark checks before collecting timings:
+
+```sh
+deno task --cwd=packages/server test
+deno task --cwd=packages/server bench:check
+deno task --cwd=packages/server bench
+```
+
+These commands use package-owned fixtures and development dependencies. The
+[benchmark protocol](../../docs/benchmarks/01-running.md#choose-a-comparison-that-answers-the-question) explains fair
+comparisons, raw report collection and the limits of local measurements.
+
+## Find the behavior tests
+
+Service runtime tests are split by the caller's concern: [request pipeline](./service/runtime.test.ts),
+[resource authority](./service/resources.test.ts), [request admission](./service/requests.test.ts),
+[response materialization](./service/responses.test.ts), [private failures and observation](./service/observation.test.ts),
+and [route exposure](./service/routing.test.ts). Shared fixtures contain immutable definitions and validation adapters;
+each scenario owns its live runtime. [Client tests](./client.test.ts) distinguish protocol, JSON and size failures so
+one earlier rejection cannot stand in for another contract.
+
+## Read further
+
+The [Server guide](https://github.com/okikio/utils/blob/main/docs/server/01-guide.md) explains the model, manual
+alternatives, and composition.

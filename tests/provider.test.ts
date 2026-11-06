@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import type { StandardJSONSchemaV1, StandardSchemaV1 } from '@standard-schema/spec';
 
 import * as response from '@okikio/http/response';
-import * as resource from '@okikio/resource';
+import * as resource from '@okikio/capability/resource';
 import * as endpoint from '@okikio/server/endpoint';
 import * as service from '@okikio/server/service';
 

@@ -1,8 +1,8 @@
-/** Qualify independently compiled Elysia Fetch fixtures before measuring them. @module */
+/** Test independently compiled Elysia Fetch fixtures before measuring them. @module */
 import { deepStrictEqual } from 'node:assert';
 import { describe, it } from 'node:test';
-import { cases, observe, request, routingCases } from './fixtures/http-parity/corpus.ts';
-import { createElysiaApi, createElysiaRouting } from './fixtures/http-parity/elysia.ts';
+import { cases, observe, request, routingCases } from '#fixtures/http-parity/corpus.ts';
+import { createElysiaApi, createElysiaRouting } from '#fixtures/http-parity/elysia.ts';
 
 // Each observation uses a fresh real application. The neutral corpus owns the
 // literals; failed challenger cases cannot be silently omitted from profiling.

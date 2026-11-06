@@ -1,6 +1,6 @@
 /** Measure selective source adoption in fresh processes with a matched process-only baseline. */
 import { bench, do_not_optimize, group } from 'mitata';
-import { run } from './run.ts';
+import { run } from '#tools/bench/run.ts';
 import { parse } from '@std/jsonc';
 const root = new URL('../', import.meta.url);
 const fixture = new URL('./fixtures/import.ts', import.meta.url);
@@ -47,8 +47,10 @@ const empty = await load();
 if (empty.exports !== 0) throw new Error('Empty import child exported application data.');
 for (const entry of entries) {
 	const receipt = await load(entry.url);
-	if (receipt.exports === 0) {
-		throw new Error(`${entry.name} lost all runtime exports.`);
+	// Runtime and Storage roots publish only contracts; selecting an adapter must remain explicit.
+	const typeOnly = entry.name === '@okikio/runtime' || entry.name === '@okikio/storage';
+	if (typeOnly ? receipt.exports !== 0 : receipt.exports === 0) {
+		throw new Error(`${entry.name} has an unexpected runtime export count.`);
 	}
 }
 group('fresh Deno source imports: process startup included', () => {

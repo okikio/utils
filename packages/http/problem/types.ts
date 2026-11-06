@@ -1,5 +1,5 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
-import type { CatalogEntryIdentity } from '@okikio/catalog';
+import type { CatalogEntryIdentity } from '@okikio/collection/catalog';
 import type { HeaderInput, ResponseHeaders } from '@okikio/http/response/headers';
 
 /** Supported RFC 9457 HTTP error status. */

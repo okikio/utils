@@ -9,6 +9,7 @@ async function poolTypes(): Promise<void> {
 	await using clients = await pool.create({
 		ctx,
 		maximum: 2,
+		maximumWaiting: 32,
 		create: () => ({ kind: 'client' as const, request: (path: string) => path.length }),
 		close() {},
 	});

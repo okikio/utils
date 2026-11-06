@@ -7,7 +7,7 @@
  *
  * @internal
  */
-import * as faultCore from '@okikio/fault';
+import * as faultCore from '@okikio/result/fault';
 import type { ActivityAttemptType } from '@okikio/workflow';
 import * as activity from './mod.ts';
 import * as transport from './transport.ts';
@@ -81,6 +81,12 @@ export function maximumChecks(value: number | undefined, owner: string): number 
 /** Return the structural protocol shared by process framing and Worker messages. */
 export function protocol() {
 	return Object.freeze({
+		compatibility: {
+			contract: 'okikio.activity.attempt',
+			version: 1,
+			features: ['reverse-call', 'cleanup'],
+			required: ['reverse-call', 'cleanup'],
+		},
 		request: transport.AttemptSchema,
 		response: transport.ResultSchema,
 		notice: transport.NoticeSchema,

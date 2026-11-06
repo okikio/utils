@@ -23,28 +23,31 @@
 		"./service": "./service/mod.ts",
 		"./service/definition": "./service/definition.ts",
 		"./service/resilience": "./service/resilience.ts",
-		"./service/types": "./service/types.ts"
+		"./service/types": "./service/types.ts",
+		"./gateway/artifact": "./gateway/artifact.ts",
+		"./gateway/openapi": "./gateway/openapi.ts",
+		"./service/route": "./service/route.ts",
+		"./client": "./client.ts"
 	},
 	"dependencies": {
 		"@standard-schema/spec": "^1.1.0",
 		"@std/async": "npm:@jsr/std__async@^1.5.0",
-		"@okikio/catalog": "workspace:^",
+		"@okikio/collection": "workspace:^",
 		"@okikio/context": "workspace:^",
 		"@okikio/duration": "workspace:^",
-		"@okikio/effect": "workspace:^",
+		"@okikio/capability": "workspace:^",
 		"@okikio/env": "workspace:^",
 		"@okikio/http": "workspace:^",
 		"@okikio/query": "workspace:^",
-		"@okikio/record": "workspace:^",
-		"@okikio/requirement": "workspace:^",
-		"@okikio/resilience": "workspace:^",
-		"@okikio/resource": "workspace:^",
 		"@okikio/workflow": "workspace:^",
-		"@okikio/fault": "workspace:^"
+		"@okikio/result": "workspace:^",
+		"@okikio/telemetry": "workspace:^",
+		"@okikio/schema": "workspace:^"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
-		"@okikio/failure": "workspace:^",
-		"@okikio/permission": "workspace:^"
+		"@okikio/result": "workspace:^",
+		"@okikio/authz": "workspace:^",
+		"mitata": "^1.0.34"
 	}
 }

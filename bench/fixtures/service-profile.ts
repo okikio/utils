@@ -2,8 +2,8 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { Context } from '@okikio/context';
 import { create as createResponse, ok } from '@okikio/http/response';
-import { define as definePermission, interpreter, require as requirePermission } from '@okikio/permission';
-import { define as defineResource, implement as implementResource, implementations } from '@okikio/resource';
+import { define as definePermission, interpreter, require as requirePermission } from '@okikio/authz/permission';
+import { define as defineResource, implement as implementResource, implementations } from '@okikio/capability/resource';
 import { get, handler as endpointHandler } from '@okikio/server/endpoint';
 import { afterValidation, define as defineMiddleware, handler as middlewareHandler } from '@okikio/server/middleware';
 import { compile, create, define, implement, observer } from '@okikio/server/service';

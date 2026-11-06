@@ -1,0 +1,58 @@
+{
+	"name": "@okikio/format",
+	"version": "0.0.0",
+	"publish": {
+		"exclude": [
+			"**/*.test.ts",
+			"**/*.bench.ts",
+			"**/fixtures/**"
+		]
+	},
+	"exports": {
+		"./csv": "./csv/mod.ts",
+		"./csv/dialect": "./csv/dialect.ts",
+		"./csv/encoding": "./csv/encoding.ts",
+		"./csv/headers": "./csv/headers.ts",
+		"./csv/options": "./csv/options.ts",
+		"./csv/parse": "./csv/parse.ts",
+		"./csv/stream": "./csv/stream.ts",
+		"./csv/types": "./csv/types.ts",
+		"./csv/write": "./csv/write.ts",
+		"./csv/validate": "./csv/validate.ts",
+		"./csv/source": "./csv/source.ts",
+		"./sitemap": "./sitemap/mod.ts",
+		".": "./mod.ts"
+	},
+	"imports": {
+		"@std/csv": "jsr:@std/csv@^1.0.6",
+		"#/": "./",
+		"@std/xml": "jsr:@std/xml@^0.2.0"
+	},
+	"license": "MIT",
+	"tasks": {
+		"check": "mise run check -- --project format",
+		"test": "mise run test -- --project format",
+		"bench": "mise run bench -- --project format",
+		"bench:check": "mise run bench -- --project format --check"
+	},
+	"permissions": {
+		"test": {
+			"read": [
+				"./csv/fixtures"
+			]
+		},
+		"bench": {
+			"env": [
+				"NODE_DISABLE_COLORS",
+				"NO_COLOR",
+				"FORCE_COLOR"
+			]
+		}
+	},
+	"test": {
+		"exclude": [
+			"**/*.types.test.ts",
+			"**/types.test.ts"
+		]
+	}
+}

@@ -1,4 +1,4 @@
-import * as recordCore from '@okikio/record';
+import * as recordCore from '@okikio/collection/record';
 import { mergeVary } from '@okikio/http/response';
 import type { Middleware } from './types.ts';
 import { withHeaders } from './response.ts';

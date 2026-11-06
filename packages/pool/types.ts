@@ -1,16 +1,10 @@
-import type { EventBus } from '@okikio/observables';
+import type { PoolEventType as Event } from '@okikio/telemetry/events';
+import type { EventBus } from '@okikio/observables/events';
 import type { Context } from '@okikio/context';
+import type { Temporal } from '@okikio/duration/temporal';
 
 /** Pool lifecycle event emitted after one state transition. */
-export type Event =
-	| Readonly<{ readonly type: 'creating' }>
-	| Readonly<{ readonly type: 'created' }>
-	| Readonly<{ readonly type: 'acquired'; readonly acquiredAt: string }>
-	| Readonly<{ readonly type: 'released'; readonly reusable: boolean }>
-	| Readonly<{ readonly type: 'invalidated'; readonly reason?: unknown }>
-	| Readonly<{ readonly type: 'closed-value'; readonly reason?: unknown }>
-	| Readonly<{ readonly type: 'draining'; readonly reason?: unknown }>
-	| Readonly<{ readonly type: 'disposed' }>;
+export type { PoolEventType as Event } from '@okikio/telemetry/events';
 
 /** Current bounded-capacity counters. */
 export interface Stats {
@@ -20,6 +14,8 @@ export interface Stats {
 	readonly minimum: number;
 	/** Maximum values owned across creation, health checks, leases, return and close transitions. */
 	readonly maximum: number;
+	/** Maximum queued acquisitions. Zero rejects blocked callers; active creation and leases use maximum instead. */
+	readonly maximumWaiting: number;
 	/** Reusable pool values currently available without a live lease. */
 	readonly idle: number;
 	/** Pool values currently owned by borrowers. */
@@ -30,7 +26,7 @@ export interface Stats {
 	readonly waiting: number;
 }
 
-/** Caller-owned borrow of one reusable value. */
+/** Caller-owned borrow of one reusable value. Repeated disposal joins the same return or close. */
 export interface Lease<Value> extends AsyncDisposable {
 	/** Value carried by this contract; its schema and owner define the accepted shape. */
 	readonly value: Value;
@@ -42,17 +38,23 @@ export interface Lease<Value> extends AsyncDisposable {
 	invalidate(reason?: unknown): void;
 }
 
-/** Bounded process-local owner of reusable values. */
+/** Bounded process-local owner of reusable values. Disposal joins all cleanup and retains its outcome for later callers. */
 export interface Pool<Value> extends AsyncDisposable {
 	/** Observation stream; terminal results and cancellation retain their separate authority. */
 	readonly events: EventBus<Event>['events'];
 	/** Borrow one value under an owned lease; disposing the lease returns or closes it. */
 	acquire(ctx: Context): Promise<Lease<Value>>;
+	/** Borrow this exact retained value by Object.is identity. Busy/missing rejects immediately; never creates or substitutes a value. */
+	select(ctx: Context, value: Value): Promise<Lease<Value>>;
+	/** Stop reuse of this exact value, join existing borrowers and close. Never await from inside its own lease. */
+	retire(value: Value, reason?: unknown): Promise<void>;
 	/** Return an immutable occupancy or progress snapshot without transferring ownership. */
 	stats(): Stats;
-	/** Close idle values older than the configured maximum age while preserving the minimum. */
+	/** Snapshot of values already owned by slots, including leases and closing transitions. Does not transfer disposal authority. */
+	values(): readonly Value[];
+	/** Close expired idle values, preserving the minimum; reject with all retirement failures after attempting each close. */
 	maintain(): Promise<void>;
-	/** Stop new admission and wait for existing ownership transitions to settle. */
+	/** Stop admission and join idle closure and active transitions; retained provider-close failures reject every drain caller. */
 	drain(reason?: unknown): Promise<void>;
 }
 
@@ -64,6 +66,8 @@ export interface CreateOptions<Value> {
 	readonly minimum?: number;
 	/** Maximum values owned across creation, health checks, leases, return and close transitions. */
 	readonly maximum: number;
+	/** Maximum queued acquisitions. Zero rejects blocked callers; active creation and leases use maximum instead. */
+	readonly maximumWaiting: number;
 	/** Largest idle set retained for reuse after leases return. */
 	readonly maximumIdle?: number;
 	/** Maximum idle age enforced before reuse and by explicit maintenance. */
@@ -72,6 +76,12 @@ export interface CreateOptions<Value> {
 	readonly acquireTimeout?: Temporal.Duration | Temporal.DurationLike | string;
 	/** Create a provider value under the supplied execution lifetime. */
 	readonly create: (ctx: Context) => Value | Promise<Value>;
+	/** Reset borrower state before health checking and idle publication. Failure closes the value and rejects lease disposal. */
+	readonly reset?: (value: Value) => void | Promise<void>;
+	/** Maximum creation age before reuse. Active leases are never interrupted; retirement occurs on return or next acquisition. */
+	readonly maximumAge?: Temporal.Duration | Temporal.DurationLike | string;
+	/** Maximum granted leases per created value. Positive safe integer; retirement happens after the last lease returns. */
+	readonly maximumUses?: number;
 	/** Optional health check before reuse; false retires the value before a replacement is created. */
 	readonly check?: (value: Value) => boolean | Promise<boolean>;
 	/** Close one retired provider value; the pool joins this callback before releasing its capacity. */

@@ -1,7 +1,7 @@
 import type { QueryOperatorName } from './types.ts';
 
 /**
- * Maps the wire operator into the representation understood by provider-neutral query definitions.
+ * Choose the public lowercase URL spelling for operators whose internal names use camel case.
  *
  * @internal
  */
@@ -14,7 +14,7 @@ export function wireOperator(operator: QueryOperatorName): string {
 }
 
 /**
- * Maps the implicit operator into the representation understood by provider-neutral query definitions.
+ * Interpret legacy null/not_null tokens; tagged strings bypass this inference and remain literal values.
  *
  * @internal
  */
@@ -25,7 +25,7 @@ export function implicitOperator(value: unknown): QueryOperatorName {
 }
 
 /**
- * Returns the scalar values consumed by provider-neutral query definitions.
+ * Flatten operand containers without comma splitting; undefined means no supplied operand.
  *
  * @internal
  */
@@ -35,7 +35,7 @@ export function scalarValues(value: unknown): unknown[] {
 }
 
 /**
- * Returns the list values consumed by provider-neutral query definitions.
+ * Read legacy comma lists with trimming and blank omission; typed lists use scalarValues to preserve literal text.
  *
  * @internal
  */
@@ -46,7 +46,7 @@ export function listValues(value: unknown): unknown[] {
 }
 
 /**
- * Validates integer before it is used by provider-neutral query definitions.
+ * Accept only safe integer numbers or decimal integer text for page arithmetic.
  *
  * @internal
  */
@@ -58,7 +58,7 @@ export function integer(value: unknown): number | undefined {
 }
 
 /**
- * Normalizes the optional string while preserving absence as `undefined` for provider-neutral query definitions.
+ * Treat absent, null, empty, or non-string cursor input as missing; explicit presence is checked by the caller.
  *
  * @internal
  */
@@ -68,7 +68,7 @@ export function optionalString(value: unknown): string | undefined {
 }
 
 /**
- * Generates the unique strings without colliding with identities already owned by provider-neutral query definitions.
+ * Deduplicate selected names in first-occurrence order without sorting authored presentation.
  *
  * @internal
  */
@@ -77,7 +77,7 @@ export function uniqueStrings(values: readonly string[]): string[] {
 }
 
 /**
- * Checks whether any is present for provider-neutral query definitions.
+ * Detect explicit mode parameters by presence, even when their value is empty or invalid.
  *
  * @internal
  */
@@ -86,7 +86,7 @@ export function hasAny(entries: ReadonlyMap<string, readonly unknown[]>, names: 
 }
 
 /**
- * Returns the last available value required by provider-neutral query definitions, or absence when the collection is empty.
+ * Use the final repeated scalar parameter; an absent or empty collection has no value.
  *
  * @internal
  */

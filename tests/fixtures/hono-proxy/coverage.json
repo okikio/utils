@@ -4,7 +4,7 @@
 	"upstreamImplementation": "src/helper/proxy/index.ts",
 	"localTestFile": "tests/hono-proxy.test.ts",
 	"unmatched": [],
-	"execution": "Pending root serial qualification; inventory does not infer runtime success.",
+	"execution": "Pending root serial tests; inventory does not infer runtime success.",
 	"cases": [
 		{
 			"upstreamPath": "src/helper/proxy/index.test.ts",

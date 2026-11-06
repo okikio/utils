@@ -7,11 +7,14 @@
 	],
 	"license": "MIT",
 	"exports": {
+		"./once": "./once.ts",
 		".": "./mod.ts",
 		"./polyfill": "./polyfill.ts",
-		"./ponyfill": "./ponyfill.ts"
+		"./ponyfill": "./ponyfill.ts",
+		"./run": "./run.ts"
 	},
 	"devDependencies": {
-		"@std/expect": "npm:@jsr/std__expect@^1.0.20"
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
+		"mitata": "^1.0.34"
 	}
 }

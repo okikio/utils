@@ -1,3 +1,4 @@
+import * as codec from '@okikio/schema/codec';
 /**
  * Internal serializable activity-attempt protocol shared by Worker and process providers.
  *
@@ -9,15 +10,16 @@
  */
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { Context } from '@okikio/context';
-import * as effect from '@okikio/effect';
-import * as failure from '@okikio/failure';
-import * as faultCore from '@okikio/fault';
-import type { EffectEmitter, EffectEncoded } from '@okikio/effect';
-import * as permissions from '@okikio/permission';
-import type { PermissionChecker, PermissionDecision, PermissionRequest } from '@okikio/permission';
-import * as requirement from '@okikio/requirement';
-import * as resource from '@okikio/resource';
+import * as effect from '@okikio/capability/effect';
+import * as failure from '@okikio/result/failure';
+import * as faultCore from '@okikio/result/fault';
+import type { EffectEmitter, EffectEncoded } from '@okikio/capability/effect';
+import * as permissions from '@okikio/authz/permission';
+import type { PermissionChecker, PermissionDecision, PermissionRequest } from '@okikio/authz/permission';
+import * as requirement from '@okikio/capability/requirement';
+import * as resource from '@okikio/capability/resource';
 import * as schema from '@okikio/schema';
+import { placement } from '@okikio/workflow';
 import type { ActivityAttemptControl, ActivityAttemptResultType, ActivityAttemptType } from '@okikio/workflow';
 import type { ActivityDefinition } from './types.ts';
 
@@ -145,14 +147,16 @@ export async function answer(
 		return Object.freeze({ type: 'heartbeat', accepted: true });
 	}
 	if (call.type === 'effect') {
-		if (services.effect === undefined) throw new effect.MissingEffectEmitterError();
+		const emitter = control.effect ?? services.effect;
+		if (emitter === undefined) throw new effect.MissingEffectEmitterError();
 		const occurrence = await effect.decode(call.effect, activity.effects);
-		await services.effect.emit(ctx, occurrence);
+		await emitter.emit(ctx, occurrence);
 		return Object.freeze({ type: 'effect', accepted: true });
 	}
-	if (services.permission === undefined) throw new permissions.MissingPermissionCheckerError();
-	if (call.requests.length > services.permission.maximumChecks) {
-		throw new permissions.PermissionCheckLimitError(call.requests.length, services.permission.maximumChecks);
+	const checker = control.permission ?? services.permission;
+	if (checker === undefined) throw new permissions.MissingPermissionCheckerError();
+	if (call.requests.length > checker.maximumChecks) {
+		throw new permissions.PermissionCheckLimitError(call.requests.length, checker.maximumChecks);
 	}
 	const definitions = getPermissions(activity);
 	const requests: PermissionRequest[] = [];
@@ -164,7 +168,7 @@ export async function answer(
 			: await schema.parse(definition.target, wire.target);
 		requests.push(Object.freeze({ definition, target }) as PermissionRequest);
 	}
-	const decisions = await services.permission.check(ctx, Object.freeze(requests));
+	const decisions = await checker.check(ctx, Object.freeze(requests));
 	if (decisions.length !== requests.length) {
 		throw new permissions.PermissionDecisionError(
 			`Permission evaluator returned ${decisions.length} decisions for ${requests.length} requests.`,
@@ -178,6 +182,9 @@ export async function answer(
 
 /** Decode a remote terminal result through the parent activity's exact failures. */
 export async function result(activity: ActivityDefinition, value: WireResultType): Promise<ActivityAttemptResultType> {
+	if (value.type === 'success') {
+		return Object.freeze({ type: 'success', value: await codec.read(activity.result, value.value) });
+	}
 	if (value.type === 'failure') {
 		return Object.freeze({ type: 'failure', failure: await failure.decode(value.failure, activity.failures) });
 	}
@@ -186,6 +193,9 @@ export async function result(activity: ActivityDefinition, value: WireResultType
 
 /** Encode one child-side terminal activity result for transport. */
 export async function wire(activity: ActivityDefinition, value: ActivityAttemptResultType): Promise<WireResultType> {
+	if (value.type === 'success') {
+		return Object.freeze({ type: 'success', value: await codec.write(activity.result, value.value) });
+	}
 	if (value.type === 'failure') {
 		if (!isFailureOccurrence(value.failure) || !activity.failures.includes(value.failure.definition)) {
 			return Object.freeze({
@@ -236,7 +246,7 @@ function cloneDecision(value: PermissionDecision): PermissionDecision {
 	return Object.freeze({ allowed: value.allowed, ...(value.reason === undefined ? {} : { reason: value.reason }) });
 }
 
-/** Return whether a value is an expected failure occurrence from `@okikio/failure`. */
+/** Return whether a value is an expected failure occurrence from `@okikio/result/failure`. */
 function isFailureOccurrence(value: unknown): value is failure.Occurrence {
 	return failure.isOccurrence(value);
 }
@@ -251,20 +261,22 @@ function contract<Value>(
 	check: (value: unknown) => value is Value,
 	message: string,
 ): StandardSchemaV1<unknown, Value> {
-	return Object.freeze({
-		'~standard': Object.freeze({
-			version: 1 as const,
-			vendor: 'utils-activity',
-			validate(value: unknown) {
-				return check(value) ? { value } : { issues: [{ message }] };
-			},
-		}),
-	});
+	return schema.guard(check, message);
 }
 
-/** Validate the identity and minimum serializable fields of one activity attempt. */
+/**
+ * Check the required envelope fields before activity-specific decoding. These
+ * structural guards operate on transport-decoded values; they are not an inert
+ * descriptor audit or a general JSON-copy/security boundary for arbitrary objects.
+ */
 function attempt(value: unknown): value is ActivityAttemptType {
 	if (!record(value)) return false;
+	try {
+		if (value.location !== undefined) placement.SelectionSchema.parse(value.location);
+		if (value.physicalHost !== undefined) placement.HostSchema.parse(value.physicalHost);
+	} catch {
+		return false;
+	}
 	return strings(value, [
 		'jobId',
 		'claimId',
@@ -322,7 +334,7 @@ function hostReply(value: unknown): value is HostReplyType {
 		);
 }
 
-/** Validate the encoded failure fields shared with `@okikio/failure`. */
+/** Validate the encoded failure fields shared with `@okikio/result/failure`. */
 function encodedFailure(value: unknown): value is failure.Encoded {
 	return record(value) && typeof value.id === 'string' && typeof value.message === 'string' && 'data' in value;
 }

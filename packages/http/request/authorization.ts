@@ -1,24 +1,25 @@
-import * as recordCore from '@okikio/record';
+import * as recordCore from '@okikio/collection/record';
 import type { ParsedAuthorization, SensitiveCredential } from './types.ts';
 import { RequestTransportError } from './types.ts';
 
 const schemePattern = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
 /**
- * Owns the internal credential state used by HTTP request normalization.
- *
- * Request internals normalize untrusted protocol metadata before endpoint and service composition consume it.
+ * Keep an authorization secret out of ordinary string and JSON rendering.
+ * Only reveal() returns the original text. Parsing this wrapper does not verify
+ * the secret, and an explicit reveal transfers logging responsibility to its caller.
  *
  * @internal
  */
 class Credential implements SensitiveCredential {
 	readonly #value: string;
+	/** Retain the secret privately; freezing the wrapper does not authenticate it. */
 	constructor(value: string) {
 		this.#value = value;
 		Object.freeze(this);
 	}
 	/**
-	 * Reveals a secret authorization credential only inside the parser operation that has explicit authority to inspect it.
+	 * Return the original credential to a caller that explicitly asks for it. Never log this return value.
 	 *
 	 * @internal
 	 */
@@ -26,7 +27,7 @@ class Credential implements SensitiveCredential {
 		return this.#value;
 	}
 	/**
-	 * Converts the source value to string expected by HTTP request normalization.
+	 * Return a fixed redaction marker during string interpolation; never include the credential.
 	 *
 	 * @internal
 	 */
@@ -34,7 +35,7 @@ class Credential implements SensitiveCredential {
 		return '[REDACTED]';
 	}
 	/**
-	 * Converts the source value to json expected by HTTP request normalization.
+	 * Return a fixed redaction marker during JSON serialization; never include the credential.
 	 *
 	 * @internal
 	 */
@@ -76,6 +77,8 @@ export function parseAuthorization(
 			path: ['header', 'authorization'],
 		});
 	}
+	// Scheme spelling is case-insensitive. Preserve the original spelling for
+	// inspection while applying the allowlist to a normalized value.
 	const normalizedScheme = scheme.toLowerCase();
 	if (allowedSchemes && !allowedSchemes.some((candidate) => candidate.toLowerCase() === normalizedScheme)) {
 		throw new RequestTransportError({

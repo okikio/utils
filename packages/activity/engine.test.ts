@@ -56,3 +56,44 @@ describe('@okikio/activity/engine', () => {
 		expect(() => engine.compose([])).toThrow(TypeError);
 	});
 });
+
+it('reports bounded placement facts with authored fallback, expiry and own affinity checks', () => {
+	const primary = engine.define({ id: 'primary' }), fallback = engine.define({ id: 'fallback' });
+	const activity = {
+		id: 'resize',
+		version: '1',
+		placement: engine.oneOf(engine.prefer(primary), engine.allow(fallback)),
+		affinity: { region: 'east' },
+	};
+	const base = {
+		id: 'registration',
+		hostId: 'host',
+		engineId: 'primary',
+		activities: [{ id: 'resize', version: '1' }],
+		capacity: 1,
+		active: 0,
+		affinity: { region: 'east' },
+	};
+	const hosts = [{ ...base, id: 'full', active: 1 }, { ...base, id: 'expired', expiresAt: { epochMilliseconds: 10 } }, {
+		...base,
+		id: 'fallback',
+		engineId: 'fallback',
+	}];
+	const report = engine.inspect(activity, hosts, { now: 10, maximumHosts: 3 });
+	expect(report.selected).toBe('fallback');
+	expect(report.hosts.map((row) => row.reason)).toEqual(['capacity', 'expired', undefined]);
+	expect(report.hosts.map((row) => row.selected)).toEqual([false, false, true]);
+	expect(engine.inspect(activity, [base, ...hosts], { now: 10, maximumHosts: 4 }).selected).toBe('primary');
+	expect(() => engine.inspect(activity, hosts, { now: 10, maximumHosts: 2 })).toThrow(RangeError);
+	expect(
+		engine.inspect({ ...activity, affinity: {} }, [{
+			id: base.id,
+			hostId: base.hostId,
+			engineId: base.engineId,
+			activities: base.activities,
+			capacity: 1,
+			active: 0,
+		}], { now: 10, maximumHosts: 1 }).hosts[0]?.reason,
+	).toBe('affinity');
+	expect(Object.isFrozen(report.hosts[0])).toBe(true);
+});

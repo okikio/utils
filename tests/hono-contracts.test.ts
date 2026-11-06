@@ -1,13 +1,13 @@
 /** Compare pinned upstream observations with real APIs and explicit capability differences. @module */
 import { deepStrictEqual, equal } from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { applicationCases } from './fixtures/hono-contracts/applications.ts';
-import { createHono, matchHono, readHono, respondHono } from './fixtures/hono-contracts/hono.ts';
-import { requestCases } from './fixtures/hono-contracts/requests.ts';
-import { responseCases } from './fixtures/hono-contracts/responses.ts';
-import { routerCases } from './fixtures/hono-contracts/routes.ts';
-import { observe } from './fixtures/hono-contracts/types.ts';
-import { createUtils, matchUtils, readUtils, respondUtils } from './fixtures/hono-contracts/utils.ts';
+import { applicationCases } from '#fixtures/hono-contracts/applications.ts';
+import { createHono, matchHono, readHono, respondHono } from '#fixtures/hono-contracts/hono.ts';
+import { requestCases } from '#fixtures/hono-contracts/requests.ts';
+import { responseCases } from '#fixtures/hono-contracts/responses.ts';
+import { routerCases } from '#fixtures/hono-contracts/routes.ts';
+import { observe } from '#fixtures/hono-contracts/types.ts';
+import { createUtils, matchUtils, readUtils, respondUtils } from '#fixtures/hono-contracts/utils.ts';
 
 describe('pinned Hono upstream HTTP observations', () => {
 	for (const value of routerCases) {

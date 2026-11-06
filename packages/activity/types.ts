@@ -1,19 +1,28 @@
-import type { StandardSchemaV1 } from '@standard-schema/spec';
-import type { Catalog, CatalogSelection, DefinitionInput as CatalogDefinitionInput } from '@okikio/catalog';
-import type { Context as BaseContext, Resources as OwnedResources } from '@okikio/context';
-import type { EffectDefinition, EffectDefinitions, EffectEmitter, EffectRuntime } from '@okikio/effect';
-import type { Definition as FailureDefinition, Occurrence as FailureOccurrence } from '@okikio/failure';
-import type { PermissionChecker, PermissionRuntime } from '@okikio/permission';
-import type { ResourceCollection, ResourceDefinition, ResourceValue } from '@okikio/resource';
+import type { ExecutionContext } from '@okikio/capability/execution';
+import type { Contract, ContractOutput } from '@okikio/schema/codec';
+import type { DefinitionEntry } from '@okikio/collection/catalog';
+
+import type { Catalog, CatalogSelection, DefinitionInput as CatalogDefinitionInput } from '@okikio/collection/catalog';
+import type { Context as BaseContext } from '@okikio/context';
+import type { EffectDefinitions, EffectEmitter } from '@okikio/capability/effect';
+import type { Definition as FailureDefinition, Occurrences as FailureOccurrences } from '@okikio/result/failure';
+import type { PermissionChecker, PermissionRuntime } from '@okikio/authz/permission';
+import type { ResourceCollection, ResourceDefinition } from '@okikio/capability/resource';
 import type {
 	RequirementDefinition,
 	RequirementDocument,
 	RequirementInput,
 	RequirementRuntime,
-} from '@okikio/requirement';
-import type { ResilienceInput, ResiliencePolicy } from '@okikio/resilience';
+} from '@okikio/capability/requirement';
+import type { ResilienceInput, ResiliencePolicy } from '@okikio/capability/resilience';
 import type { Result as ExplicitResult } from '@okikio/result';
-import type { ActivityCommandOptions, ActivityReference, WorkflowOperation } from '@okikio/workflow';
+import type {
+	ActivityCommandOptions,
+	ActivityReference,
+	Claim,
+	InvocationType,
+	WorkflowOperation,
+} from '@okikio/workflow';
 import type {
 	EngineDefinition,
 	EnginePlacementDocumentType,
@@ -22,7 +31,7 @@ import type {
 } from './engine.ts';
 
 /** Standard Schema contract accepted by activity inputs and results. */
-export type ActivitySchema<Input = unknown, Output = Input> = StandardSchemaV1<Input, Output>;
+export type ActivitySchema<Input = unknown, Output = Input> = Contract<Input, Output>;
 
 /** Options accepted by `activities.define()`. */
 export interface ActivityOptions {
@@ -56,6 +65,8 @@ export interface ActivityDefinition<Authoring extends ActivityOptions = Activity
 	readonly kind: 'activity';
 	/** Contract version used to distinguish incompatible activity shapes. */
 	readonly version: Authoring['version'];
+	/** Exact authored identity retained for typed catalogs and invocation. */
+	readonly id: Authoring['id'];
 	/** Human-readable activity purpose used by documentation and diagnostics. */
 	readonly description?: string;
 	/** Standard Schema contract that validates activity input before an attempt starts. */
@@ -63,13 +74,13 @@ export interface ActivityDefinition<Authoring extends ActivityOptions = Activity
 	/** Standard Schema contract that validates successful activity output before completion. */
 	readonly result: Authoring['result'];
 	/** Expected failure definitions or data declared by this activity. */
-	readonly failures: readonly FailureDefinition[];
+	readonly failures: readonly DefinitionEntry<Authoring['failures']>[];
 	/** Declared effect definitions or scoped effect state associated with this activity. */
-	readonly effects: readonly EffectDefinition[];
+	readonly effects: readonly DefinitionEntry<Authoring['effects']>[];
 	/** Ordered engine placement declaration used before attempt dispatch. */
 	readonly placement: EnginePlacementType;
 	/** Resource definitions or collection available to this activity. */
-	readonly resources: readonly ResourceDefinition[];
+	readonly resources: readonly DefinitionEntry<Authoring['resources']>[];
 	/** Direct requirements only. Use inspection utilities for reachable requirements. */
 	readonly requirements: readonly RequirementDefinition[];
 	/** Static resilience policies applied at the activity lifecycle. */
@@ -77,41 +88,36 @@ export interface ActivityDefinition<Authoring extends ActivityOptions = Activity
 }
 
 /** Input value inferred from an activity definition. */
-export type ActivityInput<Activity extends ActivityDefinition> = StandardSchemaV1.InferOutput<Activity['input']>;
+export type ActivityInput<Activity extends ActivityDefinition> = ContractOutput<Activity['input']>;
 
 /** Result value inferred from an activity definition. */
-export type ActivityResult<Activity extends ActivityDefinition> = StandardSchemaV1.InferOutput<Activity['result']>;
+export type ActivityResult<Activity extends ActivityDefinition> = ContractOutput<Activity['result']>;
 
 /** Resource union declared by an activity. */
 export type ActivityResources<Activity extends ActivityDefinition> = Activity['resources'][number];
 
 /** Declared failure occurrence union inferred from an activity. */
-export type ActivityFailures<Activity extends ActivityDefinition> = Activity['failures'][number] extends
-	infer Failure extends FailureDefinition ? FailureOccurrence<Failure> : never;
+export type ActivityFailures<Activity extends ActivityDefinition> = FailureOccurrences<Activity['failures'][number]>;
 
 /** One concrete local activity-attempt context. */
 export interface ActivityContext<Activity extends ActivityDefinition = ActivityDefinition>
-	extends BaseContext, OwnedResources {
+	extends ExecutionContext<ActivityResources<Activity>> {
 	/** Permission state for dynamic checks declared by this activity attempt. */
 	readonly permissions: PermissionRuntime;
-	/** Effect state that limits announcements to effects declared by this activity. */
-	readonly effects: EffectRuntime;
-	/** Active requirement runtime inherited by resource borrows inside this attempt. */
-	readonly requirements: RequirementRuntime;
 	/** Exact activity definition whose implementation is running. */
 	readonly activity: Activity;
 	/** Engine definition selected by the Scheduler for this attempt. */
 	readonly engine: EngineDefinition;
 	/** Stable logical activity-job identity shared by every retry attempt. */
 	readonly jobId: string;
+	/** Actual pooled host for this attempt. Save it with the exact executor to route later work to the same native resource owner. */
+	readonly physicalHost?: import('@okikio/workflow').placement.HostType;
 	/** One-based attempt number assigned by the Scheduler. */
 	readonly attempt: number;
 	/** Schema-validated activity input. */
 	readonly input: ActivityInput<Activity>;
-	/** Lazily acquire one resource declared by this activity under this attempt's active requirement scope. */
-	get<Resource extends ActivityResources<Activity>>(definition: Resource): Promise<ResourceValue<Resource>>;
-	/** Wait at one explicit cooperative pause point. */
-	checkpoint(): Promise<void>;
+	/** Temporary permission to finish a saved job attempt. Utils supplies it; local calls have no claim. */
+	readonly claim: Claim | undefined;
 	/** Report attempt liveness or provider-specific progress to the owning Scheduler. */
 	heartbeat(value?: unknown): Promise<void>;
 }
@@ -122,6 +128,8 @@ export interface ActivityImplementation<Activity extends ActivityDefinition = Ac
 	readonly definition: Activity;
 	/** Perform one activity attempt with validated input and scoped resources. */
 	run(ctx: ActivityContext<Activity>): ActivityResult<Activity> | Promise<ActivityResult<Activity>>;
+	/** Invoke through the standard activity lifecycle from a durable local host. */
+	invoke(options: InvocationType): Promise<ActivityResult<Activity>>;
 }
 
 /** Options accepted by `activities.implement()`. */
@@ -135,6 +143,8 @@ export interface ActivityRequestOptions extends ActivityCommandOptions {}
 
 /** Inputs accepted by direct `activities.run()`. */
 export interface ActivityRunOptions<Activity extends ActivityDefinition> {
+	/** Passed by a durable host. Direct local execution cannot satisfy physical pool placement. */
+	readonly location?: import('@okikio/workflow').placement.SelectionType;
 	/** Exact local implementation to invoke. */
 	readonly implementation: ActivityImplementation<Activity>;
 	/** Engine identity recorded in the local attempt context. */
@@ -147,8 +157,12 @@ export interface ActivityRunOptions<Activity extends ActivityDefinition> {
 	readonly resources: ResourceCollection;
 	/** Stable logical job identity supplied by the caller or Scheduler. */
 	readonly jobId: string;
+	/** Actual pooled host for this attempt. Save it with the exact executor to route later work to the same native resource owner. */
+	readonly physicalHost?: import('@okikio/workflow').placement.HostType;
 	/** Current one-based attempt number. */
 	readonly attempt: number;
+	/** Temporary permission supplied by the saved-job worker. A local caller cannot create valid permission. */
+	readonly claim?: Claim;
 	/** Optional policy evaluator used by dynamic permission checks. */
 	readonly permission?: PermissionChecker;
 	/** Optional authoritative owner for declared effect announcements. */

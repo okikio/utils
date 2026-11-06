@@ -1,55 +1,22 @@
-import type { StandardSchemaV1 } from '@standard-schema/spec';
+import * as schema from '@okikio/schema';
 
 import * as activity from '@okikio/activity';
 import * as engine from '@okikio/activity/engine';
-import * as effect from '@okikio/effect';
-import * as resilience from '@okikio/resilience';
+import * as effect from '@okikio/capability/effect';
+import * as resilience from '@okikio/capability/resilience';
 
-function contract<Output>(validate: (value: unknown) => Output): StandardSchemaV1<unknown, Output> {
-	return Object.freeze({
-		'~standard': Object.freeze({
-			version: 1,
-			vendor: 'process-orchestration-scenario',
-			validate(value: unknown) {
-				try {
-					return { value: validate(value) };
-				} catch (error) {
-					return { issues: [{ message: error instanceof Error ? error.message : String(error) }] };
-				}
-			},
-		}),
-	});
-}
-
-export const InputSchema = contract((value) => {
-	if (typeof value !== 'object' || value === null) throw new TypeError('Expected process activity input.');
-	const input = value as { task?: unknown; crashFirst?: unknown };
-	if (typeof input.task !== 'string') throw new TypeError('Expected task string.');
-	if (input.crashFirst !== undefined && typeof input.crashFirst !== 'boolean') {
-		throw new TypeError('Expected crashFirst boolean.');
-	}
-	return Object.freeze({ task: input.task, crashFirst: input.crashFirst === true });
+export const InputSchema = schema.object({
+	task: schema.string(),
+	crashFirst: schema.defaults(schema.boolean(), () => false),
 });
 
-export const ResultSchema = contract((value) => {
-	if (typeof value !== 'object' || value === null) throw new TypeError('Expected process activity result.');
-	const result = value as { task?: unknown; pid?: unknown; attempt?: unknown };
-	if (typeof result.task !== 'string' || !Number.isSafeInteger(result.pid) || !Number.isSafeInteger(result.attempt)) {
-		throw new TypeError('Expected task, pid, and attempt result fields.');
-	}
-	return Object.freeze({ task: result.task, pid: Number(result.pid), attempt: Number(result.attempt) });
+export const ResultSchema = schema.object({
+	task: schema.string(),
+	pid: schema.number({ integer: true }),
+	attempt: schema.number({ integer: true }),
 });
 
-const AttemptSchema = contract((value) => {
-	if (typeof value !== 'object' || value === null) throw new TypeError('Expected process attempt effect.');
-	const attempt = value as { task?: unknown; pid?: unknown; attempt?: unknown };
-	if (
-		typeof attempt.task !== 'string' || !Number.isSafeInteger(attempt.pid) || !Number.isSafeInteger(attempt.attempt)
-	) {
-		throw new TypeError('Expected task, pid, and attempt effect fields.');
-	}
-	return Object.freeze({ task: attempt.task, pid: Number(attempt.pid), attempt: Number(attempt.attempt) });
-});
+const AttemptSchema = ResultSchema;
 
 export const Engine = engine.define({
 	id: 'scenario.process-orchestration',

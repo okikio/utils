@@ -1,0 +1,39 @@
+{
+	"name": "@okikio/runtime",
+	"version": "0.0.0",
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"exports": {
+		"./deno": "./deno/mod.ts",
+		"./deno/permissions": "./deno/permissions.ts",
+		"./deno/types": "./deno/types.ts",
+		"./deno/signals": "./deno/signals.ts",
+		"./deno/file": "./deno/file.ts",
+		"./deno/port": "./deno/port.ts",
+		"./deno/proxy": "./deno/proxy.ts",
+		"./deno/readiness": "./deno/readiness.ts",
+		"./deno/health": "./deno/health.ts",
+		"./deno/process": "./deno/process.ts",
+		"./node/process": "./node/process.ts",
+		"./deno/worker": "./deno/worker.ts",
+		".": "./mod.ts",
+		"./node/worker": "./node/worker.ts",
+		"./bun/worker": "./bun/worker.ts",
+		"./browser/worker": "./browser/worker.ts",
+		"./inspect": "./inspect.ts",
+		"./deno/inspect": "./deno/inspect.ts"
+	},
+	"dependencies": {
+		"@okikio/context": "workspace:^",
+		"@std/path": "npm:@jsr/std__path@^1.1.6",
+		"@okikio/streams": "workspace:^",
+		"@okikio/worker": "workspace:^",
+		"@okikio/dispose": "workspace:^"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
+		"@okikio/schema": "workspace:^",
+		"mitata": "^1.0.34"
+	}
+}

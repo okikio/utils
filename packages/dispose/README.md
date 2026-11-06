@@ -1,49 +1,59 @@
 # `@okikio/dispose`
 
-A file import can open a connection, create a temporary file, and then fail halfway through. Someone still needs to
+A data import job can open a connection, create a temporary file, and then fail halfway through. Someone still needs to
 close the connection and remove the file. `@okikio/dispose` gives that owner a cleanup list which runs in reverse order,
 even when one cleanup fails. You write the cleanup once instead of repeating it on every return and error path.
+
+For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters keep their native runtime requirements.
 
 A **resource** is something that needs to be released, such as a reader or connection. **Disposal** is its cleanup, not
 necessarily deletion of its data. A **stack** remembers cleanup callbacks in the order you register them.
 
-```text
-Register cleanup:  connection -> temporary file
-Finish or fail:    temporary file -> connection
-                       cleanup runs in reverse order
-```
+Register the connection's cleanup first, then the temporary file's cleanup. Disposal removes the temporary file before
+closing the connection. This ordering does not decide when a database commits or a file becomes durable. The application
+supplies the appropriate close and delete operations. Cleanup failures remain visible while earlier callbacks still run.
 
-The visual shows callback order, not when a database commits or when a file becomes durable. The application must supply
-the correct close/delete behavior. Cleanup failures remain visible instead of preventing all later callbacks.
+In the examples, `await using name = value` is a JavaScript resource declaration. When execution leaves its block,
+including through `throw`, the runtime calls `value[Symbol.asyncDispose]()` and waits for it. A normal `const` declaration
+does not do this. Use an asynchronous stack for cleanup that returns a Promise; the synchronous stack cannot await it.
 
 ## Run cleanup even after an operation fails
 
 Direct imports give this lifetime its own stack without installing or replacing global constructors. This example also
 works when the host's stack globals are absent.
 
+From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare -- --kind deps` at the repository root. Save the following program as `example.ts` and run `mise exec -- deno run example.ts`. These commands use the workspace export maps; they do not assume a published registry version.
+
 ```ts runnable
 import { AsyncDisposableStack } from '@okikio/dispose';
 const closed: string[] = [];
-const stack = new AsyncDisposableStack();
-stack.defer(() => {
-	closed.push('connection');
-});
-stack.defer(() => {
-	closed.push('temporary file');
-});
-await stack.disposeAsync();
+try {
+	await using stack = new AsyncDisposableStack();
+	// Register each cleanup when its resource is acquired. Later cleanup runs first.
+	stack.defer(() => {
+		closed.push('connection');
+	});
+	stack.defer(() => {
+		closed.push('temporary file');
+	});
+	// Leaving this scope awaits both cleanups before the catch block runs.
+	throw new Error('Conversion failed');
+} catch (error) {
+	console.log(error instanceof Error ? error.message : String(error));
+}
 console.log(closed.join(', '));
 ```
 
 Expected output:
 
 ```text output
+Conversion failed
 temporary file, connection
 ```
 
-## Read the mini-demo
+## Follow reverse-order cleanup
 
-The demo registers two callbacks that append names to a list. `disposeAsync()` awaits cleanup; the last registered
+The demo registers two callbacks that append names to a list. `await using` awaits cleanup as the block exits; the last registered
 callback runs first, so you see `temporary file, connection`. No actual file or connection is opened here. Replace those
 callbacks with real resource cleanup to use the same ownership rule. Try reversing the two registrations to see the
 printed order reverse too.
@@ -65,180 +75,155 @@ awaits each asynchronous cleanup, and retains cleanup failures while continuing 
 actually returns a Promise that must be awaited. The separation prevents silently treating a synchronous protocol as an
 asynchronous one.
 
-`await using stack = new AsyncDisposableStack()` asks the language to call disposal when the block ends, including when
-it throws. Explicit `try/finally` with `disposeAsync()` expresses the same ownership on hosts where that syntax is
-unavailable. Neither form cancels a pending operation automatically; register the appropriate abort or close action.
+Null and undefined resources have no cleanup method, but an async stack still supplies the required asynchronous turn.
+Several nullish entries share that requirement; they do not delay the start of a real cleanup behind separate no-op
+callbacks. A synchronous disposer that throws becomes a rejected promise before earlier resources are released.
 
-- **Import a CSV file:** combine this stack with [CSV](../csv/README.md) and [Streams](../streams/README.md). The
-  importer owns readers and temporary outputs; parsing owns how bytes become rows. The complete CSV mini-demo below
-  shows that boundary with a small in-memory input.
-- **Run an external converter:** let [Process](../process/README.md) own the child process, and register other
+The first `disposeAsync()` call owns the complete cleanup result. The stack marks itself disposed before invoking a
+callback, so a repeated or reentrant call completes immediately. A longer-lived resource that promises every caller a
+joined close must retain and return its first disposal promise.
+
+`await using stack = new AsyncDisposableStack()` asks the language to call disposal when the block ends, including when
+it throws. If work and cleanup both fail, the language retains both in a `SuppressedError`. Explicit `try/finally` can
+join cleanup on hosts where that syntax is unavailable, but its error path must also preserve both failures. Neither
+form cancels a pending operation automatically; register the appropriate abort or close action.
+
+## Transfer an acquired lifetime and inspect competing failures
+
+Use `move()` when initialization succeeds and a longer-lived owner takes responsibility. The original stack closes
+registration immediately; disposing it no longer releases the transferred resources.
+
+Save this complete variation as `move-owner.ts` and run `mise exec -- deno run move-owner.ts` after the same checkout setup.
+
+```ts runnable=move-owner.ts
+import { AsyncDisposableStack } from '@okikio/dispose';
+const released: string[] = [];
+const preparing = new AsyncDisposableStack();
+preparing.defer(() => {
+	released.push('connection');
+});
+const running = preparing.move();
+await preparing.disposeAsync();
+console.log(released.length);
+await running.disposeAsync();
+console.log(released.join(','));
+```
+
+```text output
+0
+connection
+```
+
+A `SuppressedError` stores the later cleanup failure in `error` and the earlier failure in `suppressed`. More failed
+releases nest this structure without replacing a thrown `null` or `undefined` with a generic error.
+
+Save this complete variation as `failed-cleanup.ts` and run `mise exec -- deno run failed-cleanup.ts` after the same checkout setup.
+
+```ts runnable=failed-cleanup.ts
+import { AsyncDisposableStack, SuppressedError } from '@okikio/dispose';
+try {
+	await using owned = new AsyncDisposableStack();
+	owned.defer(() => {
+		throw new Error('close failed');
+	});
+	throw new Error('import failed');
+} catch (error) {
+	if (!(error instanceof SuppressedError)) throw error;
+	console.log((error.error as Error).message);
+	console.log((error.suppressed as Error).message);
+}
+```
+
+```text output
+close failed
+import failed
+```
+
+- **Import a CSV file:** combine this stack with [CSV](../format/csv/README.md) and [Streams](../streams/README.md). The
+  importer owns readers and temporary outputs; parsing owns how bytes become rows. The linked CSV guide shows those
+  responsibilities with a complete example and a small in-memory input.
+- **Run an external converter:** let [Process](../worker/process/README.md) own the child process, and register other
   application-owned resources alongside it. A disposal stack coordinates cleanup; it does not add process-tree
   guarantees beyond the selected process adapter.
 
-## Build on the example
+## Choose local stacks or explicit global setup
 
 Import from the package root or `@okikio/dispose/ponyfill` for a local owner. Use language-level `using` and
 `await using` when the engine implements the standard disposal protocol. The explicit `@okikio/dispose/polyfill` entry
 installs only missing global constructors and symbols. Cleanup runs in reverse registration order even after failure,
 including a thrown `undefined`. Register only owned resources.
 
-## Purpose
+## Choose who releases each acquired value
 
-These local constructors use the ECMAScript explicit-resource-management model: `DisposableStack`,
-`AsyncDisposableStack`, and `SuppressedError`. They let a reusable library own cleanup without deciding whether its
-application should modify globals.
+A temporary file, subscription, and borrowed connection lease all need release when a block exits. The resource owner
+chooses which release actions belong to that block.
 
-## Compose with a streaming CSV import
+Use a local try/finally for one straightforward release. Use a stack when acquisition is incremental; use Context when
+cleanup also needs a cancellation lifetime.
 
-An import owns its reader while another utility interprets the CSV. The stack releases the reader after success or an
-early failure. Replace the in-memory stream with a response body while keeping the same ownership boundary.
+Do not register a borrowed client as though you own it. If work and cleanup both fail, preserve both causes instead of
+replacing the operation error.
+
+## Choose an entry point
+
+Use the table to find a focused import for the job you need. Contract links open the exact public source, including its
+options and types.
+
+| Import                     | Use it to                                                                 | Exact contract            |
+| -------------------------- | ------------------------------------------------------------------------- | ------------------------- |
+| `@okikio/dispose/once` | Join repeated close calls through the same first Promise. | [Contract](./once.ts) |
+| `@okikio/dispose`          | Use the package entry shown in the complete examples above.               | [Contract](./mod.ts)      |
+| `@okikio/dispose/polyfill` | Install missing disposal globals explicitly at an application entrypoint. | [Contract](./polyfill.ts) |
+| `@okikio/dispose/ponyfill` | Import disposal constructors and keys without changing host globals.      | [Contract](./ponyfill.ts) |
+| `@okikio/dispose/run`      | Run one operation and bounded cleanup while retaining competing failures. | [Contract](./run.ts)      |
+
+## Join repeated close requests
+
+`@okikio/dispose/once` publishes one completion promise before calling cleanup:
+
+Save this complete variation as `example-4.ts` and run `mise exec -- deno run example-4.ts` after the same checkout setup.
 
 ```ts runnable
-import { AsyncDisposableStack } from '@okikio/dispose/ponyfill';
-import { parse } from '@okikio/csv';
-const source = new ReadableStream<Uint8Array>({
-	start(controller) {
-		controller.enqueue(new TextEncoder().encode('name,asset\nAda,photo.png\n'));
-		controller.close();
-	},
+import { once } from '@okikio/dispose/once';
+let calls = 0;
+const owner = once(async () => {
+	calls++;
 });
-const owned = new AsyncDisposableStack();
-try {
-	const reader = owned.adopt(source.getReader(), async (value) => {
-		try {
-			await value.cancel();
-		} finally {
-			value.releaseLock();
-		}
-	});
-	const decoder = new TextDecoder();
-	let text = '';
-	for (;;) {
-		const next = await reader.read();
-		if (next.done) break;
-		text += decoder.decode(next.value, { stream: true });
-	}
-	text += decoder.decode();
-	console.log(parse(text, { headerRow: 1 }).rows[0]?.values.join(':'));
-} finally {
-	await owned.disposeAsync();
-}
+const first = owner.close();
+console.log(first === owner.close());
+await first;
+console.log(calls);
 ```
 
 ```text output
-Ada:photo.png
+true
+1
 ```
 
-This example collects a bounded source before parsing. For an unbounded import, use `csv.parseStream()` and consume its
-rows incrementally instead of building one string.
+`close()` and asynchronous disposal share that same promise, including after failure. Cleanup is lazy and starts in a
+microtask. Its callback may observe the receipt reentrantly but must not await its own completion. There is no forced
+cancellation or deadline: stopping a wait cannot stop cleanup. Standard disposal stacks retain their existing semantics.
+See the [contract](./once.ts) and [joiner benchmark](./dispose-once.bench.ts).
 
-## Local protocol keys on older hosts
+## Measure complete cleanup lifetimes
 
-The ponyfill exports `dispose` and `asyncDispose`. Each binding reuses the corresponding well-known symbol when it
-exists; otherwise it is a local symbol. Neither import writes to `Symbol` or `globalThis`.
+The focused benchmarks measure 1–1,024 cleanup callbacks, including registration and error handling. The benchmark
+compares against equivalent successful reverse finally-loop. The successful reference does not reproduce
+suppressed-error chains.
 
-```ts
-import { DisposableStack, dispose } from '@okikio/dispose/ponyfill';
-const owned = new DisposableStack();
-owned.use({
-	[dispose]() {
-		console.log('closed');
-	},
-});
-owned.dispose();
+From the repository root, run the package's tests and untimed benchmark checks before collecting timings:
+
+```sh
+deno task --cwd=packages/dispose test
+deno task --cwd=packages/dispose bench:check
+deno task --cwd=packages/dispose bench
 ```
 
-Local keys work with these imported stacks. They do not add native `using` syntax, nor replace an engine's intrinsic
-disposal protocol. Use explicit method calls on old engines. The installer shares the local keys when it must add
-missing symbol properties; existing native symbols and global constructors retain their identity.
+These commands use package-owned fixtures and development dependencies. The
+[benchmark protocol](../../docs/benchmarks/01-running.md#choose-a-comparison-that-answers-the-question) explains fair
+comparisons, raw report collection and the limits of local measurements.
 
-An existing native `SuppressedError` is captured for local cleanup; otherwise the ponyfill provides a callable and
-constructable local error. Its `error` and `suppressed` fields preserve failures without making them enumerable.
+## Read further
 
-## Start here
-
-When the runtime already provides the standard globals, no import is needed:
-
-```ts
-const resources = new AsyncDisposableStack();
-const connection = resources.use(await openConnection());
-resources.defer(() => releaseTemporaryLock());
-await resources.disposeAsync();
-```
-
-Use `using` or `await using` when lexical ownership is clearer:
-
-```ts
-await using session = await openSession();
-await session.write(value);
-```
-
-## Larger composition
-
-Use one stack when several resources share one owner and must unwind in reverse acquisition order:
-
-```ts
-async function copyAsset() {
-	await using resources = new AsyncDisposableStack();
-
-	const source = resources.use(await openSource());
-	const target = resources.use(await openTarget());
-	resources.defer(() => recordCopyFinished());
-
-	await source.pipeTo(target.writable);
-}
-```
-
-If acquisition or work throws, the stack still disposes everything it already owns. If cleanup also throws, standard
-`SuppressedError` semantics preserve both failures instead of silently replacing the original one.
-
-## Convenience and the manual equivalent
-
-| Convenience                  | Manual equivalent                                                                        | Concrete value                                                  |
-| ---------------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `@okikio/dispose/polyfill`   | install only the missing explicit-resource-management globals before application startup | compatibility only; native `using` semantics stay authoritative |
-| `AsyncDisposableStack` usage | write nested `try/finally` blocks and manually preserve primary vs cleanup failures      | standard LIFO cleanup and `SuppressedError` behavior            |
-
-A runtime that does not yet expose the stack classes can install only the missing globals explicitly:
-
-```ts
-import '@okikio/dispose/polyfill';
-const owned = new AsyncDisposableStack();
-owned.defer(() => console.log('Application cleanup finished'));
-await owned.disposeAsync();
-```
-
-That import is compatibility plumbing. The manual equivalent is to provide the standard globals before application code
-starts. The polyfill does not wrap or replace native implementations.
-
-## Failure model
-
-Resource cleanup can fail. Standard explicit-resource-management semantics are kept so a cleanup failure does not
-silently erase an earlier operation failure. Do not replace this with project-specific `finally` registries unless a
-provider requires a different contract.
-
-## Source guide
-
-- `mod.ts` documents the import-safe root.
-- `ponyfill.ts` owns direct constructors and local protocol keys.
-- `polyfill.ts` installs missing standard globals.
-- `ponyfill.test.ts` verifies ownership, awaited cleanup, and failure behavior.
-- `mod.test.ts` verifies the explicit global entry.
-
-Read the [generated API reference](API.md) for the complete stack methods and disposal protocol contracts.
-
-The [language disposal contract](https://tc39.es/ecma262/multipage/abstract-operations.html#sec-getdisposemethod)
-rejects a non-callable asynchronous method even when a synchronous method exists. The synchronous fallback discards its
-return value; use `adopt()` or `defer()` when the callback's promise must be awaited.
-
-## Polyfill inventory
-
-| Explicit global entry       | Direct-import counterpart                     | Decision                                                                        |
-| --------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------- |
-| `@okikio/dispose/polyfill`  | `@okikio/dispose`, `@okikio/dispose/ponyfill` | Local resource owners and protocol keys; global installation stays optional.    |
-| `@okikio/duration/polyfill` | `@okikio/duration/temporal`                   | Existing pure Temporal provider is retained; it never installs global Temporal. |
-
-The matching `@okikio/utils/dispose/ponyfill` and `@okikio/utils/duration/temporal` entries re-export the focused
-bindings. The umbrella polyfill entries remain explicit installers. There are no other utility-owned global polyfills in
-the current source inventory.
+The [Dispose guide](https://github.com/okikio/utils/blob/main/docs/dispose.md) explains the model, manual alternatives,
+and composition.

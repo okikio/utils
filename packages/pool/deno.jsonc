@@ -5,7 +5,7 @@
 		"exclude": [
 			"**/*.test.ts",
 			"**/*.bench.ts",
-			"fixtures/**"
+			"**/fixtures/**"
 		]
 	},
 	"exports": {
@@ -13,13 +13,14 @@
 		"./types": "./types.ts"
 	},
 	"imports": {
-		"@okikio/observables": "jsr:@okikio/observables@1.4.0",
-		"mitata": "npm:mitata@^1.0.34"
+		"@okikio/observables": "jsr:@okikio/observables@1.4.0"
 	},
+	"license": "MIT",
 	"tasks": {
-		"check": "deno fmt --check && deno lint && deno check . && deno doc --lint mod.ts",
-		"test": "deno test -P=test",
-		"bench": "deno run --v8-flags=--expose-gc -P=bench mod.bench.ts"
+		"check": "mise run check -- --project pool",
+		"test": "mise run test -- --project pool",
+		"bench": "mise run bench -- --project pool",
+		"bench:check": "mise run bench -- --project pool --check"
 	},
 	"permissions": {
 		"test": {},
@@ -27,13 +28,14 @@
 			"env": [
 				"NODE_DISABLE_COLORS",
 				"NO_COLOR",
-				"FORCE_COLOR",
-				"CI"
-			],
-			"sys": [
-				"cpus"
+				"FORCE_COLOR"
 			]
 		}
 	},
-	"license": "MIT"
+	"test": {
+		"exclude": [
+			"**/*.types.test.ts",
+			"**/types.test.ts"
+		]
+	}
 }

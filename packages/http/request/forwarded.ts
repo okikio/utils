@@ -1,4 +1,4 @@
-import * as recordCore from '@okikio/record';
+import * as recordCore from '@okikio/collection/record';
 import type { ForwardedHeaderPolicy } from './types.ts';
 import { RequestTransportError } from './types.ts';
 
@@ -8,6 +8,8 @@ export function externalUrl(request: Request, policy: ForwardedHeaderPolicy): UR
 	const result = new URL(request.url);
 	const hasForwarding = request.headers.has('forwarded') ||
 		[...request.headers.keys()].some((name) => name.startsWith('x-forwarded-'));
+	// Forwarding fields are caller-controlled unless the host has established
+	// the proxy trust boundary. Ignoring them keeps redirects and origins local.
 	if (!normalizedPolicy.trust) {
 		if (hasForwarding) return result;
 		return result;
@@ -25,6 +27,7 @@ export function externalUrl(request: Request, policy: ForwardedHeaderPolicy): UR
 			}
 		}
 	}
+	// A trusted Forwarded value takes precedence; X-Forwarded only fills gaps.
 	if (normalizedPolicy.allowXForwarded !== false) {
 		protocol ??= request.headers.get('x-forwarded-proto')?.split(',', 1)[0]?.trim();
 		host ??= request.headers.get('x-forwarded-host')?.split(',', 1)[0]?.trim();

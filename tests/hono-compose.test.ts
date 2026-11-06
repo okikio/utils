@@ -4,8 +4,8 @@ import { expect } from '@std/expect';
 import { discard } from '@okikio/http/response';
 import { catchErrors, create, route } from '@okikio/server/http';
 import { Hono } from 'hono';
-import { fixture, nested, promiseContinuations, snapshot } from './fixtures/hono-compose/implementations.ts';
-import type { Layer } from './fixtures/hono-compose/implementations.ts';
+import { fixture, nested, promiseContinuations, snapshot } from '#fixtures/hono-compose/implementations.ts';
+import type { Layer } from '#fixtures/hono-compose/implementations.ts';
 
 const request = () => new Request('http://localhost/');
 const pass: Layer = (_scope, next) => next();

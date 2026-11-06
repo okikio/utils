@@ -1,7 +1,9 @@
-import * as recordCore from '@okikio/record';
+import * as recordCore from '@okikio/collection/record';
+import * as schemaCore from '@okikio/schema';
+import * as codec from '@okikio/schema/codec';
+import type { Codec } from '@okikio/schema/codec';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type {
-	QueryDefinition,
 	QueryField,
 	QueryFieldOptions,
 	QueryFields,
@@ -12,21 +14,63 @@ import type {
 	QueryIssue,
 	QueryOperator,
 	QueryOperatorName,
+	QueryPolicy,
 } from './types.ts';
 
 import { listValues, uniqueStrings } from './values.ts';
 import { issue } from './validation.ts';
 
+/** Recognize resource-keyed projection parameters without interpreting their field values. */
 const fieldsetPattern = /^fields\[([^\]]+)]$/;
 
+/** Public field names cannot inject bracket tokens into the URL grammar. */
 const fieldNamePattern = /^[A-Za-z_][A-Za-z0-9_.-]*$/;
 
-/** Define one public query field. */
+/**
+ * Declare one field's validator and public permissions.
+ * Fields are selectable and unsortable by default. Filter operators are enabled
+ * separately by define(). For a transform that cannot accept its own output,
+ * supply an encode inverse so validated values can be written back to URL input.
+ */
 export function field<const Schema extends StandardSchemaV1>(
 	schema: Schema,
+	options?: QueryFieldOptions<Schema>,
+): QueryField<Schema>;
+/**
+ * Use an owned bidirectional codec for a field's input validation and URL output.
+ * Its encode direction must validate synchronously because URL encoding is a
+ * synchronous operation. Async codecs remain usable outside this URL contract.
+ */
+export function field<const Definition extends Codec>(
+	definition: Definition,
+	options?: Omit<QueryFieldOptions<Definition['decode']>, 'encode'>,
+): QueryField<Definition['decode']>;
+export function field(
+	contract: StandardSchemaV1 | Codec,
 	options: QueryFieldOptions = {},
-): QueryField<Schema> {
+): QueryField {
+	const bidirectional = codec.is(contract);
+	const schema = bidirectional ? codec.input(contract) : contract;
 	assertSchema(schema);
+	if (bidirectional && options.encode !== undefined) {
+		throw new TypeError('A codec field owns its encoder; do not supply a second inverse.');
+	}
+	const encoder = bidirectional
+		? (value: unknown) => {
+			const result = codec.output(contract)['~standard'].validate(value);
+			if (typeof (result as { then?: unknown }).then === 'function') {
+				void Promise.resolve(result).catch(() => undefined);
+				throw new TypeError('A query field codec must encode synchronously.');
+			}
+			const validated = result as StandardSchemaV1.Result<unknown>;
+			if (validated.issues) {
+				throw new TypeError(
+					`Query field encoding failed: ${validated.issues.map((entry) => entry.message).join('; ')}`,
+				);
+			}
+			return validated.value;
+		}
+		: options.encode;
 	return Object.freeze({
 		kind: 'query-field',
 		schema,
@@ -34,6 +78,8 @@ export function field<const Schema extends StandardSchemaV1>(
 		selectable: options.selectable ?? true,
 		sortable: options.sortable ?? false,
 		...(options.jsonSchema !== undefined ? { jsonSchema: options.jsonSchema } : {}),
+		...(options.outputJsonSchema !== undefined ? { outputJsonSchema: options.outputJsonSchema } : {}),
+		...(encoder !== undefined ? { encode: encoder } : {}),
 	});
 }
 
@@ -47,15 +93,15 @@ export function freezeFields<Fields extends QueryFields>(fields: Fields): Fields
 	if (entries.length === 0) throw new TypeError('A query definition must expose at least one field.');
 	for (const [name, value] of entries) {
 		assertFieldName(name);
-		if (value.kind !== 'query-field') throw new TypeError(`Query field ${JSON.stringify(name)} is invalid.`);
+		if (!recordCore.is(value) || value.kind !== 'query-field') {
+			throw new TypeError(`Query field ${JSON.stringify(name)} is invalid.`);
+		}
 	}
 	return recordCore.snapshot(fields, 'query fields');
 }
 
 /**
  * Snapshots filters so later compilation cannot observe caller mutation.
- *
- * It keeps public query semantics provider-neutral so storage adapters can compile the same validated request differently.
  *
  * @internal
  */
@@ -79,8 +125,6 @@ export function freezeFilters<Fields extends QueryFields>(
 
 /**
  * Snapshots fieldsets so later compilation cannot observe caller mutation.
- *
- * It keeps public query semantics provider-neutral so storage adapters can compile the same validated request differently.
  *
  * @internal
  */
@@ -108,7 +152,7 @@ export function freezeFieldsets(
 }
 
 /**
- * Checks selected fields and preserves the deterministic issues needed by callers.
+ * Reject invalid authored defaults at definition time; request selections instead accumulate user-facing issues.
  *
  * @internal
  */
@@ -126,7 +170,7 @@ export function validateSelectedFields<Fields extends QueryFields>(
 }
 
 /**
- * Rejects invalid field name before it can enter authoritative module state.
+ * Reject names that could inject bracket grammar into public filter and projection parameters.
  *
  * @internal
  */
@@ -135,28 +179,25 @@ export function assertFieldName(value: string): void {
 }
 
 /**
- * Rejects invalid schema before it can enter authoritative module state.
+ * Apply the shared Standard Schema capability check before storing a field.
+ * Callable carriers follow the same version, vendor and validator contract as
+ * object carriers; Query does not maintain a second partial protocol guard.
  *
  * @internal
  */
 export function assertSchema(value: unknown): asserts value is StandardSchemaV1 {
-	if (
-		typeof value !== 'object' || value === null ||
-		typeof (value as { ['~standard']?: { validate?: unknown } })['~standard']?.validate !== 'function'
-	) {
+	if (!schemaCore.is(value)) {
 		throw new TypeError('Query fields must use Standard Schema-compatible validators.');
 	}
 }
 
 /**
- * Parses fields into the validated internal model used by later phases.
- *
- * It keeps public query semantics provider-neutral so storage adapters can compile the same validated request differently.
+ * Resolve simple or resource field selections, accumulating conflicts and permission/size issues.
  *
  * @internal
  */
 export function parseFields<Fields extends QueryFields>(
-	definition: QueryDefinition<Fields>,
+	definition: QueryPolicy<Fields>,
 	entries: ReadonlyMap<string, readonly unknown[]>,
 	issues: QueryIssue[],
 ): QueryFieldSelection<keyof Fields & string> {

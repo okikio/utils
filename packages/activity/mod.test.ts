@@ -1,12 +1,13 @@
+import * as codecs from '@okikio/schema/codec';
 import { expect } from '@std/expect';
 import { describe, it } from 'node:test';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 
 import * as context from '@okikio/context';
-import * as effect from '@okikio/effect';
-import * as failure from '@okikio/failure';
-import * as permissions from '@okikio/permission';
-import * as resource from '@okikio/resource';
+import * as effect from '@okikio/capability/effect';
+import * as failure from '@okikio/result/failure';
+import * as permissions from '@okikio/authz/permission';
+import * as resource from '@okikio/capability/resource';
 import * as workflow from '@okikio/workflow';
 import * as engine from './engine.ts';
 import * as activity from './mod.ts';
@@ -56,14 +57,14 @@ const Store = resource.define<{ readonly save: (value: string) => Promise<void> 
 const StoreUnavailable = failure.define({
 	id: 'test.store-unavailable',
 	description: 'The store is unavailable.',
-	data: FailureDataSchema,
+	data: codecs.identity(FailureDataSchema),
 });
 const StoreValue = activity.define({
 	id: 'test.store-value',
 	version: '1',
 	description: 'Stores one value.',
-	input: InputSchema,
-	result: ResultSchema,
+	input: codecs.identity(InputSchema),
+	result: codecs.identity(ResultSchema),
 	failures: [StoreUnavailable],
 	placement: engine.require(Browser),
 	resources: [Store],
@@ -76,14 +77,14 @@ const StoreWrite = permissions.define({
 const ValueStored = effect.define({
 	id: 'test.value-stored',
 	description: 'One value was stored successfully.',
-	value: ResultSchema,
+	value: codecs.identity(ResultSchema),
 });
 const GovernedStoreValue = activity.define({
 	id: 'test.governed-store-value',
 	version: '1',
 	description: 'Stores one value after authorization and emits the required commit effect.',
-	input: InputSchema,
-	result: ResultSchema,
+	input: codecs.identity(InputSchema),
+	result: codecs.identity(ResultSchema),
 	effects: [ValueStored],
 	placement: engine.require(Browser),
 	resources: [Store],
@@ -105,6 +106,40 @@ function resources(ctx: context.Owned, values: string[] = []): resource.Resource
 }
 
 describe('activity definitions and direct attempts', () => {
+	it('rejects access to an undeclared resource even when the shared collection contains it', async () => {
+		await using ctx = context.create({ id: 'activity-allowlist' });
+		const Other = resource.define<string>()({ id: 'test.other', description: 'Not declared by the activity.' });
+		let acquired = false;
+		await using collection = resource.create(
+			resource.implementations(resource.implement(Other, {
+				create() {
+					acquired = true;
+					return 'secret';
+				},
+			})),
+			{ ctx, host: {} },
+		);
+		const implementation = activity.implement(StoreValue, {
+			async run(ctx) {
+				// Deliberately bypass the static declaration check to verify the runtime allowlist.
+				await ctx.get(Other as never);
+				return { stored: true };
+			},
+		});
+		await expect(
+			activity.run({
+				ctx,
+				implementation,
+				resources: collection,
+				engine: Browser,
+				input: { value: 'x' },
+				jobId: 'allowlist',
+				attempt: 1,
+			}),
+		).rejects.toBeInstanceOf(resource.MissingImplementationError);
+		expect(acquired).toBe(false);
+	});
+
 	it('uses the activity version as part of durable definition identity and documentation', () => {
 		expect(StoreValue.version).toBe('1');
 		expect(activity.document([StoreValue])).toMatchObject([{
@@ -116,8 +151,8 @@ describe('activity definitions and direct attempts', () => {
 			activity.define({
 				id: 'test.invalid-version',
 				version: 'not valid!',
-				input: InputSchema,
-				result: ResultSchema,
+				input: codecs.identity(InputSchema),
+				result: codecs.identity(ResultSchema),
 				placement: engine.require(Browser),
 			})
 		).toThrow(TypeError);
@@ -303,7 +338,11 @@ describe('activity definitions and direct attempts', () => {
 			attempt: 1,
 		})).rejects.toBe(expected);
 
-		const Other = failure.define({ id: 'test.other', description: 'Other failure.', data: FailureDataSchema });
+		const Other = failure.define({
+			id: 'test.other',
+			description: 'Other failure.',
+			data: codecs.identity(FailureDataSchema),
+		});
 		const undeclared = await failure.create(Other, { data: { reason: 'wrong contract' } });
 		const invalid = activity.implement(StoreValue, {
 			async run() {
@@ -325,8 +364,8 @@ describe('activity definitions and direct attempts', () => {
 		const Workflow = workflow.define({
 			id: 'test.activity-try',
 			version: '1',
-			input: InputSchema,
-			result: schema((value) => value as activity.ActivityTryResult<typeof StoreValue>),
+			input: codecs.identity(InputSchema),
+			result: codecs.identity(schema((value) => value as activity.ActivityTryResult<typeof StoreValue>)),
 			activities: [StoreValue],
 		});
 		const implementation = workflow.implement(Workflow, function* (ctx) {

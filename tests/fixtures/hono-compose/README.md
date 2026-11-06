@@ -32,5 +32,5 @@ timers and are released in `finally`; the stalled-terminal case joins its reques
 generous test timeout for regression containment. No listener, external network, ambient credential, or background timer
 is required.
 
-The registry records source correspondence and applicability. Runtime and type qualification are separate receipts;
+The registry records source correspondence and applicability. Runtime and type checks are separate receipts;
 creating or checking the registry is not a passing runtime result.

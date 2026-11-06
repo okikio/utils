@@ -1,8 +1,8 @@
-/** Qualify the independent compiled Vixeny challenger against authored wire outcomes. @module */
+/** Test the independent compiled Vixeny challenger against authored wire outcomes. @module */
 import { deepStrictEqual, rejects } from 'node:assert';
 import { describe, it } from 'node:test';
-import { cases, observe, request, routingCases } from './fixtures/http-parity/corpus.ts';
-import { createVixenyApi, createVixenyRouting } from './fixtures/http-parity/vixeny.ts';
+import { cases, observe, request, routingCases } from '#fixtures/http-parity/corpus.ts';
+import { createVixenyApi, createVixenyRouting } from '#fixtures/http-parity/vixeny.ts';
 
 describe('independent Vixeny HTTP challenger', () => {
 	it('satisfies the complete authored API corpus with its declared application adapters', async () => {

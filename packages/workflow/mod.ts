@@ -1,7 +1,13 @@
 /**
- * Resume a named sequence from recorded instruction completions and send activities to eligible executors. Retrying a long function from its first line can repeat expensive work and duplicate an external commit.
+ * Run a named sequence while recording completed instructions so another attempt can continue. Restarting
+ * an ordinary function from its first line can otherwise repeat both expensive work and external writes.
  *
- * Run the complete local dispatch example first, then select Worker or process activity providers without changing the workflow definition. Share authoritative dispatch and history adapters before spreading execution across computers. Placement selects an eligible engine and host; claims fence attempts. Replay records instruction outcomes, not live stack frames, sockets or threads. External effects still need stable idempotency keys and an accepting sink. The in-memory example survives replica replacement only while its owning process retains the stores.
+ * A workflow definition describes the sequence. Activities perform the individual operations. Placement
+ * chooses eligible executors, and claims prevent replaced attempts from committing new guarded work.
+ *
+ * Replay uses recorded instruction outcomes, not saved stack frames or live sockets. In-memory stores
+ * survive replacement only within their owning process. Use durable storage for process recovery, and
+ * receiver idempotency or transactional receipts for external writes.
  *
  * @example
  * ```ts
@@ -14,88 +20,79 @@
  * import * as history from '@okikio/workflow/history';
  * import * as workflow from '@okikio/workflow';
  *
- * const TextSchema = Object.freeze({
- *   '~standard': Object.freeze({
- *     version: 1,
- *     vendor: 'example',
- *     validate(value: unknown) {
- *       return typeof value === 'string'
- *         ? { value }
- *         : { issues: [{ message: 'Expected text.' }] };
- *     },
- *   }),
- * });
+ * import * as schema from '@okikio/schema';
+ * const TextSchema = schema.string();
  *
  * const Local = engine.define({ id: 'local' });
  * const Echo = activity.define({
- *   id: 'example.echo',
- *   version: '1',
- *   input: TextSchema,
- *   result: TextSchema,
- *   placement: engine.require(Local),
+ * 	id: 'example.echo',
+ * 	version: '1',
+ * 	input: TextSchema,
+ * 	result: TextSchema,
+ * 	placement: engine.require(Local),
  * });
  *
  * const EchoWorkflow = workflow.define({
- *   id: 'example.echo-workflow',
- *   version: '1',
- *   input: TextSchema,
- *   result: TextSchema,
- *   activities: [Echo],
+ * 	id: 'example.echo-workflow',
+ * 	version: '1',
+ * 	input: TextSchema,
+ * 	result: TextSchema,
+ * 	activities: [Echo],
  * });
  * const EchoLive = workflow.implement(EchoWorkflow, function* (ctx) {
- *   return yield* activity.request(Echo, ctx.input);
+ * 	return yield* activity.request(Echo, ctx.input);
  * });
  *
  * await using parent = context.create({ id: 'example-parent' });
  * await using jobs = dispatch.memory();
  * await using records = history.memory();
  * await using scheduler = workflow.scheduler({
- *   activityDispatch: jobs,
- *   history: records,
+ * 	activityDispatch: jobs,
+ * 	history: records,
  * });
  * await using executor = await workflow.executor({
- *   dispatch: jobs,
- *   engine: Local,
- *   hostId: 'example-host',
- *   capacity: 1,
- *   provider: {
- *     activities: [Echo],
- *     async run(_ctx, attempt) {
- *       return Object.freeze({ type: 'success', value: attempt.input });
- *     },
- *   },
+ * 	dispatch: jobs,
+ * 	engine: Local,
+ * 	hostId: 'example-host',
+ * 	capacity: 1,
+ * 	provider: {
+ * 		activities: [Echo],
+ * 		async run(_ctx, attempt) {
+ * 			return Object.freeze({ type: 'success', value: attempt.input });
+ * 		},
+ * 	},
  * });
  * await using run = await workflow.context({
- *   definition: EchoWorkflow,
- *   runId: 'example-run',
- *   input: 'hello',
- *   ctx: parent,
+ * 	definition: EchoWorkflow,
+ * 	runId: 'example-run',
+ * 	input: 'hello',
+ * 	ctx: parent,
  * });
  *
- * console.log(await workflow.run({
- *   ctx: run,
- *   implementation: EchoLive,
- *   scheduler,
- * })); // hello
+ * console.log(
+ * 	await workflow.run({
+ * 		ctx: run,
+ * 		implementation: EchoLive,
+ * 		scheduler,
+ * 	}),
+ * ); // hello
  * ```
  *
  * @module
  */
-import type { StandardSchemaV1 } from '@standard-schema/spec';
-import { encodeHex } from '@std/encoding/hex';
-import * as durationCore from '@okikio/duration';
-import * as catalogCore from '@okikio/catalog';
-import type { DefinitionInput as CatalogDefinitionInput } from '@okikio/catalog';
+
+import * as codec from '@okikio/schema/codec';
+import { TriggerEffect, TriggerSchema } from './trigger.ts';
+import * as catalogCore from '@okikio/collection/catalog';
+import type { DefinitionInput as CatalogDefinitionInput } from '@okikio/collection/catalog';
 import * as contextCore from '@okikio/context';
-import * as effects from '@okikio/effect';
-import * as failures from '@okikio/failure';
-import * as faultCore from '@okikio/fault';
-import * as requirement from '@okikio/requirement';
+import * as effects from '@okikio/capability/effect';
+import * as failures from '@okikio/result/failure';
+import * as faultCore from '@okikio/result/fault';
+import * as requirement from '@okikio/capability/requirement';
 import * as result from '@okikio/result';
-import * as recordCore from '@okikio/record';
+import * as recordCore from '@okikio/collection/record';
 import * as schema from '@okikio/schema';
-import { freeze as freezeAffinity } from './affinity.ts';
-import * as assert from './assert.ts';
 import * as durable from './durable.ts';
 import { Branch } from './branch.ts';
 import * as kernelOperation from './operation.ts';
@@ -104,133 +101,45 @@ import * as retryCore from './retry.ts';
 import { MAX_ACTIVE_CHILDREN, Scope } from './scope.ts';
 import { createActivityJobs, SchedulerClosedError } from './jobs.ts';
 import type { Cause, Exit } from './kernel.ts';
-
 import type {
-	ActivityCommand,
-	ActivityCommandOptions,
-	ActivityReference,
-	ChildOptions,
-	ChildWorkflowCommand,
 	Scheduler,
 	SchedulerOptions,
-	WorkflowAnnotations,
 	WorkflowCancelled,
 	WorkflowCatalog,
-	WorkflowCommandOptions,
 	WorkflowCompletionAny,
 	WorkflowContext,
-	WorkflowContextOptions,
 	WorkflowControlInstruction,
-	WorkflowDeferCommand,
 	WorkflowDefinition,
 	WorkflowDocument,
-	WorkflowDurableValue,
-	WorkflowEffectCommand,
 	WorkflowFailure,
 	WorkflowFault,
 	WorkflowImplementation,
 	WorkflowInstruction,
-	WorkflowInstructionDescription,
-	WorkflowInstructionIdentity,
-	WorkflowMapEntry,
 	WorkflowMapInstruction,
-	WorkflowMapOptions,
 	WorkflowOperation,
-	WorkflowOperationFailures,
-	WorkflowOperations,
-	WorkflowOperationValues,
 	WorkflowOptions,
 	WorkflowParallelInstruction,
-	WorkflowParallelOptions,
 	WorkflowRaceInstruction,
-	WorkflowRaceOptions,
-	WorkflowRaceResult,
-	WorkflowReference,
 	WorkflowRetryInstruction,
-	WorkflowRetryOptions,
 	WorkflowRunOptions,
+	WorkflowSchema,
 	WorkflowSelection,
-	WorkflowSettledValues,
 	WorkflowSignal,
-	WorkflowSleepCommand,
 	WorkflowSuccess,
-	WorkflowWaitCommand,
 } from './types.ts';
+import { assertIdentifier, assertInstruction, assertOperation, assertStableKey, boundedConcurrency } from './assert.ts';
+import {
+	CancelledError,
+	CleanupFailureError,
+	CleanupInstructionError,
+	ContinueAsNewError,
+	FaultError,
+} from './errors.ts';
+import { continueRun, createdInstruction, identify, operation, sleep } from './instructions.ts';
+import { workflowContext } from './context.ts';
 
-/** Version shared by the built-in workflow instruction envelopes in this source revision. */
-const builtInInstructionVersion = 1;
-/** Associates immutable author-facing operations with their serializable instruction without exposing mutable state. */
-const operationInstructions = new WeakMap<object, WorkflowInstruction>();
-
-/** Unexpected fault reported by a workflow interpreter. */
-export class FaultError extends Error {
-	/** Unexpected diagnostic data projected for this boundary. */
-	readonly fault: unknown;
-
-	/** Create this FaultError from the explicit contract values supplied by its caller. */
-	constructor(fault: unknown) {
-		super(faultCore.message(fault), { cause: fault });
-		this.name = 'FaultError';
-		this.fault = fault;
-	}
-}
-
-/** Cancellation reported by a workflow interpreter. */
-export class CancelledError extends Error {
-	/** Caller or runtime reason retained for cancellation or failure diagnostics. */
-	readonly reason: unknown;
-
-	/** Create this CancelledError from the explicit contract values supplied by its caller. */
-	constructor(reason: unknown) {
-		super('Workflow instruction was cancelled.', reason === undefined ? undefined : { cause: reason });
-		this.name = 'CancelledError';
-		this.reason = reason;
-	}
-}
-
-/** Terminal continue-as-new request surfaced by an interpreter. */
-export class ContinueAsNewError extends Error {
-	/** Input supplied to this validated operation or interpretation. */
-	readonly input: unknown;
-
-	/** Create this ContinueAsNewError from the explicit contract values supplied by its caller. */
-	constructor(input: unknown) {
-		super('Workflow requested continue as new.');
-		this.name = 'ContinueAsNewError';
-		this.input = input;
-	}
-}
-
-/** Lifecycle defect containing primary work and one or more cleanup failures. */
-export class CleanupFailureError extends Error {
-	/** Primary selected interpretation or source occurrence. */
-	readonly primary: unknown;
-	/** Failures encountered while releasing owned resources; successful work does not erase them. */
-	readonly cleanupFailures: readonly unknown[];
-
-	/** Create this CleanupFailureError from the explicit contract values supplied by its caller. */
-	constructor(primary: unknown, cleanupFailures: readonly unknown[]) {
-		super('Workflow work failed and one or more required cleanups also failed.', { cause: primary });
-		this.name = 'CleanupFailureError';
-		this.primary = primary;
-		this.cleanupFailures = Object.freeze([...cleanupFailures]);
-	}
-}
-
-/** Invalid workflow program behavior discovered while closing a generator. */
-export class CleanupInstructionError extends Error {
-	/** Serializable workflow instruction whose completion is owned by history and scheduling. */
-	readonly instruction: WorkflowInstruction;
-
-	/** Create this CleanupInstructionError from the explicit contract values supplied by its caller. */
-	constructor(instruction: WorkflowInstruction) {
-		super(
-			'Workflow generator cleanup must not yield instructions. Register external cleanup with workflow.defer().',
-		);
-		this.name = 'CleanupInstructionError';
-		this.instruction = instruction;
-	}
-}
+export { TriggerEffect } from './trigger.ts';
+export type { Trigger, TriggerOptions } from './trigger.ts';
 
 /**
  * Owns the internal sibling cancellation state used by the durable workflow interpreter.
@@ -250,8 +159,8 @@ export function define<const Authoring extends WorkflowOptions>(input: Authoring
 	recordCore.assert(input, 'workflow definition');
 	assertIdentifier(input.id, 'workflow');
 	assertIdentifier(input.version, 'workflow version');
-	schema.assert(input.input, 'workflow input schema');
-	schema.assert(input.result, 'workflow result schema');
+	schema.assert(codec.input(input.input), 'workflow input schema');
+	schema.assert(codec.input(input.result), 'workflow result schema');
 	const failures = input.failures === undefined ? Object.freeze([]) : catalogCore.compose(input.failures);
 	const workflowEffects = input.effects === undefined ? Object.freeze([]) : effects.compose(input.effects);
 	const activities = input.activities === undefined ? Object.freeze([]) : catalogCore.compose(input.activities);
@@ -296,7 +205,7 @@ export function select<
 >(
 	source: WorkflowCatalog<Entries>,
 	keys: Keys,
-): WorkflowSelection<Entries[keyof Entries], Pick<Entries, Keys[number]>> {
+): WorkflowSelection<Entries[Keys[number]], Pick<Entries, Keys[number]>> {
 	return catalogCore.select(source, keys);
 }
 
@@ -308,359 +217,26 @@ export function compose<Entry extends WorkflowDefinition>(
 }
 
 /** Define one immutable signal contract. */
-export function signal<Value>(
-	input: Readonly<{
-		readonly id: string;
-		readonly description?: string;
-		readonly value: StandardSchemaV1<unknown, Value>;
-	}>,
-): WorkflowSignal<Value> {
-	recordCore.assert(input, 'workflow signal definition');
-	assertIdentifier(input.id, 'workflow signal');
-	schema.assert(input.value, 'workflow signal schema');
-	return Object.freeze({ kind: 'workflow-signal', ...input });
-}
-
-/** Create an author-facing operation backed by one instruction. */
-export function operation<Value, Failure = never>(instruction: WorkflowInstruction): WorkflowOperation<Value, Failure> {
-	assertInstruction(instruction);
-	const value = Object.freeze({
-		/**
-		 * Returns the native iterator view used by synchronous iteration protocols.
-		 *
-		 * @internal
-		 */
-		*[Symbol.iterator](): Generator<WorkflowInstruction, Value, WorkflowCompletionAny> {
-			const completion = yield instruction;
-			if (completion.type === 'success') return completion.value as Value;
-			if (completion.type === 'failure') throw completion.failure;
-			if (completion.type === 'fault') throw new FaultError(completion.fault);
-			throw new CancelledError(completion.reason);
-		},
-	});
-	operationInstructions.set(value, instruction);
-	return value;
-}
-
-/** Create an activity command without importing the activity package. */
-export function activity<Value, Failure>(
-	definition: ActivityReference,
-	input: unknown,
-	options: ActivityCommandOptions = {},
-): WorkflowOperation<Value, Failure> {
-	const normalizedOptions = normalizeActivityOptions(options);
-	const command = Object.freeze(
-		{
-			category: 'command',
-			type: 'activity',
-			version: builtInInstructionVersion,
-			activity: definition,
-			input: durable.snapshot(input, 'activity input'),
-			options: normalizedOptions,
-			...instructionMetadata(normalizedOptions),
-		} satisfies ActivityCommand<Value, Failure>,
-	);
-	return operation(command);
-}
-
-/** Wait for a durable duration. */
-export function sleep(
-	duration: Temporal.DurationLike | string,
-	options: WorkflowCommandOptions = {},
-): WorkflowOperation<Temporal.Instant> {
-	const command = Object.freeze(
-		{
-			category: 'command',
-			type: 'sleep',
-			version: builtInInstructionVersion,
-			duration: Temporal.Duration.from(duration),
-			...instructionMetadata(options),
-		} satisfies WorkflowSleepCommand,
-	);
-	return operation(command);
-}
-
-/** Wait for one matching signal value. */
-export function wait<Value>(
-	definition: WorkflowSignal<Value>,
-	input: unknown,
-	options: WorkflowCommandOptions = {},
-): WorkflowOperation<Value> {
-	const command = Object.freeze(
-		{
-			category: 'command',
-			type: 'wait',
-			version: builtInInstructionVersion,
-			signal: definition,
-			input: durable.snapshot(input, 'wait input'),
-			...instructionMetadata(options),
-		} satisfies WorkflowWaitCommand<Value>,
-	);
-	return operation(command);
-}
-
-/** Start or await one child workflow. */
-export function child<WorkflowDefinition extends WorkflowReference>(
-	definition: WorkflowDefinition,
-	input: import('./types.ts').WorkflowInput<WorkflowDefinition>,
-	options: ChildOptions = {},
-): WorkflowOperation<
-	import('./types.ts').WorkflowResult<WorkflowDefinition>,
-	import('./types.ts').WorkflowFailures<WorkflowDefinition>
-> {
-	const normalizedOptions = normalizeChildOptions(options);
-	const command = Object.freeze(
-		{
-			category: 'command',
-			type: 'child-workflow',
-			version: builtInInstructionVersion,
-			workflow: definition,
-			input: durable.snapshot(input, 'child workflow input'),
-			options: normalizedOptions,
-			...instructionMetadata(normalizedOptions),
-		} satisfies ChildWorkflowCommand,
-	);
-	return operation(command);
-}
-
-/**
- * Request one workflow-level effect announcement.
- *
- * The operation is deterministic data. Delivery happens only when the Scheduler
- * interprets the instruction, and the operation completes only after the
- * configured effect owner accepts responsibility.
- */
-export function effect<Effect_ extends effects.EffectDefinition>(
-	definition: Effect_,
-	value: effects.EffectValueInput<Effect_>,
-	options: WorkflowCommandOptions = {},
-): WorkflowOperation<void> {
-	const command = Object.freeze(
-		{
-			category: 'command',
-			type: 'effect',
-			version: builtInInstructionVersion,
-			effect: definition,
-			value: durable.snapshot(value, 'effect value'),
-			...instructionMetadata(options),
-		} satisfies WorkflowEffectCommand,
-	);
-	return operation(command);
-}
-
-/** Register a cleanup operation that executes when the workflow scope closes. */
-export function defer(
-	cleanup: WorkflowOperation<unknown, unknown>,
-	options: WorkflowCommandOptions = {},
-): WorkflowOperation<void> {
-	const cleanupInstruction = createdInstruction(cleanup, 'workflow.defer cleanup');
-	if (
-		cleanupInstruction.category !== 'command' ||
-		(cleanupInstruction.type !== 'activity' && cleanupInstruction.type !== 'child-workflow')
-	) {
-		throw new TypeError('workflow.defer cleanup must be one activity or child-workflow operation.');
-	}
-	const command = Object.freeze(
-		{
-			category: 'command',
-			type: 'defer',
-			version: builtInInstructionVersion,
-			cleanup: cleanupInstruction,
-			...instructionMetadata(options),
-		} satisfies WorkflowDeferCommand,
-	);
-	return operation(command);
-}
-
-/** End the current run and request an atomic continuation with new input. */
-function continueRun<WorkflowInput>(
-	input: WorkflowInput,
-	options: WorkflowCommandOptions = {},
-): WorkflowOperation<never> {
-	const command = Object.freeze(
-		{
-			category: 'command',
-			type: 'continue',
-			version: builtInInstructionVersion,
-			input: durable.snapshot(input, 'continue-as-new input'),
-			...instructionMetadata(options),
-		} satisfies import('./types.ts').WorkflowContinueCommand,
-	);
-	return operation(command);
-}
-
-/** Coordinate keyed child operations in parallel. */
-export function parallel<Values extends WorkflowOperations>(
-	operations: Values,
-	options?: WorkflowParallelOptions & Readonly<{ readonly failure?: 'fail-fast' }>,
-): WorkflowOperation<WorkflowOperationValues<Values>, WorkflowOperationFailures<Values>>;
-/** Coordinate keyed child operations and return explicit results for every branch. */
-export function parallel<Values extends WorkflowOperations>(
-	operations: Values,
-	options: WorkflowParallelOptions & Readonly<{ readonly failure: 'settle' }>,
-): WorkflowOperation<WorkflowSettledValues<Values>, never>;
-/** Create either fail-fast or settled parallel coordination after overload resolution. */
-export function parallel<Values extends WorkflowOperations>(
-	operations: Values,
-	options: WorkflowParallelOptions = {},
-): WorkflowOperation<unknown, unknown> {
-	recordCore.assert(options, 'workflow parallel options');
-	assertOperations(operations);
-	const instruction = Object.freeze(
-		{
-			category: 'control',
-			type: 'parallel',
-			version: builtInInstructionVersion,
-			operations: freezeRecord(operations),
-			failure: options.failure ?? 'fail-fast',
-			...(options.concurrency === undefined
-				? {}
-				: { concurrency: boundedConcurrency(options.concurrency, 'parallel concurrency') }),
-			...instructionMetadata(options),
-		} satisfies WorkflowParallelInstruction<Values>,
-	);
-	return operation(instruction);
-}
-
-/** Return the first terminal keyed branch and cancel the others. */
-export function race<Values extends WorkflowOperations>(
-	operations: Values,
-	options: WorkflowRaceOptions = {},
-): WorkflowOperation<WorkflowRaceResult<Values>, WorkflowOperationFailures<Values>> {
-	recordCore.assert(options, 'workflow race options');
-	assertOperations(operations);
-	if (Object.keys(operations).length > MAX_ACTIVE_CHILDREN) {
-		throw new RangeError(`Workflow race cannot start more than ${MAX_ACTIVE_CHILDREN} child operations.`);
-	}
-	const instruction = Object.freeze(
-		{
-			category: 'control',
-			type: 'race',
-			version: builtInInstructionVersion,
-			operations: freezeRecord(operations),
-			...instructionMetadata(options),
-		} satisfies WorkflowRaceInstruction<Values>,
-	);
-	return operation(instruction);
-}
-
-/** Create and coordinate one bounded keyed operation for every input item. */
-export function map<Item, Value, Failure>(
-	items: readonly Item[],
-	createOperation: (item: Item, index: number) => WorkflowOperation<Value, Failure>,
-	options: WorkflowMapOptions<Item> & Readonly<{ readonly failure?: 'fail-fast' }>,
-): WorkflowOperation<readonly Value[], Failure>;
-/** Create bounded mapped operations and return explicit results for every item. */
-export function map<Item, Value, Failure>(
-	items: readonly Item[],
-	createOperation: (item: Item, index: number) => WorkflowOperation<Value, Failure>,
-	options: WorkflowMapOptions<Item> & Readonly<{ readonly failure: 'settle' }>,
-): WorkflowOperation<readonly result.Result<Value, Failure>[], never>;
-/** Create either fail-fast or settled bounded mapping after overload resolution. */
-export function map<Item, Value, Failure>(
-	items: readonly Item[],
-	createOperation: (item: Item, index: number) => WorkflowOperation<Value, Failure>,
-	options: WorkflowMapOptions<Item>,
-): WorkflowOperation<unknown, unknown> {
-	recordCore.assert(options, 'workflow map options');
-	if (typeof options.key !== 'function') throw new TypeError('workflow map key must be a function.');
-	const keys = new Set<string>();
-	const entries = Object.freeze(items.map((item, index): WorkflowMapEntry<Value, Failure> => {
-		const key = options.key(item, index);
-		assertStableKey(key);
-		if (keys.has(key)) throw new TypeError(`Workflow map produced duplicate key ${JSON.stringify(key)}.`);
-		keys.add(key);
-		const childOperation = createOperation(item, index);
-		assertOperation(childOperation);
-		return Object.freeze({ key, operation: childOperation });
-	}));
-	const instruction = Object.freeze(
-		{
-			category: 'control',
-			type: 'map',
-			version: builtInInstructionVersion,
-			entries,
-			concurrency: boundedConcurrency(options.concurrency, 'map concurrency'),
-			failure: options.failure ?? 'fail-fast',
-			...(options.instructionKey === undefined ? {} : { key: options.instructionKey }),
-			...(options.annotations === undefined ? {} : { annotations: freezeAnnotations(options.annotations) }),
-		} satisfies WorkflowMapInstruction<Value, Failure>,
-	);
-	return operation(instruction);
-}
-
-/** Repeat one operation according to one explicit maximum-attempt policy. */
-export function retry<Value, Failure>(
-	childOperation: WorkflowOperation<Value, Failure>,
-	options: WorkflowRetryOptions,
-): WorkflowOperation<Value, Failure> {
-	recordCore.assert(options, 'workflow retry options');
-	assertOperation(childOperation);
-	const delay = options.delay === undefined ? undefined : Temporal.Duration.from(options.delay);
-	const maximumDelay = options.maximumDelay === undefined ? undefined : Temporal.Duration.from(options.maximumDelay);
-	const backoff = options.backoff ?? 1;
-	if (!Number.isFinite(backoff) || backoff < 1) {
-		throw new TypeError('retry backoff must be a finite number greater than or equal to 1.');
-	}
-	const jitter = options.jitter ?? 0;
-	if (!Number.isFinite(jitter) || jitter < 0 || jitter > 1) {
-		throw new TypeError('retry jitter must be between 0 and 1.');
-	}
-	if (delay === undefined && (maximumDelay !== undefined || backoff !== 1 || jitter !== 0)) {
-		throw new TypeError('retry maximumDelay, backoff, and jitter require retry delay.');
-	}
-	const instruction = Object.freeze(
-		{
-			category: 'control',
-			type: 'retry',
-			version: builtInInstructionVersion,
-			operation: childOperation,
-			maximumAttempts: assert.positive(options.maximumAttempts, 'retry maximumAttempts'),
-			...(delay === undefined ? {} : { delay }),
-			backoff,
-			...(maximumDelay === undefined ? {} : { maximumDelay }),
-			jitter,
-			...instructionMetadata(options),
-		} satisfies WorkflowRetryInstruction<Value, Failure>,
-	);
-	return operation(instruction);
-}
-
-/** Create a validated workflow context by deriving local cancellation from a parent context. */
-export async function context<Workflow extends WorkflowDefinition>(
-	options: WorkflowContextOptions<Workflow>,
-): Promise<WorkflowContext<Workflow> & AsyncDisposable> {
-	recordCore.assert(options, 'workflow context options');
-	const normalized = Object.freeze({ ...options } satisfies WorkflowContextOptions<Workflow>);
-	assertIdentifier(normalized.runId, 'workflow run');
-	const input = await schema.parse(normalized.definition.input, normalized.input) as import('./types.ts').WorkflowInput<
-		Workflow
+export function signal<const Contract extends WorkflowSchema>(
+	input: Readonly<{ readonly id: string; readonly description?: string; readonly value: Contract }>,
+): WorkflowSignal<codec.ContractOutput<Contract>>;
+/** Define an event from its short name and value contract. */
+export function signal<const Contract extends WorkflowSchema>(
+	id: string,
+	value: Contract,
+): WorkflowSignal<codec.ContractOutput<Contract>>;
+export function signal<const Contract extends WorkflowSchema>(
+	input: string | Readonly<{ readonly id: string; readonly description?: string; readonly value: Contract }>,
+	value?: Contract,
+): WorkflowSignal<codec.ContractOutput<Contract>> {
+	const options = typeof input === 'string' ? { id: input, value } : input;
+	recordCore.assert(options, 'workflow signal definition');
+	assertIdentifier(options.id, 'workflow signal');
+	if (options.value === undefined) throw new TypeError('Workflow signal requires a value contract.');
+	schema.assert(codec.input(options.value), 'workflow signal schema');
+	return Object.freeze({ kind: 'workflow-signal', ...options, value: options.value }) as WorkflowSignal<
+		codec.ContractOutput<Contract>
 	>;
-	const owned = contextCore.child(normalized.ctx, { id: normalized.runId });
-	const checkpoint = inheritedCheckpoint(normalized.ctx, owned);
-	return Object.freeze({
-		id: owned.id,
-		...(owned.traceId === undefined ? {} : { traceId: owned.traceId }),
-		...(owned.deploymentId === undefined ? {} : { deploymentId: owned.deploymentId }),
-		...(owned.idempotencyKey === undefined ? {} : { idempotencyKey: owned.idempotencyKey }),
-		startedAt: owned.startedAt,
-		...(owned.deadline === undefined ? {} : { deadline: owned.deadline }),
-		signal: owned.signal,
-		clock: owned.clock,
-		workflow: normalized.definition,
-		runId: normalized.runId,
-		input,
-		version: normalized.definition.version,
-		checkpoint,
-		/**
-		 * Releases owned state and waits for cleanup completion when used with `await using`.
-		 *
-		 * @internal
-		 */
-		async [Symbol.asyncDispose]() {
-			await owned[Symbol.asyncDispose]();
-		},
-	});
 }
 
 /** Execute one workflow program through an instruction interpreter. */
@@ -684,7 +260,10 @@ export async function run<Workflow extends WorkflowDefinition>(
 			`${normalized.ctx.workflow.id}@${normalized.ctx.version}`,
 			cleanups,
 		);
-		value = await schema.parse(normalized.ctx.workflow.result, unvalidated) as import('./types.ts').WorkflowResult<
+		value = await codec.read(
+			normalized.ctx.workflow.result,
+			await codec.write(normalized.ctx.workflow.result, unvalidated),
+		) as import('./types.ts').WorkflowResult<
 			Workflow
 		>;
 	} catch (error) {
@@ -730,6 +309,10 @@ export function scheduler(input: SchedulerOptions = {}): Scheduler {
 
 	const scheduler = Object.freeze(
 		{
+			/**
+			 * Interpret one requested instruction through its declared provider and optional history. Input
+			 * admission precedes provider capacity allocation.
+			 */
 			async schedule(ctx: WorkflowContext, instruction: WorkflowInstruction, path: string) {
 				if (closed) return fault(new SchedulerClosedError());
 				const identity = await identify(instruction, path);
@@ -748,7 +331,7 @@ export function scheduler(input: SchedulerOptions = {}): Scheduler {
 							return activityCompletion(await jobs.run(ctx, instruction, path, identity.fingerprint));
 						}
 						if (instruction.type === 'effect') {
-							if (!ctx.workflow.effects.includes(instruction.effect)) {
+							if (instruction.effect !== TriggerEffect && !ctx.workflow.effects.includes(instruction.effect)) {
 								return fault(
 									new TypeError(
 										`Workflow ${JSON.stringify(ctx.workflow.id)} emitted undeclared effect ${
@@ -758,11 +341,27 @@ export function scheduler(input: SchedulerOptions = {}): Scheduler {
 								);
 							}
 							if (options.effect === undefined) return fault(new effects.MissingEffectEmitterError());
-							const occurrence = await effects.create(instruction.effect, instruction.value, {
+							let value = instruction.value;
+							if (instruction.effect === TriggerEffect) {
+								const request = TriggerSchema.parse(value);
+								const target = [...ctx.workflow.activities, ...ctx.workflow.workflows].find((entry) =>
+									entry.kind === request.definition.kind && entry.id === request.definition.id &&
+									entry.version === request.definition.version
+								);
+								if (!target) throw new TypeError('Background work must be declared by the workflow.');
+								value = {
+									...request,
+									input: await codec.write(target.input, await codec.read(target.input, request.input)),
+								};
+							}
+							const occurrence = await effects.create(instruction.effect, value, {
 								key: identity.fingerprint,
 							});
 							await options.effect.emit(ctx, occurrence);
 							return success(undefined);
+						}
+						if (instruction.type === 'wait-event' && options.events !== undefined) {
+							return success(await options.events.wait(ctx, instruction, path));
 						}
 						if (options.command === undefined) {
 							return fault(
@@ -781,8 +380,8 @@ export function scheduler(input: SchedulerOptions = {}): Scheduler {
 					path,
 					identity,
 					next,
-					encode: (completion) => encodeCompletion(completion),
-					decode: (completion) => decodeCompletion(ctx.workflow, completion),
+					encode: (completion) => encodeCompletion(instruction, completion),
+					decode: (completion) => decodeCompletion(ctx.workflow, instruction, completion),
 				});
 			},
 			async register(options: import('./types.ts').EngineRegistrationOptions) {
@@ -833,44 +432,6 @@ export function cancelled(reason: unknown): WorkflowCancelled {
 	return Object.freeze({ type: 'cancelled', reason });
 }
 
-/**
- * Describe one yielded instruction as JSON-safe durable history data.
- *
- * The description stores exact definition identities and serializable input,
- * but it never stores schemas, generator objects, resource handles, or child
- * operation closures. Control children are verified at their own deterministic
- * paths when the interpreter enters them.
- */
-export function describe(instruction: WorkflowInstruction, path: string): WorkflowInstructionDescription {
-	assertInstruction(instruction);
-	if (path.trim().length === 0) throw new TypeError('Workflow instruction path must not be empty.');
-	return Object.freeze({
-		path,
-		category: instruction.category,
-		type: instruction.type,
-		version: instruction.version,
-		...(instruction.key === undefined ? {} : { key: instruction.key }),
-		...(instruction.annotations === undefined ? {} : { annotations: instruction.annotations }),
-		payload: describeInstructionPayload(instruction),
-	});
-}
-
-/**
- * Create the stable SHA-256 identity used to compare replayed instructions.
- *
- * A durable adapter persists this identity before it dispatches external work.
- * On replay, the adapter compares the newly yielded fingerprint with history.
- * A mismatch is workflow divergence and must fail instead of dispatching new
- * work under an old history position.
- */
-export async function identify(instruction: WorkflowInstruction, path: string): Promise<WorkflowInstructionIdentity> {
-	const description = describe(instruction, path);
-	const encoded = new TextEncoder().encode(JSON.stringify(description));
-	const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', encoded));
-	const fingerprint = encodeHex(digest);
-	return Object.freeze({ description, fingerprint });
-}
-
 /** Create deterministic JSON-safe workflow documentation. */
 export function document(input: CatalogDefinitionInput<WorkflowDefinition>): readonly WorkflowDocument[] {
 	return Object.freeze(
@@ -879,8 +440,8 @@ export function document(input: CatalogDefinitionInput<WorkflowDefinition>): rea
 				id: definition.id,
 				version: definition.version,
 				...(definition.description === undefined ? {} : { description: definition.description }),
-				inputVendor: definition.input['~standard'].vendor,
-				resultVendor: definition.result['~standard'].vendor,
+				inputVendor: codec.input(definition.input)['~standard'].vendor,
+				resultVendor: codec.input(definition.result)['~standard'].vendor,
 				failures: Object.freeze(definition.failures.map((entry) => entry.id)),
 				effects: Object.freeze(definition.effects.map((entry) => entry.id)),
 				activities: Object.freeze(definition.activities.map((entry) => entry.id)),
@@ -892,107 +453,11 @@ export function document(input: CatalogDefinitionInput<WorkflowDefinition>): rea
 }
 
 /**
- * Builds the describe instruction payload used for diagnostics, replay identity, or generated documentation in the durable workflow interpreter.
- *
- * Workflow internals preserve deterministic instruction identity, replay, cancellation, registered cleanup, and control-instruction ownership.
- *
- * @internal
- */
-function describeInstructionPayload(instruction: WorkflowInstruction): WorkflowDurableValue {
-	if (instruction.category === 'control') {
-		if (instruction.type === 'parallel') {
-			return durable.snapshot({
-				branches: Object.keys(instruction.operations).sort(),
-				failure: instruction.failure,
-				...(instruction.concurrency === undefined ? {} : { concurrency: instruction.concurrency }),
-			}, 'parallel instruction');
-		}
-		if (instruction.type === 'race') {
-			return durable.snapshot({ branches: Object.keys(instruction.operations).sort() }, 'race instruction');
-		}
-		if (instruction.type === 'map') {
-			return durable.snapshot({
-				entries: instruction.entries.map((entry) => entry.key),
-				concurrency: instruction.concurrency,
-				failure: instruction.failure,
-			}, 'map instruction');
-		}
-		return durable.snapshot({
-			maximumAttempts: instruction.maximumAttempts,
-			...(instruction.delay === undefined ? {} : { delay: instruction.delay.toString() }),
-			backoff: instruction.backoff,
-			...(instruction.maximumDelay === undefined ? {} : { maximumDelay: instruction.maximumDelay.toString() }),
-			jitter: instruction.jitter,
-		}, 'retry instruction');
-	}
 
-	if (instruction.type === 'activity') {
-		return durable.snapshot({
-			activity: { id: instruction.activity.id, version: instruction.activity.version },
-			input: instruction.input,
-		}, 'activity command');
-	}
-	if (instruction.type === 'sleep') {
-		return durable.snapshot({ duration: instruction.duration.toString() }, 'sleep command');
-	}
-	if (instruction.type === 'wait') {
-		return durable.snapshot({ signal: instruction.signal.id, input: instruction.input }, 'wait command');
-	}
-	if (instruction.type === 'child-workflow') {
-		return durable.snapshot({
-			workflow: { id: instruction.workflow.id, version: instruction.workflow.version },
-			input: instruction.input,
-			cancellation: instruction.options.cancellation ?? 'follow-parent',
-			result: instruction.options.result ?? 'wait',
-		}, 'child workflow command');
-	}
-	if (instruction.type === 'effect') {
-		return durable.snapshot({ effect: instruction.effect.id, value: instruction.value }, 'effect command');
-	}
-	if (instruction.type === 'defer') {
-		return durable.snapshot({ cleanup: describeCleanup(instruction.cleanup) }, 'defer command');
-	}
-	return durable.snapshot({ input: instruction.input }, 'continue-as-new command');
-}
+ * Advance one generator with stable instruction paths; register successful defer requests and unwind
 
-/**
- * Builds the describe cleanup used for diagnostics, replay identity, or generated documentation in the durable workflow interpreter.
- *
- * Workflow internals preserve deterministic instruction identity, replay, cancellation, registered cleanup, and control-instruction ownership.
- *
- * @internal
- */
-function describeCleanup(
-	command: ActivityCommand<unknown, unknown> | ChildWorkflowCommand<unknown, unknown>,
-): WorkflowDurableValue {
-	if (command.type === 'activity') {
-		return durable.snapshot({
-			category: command.category,
-			type: command.type,
-			version: command.version,
-			...(command.key === undefined ? {} : { key: command.key }),
-			activity: { id: command.activity.id, version: command.activity.version },
-			input: command.input,
-		}, 'cleanup activity command');
-	}
-	return durable.snapshot({
-		category: command.category,
-		type: command.type,
-		version: command.version,
-		...(command.key === undefined ? {} : { key: command.key }),
-		workflow: { id: command.workflow.id, version: command.workflow.version },
-		input: command.input,
-		cancellation: command.options.cancellation ?? 'follow-parent',
-		result: command.options.result ?? 'wait',
-	}, 'cleanup child command');
-}
+ * on any terminal error.
 
-/**
- * Drives one workflow generator until completion while routing each yielded instruction through the deterministic interpreter.
- *
- * Workflow internals preserve deterministic instruction identity, replay, cancellation, registered cleanup, and control-instruction ownership.
- *
- * @internal
  */
 async function driveIterator<Value>(
 	iterator: Generator<WorkflowInstruction, Value, WorkflowCompletionAny>,
@@ -1044,11 +509,11 @@ async function driveIterator<Value>(
 }
 
 /**
- * Closes iterator and waits for the cleanup that the current owner is responsible for.
- *
- * It preserves deterministic durable instruction identity, replay semantics, cancellation, cleanup, and control-instruction ownership.
- *
- * @internal
+
+ * Run synchronous generator finally code. A yielded instruction is a cleanup defect; asynchronous
+
+ * cleanup must be registered with defer().
+
  */
 function closeIterator<Value>(iterator: Generator<WorkflowInstruction, Value, WorkflowCompletionAny>):
 	| Readonly<{ readonly success: true }>
@@ -1064,13 +529,7 @@ function closeIterator<Value>(iterator: Generator<WorkflowInstruction, Value, Wo
 	}
 }
 
-/**
- * Executes cleanups as one finite phase of the module runtime.
- *
- * It preserves deterministic durable instruction identity, replay semantics, cancellation, cleanup, and control-instruction ownership.
- *
- * @internal
- */
+/** Run registered cleanup in reverse order under a fresh, unpaused context; retain every cleanup failure. */
 async function runCleanups(
 	cleanups: readonly WorkflowOperation<unknown, unknown>[],
 	ctx: WorkflowContext,
@@ -1102,11 +561,11 @@ async function runCleanups(
 }
 
 /**
- * Executes control as one finite phase of the module runtime.
- *
- * It preserves deterministic durable instruction identity, replay semantics, cancellation, cleanup, and control-instruction ownership.
- *
- * @internal
+
+ * Select a control interpreter and preserve faults, cancellation and cleanup defects as terminal
+
+ * completions.
+
  */
 async function runControl(
 	ctx: WorkflowContext,
@@ -1132,11 +591,11 @@ async function runControl(
 }
 
 /**
- * Executes parallel as one finite phase of the module runtime.
- *
- * It preserves deterministic durable instruction identity, replay semantics, cancellation, cleanup, and control-instruction ownership.
- *
- * @internal
+
+ * Run keyed branches with bounded ownership; settled mode captures business failures while terminal
+
+ * defects still stop siblings.
+
  */
 async function runParallel(
 	ctx: WorkflowContext,
@@ -1169,13 +628,7 @@ async function runParallel(
 	return success(Object.freeze(Object.fromEntries(values)));
 }
 
-/**
- * Executes race as one finite phase of the module runtime.
- *
- * It preserves deterministic durable instruction identity, replay semantics, cancellation, cleanup, and control-instruction ownership.
- *
- * @internal
- */
+/** Observe the first branch exit, then cancel and join losers before exposing its value or failure. */
 async function runRace(
 	ctx: WorkflowContext,
 	instruction: WorkflowRaceInstruction,
@@ -1197,32 +650,27 @@ async function runRace(
 		return Object.freeze({ key, branch, result: branch.start() });
 	});
 	const first = await Promise.race(branches.map(async (entry) => Object.freeze({ entry, exit: await entry.result })));
+	// Exit type, rather than the thrown value, decides whether a failure exists.
+	const hasPrimary = first.exit.type !== 'success';
 	const primary = exitFailure(first.exit);
 	const reason = new SiblingCancellation(
-		primary === undefined ? `Workflow race was won by ${first.entry.key}.` : primary,
+		hasPrimary ? primary : `Workflow race was won by ${first.entry.key}.`,
 	);
 	await scope.close(reason);
 	const settled = await Promise.all(branches.map(async (entry) => Object.freeze({ entry, exit: await entry.result })));
 	const cleanupFailures = settled
-		.filter(({ entry }) => entry !== first.entry)
+		.filter(({ entry, exit }) => entry !== first.entry && exit.type !== 'success')
 		.map(({ exit }) => exitFailure(exit))
-		.filter((failure) => failure !== undefined && !isSiblingCancellation(failure));
-	if (primary !== undefined) {
+		.filter((failure) => !isSiblingCancellation(failure));
+	if (hasPrimary) {
 		if (cleanupFailures.length > 0) throw new CleanupFailureError(primary, cleanupFailures);
 		throw primary;
 	}
 	if (cleanupFailures.length > 0) throw new CleanupFailureError(first.exit, cleanupFailures);
-	if (first.exit.type !== 'success') throw causeFailure(first.exit.cause);
 	return success(first.exit.value);
 }
 
-/**
- * Executes map as one finite phase of the module runtime.
- *
- * It preserves deterministic durable instruction identity, replay semantics, cancellation, cleanup, and control-instruction ownership.
- *
- * @internal
- */
+/** Run keyed item operations with bounded branch ownership and retain input order in the returned values. */
 async function runMap(
 	ctx: WorkflowContext,
 	instruction: WorkflowMapInstruction,
@@ -1249,11 +697,11 @@ async function runMap(
 }
 
 /**
- * Executes retry as one finite phase of the module runtime.
- *
- * It preserves deterministic durable instruction identity, replay semantics, cancellation, cleanup, and control-instruction ownership.
- *
- * @internal
+
+ * Repeat only business failures under a distinct attempt path; faults and cancellation bypass logical
+
+ * retry.
+
  */
 async function runRetry(
 	ctx: WorkflowContext,
@@ -1269,7 +717,7 @@ async function runRetry(
 			if (isTerminalError(error)) throw error;
 			previous = error;
 			if (attempt < instruction.maximumAttempts && instruction.delay !== undefined) {
-				const delay = retryDelay(instruction, path, attempt);
+				const delay = retryCore.delay(instruction, path, attempt);
 				await resolveOperation(sleep(delay.toString()), ctx, scheduler, `${path}/retry-delay:${attempt}`);
 			}
 		}
@@ -1278,46 +726,11 @@ async function runRetry(
 }
 
 /**
- * Calculates the deterministic retry delay, including bounded jitter, for one instruction attempt.
- *
- * @internal
- */
-function retryDelay(instruction: WorkflowRetryInstruction, path: string, failedAttempt: number): Temporal.Duration {
-	const initialMilliseconds = retryMilliseconds(instruction.delay!);
-	const maximumMilliseconds = instruction.maximumDelay === undefined
-		? Number.POSITIVE_INFINITY
-		: retryMilliseconds(instruction.maximumDelay);
-	const backedOff = Math.min(initialMilliseconds * instruction.backoff ** (failedAttempt - 1), maximumMilliseconds);
-	const jitterScale = instruction.jitter === 0
-		? 1
-		: 1 + ((retryCore.unit(`${path}:${failedAttempt}`) * 2) - 1) * instruction.jitter;
-	return Temporal.Duration.from({ milliseconds: Math.max(0, Math.round(backedOff * jitterScale)) });
-}
 
-/**
- * Converts duration into the millisecond value used by the durable workflow interpreter.
- *
- * @internal
- */
-function retryMilliseconds(value: Temporal.Duration): number {
-	let milliseconds: number;
-	try {
-		milliseconds = durationCore.milliseconds(value);
-	} catch (error) {
-		throw new TypeError('Workflow retry delay must be convertible to milliseconds.', { cause: error });
-	}
-	if (!Number.isFinite(milliseconds) || milliseconds < 0) {
-		throw new TypeError('Workflow retry delay must be a finite non-negative duration.');
-	}
-	return milliseconds;
-}
+ * Admit at most concurrency branches; stop admission after the first failure and join sibling cleanup
 
-/**
- * Runs bounded workflow branches while keeping each child operation owned and joined before the parent continues.
- *
- * Workflow internals preserve deterministic instruction identity, replay, cancellation, registered cleanup, and control-instruction ownership.
- *
- * @internal
+ * before returning.
+
  */
 async function ownedBounded<WorkflowInput, Output>(
 	values: readonly WorkflowInput[],
@@ -1405,21 +818,13 @@ function createBranch<Output>(
 	);
 }
 
-/**
- * Builds the branch exit failure used when the durable workflow interpreter cannot complete as intended.
- *
- * @internal
- */
+/** Project a branch exit for the Promise interpreter; successful exits return the no-failure marker. */
 function exitFailure<Value>(exit: Exit<Value>): unknown | undefined {
 	if (exit.type === 'success') return undefined;
 	return causeFailure(exit.cause);
 }
 
-/**
- * Builds the branch cause failure used when the durable workflow interpreter cannot complete as intended.
- *
- * @internal
- */
+/** Restore fault and cancellation wrappers; retain ordered secondary causes as cleanup failures. */
 function causeFailure(cause: Cause): unknown {
 	if (cause.type === 'failure') return cause.failure;
 	if (cause.type === 'fault') return new FaultError(cause.fault);
@@ -1429,210 +834,22 @@ function causeFailure(cause: Cause): unknown {
 	return failures.length <= 1 ? primary : new CleanupFailureError(primary, failures.slice(1));
 }
 
-/**
- * Creates the workflow context that carries ownership and cancellation through the durable workflow interpreter.
- *
- * Workflow internals preserve deterministic instruction identity, replay, cancellation, registered cleanup, and control-instruction ownership.
- *
- * @internal
- */
-function workflowContext(parent: WorkflowContext, owned: contextCore.Owned, inheritPause = true): WorkflowContext {
-	const checkpoint = inheritPause
-		? async (): Promise<void> => {
-			contextCore.check(owned);
-			await parent.checkpoint();
-			contextCore.check(owned);
-		}
-		: async (): Promise<void> => contextCore.check(owned);
-	return Object.freeze({
-		id: owned.id,
-		...(owned.traceId === undefined ? {} : { traceId: owned.traceId }),
-		...(owned.deploymentId === undefined ? {} : { deploymentId: owned.deploymentId }),
-		...(owned.idempotencyKey === undefined ? {} : { idempotencyKey: owned.idempotencyKey }),
-		startedAt: owned.startedAt,
-		...(owned.deadline === undefined ? {} : { deadline: owned.deadline }),
-		signal: owned.signal,
-		clock: owned.clock,
-		workflow: parent.workflow,
-		runId: parent.runId,
-		input: parent.input,
-		version: parent.version,
-		checkpoint,
-	});
-}
-
-/** Build the checkpoint inherited from a live Task without making Task ownership mandatory for durable workflows. */
-function inheritedCheckpoint(parent: import('@okikio/context').Context, owned: contextCore.Owned): () => Promise<void> {
-	const candidate = (parent as import('@okikio/context').Context & { readonly checkpoint?: unknown }).checkpoint;
-	if (typeof candidate !== 'function') return async () => contextCore.check(owned);
-	return async () => {
-		contextCore.check(owned);
-		await (candidate as () => Promise<void>).call(parent);
-		contextCore.check(owned);
-	};
-}
-
-/**
- * Builds the instruction path used by the durable workflow interpreter.
- *
- * @internal
- */
+/** Combine the scope path with an explicit encoded key, or its sequence position, and the instruction kind. */
 function instructionPath(base: string, index: number, instruction: WorkflowInstruction): string {
 	const segment = instruction.key === undefined ? String(index) : encodeURIComponent(instruction.key);
 	return `${base}/${segment}:${instruction.type}`;
 }
 
-/** Normalize activity command options, including durable affinity and annotation snapshots. @internal */
-function normalizeActivityOptions(options: ActivityCommandOptions): ActivityCommandOptions {
-	recordCore.assert(options, 'workflow activity options');
-	const affinity = options.affinity === undefined ? undefined : freezeAffinity(options.affinity);
-	const annotations = options.annotations === undefined ? undefined : freezeAnnotations(options.annotations);
-	return Object.freeze({
-		...(options.key === undefined ? {} : { key: options.key }),
-		...(annotations === undefined ? {} : { annotations }),
-		...(affinity === undefined ? {} : { affinity }),
-	});
-}
-
-/** Normalize child-workflow options so nested metadata cannot change after operation creation. @internal */
-function normalizeChildOptions(options: ChildOptions): ChildOptions {
-	recordCore.assert(options, 'workflow child options');
-	if (
-		options.cancellation !== undefined && !['follow-parent', 'request', 'independent'].includes(options.cancellation)
-	) {
-		throw new TypeError('workflow child cancellation must be follow-parent, request, or independent.');
-	}
-	if (options.result !== undefined && options.result !== 'wait' && options.result !== 'discard') {
-		throw new TypeError('workflow child result must be wait or discard.');
-	}
-	const annotations = options.annotations === undefined ? undefined : freezeAnnotations(options.annotations);
-	return Object.freeze({
-		...(options.key === undefined ? {} : { key: options.key }),
-		...(annotations === undefined ? {} : { annotations }),
-		...(options.cancellation === undefined ? {} : { cancellation: options.cancellation }),
-		...(options.result === undefined ? {} : { result: options.result }),
-	});
-}
-
-/**
- * Extracts stable instruction metadata used by diagnostics and the durable instruction description.
- *
- * @internal
- */
-function instructionMetadata(
-	options: WorkflowCommandOptions,
-): Readonly<{ readonly key?: string; readonly annotations?: WorkflowAnnotations }> {
-	recordCore.assert(options, 'workflow command options');
-	if (options.key !== undefined) assertStableKey(options.key);
-	return {
-		...(options.key === undefined ? {} : { key: options.key }),
-		...(options.annotations === undefined ? {} : { annotations: freezeAnnotations(options.annotations) }),
-	};
-}
-
-/**
- * Snapshots annotations so later compilation cannot observe caller mutation.
- *
- * @internal
- */
-function freezeAnnotations(value: WorkflowAnnotations): WorkflowAnnotations {
-	const snapshot = recordCore.snapshot(value, 'workflow annotations');
-	for (const [key, annotation] of recordCore.entries(snapshot, 'workflow annotations')) {
-		if (
-			typeof annotation !== 'string' && typeof annotation !== 'boolean' &&
-			(typeof annotation !== 'number' || !Number.isFinite(annotation))
-		) {
-			throw new TypeError(`workflow annotation ${JSON.stringify(key)} must be a string, boolean, or finite number.`);
-		}
-	}
-	return snapshot;
-}
-
-/**
- * Snapshots record so later compilation cannot observe caller mutation.
- *
- * @internal
- */
-function freezeRecord<Values extends Readonly<Record<string, unknown>>>(value: Values): Values {
-	return recordCore.snapshot(value, 'workflow operation record');
-}
-
-/**
- * Rejects invalid operations before it can enter authoritative module state.
- *
- * @internal
- */
-function assertOperations(value: WorkflowOperations): void {
-	recordCore.assert(value, 'workflow operation record');
-	if (recordCore.keys(value, 'workflow operation record').length === 0) {
-		throw new TypeError('Workflow control instruction requires at least one operation.');
-	}
-	for (const [key, childOperation] of recordCore.entries(value, 'workflow operation record')) {
-		assertStableKey(key);
-		assertOperation(childOperation);
-	}
-}
-
-/**
- * Rejects invalid operation before it can enter authoritative module state.
- *
- * @internal
- */
-function assertOperation(value: unknown): asserts value is WorkflowOperation<unknown, unknown> {
-	if (
-		typeof value !== 'object' || value === null ||
-		typeof (value as WorkflowOperation<unknown, unknown>)[Symbol.iterator] !== 'function'
-	) {
-		throw new TypeError('Workflow operation must implement Symbol.iterator.');
-	}
-}
-
-/**
- * Recover the instruction associated with an operation authored by this module.
- *
- * The WeakMap keeps operation identity exact without exposing a mutable field.
- * A look-alike iterable cannot supply an authoritative instruction.
- *
- * @internal
- */
-function createdInstruction(value: WorkflowOperation<unknown, unknown>, label: string): WorkflowInstruction {
-	assertOperation(value);
-	const instruction = operationInstructions.get(value as object);
-	if (instruction === undefined) {
-		throw new TypeError(`${label} must come from a workflow or activity operation creator.`);
-	}
-	return instruction;
-}
-
-/**
- * Rejects invalid instruction before it can enter authoritative module state.
- *
- * It preserves deterministic durable instruction identity, replay semantics, cancellation, cleanup, and control-instruction ownership.
- *
- * @internal
- */
-function assertInstruction(value: unknown): asserts value is WorkflowInstruction {
-	if (typeof value !== 'object' || value === null) {
-		throw new TypeError('Workflow program yielded a non-instruction value.');
-	}
-	const instruction = value as Partial<WorkflowInstruction>;
-	if (instruction.category !== 'command' && instruction.category !== 'control') {
-		throw new TypeError('Workflow instruction category must be command or control.');
-	}
-	if (typeof instruction.type !== 'string' || instruction.type.length === 0) {
-		throw new TypeError('Workflow instruction type must be a non-empty string.');
-	}
-	if (!Number.isSafeInteger(instruction.version) || (instruction.version ?? 0) < 1) {
-		throw new TypeError('Workflow instruction version must be a positive safe integer.');
-	}
-}
-
 /** Encode one workflow completion into data a durable History can persist directly. */
 async function encodeCompletion(
+	instruction: WorkflowInstruction,
 	completion: WorkflowCompletionAny,
 ): Promise<import('./types.ts').HistoryCompletionType> {
 	if (completion.type === 'success') {
-		return Object.freeze({ type: 'success', value: durable.value(completion.value, 'workflow success') });
+		return Object.freeze({
+			type: 'success',
+			value: durable.value(await transferSuccess(instruction, completion.value, 'write'), 'workflow success'),
+		});
 	}
 	if (completion.type === 'failure') {
 		if (failures.isOccurrence(completion.failure)) {
@@ -1663,9 +880,12 @@ async function encodeCompletion(
 /** Decode one persisted completion through exact definitions imported by the replayed workflow. */
 async function decodeCompletion(
 	workflow: WorkflowDefinition,
+	instruction: WorkflowInstruction,
 	completion: import('./types.ts').HistoryCompletionType,
 ): Promise<WorkflowCompletionAny> {
-	if (completion.type === 'success') return success(durable.restore(completion.value));
+	if (completion.type === 'success') {
+		return success(await transferSuccess(instruction, durable.restore(completion.value), 'read', workflow));
+	}
 	if (completion.type === 'cancelled') return cancelled(durable.restore(completion.reason));
 	if (completion.type === 'fault') return fault(durable.restore(completion.fault));
 	if (completion.failure.kind === 'value') return failed(durable.restore(completion.failure.value));
@@ -1673,9 +893,102 @@ async function decodeCompletion(
 	return failed(await failures.decode(completion.failure.value, trusted));
 }
 
+/**
+ * Carry successful application values through the exact contract that authored
+ * each instruction. Composite controls retain individual completion envelopes,
+ * so undefined results and declared failures remain distinguishable during replay.
+ */
+async function transferSuccess(
+	instruction: WorkflowInstruction,
+	value: unknown,
+	direction: 'read' | 'write',
+	workflow?: WorkflowDefinition,
+): Promise<unknown> {
+	const transfer = direction === 'write' ? codec.write : codec.read;
+	if (instruction.type === 'activity') return await transfer(instruction.activity.result, value);
+	if (instruction.type === 'child-workflow') {
+		return instruction.options.result === 'discard' ? undefined : await transfer(instruction.workflow.result, value);
+	}
+	if (instruction.type === 'sleep') {
+		if (direction === 'write' && value instanceof Temporal.Instant) return value.toString();
+		if (direction === 'read' && typeof value === 'string') return Temporal.Instant.from(value);
+		throw new TypeError('Invalid relative timer completion.');
+	}
+	if (instruction.type === 'wait') return await transfer(instruction.signal.value, value);
+	if (instruction.type === 'wait-event') {
+		recordCore.assert(value, 'event completion');
+		if (value.type === 'timeout') return { type: 'timeout' };
+		if (value.type !== 'received') throw new TypeError('Invalid event completion.');
+		return direction === 'write'
+			? {
+				type: 'received',
+				value: durable.value(await codec.write(instruction.event.value, value.value), 'event result'),
+			}
+			: {
+				type: 'received',
+				value: await codec.read(
+					instruction.event.value,
+					durable.restore(value.value as import('./types.ts').HistoryValueType),
+				),
+			};
+	}
+	if (instruction.category !== 'control') return value;
+	const nested = async (
+		operation: WorkflowOperation<unknown, unknown>,
+		input: unknown,
+		settled = false,
+	): Promise<unknown> => {
+		const child = createdInstruction(operation, 'History child operation');
+		if (direction === 'write') {
+			if (!settled) return await encodeCompletion(child, success(input));
+			recordCore.assert(input, 'settled result');
+			if (input.ok !== true && input.ok !== false) throw new TypeError('Invalid settled result.');
+			return await encodeCompletion(child, input.ok ? success(input.value) : failed(input.failure));
+		}
+		if (workflow === undefined) throw new TypeError('History decoding requires an exact workflow definition.');
+		recordCore.assert(input, 'recorded completion');
+		const completion = await decodeCompletion(
+			workflow,
+			child,
+			input as unknown as import('./types.ts').HistoryCompletionType,
+		);
+		if (completion.type === 'success') return settled ? result.ok(completion.value) : completion.value;
+		if (completion.type === 'failure' && settled) return result.fail(completion.failure);
+		throw new TypeError('A successful control result contains an incompatible recorded completion.');
+	};
+	if (instruction.type === 'retry') return await nested(instruction.operation, value);
+	if (instruction.type === 'map') {
+		if (!Array.isArray(value) || value.length !== instruction.entries.length) {
+			throw new TypeError('Invalid mapped history result.');
+		}
+		return await Promise.all(
+			instruction.entries.map((entry, index) =>
+				nested(entry.operation, value[index], instruction.failure === 'settle')
+			),
+		);
+	}
+	recordCore.assert(value, 'control history result');
+	if (instruction.type === 'race') {
+		if (typeof value.key !== 'string' || !Object.hasOwn(instruction.operations, value.key)) {
+			throw new TypeError('Invalid recorded race winner.');
+		}
+		const operation = instruction.operations[value.key]!;
+		return direction === 'write'
+			? { key: value.key, completion: await nested(operation, value.value) }
+			: { key: value.key, value: await nested(operation, value.completion) };
+	}
+	const entries = await Promise.all(
+		Object.entries(instruction.operations).map(async ([key, operation]) => {
+			if (!Object.hasOwn(value, key)) throw new TypeError(`Missing recorded parallel result ${JSON.stringify(key)}.`);
+			return [key, await nested(operation, value[key], instruction.failure === 'settle')] as const;
+		}),
+	);
+	return Object.fromEntries(entries);
+}
+
 /** Collect exact failure definitions reachable from one workflow without global registration. */
-function workflowFailures(workflow: WorkflowDefinition): readonly import('@okikio/failure').Definition[] {
-	const failures = new Set<import('@okikio/failure').Definition>();
+function workflowFailures(workflow: WorkflowDefinition): readonly import('@okikio/result/failure').Definition[] {
+	const failures = new Set<import('@okikio/result/failure').Definition>();
 	for (const failure of workflow.failures) failures.add(failure);
 	for (const activity of workflow.activities) for (const failure of activity.failures) failures.add(failure);
 	// A child workflow may expose only failures declared by its own public
@@ -1685,9 +998,11 @@ function workflowFailures(workflow: WorkflowDefinition): readonly import('@okiki
 }
 
 /**
- * Rejects invalid unique instruction key before it can enter authoritative module state.
- *
- * @internal
+
+ * Reject a repeated explicit instruction key within this sequential scope before history can confuse
+
+ * two requests.
+
  */
 function assertUniqueKey(keys: Set<string>, instruction: WorkflowInstruction): void {
 	if (instruction.key === undefined) return;
@@ -1701,71 +1016,35 @@ function assertUniqueKey(keys: Set<string>, instruction: WorkflowInstruction): v
 }
 
 /**
- * Rejects invalid identifier before it can enter authoritative module state.
- *
- * @internal
- */
-function assertIdentifier(value: string, label: string): void {
-	if (!/^[a-z0-9][a-z0-9._:-]*$/i.test(value)) throw new TypeError(`Invalid ${label} id ${JSON.stringify(value)}.`);
-}
 
-/**
- * Rejects invalid stable key before it can enter authoritative module state.
- *
- * @internal
- */
-function assertStableKey(value: string): void {
-	if (value.trim().length === 0) throw new TypeError('Workflow instruction keys must not be empty.');
-	if (value.length > 512) throw new TypeError('Workflow instruction keys must not exceed 512 characters.');
-}
+ * Exclude faults, continuation, cleanup defects and cancellation from settled business results and
 
-/**
- * Validates positive integer before it is used by the durable workflow interpreter.
- *
- * @internal
- */
-function boundedConcurrency(value: number, label: string): number {
-	const concurrency = assert.positive(value, label);
-	if (concurrency > MAX_ACTIVE_CHILDREN) {
-		throw new RangeError(`${label} cannot exceed ${MAX_ACTIVE_CHILDREN}.`);
-	}
-	return concurrency;
-}
+ * logical retries.
 
-/**
- * Checks whether terminal execution error satisfies the condition required by the durable workflow interpreter.
- *
- * @internal
  */
 function isTerminalError(error: unknown): boolean {
 	return error instanceof FaultError || error instanceof ContinueAsNewError || error instanceof CleanupFailureError ||
 		isCancellation(error);
 }
 
-/**
- * Checks whether cancellation satisfies the condition required by the durable workflow interpreter.
- *
- * @internal
- */
+/** Recognize workflow cancellation wrappers and the context cancellation family. */
 function isCancellation(error: unknown): boolean {
 	return error instanceof CancelledError ||
 		contextCore.cancelled(error);
 }
 
-/**
- * Returns the cancellation reason carried by one terminal workflow error by the durable workflow interpreter.
- *
- * @internal
- */
+/** Unwrap recognized cancellation errors while preserving other values unchanged. */
 function cancellationReason(error: unknown): unknown {
 	if (error instanceof CancelledError || error instanceof contextCore.ContextCancelledError) return error.reason;
 	return error;
 }
 
 /**
- * Checks whether sibling cancellation satisfies the condition required by the durable workflow interpreter.
- *
- * @internal
+
+ * Identify cancellation introduced by this control owner, so ordinary loser shutdown does not become
+
+ * an extra cleanup defect.
+
  */
 function isSiblingCancellation(error: unknown): boolean {
 	if (error instanceof CancelledError) return error.reason instanceof SiblingCancellation;
@@ -1877,7 +1156,82 @@ export type {
 	WorkflowSignal,
 	WorkflowSleepCommand,
 	WorkflowSuccess,
+	WorkflowTimerCommand,
 	WorkflowWaitCommand,
 } from './types.ts';
 
 export { executor } from './jobs.ts';
+
+export { client, ExitError } from './client.ts';
+export type { Admission, ClientOptions, ClientStore, ClientType, SubmitType } from './client.ts';
+export { serve } from './serve.ts';
+export type { ServeOptions, Serving } from './serve.ts';
+export type { EngineBinding } from './engines.ts';
+export {
+	ControlOptionsSchema,
+	ControlSchema,
+	ExecutionError,
+	FinalizationSchema,
+	PolicySchema,
+	ReferenceSchema,
+	SnapshotSchema,
+} from './execution.ts';
+export type { ControlOptions, ControlType } from './execution.ts';
+export { ContinuationSchema } from './execution.ts';
+export type { ContinuationType } from './execution.ts';
+export type {
+	ActivationType,
+	AdmissionType,
+	AttemptType,
+	Claim,
+	DefinitionType,
+	ExecutionStore,
+	HostType,
+	IdentityType,
+	InputType,
+	IntentType,
+	InvocationType,
+	JobType,
+	LocalActivity,
+	OutcomeType,
+	PolicyType,
+	ReferenceType,
+	SnapshotType,
+	ValueType,
+} from './execution.ts';
+
+export type { DurationWaitType, EventResult, EventWaitType, UntilWaitType, WorkflowEventCommand } from './types.ts';
+
+export type { ProgressType } from './execution.ts';
+
+export { events } from './events.ts';
+export type { EventInbox } from './events.ts';
+
+export {
+	activity,
+	child,
+	defer,
+	describe,
+	effect,
+	identify,
+	map,
+	operation,
+	parallel,
+	race,
+	retry,
+	sleep,
+	sleepUntil,
+	wait,
+	waitForEvent,
+} from './instructions.ts';
+export {
+	CancelledError,
+	CleanupFailureError,
+	CleanupInstructionError,
+	ContinueAsNewError,
+	FaultError,
+} from './errors.ts';
+export { context } from './context.ts';
+
+/** Required compute scopes and incarnation references; imports do not register hosts. */
+export * as placement from './placement.ts';

@@ -4,7 +4,13 @@ import { setCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
 import { cloneRawRequest, HonoRequest } from 'hono/request';
 import { TrieRouter } from 'hono/router/trie-router';
-import type { ApplicationType, MatchType, RequestCaseType, ResponseCaseType, RouterCaseType } from './types.ts';
+import type {
+	ApplicationType,
+	MatchType,
+	RequestCaseType,
+	ResponseCaseType,
+	RouterCaseType,
+} from '#fixtures/hono-contracts/types.ts';
 
 /** The upstream common suite runs TrieRouter without skips; retain its raw-path semantics. */
 export function matchHono(input: Pick<RouterCaseType, 'routes' | 'method' | 'path'>): readonly MatchType[] {

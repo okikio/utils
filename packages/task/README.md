@@ -4,6 +4,8 @@ A user starts an import and then presses Pause or Cancel. A plain Promise repres
 standard control for those buttons or for knowing when cleanup has finished. `@okikio/task` gives one local operation a
 handle for pause, resume, cancellation, and an awaited result that includes its cleanup.
 
+For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters keep their native runtime requirements.
+
 A **checkpoint** is a place where the operation cooperates with pause and cancellation. A task is one live operation in
 the current process; it is not a saved job that can restart on another computer.
 
@@ -20,15 +22,23 @@ which also lead through cleanup before terminal settlement. The handle cannot fr
 call.
 
 For shared terms such as `await` and `await using`, see
-[the short glossary](../../docs/learn.md#read-the-small-amount-of-code-you-need).
+[the short glossary](https://github.com/okikio/utils/blob/main/docs/02-learn.md#read-the-small-amount-of-code-you-need).
 
-For the exact functions, types and field explanations, read the [generated contract reference](API.md).
+For control, observation, and cancellation details, read the [Task guide](../../docs/task/01-guide.md).
+
+For work accepted by a service and resumed after worker loss, use the
+[saved background-work path](https://github.com/okikio/utils/blob/main/docs/workflows/01-basics.md). A local Task
+remains useful inside a process, but it is not another required scheduler for that path.
 
 ## Give an ordinary import a result and a pause button
 
 An import screen needs a Pause button that stops admitting new records. An async function can still do the work. Here an
 array stands in for the destination: no database account is required. Pausing before admission leaves it empty; resuming
 saves the three normalized names. `await using` closes the handle when its block ends, including after an error.
+
+From the repository root, run `mise run prepare -- --kind deps`, save the next block as `normalize-contacts.ts`, then run
+`mise exec -- deno run normalize-contacts.ts` with the pinned Deno 2.9.7 host. The examples below use workspace imports
+and local arrays; no network or database is required. Later named blocks can be saved and run in the same way.
 
 ```ts runnable=normalize-contacts.ts
 import '@okikio/duration/polyfill';
@@ -39,14 +49,17 @@ const names = [' Ada ', 'Grace ', ' Linus'];
 const saved: string[] = [];
 await using work = task.start(async (ctx) => {
 	for (const name of names) {
+		// Pause takes effect here, before the next record changes application state.
 		await ctx.checkpoint();
 		saved.push(name.trim());
 	}
 	return saved;
 }, { id: 'contact-import' });
+// Wait until the operation reaches a checkpoint; a pause request cannot interrupt arbitrary code.
 await work.pause();
 console.log('Saved while paused:', saved.length);
 work.resume();
+// done settles after task cleanup, so the owner can use the final result.
 console.log((await work.done).join(', '));
 ```
 
@@ -74,140 +87,145 @@ This keeps control state beside a familiar async function, instead of passing se
 cleanup stacks through each loop. Control remains cooperative: an uninterrupted provider call must finish or observe its
 signal itself. A Task does not save progress for a later process.
 
-## Release a temporary export URL before returning
+## Observe progress separately from the result
 
-A contact preview uses a temporary Blob URL to read an export. That URL must be revoked after the read, including when
-work fails or is cancelled. Registering it with the task keeps that responsibility beside the work. Awaiting `done`
-means the exported text is available and the temporary URL has already been released. The explicit polyfills support the
-task's Temporal clock and disposal stack on hosts missing those APIs.
+Emit `task.ProgressEffect` through `effect.emit(ctx, task.ProgressEffect, report)` for standard progress. No key or
+`progress` option is needed. Read `work.progress` or subscribe to `work.updates`; await `work.done` for the result. See
+the [progress guide](../../docs/task/03-progress.md).
 
-```ts runnable
+## Connect local controls to a visible operation
+
+An import dialog and a finite media job both need a terminal result plus pause or cancellation controls. The ordinary
+function still produces the result.
+
+Use Task for one local controllable operation. Pass Context for lifetime and resources; add Workflow when state must
+survive a process restart.
+
+Pause is cooperative at checkpoints. It cannot suspend an arbitrary CPU loop, migrate a JavaScript stack, or undo
+completed writes.
+
+## Choose an entry point
+
+Use the table to find a focused import for the job you need. Contract links open the exact public source, including its
+options and types.
+
+| Import                  | Use it to                                                                | Exact contract            |
+| ----------------------- | ------------------------------------------------------------------------ | ------------------------- |
+| `@okikio/task`          | Use the package entry shown in the complete examples above.              | [Contract](./mod.ts)      |
+| `@okikio/task/types`    | Import public types for this capability; this entry does not start work. | [Contract](./types.ts)    |
+| `@okikio/task/group`    | Admit tasks through a bounded scheduler and join owned cleanup.          | [Contract](./group.ts)    |
+| `@okikio/task/progress` | Project weighted display progress without controlling task results.      | [Contract](./progress.ts) |
+
+## Measure joined children and progress
+
+The focused benchmarks measure joined child lifetimes and shared-source progress snapshots. The benchmark compares
+against ordinary Task lifecycle; raw source read. Raw reads omit weighted progress; local Tasks do not establish durable
+orchestration.
+
+From the repository root, run the package's tests and untimed benchmark checks before collecting timings:
+
+```sh
+mise run test -- --project task
+mise run bench -- --project task --check
+mise run bench -- --project task
+```
+
+These commands use package-owned fixtures and development dependencies. The
+[benchmark protocol](../../docs/benchmarks/01-running.md#choose-a-comparison-that-answers-the-question) explains fair
+comparisons, raw report collection and the limits of local measurements.
+
+## Import two contact lists and join their cleanup
+
+A screen can run several independently controllable imports. A group limits how many start and awaits their cleanup.
+This is the earlier name-trimming operation applied to two small lists, with a counter proving both cleanups finished.
+
+```ts runnable=contact-groups.ts
 import '@okikio/duration/polyfill';
 import '@okikio/dispose/polyfill';
-import * as task from '@okikio/task';
-await using work = task.start(async (ctx) => {
-	const url = ctx.adopt(URL.createObjectURL(new Blob(['Name\nAda\nGrace\n'])), URL.revokeObjectURL);
-	const response = await fetch(url, { signal: ctx.signal });
-	return { text: await response.text(), url };
-}, { id: 'contact-preview' });
-const exportFile = await work.done;
-console.log(exportFile.text.trim());
-try {
-	await fetch(exportFile.url);
-} catch (error) {
-	if (!(error instanceof TypeError)) throw error;
-	console.log('Temporary URL released');
+import * as context from '@okikio/context';
+import * as groups from '@okikio/task/group';
+await using owner = context.create({ id: 'contact-groups' });
+await using group = groups.create({ ctx: owner, concurrency: 2, maximumWaiting: 2, mode: 'settled' });
+let cleaned = 0;
+async function start(names: string[]) {
+	return await group.start(async (ctx) => {
+		ctx.defer(() => {
+			cleaned++;
+		});
+		const saved: string[] = [];
+		for (const name of names) {
+			// Pause takes effect here, before the next record changes application state.
+			await ctx.checkpoint();
+			saved.push(name.trim());
+		}
+		return saved.join(', ');
+	});
 }
+const first = await start([' Ada ', ' Grace ']);
+const second = await start([' Linus ']);
+const summary = await group.close();
+console.log(await first.done);
+console.log(await second.done);
+console.log('Completed:', summary.completed, 'cleaned:', cleaned);
 ```
-
-Expected output:
 
 ```text output
-Name
-Ada
-Grace
-Temporary URL released
+Ada, Grace
+Linus
+Completed: 2 cleaned: 2
 ```
 
-`start()` returns `Task<{ text: string; url: string }>` immediately. `work.done` resolves to that value after registered
-cleanup runs. A thrown operation or cleanup failure rejects it. The task owns its child context; the caller owns the
-task through `await using`.
+`start` waits for admission before returning a normal Task. Excess starts reject with `GroupAdmissionError` before
+retaining their work; use bounded production rather than creating an unlimited Promise.all. `close` stops new starts and
+drains already accepted queued work. `cancel` stops admission, cancels queued/active work cooperatively and joins it.
+Parent cancellation also releases paused checkpoints. Uncooperative work can delay settlement. The group keeps counters,
+not a history of child handles or results; callers keep returned Tasks when they need those outcomes.
 
-## Read the mini-demo
+`mode: 'fail-fast'` closes admission on the first child rejection, cancels siblings and rejects `done` with that
+original value only after every accepted start and child cleanup settles. `mode: 'settled'` preserves rejections on each
+Task.done and resolves group counters after close, including failed-child count and whether cancellation was requested.
+It does not reinterpret a failed child as successful. Disposal cancels and joins the group; a fail-fast terminal
+rejection remains visible on repeated close/disposal. No process-loss durability or forced preemption is implied.
 
-The demo reads the export through a real Fetch call. Its second Fetch call fails because the task has revoked the URL,
-so the observation checks a real resource release rather than an artificial cleanup marker. The returned URL is included
-only to inspect that release; an application should use the returned text, not pass the expired URL to a download link.
-A link that must stay usable belongs to the screen's longer lifetime instead.
+## Display the combined progress of those contact lists
 
-- **Pause a multi-file import:** place checkpoints between files, use [Streams](../streams/README.md) for incremental
-  input, and pass the task signal into actual I/O. Checkpoints do not interrupt an indivisible database or codec call.
-- **Use an already-open connection:** borrow a [Resource](../resource/README.md) collection or a value leased from
-  [Pool](../pool/README.md). The task owns its local execution and registered cleanup; the outer owner still closes
-  borrowed resources. Use [Workflow](../workflow/README.md) when execution also needs persisted history and recovery.
+The view owns two progress cells, one for each import. Actual Task subscriptions update these cells; this isolated
+example supplies the snapshots directly so their weights are inspectable. It never changes either Task's result.
+The first list has two contacts and the second has one, so weights 2 and 1 make each contact an equal share.
 
-## Pause and resume
-
-Pausing is cooperative. `pause()` resolves when the operation reaches its next `ctx.checkpoint()` or becomes terminal:
-
-```ts
-await using operation = task.start(async (ctx) => {
-	for (const item of items) {
-		await ctx.checkpoint();
-		await processItem(item, ctx.signal);
-	}
-});
-
-await operation.pause();
-// In this multi-item operation, pause stops new items at a checkpoint.
-operation.resume();
-await operation.done;
+```ts runnable=contact-progress.ts
+import * as state from '@okikio/context/state';
+import * as progress from '@okikio/task/progress';
+using first = state.create<progress.ProgressType | undefined>({ completed: 1, total: 2 });
+using second = state.create<progress.ProgressType | undefined>({ completed: 0, total: 1 });
+using total = progress.combine([first.reader, second.reader], { weights: [2, 1], maximumChildren: 2 });
+console.log('Saved share:', total.get().ratio?.toFixed(2));
+first.set({ completed: 2, total: 2 });
+second.set({ completed: 1, total: 1 });
+console.log('Saved share:', total.get().ratio?.toFixed(2));
 ```
 
-A Task cannot suspend an in-flight `fetch()`, codec call, database statement, or other indivisible provider operation.
-Put checkpoints between meaningful units of work rather than pretending arbitrary JavaScript can be frozen safely.
-
-## Larger composition
-
-A Task can borrow an existing resource collection while owning only its local execution lifetime:
-
-```ts
-await using conversion = task.start(async (ctx) => {
-	const input = await ctx.get(MediaInput);
-
-	for await (const segment of input.segments()) {
-		await ctx.checkpoint();
-		await convertSegment(segment, ctx.signal);
-	}
-
-	return { converted: true };
-}, {
-	ctx: requestContext,
-	resources,
-	allowed: [MediaInput],
-});
-
-await conversion.pause();
-conversion.resume();
-const result = await conversion.done;
+```text output
+Saved share: 0.33
+Saved share: 1.00
 ```
 
-The Task borrows `resources`; it does not dispose the collection. Values acquired through the Task context remain
-subject to the collection's ownership rules. `done` is terminal authority. `status` is only a synchronous lifecycle
-snapshot.
+For display progress, `@okikio/task/progress` exposes `combine(readers, { weights, maximumChildren })`. It borrows
+Context progress readers and returns an owned read-only projection. Each positive finite weight is a relative share
+independent of the child's unit. Unknown completed/total counters keep the aggregate ratio unknown. Zero/zero is known
+empty work and contributes one; an empty reader set remains unknown. Changing totals changes the ratio without changing
+weights. Floating-point ratios are display data, not accounting values.
 
-## Cancellation
+To observe a Task, own a Context cell initialized from `work.progress?.value`, then subscribe to `work.updates` and set
+that cell from each standard progress occurrence. Pass the cell's reader to combine and dispose both subscriptions with
+the view. The projection suppresses unchanged ratios, owns only its reader subscriptions and never cancels borrowed
+tasks. A ratio of one does not settle Task.done or prove that cleanup succeeded; a task can fail after its final
+progress report.
 
-`cancel(reason)` asks active work to stop and resolves after the Task reaches a terminal state and its owned Context has
-finished cleanup:
+## Read further
 
-```ts
-await using operation = task.start(run, { ctx: requestContext });
+The [Task guide](https://github.com/okikio/utils/blob/main/docs/task/01-guide.md) explains the model, manual
+alternatives, and composition.
 
-await operation.cancel(new Error('request no longer needs this work'));
-console.log(operation.status); // "cancelled" unless cleanup itself failed
-```
-
-If work fails and cleanup also fails, standard `SuppressedError` semantics keep both failures visible.
-
-## Convenience and the manual equivalent
-
-| Convenience            | Manual equivalent                                                                                                            | Concrete value                                                                              |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `task.start()`         | create a child context, abort controller, pause gate, terminal promise, status state machine, and cleanup ownership yourself | one finite process-local operation lifetime                                                 |
-| `pause()` / `resume()` | manage pause generations and acknowledgement promises around cooperative checkpoints manually                                | pause is explicit/cooperative instead of pretending JavaScript can be suspended arbitrarily |
-
-The manual equivalent is an `AbortController`, a child lifetime, a pause Promise, an `AsyncDisposableStack`, and one
-terminal result Promise. `@okikio/task` packages those process-local lifecycle rules so every caller does not have to
-rebuild the same state machine.
-
-It deliberately does not create durable identity, retry state, queue claims, or workflow history.
-
-## Source guide
-
-1. `mod.ts` contains the complete Task state machine and public `start()` operation.
-2. `types.ts` defines `Task`, `TaskContext`, `TaskOptions`, and lifecycle states.
-3. `mod.test.ts` shows cancellation, pause generations, cleanup, and resource borrowing as executable examples.
-4. Read `@okikio/context` and `@okikio/resource` when you need the ownership model behind the Task context.
-
-Use this README for scenarios and design decisions, and [API.md](API.md) for the source-derived exported contracts.
+See [progress reports](https://github.com/okikio/utils/blob/main/docs/task/03-progress.md) for effect-based reports
+through `updates`. `done` still owns the result.

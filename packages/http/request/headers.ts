@@ -52,7 +52,11 @@ export function parseHeaders(input: Headers, options: RequestParsingOptions = {}
 	return Object.freeze(result);
 }
 
-/** Create a log-safe projection that never exposes credentials or cookie values. */
+/**
+ * Replace known credential fields and caller-named sensitive fields with markers.
+ * This does not discover application secrets hidden under arbitrary header names;
+ * the application must add those names to extraSensitive before logging.
+ */
 export function redactHeaders(input: Headers | WireRecord, extraSensitive: readonly string[] = []): WireRecord {
 	const source = input instanceof Headers ? parseHeaders(input) : input;
 	const sensitive = new Set([
@@ -72,7 +76,7 @@ export function redactHeaders(input: Headers | WireRecord, extraSensitive: reado
 }
 
 /**
- * Enforces the byte length before HTTP request normalization admits more data.
+ * Count UTF-8 wire bytes, which can exceed JavaScript string length for non-ASCII text.
  *
  * @internal
  */

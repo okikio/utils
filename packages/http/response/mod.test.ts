@@ -607,3 +607,25 @@ describe('response body disposal', () => {
 		}
 	});
 });
+
+it('releases response completion readers after EOF, cancellation and source errors', async () => {
+	const { onComplete } = await import('./completion.ts');
+	for (const outcome of ['complete', 'cancel', 'error'] as const) {
+		let cancel = 0;
+		const source = new ReadableStream<Uint8Array>({
+			start(controller) {
+				if (outcome === 'complete') controller.close();
+				if (outcome === 'error') controller.error(new Error('source failed'));
+			},
+			cancel() {
+				cancel++;
+			},
+		});
+		const observed = onComplete(new Response(source), () => {});
+		if (outcome === 'cancel') await observed.body!.cancel();
+		else if (outcome === 'error') await expect(observed.text()).rejects.toBeDefined();
+		else await observed.text();
+		expect(source.locked).toBe(false);
+		expect(cancel).toBe(outcome === 'cancel' ? 1 : 0);
+	}
+});

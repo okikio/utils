@@ -1,0 +1,22 @@
+{
+	"name": "@okikio/collection",
+	"version": "0.0.0",
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"exports": {
+		"./iterable": "./iterable.ts",
+		"./catalog": "./catalog/mod.ts",
+		"./catalog/types": "./catalog/types.ts",
+		"./record": "./record/mod.ts",
+		"./record/types": "./record/types.ts",
+		"./record/json": "./record/json.ts",
+		"./record/change": "./record/change.ts",
+		".": "./mod.ts"
+	},
+	"devDependencies": {
+		"fast-check": "^4.9.0",
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
+		"mitata": "^1.0.34"
+	}
+}

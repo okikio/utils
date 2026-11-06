@@ -5,6 +5,8 @@ application can accept. Reading those values carelessly can lose a user's choice
 service. `@okikio/http` supplies focused tools for reading requests, describing responses and verifying webhook
 messages. You can use one tool with an ordinary Web `Request` or combine them in a service.
 
+For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters keep their native runtime requirements.
+
 HTTP is the exchange between a caller and a server: the caller sends a `Request`, and the server returns a `Response`.
 This package works on those values. Choose the part that matches your task:
 
@@ -20,36 +22,19 @@ Read the left side as ways to interpret an incoming message and the right side a
 application connects them with its own decisions. Parsing a token does not authenticate it, and accepting bytes does not
 make their contents valid for your business rules.
 
-## Keep every search filter, remove private forwarding headers
+## Keep every search filter in a native handler
 
-```ts runnable
-import * as request from '@okikio/http/request';
-import { forward } from '@okikio/http/headers';
-console.log(JSON.stringify(request.parseQuery('?tag=one&tag=two')));
-const headers = forward(new Headers({ Connection: 'X-Internal', 'X-Internal': 'secret', Accept: 'application/json' }));
-console.log(headers.has('x-internal'), headers.get('accept'));
-```
-
-Expected output:
-
-```text output
-{"tag":["one","two"]}
-false application/json
-```
-
-The first input asks for both `tag=one` and `tag=two`. `parseQuery()` keeps them as an array, so a search page can use
-both filters. The second input names `X-Internal` in the `Connection` header. `forward()` removes that
-connection-specific field while keeping `Accept`, which still tells the next service which response format the caller
-accepts. The two output lines show preserved choices and removal of a field that must not cross the forwarding hop.
-
-You can use those values in an ordinary handler. This complete example needs no router, schema, execution context or
-network connection:
+From the Utils checkout, review `mise.toml`, then run `mise trust`, `mise install` and `mise run prepare -- --kind deps`.
+Save this complete program as `http-search.ts` and run `mise exec -- deno run http-search.ts`.
+It calls an ordinary function with a Request; it opens no port.
 
 ```ts runnable=http-search.ts
 import { parseQuery } from '@okikio/http/request';
 
+/** Preserve repeated tag values before the application chooses how to apply them. */
 function search(incoming: Request): Response {
 	const query = parseQuery(new URL(incoming.url).search);
+	// A missing tag, one tag, and repeated tags have distinct parser shapes. Normalize them for this endpoint.
 	const tags = query.tag === undefined ? [] : typeof query.tag === 'string' ? [query.tag] : query.tag;
 	return Response.json({ filters: tags });
 }
@@ -61,6 +46,26 @@ console.log(await outgoing.text());
 ```text output
 {"filters":["art","music"]}
 ```
+
+The repeated `tag` field represents two choices. The handler preserves both rather than using only the last one.
+It needs no router, schema or execution context. Parsing keeps text intact; deciding which tags a search supports is
+still application work.
+
+When that same search forwards a request, remove connection-specific fields before sending it to another service:
+
+```ts runnable=forward-search.ts
+import { forward } from '@okikio/http/headers';
+const headers = forward(new Headers({ Connection: 'X-Internal', 'X-Internal': 'secret', Accept: 'application/json' }));
+console.log(headers.has('x-internal'), headers.get('accept'));
+```
+
+```text output
+false application/json
+```
+
+`Connection` names `X-Internal` as hop-specific, so `forward()` removes it and keeps `Accept`. This operation handles
+connection headers. Use `request.forwardHeaders()` or Gateway when credential and forwarded-host trust policy must also
+be applied; removing hop-by-hop fields alone is not a complete credential policy.
 
 ## What the functions receive and return
 
@@ -80,172 +85,227 @@ filter is still text until your application decides which filters are supported.
 
 Start with the native handler above. Add response or problem definitions when several handlers need the same checked
 answer shape; add a service when you want that checking performed automatically. You can read the
-[full function and type contracts](API.md) without adopting those additional layers.
+[public source contracts](./mod.ts) without adopting those additional layers.
 
-## Build on the example
+## Choose value helpers or a complete service
 
-For a search API, combine [request parsing](request/README.md) with an [endpoint](../server/endpoint/README.md) that
-validates the allowed filters. Return a [response](response/README.md) for matching records or a declared
-[problem](problem/README.md) for an unsupported filter. This separates the user's exact input from the rules your search
-supports.
+For a search API, combine [request parsing](./request/README.md) with an [endpoint](../server/endpoint/README.md) that
+validates the allowed filters. Return a [response](./response/README.md) for matching records or a declared
+[problem](./problem/README.md) for an unsupported filter. This separates the user's exact input from the rules your
+search supports.
 
-For a provider callback, use [webhook verification](webhook/README.md) before decoding the event, then pass the verified
-message to your application. For forwarding to another service, choose `request.forwardHeaders()` when credential and
-host policy must accompany connection-header removal. The [gateway](../server/gateway/README.md) composes those
-decisions with route ownership. Neither parsing nor forwarding decides which actor may access a record.
+For a provider callback, use [webhook verification](./webhook/README.md) before decoding the event, then pass the
+verified message to your application. For forwarding to another service, choose `request.forwardHeaders()` when
+credential and host policy must accompany connection-header removal. The [gateway](../server/gateway/README.md) composes
+those decisions with route ownership. Neither parsing nor forwarding decides which actor may access a record.
 
-[Choose related utilities by outcome](../../docs/outcomes.md). Later examples with application-owned clients or schemas
-are composition sketches; supply those dependencies before running them.
+[Choose related utilities by outcome](../../docs/07-outcomes.md). The focused READMEs explain each value before the larger service composition.
 
-## Public areas
+## Authenticate bytes independently of an HTTP framework
 
-`@okikio/http/request` : Parses and sanitizes an untrusted Web `Request` with explicit size and trust rules.
+A stored callback payload can need authentication before it becomes a request or parsed object. Signature signs exact
+bytes. The demonstration secret is public example input and must not be used as a real credential.
 
-`@okikio/http/cookie` : Defines stable application cookie contracts and provides Fetch-native cookie helpers.
+```ts runnable=authenticate-bytes.ts
+import { sign, verify } from '@okikio/http/signature';
 
-`@okikio/http/response` : Defines successful HTTP representations and runtime occurrences. It also owns headers, status
-schemas, pagination, conditional responses, byte ranges, and response-body completion observation.
-
-`@okikio/http/problem` : Defines RFC 9457 problem representations and runtime occurrences.
-
-## Declared problem example
-
-```ts
-import * as problem from '@okikio/http/problem';
-
-const problemBase = 'https://problems.example.invalid/v1';
-const NotFound = problem.define({
-	id: 'widget:not-found',
-	type: problem.url(problemBase, 'widget-not-found'),
-	status: 404,
-	title: 'Widget not found',
-	description: 'The requested widget does not exist.',
-});
-
-const result = problem.create(NotFound, {
-	detail: 'Widget "w_123" was not found.',
-	instance: '/widgets/w_123',
-});
-```
-
-`problem.url(base, path)` is only a convenience. Its manual equivalent is a normalized `new URL(path, base)` call. The
-caller owns the stable problem namespace; the generic HTTP package does not choose a product domain.
-
-## Carry search filters and a browser preference together
-
-This handler keeps both selected tags and validates the browser's display preference. The preference cookie carries a
-string, not a session object. The response definition supplies one shared shape for the resulting JSON:
-
-```ts runnable=search-preference.ts
-import * as cookie from '@okikio/http/cookie';
-import * as request from '@okikio/http/request';
-import * as response from '@okikio/http/response';
-import { z } from 'zod';
-
-const Theme = cookie.define({
-	id: 'display.theme',
-	name: 'theme',
-	description: 'Preferred display theme.',
-	value: z.enum(['light', 'dark']),
-	attributes: { path: '/', sameSite: 'lax' },
-});
-const SearchResult = response.ok(z.object({ tags: z.array(z.string()), theme: z.enum(['light', 'dark']) }), {
-	id: 'search.result',
-	description: 'Selected search filters and display theme.',
-});
-
-async function search(incoming: Request): Promise<Response> {
-	const query = request.parseQuery(new URL(incoming.url).search);
-	const tags = query.tag === undefined ? [] : typeof query.tag === 'string' ? [query.tag] : query.tag;
-	const theme = await cookie.safeGet(incoming, Theme);
-	if (!theme.success) return Response.json({ error: 'Unsupported display theme.' }, { status: 400 });
-	const value = response.finalize(response.create(SearchResult, { tags: [...tags], theme: theme.value ?? 'light' }));
-	return Response.json(value.body, { status: value.status, headers: response.toHeaders(value.headers) });
-}
-
-const incoming = new Request('https://service.invalid/search?tag=film&tag=music', {
-	headers: { cookie: 'theme=dark' },
-});
-const outgoing = await search(incoming);
-console.log(outgoing.status, await outgoing.text());
+const secret = 'example-only-secret';
+const bytes = new TextEncoder().encode('{"asset":"photo-1"}');
+const signature = await sign(secret, bytes);
+console.log(await verify(secret, bytes, signature));
+const changed = new TextEncoder().encode('{"asset":"photo-2"}');
+console.log(await verify(secret, changed, signature));
 ```
 
 ```text output
-200 {"tags":["film","music"],"theme":"dark"}
+true
+false
 ```
 
-Only local Request/Response values are used. An absent preference selects `light`; an unsupported cookie follows the
-ordinary `400` branch. The body is assembled from parsed strings and the checked cookie. `response.create()` supplies
-the declared type at construction; a service would additionally validate unknown handler output at runtime.
+The changed payload cannot reuse the original signature. A successful verification does not establish freshness,
+audience, authorization, or single delivery. Include the required version, expiry, and scope in the signed bytes and
+check them through application policy. Use Webhook when receiving a protocol-defined signed request, and Hash when only
+content integrity without a secret key is required.
 
-## Query wire forms
+## Carry HTTP values across a framework boundary
 
-Query parsing keeps transport syntax separate from endpoint schema semantics. When the runtime has the raw `URL.search`
-string, it preserves the difference between a bare parameter and an explicitly empty value:
+A search URL can contain repeated filters; a webhook needs its exact signed bytes; a file response needs correct
+representation headers. These are distinct protocol jobs.
 
-```text
-?loud        bare parameter
-?loud=       explicit empty value
-?loud=true   explicit value
+Choose Request for input, Response for output, Problem for expected failures, Cookie for state, and Signature or Webhook
+for authenticated bytes. Server owns routing and application composition.
+
+Verify bytes before interpreting signed JSON. The application chooses secrets, replay policy, trust of forwarded
+headers, and the meaning of failures.
+
+## Choose an entry point
+
+Use the table to find a focused import for the job you need. Contract links open the exact public source, including its
+options and types.
+
+| Import                             | Use it to                                                                       | Exact contract                       |
+| ---------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------ |
+| `@okikio/http`                     | Use the package entry shown in the complete examples above.                     | [Contract](./mod.ts)                 |
+| `@okikio/http/cookie`              | Parse and serialize cookies with explicit attributes and value policy.          | [Contract](./cookie/mod.ts)          |
+| `@okikio/http/problem`             | Declare and render expected HTTP problems.                                      | [Contract](./problem/mod.ts)         |
+| `@okikio/http/problem/testing`     | Assert problem responses in contract tests.                                     | [Contract](./problem/testing/mod.ts) |
+| `@okikio/http/request`             | Read repeated query fields, bounded bodies, and forwarding metadata.            | [Contract](./request/mod.ts)         |
+| `@okikio/http/webhook`             | Verify signed request bytes before interpreting an event.                       | [Contract](./webhook/mod.ts)         |
+| `@okikio/http/webhook/standard`    | Use the Standard Webhooks signing and verification profile.                     | [Contract](./webhook/standard.ts)    |
+| `@okikio/http/response`            | Construct responses and apply protocol conditions.                              | [Contract](./response/mod.ts)        |
+| `@okikio/http/response/body`       | Construct response bodies with explicit representation choices.                 | [Contract](./response/body.ts)       |
+| `@okikio/http/response/types`      | Import public types for this capability; this entry does not start work.        | [Contract](./response/types.ts)      |
+| `@okikio/http/response/headers`    | Apply response-header operations without constructing a server.                 | [Contract](./response/headers.ts)    |
+| `@okikio/http/response/completion` | Observe response completion through its explicit lifecycle contract.            | [Contract](./response/completion.ts) |
+| `@okikio/http/response/http`       | Apply HTTP response negotiation and conditional-request behavior.               | [Contract](./response/http.ts)       |
+| `@okikio/http/response/status`     | Use named status contracts when composing response behavior.                    | [Contract](./response/status.ts)     |
+| `@okikio/http/problem/types`       | Import public types for this capability; this entry does not start work.        | [Contract](./problem/types.ts)       |
+| `@okikio/http/request/types`       | Import public types for this capability; this entry does not start work.        | [Contract](./request/types.ts)       |
+| `@okikio/http/headers`             | Inspect and transform HTTP headers independently of a request handler.          | [Contract](./headers.ts)             |
+| `@okikio/http/signature`           | Sign or verify authenticated bytes; the application owns key and replay policy. | [Contract](./signature/mod.ts)       |
+| `@okikio/http/events`              | Read and write bounded server-sent event streams.                               | [Contract](./events.ts)              |
+
+## Read or write bounded SSE wire messages
+
+SSE carries named events and IDs over a byte stream. Write two greeting events, then parse those bytes back into
+wire messages. Save `greeting-events.ts` and run `mise exec -- deno run greeting-events.ts`:
+
+```ts runnable=greeting-events.ts
+import { readable } from '@okikio/streams';
+import * as events from '@okikio/http/events';
+const limits = { maximumBytes: 1024, maximumChunkBytes: 1024, maximumEventBytes: 256, maximumEvents: 2 };
+const encoded = events.write(
+	readable([
+		{ id: '1', event: 'greeting', data: 'Hello, Sam!' },
+		{ id: '2', event: 'greeting', data: 'Hello, Jo!' },
+	]),
+	limits,
+);
+for await (const message of events.read(readable(encoded), limits)) console.log(message.id, message.data);
 ```
 
-`parseQuery()` accepts a `bareQueryParameters` policy:
-
-- `flag` maps a bare parameter to the string `"true"`;
-- `empty` maps it to an empty string;
-- `reject` reports the bare form as invalid input.
-
-The default is `empty`, which matches `URLSearchParams`. An endpoint that defines presence-as-true syntax can opt into
-`flag`; `endpoint.input(...)` can scope that policy to one query contract. Explicit `=` values are never rewritten, so
-`?loud=` remains empty and can fail a schema that accepts only `true` or `false`. Repeated values retain authored order.
-WHATWG `URLSearchParams` still owns percent decoding and `+`-as-space behavior. Passing an existing `URLSearchParams`
-cannot preserve the bare-versus-empty distinction because the Web API has already normalized both forms to an empty
-string.
-
-The generic reader does not coerce arbitrary text such as `42`, `null`, or JSON. The endpoint Standard Schema remains
-responsible for domain-specific conversion and validation.
-
-## How it fits
-
-Domain code can define expected failures without HTTP. Endpoint code selects which success responses and HTTP problems
-the operation may expose. The server runtime validates the selected definitions and materializes the final native
-`Response`.
-
-```text
-domain result or expected failure
-  -> endpoint response/problem selection
-  -> HTTP response or RFC 9457 problem occurrence
-  -> server materialization
-  -> native Response
+```text output
+1 Hello, Sam!
+2 Hello, Jo!
 ```
 
-The package remains import-safe. Importing it performs no network access, starts no listener, and installs no global
-state.
+The focused entry composes STD's browser-compatible SSE parser and writer. Read budgets count total original bytes, each
+provider chunk, raw bytes between blank logical lines, and returned wire messages. Comments and unknown fields consume
+raw byte budgets too. CR, LF, CRLF and split initial UTF-8 BOM follow the parser's rules. Admission checks a complete
+input chunk before giving it to STD, so a later oversize frame can reject earlier messages in that same chunk. The
+parser's retention is bounded by admitted event/chunk sizes; these byte limits do not count JavaScript object overhead
+or the provider's original allocation.
 
-## Record-shaped request options and response headers
+These are **wire messages**: comments, id-only and retry-only messages are exposed, and STD emits a nonempty final
+message without a terminating blank line. This is not browser EventSource dispatch. An absent ID is not filled from an
+earlier message. The caller owns Last-Event-ID state, retry timing and any reconnect loop. Retry values must fit safe
+nonnegative milliseconds. Writing rejects NUL in IDs, newlines in ID/event, invalid counters and oversized serialized
+messages. Native UTF-8 replacement behavior is retained.
 
-When an HTTP operation accepts a JavaScript record for parsing limits or headers, that record must be a plain object or
-null-prototype data record. Hidden, inherited, symbol, and accessor properties are rejected before their values are
-read. Native `Headers` objects and explicit `[name, value]` header tuples keep their own Web-platform semantics.
+Both iterators own their source reader, stop on early return and release its lock promptly. `signal` interrupts a
+pending read. `onCleanup` receives the eventual actual source cancellation outcome, including late failure; it is
+separate from the consumer's refusal or cancellation. `preventCancel` releases a borrowed source without requesting its
+cancellation.
 
-This matters most for operational limits: an inherited getter must never be able to silently change a body/header bound
-that the visible configuration does not show.
+## Stream finite JSON values in one native Response
 
-## Webhooks
+NDJSON is one JSON value per line. This version streams the same greeting data and joins source cleanup. Save
+`greeting-lines.ts` and run `mise exec -- deno run greeting-lines.ts`:
 
-`@okikio/http/webhook` verifies exact request bytes without owning routes. `@okikio/http/webhook/standard` also signs
-outbound Standard Webhooks v1 messages.
+```ts runnable=greeting-lines.ts
+import { readable } from '@okikio/streams';
+import { jsonl, jsonlCompletion } from '@okikio/http/response';
+const response = jsonl(readable([{ message: 'Hello, Sam!' }, { message: 'Hello, Jo!' }]), {
+	maximumBytes: 1024,
+	maximumRecordBytes: 128,
+	maximumItems: 2,
+	projection: { maximumDepth: 3, maximumNodes: 10, maximumStringCodeUnits: 80 },
+});
+console.log((await response.text()).trim());
+const delivered = await jsonlCompletion(response);
+console.log(delivered.outcome, (await delivered.cleanup).status);
+```
 
-An inbound service endpoint verifies the request before normal parsing. An outbound sender signs the serialized bytes
-that it will transmit. A service that uses both directions composes these two roles independently.
+```text output
+{"message":"Hello, Sam!"}
+{"message":"Hello, Jo!"}
+completed completed
+```
 
-Durable subscriptions, delivery attempts, retry schedules, replay, dead-letter records, endpoint health, and delivery
-telemetry need persistent application state. Those persistent delivery responsibilities belong to a higher-level webhook
-capability if Okikio needs a reusable implementation.
+`jsonl` returns one native Response. `jsonlCompletion` observes that same object without adding a response wrapper. It
+only accepts responses created by this factory. The terminal outcome is completed, cancelled or errored; byte counts
+mean enqueued output, not remote receipt. Source cleanup remains a separate promise so a stalled or failed cancellation
+hook cannot keep the input lock held.
 
-Read [`webhook/README.md`](webhook/README.md) for signing, verification, limits, and the inbound and outbound flows.
+The body serializes one finite JSON value per pull, with LF included in record and total byte limits. Traversal limits
+reject cycles, accessors and non-JSON values; no toJSON hook runs. Local deterministic key ordering follows Collection's
+JSON profile. Schema/codec validation belongs upstream. The factory owns a reader at construction but reads only on
+demand, and cancels even before the first pull. For `method: 'HEAD'` or status 204/205/304 it creates no reader: the
+unused source remains caller-owned. Metadata is checked before acquiring ownership. Content-Type is NDJSON and
+Content-Length is removed. Serialization, source and limit errors remain on the native body and its completion record.
 
-## Focused imports
+For routes that cancel early and resume a retained event feed, use the complete
+[streaming greeting workflow](../../docs/server/10-http-streaming.md). For bounded POST/form input and signed callbacks,
+use [request workflows](../../docs/server/09-http-input.md). For an AI client, the [MCP example](../../docs/server/11-mcp.md)
+hosts a real SDK handler; SSE serialization alone does not implement MCP.
 
-HTTP subpaths are public package entries. A reusable library can depend on `@okikio/http/request`. An application that
-uses the single-install suite can import the same implementation from `@okikio/utils/http/request`.
+## Measure HTTP data and ownership
+
+The focused benchmarks measure streaming bodies, validators, cookies, retry planning and webhook replay admission. The
+benchmark compares against native or reduced-contract references named by each case. There is no network listener in
+these package measurements.
+
+From the repository root, run the package's tests and untimed benchmark checks before collecting timings:
+
+```sh
+deno task --cwd=packages/http test
+deno task --cwd=packages/http bench:check
+deno task --cwd=packages/http bench
+```
+
+These commands use package-owned fixtures and development dependencies. The
+[benchmark protocol](../../docs/benchmarks/01-running.md#choose-a-comparison-that-answers-the-question) explains fair
+comparisons, raw report collection and the limits of local measurements.
+
+## Read further
+
+The [Http guide](https://github.com/okikio/utils/blob/main/docs/http/01-guide.md) explains the model, manual
+alternatives, and composition.
+
+Plan conditional responses after ordinary routing, authentication and resource checks:
+
+```ts
+import { preconditions } from '@okikio/http/response/http';
+const plan = preconditions(request, {
+	exists: true,
+	etag: '"revision-42"',
+	lastModified: 'Sun, 06 Nov 1994 08:49:37 GMT',
+	now: Date.now(),
+});
+if (plan.kind === 'not-modified' || plan.kind === 'failed' || plan.kind === 'invalid') {
+	return new Response(null, { status: plan.status });
+}
+// plan.range permits range evaluation; byteRange() separately decides satisfiability.
+```
+
+The planner follows
+[RFC 9110 precondition precedence](https://www.rfc-editor.org/rfc/rfc9110.html#name-precedence-of-preconditions). It
+distinguishes strong If-Match, weak If-None-Match, representation existence, GET/HEAD cache validation and write
+preconditions. Entity tags remain opaque even when their quoted value contains a comma. Malformed entity lists return an
+invalid 400 plan; invalid request dates are ignored. The planner does not infer that a previous write already succeeded.
+If-Range uses exact strong-tag comparison; date comparison requires `strongDate: true` from the representation owner.
+That proof cannot be inferred merely from a Last-Modified header. Conditions do not read a body or perform the action.
+CONNECT, OPTIONS and TRACE ignore conditions.
+
+`@okikio/http/retry` exposes `planRetryAfter(value, { now, maximumDelay,
+maximumCodeUnits })`. It returns missing,
+invalid or delay data. Delays use whole milliseconds and cap at the explicit budget. Both decimal seconds and the three
+HTTP-date grammars are accepted. Obsolete two-digit years use the supplied clock's 50-year horizon; impossible calendar
+dates reject. Epoch time maps a leap-second `:60` to the following epoch second. Past dates produce zero delay.
+Native-only formats such as ISO dates do not silently become valid Retry-After fields. The application still owns replay
+safety, idempotency, deadlines and retry execution.
+
+`cookie.remove(headers, definition)` is an alias of existing `cookie.delete`. Both append an expired Set-Cookie field
+with Max-Age=0, keeping the definition's path/domain, Secure, prefix and SameSite attributes. They do not accept a
+different identity at deletion time and do not validate the empty marker as an application value. Separate Set-Cookie
+fields remain separate.

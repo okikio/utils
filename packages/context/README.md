@@ -1,257 +1,301 @@
-# `@okikio/context`
+# Context
 
-Give a download a deadline, pass its stop signal to `fetch`, and release its timer when the download finishes. Your code
-still calls `fetch`, awaits a `Response`, and returns text. You can use this package without activities, resources,
-tasks, or workflows.
+Give related work one cancellation signal, deadline, clock, and cleanup owner. A context travels alongside an ordinary
+function; the function still returns its own result. Use it for a download, request, local job, or screen lifetime.
 
-A **context** is an object carried alongside that work: an ID, an `AbortSignal`, a clock, and an optional deadline. An
-**owned context** also has cleanup methods. It is supporting state for your function, not the function's answer.
+For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters keep their native runtime requirements.
 
-## Download text with a two-second budget
+An owned context also releases resources registered with `use`, `adopt`, and `defer`. Pass a context to work that should
+borrow that lifetime. Create a child when the work needs an independently closable lifetime.
 
-Loading a profile needs a name and a city. The caller allows two seconds for the whole operation; each helper also caps
-its own download at one second. The helper receives the caller's context, so it cannot restart or extend that overall
-budget. This complete example uses real `fetch`; `data:` URLs keep it offline. HTTPS URLs require network permission.
+An `AbortSignal` is a notification that work should stop. It only affects operations that read it. A **deadline** is the
+latest allowed time; reaching it aborts the signal. **Cleanup** is the separate work of closing a reader, timer or client.
+The code that creates the context owns that cleanup and must await it before treating the operation as finished.
+
+## Download with a budget
+
+The child allows two elapsed seconds for both the request and the body read. The `data:` URL supplies real offline
+input. Context uses the owned local Temporal and disposal implementations when needed; importing it changes no globals.
+
+From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare -- --kind deps` at the repository root. Save the following program as `download-text.ts` and run `mise exec -- deno run download-text.ts`. These commands use the workspace export maps; they do not assume a published registry version.
 
 ```ts runnable=download-text.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
 import * as context from '@okikio/context';
+import { sec } from '@okikio/duration';
 
-async function downloadText(parent: context.Context, url: string): Promise<string> {
-	await using download = context.timeout(parent, { seconds: 1 });
-	const response = await fetch(url, { signal: download.signal });
-	if (!response.ok) throw new Error(`Download failed: HTTP ${response.status}`);
-	return await response.text();
-}
-
-await using request = context.create({
-	id: 'profile-screen',
-	deadline: Temporal.Now.instant().add({ seconds: 2 }),
-});
-const name = await downloadText(request, 'data:text/plain,Ada');
-const city = await downloadText(request, 'data:text/plain,Toronto');
-console.log(`${name} lives in ${city}`);
-```
-
-```text output
-Ada lives in Toronto
-```
-
-There are two different results here. `context.timeout()` returns `download` **immediately**. `fetch()` returns a
-`Promise<Response>`. `response.text()` reads the body and returns a `Promise<string>`. The budget remains active during
-both the request and body read because both are inside the block.
-
-`await using` means “when this block ends, await this object's cleanup,” including when a call throws. Here it releases
-the child's deadline wait and parent listener. The caller closes the parent. Finishing early does not wait out the two
-seconds. The setup imports install Temporal and disposal APIs only if the host lacks them; ordinary context imports
-install no globals. Replace `Ada` with `Grace` in the first URL: the output becomes `Grace lives in Toronto`.
-
-An HTTP error is handled by the explicit `response.ok` check; a network error or abort rejects the Fetch promise.
-Context does not convert every provider's errors into a new result format.
-
-## What `timeout()` builds underneath
-
-The public signature returns an owner, not a Promise for work:
-
-```ts
-timeout(parent: Context, duration: Temporal.DurationLike | string): Owned
-```
-
-These are selected fields from the real contracts. Optional tracing fields and less-used operations are omitted:
-
-- **`Context` carries the operation.** `id: string` names it; `signal: AbortSignal` asks it to stop; `clock: Clock`
-  supplies time; `deadline?: Temporal.Instant` is the optional latest allowed instant.
-- **`Clock` supplies time and waiting.** `now(): Temporal.Instant` reads the time.
-  `sleep(milliseconds, signal?): Promise<void>` waits using that same time source.
-- **`Owned` adds cleanup.** `defer(fn)` registers a callback, `use(value)` registers a disposable value, and
-  `adopt(value, disposer)` registers a value with its close function. `[Symbol.asyncDispose]()` starts awaited disposal;
-  `closed: Promise<void>` resolves after cleanup and the deadline wait finish.
-
-Read the normal path left to right. The lower branch explains expiry; cleanup belongs to the caller in either case.
-
-```text
-timeout(request, { seconds: 2 })
-    compute deadline -> create child -> return child immediately
-                              |
-                              +-> child.signal -> fetch -> read body -> return text
-                              |
-                              +-> clock sleep -> deadline reached -> abort child.signal
-
-function exits, successfully or with an error
-    -> dispose child -> unlink parent + stop deadline wait + run registered cleanup
-```
-
-The simplified construction is:
-
-1. Read `parent.clock.now()` and add the requested duration.
-2. Choose the earlier of that instant and the parent's deadline. A child cannot extend its parent's budget.
-3. Create a new `AbortController` and `AsyncDisposableStack`, inheriting the parent's ID and clock.
-4. Link parent cancellation to the child and start a cancellable wait through the inherited clock.
-5. When the deadline is observed, abort the child's signal with `ContextDeadlineExceededError`.
-6. On disposal, unlink the parent, abort unfinished child work, run registered cleanup in reverse registration order,
-   and join the deadline wait before resolving `closed`.
-
-Long deadlines use bounded clock waits and recheck the absolute deadline. The diagram omits those timer slices and
-tracing. It does not imply that JavaScript can be forcibly interrupted or that accepted writes are rolled back.
-
-The design keeps the signal passed to `fetch`, the observed deadline, and the cleanup owner together. Separate timers
-make it easy for a nested helper to start a fresh budget after its caller's budget is almost exhausted, or leave a timer
-alive after success. Deadline inheritance prevents the first mistake; disposal prevents the second.
-
-For one isolated `fetch` that only needs a stop signal, `AbortSignal.timeout(2000)` may be sufficient. Context becomes
-useful when calls share identity, a remaining budget, cancellation, or cleanup. The cost is an owner you must close,
-plus listener and timer state. Expiry aborts the signal; it does not dispose registered resources by itself.
-
-## Use familiar `try/finally` instead of `await using`
-
-The cleanup syntax can look unfamiliar even when the work is ordinary JavaScript. This complete fragment of the profile
-load prints its name and explicitly awaits both owners' disposal:
-
-```ts runnable=download-finally.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
-import * as context from '@okikio/context';
-
-const request = context.create({ id: 'profile-screen', deadline: Temporal.Now.instant().add({ seconds: 2 }) });
-try {
-	const download = context.timeout(request, { seconds: 2 });
-	try {
-		const response = await fetch('data:text/plain,Ada', { signal: download.signal });
-		if (!response.ok) throw new Error(`Download failed: HTTP ${response.status}`);
-		console.log(await response.text());
-	} finally {
-		await download[Symbol.asyncDispose]();
-	}
-} finally {
-	await request[Symbol.asyncDispose]();
-}
+await using request = context.create({ id: 'profile' });
+// The child gets the shorter deadline; disposing it will not cancel the parent request.
+await using download = context.timeout(request, sec(2));
+// Passing the signal lets the I/O observe cancellation. Creating a context alone cannot stop fetch.
+const response = await fetch('data:text/plain,Ada', { signal: download.signal });
+if (!response.ok) throw new Error(`Download failed: HTTP ${response.status}`);
+const name = await response.text();
+console.log(name);
 ```
 
 ```text output
 Ada
 ```
 
-`await using` expresses this responsibility more briefly and uses the language's combined-error rules when work and
-cleanup both fail. Hand-written `finally` needs its own combined-error policy if retaining both errors matters.
+`timeout()` returns the child immediately. Its deadline requests cancellation through the signal; cooperative I/O must
+receive that signal. `await using` cancels the child's timer and awaits its registered cleanup when the block ends.
+Disposing the child leaves the request owner open. Deadline expiry requests cancellation but does not independently run
+the owner's cleanup stack.
 
-## Share cancellation across two downloads
+## Choose the operation you need
 
-If a screen already owns a controller, pass its signal into the parent. Both downloads use the same child budget;
-`Promise.all` starts the familiar parallel calls. Context does not start or parallelize them.
+| Job                               | API                                                      | Lifetime                                                                            |
+| --------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Own a request or job              | `create({ id, signal?, clock?, deadline? })`             | Caller disposes the returned owner.                                                 |
+| Give nested work a shorter budget | `timeout(parent, sec(2))` or `deadline(parent, instant)` | Child cannot extend its parent's deadline.                                          |
+| Attach a typed capability         | `view(ctx, { progress: reader })`                        | Borrows the source lifetime and preserves its existing fields.                      |
+| Wait within a budget              | `wait(ctx, min(2))`                                      | Uses the supplied clock and cancellation; long waits use timer slices.              |
+| Check remaining time              | `remaining(ctx)`                                         | Returns the exact duration, including nanoseconds. No deadline returns `undefined`. |
+| Carry identity across a queue     | `snapshot(ctx)` and `restore(snapshot)`                  | The receiver creates a new local owner and signal.                                  |
+| Publish local state               | `createState(value)` or `state.create(value)`            | Cell owns writes and completion; reader borrows observation.                        |
+| Publish saved state               | `await state.open({ store, contract, value, initial? })` | Owner saves before publication and joins active I/O when disposed.                  |
+| Observe an EventTarget            | `fromEvents(ctx, target, type)` or `events.from(...)`    | Each subscriber owns one listener and borrows the target.                           |
 
-```ts runnable=two-downloads.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
+For focused imports, use `@okikio/context/state` and `@okikio/context/events`. Their functions and types are identical
+to the root families. Native event targets retain native event types; structural mocks do not require DOM constructors.
+Ordinary imports install no globals or timers.
+
+## Publish progress without sharing mutation
+
+The owner keeps the cell. A renderer receives only its `reader`; it can read the latest value or subscribe through the
+owned Observables package. The subscription follows the screen signal, so leaving the screen stops that observation
+without stopping the work.
+
+Save this complete variation as `observe-state.ts` and run `mise exec -- deno run observe-state.ts` after the same checkout setup.
+
+```ts runnable=observe-state.ts
+import * as context from '@okikio/context';
+
+using progress = context.createState({ completed: 0, total: 4 });
+const screen = new AbortController();
+using subscription = progress.reader.changes.subscribe({
+	next: ({ value }) => console.log(`${value.completed}/${value.total}`),
+	error: (error) => console.error(error),
+}, { signal: screen.signal });
+progress.set({ completed: 1, total: 4 });
+screen.abort();
+progress.set({ completed: 2, total: 4 });
+```
+
+```text output
+1/4
+```
+
+`reader.get()` reads the current value. `reader.changes` emits future changes and completes when the cell closes; it
+does not replay old changes. `reader.subscribe(callback, { immediate: true })` also supports an initial callback.
+Payloads remain borrowed values. Replace them through `set` or `update`; mutation inside an existing value cannot create
+a revision. Use the existing `@okikio/observables` operators when projecting or filtering changes.
+
+Attach this reader with `view(owner, { progress: progress.reader })` when related functions need it. Keep the mutation
+cell with its real owner. A local cell retains state in that owner alone. Choose `state.open` when a value must be saved
+and reopened through an explicit storage adapter. Queue claims and workflow history continue to use their own stores.
+
+## Save progress and reopen it
+
+A stored cell exposes the same reader, while `set`, `update`, and `reload` return Promises. Register it with the
+operation that owns its work. That operation's disposal stops new writes, completes observations, and awaits any active
+save. The backing store remains borrowed and keeps its saved value.
+
+Save this complete variation as `reopen-state.ts` and run `mise exec -- deno run reopen-state.ts` after the same checkout setup.
+
+```ts runnable=reopen-state.ts
+import * as context from '@okikio/context';
+import * as stores from '@okikio/storage/state';
+import * as schema from '@okikio/schema';
+
+const store = stores.memory();
+const value = schema.object({ completed: schema.number({ integer: true, minimum: 0 }) });
+{
+	await using operation = context.create({ id: 'catalog' });
+	const progress = operation.use(
+		await context.state.open({
+			store,
+			contract: 'catalog.progress.v1',
+			value,
+			initial: () => ({ completed: 0 }),
+			signal: operation.signal,
+		}),
+	);
+	const display = context.view(operation, { progress: progress.reader });
+	await progress.update((current) => ({ completed: current.completed + 1 }));
+	console.log(display.progress.get().completed);
+}
+await using reopened = await context.state.open({ store, contract: 'catalog.progress.v1', value });
+console.log(reopened.reader.get().completed);
+```
+
+```text output
+1
+1
+```
+
+The memory adapter retains one encoded snapshot in the reused store object. It does not survive process restart. The Web
+Storage and PostgreSQL adapters select a durable host key explicitly; their concurrency and retention rules are
+documented in [Storage state](../storage/state/README.md). A failed write never appears as a successful local update.
+Conflicts and uncertain commits require explicit reconciliation with `reload` before another mutation.
+
+## Observe a host event within a lifetime
+
+This example subscribes to a borrowed EventTarget. The same function accepts a native element, Worker, socket, or typed
+mock that implements the listener contract.
+
+Save this complete variation as `observe-events.ts` and run `mise exec -- deno run observe-events.ts` after the same checkout setup.
+
+```ts runnable=observe-events.ts
 import * as context from '@okikio/context';
 
 const screen = new AbortController();
-await using request = context.create({ id: 'profile-screen', signal: screen.signal });
-await using downloads = context.timeout(request, { seconds: 2 });
-async function read(url: string): Promise<string> {
-	const response = await fetch(url, { signal: downloads.signal });
-	if (!response.ok) throw new Error(`Download failed: HTTP ${response.status}`);
-	return await response.text();
-}
-screen.abort(new Error('The screen was closed.'));
-try {
-	await Promise.all([read('data:text/plain,Ada'), read('data:text/plain,Toronto')]);
-} catch (error) {
-	if (error !== screen.signal.reason) throw error;
-	console.log('Profile load cancelled');
-}
+const target = new EventTarget();
+const updates = context.fromEvents({ signal: screen.signal }, target, 'update');
+using subscription = updates.subscribe({ next: (event) => console.log(event.type) });
+target.dispatchEvent(new Event('update'));
+screen.abort();
+target.dispatchEvent(new Event('update'));
 ```
 
 ```text output
-Profile load cancelled
+update
 ```
 
-The screen closes before its reads start, so both Fetch calls receive an already-aborted child signal. This proves that
-cancellation stops new requests, rather than just printing a flag after completed work. In a UI, the same
-`screen.abort()` call belongs in its close action. This offline case does not simulate cancellation during an active
-network transfer. Disposing a child never aborts its parent. `Promise.all` does not cancel its other input when one
-fails; use the bounded concurrency package when you need its sibling-cancellation and joining contract.
+The Observable attaches a listener when subscribed. Unsubscription removes that listener; context cancellation removes
+it and completes the observation. `once` also removes it before completion, including for a mock that emits while
+registering. Observing a socket does not acquire ownership of the socket itself.
 
-## Observe expiry without relying on network timing
+Read the [usage guide](../../docs/context/01-guide.md) for ownership, exact time, observer failures, transport, and
+cancellation rules, and the [stored-state guide](../../docs/context/03-stored-state.md) for commits, codecs, and
+restart. Source contracts are in [types.ts](./types.ts), [state.ts](./state.ts), and [events.ts](./events.ts).
 
-`TestClock` moves logical time directly. This exercises the actual deadline check without a slow server or sleep:
+## Carry the lifetime from a request to an editor
 
-```ts runnable=logical-time.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
-import * as context from '@okikio/context';
+A request deadline, an editor lifetime, and an import operation can all carry cancellation and cleanup. A stored draft
+adds persistence without changing who owns mutation.
 
-const clock = new context.TestClock();
-await using request = context.create({ id: 'download', clock, deadline: clock.now().add({ seconds: 1 }) });
-await using download = context.timeout(request, { seconds: 2 });
-clock.advance({ seconds: 1 });
-await Promise.resolve();
-try {
-	await fetch('data:text/plain,Too%20late', { signal: download.signal });
-} catch (error) {
-	console.log(error instanceof context.ContextDeadlineExceededError);
+Pass a borrowed context into ordinary functions. Create a child for independently closable work. Add Storage only for
+saved state and Task only when pause/resume control is required.
+
+Cancellation requests cooperation. It does not roll back a write or prove cleanup completed; await the owner disposal
+and the operation result separately.
+
+## Choose an entry point
+
+Use the table to find a focused import for the job you need. Contract links open the exact public source, including its
+options and types.
+
+| Import                   | Use it to                                                                        | Exact contract          |
+| ------------------------ | -------------------------------------------------------------------------------- | ----------------------- |
+| `@okikio/context`        | Use the package entry shown in the complete examples above.                      | [Contract](./mod.ts)    |
+| `@okikio/context/testing` | Advance a logical clock within explicit step and microtask budgets. | [Contract](./testing.ts) |
+| `@okikio/context/types`  | Import public types for this capability; this entry does not start work.         | [Contract](./types.ts)  |
+| `@okikio/context/state`  | Own local or stored state and lend read-only observations.                       | [Contract](./state.ts)  |
+| `@okikio/context/events` | Observe a borrowed event target and remove listeners when the subscription ends. | [Contract](./events.ts) |
+
+## Derive a percentage from the same progress
+
+Derived readers retain write authority with their source owner. Dispose the projection when the view closes; it owns its
+upstream subscriptions, and closing the borrowed source alone does not dispose the projection.
+
+```ts
+import * as state from '@okikio/context/state';
+using progress = state.create({ completed: 0, total: 10 });
+using percent = state.select(progress.reader, ({ completed, total }) => completed / total);
+using display = percent.subscribe(({ value }) => console.log(value));
+progress.set({ completed: 5, total: 10 }); // prints 0.5
+```
+
+`combine([readerA, readerB], project)` observes current values when either source changes. Separate source updates can
+produce intermediate combinations; this is not a transaction across cells. Equality follows normal cell options. Initial
+selector failure throws before subscribing. Later selector or equality failure keeps the last accepted value and is
+available on `error`; `onError` is isolated. The projection has no `set` or `update` method. Its payloads remain
+borrowed.
+
+## Advance a test clock within a finite budget
+
+For deterministic simulations, `@okikio/context/testing` provides `pending(clock)` and
+`advanceUntilIdle(clock, { maximumSteps, maximumMicrotasks })`. Both budgets are explicit. The latter advances to the
+next sleep target and allows the chosen number of microtask turns between steps. It throws when sleepers remain after
+the step budget. Clock-idle means no sleepers were visible after those turns; it does not imply native I/O or arbitrary
+application promise chains have completed. Keep and join the application work separately, and cancel it when a
+simulation hits its budget.
+
+## Reopen progress after its saved shape changes
+
+The saved progress record originally contains only `completed`. A newer application also needs `total` to derive its percentage. The migration below converts that same record directly and saves the new representation before lending a reader. The explicit `total: 4` is this application's known import size, not a value inferred by Storage.
+
+Save this as `migrate-progress.ts` and run `mise exec -- deno run migrate-progress.ts` after the same setup.
+
+```ts runnable=migrate-progress.ts
+import * as schema from '@okikio/schema';
+import * as state from '@okikio/context/state';
+import * as stores from '@okikio/storage/state';
+const store = stores.memory();
+const LegacySchema = schema.object({ completed: schema.number({ integer: true, minimum: 0 }) });
+{
+	await using old = await state.open({
+		store,
+		contract: 'catalog.progress.v1',
+		value: LegacySchema,
+		initial: () => ({ completed: 1 }),
+	});
 }
+const CurrentSchema = schema.object({
+	completed: schema.number({ integer: true, minimum: 0 }),
+	total: schema.number({ integer: true, minimum: 1 }),
+});
+const convert = state.migration('catalog.progress.v1', LegacySchema, ({ completed }) => ({ completed, total: 4 }));
+await using progress = await state.open({
+	store,
+	contract: 'catalog.progress.v2',
+	value: CurrentSchema,
+	migrations: [convert],
+});
+using percent = state.select(progress.reader, ({ completed, total }) => completed / total);
+console.log(percent.get());
+await progress.update((current) => ({ ...current, completed: 2 }));
+console.log(percent.get());
 ```
 
 ```text output
-true
+0.25
+0.5
 ```
 
-The parent allows one second; the helper requests two. Advancing one second releases the inherited deadline wait,
-showing that the helper cannot extend its caller's budget. The next microtask lets that wait abort the signal before
-Fetch starts; Fetch then rejects with the deadline reason. No active network request or machine-time sleep is involved.
-`check()` reads the deadline and signal and throws when work must stop. Use it between synchronous chunks.
-`wait(ctx,
-duration)` checks before and after sleeping through the context's clock. `delay(milliseconds)` is a plain
-pause; `remaining(ctx)` reads the budget without starting a timer. None returns your download's answer.
+The source owner still controls writes. The projection subscribes to that reader and owns only its subscription. Disposing it does not close the stored cell. This is an in-process composition example; the following race and uncertain-commit rules come from the stored-cell contract, not from this successful run.
 
-## Add a field without creating another lifetime
+The migration validates the old payload through its schema or codec, converts it once, then validates/encodes/decodes
+the current representation. It conditionally saves against the exact loaded version before exposing a reader or
+replacing its value during `reload`. No match, duplicate old contracts or invalid conversion reject. There is no
+inferred version order or automatic migration chain.
 
-A helper may need the user's language alongside its signal. `view()` adds a typed field while sharing the original
-cancellation and cleanup responsibility:
+Two concurrent conversions can run, but only one conditional save may win in an atomic store. The loser gets
+`ConflictError`; conversion is not automatically replayed. Keep conversion free of external effects because an explicit
+reopen or reload after a conflict may run it again. Web Storage retains its documented single-writer restriction.
+Migration does not grant it cross-tab atomicity.
 
-```ts runnable=language-view.ts
-import '@okikio/duration/polyfill';
-import '@okikio/dispose/polyfill';
-import * as context from '@okikio/context';
+A lost acknowledgement produces `CommitError` with the candidate version and unknown outcome. Inspect or reopen/reload
+the store to reconcile it; do not repeat an external effect or arbitrary updater. A reload conflict or uncertain commit
+sets `needsReload`, preserving the last accepted reader value until reconciliation. The envelope version and application
+contract are independent from the reader's local notification revision. Existing stores remain borrowed and usable after
+a cell closes.
 
-await using request = context.create({ id: 'greeting' });
-const localized = context.view(request, { language: 'fr' as const });
-function greeting(ctx: context.Context & { readonly language: 'fr' | 'en' }, name: string): string {
-	context.check(ctx);
-	return ctx.language === 'fr' ? `Bonjour ${name}` : `Hello ${name}`;
-}
-console.log(greeting(localized, 'Ada'));
+## Measure readers, clocks and progress
+
+The focused benchmarks measure 1–10,000 projections, clock sleepers and observer delivery. The benchmark compares
+against manual reader/cell composition; callback versus Observable delivery. Snapshot migration through Storage remains
+a root workflow.
+
+From the repository root, run the package's tests and untimed benchmark checks before collecting timings:
+
+```sh
+deno task --cwd=packages/context test
+deno task --cwd=packages/context bench:check
+deno task --cwd=packages/context bench
 ```
 
-```text output
-Bonjour Ada
-```
-
-The helper reads the added language and checks cancellation through the same context. Its return type is
-`Base & Readonly<Extension>`: existing fields plus the new fields. The implementation copies and freezes the view,
-rejects replacement of existing properties, and records its relationship to the original owner. It creates no
-controller, timer, or cleanup stack. Other packages call similar additions a **scope** when they add permissions or
-resource access. There is no `context.scope()` export: `child()` creates a lifetime; `view()` adds fields.
-
-## Register cleanup and choose the next capability
-
-Use `defer(() => closeTemporaryFile())` for a supplied cleanup callback, `use(disposable)` for an already disposable
-object, or `adopt(value, disposer)` when a value needs a supplied close function. Cancellation requests a stop; disposal
-runs cleanup. The application decides which owner closes each resource.
-
-| You need                                                  | Next step                                                                                                                  |
-| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Several downloads with limits and joined sibling failures | Pass the context signal into [Concurrency](../concurrency/README.md).                                                      |
-| Pause, resume, cancel, and await one live import          | [Task](../task/README.md) returns a control handle and result promise.                                                     |
-| Send identity and deadline through a message              | `snapshot()` produces IDs and timestamps; `restore()` creates a new local owner. Signals and resources are not serialized. |
-| Resume named work using recorded completions              | [Workflow](../workflow/README.md) owns instruction history; context alone has no restart record.                           |
-
-The illustrated ownership view shows the same parent/child split. Read the branches as responsibilities of the child,
-not additional work launched by `timeout()`:
-
-![Parent cancellation and a child deadline feed its stop signal while disposal closes its owned resources](diagram.png)
-
-Its [editable source](diagram.mmd) omits timer implementation details. The [generated contracts](API.md) list every
-option and field. To trace these calls, read [timeout/child/create](mod.ts), [Context/Owned/Clock](types.ts), and
-[the deadline cases](mod.test.ts).
+These commands use package-owned fixtures and development dependencies. The
+[benchmark protocol](../../docs/benchmarks/01-running.md#choose-a-comparison-that-answers-the-question) explains fair
+comparisons, raw report collection and the limits of local measurements.

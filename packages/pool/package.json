@@ -11,7 +11,9 @@
 	"dependencies": {
 		"@okikio/observables": "^1.4.0",
 		"@okikio/context": "workspace:^",
-		"@okikio/duration": "workspace:^"
+		"@okikio/duration": "workspace:^",
+		"@okikio/telemetry": "workspace:^",
+		"@okikio/dispose": "workspace:^"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",

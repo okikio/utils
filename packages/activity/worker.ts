@@ -10,14 +10,16 @@
  */
 import * as contexts from '@okikio/context';
 import type { Context, Owned } from '@okikio/context';
-import type { EffectEmitter } from '@okikio/effect';
-import type { PermissionChecker } from '@okikio/permission';
-import * as pool from '@okikio/pool';
-import type { Pool } from '@okikio/pool';
-import type { RequirementRuntime } from '@okikio/requirement';
-import type { ResourceCollection } from '@okikio/resource';
-import * as workers from '@okikio/worker';
-import type { RawWorkerScope, WorkerOpenOptions, WorkerServer } from '@okikio/worker/types';
+import type { EffectEmitter } from '@okikio/capability/effect';
+import type { PermissionChecker } from '@okikio/authz/permission';
+import * as hostsPool from './hosts.ts';
+import { HostSelectionError } from './selection.ts';
+import type { HostReferenceType } from './selection.ts';
+import type { Lease, Pool } from '@okikio/pool';
+import type { RequirementRuntime } from '@okikio/capability/requirement';
+import type { ResourceCollection } from '@okikio/capability/resource';
+import * as workers from '@okikio/worker/thread';
+import type { RawWorkerScope, WorkerOpenOptions, WorkerServer } from '@okikio/worker/thread/types';
 import type {
 	ActivityAttemptControl,
 	ActivityAttemptResultType,
@@ -42,6 +44,8 @@ interface Active {
 
 /** One reusable Worker plus the active attempt correlation it owns. */
 interface Host {
+	/** Assigned once; PID, thread ID and pool position are not stable replacement fences. */
+	readonly reference: HostReferenceType;
 	/** Stable lifetime for one pooled Worker host. It outlives individual acquisitions. */
 	readonly ctx: Owned;
 	/** Correlated Worker transport owned for the full reusable host lifetime. */
@@ -64,6 +68,11 @@ export interface WorkerProviderOptions {
 	readonly module: URL;
 	/** Maximum reusable Worker count. */
 	readonly maximum: number;
+	/** Maximum simultaneous attempts per physical host. Defaults to 1 (exclusive).
+	 * Higher values share the event loop and resources; terminating the host loses every active attempt. */
+	readonly concurrency?: number;
+	/** Bounded pending acquisitions. Defaults to maximum × concurrency. */
+	readonly maximumWaiting?: number;
 	/** Minimum retained or pre-created values requested for this worker provider. */
 	readonly minimum?: number;
 	/** Maximum idle Worker hosts retained for reuse. */
@@ -88,6 +97,13 @@ export interface WorkerProviderOptions {
 
 /** Owned bounded Worker engine provider. */
 export interface WorkerProvider extends EngineProvider, AsyncDisposable {
+	/** Snapshot of live host references. Discovery does not reserve capacity or prevent retirement. */
+	hosts(): readonly HostReferenceType[];
+	/**
+	 * Stop new admission immediately, join active attempts and native close. Never await inside work on
+	 * this host.
+	 */
+	retire(reference: HostReferenceType, reason?: unknown): Promise<void>;
 	/** Current process-local Worker pool counters. */
 	stats(): ReturnType<Pool<Host>['stats']>;
 	/** Stop new acquisition, wait for active leases, and close retained Workers. */
@@ -96,6 +112,13 @@ export interface WorkerProvider extends EngineProvider, AsyncDisposable {
 
 /** Options used by one Worker module while serving activity attempts. */
 export interface WorkerServeOptions {
+	/**
+	 * Join host-owned cleanup after requests settle and before shutdown acknowledgement. Borrowed
+	 * resources remain caller-owned. Failure rejects closed and withholds acknowledgement.
+	 */
+	readonly finalize?: () => void | Promise<void>;
+	/** Concurrent protocol request limit. Defaults to 1000; keep at least the parent provider concurrency. */
+	readonly maximumRequests?: number;
 	/** Engine identity associated with this worker serve. */
 	readonly engine: EngineDefinition;
 	/** Exact activity implementations this Worker can execute. */
@@ -115,7 +138,7 @@ export interface WorkerServeOptions {
  *
  * The provider creates Workers lazily through `@okikio/pool`. Disposing the
  * provider drains the pool and stops every Worker it owns. A Worker fault or
- * protocol fault invalidates only the lease that observed it; the Scheduler
+ * protocol fault invalidates the physical host and can fail its concurrent attempts; the Scheduler
  * decides whether the logical activity job receives another attempt.
  */
 export async function create(options: WorkerProviderOptions): Promise<WorkerProvider> {
@@ -125,21 +148,30 @@ export async function create(options: WorkerProviderOptions): Promise<WorkerProv
 		throw new TypeError('Worker provider maximum must be a positive safe integer.');
 	}
 
+	const concurrency = hostsPool.concurrency(options.concurrency);
 	const live = new Set<Host>();
-	const hosts = await pool.create<Host>({
+	const incarnation = crypto.randomUUID();
+	/** Only live retirement receipts are retained; removed host IDs remain lost without tombstones. */
+	const retiring = new Map<Host, Promise<void>>();
+	const hosts = await hostsPool.create<Host>({
 		ctx: options.ctx,
 		maximum: options.maximum,
+		maximumWaiting: options.maximumWaiting ?? options.maximum * concurrency,
 		...(options.minimum === undefined ? {} : { minimum: options.minimum }),
 		...(options.maximumIdle === undefined ? {} : { maximumIdle: options.maximumIdle }),
 		...(options.maximumIdleAge === undefined ? {} : { maximumIdleAge: options.maximumIdleAge }),
 		...(options.acquireTimeout === undefined ? {} : { acquireTimeout: options.acquireTimeout }),
 		create: (hostCtx) => openHost(hostCtx),
 		close: (host, reason) => host.close(reason),
-	});
+	}, concurrency);
 
 	const provider = Object.freeze(
 		{
 			activities: Object.freeze([...activities.values()]),
+			/**
+			 * Admit the attempt onto its exact requested thread or an eligible free thread. Hold that
+			 * reservation through cleanup.
+			 */
 			async run(
 				ctx: Context,
 				attempt: ActivityAttemptType,
@@ -151,7 +183,26 @@ export async function create(options: WorkerProviderOptions): Promise<WorkerProv
 					attempt,
 					(id, version) => new MissingWorkerActivityError(id, version),
 				);
-				await using lease = await hosts.acquire(ctx);
+				const selected = attempt.location?.host;
+				let lease: Lease<Host>;
+				try {
+					lease = await hosts.acquire(
+						ctx,
+						selected ? { value: hostsPool.resolve(selected, incarnation, live, retiring) } : undefined,
+					);
+				} catch (error) {
+					if (error instanceof HostSelectionError || error instanceof hostsPool.SelectionError) {
+						return Object.freeze({
+							type: 'lost',
+							code: error.code === 'busy' ? 'busy' : 'lost',
+							reason: error instanceof HostSelectionError
+								? error
+								: new HostSelectionError(error.code === 'busy' ? 'busy' : 'lost'),
+						});
+					}
+					throw error;
+				}
+				await using _reservation = lease;
 				const host = lease.value;
 				if (host.active.has(attempt.claimId)) {
 					lease.invalidate(new TypeError(`Worker request ${JSON.stringify(attempt.claimId)} is already active.`));
@@ -162,7 +213,9 @@ export async function create(options: WorkerProviderOptions): Promise<WorkerProv
 				}
 				host.active.set(attempt.claimId, { activity: definition, attempt, control });
 				try {
-					const value = await host.worker.request(ctx, attempt, { id: attempt.claimId });
+					const value = await host.worker.request(ctx, { ...attempt, physicalHost: host.reference }, {
+						id: attempt.claimId,
+					});
 					return await transport.result(definition, value);
 				} catch (error) {
 					if (workerFault(error)) lease.invalidate(error);
@@ -181,25 +234,44 @@ export async function create(options: WorkerProviderOptions): Promise<WorkerProv
 				// Request cancellation is driven by the attempt Context passed to `run()`.
 				// The Worker utility sends the matching cancel frame when that Context aborts.
 			},
+			hosts() {
+				return Object.freeze(
+					hosts.values().filter((host) => live.has(host) && !retiring.has(host)).map((host) => host.reference),
+				);
+			},
+			retire(reference: HostReferenceType, reason?: unknown) {
+				const host = hostsPool.resolve(reference, incarnation, live);
+				const previous = retiring.get(host);
+				if (previous) return previous;
+				const done = Promise.withResolvers<void>();
+				retiring.set(host, done.promise);
+				void hosts.retire(host, reason).then(done.resolve, done.reject);
+				return done.promise;
+			},
 			stats() {
 				return hosts.stats();
 			},
 			drain(reason?: unknown) {
 				return hosts.drain(reason);
 			},
+			/**
+			 * Stop every live thread and still join pool disposal when any individual close fails. Retain all
+			 * shutdown failures.
+			 */
 			async [Symbol.asyncDispose]() {
 				const reason = new workers.WorkerStoppedError('Activity Worker provider was disposed.');
 				const stopped = await Promise.allSettled([...live].map((host) => host.close(reason)));
-				let disposal: unknown;
+				// Presence is separate from the reason: rejecting with undefined still fails shutdown.
+				let disposal: { readonly error: unknown } | undefined;
 				try {
 					await hosts[Symbol.asyncDispose]();
 				} catch (error) {
-					disposal = error;
+					disposal = { error };
 				}
 				const failures = stopped
 					.filter((result): result is PromiseRejectedResult => result.status === 'rejected')
 					.map((result) => result.reason);
-				if (disposal !== undefined) failures.push(disposal);
+				if (disposal !== undefined) failures.push(disposal.error);
 				if (failures.length > 0) throw new AggregateError(failures, 'Activity Worker provider disposal failed.');
 			},
 		} satisfies WorkerProvider,
@@ -221,10 +293,13 @@ export async function create(options: WorkerProviderOptions): Promise<WorkerProv
 			>(hostCtx, {
 				module: options.module,
 				protocol: workers.protocol(remote.protocol()),
+				maximumRequests: concurrency,
 				...(options.name === undefined ? {} : { name: options.name }),
 				...(options.shutdownMs === undefined ? {} : { shutdownMs: options.shutdownMs }),
 				...(options.create === undefined ? {} : { create: options.create }),
 				async notice(notice, _requestCtx, requestId) {
+					// Resolve against the currently leased attempt, never a previous request
+					// that happened to use this reusable host.
 					const current = active.get(requestId);
 					if (current !== undefined) await options.observe?.(notice.value, current.attempt);
 				},
@@ -247,12 +322,19 @@ export async function create(options: WorkerProviderOptions): Promise<WorkerProv
 							await hostCtx[Symbol.asyncDispose]();
 						} finally {
 							live.delete(host);
+							retiring.delete(host);
 						}
 					}
 				})();
 				return closing;
 			};
-			const host: Host = Object.freeze({ ctx: hostCtx, worker, active, close });
+			const host: Host = Object.freeze({
+				reference: Object.freeze({ pool: incarnation, id: crypto.randomUUID() }),
+				ctx: hostCtx,
+				worker,
+				active,
+				close,
+			});
 			live.add(host);
 			return host;
 		} catch (error) {
@@ -277,8 +359,14 @@ export function serve(options: WorkerServeOptions): WorkerServer {
 	const implementations = remote.implementations(options.implementations, 'Worker server');
 	const maximumChecks = remote.maximumChecks(options.maximumChecks, 'Worker');
 	return workers.serve({
+		...(options.finalize === undefined ? {} : { finalize: options.finalize }),
+		...(options.maximumRequests === undefined ? {} : { maximumRequests: options.maximumRequests }),
 		protocol: workers.protocol(remote.protocol()),
 		...(options.scope === undefined ? {} : { scope: options.scope }),
+		/**
+		 * On the thread side, reject missing revisions and incorrect engines before application code can
+		 * borrow resources.
+		 */
 		async run(attempt, ctx, control) {
 			const implementation = implementations.get(remote.identity(attempt.activityId, attempt.activityVersion));
 			if (implementation === undefined) {
@@ -302,6 +390,7 @@ export function serve(options: WorkerServeOptions): WorkerServer {
 					ctx,
 					resources: options.resources,
 					jobId: attempt.jobId,
+					physicalHost: attempt.physicalHost,
 					attempt: attempt.attempt,
 					admitted: attempt.admitted,
 					permission: transport.checker(call, maximumChecks),

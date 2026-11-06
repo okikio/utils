@@ -1,12 +1,14 @@
-import * as recordCore from '@okikio/record';
+import * as recordCore from '@okikio/collection/record';
 import type { EnvironmentRecord, EnvironmentSource, EnvironmentSourceInput } from './types.ts';
 
+/** Optional host capability. Detect it at read time so importing Env never requests environment permission. */
 interface DenoEnvironmentRuntime {
 	readonly env?: {
 		get(key: string): string | undefined;
 	};
 }
 
+/** Node and Bun expose text configuration here; browser consumers need not supply this host object. */
 interface ProcessEnvironmentRuntime {
 	readonly env?: Readonly<Record<string, string | undefined>>;
 }
@@ -39,7 +41,7 @@ export function record(values: EnvironmentRecord): EnvironmentSource {
 	const snapshot = new Map(Object.entries(values));
 	return {
 		/**
-		 * Gets state from environment definition and resolution after its ownership and validation rules have been established.
+		 * Read the captured value; later edits to the original record do not affect it.
 		 *
 		 * @internal
 		 */
@@ -73,7 +75,7 @@ export function merge(...sources: readonly EnvironmentSourceInput[]): Environmen
 	const normalized = sources.map(toSource);
 	return {
 		/**
-		 * Gets state from environment definition and resolution after its ownership and validation rules have been established.
+		 * Try high-precedence sources first and stop at the first value other than undefined.
 		 *
 		 * @internal
 		 */
@@ -88,7 +90,8 @@ export function merge(...sources: readonly EnvironmentSourceInput[]): Environmen
 }
 
 /**
- * Reads runtime value under the module's cancellation and ownership rules.
+ * Read exactly one ambient key at call time. Deno permission failures propagate;
+ * environments without Deno.env or process.env supply no value.
  *
  * @internal
  */
@@ -112,7 +115,7 @@ function getRuntimeValue(key: string): string | undefined {
  */
 export const env: EnvironmentSource = {
 	/**
-	 * Gets state from environment definition and resolution after its ownership and validation rules have been established.
+	 * Read this key lazily from the host; importing env performs no ambient read.
 	 *
 	 * @internal
 	 */

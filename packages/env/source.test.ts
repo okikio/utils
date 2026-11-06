@@ -1,5 +1,6 @@
 import { expect } from '@std/expect';
 import { describe, it } from 'node:test';
+import process from 'node:process';
 import * as fc from 'fast-check';
 
 import * as env from './mod.ts';
@@ -70,10 +71,10 @@ describe('environment value sources', () => {
 	it('reads ambient values lazily through env.env', () => {
 		const key = `EXAMPLE_ENV_TEST_${crypto.randomUUID().replaceAll('-', '_')}`;
 		try {
-			Deno.env.set(key, 'runtime-value');
+			process.env[key] = 'runtime-value';
 			expect(env.env.get(key)).toBe('runtime-value');
 		} finally {
-			Deno.env.delete(key);
+			delete process.env[key];
 		}
 	});
 });

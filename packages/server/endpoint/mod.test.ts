@@ -6,6 +6,7 @@ import * as response from '@okikio/http/response';
 import * as problem from '@okikio/http/problem';
 import * as endpoint from './mod.ts';
 
+/** Pair a test validator with fixed input/output JSON Schema so endpoint validation and documentation can be checked together. */
 function schema<Output>(
 	jsonSchema: Readonly<Record<string, unknown>>,
 	validate: (value: unknown) => Output,

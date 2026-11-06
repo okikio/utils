@@ -35,7 +35,7 @@ describe('@okikio/telemetry', () => {
 
 	it('buffers low-level history per correlation key and flushes it before the failure', async () => {
 		const memory = telemetry.memory();
-		const buffered = telemetry.buffer(memory, { capacity: 2 });
+		const buffered = telemetry.buffer(memory, { capacity: 2, maximumKeys: 64, maximumRecords: 1024 });
 		const scope = telemetry.create(buffered, { fields: { trace_id: 'trace-1' }, now: fixed });
 		await scope.report({ name: 'queue.claim.acquired', level: 'debug' });
 		await scope.report({ name: 'worker.request.started', level: 'trace' });
@@ -51,7 +51,7 @@ describe('@okikio/telemetry', () => {
 
 	it('allows successful correlation histories to be discarded without emission', async () => {
 		const memory = telemetry.memory();
-		const buffered = telemetry.buffer(memory);
+		const buffered = telemetry.buffer(memory, { maximumKeys: 1, maximumRecords: 64 });
 		const scope = telemetry.create(buffered, { fields: { request_id: 'request-1' }, now: fixed });
 		await scope.report({ name: 'service.request.started', level: 'debug' });
 		expect(buffered.keys).toEqual(['request-1']);

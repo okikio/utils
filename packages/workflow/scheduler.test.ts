@@ -1,11 +1,12 @@
+import * as codecs from '@okikio/schema/codec';
 import { expect } from '@std/expect';
 import { describe, it } from 'node:test';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 
 import * as context from '@okikio/context';
-import * as failures from '@okikio/failure';
+import * as failures from '@okikio/result/failure';
 import * as history from './history.ts';
-import * as resilience from '@okikio/resilience';
+import * as resilience from '@okikio/capability/resilience';
 import * as activityDispatch from './dispatch.ts';
 import * as workflow from './mod.ts';
 
@@ -59,14 +60,14 @@ function placement(
 function activity(
 	id: string,
 	placement: workflow.EnginePlacementReference,
-	resiliency: readonly import('@okikio/resilience').ResiliencePolicy[] = [],
+	resiliency: readonly import('@okikio/capability/resilience').ResiliencePolicy[] = [],
 ): workflow.ActivityReference {
 	return Object.freeze({
 		kind: 'activity',
 		id,
 		version: '1',
-		input: AnySchema,
-		result: AnySchema,
+		input: codecs.identity(AnySchema),
+		result: codecs.identity(AnySchema),
 		failures: Object.freeze([]),
 		requirements: Object.freeze([]),
 		placement: placement,
@@ -84,8 +85,8 @@ async function program<Result>(
 	const definition = workflow.define({
 		id: `scheduler-test.${activityDefinition.id}`,
 		version: '1',
-		input: AnySchema,
-		result,
+		input: codecs.identity(AnySchema),
+		result: codecs.identity(result),
 		activities: [activityDefinition],
 	});
 	const implementation = workflow.implement(definition, run as never);
@@ -150,7 +151,8 @@ describe('workflow Scheduler activity ownership', () => {
 					active += 1;
 					maximum = Math.max(maximum, active);
 					started.push(String(attempt.input));
-					if (attempt.input === 'first') {
+					// Hold whichever branch enters first. Parallel branches have no required start order.
+					if (started.length === 1) {
 						firstStarted.resolve();
 						await releaseFirst.promise;
 					}
@@ -162,13 +164,60 @@ describe('workflow Scheduler activity ownership', () => {
 		void registration;
 
 		const pending = workflow.run({ ctx: workflowCtx, implementation: setup.implementation, scheduler });
-		await firstStarted.promise;
-		await Promise.resolve();
-		expect(started).toEqual(['first']);
-		expect(registration.capacity).toMatchObject({ maximum: 1, active: 1, available: 0 });
-		releaseFirst.resolve();
+		try {
+			await firstStarted.promise;
+			await Promise.resolve();
+			expect(started).toHaveLength(1);
+			expect(registration.capacity).toMatchObject({ maximum: 1, active: 1, available: 0 });
+		} finally {
+			// Release and join work even when an assertion fails, before disposing its scheduler.
+			releaseFirst.resolve();
+			await pending;
+		}
 		expect(await pending).toEqual({ first: 'first', second: 'second' });
+		expect(started.toSorted()).toEqual(['first', 'second']);
 		expect(maximum).toBe(1);
+	});
+
+	it('carries authored required placement through the public scheduler into queue admission', async () => {
+		const Engine = engine('scheduler-location');
+		const Activity = activity('location', placement({ engine: Engine, mode: 'required' }));
+		await using parent = context.create({ id: 'scheduler-location' });
+		const setup = await program(parent, Activity, function* () {
+			return yield* workflow.activity<string, never>(Activity, 'value', {
+				location: workflow.placement.within({ id: 'pod', generation: 1 }),
+			});
+		}, StringSchema);
+		await using workflowCtx = setup.ctx;
+		await using scheduler = workflow.scheduler();
+		let rejectedCalls = 0;
+		await using _wrong = await scheduler.register({
+			engine: Engine,
+			hostId: 'wrong',
+			capacity: 1,
+			compute: { id: 'outside' },
+			provider: {
+				activities: [Activity],
+				async run() {
+					rejectedCalls++;
+					return workflow.success('wrong');
+				},
+			},
+		});
+		await using _right = await scheduler.register({
+			engine: Engine,
+			hostId: 'right',
+			capacity: 1,
+			compute: { id: 'thread', parent: 'pod', ancestors: [{ id: 'pod', generation: 1 }] },
+			provider: {
+				activities: [Activity],
+				async run() {
+					return workflow.success('right');
+				},
+			},
+		});
+		expect(await workflow.run({ ctx: workflowCtx, implementation: setup.implementation, scheduler })).toBe('right');
+		expect(rejectedCalls).toBe(0);
 	});
 
 	it('snapshots engine registration policy and provider behavior at registration time', async () => {
@@ -492,12 +541,12 @@ describe('workflow Scheduler activity ownership', () => {
 		const Blocked = failures.define({
 			id: 'scheduler.blocked',
 			description: 'The activity is blocked.',
-			data: schema((value) => {
+			data: codecs.identity(schema((value) => {
 				if (typeof value !== 'object' || value === null || (value as { code?: unknown }).code !== 'blocked') {
 					throw new TypeError('Expected blocked failure data.');
 				}
 				return { code: 'blocked' as const };
-			}),
+			})),
 		});
 		const base = activity('durable-job', placement({ engine: Engine, mode: 'required' }));
 		const Activity = Object.freeze(
@@ -506,8 +555,8 @@ describe('workflow Scheduler activity ownership', () => {
 		const definition = workflow.define({
 			id: 'scheduler-test.durable-job',
 			version: '1',
-			input: AnySchema,
-			result: StringSchema,
+			input: codecs.identity(AnySchema),
+			result: codecs.identity(StringSchema),
 			activities: [Activity],
 		});
 		const implementation = workflow.implement(definition, function* () {

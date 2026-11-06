@@ -4,7 +4,7 @@ import type { StandardSchemaV1 } from '@standard-schema/spec';
 
 import * as endpoint from '@okikio/server/endpoint';
 import * as response from '@okikio/http/response';
-import * as resource from '@okikio/resource';
+import * as resource from '@okikio/capability/resource';
 import * as service from '../service/mod.ts';
 import * as gateway from './mod.ts';
 
@@ -26,6 +26,7 @@ const Observer = gateway.observer.define({
 	description: 'Records redacted gateway lifecycle events.',
 });
 
+/** Build one fresh public policy; individual cases vary only the forwarding option under test and retain the same mounted service. */
 function gatewayDefinition(options: Readonly<{
 	readonly credentials?: gateway.GatewayCredentialPolicy;
 	readonly redirects?: gateway.GatewayRedirectPolicy;
@@ -911,4 +912,39 @@ describe('gateway lifecycle', () => {
 		expect(events).toHaveLength(1);
 		expect(events[0]).toMatchObject({ kind: 'denied', pathname: '/not-mounted' });
 	});
+});
+
+it('cancels an unread upstream body when the caller aborts and releases its reader', async () => {
+	const compiled = gateway.compile(gatewayDefinition(), { services: [compiledService] });
+	const cancelled = Promise.withResolvers<void>();
+	const source = new ReadableStream<Uint8Array>({
+		pull(controller) {
+			controller.enqueue(new Uint8Array([1]));
+		},
+		cancel() {
+			cancelled.resolve();
+		},
+	});
+	const runtime = gateway.create(compiled, {
+		adapters: adapters(),
+		fetch: async () => new Response(source),
+	});
+	const controller = new AbortController();
+	const result = await runtime.fetch(
+		new Request('http://localhost/api/v1/items', { method: 'POST', signal: controller.signal }),
+	);
+	controller.abort(new Error('stop unread body'));
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	try {
+		await Promise.race([
+			cancelled.promise,
+			new Promise<never>((_, reject) => {
+				timer = setTimeout(() => reject(new Error('Upstream body was not cancelled.')), 1000);
+			}),
+		]);
+	} finally {
+		if (timer !== undefined) clearTimeout(timer);
+		await result.body?.cancel().catch(() => undefined);
+	}
+	expect(source.locked).toBe(false);
 });

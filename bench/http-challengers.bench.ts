@@ -3,12 +3,12 @@ import '@okikio/duration/polyfill';
 import '@okikio/dispose/polyfill';
 import { deepStrictEqual } from 'node:assert';
 import { bench, do_not_optimize, group } from 'mitata';
-import { challengerArguments, challengerRuntime, runChallengers } from './challenger-run.ts';
-import { challengerOrders } from './challenger-compare.ts';
-import { challengerNames, httpChallengerCases } from './fixtures/http-challengers.ts';
-import type { ChallengerOperationType } from './fixtures/http-challengers.ts';
-import { elysiaConfiguration } from '../tests/fixtures/http-parity/elysia.ts';
-import { vixenyContract } from '../tests/fixtures/http-parity/vixeny.ts';
+import { challengerArguments, challengerRuntime, runChallengers } from '#tools/bench/challenger-run.ts';
+import { challengerOrders } from '#tools/bench/challenger-compare.ts';
+import { challengerNames, httpChallengerCases } from '#bench/fixtures/http-challengers.ts';
+import type { ChallengerOperationType } from '#bench/fixtures/http-challengers.ts';
+import { elysiaConfiguration } from '#fixtures/http-parity/elysia.ts';
+import { vixenyContract } from '#fixtures/http-parity/vixeny.ts';
 
 const selector = challengerArguments.find((value) => value.startsWith('--order='))?.slice(8) ?? '0';
 const orderIndex = Number(selector);

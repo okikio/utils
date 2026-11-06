@@ -357,7 +357,7 @@ describe('request validation diagnostics', () => {
 });
 
 describe('request body framing and native form parsing', () => {
-	it('joins delayed abort cancellation before rejecting and releasing the reader', async () => {
+	it('rejects and releases promptly while delayed source cancellation stays observable', async () => {
 		let enter!: () => void;
 		const entered = new Promise<void>((resolve) => enter = resolve);
 		let release!: () => void;
@@ -394,13 +394,15 @@ describe('request body framing and native form parsing', () => {
 		try {
 			controller.abort(reason);
 			await entered;
-			expect(value.body!.locked).toBe(true);
-			release();
+			expect(value.body!.locked).toBe(false);
 			const result = await terminal;
 			expect(result.kind).toBe('rejected');
 			if (result.kind === 'rejected') expect(result.error).toBe(reason);
 			expect(cancellationReasons).toEqual([reason]);
-			expect(events).toEqual(['cancel-completed', 'read-rejected']);
+			expect(events).toEqual(['read-rejected']);
+			release();
+			expect(await request.bodyCleanup(value)).toEqual({ status: 'cancelled' });
+			expect(events).toEqual(['read-rejected', 'cancel-completed']);
 			expect(value.body!.locked).toBe(false);
 		} finally {
 			release();
@@ -432,7 +434,8 @@ describe('request body framing and native form parsing', () => {
 		if (result.status !== 'rejected') throw new Error('Overflow was admitted.');
 		assertIssue(result.reason, 'body-too-large');
 		const error = result.reason as request.RequestTransportError;
-		expect(error.cause).toBe(cleanup);
+		expect(error.cause).toBeUndefined();
+		expect(await request.bodyCleanup(value)).toEqual({ status: 'failed', error: cleanup });
 		expect(JSON.stringify(error.issues)).not.toContain('fixture-secret-861');
 		expect(value.body!.locked).toBe(false);
 	});
@@ -463,15 +466,13 @@ describe('request body framing and native form parsing', () => {
 		try {
 			controller.abort(null);
 			await entered;
-			expect(value.body!.locked).toBe(true);
-			release();
+			expect(value.body!.locked).toBe(false);
 			const result = (await terminal)[0]!;
 			expect(result.status).toBe('rejected');
 			if (result.status !== 'rejected') throw new Error('Abort was admitted.');
-			expect(result.reason).toBeInstanceOf(AggregateError);
-			const error = result.reason as AggregateError;
-			expect(error.cause).toBe(null);
-			expect(error.errors).toEqual([null, undefined]);
+			expect(result.reason).toBe(null);
+			release();
+			expect(await request.bodyCleanup(value)).toEqual({ status: 'failed', error: undefined });
 			expect(value.body!.locked).toBe(false);
 		} finally {
 			release();

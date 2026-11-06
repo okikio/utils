@@ -14,6 +14,7 @@
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
 		"@okikio/http": "workspace:^",
-		"@okikio/resource": "workspace:^"
+		"@okikio/capability": "workspace:^",
+		"mitata": "^1.0.34"
 	}
 }

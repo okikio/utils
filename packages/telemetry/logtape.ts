@@ -27,6 +27,7 @@ export interface LogTapeContextApi {
 export function reporter(logger: LogTapeLogger): Reporter {
 	assertLogger(logger);
 	return Object.freeze({
+		/** Preserve the event's severity and structured fields; this bridge does not configure destinations or filters. */
 		report(value: Event): void {
 			const properties: Record<string, unknown> = {
 				event: value.name,

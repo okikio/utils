@@ -1,9 +1,9 @@
 /** Run independent Hono and Utils candidates against an authored application contract. @module */
 import { deepStrictEqual } from 'node:assert';
 import { describe, it } from 'node:test';
-import { cases, gatewayCases, observe, request, routingCases } from './fixtures/http-parity/corpus.ts';
-import { createHonoApi, createHonoGateway, createHonoRouting } from './fixtures/http-parity/hono.ts';
-import { createUtilsApi, createUtilsGateway, createUtilsRouting } from './fixtures/http-parity/utils.ts';
+import { cases, gatewayCases, observe, request, routingCases } from '#fixtures/http-parity/corpus.ts';
+import { createHonoApi, createHonoGateway, createHonoRouting } from '#fixtures/http-parity/hono.ts';
+import { createUtilsApi, createUtilsGateway, createUtilsRouting } from '#fixtures/http-parity/utils.ts';
 
 describe('independent HTTP API parity', () => {
 	for (const [name, create] of [['Hono', createHonoApi], ['Utils', createUtilsApi]] as const) {

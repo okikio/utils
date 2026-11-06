@@ -1,4 +1,4 @@
-import * as recordCore from '@okikio/record';
+import * as recordCore from '@okikio/collection/record';
 import type { Handler, ReadinessType } from './types.ts';
 
 /** Options used by the liveness handler. */
@@ -7,11 +7,15 @@ export interface HealthOptions {
 	readonly service?: string;
 	/** Service start time as epoch milliseconds, used for uptime reporting. */
 	readonly startedAt?: number;
-	/** Clock returning a valid Date for liveness timestamp and uptime reporting. */
+	/** A supplied Date clock controls timestamp and uptime together; the default host measures uptime monotonically. */
 	readonly now?: () => Date;
 }
 
-/** Create a process-liveness handler with no dependency checks. */
+/**
+ * Create a process-liveness handler with no dependency checks. The default host
+ * clock supplies wall timestamps and whole elapsed milliseconds independently.
+ * Supplying now() keeps timestamp and uptime on that explicit Date clock.
+ */
 export function health(options: HealthOptions = {}): Handler {
 	recordCore.assert(options, 'health options');
 	const normalized = recordCore.snapshot(options, 'health options');
@@ -27,6 +31,11 @@ export function health(options: HealthOptions = {}): Handler {
 	const service = normalized.service;
 	const startedAt = normalized.startedAt ?? Date.now();
 	const now = normalized.now ?? (() => new Date());
+	// A supplied clock retains its epoch-based testing contract. The real host
+	// converts an explicit historical start once, then measures only elapsed
+	// monotonic time so clock corrections cannot move uptime backward or forward.
+	const elapsedStart = normalized.now === undefined ? performance.now() : 0;
+	const initialAge = normalized.now === undefined && normalized.startedAt !== undefined ? Date.now() - startedAt : 0;
 	return () => {
 		const current = now();
 		if (!(current instanceof Date) || !Number.isFinite(current.getTime())) {
@@ -36,12 +45,19 @@ export function health(options: HealthOptions = {}): Handler {
 			status: 'ok',
 			...(service === undefined ? {} : { service }),
 			timestamp: current.toISOString(),
-			uptimeMs: Math.max(0, current.getTime() - startedAt),
+			uptimeMs: normalized.now === undefined
+				? Math.max(0, Math.floor(initialAge + performance.now() - elapsedStart))
+				: Math.max(0, current.getTime() - startedAt),
 		}, 200);
 	};
 }
 
-/** Create a readiness handler from one bounded caller-owned readiness probe. */
+/**
+ * Return 200 or 503 from the caller's readiness result.
+ * The probe must implement its own deadline and observe request.signal. This
+ * wrapper does not add a timeout or block other routes when readiness is false.
+ * Probe failures propagate to the application's error middleware.
+ */
 export function ready(
 	probe: (request: Request) => boolean | ReadinessType | Promise<boolean | ReadinessType>,
 	options: Readonly<{ readonly service?: string }> = {},

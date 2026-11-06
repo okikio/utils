@@ -1,5 +1,5 @@
 import { encodeHex } from '@std/encoding/hex';
-import * as recordCore from '@okikio/record';
+import * as recordCore from '@okikio/collection/record';
 import { memoize } from './memo.ts';
 
 const correlationKey = Symbol('utils.http.request-correlation');
@@ -187,9 +187,11 @@ function correlationOptions(options: RequestCorrelationOptions): RequestCorrelat
 }
 
 /**
- * Establishes one trusted request correlation ID from accepted upstream metadata or a new generated value.
- *
- * Request internals normalize untrusted protocol metadata before endpoint and service composition consume it.
+ * Select diagnostic IDs and create a span for this request.
+ * Explicit request IDs take precedence over opted-in ingress IDs. A valid
+ * incoming trace continues the trace but always gets a new local span; invalid
+ * parent data starts a new trace and drops its associated vendor state.
+ * Correlation identifies related events, not an authenticated caller.
  *
  * @internal
  */

@@ -5,9 +5,21 @@
 	"sideEffects": false,
 	"license": "MIT",
 	"exports": {
+		"./async": "./async.ts",
+		"./failure": "./failure/mod.ts",
+		"./failure/types": "./failure/types.ts",
+		"./fault": "./fault/mod.ts",
+		"./fault/types": "./fault/types.ts",
 		".": "./mod.ts"
 	},
+	"dependencies": {
+		"@okikio/collection": "workspace:^",
+		"@okikio/schema": "workspace:^"
+	},
 	"devDependencies": {
-		"@std/expect": "npm:@jsr/std__expect@^1.0.20"
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
+		"@standard-schema/spec": "^1.1.0",
+		"@okikio/dispose": "workspace:^",
+		"mitata": "^1.0.34"
 	}
 }

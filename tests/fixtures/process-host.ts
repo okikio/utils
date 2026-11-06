@@ -1,7 +1,7 @@
 import * as activityProcess from '@okikio/activity/process';
 import * as context from '@okikio/context';
-import * as resource from '@okikio/resource';
-import { Engine, ExecuteLive } from './process-activity.ts';
+import * as resource from '@okikio/capability/resource';
+import { Engine, ExecuteLive } from '#fixtures/process-activity.ts';
 
 await using owner = context.create({ id: `scenario.process-host:${Deno.pid}` });
 await using resources = resource.create(resource.implementations(), { ctx: owner, host: Object.freeze({}) });

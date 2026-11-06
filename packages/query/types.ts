@@ -1,5 +1,6 @@
-import type { Temporal as Ponyfill } from '@okikio/duration/temporal';
-import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { DurationInput } from '@okikio/duration';
+import type { StandardJSONSchemaV1, StandardSchemaV1 } from '@standard-schema/spec';
+import type { Input as SchemaInput, Output as SchemaOutput } from '@okikio/schema';
 import type { QueryExpression, QueryExpressionInspection } from './expression.ts';
 
 /** Query field schema and public documentation metadata. */
@@ -14,27 +15,52 @@ export interface QueryField<Schema extends StandardSchemaV1 = StandardSchemaV1> 
 	readonly selectable: boolean;
 	/** Whether clients may place this field in the ordered sort list. */
 	readonly sortable: boolean;
-	/** Explicit wire schema override for documentation when inference cannot describe this field. */
+	/**
+	 * Inline JSON Schema for HTTP documentation when inference cannot describe this field.
+	 *
+	 * wireSchema() copies it into independent parameter schemas and rejects resource
+	 * IDs, anchors and references. This metadata does not replace field validation.
+	 */
 	readonly jsonSchema?: unknown;
+	/** Explicit JSON Schema for parsed field output; never inferred from a differently typed wire input override. */
+	readonly outputJsonSchema?: unknown;
+	/** Optional synchronous inverse from validated output to a wire-compatible field input. */
+	encode?(value: SchemaOutput<Schema>): SchemaInput<Schema>;
 }
 
 /** Input accepted by {@link field}. */
-export interface QueryFieldOptions {
+export interface QueryFieldOptions<Schema extends StandardSchemaV1 = StandardSchemaV1> {
 	/** Caller-authored explanation used by query documentation. */
 	readonly description?: string;
 	/** Whether clients may request this field in a sparse projection. */
 	readonly selectable?: boolean;
 	/** Whether clients may place this field in the ordered sort list. */
 	readonly sortable?: boolean;
-	/** Explicit wire schema override for documentation when inference cannot describe this field. */
+	/**
+	 * Inline JSON Schema for HTTP documentation when inference cannot describe this field.
+	 *
+	 * wireSchema() copies it into independent parameter schemas and rejects resource
+	 * IDs, anchors and references. This metadata does not replace field validation.
+	 */
 	readonly jsonSchema?: unknown;
+	/** Explicit JSON Schema for parsed field output; never inferred from a differently typed wire input override. */
+	readonly outputJsonSchema?: unknown;
+	/**
+	 * Convert a validated operand back to schema input before URL encoding.
+	 * Required for reversible links when a transform cannot read its own output.
+	 * Return a supported scalar synchronously; list operators apply this per item.
+	 */
+	encode?(value: SchemaOutput<Schema>): SchemaInput<Schema>;
 }
 
 /** Named public field collection. */
 export type QueryFields = Readonly<Record<string, QueryField>>;
 
 /** Value type emitted by one query field. */
-export type QueryFieldValue<Field extends QueryField> = StandardSchemaV1.InferOutput<Field['schema']>;
+export type QueryFieldValue<Field extends QueryField> = SchemaOutput<Field['schema']>;
+
+/** Authoring value before a field schema transforms it into its output value. */
+export type QueryFieldInput<Field extends QueryField> = SchemaInput<Field['schema']>;
 
 /** Built-in filter operator names. */
 export type QueryOperatorName =
@@ -123,8 +149,8 @@ export interface CursorPaginationDefinition {
 	readonly maximumLimit: number;
 	/** Smallest accepted page size. */
 	readonly minimumLimit: number;
-	/** Optional cursor lifetime. Calendar units use the documented 2000-01-01 anchor when converted; native and ponyfill durations are accepted. */
-	readonly ttl?: Temporal.Duration | Ponyfill.Duration;
+	/** Positive fixed cursor lifetime. Records, ISO text, and Temporal durations work; calendar years/months reject. */
+	readonly ttl?: DurationInput;
 	/** Explicit URL parameter names; defaults are resolved when the policy is authored. */
 	readonly parameters: CursorPaginationParameters;
 }
@@ -177,8 +203,8 @@ export interface CursorPaginationOptions {
 	readonly maximumLimit?: number;
 	/** Smallest accepted page size. */
 	readonly minimumLimit?: number;
-	/** Optional cursor lifetime. Calendar units use the documented 2000-01-01 anchor when converted; native and ponyfill durations are accepted. */
-	readonly ttl?: Temporal.Duration | Ponyfill.Duration;
+	/** Positive fixed cursor lifetime. Records, ISO text, and Temporal durations work; calendar years/months reject. */
+	readonly ttl?: DurationInput;
 	/** Explicit URL parameter names; defaults are resolved when the policy is authored. */
 	readonly parameters?: Partial<CursorPaginationParameters>;
 }
@@ -224,11 +250,14 @@ export type QueryFieldsetInput = readonly string[] | QueryFieldsetDefinition;
 export type QueryFieldsets = Readonly<Record<string, QueryFieldsetDefinition>>;
 
 /** Complete storage-neutral query definition input. */
-export interface QueryDefinitionInput<Fields extends QueryFields> {
+export interface QueryDefinitionInput<
+	Fields extends QueryFields,
+	Filters extends QueryFilters<Fields> = QueryFilters<Fields>,
+> {
 	/** Public field declarations or sparse projection; hidden fields remain unavailable to clients. */
 	readonly fields: Fields;
-	/** Declared operators by field; runtime values retain the conjunction compatibility view. */
-	readonly filters?: QueryFilters<Fields>;
+	/** Declared operators by field; runtime queries retain their authored Boolean expression. */
+	readonly filters?: Filters;
 	/** Defaults to conjunction only for deployed flat-filter consumers. */
 	readonly expressions?: readonly QueryExpressionKind[];
 	/** Sort entries in priority order; canonical normalization does not reorder their priority. */
@@ -273,16 +302,65 @@ export interface QueryPaginationParameters {
 	readonly perPage?: string;
 }
 
-/** One normalized filter. */
+/** A field condition whose operator determines whether it has zero, one, two, or many operands. */
+export type QueryCondition<Field extends string, Value, Operator extends QueryOperatorName = QueryOperatorName> = {
+	readonly [Name in Operator]: Readonly<
+		& { readonly field: Field; readonly operator: Name }
+		& (Name extends 'isNull' | 'isNotNull' ? { readonly value?: never }
+			: Name extends 'between' ? { readonly value: readonly [Value, Value] }
+			: Name extends 'in' | 'nin' ? { readonly value: readonly [Value, ...Value[]] }
+			: { readonly value: Value })
+	>;
+}[Operator];
+
+/** Validated filter operands retain each field schema's output type and operator arity. */
 export type QueryFilter<Fields extends QueryFields> = {
-	readonly [Key in keyof Fields & string]: Readonly<{
-		/** Public schema field selected by this condition or sort. */
-		readonly field: Key;
-		readonly operator: QueryOperatorName;
-		/** Validated operand or typed operand list; nullary operators omit it. */
-		readonly value?: QueryFieldValue<Fields[Key]> | readonly QueryFieldValue<Fields[Key]>[];
-	}>;
+	readonly [Key in keyof Fields & string]: QueryCondition<Key, QueryFieldValue<Fields[Key]>>;
 }[keyof Fields & string];
+
+/** Operators actually enabled for a field in a concrete query definition. */
+export type QueryAllowedOperator<Filters, Field extends PropertyKey> = Field extends keyof Filters
+	? Extract<NonNullable<Filters[Field]>, readonly QueryOperator[]>[number]['name']
+	: never;
+
+/** Arguments for a condition helper, keeping null checks operand-free and ranges exactly two-valued. */
+export type QueryOperandArguments<Value, Operator extends QueryOperatorName> = Operator extends 'isNull' | 'isNotNull'
+	? []
+	: Operator extends 'between' ? [value: readonly [Value, Value]]
+	: Operator extends 'in' | 'nin' ? [value: readonly [Value, ...Value[]]]
+	: [value: Value];
+
+/** Typed field conditions before validation, limited to the definition's declared operators. */
+export type QueryInputFilter<Fields extends QueryFields, Filters extends QueryFilters<Fields> = QueryFilters<Fields>> =
+	{
+		readonly [Key in keyof Fields & string]: QueryCondition<
+			Key,
+			QueryFieldInput<Fields[Key]>,
+			QueryAllowedOperator<Filters, Key>
+		>;
+	}[keyof Fields & string];
+
+/** A programmatically authored page, independent of HTTP parameter names. */
+export type QueryPageInput =
+	| Readonly<{ kind: 'cursor'; cursor?: string; limit?: number }>
+	| Readonly<{ kind: 'offset'; offset?: number; limit?: number }>
+	| Readonly<{ kind: 'page'; page?: number; limit?: number }>;
+
+/**
+ * Typed semantic input to create(). Omitted fields, order, and pagination use
+ * the definition's defaults. Field operands use schema input types; the result
+ * uses schema output types. create() validates this value before adapter use.
+ */
+export interface QueryInput<Fields extends QueryFields, Filters extends QueryFilters<Fields> = QueryFilters<Fields>> {
+	/** One condition or a Boolean tree built with all(), any(), and not(). */
+	readonly filter?: QueryExpression<QueryInputFilter<Fields, Filters>>;
+	/** Client sort priority. Stable cursor tiebreakers still come from the definition. */
+	readonly order?: readonly Readonly<{ field: keyof Fields & string; direction: QuerySortDirection }>[];
+	/** A concise primary field list or an explicit simple/resource projection. */
+	readonly fields?: readonly (keyof Fields & string)[] | QueryFieldSelection<keyof Fields & string>;
+	/** Page mode and counts, checked against the configured policies. */
+	readonly pagination?: QueryPageInput;
+}
 
 /** One normalized client-selected sort. */
 export interface QuerySort<Field extends string = string> {
@@ -341,10 +419,8 @@ export interface OffsetPagination {
 
 /** Complete normalized collection query. */
 export interface QueryValue<Fields extends QueryFields = QueryFields> {
-	/** Authored Boolean tree. Absent on legacy values authored with flat filters. */
+	/** Authored Boolean tree. Omission means that no filter conditions were supplied. */
 	readonly filter?: QueryExpression<QueryFilter<Fields>>;
-	/** Conjunction compatibility view; throws for an ANY/NOT tree. */
-	readonly filters: readonly QueryFilter<Fields>[];
 	/** Sort entries in priority order; canonical normalization does not reorder their priority. */
 	readonly order: readonly QuerySort<keyof Fields & string>[];
 	/** Public field declarations or sparse projection; hidden fields remain unavailable to clients. */
@@ -449,15 +525,25 @@ export interface CursorCodec<Payload = Readonly<Record<string, unknown>>> {
 }
 
 /** Runtime and documentation contract exposed by one query definition. */
-export interface QueryDefinition<Fields extends QueryFields = QueryFields>
-	extends StandardSchemaV1<unknown, QueryValue<Fields>> {
+export interface QueryDefinition<
+	Fields extends QueryFields = QueryFields,
+	Filters extends QueryFilters<Fields> = QueryFilters<Fields>,
+> extends StandardSchemaV1<unknown, QueryValue<Fields>>, StandardJSONSchemaV1<unknown, QueryValue<Fields>> {
+	/**
+	 * Validation consumes all supported wire containers. JSON output conversion
+	 * describes the parsed structural type; input conversion throws because JSON
+	 * Schema cannot express tagged operand decoding plus field validation.
+	 */
+	readonly '~standard':
+		& StandardSchemaV1.Props<unknown, QueryValue<Fields>>
+		& StandardJSONSchemaV1.Props<unknown, QueryValue<Fields>>;
 	/** Stable discriminant used to recognize this query value. */
 	readonly kind: 'query-definition';
 	/** Public field declarations or sparse projection; hidden fields remain unavailable to clients. */
 	readonly fields: Fields;
-	/** Declared operators by field; runtime values retain the conjunction compatibility view. */
-	readonly filters: QueryFilters<Fields>;
-	/** Enabled Boolean composition; omission at a provider boundary means conjunction only. */
+	/** Declared operators by field; runtime queries retain their authored Boolean expression. */
+	readonly filters: Filters;
+	/** Enabled Boolean composition; providers that omit this capability support conjunction only. */
 	readonly expressions: readonly QueryExpressionKind[];
 	/** Sort entries in priority order; canonical normalization does not reorder their priority. */
 	readonly order: readonly QueryOrder<keyof Fields & string>[];
@@ -485,21 +571,29 @@ export interface QueryDefinition<Fields extends QueryFields = QueryFields>
 	readonly defaultFields: readonly (keyof Fields & string)[];
 	/** Caller-authored explanation used by query documentation. */
 	readonly description?: string;
-	/** Standard JSON Schema projection for the accepted wire input; runtime parsing owns full grammar validation. */
-	readonly '~standard-json-schema': Readonly<{
-		/** Standard JSON Schema protocol version. */
-		readonly version: 1;
-		/** Stable schema provider identifier. */
-		readonly vendor: 'utils-query';
-		/** Explicit wire schema override for documentation when inference cannot describe this field. */
-		readonly jsonSchema: () => Readonly<Record<string, unknown>>;
-	}>;
-	/** Describe the actual flat URL fields accepted by this definition. */
+	/**
+	 * Document URL parameter names, examples and parser budgets for HTTP tools.
+	 * This document does not replace parsing or validate decoded tagged operands.
+	 *
+	 * Field schemas containing resource IDs, anchors or references reject because
+	 * each HTTP parameter is documented independently. Supply inline jsonSchema
+	 * metadata when a field validator projects a referenced resource.
+	 */
 	wireSchema(): Readonly<Record<string, unknown>>;
 	/** Validate URLSearchParams or plain query data; throw QueryValidationError on rejected input. */
 	parse(input: unknown): Promise<QueryValue<Fields>>;
 	/** Validate the same input while returning structured issues instead of throwing. */
 	safeParse(input: unknown): Promise<QueryParseResult<QueryValue<Fields>>>;
+	/** Author a typed condition. Validation occurs when create() consumes the complete request. */
+	condition<Field extends keyof Fields & string, Operator extends QueryAllowedOperator<Filters, Field>>(
+		field: Field,
+		operator: Operator,
+		...values: QueryOperandArguments<QueryFieldInput<Fields[Field]>, Operator>
+	): QueryCondition<Field, QueryFieldInput<Fields[Field]>, Operator>;
+	/** Validate semantic input, apply defaults, and return the same QueryValue used by URL parsing. */
+	create(input?: QueryInput<Fields, Filters>): Promise<QueryValue<Fields>>;
+	/** Validate semantic input while returning structured issues instead of QueryValidationError. */
+	safeCreate(input?: QueryInput<Fields, Filters>): Promise<QueryParseResult<QueryValue<Fields>>>;
 	/** Encode a validated query while preserving authored ordering and pagination spelling. */
 	encode(value: QueryValue<Fields>): URLSearchParams;
 	/** Return a separate canonical query, preserving scalar types and sort priority. */
@@ -515,6 +609,31 @@ export interface QueryDefinition<Fields extends QueryFields = QueryFields>
 	/** Compare declared provider capabilities and reject any semantic downgrade. */
 	validateAdapter(capabilities: QueryAdapterCapabilities): QueryAdapterValidationResult;
 }
+
+/**
+ * Read-only query policy consumed by parsers, URL codecs, and adapter inspection.
+ * It derives from the definition's single contract and omits authoring methods,
+ * so a parser does not need to depend on a particular author's generic helpers.
+ */
+export type QueryPolicy<Fields extends QueryFields = QueryFields> = Pick<
+	QueryDefinition<Fields>,
+	| 'fields'
+	| 'filters'
+	| 'expressions'
+	| 'order'
+	| 'pagination'
+	| 'fieldsets'
+	| 'maximumFilters'
+	| 'maximumSorts'
+	| 'maximumSelectedFields'
+	| 'maximumValuesPerFilter'
+	| 'maximumValueLength'
+	| 'maximumParameters'
+	| 'maximumDepth'
+	| 'maximumSiblings'
+	| 'defaultFields'
+	| 'description'
+>;
 
 /** JSON-safe query documentation. */
 export interface QueryDocument {

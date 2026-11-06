@@ -51,4 +51,4 @@ This added edge case is not attributed to the upstream test corpus.
 
 [coverage.json](./coverage.json) maps every upstream registration line to executable local cases and its contract
 disposition. No upstream proxy registration is omitted. Porting assertions establishes provenance, not a passed result;
-the root qualification run records actual runtime and compiler results separately.
+the root test run records actual runtime and compiler results separately.

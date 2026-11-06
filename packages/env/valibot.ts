@@ -5,14 +5,14 @@ import { getDescription, getExamples, getMetadata as getValibotMetadata, getTitl
 
 import {
 	compose as composeStandard,
+	define as environmentStandard,
 	defineEnvironmentField,
-	environment as environmentStandard,
 	requirement,
 } from './definition.ts';
 import { EnvironmentError } from './error.ts';
-import { resolveMetadata } from './metadata.ts';
+import * as field from './field.ts';
 import { example, manifest, requirementReport } from './projection.ts';
-import * as recordCore from '@okikio/record';
+import * as recordCore from '@okikio/collection/record';
 import { env, isSource, merge, record, select } from './source.ts';
 import type {
 	EnvironmentDefinition,
@@ -66,9 +66,8 @@ export type InferValibotEnvironmentFields<Inputs extends ValibotEnvironmentField
 const bareVariables = new WeakMap<object, EnvironmentField<ValibotEnvironmentSchema, 'variable'>>();
 
 /**
- * Reads metadata under the module's cancellation and ownership rules.
- *
- * It keeps environment definitions import-safe and leaves ambient source selection to the application composition root.
+ * Combine Valibot's public annotations; dedicated title, description, and
+ * examples annotations override same-named custom metadata.
  *
  * @internal
  */
@@ -83,55 +82,6 @@ function getMetadata(schema: ValibotEnvironmentSchema): Readonly<Record<string, 
 		...(description ? { description } : {}),
 		...(examples.length > 0 ? { examples } : {}),
 	};
-}
-
-/**
- * Return whether an authoring input is already an explicitly classified environment field.
- *
- * @internal
- */
-function isField(value: ValibotEnvironmentFieldInput): value is EnvironmentField<ValibotEnvironmentSchema> {
-	return typeof value === 'object' && value !== null &&
-		('kind' in value && (value.kind === 'variable' || value.kind === 'secret')) &&
-		'schema' in value && 'metadata' in value;
-}
-
-/**
- * Normalize schema metadata into the canonical environment-field metadata contract.
- *
- * It keeps environment definitions import-safe and leaves ambient source selection to the application composition root.
- *
- * @internal
- */
-function normalizedMetadata(
-	kind: 'variable' | 'secret',
-	schema: ValibotEnvironmentSchema,
-	explicit?: EnvironmentFieldMetadataInput,
-	key?: string,
-) {
-	if (kind === 'secret' && explicit?.example !== undefined) {
-		throw new TypeError('Secret environment fields cannot include example values.');
-	}
-	const resolved = resolveMetadata(getMetadata(schema), explicit, key);
-	if (kind === 'variable' || resolved.example === undefined) return resolved;
-	const { example: _example, ...safe } = resolved;
-	return safe;
-}
-
-/**
- * Reuse or create the canonical environment field for one schema authoring input.
- *
- * @internal
- */
-function normalizeField(input: ValibotEnvironmentFieldInput, key: string): EnvironmentField<ValibotEnvironmentSchema> {
-	if (isField(input)) return input;
-
-	const existing = bareVariables.get(input);
-	if (existing) return existing;
-
-	const field = defineEnvironmentField('variable', input, normalizedMetadata('variable', input, undefined, key));
-	bareVariables.set(input, field);
-	return field;
 }
 
 /**
@@ -160,18 +110,15 @@ function normalizeField(input: ValibotEnvironmentFieldInput, key: string): Envir
  * const ServiceEnvironment = env.define({ DATABASE_URL: env.secret(DatabaseUrl) });
  * ```
  */
-export function environment<const Inputs extends ValibotEnvironmentFieldInputs>(
+export function define<const Inputs extends ValibotEnvironmentFieldInputs>(
 	inputs: Inputs,
 ): EnvironmentDefinition<InferValibotEnvironmentFields<Inputs>> {
 	recordCore.assert(inputs, 'valibot environment inputs');
 	const fields = Object.fromEntries(
-		Object.entries(inputs).map(([key, input]) => [key, normalizeField(input, key)]),
+		Object.entries(inputs).map(([key, input]) => [key, field.normalize(input, key, bareVariables, getMetadata)]),
 	) as InferValibotEnvironmentFields<Inputs>;
 	return environmentStandard(fields);
 }
-
-/** Descriptive alias for `environment()` in Valibot authoring code. */
-export const define = environment;
 
 /** Define an ordinary Valibot-backed deployment variable. */
 export function variable<const Schema extends ValibotEnvironmentSchema>(
@@ -181,7 +128,7 @@ export function variable<const Schema extends ValibotEnvironmentSchema>(
 	return defineEnvironmentField(
 		'variable',
 		schema,
-		normalizedMetadata('variable', schema, metadataOverride),
+		field.metadata('variable', getMetadata(schema), metadataOverride),
 	);
 }
 
@@ -193,7 +140,7 @@ export function secret<const Schema extends ValibotEnvironmentSchema>(
 	return defineEnvironmentField(
 		'secret',
 		schema,
-		normalizedMetadata('secret', schema, metadataOverride),
+		field.metadata('secret', getMetadata(schema), metadataOverride),
 	);
 }
 

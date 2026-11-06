@@ -1,23 +1,27 @@
 /**
- * Declare an HTTP collection query once and validate its filter, sort, selection and pagination grammar before reaching a database. Parsing strings directly into SQL makes hidden fields, unsupported operators and ambiguous list values easy to accept.
+ * Declare which fields a client may filter, sort, or select before a storage adapter receives the request.
+ * A request for an unknown field fails during parsing rather than reaching the database.
  *
- * Start with flat filters, enable bounded all/any/not groups when the provider supports them, and encode values for lossless URL round trips. The tagged wire codec preserves commas, empty text, bigint, dates and negative zero. normalize() produces canonical query data; it does not run a query. Adapters must explicitly declare capabilities and fail closed for unsupported groups. Preserve opaque cursors with a trusted codec rather than interpreting arbitrary client strings.
+ * Start with flat filters. Enable bounded all/any/not groups only when the provider supports them.
+ * normalize() produces canonical query data; it does not run a search.
+ *
+ * Adapters declare supported features. A trusted cursor codec checks continuation tokens before storage
+ * uses them. Encoding preserves distinctions such as an empty string, a literal comma, bigint, and
+ * negative zero.
  *
  * @example
  * ```ts
- * import '@okikio/duration/polyfill';
- * import '@okikio/dispose/polyfill';
  * import * as query from '@okikio/query';
- * import { z } from 'zod';
+ * import * as schema from '@okikio/schema';
  * const Search = query.define({
- *   fields: { id: query.field(z.string(), { sortable: true }), name: query.field(z.string()) },
- *   filters: { name: [query.eq, query.in] },
- *   order: [query.asc('id', { tiebreaker: true })],
- *   pagination: query.offset({ defaultLimit: 20 }),
+ * 	fields: { id: query.field(schema.string(), { sortable: true }), name: query.field(schema.string()) },
+ * 	filters: { name: [query.eq, query.in] },
+ * 	order: [query.asc('id', { tiebreaker: true })],
+ * 	pagination: query.offset({ defaultLimit: 20 }),
  * });
  * const value = await Search.parse(new URLSearchParams('filter[name]=Ada&limit=2'));
- * console.log(value.filters[0]?.field, value.pagination.limit);
- * console.log((await Search.parse(Search.encode(value))).filters[0]?.value);
+ * console.log(query.conjunction(value.filter)?.[0]?.field, value.pagination.limit);
+ * console.log(query.conjunction((await Search.parse(Search.encode(value))).filter)?.[0]?.value);
  * ```
  *
  * @module
@@ -28,9 +32,9 @@ export { asc, desc } from './sort.ts';
 export { cursor, offset, pagination, paginationParameters } from './pagination.ts';
 export { document, requirements, validateAdapter } from './description.ts';
 export { QueryValidationError } from './validation.ts';
-export { inspect, normalize } from './normalize.ts';
+export { conjunction, inspect, normalize } from './normalize.ts';
 export { stringify } from './url.ts';
-export { inspectExpression } from './expression.ts';
+export { all, any, inspectExpression, not } from './expression.ts';
 export {
 	between,
 	contains,
@@ -54,8 +58,10 @@ export type {
 	QueryBooleanExpression,
 	QueryExpression,
 	QueryExpressionInspection,
+	QueryExpressionLeaf,
 	QueryExpressionLeafPredicate,
 	QueryExpressionLeafVisit,
+	QueryExpressionLimits,
 	QueryExpressionPath,
 } from './expression.ts';
 export type {
@@ -73,11 +79,14 @@ export type {
 	QueryAdapterCapabilities,
 	QueryAdapterIssue,
 	QueryAdapterValidationResult,
+	QueryAllowedOperator,
+	QueryCondition,
 	QueryDefinition,
 	QueryDefinitionInput,
 	QueryDocument,
 	QueryExpressionKind,
 	QueryField,
+	QueryFieldInput,
 	QueryFieldOptions,
 	QueryFields,
 	QueryFieldSelection,
@@ -87,14 +96,19 @@ export type {
 	QueryFieldValue,
 	QueryFilter,
 	QueryFilters,
+	QueryInput,
+	QueryInputFilter,
 	QueryInspection,
 	QueryIssue,
+	QueryOperandArguments,
 	QueryOperator,
 	QueryOperatorName,
 	QueryOrder,
+	QueryPageInput,
 	QueryPaginationDefinition,
 	QueryPaginationParameters,
 	QueryParseResult,
+	QueryPolicy,
 	QueryRequirements,
 	QuerySort,
 	QuerySortDirection,

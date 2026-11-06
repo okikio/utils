@@ -112,6 +112,57 @@ describe('direct disposal constructors', () => {
 		await stack.disposeAsync();
 		expect(observed).toBe(false);
 	});
+	it('starts the next cleanup immediately after a nullish resource', async () => {
+		const events: string[] = [];
+		const stack = new AsyncDisposableStack();
+		stack.defer(() => {
+			events.push('cleanup');
+		});
+		stack.use(null);
+		stack.use(undefined);
+		const closing = stack.disposeAsync();
+		expect(events).toEqual(['cleanup']);
+		await closing;
+	});
+	it('awaits a throwing synchronous fallback before starting earlier cleanup', async () => {
+		const events: string[] = [];
+		const failure = new Error('synchronous release failed');
+		const stack = new AsyncDisposableStack();
+		stack.defer(() => {
+			events.push('earlier');
+		});
+		stack.use({
+			[dispose]() {
+				events.push('synchronous');
+				throw failure;
+			},
+		});
+		const closing = stack.disposeAsync();
+		expect(events).toEqual(['synchronous']);
+		await expect(closing).rejects.toBe(failure);
+		expect(events).toEqual(['synchronous', 'earlier']);
+	});
+	it('closes registration before reentrant cleanup and leaves joining to the resource owner', async () => {
+		const release = Promise.withResolvers<void>();
+		const stack = new AsyncDisposableStack();
+		let starts = 0;
+		stack.defer(async () => {
+			starts++;
+			expect(() => stack.defer(() => {})).toThrow(ReferenceError);
+			await stack.disposeAsync();
+			await release.promise;
+		});
+		let complete = false;
+		const first = stack.disposeAsync().then(() => {
+			complete = true;
+		});
+		await stack.disposeAsync();
+		expect(complete).toBe(false);
+		expect(starts).toBe(1);
+		release.resolve();
+		await first;
+		expect(complete).toBe(true);
+	});
 	it('treats a sole asynchronous thrown undefined as rejection while attempting earlier cleanup', async () => {
 		const stack = new AsyncDisposableStack();
 		let cleaned = false;

@@ -10,27 +10,23 @@
 		"./local": "./local.ts",
 		"./process": "./process.ts",
 		"./types": "./types.ts",
-		"./worker": "./worker.ts"
+		"./worker": "./worker.ts",
+		"./selection": "./selection.ts"
 	},
 	"dependencies": {
 		"@standard-schema/spec": "^1.1.0",
-		"@okikio/catalog": "workspace:^",
+		"@okikio/collection": "workspace:^",
 		"@okikio/context": "workspace:^",
-		"@okikio/effect": "workspace:^",
-		"@okikio/failure": "workspace:^",
-		"@okikio/fault": "workspace:^",
-		"@okikio/permission": "workspace:^",
-		"@okikio/pool": "workspace:^",
-		"@okikio/process": "workspace:^",
-		"@okikio/requirement": "workspace:^",
-		"@okikio/resilience": "workspace:^",
-		"@okikio/resource": "workspace:^",
+		"@okikio/capability": "workspace:^",
 		"@okikio/result": "workspace:^",
-		"@okikio/schema": "workspace:^",
+		"@okikio/pool": "workspace:^",
 		"@okikio/worker": "workspace:^",
-		"@okikio/workflow": "workspace:^"
+		"@okikio/schema": "workspace:^",
+		"@okikio/workflow": "workspace:^",
+		"@okikio/authz": "workspace:^"
 	},
 	"devDependencies": {
-		"@std/expect": "npm:@jsr/std__expect@^1.0.20"
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
+		"mitata": "^1.0.34"
 	}
 }

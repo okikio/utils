@@ -1,5 +1,5 @@
-import { forward } from '../headers.ts';
-import * as record from '@okikio/record';
+import { forward, list } from '../headers.ts';
+import * as record from '@okikio/collection/record';
 
 /** Credential forwarding policy for one outbound HTTP request. */
 export interface ForwardHeaderOptionsType {
@@ -44,13 +44,15 @@ export function forwardHeaders(
 ): Headers {
 	record.assert(options, 'HTTP forwarding header options');
 	const remove = new Set(
-		stringList(options.remove ?? [], 'removed forwarding headers').map((name) => name.toLowerCase()),
+		list(options.remove ?? [], 'removed forwarding headers').map((name) => name.toLowerCase()),
 	);
-	const prefixes = stringList(options.removePrefixes ?? [], 'removed forwarding header prefixes').map((value) =>
+	const prefixes = list(options.removePrefixes ?? [], 'removed forwarding header prefixes').map((value) =>
 		value.toLowerCase()
 	);
 	const headers = new Headers();
 
+	// Strip spoofable origin/correlation metadata and credentials by default.
+	// Reconstruct forwarding fields below from the host-selected URL/address.
 	for (const [name, value] of forward(request.headers)) {
 		const normalized = name.toLowerCase();
 		if (removedHeaders.has(normalized) || normalized.startsWith('x-forwarded-')) continue;
@@ -66,18 +68,4 @@ export function forwardHeaders(
 	const clientIp = options.clientIp?.trim();
 	if (clientIp) headers.set('x-forwarded-for', clientIp);
 	return headers;
-}
-
-/** Validate one dense list without invoking accessor-backed array elements. @internal */
-function stringList(values: readonly string[], name: string): readonly string[] {
-	if (!Array.isArray(values)) throw new TypeError(`${name} must be an array of strings.`);
-	const result: string[] = [];
-	for (let index = 0; index < values.length; index += 1) {
-		const descriptor = Object.getOwnPropertyDescriptor(values, String(index));
-		if (descriptor === undefined || !('value' in descriptor) || typeof descriptor.value !== 'string') {
-			throw new TypeError(`${name} must contain dense string data elements.`);
-		}
-		result.push(descriptor.value);
-	}
-	return Object.freeze(result);
 }

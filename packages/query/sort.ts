@@ -1,9 +1,9 @@
 import type {
-	QueryDefinition,
 	QueryFields,
 	QueryIssue,
 	QueryOrder,
 	QueryPaginationDefinition,
+	QueryPolicy,
 	QuerySort,
 	QuerySortDirection,
 } from './types.ts';
@@ -31,14 +31,14 @@ export function desc<const Field extends string>(
 }
 
 /**
- * Parses sorts into the validated internal model used by later phases.
+ * Validate requested sort priority, then append the stable field when the request omitted it.
  *
  * It keeps public query semantics provider-neutral so storage adapters can compile the same validated request differently.
  *
  * @internal
  */
 export function parseSorts<Fields extends QueryFields>(
-	definition: QueryDefinition<Fields>,
+	definition: QueryPolicy<Fields>,
 	entries: ReadonlyMap<string, readonly unknown[]>,
 	issues: QueryIssue[],
 ): QuerySort<keyof Fields & string>[] {
@@ -92,7 +92,7 @@ export function parseSorts<Fields extends QueryFields>(
 }
 
 /**
- * Parses sort token into the validated internal model used by later phases.
+ * Read field[:asc|desc] syntax with ascending as the omitted direction; signed field shortcuts are rejected.
  *
  * @internal
  */
@@ -111,7 +111,7 @@ export function parseSortToken(
 }
 
 /**
- * Normalizes order into the canonical internal form used by later phases.
+ * Copy an authored order entry without its declaration marker for the checked request model.
  *
  * @internal
  */
@@ -124,7 +124,7 @@ export function normalizeOrder<Field extends string>(entry: QueryOrder<Field>): 
 }
 
 /**
- * Checks order and preserves the deterministic issues needed by callers.
+ * Reject duplicate or hidden default order fields and require one tiebreaker when cursor mode is enabled.
  *
  * It keeps public query semantics provider-neutral so storage adapters can compile the same validated request differently.
  *
@@ -150,7 +150,7 @@ export function validateOrder<Fields extends QueryFields>(
 }
 
 /**
- * Normalizes the order requested by callers of provider-neutral query definitions.
+ * Declare one validated field name and sort direction; the provider must implement its ordering semantics.
  *
  * @internal
  */

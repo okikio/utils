@@ -1,3 +1,4 @@
+// @benchmark register-only
 import { bench, do_not_optimize, group } from 'mitata';
 
 import * as workflow from '@okikio/workflow';

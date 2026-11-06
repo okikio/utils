@@ -5,10 +5,15 @@
 		"exclude": [
 			"**/*.test.ts",
 			"**/*.bench.ts",
-			"fixtures/**"
+			"**/fixtures/**"
 		]
 	},
 	"exports": {
+		"./arithmetic": "./arithmetic.ts",
+		"./format": "./format.ts",
+		"./units": "./units.ts",
+		"./conversion": "./conversion.ts",
+		"./instant": "./instant.ts",
 		".": "./mod.ts",
 		"./types": "./types.ts",
 		"./temporal": "./temporal.ts",
@@ -17,12 +22,27 @@
 	"imports": {
 		"temporal-polyfill/full/implementation": "npm:temporal-polyfill@1.0.5/full/implementation"
 	},
+	"license": "MIT",
 	"tasks": {
-		"check": "deno fmt --check && deno lint && deno check . && deno doc --lint mod.ts",
-		"test": "deno test -P=test"
+		"check": "mise run check -- --project duration",
+		"test": "mise run test -- --project duration",
+		"bench": "mise run bench -- --project duration",
+		"bench:check": "mise run bench -- --project duration --check"
 	},
 	"permissions": {
-		"test": {}
+		"test": {},
+		"bench": {
+			"env": [
+				"NODE_DISABLE_COLORS",
+				"NO_COLOR",
+				"FORCE_COLOR"
+			]
+		}
 	},
-	"license": "MIT"
+	"test": {
+		"exclude": [
+			"**/*.types.test.ts",
+			"**/types.test.ts"
+		]
+	}
 }

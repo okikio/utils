@@ -1,4 +1,5 @@
-import type { CatalogEntryIdentity } from '@okikio/catalog';
+import * as streamReader from '@okikio/streams/reader';
+import type { CatalogEntryIdentity } from '@okikio/collection/catalog';
 import * as durationCore from '@okikio/duration';
 import { joinPath } from '@okikio/server/endpoint/path';
 import * as response from '@okikio/http/response';
@@ -6,7 +7,7 @@ import * as problem from '@okikio/http/problem';
 import * as requestWire from '@okikio/http/request';
 import { forward as forwardHeaders } from '@okikio/http/headers';
 import { GatewayProblems } from './problems.ts';
-import * as fault from '@okikio/fault';
+import * as fault from '@okikio/result/fault';
 import * as http from '../http/mod.ts';
 import type {
 	CompiledGateway,
@@ -117,11 +118,8 @@ export function create(compiled: CompiledGateway, options: CreateGatewayOptions 
 }
 
 /**
- * Forwards one matched gateway request to the service transport selected by the compiled route plan.
- *
- * Gateway internals route only definitions selected by the composition root and keep gateway trust policy out of service-domain behavior.
- *
- * @internal
+ * Forward one matched route under the caller signal and an optional gateway deadline. The response
+ * body retains that deadline until completion; receiving headers alone does not finish the request.
  */
 async function forward(
 	compiled: CompiledGateway,
@@ -194,7 +192,7 @@ async function forward(
 		applyHeaders(headers, assertion?.headers);
 		applyMetadataHeaders(headers, route, requestId, options.metadataHeaders);
 
-		const body = await boundedBody(request, route.bodyLimit);
+		const body = await boundedBody(request, route.bodyLimit, signal);
 		if (body === tooLarge) {
 			return finishProblem(problem.create(GatewayProblems.BodyTooLarge, {
 				detail: `The request body exceeds ${route.bodyLimit} bytes.`,
@@ -232,10 +230,11 @@ async function forward(
 			);
 		}
 		const upstreamResponse = await fetcher(upstream);
-		// A custom Fetch adapter can resolve after cancellation. Retain ownership
-		// of that late body until it is released, then preserve the caller's reason.
+		// A custom Fetch adapter can resolve after cancellation. Start retiring
+		// its late body, but do not let a stalled cancel hook delay refusal or
+		// replace the authoritative abort reason. discard observes cleanup errors.
 		if (signal.aborted) {
-			await response.discard(upstreamResponse, signal.reason);
+			void response.discard(upstreamResponse, signal.reason);
 			signal.throwIfAborted();
 		}
 		if (observed(route.observers, 'response')) {
@@ -260,7 +259,7 @@ async function forward(
 					}),
 				);
 			}
-			throw request.signal.reason ?? new DOMException('Request aborted.', 'AbortError');
+			throw request.signal.reason;
 		}
 		await safeOnError(options, error, state);
 		const aborted = signal.aborted;
@@ -286,9 +285,9 @@ async function forward(
 }
 
 /**
- * Runs one gateway runtime adapter while preserving the module's cancellation and completion contract.
- *
- * @internal
+ * Invoke the host adapter only when this route declares requirements. The adapter owns the
+ * authorization decision and must cooperate with state.signal; this call does not forcibly interrupt
+ * host work.
  */
 async function runAdapter(
 	runtime:
@@ -337,9 +336,8 @@ function validateRuntimeAdapters(compiled: CompiledGateway, options: CreateGatew
 }
 
 /**
- * Indexes the observer index so compiled gateway routing can publish diagnostics without making observers authoritative.
- *
- * @internal
+ * Index host handlers by exact observer definition identity. Runtime validation rejects missing or
+ * unrelated declarations before requests arrive.
  */
 function observerIndex(
 	handlers: readonly GatewayObserverHandler[],
@@ -353,9 +351,9 @@ function observed(definitions: readonly GatewayObserverDefinition[], kind: Gatew
 }
 
 /**
- * Publishes a gateway diagnostic event without making the observer stream authoritative for routing state.
- *
- * @internal
+ * Await selected observers in declaration order and suppress their failures. A slow handler can still
+ * delay forwarding or completion; observational means it cannot replace the routing result, not that
+ * it runs in the background.
  */
 async function emit(
 	definitions: readonly GatewayObserverDefinition[],
@@ -371,11 +369,8 @@ async function emit(
 }
 
 /**
- * Builds the immutable gateway event record emitted for one routing or forwarding transition.
- *
- * Gateway internals route only definitions selected by the composition root and keep gateway trust policy out of service-domain behavior.
- *
- * @internal
+ * Project routing identities and the URL pathname into immutable telemetry. Omit query strings, bodies
+ * and credentials rather than copying the request into diagnostics.
  */
 function event(
 	kind: GatewayObserverEventKind,
@@ -451,15 +446,13 @@ const tooLarge = Symbol('gateway-body-too-large');
 const invalidBody = Symbol('gateway-invalid-body');
 
 /**
- * Applies the bounded body limit before compiled gateway routing accepts unbounded work or data.
- *
- * Gateway internals route only definitions selected by the composition root and keep gateway trust policy out of service-domain behavior.
- *
- * @internal
+ * Validate transport length metadata, then buffer only routes with an explicit byte limit. Unbounded
+ * routes retain the original stream and its backpressure instead of materializing the upload.
  */
 async function boundedBody(
 	request: Request,
 	limit: number | undefined,
+	signal: AbortSignal,
 ): Promise<ReadableStream<Uint8Array> | Uint8Array | undefined | typeof tooLarge | typeof invalidBody> {
 	try {
 		requestWire.parseContentLength(request.headers.get('content-length'));
@@ -476,7 +469,13 @@ async function boundedBody(
 	// gateway merely because they pass through it.
 	if (limit === undefined) return request.body;
 	try {
-		return await requestWire.readBody(request, { maximumBodyBytes: limit });
+		// Keep the current upload explicit when adding the gateway deadline.
+		// An implicit Request-to-Request body transfer can reject the wrapper's
+		// read on abort without forwarding cancellation to its original source.
+		// readBody still owns prompt reader release and eventual source cleanup.
+		const init: RequestInit & { duplex: 'half' } = { body: request.body, signal, duplex: 'half' };
+		const bounded = new Request(request, init);
+		return await requestWire.readBody(bounded, { maximumBodyBytes: limit });
 	} catch (error) {
 		if (!(error instanceof requestWire.RequestTransportError)) throw error;
 		if (error.issues.some((issue) => issue.code === 'body-too-large')) return tooLarge;
@@ -486,9 +485,9 @@ async function boundedBody(
 }
 
 /**
- * Builds the outbound header set after removing hop-by-hop and gateway-owned trust metadata from the client request.
- *
- * Gateway internals route only definitions selected by the composition root and keep gateway trust policy out of service-domain behavior.
+ * Copy permitted forwarding fields, then apply the route's credential policy.
+ * Request cookies and Authorization are stripped unless their policy allows them.
+ * Gateway-owned trust metadata is removed before it can be reconstructed.
  *
  * @internal
  */
@@ -523,9 +522,8 @@ function trustedHeader(name: string, options: PrepareGatewayRequestOptions): boo
 }
 
 /**
- * Applies headers at the phase that owns its side effects.
- *
- * @internal
+ * Apply trusted host adapter patches while rejecting hop-by-hop and forwarding metadata overrides.
+ * Ordinary actor headers remain host authority, not caller input.
  */
 function applyHeaders(headers: Headers, patch: Readonly<Record<string, string>> | undefined): void {
 	if (!patch) return;
@@ -565,11 +563,9 @@ function forwardedResponse(
 }
 
 /**
- * Applies redirect policy at the phase that owns its side effects.
- *
- * It compiles and executes trusted service routing without letting gateway policy become service-domain behavior.
- *
- * @internal
+ * Inspect manual redirect responses without following them. Resolve relative locations against the
+ * mounted origin, reject disallowed origins when configured, or replace a private origin with the
+ * public request origin.
  */
 function applyRedirectPolicy(
 	value: Response,
@@ -597,11 +593,8 @@ function applyRedirectPolicy(
 }
 
 /**
- * Copies response headers while preserving protocol semantics required by compiled gateway routing.
- *
- * Gateway internals route only definitions selected by the composition root and keep gateway trust policy out of service-domain behavior.
- *
- * @internal
+ * Remove hop-by-hop fields before applying response-cookie policy. Normalize gzip/br wire metadata for
+ * native Fetch-decoded bodies; adapters for other encodings own their metadata contract.
  */
 function copyResponseHeaders(input: Headers, includeCookies: boolean, upstreamBody = false): Headers {
 	// Strip connection-nominated fields before credential policy; cookie preservation must not restore a removed hop field.
@@ -620,79 +613,66 @@ function copyResponseHeaders(input: Headers, includeCookies: boolean, upstreamBo
 }
 
 /**
- * Wraps a forwarded response so request cancellation also releases any gateway-owned streaming body state.
- *
- * Gateway internals route only definitions selected by the composition root and keep gateway trust policy out of service-domain behavior.
- *
- * @internal
+ * Give response reads prompt cancellation while the reader owner retains late
+ * source cleanup separately. The abort reason stays authoritative even when
+ * the upstream cancel hook fails or never settles. Gateway currently exposes
+ * no public API for callers to join that late cleanup outcome.
  */
 function abortableResponse(value: Response, signal: AbortSignal): Response {
-	if (value.body === null || signal.aborted) {
-		if (signal.aborted) void response.discard(value, signal.reason);
-		return value;
-	}
-	const reader = value.body.getReader();
+	if (value.body === null) return value;
+	// Subscribe below rather than passing signal to open(): an already-expired
+	// deadline still returns a 504 Response, with an aborted body, to the host.
+	const owner = streamReader.open(value.body);
+	let stopped = false;
+	let controller: ReadableStreamDefaultController<Uint8Array>;
+	const release = (): void => signal.removeEventListener('abort', abort);
+	const abort = (): void => {
+		if (stopped) return;
+		stopped = true;
+		release();
+		// close releases the lock now. Its non-rejecting cleanup promise keeps
+		// a late failure as data; do not await the source before rejecting reads.
+		void owner.close(signal.reason);
+		controller.error(signal.reason);
+	};
 	const body = new ReadableStream<Uint8Array>({
-		/**
-		 * Pulls the next value only when compiled gateway routing is ready to accept it.
-		 *
-		 * @internal
-		 */
-		async pull(controller) {
+		start(value) {
+			controller = value;
+			signal.addEventListener('abort', abort, { once: true });
+			if (signal.aborted) abort();
+		},
+		async pull(value) {
 			try {
-				const next = await readWithAbort(reader, signal);
-				if (next.done) controller.close();
-				else controller.enqueue(next.value);
+				const next = await owner.read();
+				if (stopped) return;
+				if (!next.done) value.enqueue(next.value);
+				else {
+					stopped = true;
+					release();
+					value.close();
+				}
 			} catch (error) {
-				await reader.cancel(error).catch(() => undefined);
-				controller.error(error);
+				if (stopped) return;
+				stopped = true;
+				release();
+				value.error(error);
 			}
 		},
-		/**
-		 * Checks whether cel is currently allowed by compiled gateway routing.
-		 *
-		 * @internal
-		 */
 		async cancel(reason) {
-			await reader.cancel(reason);
+			stopped = true;
+			release();
+			// An explicit consumer cancel joins cleanup; signal abort above does
+			// not. Both paths still share the reader owner's single cancellation.
+			const outcome = await owner.close(reason);
+			if (outcome.status === 'failed') throw outcome.error;
 		},
-	});
+	}, { highWaterMark: 0 });
 	return new Response(body, { status: value.status, statusText: value.statusText, headers: value.headers });
 }
 
 /**
- * Reads with abort under the module's cancellation and ownership rules.
- *
- * It compiles and executes trusted service routing without letting gateway policy become service-domain behavior.
- *
- * @internal
- */
-async function readWithAbort(
-	reader: ReadableStreamDefaultReader<Uint8Array>,
-	signal: AbortSignal,
-): Promise<ReadableStreamReadResult<Uint8Array>> {
-	if (signal.aborted) throw signal.reason;
-	return await new Promise((resolve, reject) => {
-		let settled = false;
-		const finish = (callback: () => void): void => {
-			if (settled) return;
-			settled = true;
-			signal.removeEventListener('abort', onAbort);
-			callback();
-		};
-		const onAbort = (): void => finish(() => reject(signal.reason));
-		signal.addEventListener('abort', onAbort, { once: true });
-		reader.read().then(
-			(value) => finish(() => resolve(value)),
-			(error) => finish(() => reject(error)),
-		);
-	});
-}
-
-/**
- * Collects the problem response that compiled gateway routing can expose as transport failures.
- *
- * @internal
+ * Serialize an already-selected gateway ProblemResult into the problem+json transport representation.
+ * This does not classify arbitrary exceptions.
  */
 function problemResponse(result: problem.ProblemResult): Response {
 	const [body, status, headers] = result;
@@ -703,9 +683,8 @@ function problemResponse(result: problem.ProblemResult): Response {
 }
 
 /**
- * Attempts on error and returns structured failure information instead of throwing inside compiled gateway routing.
- *
- * @internal
+ * Await the optional host error observer without allowing its rejection to replace the transport
+ * failure. A handler that never settles can still delay the response.
  */
 async function safeOnError(options: CreateGatewayOptions, error: unknown, state: GatewayRequestState): Promise<void> {
 	try {
@@ -714,9 +693,8 @@ async function safeOnError(options: CreateGatewayOptions, error: unknown, state:
 }
 
 /**
- * Attempts error and returns structured failure information instead of throwing inside compiled gateway routing.
- *
- * @internal
+ * Bound diagnostic depth and text, then mask common authorization and query-token patterns. This is a
+ * limited diagnostic projection, not a general secret-redaction guarantee.
  */
 function safeError(value: unknown): Readonly<{ readonly name: string; readonly message: string }> {
 	const diagnostic = fault.encode(value, {
@@ -735,9 +713,8 @@ function safeError(value: unknown): Readonly<{ readonly name: string; readonly m
 }
 
 /**
- * Derives the content length required for HTTP representation decisions in compiled gateway routing.
- *
- * @internal
+ * Report the declared request size when available. For streaming uploads this is transport metadata,
+ * not a count of bytes already forwarded.
  */
 function contentLength(request: Request): Readonly<{ readonly requestBytes: number }> | Record<never, never> {
 	const value = requestWire.parseContentLength(request.headers.get('content-length'));
@@ -745,12 +722,11 @@ function contentLength(request: Request): Readonly<{ readonly requestBytes: numb
 }
 
 /**
- * Converts duration into the millisecond value used by compiled gateway routing.
- *
- * @internal
+ * Clamp an elapsed duration to the native timer range. Values beyond 2,147,483,647 milliseconds fire
+ * at that cap; this implementation does not schedule successive slices for longer deadlines.
  */
 function timerMilliseconds(value: Temporal.Duration): number {
-	return Math.max(1, Math.min(2_147_483_647, durationCore.milliseconds(value)));
+	return Math.max(1, Math.min(2_147_483_647, durationCore.elapsed(value)));
 }
 
 /** Normalize JavaScript's unrestricted thrown values before exposing them to host callbacks. */

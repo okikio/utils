@@ -1,13 +1,22 @@
 /**
- * Parse configuration once into typed values and keep secret values out of diagnostics. Reading process.env throughout an application spreads defaults, coercion and validation across unrelated code.
+ * Read explicit configuration sources and validate their text before starting the application. A port can
+ * become a checked number instead of remaining an unchecked string at every call site.
  *
- * Start with a record source for reproducible tests, then merge an explicit runtime source and overrides at the executable root. Use secret() for credentials so documentation and diagnostics redact them. Zod, Valibot and Standard Schema adapters are optional imports; the generic configuration core does not choose a validator or read environment variables until a source is used.
+ * Start with a record source for tests. At the executable entry point, choose runtime sources and
+ * overrides. Mark credentials with secret() so package diagnostics and documentation redact them.
+ *
+ * Validator adapters are optional imports. The core does not select a validator or read ambient
+ * environment variables on import.
  *
  * @example
  * ```ts
- * import * as env from '@okikio/env/zod';
- * import { z } from 'zod';
- * const Service = env.define({ PORT: z.coerce.number().int().min(1).max(65535).default(8787).describe('TCP port used by the service.') });
+ * import * as env from '@okikio/env';
+ * import * as schema from '@okikio/schema';
+ * const Service = env.define({
+ * 	PORT: env.variable(schema.coerce.number({ integer: true, minimum: 1, maximum: 65535 }), {
+ * 		description: 'TCP port used by the service.',
+ * 	}),
+ * });
  * const values = Service.parseSync(env.record({ PORT: '4321' }));
  * console.log(values.PORT + 1);
  * ```
@@ -19,8 +28,8 @@ export {
 	compose,
 	define,
 	env,
-	environment,
 	EnvironmentError,
+	EnvironmentValidatorError,
 	example,
 	isSource,
 	manifest,

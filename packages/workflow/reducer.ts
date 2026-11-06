@@ -40,26 +40,14 @@ export class Reducer {
 		this.#schedule();
 	}
 
-	/**
-	 * Queues one reducer transition by priority and schedules a single microtask drain instead of re-entering the generator stack.
-	 *
-	 * The kernel gives every branch one active Step and child Scope while the Reducer serializes generator advancement, cancellation, and cleanup.
-	 *
-	 * @internal
-	 */
+	/** Request one future drain. Callbacks during a drain only enqueue work; they must not re-enter the generator. */
 	#schedule(): void {
 		if (this.#scheduled || this.#draining) return;
 		this.#scheduled = true;
 		queueMicrotask(() => this.#drain());
 	}
 
-	/**
-	 * Drains owned work before the live structured-concurrency kernel reports terminal completion.
-	 *
-	 * The kernel gives every branch one active Step and child Scope while the Reducer serializes generator advancement, cancellation, and cleanup.
-	 *
-	 * @internal
-	 */
+	/** Run critical cleanup first, up to one step budget; schedule remaining transitions in another microtask. */
 	#drain(): void {
 		if (this.#draining) return;
 		this.#scheduled = false;

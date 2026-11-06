@@ -1,5 +1,5 @@
 import { readText } from '@okikio/http/response/body';
-import * as recordCore from '@okikio/record';
+import * as recordCore from '@okikio/collection/record';
 import type { Middleware } from './types.ts';
 
 const PRETTY_JSON_MAX_BYTES = 1024 * 1024;
@@ -14,7 +14,13 @@ export interface PrettyJsonOptionsType {
 	readonly force?: boolean;
 }
 
-/** Pretty-print JSON responses only when explicitly requested or forced. */
+/**
+ * Pretty-print opted-in JSON for development by reading a bounded clone.
+ * A parse/read failure returns the original response. The clone is limited to
+ * 1 MiB, but no deadline is added; a stalled source can delay this middleware.
+ * Reading the clone also buffers the original tee branch until it is consumed.
+ * Keep this off long-lived streaming routes.
+ */
 export function prettyJson(options: PrettyJsonOptionsType = {}): Middleware {
 	recordCore.assert(options, 'pretty JSON options');
 	const normalized = recordCore.snapshot(options, 'pretty JSON options');

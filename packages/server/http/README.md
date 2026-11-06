@@ -1,155 +1,204 @@
-# `@okikio/server/http`
+# Build a small HTTP API with `@okikio/server/http`
 
-If you already know how to return a Web `Response`, you can expose that code through routes without learning the service
-compiler. This package matches methods and paths, runs HTTP middleware and mounts other Fetch applications. Use it for a
-small API, a health route or an embedded application that should run through the same Fetch function in tests and a
-host.
+An HTTP API receives a request and sends back a response. For example, a client asks for `/greeting?name=Sam`, and your
+application returns `{"message":"Hello, Sam!"}`. This module connects methods and URL paths to the JavaScript functions
+that produce those answers.
 
-```text
-Request -> outer middleware -> route or mounted Fetch handler -> Response
-                           -> no match -> not-found Response
-HEAD result -> remove body before returning to the caller
-Host listener -> app.fetch(request)  [listener is owned by the host]
+Use it when you want a small API or want to combine existing request handlers. You can use this module on its own. You
+do not need the endpoint definitions or service compiler provided by other parts of `@okikio/server`.
+
+If you have used Express or Hono, the job is familiar: register a route, read input, and return an answer. Here, a
+**handler** is a function that receives a Web `Request` and returns a Web `Response`:
+
+- `Request` holds the incoming method, URL, headers, and body.
+- `Response` holds the outgoing status, headers, and body.
+- Returning a `Response` supplies the answer. There is no separate response object that you call `send()` on.
+
+## Run a greeting request
+
+The commands below use this Utils source checkout and its workspace imports. They do not require a published package.
+From the `utils` repository root, review `mise.toml`, then trust that configuration and prepare the tools and
+dependencies:
+
+```sh
+mise trust
+mise install
+mise run prepare -- --kind deps
 ```
 
-Read the first lines as dispatch inside the application. Middleware wraps the selected handler and can add headers or
-map errors when configured. The HEAD policy applies to the final response, including misses and mounts. This package
-matches requests; it does not automatically validate domain input or open a network port.
+[Mise installation and checkout setup](../../../README.md#work-on-the-repository) explains the prerequisites for a fresh
+checkout, including installing Mise if it is not available. Deno runs the TypeScript examples; the request handler
+itself uses Web APIs.
 
-## Answer a health request without starting a server
+Save this complete application as `greeting.ts`:
 
-```ts runnable
+```ts support=greeting.ts
 import * as http from '@okikio/server/http';
-const app = http.create({
-	routes: [http.route('GET', '/health', () => Response.json({ ok: true }))],
-	middleware: [http.securityHeaders()],
+
+/** Validate this route's query before building a greeting; route selection itself does not validate the name. */
+export function greet(request: Request): Response {
+	const url = new URL(request.url);
+	const name = url.searchParams.get('name');
+	if (name === null || name.trim() === '') {
+		return Response.json({ error: 'Supply a name in ?name=Sam.' }, { status: 400 });
+	}
+	return Response.json({ message: `Hello, ${name.trim()}!` });
+}
+
+export const app = http.create({
+	routes: [http.route('GET', '/greeting', greet)],
 });
-const head = await app.fetch(new Request('https://service.invalid/health', { method: 'HEAD' }));
-console.log(head.status, head.body === null, head.headers.get('x-content-type-options'));
-console.log((await app.fetch(new Request('https://service.invalid/missing'))).status);
 ```
 
-Expected output:
+`http.route()` associates GET `/greeting` with `greet`. GET is the request method used to retrieve an answer.
+`http.create()` combines the routes into an application. Its `app.fetch(request)` function selects a handler and returns
+its response.
+
+To try it without a running server, save this second file beside it as `greeting-check.ts`:
+
+```ts runnable=greeting-check.ts
+import { app } from './greeting.ts';
+
+const response = await app.fetch(new Request('http://localhost/greeting?name=Sam'));
+console.log(response.status, await response.text());
+
+const invalid = await app.fetch(new Request('http://localhost/greeting'));
+console.log(invalid.status, await invalid.text());
+
+const missing = await app.fetch(new Request('http://localhost/missing'));
+console.log(missing.status, await missing.text());
+```
+
+Run the check from the same directory:
+
+```sh
+mise exec -- deno run greeting-check.ts
+```
+
+It prints these three answers:
 
 ```text output
-200 true nosniff
-404
+200 {"message":"Hello, Sam!"}
+400 {"error":"Supply a name in ?name=Sam."}
+404 Not found.
 ```
 
-The demo registers GET `/health` with a JSON answer. A HEAD request can use that GET route, so its status is `200`,
-while the application's final HEAD policy suppresses the body, which the `true` confirms. `nosniff` shows the selected
-security-header policy reached the response. The second request has no route and receives the default `404`. These
-outputs demonstrate routing and policy behavior; they do not prove that a listener is reachable or that a database is
-ready.
+The first request succeeds. The second reaches `greet`, which rejects the missing name. The third has no matching route,
+so the application returns its default missing-route response.
 
-## A handler is an ordinary JavaScript function
+`app.fetch()` returns a **Promise**: a value representing work that will finish later. `await` waits for that result
+before continuing. The response body is read separately; `await response.text()` waits for its text. You may instead use
+`await response.json()` to read JSON as a JavaScript value. Read each body once.
 
-The two central public types are small enough to show in full:
+The URL is input to the application here. Calling `app.fetch()` directly does not make a network connection to
+localhost. This is different from calling the global `fetch(url)`, which sends a request to a server.
+
+## Read input and return an answer
+
+In `greet`, `new URL(request.url)` separates the URL into its parts. `searchParams.get('name')` reads the query value
+after `?name=` and returns `null` if it is absent. The route path remains `/greeting`; the query string is input to the
+handler, not part of the route definition.
+
+`Response.json()` converts the supplied value into JSON and sets the JSON content type. Its default status is `200`,
+meaning success. We explicitly return `400`, meaning invalid request input, when the name is missing or blank. The
+router's `404` means it could not select a route for the method and path.
+
+The checks in `greet` are application code. Registering a route does not add input validation automatically. If your
+next handler reads a JSON request body, `await request.json()` parses the text as JSON; you still need to check that the
+result has the fields and values your application accepts.
+
+## Let another program call the API
+
+A server **listener** accepts network connections and passes their requests to your application. Creating `app` does not
+start one. Keeping this step separate lets the same application run in the local check and behind a real server.
+
+Save `greeting-server.ts` beside the two files above:
 
 ```ts
-type Handler = (request: Request) => Response | Promise<Response>;
-type Middleware = (request: Request, next: Handler) => Response | Promise<Response>;
+import { app } from './greeting.ts';
+
+Deno.serve({ hostname: '127.0.0.1', port: 8000 }, app.fetch);
 ```
 
-A route binds a method and path to a `Handler`. Middleware receives the request and a function for calling the next
-step. It can inspect the answer with normal `await`, change headers, return early or throw. For example, this complete
-API adds a version header with no middleware-specific expression language:
+Start the listener and allow Deno to use that local address:
 
-```ts runnable=http-middleware.ts
-import { create, route } from '@okikio/server/http';
-import type { Middleware } from '@okikio/server/http';
+```sh
+mise exec -- deno run --allow-net=127.0.0.1:8000 greeting-server.ts
+```
 
-const version: Middleware = async (request, next) => {
-	const response = await next(request);
-	response.headers.set('x-api-version', '1');
-	return response;
-};
-const app = create({
-	routes: [route('GET', '/greeting', () => new Response('Hello!'))],
-	middleware: [version],
+Keep that terminal open. In another terminal, request the greeting:
+
+```sh
+curl -i 'http://127.0.0.1:8000/greeting?name=Sam'
+```
+
+The response has status `200`, a JSON content type, and body `{"message":"Hello, Sam!"}`. Remove `?name=Sam` to see the
+`400` answer. Stop the example server with Ctrl+C in its terminal. If port 8000 is already occupied, choose another port
+in the server file, the command's permission, and the curl URL.
+
+[Deno's HTTP server reference](https://docs.deno.com/api/deno/http-server/) explains the listener options.
+`Deno.serve()` belongs in this server entry file; it does not belong inside `greet` or run when `greeting.ts` is
+imported.
+
+## Add behavior around the handler
+
+**Middleware** is a function that runs around request handling. It can inspect a request, call the next function, and
+inspect or replace the returned response. For example, you may want every answer to include security headers, and want
+an unexpected exception to become an HTTP error response.
+
+Keep `greet` unchanged. Replace only the final `app` declaration in `greeting.ts` with this one:
+
+```ts
+export const app = http.create({
+	routes: [http.route('GET', '/greeting', greet)],
+	middleware: [http.catchErrors(), http.securityHeaders()],
 });
-const outgoing = await app.fetch(new Request('https://service.invalid/greeting'));
-console.log(await outgoing.text(), outgoing.headers.get('x-api-version'));
 ```
 
-```text output
-Hello! 1
-```
+`securityHeaders()` adds its configured headers to downstream responses. `catchErrors()` catches exceptions thrown by
+the functions after it and returns a safe error response, normally status `500`. That status means the server failed
+unexpectedly. Our deliberate `400` answer is already a response and passes through unchanged.
 
-The middleware above can change the response because this route created mutable headers. An upstream Fetch response may
-have immutable headers; use `withHeaders()` to copy them when wrapping such a response.
+Stop any running example server with Ctrl+C, then run the same listener command again. The command does not watch files
+for changes. Repeat the curl request: it now includes `X-Content-Type-Options: nosniff`, which tells browsers to respect
+the declared content type rather than guess from the body. The greeting status and JSON stay the same.
 
-`create()` snapshots routes, prepares static/dynamic matching and binds the handlers once. It wraps dispatch in the
-middleware array's order. The first middleware enters first and returns last; each layer may call `next(request)` at
-most once. A second call rejects before a second route invocation. At request time the application selects an exact
-route, then a prefix mount, then the not-found handler. Its final HEAD step cancels any unused body and returns the
-status and headers without a body.
+Order matters: the first function in the middleware array runs first and receives the downstream response last. Here,
+`catchErrors()` wraps the header middleware and route. If an error skips the header middleware's return path, its
+headers are not automatically added to the fallback error response.
 
-That design separates routing from business validation. Adopt this layer for normal Fetch handlers; adopt a compiled
-service only when reusable input/output/resource contracts justify it. The [full contracts](../API.md#http) list routing
-and optional host middleware.
+The [HTTP guide](../../../docs/server/04-http.md) extends this same greeting API with custom middleware, error checks,
+and a mounted URL prefix. It includes a complete version of every file needed for that workflow.
 
-## Build on the example
+## Choose the next capability for a concrete need
 
-For an embedded application below `/tools`, use a mount and choose whether the child should see the original URL or a
-URL with that prefix removed. The default preserves the URL; `requestPath: 'strip-prefix'` makes the child receive a
-relative path while preserving request method, headers, query, body and cancellation signal.
+| Your next task                                                       | Where to go                                                                                  |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Reuse input/output rules and validate requests against schemas       | [Endpoint](../endpoint/README.md) and [Service](../service/README.md)                        |
+| Keep an existing Hono application and reuse compatible HTTP behavior | [Hono adapter](../../hono/README.md)                                                         |
+| Forward requests to a different network service                      | [Gateway](../gateway/README.md)                                                              |
+| Reuse this application below a URL prefix in the same process        | [Mounting in the HTTP guide](../../../docs/server/04-http.md#give-the-greeting-api-a-prefix) |
 
-For a larger API, mount a [service](../service/README.md) to add declared input and output validation. For an existing
-Hono application, share Fetch middleware through the [Hono adapter](../../hono/README.md). Add `catchErrors()` when you
-want safe exception responses; route creation alone does not install error handling. The host starts and stops the
-listener, and callers must read or cancel streaming response bodies.
+For CORS, request identifiers, access observation, timing, and response/path helpers, use the guide’s
+[HTTP helper choices](../../../docs/server/04-http.md#choose-other-http-behavior-when-a-concrete-need-appears). The
+[public export list](./mod.ts) links every exported helper and its source documentation.
 
-## Start with a prepared route plan
+Continue with this module while ordinary request handlers solve the task. Add another capability when its specific
+contract is needed; routing a greeting does not require learning the rest of the utility system.
 
-Use `prepareRoutes()` when method and path ownership are known before the host is created. The plan contains no handler
-functions.
+## Continue the greeting in a larger workflow
 
-```typescript
-import * as http from '@okikio/server/http';
+| Your next task | Complete workflow |
+| --- | --- |
+| Receive JSON or form data, authenticate a callback, report readiness | [POST, forms and signed webhooks](../../../docs/server/09-http-input.md) |
+| Send records as they arrive, cancel work and handle replay cursors | [NDJSON and retained SSE](../../../docs/server/10-http-streaming.md) |
+| Let an AI client discover and call the greeting | [MCP tool with a pinned SDK](../../../docs/server/11-mcp.md) |
 
-const routes = [
-	http.route('GET', '/health', () => new Response('ok')),
-	http.route('GET', '/companies/:id', company),
-];
+These examples keep the same greeting result while adding input, transport and lifetime decisions. Each states what is
+local demonstration, what is tested, and which durable storage, authorization or deployment behavior the application
+must supply.
 
-const plan = http.prepareRoutes(routes);
-const app = http.create({ routes, plan });
-```
-
-The host verifies that the supplied routes bind exactly to the plan before it accepts requests. A missing or extra route
-is a configuration error rather than a request-time fallback.
-
-## Route matching
-
-Static method/path pairs use direct lookup. Dynamic routes are grouped by method and segment count, then ordered by
-route specificity.
-
-Duplicate and trailing slashes remain significant. Parameter names control parameter extraction, but two parameter-name
-variants cannot claim the same method and route shape.
-
-An explicit `HEAD` route wins. If no explicit `HEAD` route exists, a matching `GET` route supplies the status and
-headers. The host discards the response body before returning the `HEAD` response.
-
-## Mount another Fetch handler
-
-`mount()` embeds another Fetch-compatible handler in the same process. This is useful for protocol adapters such as MCP
-transports.
-
-```typescript
-http.mount('/mcp', mcpHandler, { requestPath: 'strip-prefix' });
-```
-
-`requestPath: 'preserve'` is the default. `strip-prefix` changes only the pathname presented to the child handler. The
-child still receives the original method, headers, query string, body stream, and `AbortSignal`.
-
-Use `@okikio/server/gateway` when a request is forwarded to another network service and needs forwarding-header,
-credential, redirect, timeout, cache, or response-filtering policy.
-
-## Performance contract
-
-Route preparation moves stable matching work out of request handling. The optimized matcher must remain equivalent to
-the independent linear matcher in `router.bench.ts` and the route tests.
-
-The implementation does not use runtime source generation. See [`../../../docs/server.md`](../../../docs/server.md) for
-the compiler model and [`../../../docs/benchmarks.md`](../../../docs/benchmarks.md) for benchmark requirements.
+For a long-lived two-way connection, the [WebSocket greeting](../../../examples/websocket/README.md)
+shows the runtime's upgrade step alongside the Utils HTTP router. For an AI
+application calling named operations, the [MCP walkthrough](../../../docs/server/11-mcp.md)
+explains tools, discovery, versions and authorization before extending its checked greeting.

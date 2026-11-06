@@ -1,15 +1,16 @@
 import type { CursorPaginationDefinition } from './types.ts';
+import { elapsed } from '@okikio/duration/conversion';
 import type {
 	CursorPaginationOptions,
 	OffsetPaginationDefinition,
 	OffsetPaginationOptions,
 	PaginationModesDefinition,
 	PaginationModesOptions,
-	QueryDefinition,
 	QueryFields,
 	QueryIssue,
 	QueryPaginationDefinition,
 	QueryPaginationParameters,
+	QueryPolicy,
 } from './types.ts';
 import { hasAny, integer, last, optionalString } from './values.ts';
 import { assertParameterName, assertPositiveInteger, issue } from './validation.ts';
@@ -79,7 +80,7 @@ export function pagination(options: PaginationModesOptions): PaginationModesDefi
 
 /** Return exact query parameter names for request-aware pagination links. */
 export function paginationParameters<Fields extends QueryFields>(
-	definition: QueryDefinition<Fields>,
+	definition: QueryPolicy<Fields>,
 	mode: 'cursor' | 'offset',
 ): QueryPaginationParameters | undefined {
 	const modes = paginationDefinitions(definition.pagination);
@@ -100,9 +101,7 @@ export function paginationParameters<Fields extends QueryFields>(
 }
 
 /**
- * Parses pagination into the validated internal model used by later phases.
- *
- * It keeps public query semantics provider-neutral so storage adapters can compile the same validated request differently.
+ * Select one explicit page mode or its default, then accumulate conflicts and invalid-count issues.
  *
  * @internal
  */
@@ -224,9 +223,7 @@ export function parsePagination(
 }
 
 /**
- * Parses limit into the validated internal model used by later phases.
- *
- * It keeps public query semantics provider-neutral so storage adapters can compile the same validated request differently.
+ * Read the requested count within policy bounds; record an issue while returning a provisional value.
  *
  * @internal
  */
@@ -248,7 +245,7 @@ export function parseLimit(
 }
 
 /**
- * Rejects invalid cursor pagination before it can enter authoritative module state.
+ * Validate cursor counts, distinct parameter names, and positive authored TTL before storing the policy.
  *
  * @internal
  */
@@ -258,13 +255,13 @@ export function assertCursorPagination(definition: CursorPaginationDefinition): 
 	if (definition.parameters.cursor === definition.parameters.limit) {
 		throw new TypeError('Cursor and limit parameter names must differ.');
 	}
-	if (definition.ttl !== undefined && durationMilliseconds(definition.ttl) <= 0) {
+	if (definition.ttl !== undefined && elapsed(definition.ttl) <= 0) {
 		throw new TypeError('Cursor ttl must be positive.');
 	}
 }
 
 /**
- * Rejects invalid offset pagination before it can enter authoritative module state.
+ * Validate offset bounds and distinct names so each request parameter has one page meaning.
  *
  * @internal
  */
@@ -277,9 +274,7 @@ export function assertOffsetPagination(definition: OffsetPaginationDefinition): 
 }
 
 /**
- * Rejects invalid pagination parameter compatibility before it can enter authoritative module state.
- *
- * It keeps public query semantics provider-neutral so storage adapters can compile the same validated request differently.
+ * Allow a shared limit name across modes while rejecting names that would make mode selection ambiguous.
  *
  * @internal
  */
@@ -299,7 +294,7 @@ export function assertPaginationParameterCompatibility(
 }
 
 /**
- * Rejects invalid limits before it can enter authoritative module state.
+ * Require ordered minimum/default/maximum counts before any request uses the pagination policy.
  *
  * @internal
  */
@@ -313,7 +308,7 @@ export function assertLimits(definition: CursorPaginationDefinition | OffsetPagi
 }
 
 /**
- * Derives the pagination definitions from the query contract used by provider-neutral query definitions.
+ * Read single-mode and multi-mode policies through one cursor/offset view without changing their defaults.
  *
  * @internal
  */
@@ -329,7 +324,7 @@ export function paginationDefinitions(definition: QueryPaginationDefinition): Re
 }
 
 /**
- * Returns the enabled pagination modes derived from the active configuration of provider-neutral query definitions.
+ * List enabled modes for adapter capability checks; defining a mode does not implement its storage behavior.
  *
  * @internal
  */
@@ -342,7 +337,7 @@ export function enabledPaginationModes(definition: QueryPaginationDefinition): (
 }
 
 /**
- * Derives the pagination wire examples from the query contract used by provider-neutral query definitions.
+ * Illustrate each enabled mode using its authored parameter names; sample counts are documentation, not defaults.
  *
  * @internal
  */
@@ -355,17 +350,4 @@ export function paginationWireExamples(definition: QueryPaginationDefinition): s
 		examples.push(`${modes.offset.parameters.page}=3&${modes.offset.parameters.perPage}=20`);
 	}
 	return examples;
-}
-
-/**
- * Converts duration into the millisecond value used by provider-neutral query definitions.
- *
- * @internal
- */
-export function durationMilliseconds(
-	duration: {
-		total(options: { unit: 'milliseconds'; relativeTo: { year: number; month: number; day: number } }): number;
-	},
-): number {
-	return duration.total({ unit: 'milliseconds', relativeTo: { year: 2000, month: 1, day: 1 } } as const);
 }

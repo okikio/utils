@@ -5,24 +5,24 @@ import { deepStrictEqual } from 'node:assert';
 import process, { cpuUsage } from 'node:process';
 import { Readable } from 'node:stream';
 import { do_not_optimize } from 'mitata';
-import { cases, gatewayCases, observe, request, routingCases } from '../tests/fixtures/http-parity/corpus.ts';
-import type { CaseType, ParityApiType } from '../tests/fixtures/http-parity/corpus.ts';
-import { createHonoApi, createHonoGateway, createHonoRouting } from '../tests/fixtures/http-parity/hono.ts';
-import { createUtilsApi, createUtilsGateway, createUtilsRouting } from '../tests/fixtures/http-parity/utils.ts';
-import { vectors } from '../tests/fixtures/hono-proxy/corpus.ts';
-import type { ProxyExpectation } from '../tests/fixtures/hono-proxy/corpus.ts';
-import { createHonoProxy, createUtilsProxy } from '../tests/fixtures/hono-proxy/implementations.ts';
-import { createUpstream } from '../tests/fixtures/hono-proxy/upstream.ts';
-import { routerCases } from '../tests/fixtures/hono-contracts/routes.ts';
-import { requestCases } from '../tests/fixtures/hono-contracts/requests.ts';
-import { responseCases } from '../tests/fixtures/hono-contracts/responses.ts';
-import { applicationCases } from '../tests/fixtures/hono-contracts/applications.ts';
-import * as upstream from '../tests/fixtures/hono-contracts/hono.ts';
-import * as direct from '../tests/fixtures/hono-contracts/utils.ts';
-import { observe as observeContract } from '../tests/fixtures/hono-contracts/types.ts';
-import { profileServiceCases } from './fixtures/service-profile.ts';
-import { httpProfileCases } from './fixtures/http-profile.ts';
-import { challengerCandidates, httpChallengerCases } from './fixtures/http-challengers.ts';
+import { cases, gatewayCases, observe, request, routingCases } from '#fixtures/http-parity/corpus.ts';
+import type { CaseType, ParityApiType } from '#fixtures/http-parity/corpus.ts';
+import { createHonoApi, createHonoGateway, createHonoRouting } from '#fixtures/http-parity/hono.ts';
+import { createUtilsApi, createUtilsGateway, createUtilsRouting } from '#fixtures/http-parity/utils.ts';
+import { vectors } from '#fixtures/hono-proxy/corpus.ts';
+import type { ProxyExpectation } from '#fixtures/hono-proxy/corpus.ts';
+import { createHonoProxy, createUtilsProxy } from '#fixtures/hono-proxy/implementations.ts';
+import { createUpstream } from '#fixtures/hono-proxy/upstream.ts';
+import { routerCases } from '#fixtures/hono-contracts/routes.ts';
+import { requestCases } from '#fixtures/hono-contracts/requests.ts';
+import { responseCases } from '#fixtures/hono-contracts/responses.ts';
+import { applicationCases } from '#fixtures/hono-contracts/applications.ts';
+import * as upstream from '#fixtures/hono-contracts/hono.ts';
+import * as direct from '#fixtures/hono-contracts/utils.ts';
+import { observe as observeContract } from '#fixtures/hono-contracts/types.ts';
+import { profileServiceCases } from '#bench/fixtures/service-profile.ts';
+import { httpProfileCases } from '#bench/fixtures/http-profile.ts';
+import { challengerCandidates, httpChallengerCases } from '#bench/fixtures/http-challengers.ts';
 
 /** Only the diagnostic IO changes by host; both runtimes load the same utility and Hono fixture implementations. */
 const args = typeof Deno === 'undefined' ? process.argv.slice(2) : Deno.args;
@@ -69,7 +69,7 @@ interface Workload {
 }
 const workloads: Workload[] = [];
 const challengers = httpChallengerCases();
-/** The same literal projection and fully consumed body qualify both sides before sampling. */
+/** The same literal projection and fully consumed body test both sides before sampling. */
 function api(
 	id: string,
 	values: readonly CaseType[],

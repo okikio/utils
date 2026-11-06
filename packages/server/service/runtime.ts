@@ -1,9 +1,10 @@
-import type { StandardSchemaV1 } from '@standard-schema/spec';
-import * as catalog from '@okikio/catalog';
-import * as fault from '@okikio/fault';
+import { SchemaValidationError } from '@okikio/schema';
+import * as json from '@okikio/collection/record/json';
+import * as catalog from '@okikio/collection/catalog';
+import * as fault from '@okikio/result/fault';
 
 import * as endpoint from '@okikio/server/endpoint';
-import * as effect from '@okikio/effect';
+import * as effect from '@okikio/capability/effect';
 import * as http from '../http/mod.ts';
 import * as context from '@okikio/context';
 import type { Context, Owned } from '@okikio/context';
@@ -17,10 +18,10 @@ import type {
 import * as query from '@okikio/query';
 import * as problem from '@okikio/http/problem';
 import * as response from '@okikio/http/response';
-import type { ResourceCollection, ResourceDefinition } from '@okikio/resource';
-import * as resource from '@okikio/resource';
+import type { ResourceCollection, ResourceDefinition } from '@okikio/capability/resource';
+import * as resource from '@okikio/capability/resource';
 import * as requestWire from '@okikio/http/request';
-import * as requirements from '@okikio/requirement';
+import * as requirements from '@okikio/capability/requirement';
 
 import { ServerProblems } from '../problems.ts';
 import type {
@@ -44,6 +45,7 @@ import type {
 } from './types.ts';
 
 /** Framework-owned problems that a service runtime may produce independently of endpoint declarations. */
+import * as telemetry from '@okikio/telemetry/instrument';
 const FrameworkProblemDefinitions = Object.freeze(
 	Object.values(ServerProblems) satisfies readonly problem.ProblemDefinition[],
 );
@@ -107,11 +109,15 @@ export function create<Host extends object, Values extends ServiceRequestValues 
 	validateRuntimeAdapters(compiled, options.adapters);
 	const observers = observerIndex(compiled.definition.observers, options.observers ?? []);
 	const resourceEnvelopes = prepareResourceEnvelopes(compiled.operations);
-	const serviceContext = context.create({ id: `service:${compiled.definition.id}` });
+	const serviceContext = context.create({
+		id: `service:${compiled.definition.id}`,
+		...(options.instrument === undefined ? {} : { instrument: options.instrument }),
+	});
 	let resources: ResourceCollection;
 	try {
 		resources = resource.create(compiled.implementation.resources, {
 			...(options.environment !== undefined ? { environment: options.environment } : {}),
+			...(options.source !== undefined ? { source: options.source } : {}),
 			host: options.host,
 			ctx: serviceContext,
 			...(options.adapters?.requirements === undefined ? {} : { requirements: options.adapters.requirements }),
@@ -131,7 +137,7 @@ export function create<Host extends object, Values extends ServiceRequestValues 
 				path: operation.path,
 				handler(request: Request) {
 					if (disposed) return new Response('Service runtime is disposed.', { status: 503 });
-					return runOperation(
+					return observeOperation(
 						operation,
 						request,
 						resources,
@@ -198,12 +204,16 @@ function compareServiceRoutes(
  * Request
  *   -> correlation + Context
  *   -> request middleware
+ *   -> authentication
  *   -> parse and validate input
- *   -> authentication and runtime adapters
+ *   -> after-validation middleware + admission policies
+ *   -> requirements + operation policies
  *   -> endpoint handler
  *   -> validate declared result
  *   -> response middleware
- *   -> Response
+ *   -> Response headers available
+ *   -> body EOF / cancellation / error
+ *   -> request-context disposal + completion observation
  *
  * any declared failure -> mapped HTTP problem
  * any unexpected fault -> runtime fault handling
@@ -214,7 +224,7 @@ function compareServiceRoutes(
  *
  * @internal
  */
-async function runOperation<Host extends object, Values extends ServiceRequestValues>(
+async function serveOperation<Host extends object, Values extends ServiceRequestValues>(
 	operation: EffectiveServiceOperation,
 	request: Request,
 	resources: ResourceCollection,
@@ -273,6 +283,7 @@ async function runOperation<Host extends object, Values extends ServiceRequestVa
 		requestValues: emptyValuePatch<Values>(),
 	};
 	let disposed = false;
+	/** Release request authority once; response completion, rather than header creation, owns normal disposal. */
 	const disposeRequest = async (): Promise<void> => {
 		if (disposed) return;
 		disposed = true;
@@ -286,6 +297,7 @@ async function runOperation<Host extends object, Values extends ServiceRequestVa
 			} catch { /* cleanup remains best effort */ }
 		}
 	};
+	/** Attach correlation now and defer request teardown until the response body reaches a terminal outcome. */
 	const finish = async (httpResponse: Response): Promise<Response> => {
 		const completedResponse = http.withHeaders(httpResponse, { 'X-Request-ID': requestId });
 		if (observed) {
@@ -330,9 +342,35 @@ async function runOperation<Host extends object, Values extends ServiceRequestVa
 	};
 
 	try {
+		// Readers and middleware share the earliest owned deadline, including stalled bodies.
+		// Supplying the borrowed stream explicitly retains its cancellation owner on every host.
+		const originalBody = request.body;
+		const scopedInit: RequestInit & { readonly duplex: 'half' } = {
+			// Fetch forbids an explicit stream body in no-cors mode, even for an existing byte body.
+			...(request.mode === 'no-cors' ? {} : { body: originalBody }),
+			signal: requestContext.signal,
+			duplex: 'half',
+		};
+		activeRequest = new Request(request, scopedInit);
+		if (originalBody !== null && originalBody !== activeRequest.body && !originalBody.locked) {
+			// Some hosts tee an inherited body instead of transferring it. Own the unused branch too.
+			const cancelOriginal = (): void => {
+				if (!originalBody.locked) {
+					// The active reader records source cleanup failure without replacing its primary result.
+					void originalBody.cancel(requestContext.signal.reason).catch(() => {});
+				}
+			};
+			if (requestContext.signal.aborted) cancelOriginal();
+			else {
+				requestContext.signal.addEventListener('abort', cancelOriginal, { once: true });
+				requestContext.defer(() => requestContext.signal.removeEventListener('abort', cancelOriginal));
+			}
+		}
+		mutableState = { ...mutableState, request: activeRequest };
+		context.check(requestContext);
 		const bodyLimit = operation.execution.bodyLimit;
 		if (bodyLimit !== undefined && request.body !== null) {
-			const bounded = await boundedRequest(request, bodyLimit);
+			const bounded = await boundedRequest(activeRequest, bodyLimit);
 			if (bounded === bodyTooLarge) {
 				return await finish(
 					await toResponse(
@@ -417,19 +455,22 @@ async function runOperation<Host extends object, Values extends ServiceRequestVa
 		}
 		return await finish(
 			await toResponse(
-				problem.create(ServerProblems.Internal, {
-					instance: new URL(request.url).pathname,
-					cause: error,
-				}),
+				problem.create(
+					error instanceof resource.UnavailableError ? ServerProblems.RuntimeUnavailable : ServerProblems.Internal,
+					{
+						instance: new URL(request.url).pathname,
+						cause: error,
+					},
+				),
 				activeRequest,
 			),
 		);
 	}
 
 	/**
-	 * Runs authentication and validation while preserving the module's cancellation and completion contract.
-	 *
-	 * It links service definitions to exact implementations before traffic and keeps request-stage ownership visible at runtime.
+	 * Authenticate before parsing endpoint input, then enter after-validation middleware.
+	 * Admission policies wrap requirement enforcement; operation policies wrap each handler attempt.
+	 * A retry repeats around-operation middleware and the handler, not authentication or input parsing.
 	 *
 	 * @internal
 	 */
@@ -460,10 +501,11 @@ async function runOperation<Host extends object, Values extends ServiceRequestVa
 			mutableState,
 			middlewareByDefinition,
 			async () => {
+				/** Bind validated request state and requirements before admitting any retryable handler attempt. */
 				const enterOperation = async (): Promise<ServiceStageResult> => {
 					let executionContext = mutableState.ctx;
 					// Expose validated request state as one service-specific view. Permission
-					// providers can inspect it without making @okikio/permission depend on HTTP.
+					// providers can inspect it without making @okikio/authz/permission depend on HTTP.
 					executionContext = context.view(executionContext, {
 						service: freezeState(mutableState),
 					}) as typeof executionContext;
@@ -476,6 +518,7 @@ async function runOperation<Host extends object, Values extends ServiceRequestVa
 					await requirements.apply(executionContext, operation.requirements);
 					mutableState = { ...mutableState, ctx: executionContext };
 
+					/** Each retry reenters only around-operation middleware and the exact endpoint handler. */
 					const runAttempt = async (): Promise<ServiceStageResult> =>
 						await runMiddleware(
 							operation.middleware.aroundOperation,
@@ -531,14 +574,12 @@ function runResilienceStage<Host extends object, Values extends ServiceRequestVa
 }
 
 /**
- * Races request work with cancellation without detaching the losing operation from service-owned cleanup.
- *
- * Service internals link exact endpoint and middleware definitions to implementations before traffic and preserve request-stage ownership at runtime.
+ * Stop waiting when cancellation wins while observing both eventual outcomes of the work Promise.
+ * This race does not stop or join arbitrary handler work; cooperative work must use the request context.
  *
  * @internal
  */
 async function raceWithSignal<Result>(promise: Promise<Result>, signal: AbortSignal): Promise<Result> {
-	if (signal.aborted) throw cancellationReason(signal);
 	return await new Promise<Result>((resolve, reject) => {
 		let settled = false;
 		const finish = (callback: () => void): void => {
@@ -548,16 +589,18 @@ async function raceWithSignal<Result>(promise: Promise<Result>, signal: AbortSig
 			callback();
 		};
 		const onAbort = (): void => finish(() => reject(cancellationReason(signal)));
-		signal.addEventListener('abort', onAbort, { once: true });
+		// Observe work even when cancellation was visible before the race began.
 		promise.then(
 			(value) => finish(() => resolve(value)),
 			(error) => finish(() => reject(error)),
 		);
+		if (signal.aborted) onAbort();
+		else signal.addEventListener('abort', onAbort, { once: true });
 	});
 }
 
 /**
- * Returns the cancellation reason carried by the current request context by the compiled service runtime.
+ * Preserve Error cancellation identity; wrap other JavaScript reasons in the Context cancellation error.
  *
  * @internal
  */
@@ -581,6 +624,7 @@ interface PreparedServiceRequestType {
 class ServiceRequestSetupError extends Error {
 	readonly correlation: Readonly<{ readonly requestId?: string; readonly traceId?: string; readonly spanId?: string }>;
 
+	/** Keep correlation fields already established before setup failed, while retaining the original cause. */
 	constructor(
 		cause: Error,
 		correlation: Readonly<{ readonly requestId?: string; readonly traceId?: string; readonly spanId?: string }> = Object
@@ -591,6 +635,7 @@ class ServiceRequestSetupError extends Error {
 		this.correlation = Object.freeze({ ...correlation });
 	}
 
+	/** Supply the known request ID to error reporting even though no complete request context was created. */
 	get requestId(): string | undefined {
 		return this.correlation.requestId;
 	}
@@ -677,7 +722,7 @@ function observerIndex(
 	return result;
 }
 
-/** Emit one redacted service lifecycle event without making observation authoritative. @internal */
+/** Await selected observers in declaration order and contain their failures; observers must bound their own latency. @internal */
 async function emitObservers(
 	definitions: readonly ServiceObserverDefinition[],
 	handlers: ReadonlyMap<ServiceObserverDefinition, ServiceObserverHandler>,
@@ -696,7 +741,7 @@ async function emitObservers(
 	}
 }
 
-/** Build one credential-free service lifecycle event from compiled route identity. @internal */
+/** Project route/correlation metadata without headers or bodies. Error names/messages remain sensitive caller diagnostics. @internal */
 function serviceEvent(
 	kind: ServiceObserverEventKind,
 	operation: EffectiveServiceOperation,
@@ -747,13 +792,16 @@ function runMiddleware<Host extends object, Values extends ServiceRequestValues>
 ): Promise<ServiceStageResult> {
 	if (definitions.length === 0) {
 		try {
+			context.check(state.ctx);
 			return final();
 		} catch (error) {
 			return Promise.reject(error);
 		}
 	}
 	let index = -1;
+	/** Advance one monotonic continuation index before entering user code to reject reentrant duplicate next calls. */
 	const dispatch = async (position: number): Promise<ServiceStageResult> => {
+		context.check(state.ctx);
 		if (position <= index) throw new TypeError('Middleware called next() more than once.');
 		index = position;
 		const definition = definitions[position];
@@ -814,9 +862,8 @@ function runAdapter<Host extends object, Values extends ServiceRequestValues, De
 }
 
 /**
- * Parses inputs into the validated internal model used by later phases.
- *
- * It links service definitions to exact implementations before traffic and keeps request-stage ownership visible at runtime.
+ * Read each compiled input slot under transport policy, then validate it once with its endpoint schema.
+ * Typed transport/schema failures become client issues; unexpected reader defects propagate as runtime faults.
  *
  * @internal
  */
@@ -861,9 +908,8 @@ async function parseInputs(
 }
 
 /**
- * Reads a request body as bounded raw bytes for endpoint operations that explicitly declare raw input.
- *
- * Service internals link exact endpoint and middleware definitions to implementations before traffic and preserve request-stage ownership at runtime.
+ * Select the declared request source. JSON/form use bounded memoized parsers; raw forwards the Request itself.
+ * Raw consumers own body reading policy unless a compiled body-limit policy already collected it.
  *
  * @internal
  */
@@ -883,18 +929,17 @@ async function rawInput(
 		case 'cookie':
 			return requestWire.parseCookies(request.headers.get('cookie'), options);
 		case 'json':
-			return await requestWire.parseJson(request.clone(), options);
+			return await requestWire.parseJson(request, options);
 		case 'form':
-			return await requestWire.parseForm(request.clone(), options);
+			return await requestWire.parseForm(request, options);
 		case 'raw':
 			return request;
 	}
 }
 
 /**
- * Builds or retrieves the finalize result returned by the compiled service runtime.
- *
- * Service internals link exact endpoint and middleware definitions to implementations before traffic and preserve request-stage ownership at runtime.
+ * Accept exact declared response/problem definitions and validate their values before materialization.
+ * A raw Response requires explicit rawResponse; undeclared output becomes a framework problem.
  *
  * @internal
  */
@@ -924,16 +969,15 @@ async function finalizeResult(
 				request,
 			);
 		}
-		const validationIssues = await validateResponseBody(definition, result[0]);
-		if (validationIssues.length > 0) {
+		let prepared: response.ResponseResult;
+		try {
+			prepared = await response.prepare(result);
+		} catch (error) {
+			if (!(error instanceof SchemaValidationError) && !(error instanceof TypeError)) throw error;
 			return await toResponse(
 				problem.create(ServerProblems.UndeclaredResult, {
 					instance: new URL(request.url).pathname,
-					cause: new TypeError(
-						`Response ${definition.id} does not satisfy its schema: ${
-							validationIssues.map((issue) => issue.message).join('; ')
-						}`,
-					),
+					cause: error,
 				}),
 				request,
 			);
@@ -948,7 +992,7 @@ async function finalizeResult(
 				operation,
 			);
 		}
-		return await toResponse(result, request, operation);
+		return await toResponse(prepared, request, operation);
 	}
 	if (problem.is(result)) {
 		const definition = problem.definitionOf(result);
@@ -973,9 +1017,8 @@ async function finalizeResult(
 }
 
 /**
- * Converts the source value to response expected by the compiled service runtime.
- *
- * Service internals link exact endpoint and middleware definitions to implementations before traffic and preserve request-stage ownership at runtime.
+ * Materialize a prepared response or problem, attach media/pagination headers, and negotiate Accept.
+ * JSON uses bounded inert copying; streaming values retain their own pull and cancellation behavior.
  *
  * @internal
  */
@@ -994,7 +1037,7 @@ async function toResponse(
 	let body = resolved.body;
 	let headers = resolved.headers;
 	if (isAsyncIterable(body)) body = streamFromAsync(body);
-	const contentType = responseContentType(result, body, headers);
+	const contentType = responseContentType(result, headers);
 	if (contentType !== undefined && !hasHeader(headers, 'Content-Type')) {
 		headers = response.mergeHeaders(headers, { 'Content-Type': contentType });
 	}
@@ -1025,7 +1068,15 @@ async function toResponse(
 		}
 	}
 	let bodyInit: BodyInit | null;
-	if (body === null || body === undefined) bodyInit = null;
+	const mode = response.is(result) ? response.definitionOf(result).mode : 'body';
+	if (response.isContentlessStatus(resolved.status) || mode === 'empty' || mode === 'redirect') bodyInit = null;
+	else if (
+		mode !== 'stream' && mode !== 'download' && mode !== 'html' && contentType !== undefined &&
+		/^application\/(?:[a-z0-9!#$&^_.+-]+\+)?json(?:\s*;|$)/i.test(contentType)
+	) {
+		// JSON values are validated before serialization so getters, toJSON, Dates and undefined cannot silently change the wire contract.
+		bodyInit = JSON.stringify(json.copy(body));
+	} else if (body === null || body === undefined) bodyInit = null;
 	else if (
 		typeof body === 'string' || body instanceof Blob || body instanceof ArrayBuffer || ArrayBuffer.isView(body) ||
 		body instanceof ReadableStream
@@ -1041,39 +1092,22 @@ async function toResponse(
 }
 
 /**
- * Selects the declared response media type that matches the finalized logical response body.
- *
- * Service internals link exact endpoint and middleware definitions to implementations before traffic and preserve request-stage ownership at runtime.
+ * Prefer an explicit Content-Type, then use the declared response media type or problem JSON default.
  *
  * @internal
  */
 function responseContentType(
 	result: response.ResponseResult | problem.ProblemResult,
-	body: unknown,
 	headers: response.ResponseHeaders,
 ): string | undefined {
 	const explicit = response.headerValues(headers, 'Content-Type')[0];
 	if (explicit !== undefined) return explicit;
 	if (problem.is(result)) return 'application/problem+json; charset=utf-8';
-	const definition = response.definitionOf(result);
-	if (definition.contentType !== undefined) return definition.contentType;
-	if (body === null || body === undefined) return undefined;
-	if (definition.mode === 'html') return 'text/html; charset=utf-8';
-	if (typeof body === 'string') return 'text/plain; charset=utf-8';
-	if (body instanceof Blob && body.type.length > 0) return body.type;
-	if (
-		body instanceof ArrayBuffer || ArrayBuffer.isView(body) || body instanceof ReadableStream ||
-		definition.mode === 'stream' || definition.mode === 'download'
-	) {
-		return 'application/octet-stream';
-	}
-	return 'application/json; charset=utf-8';
+	return response.mediaType(response.definitionOf(result));
 }
 
 /**
- * Derives the pagination parameters from the query contract used by the compiled service runtime.
- *
- * Service internals link exact endpoint and middleware definitions to implementations before traffic and preserve request-stage ownership at runtime.
+ * Read link parameter names from the operation's declared Query input rather than inventing default spellings.
  *
  * @internal
  */
@@ -1093,7 +1127,7 @@ function paginationParameters(
 }
 
 /**
- * Checks whether async iterable satisfies the condition required by the compiled service runtime.
+ * Recognize the async-iterator property used by the response adapter; consumption still invokes the source.
  *
  * @internal
  */
@@ -1102,9 +1136,8 @@ function isAsyncIterable(value: unknown): value is AsyncIterable<string | Uint8A
 }
 
 /**
- * Reads a ReadableStream produced from an async iterable under the module's cancellation and ownership rules.
- *
- * It links service definitions to exact implementations before traffic and keeps request-stage ownership visible at runtime.
+ * Pull one iterator value per response demand and UTF-8 encode string chunks.
+ * Response cancellation requests iterator.return; it cannot interrupt an iterator next that ignores cancellation.
  *
  * @internal
  */
@@ -1134,7 +1167,7 @@ function streamFromAsync(iterable: AsyncIterable<string | Uint8Array>): Readable
 }
 
 /**
- * Checks whether header is present for the compiled service runtime.
+ * Check header names case-insensitively before adding a default media type.
  *
  * @internal
  */
@@ -1155,7 +1188,7 @@ function createContextStore(): ServiceContextStore {
 	const values = new Map<MiddlewareContextDefinition, unknown>();
 	return Object.freeze({
 		/**
-		 * Checks whether the required state is present for the compiled service runtime.
+		 * Test whether this exact middleware context definition has a value in this request.
 		 *
 		 * @internal
 		 */
@@ -1163,7 +1196,7 @@ function createContextStore(): ServiceContextStore {
 			return values.has(definition);
 		},
 		/**
-		 * Gets state from the compiled service runtime after its ownership and validation rules have been established.
+		 * Read a value only after its producer ran; an equal ID on another definition cannot supply it.
 		 *
 		 * @internal
 		 */
@@ -1174,7 +1207,7 @@ function createContextStore(): ServiceContextStore {
 			return values.get(definition) as MiddlewareContextValue<Definition>;
 		},
 		/**
-		 * Sets state on the internal builder or record used by the compiled service runtime.
+		 * Publish the value under its exact middleware context definition for later stages of this request.
 		 *
 		 * @internal
 		 */
@@ -1188,7 +1221,7 @@ function createContextStore(): ServiceContextStore {
 }
 
 /**
- * Requires concrete resource definition before the compiled service runtime continues.
+ * Require a concrete dependency-bearing resource definition before checking request acquisition authority.
  *
  * @internal
  */
@@ -1204,7 +1237,7 @@ function requireConcreteResource(
 }
 
 /**
- * Checks whether concrete resource definition satisfies the condition required by the compiled service runtime.
+ * Recognize a concrete Resource declaration; a catalog ID without dependency metadata cannot be resolved here.
  *
  * @internal
  */
@@ -1233,7 +1266,7 @@ function createResourceResolver(
 ): endpoint.EndpointResourceResolver & MiddlewareResourceResolver {
 	return Object.freeze({
 		/**
-		 * Checks whether the required state is present for the compiled service runtime.
+		 * Test declared resource coverage inside this request envelope without acquiring the provider.
 		 *
 		 * @internal
 		 */
@@ -1241,7 +1274,7 @@ function createResourceResolver(
 			return isConcreteResource(definition) && allowed.has(definition) && collection.has(definition);
 		},
 		/**
-		 * Gets state from the compiled service runtime after its ownership and validation rules have been established.
+		 * Reject out-of-envelope definitions before asking the collection to acquire under this request context.
 		 *
 		 * @internal
 		 */
@@ -1258,9 +1291,8 @@ function createResourceResolver(
 }
 
 /**
- * Derives the exact resource-definition closure that one effective service operation may acquire.
- *
- * Service internals link exact endpoint and middleware definitions to implementations before traffic and preserve request-stage ownership at runtime.
+ * Build the compiled middleware's dependency envelope once using exact definitions, dependencies first.
+ * Compilation has already rejected resource cycles and conflicting identity.
  *
  * @internal
  */
@@ -1280,7 +1312,8 @@ function resourceClosure(input: MiddlewareDefinition['resources']): ResourceDefi
 }
 
 /**
- * Snapshots state so later compilation cannot observe caller mutation.
+ * Expose a shallow request-state view and an operation-limited resource resolver.
+ * Borrowed Request, host, values, and context keep their owners; Object.freeze does not freeze those resources.
  *
  * @internal
  */
@@ -1296,7 +1329,7 @@ function freezeState<Host extends object, Values extends ServiceRequestValues>(
 }
 
 /**
- * Applies patch at the phase that owns its side effects.
+ * Merge adapter-contributed request values while preserving the runtime-owned context, Request, and resource envelopes.
  *
  * @internal
  */
@@ -1315,9 +1348,8 @@ function applyPatch<Host extends object, Values extends ServiceRequestValues>(
 }
 
 /**
- * Checks required runtime adapters before traffic starts.
- *
- * It links service definitions to exact implementations before traffic and keeps request-stage ownership visible at runtime.
+ * Reject missing authentication, requirement-family, or resilience capabilities before serving traffic.
+ * Timeout and body-limit policies run inside this runtime and need no external adapter.
  *
  * @internal
  */
@@ -1384,9 +1416,8 @@ const bodyTooLarge = Symbol('service-body-too-large');
 const invalidBody = Symbol('service-invalid-body');
 
 /**
- * Applies the bounded request limit before the compiled service runtime accepts unbounded work or data.
- *
- * Service internals link exact endpoint and middleware definitions to implementations before traffic and preserve request-stage ownership at runtime.
+ * Collect the actual body under the declared byte bound before middleware, then replay accepted bytes in a new Request.
+ * Typed length/size failures become private sentinels; other transport failures still reject.
  *
  * @internal
  */
@@ -1412,41 +1443,6 @@ async function boundedRequest(
 		duplex: 'half',
 	};
 	return new Request(request.url, init);
-}
-
-/**
- * Checks response body and preserves the deterministic issues needed by callers.
- *
- * It links service definitions to exact implementations before traffic and keeps request-stage ownership visible at runtime.
- *
- * @internal
- */
-async function validateResponseBody(
-	definition: response.ResponseDefinition,
-	body: unknown,
-): Promise<readonly StandardSchemaV1.Issue[]> {
-	if (definition.schema === undefined || definition.mode === 'empty' || definition.mode === 'redirect') {
-		return Object.freeze([]);
-	}
-	if (definition.mode !== 'page') {
-		const result = await definition.schema['~standard'].validate(body);
-		return Object.freeze(result.issues ? [...result.issues] : []);
-	}
-	if (typeof body !== 'object' || body === null || !Array.isArray((body as { readonly items?: unknown }).items)) {
-		return Object.freeze([{ message: 'Paginated responses require a PageWindow body.', path: ['items'] }]);
-	}
-	const issues: StandardSchemaV1.Issue[] = [];
-	const items = (body as { readonly items: readonly unknown[] }).items;
-	for (let index = 0; index < items.length; index += 1) {
-		const result = await definition.schema['~standard'].validate(items[index]);
-		for (const issue of result.issues ?? []) {
-			issues.push({
-				...issue,
-				path: ['items', index, ...(issue.path ?? [])],
-			});
-		}
-	}
-	return Object.freeze(issues);
 }
 
 /**
@@ -1482,4 +1478,31 @@ interface MutableServiceRequestState<
 /** Normalize JavaScript's unrestricted thrown values before exposing them to host callbacks. */
 function normalizeError(reason: unknown): Error {
 	return reason instanceof Error ? reason : new Error(fault.message(reason), { cause: reason });
+}
+
+/** Measure response availability. Body streaming and request cleanup retain their existing owners. */
+async function observeOperation<Host extends object, Values extends ServiceRequestValues>(
+	operation: EffectiveServiceOperation,
+	request: Request,
+	resources: ResourceCollection,
+	serviceContext: Context,
+	middlewareByDefinition: ReadonlyMap<MiddlewareDefinition, MiddlewareHandler>,
+	resourceEnvelopes: ResourceEnvelopesType,
+	observers: ReadonlyMap<ServiceObserverDefinition, ServiceObserverHandler>,
+	options: CreateServiceOptions<Host, Values>,
+): Promise<Response> {
+	return await telemetry.get(serviceContext).span('server.request', { method: request.method }, async (observation) => {
+		const result = await serveOperation(
+			operation,
+			request,
+			resources,
+			serviceContext,
+			middlewareByDefinition,
+			resourceEnvelopes,
+			observers,
+			options,
+		);
+		if (result.status >= 500) observation.fail(new Error(`Server response failed with status ${result.status}.`));
+		return result;
+	});
 }

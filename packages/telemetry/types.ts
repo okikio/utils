@@ -1,4 +1,5 @@
-import type { FaultValue, Options as FaultOptions } from '@okikio/fault';
+import type { Options as JsonOptions } from '@okikio/collection/record/json';
+import type { FaultValue, Options as FaultOptions } from '@okikio/result/fault';
 
 /** Severity shared by portable telemetry records and common logging backends. */
 export type Level = 'trace' | 'debug' | 'info' | 'warning' | 'error' | 'fatal';
@@ -74,6 +75,8 @@ export type ReporterErrorHandler = (error: unknown, event?: Event) => void | Pro
 
 /** Options used to create one explicit telemetry scope. */
 export interface ScopeOptions {
+	/** JSON copy limits per fields/fault snapshot. Defaults: depth 128, 1,000,000 nodes, 16,777,216 UTF-16 units. */
+	readonly projection?: ProjectionOptions;
 	/** Named fields that belong to this representation or observation. */
 	readonly fields?: Fields;
 	/** Runtime-neutral clock. Defaults to `new Date().toISOString()`. */
@@ -102,8 +105,15 @@ export interface MemoryReporter extends Reporter {
 	clear(): void;
 }
 
+/** Limits for each expanded fields/fault snapshot, including aliases and record keys. */
+export type ProjectionOptions = JsonOptions;
+
 /** Options controlling bounded failure-history buffering. */
 export interface BufferOptions {
+	/** Maximum retained correlation keys. Zero disables pre-trigger retention. */
+	readonly maximumKeys: number;
+	/** Maximum retained records across all keys, independent of per-key capacity. */
+	readonly maximumRecords: number;
 	/** Maximum retained pre-trigger records per correlation key. @default 64 */
 	readonly capacity?: number;
 	/** Minimum severity that flushes retained history before the triggering event. @default error */
@@ -114,6 +124,8 @@ export interface BufferOptions {
 
 /** Reporter that holds low-severity history until a failure or explicit flush. */
 export interface BufferedReporter extends Reporter {
+	/** Current retention and cumulative capacity eviction count. Explicit discard/flush are not drops. */
+	stats(): Readonly<{ readonly keys: number; readonly records: number; readonly dropped: number }>;
 	/** Deliver or release buffered diagnostic events under the reporter contract. */
 	flush(key?: string): Promise<void>;
 	/** Discard buffered diagnostic records without making them authoritative events. */

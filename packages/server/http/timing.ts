@@ -1,4 +1,4 @@
-import * as recordCore from '@okikio/record';
+import * as recordCore from '@okikio/collection/record';
 import type { Middleware } from './types.ts';
 import { withHeaders } from './response.ts';
 
@@ -12,7 +12,7 @@ export interface TimingOptions {
 	readonly enabled?: (request: Request) => boolean;
 }
 
-/** Record total request-handler duration in the standard Server-Timing response header. */
+/** Record downstream handler time until a Response exists, before its streaming body finishes. */
 export function timing(options: TimingOptions = {}): Middleware {
 	recordCore.assert(options, 'timing options');
 	const normalized = recordCore.snapshot(options, 'timing options');

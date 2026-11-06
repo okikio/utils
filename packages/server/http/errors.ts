@@ -1,5 +1,5 @@
 import * as problem from '@okikio/http/problem';
-import * as recordCore from '@okikio/record';
+import * as recordCore from '@okikio/collection/record';
 
 import { ServerProblems } from '../problems.ts';
 import { problemResponse } from './response.ts';

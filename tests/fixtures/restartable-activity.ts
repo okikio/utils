@@ -1,51 +1,18 @@
-import type { StandardSchemaV1 } from '@standard-schema/spec';
+import * as schema from '@okikio/schema';
 
 import * as activity from '@okikio/activity';
 import * as engine from '@okikio/activity/engine';
-import * as effect from '@okikio/effect';
-import * as resilience from '@okikio/resilience';
+import * as effect from '@okikio/capability/effect';
+import * as resilience from '@okikio/capability/resilience';
 
-function contract<Output>(validate: (value: unknown) => Output): StandardSchemaV1<unknown, Output> {
-	return Object.freeze({
-		'~standard': Object.freeze({
-			version: 1,
-			vendor: 'restartable-scenario',
-			validate(value: unknown) {
-				try {
-					return { value: validate(value) };
-				} catch (error) {
-					return { issues: [{ message: error instanceof Error ? error.message : String(error) }] };
-				}
-			},
-		}),
-	});
-}
-
-export const InputSchema = contract((value) => {
-	if (typeof value !== 'object' || value === null) throw new TypeError('Expected activity input.');
-	const input = value as { value?: unknown; stallFirst?: unknown };
-	if (typeof input.value !== 'string') throw new TypeError('Expected input.value string.');
-	if (input.stallFirst !== undefined && typeof input.stallFirst !== 'boolean') {
-		throw new TypeError('Expected input.stallFirst boolean.');
-	}
-	return Object.freeze({ value: input.value, stallFirst: input.stallFirst === true });
+export const InputSchema = schema.object({
+	value: schema.string(),
+	stallFirst: schema.defaults(schema.boolean(), () => false),
 });
 
-export const ResultSchema = contract((value) => {
-	if (typeof value !== 'object' || value === null || typeof (value as { stored?: unknown }).stored !== 'string') {
-		throw new TypeError('Expected stored result.');
-	}
-	return Object.freeze({ stored: (value as { stored: string }).stored });
-});
+export const ResultSchema = schema.object({ stored: schema.string() });
 
-const CommitSchema = contract((value) => {
-	if (typeof value !== 'object' || value === null) throw new TypeError('Expected commit value.');
-	const commit = value as { stored?: unknown; attempt?: unknown };
-	if (typeof commit.stored !== 'string' || !Number.isSafeInteger(commit.attempt) || Number(commit.attempt) < 1) {
-		throw new TypeError('Expected stored string and positive attempt.');
-	}
-	return Object.freeze({ stored: commit.stored, attempt: Number(commit.attempt) });
-});
+const CommitSchema = schema.object({ stored: schema.string(), attempt: schema.number({ integer: true, minimum: 1 }) });
 
 export const Engine = engine.define({
 	id: 'scenario.restartable-worker',
