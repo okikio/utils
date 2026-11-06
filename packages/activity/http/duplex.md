@@ -250,9 +250,7 @@ a manual cleanup gate. Small sequential authority calls establish incremental de
 backpressure or production load.
 
 ```sh
-# Prepare the pinned nginx image declared in tests/fixtures/duplex/proxy.ts first.
-# Prepare the Node image using the earlier container instructions too.
-docker pull nginx:1.28-alpine@sha256:a8b39bd9cf0f83869a2162827a0caf6137ddf759d50a171451b335cecc87d236
+# Docker must be running. The fixture pulls its pinned images if they are not cached.
 mise run test -- --suite containers tests/workflows/duplex-proxy.test.ts
 node bench/duplex-proxy.bench.ts --check
 node bench/duplex-proxy.bench.ts

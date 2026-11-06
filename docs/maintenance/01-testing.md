@@ -143,7 +143,8 @@ as a failed engine setup, not a passing transport test. Its optional root benchm
 selection and share the same owned host fixtures.
 
 The [TLS/nginx matrix](../../packages/activity/http/duplex.md#deploy-behind-a-tls-edge) is a separate container test.
-It needs the prepared pinned nginx image and OpenSSL on the host. Native Node caller processes receive a private CA
+It needs Docker and OpenSSL on the host. The fixture pulls its digest-pinned nginx and Node images when they are not
+already cached. Native Node caller processes receive a private CA
 at startup; the fixture never modifies the runner's global trust. It checks certificate rejection, incremental original
 authority calls, independent control authentication, buffering, idle expiry and held cleanup. Its cold-process benchmark
 has different costs from the warm socket benchmark. Real Worker/process stop-fault tests remain portable source tests
@@ -181,7 +182,15 @@ mise run test -- --suite packages
 ```
 
 On a fresh Linux CI machine, `mise run prepare -- --kind browser --with-deps` also installs Chromium's system
-dependencies. Playwright is an exact development dependency. The browser tool records the actual browser version and
+dependencies. To run the browser/container matrix locally, select all three engines before running its tests:
+
+```sh
+mise run prepare -- --kind browser chromium firefox webkit --with-deps
+mise run test -- --suite containers tests/workflows/duplex-browser.test.ts
+```
+
+The container CI lane performs this preparation itself. Ordinary browser preparation still defaults to Chromium.
+Playwright is an exact development dependency. The browser tool records the actual browser version and
 exercised checks; browser-selected code executed by Node is labeled separately.
 
 ## Keep resource admission explicit

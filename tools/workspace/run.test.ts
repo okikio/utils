@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { writeFile } from 'node:fs/promises';
 
-it('selects dependency installation without an installed workspace', async () => {
+it('selects preparation and container recipes without an installed workspace', async () => {
 	// Copy only the entry point: accidental imports of release or CI tools must fail here.
 	const evidence = resolve('.tmp/tests');
 	await mkdir(evidence, { recursive: true });
@@ -27,4 +27,22 @@ it('selects dependency installation without an installed workspace', async () =>
 	expect(result.stderr).toBe('');
 	expect(result.status).toBe(0);
 	expect(result.stdout.trim().split('\n')).toEqual(['run', 'ops:prepare:deps', '--']);
+
+	// Default preparation stays small; explicit engine names reach Playwright unchanged.
+	for (
+		const [args, expected] of [
+			[['prepare', '--kind', 'browser'], ['chromium']],
+			[['prepare', '--kind', 'browser', 'firefox', 'webkit', '--with-deps'], ['firefox', 'webkit', '--with-deps']],
+			[['ci:run', '--lane', 'containers'], ['chromium', 'firefox', 'webkit', '--with-deps']],
+		] as const
+	) {
+		const selected = spawnSync('node', [resolve(root, 'tools/workspace/run.ts'), ...args], {
+			encoding: 'utf8',
+			env: { ...process.env, PATH: `${resolve(root, 'bin')}:${process.env.PATH}` },
+		});
+		expect(selected.stderr).toBe('');
+		expect(selected.status).toBe(0);
+		expect(selected.stdout.trim().split('\n').slice(0, expected.length + 3))
+			.toEqual(['run', 'ops:prepare:browser', '--', ...expected]);
+	}
 });

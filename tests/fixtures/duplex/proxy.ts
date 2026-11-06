@@ -4,7 +4,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { GenericContainer, PullPolicy, Wait } from 'testcontainers';
+import { GenericContainer, Wait } from 'testcontainers';
 import type { StartedTestContainer } from 'testcontainers';
 import { start } from './container.ts';
 
@@ -160,11 +160,11 @@ http {
 			if (remaining.stdout.trim()) await command('docker', ['rm', '-f', name], { timeout: 15000 });
 		}
 	});
+	// The default policy reuses cached images and pulls this pinned revision when absent.
 	const proxy = started = await new GenericContainer(process.env.UTILS_DUPLEX_PROXY_IMAGE ?? Image)
 		.withName(name)
 		.withLabels({ 'okikio.owner': 'utils-duplex-proxy-tests' })
 		.withNetworkMode(network).withAutoCleanup(false).withAutoRemove(true)
-		.withPullPolicy(PullPolicy.neverPull())
 		.withUser('101:101')
 		.withEntrypoint(['nginx']).withCommand(['-g', 'daemon off;', '-c', '/fixture/nginx.conf'])
 		// The unprivileged edge receives only its leaf key, never the signing CA key.

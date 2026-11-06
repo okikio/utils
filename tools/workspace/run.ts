@@ -218,7 +218,7 @@ async function ci(): Promise<void> {
 				operation('bench:freeze:check');
 				break;
 			case 'browser':
-				operation('prepare:browser', ['--with-deps']);
+				operation('prepare:browser', ['chromium', '--with-deps']);
 				test('browser');
 				break;
 			case 'docs':
@@ -232,6 +232,8 @@ async function ci(): Promise<void> {
 				test('postgres');
 				break;
 			case 'containers':
+				// The container suite also drives real browsers through its reverse proxies.
+				operation('prepare:browser', ['chromium', 'firefox', 'webkit', '--with-deps']);
 				test('containers');
 				break;
 			default:
@@ -244,7 +246,7 @@ switch (family) {
 	case 'prepare':
 		if (values.kind === 'freeze') operation('bench:freeze:prepare');
 		else {operation(`prepare:${values.kind ?? 'deps'}`, [
-				...positionals,
+				...(values.kind === 'browser' && positionals.length === 0 ? ['chromium'] : positionals),
 				...forwarded,
 				...(values['with-deps'] ? ['--with-deps'] : []),
 			]);}

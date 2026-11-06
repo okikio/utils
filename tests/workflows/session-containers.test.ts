@@ -142,7 +142,9 @@ for (const kind of ['thread', 'process']) {
 		owned.delete(first.container);
 		await until(async () => (await registry.inspect(reference.id))?.state === 'lost');
 		await using replacement = await start(namespace, kind, true);
-		expect((await call(replacement.origin, 'durable', { op: 'use', reference })).status).toBe('lost');
+		// A saved reference names the dead physical host. Routing must reject it rather than borrow from its replacement.
+		await expect(call(replacement.origin, 'durable', { op: 'use', reference }))
+			.rejects.toThrow('Session operation failed:');
 		const stale = await fetch(`${replacement.origin}/memory`, {
 			method: 'POST',
 			body: JSON.stringify({ op: 'create', host: initialHost }),

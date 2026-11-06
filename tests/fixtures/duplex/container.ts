@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { build } from 'tsdown';
-import { GenericContainer, PullPolicy, Wait } from 'testcontainers';
+import { GenericContainer, Wait } from 'testcontainers';
 import type { StartedTestContainer } from 'testcontainers';
 import * as schema from '@okikio/schema';
 
@@ -84,12 +84,12 @@ export async function start(options: {
 			await result[Symbol.asyncDispose]();
 		}
 		if (!entry) throw new Error('The container application bundle has no entry.');
+		// The default policy reuses cached images and pulls this pinned revision when absent.
 		let builder = new GenericContainer(image)
 			.withName(name)
 			.withLabels({ 'okikio.owner': 'utils-duplex-tests' })
 			// Explicit cleanup avoids provisioning a second Ryuk container for this one-container fixture.
 			.withAutoCleanup(false).withAutoRemove(true)
-			.withPullPolicy(PullPolicy.neverPull())
 			.withEntrypoint(['node']).withCommand([`/app/${entry}`])
 			.withWorkingDir('/app').withCopyDirectoriesToContainer([{ source: output, target: '/app' }])
 			.withEnvironment({
