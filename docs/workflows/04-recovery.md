@@ -39,6 +39,13 @@ HTTP request keeps running. Another worker can start a replacement attempt after
 returns later, its old permission must not overwrite the replacement's result. Stopping renewals alone would not prevent
 that late write.
 
+An expired lease does not itself release a database lock. Suspending a process with `SIGSTOP` can leave one of its
+transactions open until PostgreSQL ends it. The adapter bounds transactions to ten seconds and lock waits to two
+seconds, so registration can report a lock timeout before that old transaction ends. The stale-worker test observes
+release of the namespace admission lock before starting its replacement, then resumes the old process to check that
+its write is still rejected. Lock availability does not prove that every old connection closed or that process cleanup
+ran; those are separate lifecycle outcomes.
+
 The adapter authenticates the claim object it created and checks the current saved state. Copying its fields or
 constructing a lookalike does not grant permission. Pass the supplied `ctx.claim` to guarded writes. Do not serialize it
 as workflow input or store it for later use. Business authorization still belongs to the application's grant and

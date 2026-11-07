@@ -376,6 +376,21 @@ describe('PostgreSQL process-crash recovery', { timeout: 240_000, concurrency: f
 			const { input, ref } = await source(client);
 			await old.event('core.batch.before-write');
 			old.child.kill('SIGSTOP');
+			// SIGSTOP can freeze a background admission transaction with the namespace lock.
+			// Observe its database-side release before registration's shorter lock timeout;
+			// each nonblocking probe commits, so it cannot retain the lock itself. This
+			// does not claim that every old connection closed or that process cleanup ran.
+			await until(() =>
+				sql.begin(async (transaction) => {
+					// Match the placement admission key used by the PostgreSQL adapter.
+					const rows = await transaction`select pg_try_advisory_xact_lock(
+					hashtextextended(${namespace}, 776161009)
+				) as available`;
+					return rows[0]!.available === true;
+				})
+			);
+			expect(old.child.exitCode).toBeNull();
+			expect(old.child.signalCode).toBeNull();
 			replacement = host(namespace);
 			await replacement.ready();
 			const imported = await client.wait(Parse, ref, { signal: AbortSignal.timeout(15_000) });
