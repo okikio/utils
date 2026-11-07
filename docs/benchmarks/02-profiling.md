@@ -52,8 +52,8 @@ The original proxy inputs preserve meaningful policy differences. For example, s
 Connection nomination while the gateway ignores an invalid token and strips valid nominations. A graph of those cases
 explains each implementation's work; their ratios cannot prove interchangeable behavior. The Request-as-init Hono
 fixture also temporarily installs its mock Fetch transport inside the callback. Its graph includes that fixture cost.
-The gateway creates trace identities and retains cancellation authority; its minimal Hono policy counterpart does less
-lifecycle work. Keep these distinctions with any comparison.
+The gateway creates trace IDs and controls when to cancel the forwarded request. The minimal Hono example does
+less work on those paths. Keep that difference in view when comparing timings.
 
 ## Profile the benchmark inventory
 

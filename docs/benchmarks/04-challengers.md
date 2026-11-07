@@ -102,7 +102,7 @@ bill idle gaps to a JavaScript frame; check the runtime's idle control before in
 CPU. All profiled elapsed values are diagnostic. Establish throughput changes with fresh unprofiled comparisons after
 correctness passes.
 
-The graph renderer retains raw CPU profiles and creates SVG flamegraphs plus JSON function summaries. A wide parent
-includes its descendants; do not sum inclusive percentages as independent costs. Use the individual vector profiles to
-distinguish routing, validation, body admission, response construction and cleanup rather than attributing an entire API
-batch to the router.
+The renderer keeps the raw profiles and writes SVG flame graphs and JSON function summaries. A wide parent
+frame includes time spent in the functions it calls. Adding those percentages again would count the same
+work twice. Inspect a request's profile to see how much work goes into choosing a route, checking input,
+accepting the body, building a response, or closing resources.

@@ -1,7 +1,8 @@
 # Consolidate capability ownership
 
-The former standalone `entitlement`, `meter`, and `codec` packages now live under the packages that own their contracts.
-Update both imports and dependency manifests. There are no compatibility packages under the old names.
+Entitlement checks moved to Authz, effect meters moved to Capability, and codecs moved to Schema. Update the
+import paths in your code and the dependency names in your manifests. The old packages no longer provide
+compatibility imports.
 
 | Former import         | Current import                    | Dependency           |
 | --------------------- | --------------------------------- | -------------------- |

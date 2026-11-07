@@ -75,9 +75,9 @@ difference under that model. An interval containing one means these measurements
 not establish equivalence or justify calling a slower point estimate equal. No arbitrary elapsed-time or percentage gate
 is added to PR CI. Report fixture size, runtime, resource quotas and raw uncertainty with a claim.
 
-Prepared routing is an implementation hypothesis, not proof of speed. Endpoint partitioning and middleware preparation
-need measurements that cover late matches, misses and parameter extraction while preserving response contracts. Vixeny
-is useful architectural context, but its benchmark claims do not establish the performance of this implementation.
+Preparing a router in advance might save work on each request. To find out, measure routes that match late
+or not at all, and routes that extract parameters. Verify the same responses before comparing time.
+Vixeny provides an example of the approach. Its measurements cannot tell you how fast the Utils implementation is.
 
 The shared vectors found three production contract defects: HEAD normalization had to happen after middleware, error and
 mount responses; empty dynamic route parameters had to reject; and gateway forwarding had to remove every header named

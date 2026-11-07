@@ -77,10 +77,11 @@ the host every 20 ms and rejects growth above a deliberately wide 256 MiB guard 
 short peaks, and a finite run without forced garbage collection does not prove stable retained memory over hours.
 These are correctness and resource-pressure tests, not throughput benchmarks or production capacity targets.
 
-This fixture also exposes a limitation: eight stalled readers occupy every slot. A real service may need per-account
-limits, a write deadline, admission fairness and a durable cursor before it can disconnect a slow reader safely. The
+Eight stalled readers occupy every slot in this fixture. A real service may need to limit how many slots each
+account can use, decide who gets a free slot next, and close connections that take too long to write. Before
+disconnecting a reader, save a position it can use to resume. The
 [durable greeting feed](../server/10-http-streaming.md#recover-the-same-feed-after-the-http-process-dies) checks replay
-separately. Synthetic event IDs in the load fixture do not provide durable recovery.
+separately. The event IDs in this load test alone cannot restore a reader's position after a restart.
 
 ## Follow an event through nginx and the gateway
 
@@ -239,8 +240,9 @@ mise run test -- --suite containers tests/workflows/postgres-load.test.ts
 The command selects three tests: two load profiles and the COMMIT-reply drill below. Each prints a unique local evidence
 directory under `.tmp/tests/recovery/`. Keep those directories when comparing failures with later passing runs. Temporary
 reports, logs, dumps and diagnostic entry points belong in `.tmp/`; the existing `.tmp/artifacts/` history remains in place.
-Before primary loss, each producer must have committed work. This is a recovery precondition, not a minimum throughput
-target: a slower host must still prove exact reconciliation after promotion.
+Before the test stops the primary, each producer must commit at least one operation. That gives the test saved
+work to check after promotion. A slow host still has to match the exact saved rows and receipts; it does not
+have to reach a target rate.
 
 | Setting | Lower contention | Higher contention |
 | --- | --- | --- |
@@ -364,9 +366,9 @@ The delays above are intentional waits; connection failure detection and promoti
 
 The store checks expiry using PostgreSQL's
 [`clock_timestamp()`](https://www.postgresql.org/docs/18/functions-datetime.html#FUNCTIONS-DATETIME-CURRENT).
-A timer waking up on time is not authority. A renewal response lost in transit can be retried only while the stored
-host and claim are still live. Neither `renewHost()` nor `renew()` revives an expired owner. Renewing an attempt also
-does not move its fixed activity deadline.
+A local timer can wake the worker, but PostgreSQL decides whether it still has permission. If a renewal reply
+is lost, retry only while the host registration and claim are still valid in the database. Neither `renewHost()`
+nor `renew()` can restore expired permission. Renewing a lease leaves the activity's fixed deadline unchanged.
 
 Renewal must acquire its host update lock before checking and extending that host. If two renewers first hold shared
 locks on the row and then both try to update it, neither can proceed until the other releases its shared lock.

@@ -32,15 +32,18 @@ tools/
 └── bench/              fixture checks, measurements, comparisons and profiling
 ```
 
-`workspace/run.ts` validates selectors and delegates to hidden `.mise/tasks/ops/` operations. Those shell entrypoints
-establish the native tool, environment and permissions. TypeScript owns substantive orchestration. Mise owns pinned
-runtimes and dependency order; package scripts and Deno tasks delegate to these same families.
+`workspace/run.ts` checks options such as `--project`, then calls the matching task under `.mise/tasks/ops/`.
+Those shell tasks select the runtime, set its environment, and pass permissions. The TypeScript programs run the
+steps. Mise chooses the pinned runtime versions and runs prerequisites first. Package scripts and Deno tasks
+call the same task families.
 
-`packages/exports.ts` projects the focused package export maps into Deno exports and umbrella forwarders. It has explicit
-check and write modes. The public subpaths in package manifests are deliberate API decisions: discovering every `.ts`
-file would expose private implementation details. `packages/npm.ts` uses those same maps to stage ESM artifacts with
-stable tsdown, preserve external dependencies and build declarations. It packs real archives and tests clean consumers.
-`tests/npm-consumer.mjs` deliberately runs JavaScript without a TypeScript loader.
+`packages/exports.ts` reads each package's public paths, then checks or writes the matching Deno exports and
+`@okikio/utils` re-exports. Only paths listed in a package manifest become public. Finding every `.ts` file
+would also expose private code.
+
+`packages/npm.ts` reads the same paths to build ESM JavaScript and TypeScript declarations with stable tsdown.
+It keeps external dependencies separate. It packs npm archives and installs them into clean projects for testing.
+For example, `tests/npm-consumer.mjs` runs the installed JavaScript without a TypeScript loader.
 
 Tests remain next to their package; composed workflows remain in root `tests/`. Package benchmarks remain next to the
 package, and cross-package measurements remain in root `bench/`. Tools select these programs without duplicating their

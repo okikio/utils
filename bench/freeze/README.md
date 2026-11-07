@@ -5,9 +5,9 @@ Result, Collection record and catalog, and Task progress. It generates a second 
 the freeze calls. Both versions must return the same outputs in the workload, but the plain versions deliberately allow
 changes that production code prevents.
 
-Authored workload code stays in `freeze.bench.ts`; orchestration stays in `tools/bench/freeze/`. Generated modules,
-inventories, verification receipts, samples, and summaries belong under `.tmp/artifacts/bench/freeze/` and are not
-tracked.
+Read `freeze.bench.ts` for the code the benchmark measures. The commands in `tools/bench/freeze/` prepare and run
+the comparison. They keep the generated copies, checks, samples, and summaries under `.tmp/artifacts/bench/freeze/`,
+outside Git.
 
 ## Prepare and check one source checkpoint
 

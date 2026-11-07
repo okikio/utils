@@ -247,11 +247,12 @@ consumer must be outside the source checkout, so ancestor resolution cannot acci
 Archive integrity, resolved JavaScript paths, runtime versions and complete diagnostics are retained under
 `.tmp/artifacts/`. Native package tests never substitute workspace TypeScript for emitted code.
 
-Native source tasks stream complete stdout and stderr to unique logs and write the selected files, real runtime version
-and exit/signal receipt before returning. A five-minute Node default diagnoses stuck tests; an authored case can select
-a justified timeout. CI retains test JSON/log reports and the container drill JSON/log/SQL evidence, on both success and
-failure, for fourteen days. The AST audit recognizes registration calls; native runner results remain the authority for
-which assertions actually executed.
+Each source test task writes standard output and errors to its own logs. Before it returns, the task also records
+which files ran, the runtime version, and the exit code or signal. Node tests time out after five minutes by
+default so a stuck test cannot wait forever. Set a different timeout for a case only when it needs one.
+
+CI keeps test reports, logs, and container SQL dumps for fourteen days, whether the run passes or fails. The
+source audit can see where a test registers. Check the native runner's report to see which assertions actually ran.
 
 ## Exercise meaningful boundaries
 

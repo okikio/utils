@@ -81,11 +81,17 @@ The [POST/form/webhook workflow](../server/09-http-input.md) keeps the greeting 
 byte overflow, repeated fields, File rejection, signature tampering and duplicate admission. Its liveness and readiness
 checks are separate, and readiness does not automatically reject traffic on other routes.
 
-The [streaming workflow](../server/10-http-streaming.md) then reads to completion, cancels early, joins cleanup and
-resumes from a feed-scoped cursor. It rejects expired, future and foreign cursors before creating the body. Existing SSE
-unit tests vary UTF-8 and CR/LF splits, bound raw events and expose stalled cancellation separately. JSONL tests exercise
-bodyless responses, pre-pull cancellation, late cleanup failures and invalid JSON values. The separate PostgreSQL/TCP integration adds a durable greeting log, real host SIGKILL, fresh-process replay,
-live-tail append, output refusal and cursor rejection. It checks bounded batches and cleanup. Separate [fault drills](./07-recovery.md) add sampled process memory, finite reader pressure, nginx buffering and physical PostgreSQL promotion; none establishes production capacity. The finite documentation log itself remains in-memory.
+The [streaming workflow](../server/10-http-streaming.md) reads a feed to completion, stops it early, waits for
+cleanup, and resumes using a cursor for that feed. It rejects expired cursors, cursors ahead of the feed,
+and cursors from another feed before creating a body. SSE unit tests split UTF-8 text and line breaks across
+chunks, check event limits, and show what happens when cancellation stalls. JSONL tests check empty bodies,
+cancellation before the first read, late cleanup failures, and invalid JSON values.
+
+The PostgreSQL/TCP test saves greetings, kills the real host, and replays the feed in a fresh process. It also
+checks new entries arriving while the reader is connected, batch limits, refused output, and cursor rejection.
+Separate [fault drills](./07-recovery.md) sample memory, test a fixed load of readers, check nginx buffering,
+and promote a PostgreSQL standby. The documentation example still uses memory; these tests do not establish
+production capacity.
 
 The [MCP workflow](../server/11-mcp.md) uses pinned server/client SDK packages for actual discovery, a successful tool
 call, schema rejection and host/origin rejection. It does not infer MCP sessions or transport replay from generic SSE
