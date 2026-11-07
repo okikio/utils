@@ -1,6 +1,6 @@
 {
 	"name": "@okikio/streams",
-	"version": "0.0.0",
+	"version": "0.1.0",
 	"type": "module",
 	"sideEffects": false,
 	"license": "MIT",
@@ -19,8 +19,8 @@
 		"mitata": "^1.0.34"
 	},
 	"dependencies": {
-		"@okikio/dispose": "workspace:^",
-		"@okikio/schema": "workspace:^",
+		"@okikio/dispose": "workspace:^0.1.0",
+		"@okikio/schema": "workspace:^1.0.0",
 		"@okikio/observables": "^1.4.0"
 	},
 	"publishConfig": {

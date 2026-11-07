@@ -1,6 +1,6 @@
 {
 	"name": "@okikio/context",
-	"version": "0.0.0",
+	"version": "1.0.0",
 	"type": "module",
 	"sideEffects": false,
 	"license": "MIT",
@@ -13,12 +13,12 @@
 	},
 	"dependencies": {
 		"@std/async": "npm:@jsr/std__async@^1.5.0",
-		"@okikio/duration": "workspace:^",
-		"@okikio/collection": "workspace:^",
+		"@okikio/duration": "workspace:^0.1.0",
+		"@okikio/collection": "workspace:^1.0.0",
 		"@okikio/observables": "^1.4.0",
-		"@okikio/telemetry": "workspace:^",
-		"@okikio/dispose": "workspace:^",
-		"@okikio/schema": "workspace:^"
+		"@okikio/telemetry": "workspace:^0.1.0",
+		"@okikio/dispose": "workspace:^0.1.0",
+		"@okikio/schema": "workspace:^1.0.0"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",

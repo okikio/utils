@@ -1,6 +1,6 @@
 {
 	"name": "@okikio/authz",
-	"version": "0.0.0",
+	"version": "0.1.0",
 	"type": "module",
 	"sideEffects": false,
 	"license": "MIT",
@@ -16,11 +16,11 @@
 		"./entitlement/definition": "./entitlement/definition.ts"
 	},
 	"dependencies": {
-		"@okikio/collection": "workspace:^",
-		"@okikio/capability": "workspace:^",
+		"@okikio/collection": "workspace:^1.0.0",
+		"@okikio/capability": "workspace:^1.0.0",
 		"@standard-schema/spec": "^1.1.0",
-		"@okikio/context": "workspace:^",
-		"@okikio/schema": "workspace:^"
+		"@okikio/context": "workspace:^1.0.0",
+		"@okikio/schema": "workspace:^1.0.0"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",

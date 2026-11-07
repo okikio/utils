@@ -1,6 +1,6 @@
 {
 	"name": "@okikio/scheduler",
-	"version": "0.0.0",
+	"version": "1.0.0",
 	"type": "module",
 	"sideEffects": false,
 	"license": "MIT",
@@ -19,14 +19,14 @@
 	},
 	"dependencies": {
 		"@standard-schema/spec": "^1.1.0",
-		"@okikio/collection": "workspace:^",
-		"@okikio/schema": "workspace:^",
+		"@okikio/collection": "workspace:^1.0.0",
+		"@okikio/schema": "workspace:^1.0.0",
 		"@std/async": "npm:@jsr/std__async@^1.5.0",
 		"@okikio/observables": "^1.4.0",
-		"@okikio/context": "workspace:^",
-		"@okikio/result": "workspace:^",
-		"@okikio/duration": "workspace:^",
-		"@okikio/telemetry": "workspace:^"
+		"@okikio/context": "workspace:^1.0.0",
+		"@okikio/result": "workspace:^1.0.0",
+		"@okikio/duration": "workspace:^0.1.0",
+		"@okikio/telemetry": "workspace:^0.1.0"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
