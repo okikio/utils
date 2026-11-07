@@ -1,6 +1,7 @@
 import { expect } from '@std/expect';
 import { describe, it } from 'node:test';
 import { Hono } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 
 import * as endpoint from '@okikio/server/endpoint';
 import * as http from '@okikio/server/http';
@@ -82,7 +83,7 @@ describe('Hono server adapter', () => {
 		expect(result.headers.get('server-timing')).toContain('total;dur=');
 	});
 
-	it('maps Hono-native exceptions through the shared error policy', async () => {
+	it('hides unexpected errors behind the shared fallback problem', async () => {
 		const app = new Hono();
 		app.onError(hono.catchErrors());
 		app.get('/fault', () => {
@@ -96,5 +97,33 @@ describe('Hono server adapter', () => {
 			status: 500,
 			instance: '/fault',
 		});
+	});
+
+	it('preserves authored HTTP exceptions before the generic mapper', async () => {
+		const app = new Hono();
+		let mapped = false;
+		let observed: number | undefined;
+		app.onError(hono.catchErrors({
+			map() {
+				mapped = true;
+				return new Response('Wrong response', { status: 500 });
+			},
+			onError(_error, _request, response) {
+				observed = response.status;
+				throw new Error('Observer failed.');
+			},
+		}));
+		app.get('/limited', () => {
+			throw new HTTPException(429, {
+				res: new Response('Try later', { status: 429, headers: { 'retry-after': '5' } }),
+			});
+		});
+
+		const result = await app.request('/limited');
+		expect(result.status).toBe(429);
+		expect(result.headers.get('retry-after')).toBe('5');
+		expect(await result.text()).toBe('Try later');
+		expect(mapped).toBe(false);
+		expect(observed).toBe(429);
 	});
 });

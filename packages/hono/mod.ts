@@ -48,7 +48,12 @@ export function fetch(app: Hono, middleware: readonly http.Middleware[] = []): h
 	return http.compose((request) => app.fetch(request), middleware);
 }
 
-/** Create a Hono `onError` callback backed by the generic safe error materializer. */
+/**
+ * Create a Hono `onError` callback. An HTTPException keeps its authored status,
+ * headers and body without invoking the optional mapper. Other errors use the
+ * shared mapper and safe fallback. The observer sees the resulting response
+ * in either case; its failure cannot replace that response.
+ */
 export function catchErrors(
 	options: http.ErrorOptions = {},
 ): (error: Error, ctx: HonoContext) => Promise<Response> {
