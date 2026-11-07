@@ -73,7 +73,8 @@ see; the rest of this guide follows the code that prepares the route and owns ea
 `service.compile()` reads the service definition and implementation together. It validates their relationships and
 returns one immutable `CompiledService`.
 
-The compiled value contains the information needed by the Fetch runtime and by other projections:
+The compiled value tells the live server how to find and run a route. It also gives tools such as the OpenAPI
+generator a description they can read without running the handlers:
 
 - effective operations and their complete method/path pairs
 - a handler-free `RoutePlan`
@@ -160,8 +161,9 @@ flowchart TD
   Output --> Finish["Observe later body completion or cancellation"]
 ```
 
-Read the branches as request-time gates, not work removed by compilation. A handler runs only after the accepted path.
-The chart omits operation retries and exception projection; the Service guide expands those lifetimes.
+Follow the checks for one incoming request. The server runs each check shown before it calls the handler, even
+though compilation decided their order earlier. The chart leaves out retries and how the server turns exceptions
+into responses. The Service guide covers those paths.
 
 
 Authentication runs before normal body parsing. A rejected caller therefore does not force the service to parse an

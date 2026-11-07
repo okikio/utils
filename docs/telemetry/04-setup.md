@@ -123,9 +123,10 @@ The [container service](../../tests/workflows/scenarios/service.ts) and
 bindings, policy selection, readiness, drain, and cleanup. Their telemetry setup is visible at the top of each file.
 These are test consumers of utils. They do not change Core or Intelligence.
 
-On worker shutdown, stop admission and await worker drain first. Then close resources and the database. Reset LogTape
-after those owners finish, so their cleanup logs still have a destination. Dispose the collection last. If the worker is
-killed, none of that cleanup is guaranteed. PostgreSQL's saved progress controls replacement work.
+To shut down a worker, stop taking new jobs and wait for work already in progress to finish. Then close
+the resources and database. Reset LogTape afterward so the cleanup messages still have somewhere to go. Close the
+telemetry collection last. If the process is killed, those steps may not run. The replacement worker uses the
+progress saved in PostgreSQL.
 
 ## Choose what to collect
 

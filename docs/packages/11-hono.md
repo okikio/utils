@@ -96,9 +96,10 @@ In an existing Hono application, register native middleware that must run before
 Overlapping routes resolve in Hono registration order. Inside a service, compilation orders static and explicit HEAD
 routes; mounting does not replace Hono's router or reorder unrelated registrations. Test overlaps intentionally.
 
-To deploy, pass this `fetch` to your host's Fetch adapter and keep the runtime alive until request admission stops and
-outstanding responses finish. Dispose it after that drain, rather than at the end of a short setup function. Read or
-cancel response bodies in callers. Authentication and live resource creation remain explicit application boundaries.
+To deploy, pass this `fetch` function to the host's Fetch adapter. During shutdown, stop accepting requests and
+wait for the outstanding responses. Then dispose the runtime. If you dispose it when a short setup function
+ends, it can close while the host still needs it. When you call the function yourself, read or cancel each
+response body. Your application still sets up authentication and opens any resources the handler needs.
 
 Use the [service guide](../../packages/server/service/README.md) when health becomes a domain API with validated
 request bodies. Keep Hono context features in native routes; mounted handlers receive the service's validated inputs.

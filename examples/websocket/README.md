@@ -43,5 +43,5 @@ websocket/
 
 Read [the walkthrough](../../docs/server/12-websocket.md) before adding private
 messages, reconnects or many clients. This local host is unauthenticated and has
-no durable message history. Its two-connection limit and reply-buffer check are
-demonstration policies, not measured service capacity.
+no saved message history. It accepts two connections and checks how much reply data waits to be sent. These are
+limits chosen for the example. They do not tell you how many clients a deployed service can support.

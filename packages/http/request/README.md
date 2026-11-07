@@ -9,9 +9,9 @@ A `Request` is the incoming HTTP message. Its URL and headers are text; a JSON b
 after it has been read and decoded. That decoded value still needs field validation. For example, valid JSON can contain
 `{ "age": "many" }` even when the application requires a number.
 
-A request body is a stream that is normally read once. These helpers share one bounded byte read for the same Request,
-then decode it for the selected format. They deliberately buffer the accepted body; use a separately owned streaming
-upload path when the whole file must not be retained in memory.
+You can normally read a request body only once. If you call these helpers on the same Request, they share that
+read and turn the bytes into the format you asked for. They keep the body in memory up to the allowed size.
+For a large upload that must stay out of memory, read the stream yourself and close it when you finish.
 
 ```text
 Repeated query: tag=a&tag=b -> { tag: [a, b] }

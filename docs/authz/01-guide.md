@@ -182,15 +182,15 @@ A target schema belongs to the permission definition because the valid subject s
 `Read` already declares `TargetSchema`, so `permission.on(Read, { id: 'photo-1' })` supplies a checked target.
 `{ assetId: 'photo-1' }` would not satisfy this contract.
 
-Omit `target` when the evaluator can derive the subject from the execution state that owns the check. A
-runtime-discovered target uses the schema and is validated before the evaluator sees it.
+Leave out `target` if the checker can find it in the current request. If the request supplies the target later,
+the permission code checks it against the schema before giving it to the checker.
 
 ## Scope and declaration safety
 
-`permission.scope()` creates a typed runtime view over an existing `@okikio/context` value. It borrows cancellation,
-deadline, clock, evaluator, and permission definitions. It owns no new lifetime and creates no hidden global
-registration. Permission and effect scopes use `context.view()`, so they can be nested without dropping each other's
-runtime fields.
+Call `permission.scope()` to give the current operation a permission checker and the definitions it may check.
+The resulting view still uses the same context, clock, deadline, and cancellation signal. It creates no new
+lifetime or global registration. Permission and effect scopes both use `context.view()`, so either can wrap the
+other without losing its fields.
 
 Every runtime check must reference one exact permission definition declared by that scope. An undeclared dynamic check
 throws `UndeclaredPermissionError`. This preserves the architecture rule that static definitions describe everything

@@ -140,9 +140,10 @@ window.addEventListener('pagehide', () => {
 }, { once: true });
 ```
 
-Follow one click before considering shutdown. Storage acknowledgement is the success boundary. The status message
-then makes that result available without requiring the optional brightness animation. A component can await `close()`;
-a browser's `pagehide` event cannot keep the page alive until that asynchronous join completes.
+Follow one click from saving the draft to showing the result. The screen waits for storage to confirm the save
+before it reports success. The status text tells the user what happened even if the brightness animation does
+not run. A component can await `close()` when it shuts down. A browser's `pagehide` event can request cleanup but
+cannot keep the page open while it finishes.
 
 ```mermaid
 sequenceDiagram

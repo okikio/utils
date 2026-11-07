@@ -52,15 +52,15 @@ the type URL in code. Other 404 problems can have different types.
 | `CreateProblemOptions` | Optional safe `detail`, `instance`, extensions, headers and private `cause`                         | Describes this occurrence of that rejection  |
 | `ProblemResult`        | Readonly `[body, status, headers]`                                                                  | Ready-to-materialize RFC 9457 representation |
 
-`define()` checks the ID, absolute type URI, error status and required text, then snapshots the description. `create()`
-builds the public body, protects canonical members from extension collisions, and keeps the exact definition and
-optional cause in hidden metadata. A service can therefore check that this result was declared on its endpoint, rather
-than accepting any object that happens to contain `status: 404`.
+`define()` checks the ID, absolute type URI, error status, and required text. It saves a copy of the description.
+`create()` builds the body that the caller can see. Extra fields cannot replace standard problem fields such as
+`status` or `type`. The result also retains the exact definition and optional cause in local metadata. The service
+uses the definition to check that the endpoint allows this problem. A plain object with `status: 404` does not pass
+that check.
 
-When an extension schema is supplied, a service validates it before sending the response. `create()` does not perform
-that asynchronous schema check; a manual host can call `validateExtensions()` when receiving unknown extension values.
-This is why construction, validation and transport remain separate. The
-[complete contracts](../../packages/http/README.md) explain exposure and retry metadata too.
+If you supply a schema for extra fields, the service checks those fields before sending the response. `create()`
+does not do that check. If you send responses without Service, call `validateExtensions()` yourself when the values
+need checking. See the [complete contracts](../../packages/http/README.md) for public fields and retry details.
 
 ## Build on the example
 
@@ -89,12 +89,13 @@ result are examples of protocol or server conditions.
 Problem extensions cannot overwrite canonical RFC 9457 members. An optional Standard Schema validates extension data
 before the server sends it.
 
-Definitions distinguish public and internal exposure. Provider causes can be retained in hidden local metadata for
-diagnostics while the public problem body stays controlled.
+The definition says whether a problem is public or internal. Keep the original error in local diagnostics when it
+helps you investigate. The public body contains only the fields you intend to send.
 
 The `Missing` definition above describes every missing asset response. Its `type` remains stable while the safe
 `detail` can explain this occurrence. Keep private storage failures in diagnostic metadata rather than the public detail.
 
 
-`problem.catalog()`, `select()`, and `compose()` build declared problem universes. `problem.is()` and `match()` preserve
-exact definition identity at runtime.
+Use `problem.catalog()`, `select()`, and `compose()` to collect the problem definitions an endpoint can use.
+`problem.is()` and `match()` check the exact definition, so two unrelated 404 problems do not match just because
+they share a status.

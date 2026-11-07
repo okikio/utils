@@ -53,9 +53,9 @@ Read the output as three checks: the incoming preference is `light`, the outgoin
 | `set(headers, Theme, 'dark', options?)` | `void`                                                            | Appends an outgoing `Set-Cookie` field; mutates only the supplied `Headers`            |
 | `delete(headers, Theme)`                | `void`                                                            | Appends an empty expired cookie; does not delete stored application data               |
 
-Under the hood, reading parses the incoming Cookie header, selects the definition's name, decodes the text and invokes
-the schema. Writing percent-encodes the supplied value and combines it with the declared attributes. Writing does not
-run the value schema again. Keep runtime validation at the boundary where unknown tokens enter the application.
+On a read, the helper finds the named value in the incoming `Cookie` header. It decodes the text, then checks it
+against the value rule. On a write, the helper percent-encodes the value and adds the browser attributes from the
+definition. It does not run the value rule again. Check values you receive from a browser before using them.
 
 Definition construction rejects incompatible browser policies. For example, a `__Host-` cookie must be Secure, use Path
 `/` and omit Domain. Keeping these attributes beside the name prevents sign-in and logout code from accidentally using
@@ -78,8 +78,8 @@ the [response](../../packages/http/response/README.md). Preserve separate `Set-C
 This package belongs in `@okikio/http` because cookies are HTTP protocol data. `@okikio/server` can apply these
 definitions while executing a request, but the cookie contract does not depend on Hono or service composition.
 
-Provider-owned authentication cookies remain inside the provider adapter that owns them. A generic utility should not
-redefine Clerk, Better Auth, or another provider's cookie semantics.
+If Clerk, Better Auth, or another sign-in provider sets a cookie, let its adapter read and write that cookie. Use
+these helpers for cookies your application defines.
 
 ## Operations
 

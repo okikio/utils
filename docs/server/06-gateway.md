@@ -87,14 +87,14 @@ The second request asks for `/private`, which the imported service did not decla
 | `GatewayRuntime`                             | `fetch(request): Promise<Response>`                                            | Live request forwarding; starts no listener                          |
 | `CreateGatewayOptions.fetch`                 | Native Fetch-compatible function                                               | Upstream transport, replaceable for local tests or a controlled host |
 
-At runtime, the gateway matches the method/path, removes untrusted forwarding fields, evaluates declared edge adapters,
-applies credential policy, rebuilds the target URL and calls the upstream Fetch function with the request signal. It
-sanitizes response headers and carries cancellation through the response body. With a total timeout, the timer remains
-active until that body completes, rather than ending when headers arrive.
+When a request arrives, the gateway finds the route by method and path. It removes untrusted forwarding headers,
+runs the configured checks, and applies the rules for credentials. Then it builds the target URL and calls Fetch
+with the request's signal. On the way back, the gateway filters response headers. It keeps the signal and any
+total timeout active until the body ends, so a caller can still stop a stalled download after headers arrive.
 
-Compilation does not verify the upstream's business logic or start it. The design shares route descriptions while
-keeping a trust boundary at each hop: the gateway owns forwarding policy, and the origin owns domain validation and
-authorization. Use an in-process `http.mount()` when the other Fetch handler is local and no network hop is needed. See
+Compilation reads the upstream route descriptions. It does not start the upstream service or test its behavior.
+The gateway decides which requests and credentials to forward. The service that receives the forwarded request
+still checks the input and decides whether the caller may perform the operation. Use an in-process `http.mount()` when the other Fetch handler is local and no network hop is needed. See
 the [full gateway contracts](../../packages/server/README.md) for policies and injected adapters.
 
 ## Follow the forwarded body to completion
@@ -317,10 +317,12 @@ alive after the request stops. Independently failed cancellation and reader rele
 
 ## Portable owner contracts
 
-An independently published service can export its compiled manifest and OpenAPI without loading handlers or resource
-implementations. The edge admits only named routes and supplies its own origin and caller authentication contract.
+A separate service can publish its route list and OpenAPI document without loading any handlers. The gateway can
+read those files to find the routes. When you mount the files, choose which routes to expose, where to send them,
+and how to authenticate callers.
 
-The same public health contract can cross this boundary as data. This complete program creates the owner's manifest and OpenAPI document locally, then admits only its GET health route into an artifact mount. It generates documentation; it does not start the owner service or contact its origin.
+This program creates both files in memory and exposes only the health route in the gateway's OpenAPI document. It
+does not start the health service or make a network request.
 
 Save `health-artifact.ts` and run `mise exec -- deno run health-artifact.ts` after the same checkout setup.
 
@@ -359,12 +361,17 @@ console.log(Object.keys(publicDocument.paths).join(','));
 /api/health
 ```
 
-The health operation is public, so both authentication and security mappings are explicitly empty. A protected owner requires canonical host authentication definitions and downstream scheme mappings that match its artifact IDs. Those mappings describe caller credentials; they do not inject upstream credentials or grant service permissions. The application must bind its authentication and assertion adapters before serving protected requests. Importing a new owner document should not silently admit new routes: keep the route allowlist deliberate.
+The health route is public, so the program sets `authentication` and `security` to empty objects. For a protected
+route, use the host's original authentication definitions and map the security schemes to the IDs in the imported
+files. These settings describe the credentials callers must present. They do not add upstream credentials or grant
+permissions. Before accepting traffic, connect the application's adapters that check identity and permissions.
+Keep the list of exposed routes explicit so a new document cannot add routes on its own.
 
-Admission snapshots plain JSON data, rejects accessors, remote/dangling references and route/document drift, then
-namespaces reusable components. Resource, requirement and workflow metadata cannot yet cross this data-only boundary:
-nonempty opaque metadata rejects instead of acquiring local authority. Public operations still require explicit empty
-`authentication` and `security` mappings. Owner `servers` never choose a forwarding origin or public server URL.
+The gateway copies plain JSON from the files. It rejects getter or setter properties, references to remote or missing
+definitions, and mismatches between the route list and document. It prefixes reusable component names to avoid
+collisions. The files cannot supply resources, requirements, or workflows. The gateway rejects nonempty metadata
+for those features. It also ignores the imported `servers` list when choosing where to forward requests or which
+public server URL to show.
 
 Use `internal` on a local mount to admit exact internal endpoint definitions already included in that mount. OpenAPI
 includes admitted reachable internal routes by default; `includeInternal: false` can create a narrower audience view. An

@@ -19,5 +19,5 @@ does not establish that the Deno WebSocket host was tested.
 | [Browser sessions](./sessions/README.md) | Keep real Chromium cookies across actions and close each temporary page. Its browser check is explicit and requires a browser installation. |
 | [WebSocket](./websocket/README.md) | Upgrade a Deno HTTP connection, exchange a greeting, then close it; native clients run on all three hosts. |
 
-These directories are authored, copyable programs. Maintainer logs and generated
-reports are separate from the files a reader needs to run them.
+You can copy the programs in these directories. Follow each README to find the files you need. You do not need
+maintainer logs or generated reports to run the examples.

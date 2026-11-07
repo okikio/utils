@@ -385,8 +385,11 @@ key (default 64). New keys evict the oldest retained key; record pressure evicts
 exposes keys, records and capacity drops. Flush/discard release retained references and do not count as drops. These are
 count limits, not an exact heap-byte budget; concurrent flush calls can also hold delivery snapshots.
 
-Fields and fault snapshots use Collection JSON copy limits: depth 128, 1,000,000 expanded nodes and 16,777,216 UTF-16
-units in keys/strings by default. `create(..., { projection })` and the fourth `event` argument can lower these limits.
-Cycles, sparse arrays, accessors, symbols and non-data objects reject before emission. This stricter JSON contract
-replaces the earlier permissive sparse-array projection. Shared references are copied by value and count each time. A
-scope's reporter failure remains observational; invalid authored fields remain caller errors.
+Before sending an event, Telemetry copies its fields and error details as JSON data. By default the copy accepts
+at most 128 levels of nesting, 1,000,000 nodes, and 16,777,216 UTF-16 code units across keys and strings. You can lower
+those limits with `create(..., { projection })` or the fourth argument to `event`. If two fields refer to the same
+object, the copy counts each copy of that object.
+
+The copy rejects cycles, arrays with missing entries, accessor properties, symbols, and objects that are not plain
+data. Earlier versions accepted arrays with missing entries. A bad field is an error for the code that supplies
+it. A reporter failure does not change the operation that produced the event.

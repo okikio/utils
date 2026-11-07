@@ -66,7 +66,7 @@ The response JSON supplies `status: 'ok'`, and the wrapper supplies `X-Content-T
 | ------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | `fetch(app, middleware?)` | Caller-owned Hono app → Web Fetch `Handler`                | Wraps `(request) => app.fetch(request)` using the generic middleware chain         |
 | `mount(app, runtime)`     | Hono app and compiled `ServiceRuntime` → the same Hono app | Registers each runtime route and passes `ctx.req.raw` to its existing handler      |
-| `catchErrors(options?)`   | Error policy → Hono `onError` callback                     | Uses the generic safe error materializer; preserves Hono `HTTPException` responses |
+| `catchErrors(options?)`   | Error policy → Hono `onError` callback                     | Turns other errors into safe responses and keeps Hono `HTTPException` responses intact |
 
 The adapter neither converts your code into a different programming model nor takes ownership of the app. Hono routes
 still receive Hono contexts. Mounted service handlers still receive their own validated inputs and declared resources.

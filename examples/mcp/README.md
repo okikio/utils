@@ -8,7 +8,7 @@ This check is an ordinary client, so it needs no model.
 
 The client first discovers available tools, then calls one with checked input.
 This example exposes `greet` through Utils HTTP routing and MCP SDK 2.4.0. The SDK
-owns protocol messages; Utils owns the outer route and its host/origin admission.
+reads and writes MCP messages. Before the SDK sees a request, the Utils route checks its Host and Origin headers.
 
 ## Run the checked example
 

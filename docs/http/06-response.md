@@ -51,10 +51,10 @@ These values represent separate stages. Keeping them separate lets the same cont
 | `FinalizedResponseResult` from `await materialize(result, options?)` | `{ definition, body, status, headers }`                    | Request-aware representation, including configured envelopes and pagination |
 | Web `Response`                                                       | `status`, native `Headers`, readable `body`                | Transport value the caller can consume                                      |
 
-`create()` merges fixed and occurrence headers and records the exact definition association. It accepts ordinary schema
-input, or a codec's application value. `prepare()` validates or encodes that value once and retains the returned
-representation. `finalize()` only adds presentation details such as envelopes and pagination links. A standalone adapter
-uses `await materialize()` to compose both stages; Server performs the same two stages before sending the response.
+`create()` combines the headers from the definition and this particular reply. It also records which definition you
+used. Give it a value to check with the schema or an application value for the codec to encode. `prepare()` does
+that check or conversion once and keeps the returned value. `finalize()` then adds details such as pagination links.
+Use `await materialize()` to do both steps. Server uses the same steps before it sends the response.
 
 The native conversion in this example is specific to JSON. `Response.json(value.body)` serializes that value as JSON;
 it cannot forward a byte stream or file body. Let Service choose the transport conversion for declared stream/download
@@ -91,13 +91,14 @@ responses. It is not the normal handler result.
 Header inputs preserve repeated fields. This is required for fields such as `Set-Cookie` that must not be flattened into
 one comma-joined value.
 
-Prepare reusable response headers with `headers()` when their values are fixed. The returned record owns frozen values
-and keeps an admitted occurrence projection, so repeated reads and merges avoid revalidating the same data. Mutable
-records, tuple lists and native `Headers` still receive fresh checks. This reuse preserves separate cookies and record
-ordering; freezing an arbitrary caller record does not grant it the library's admission identity.
+Use `headers()` when several replies use the same fixed headers. It checks them once and returns a frozen record
+that later reads and merges can reuse. This keeps separate `Set-Cookie` values in order. The library
+still checks ordinary objects, tuple lists, and native `Headers` each time. Freezing an ordinary object does not make
+it a record that `headers()` has checked.
 
-Storage adapters return transport-neutral cursor or offset page windows. They do not construct public URLs.
-`await response.materialize()` can add RFC 8288 links and count metadata according to the response definition.
+A storage adapter returns the items on a page and information about where to continue. It does not build public URLs.
+`await response.materialize()` can use that information to add RFC 8288 links and item counts when the response
+definition calls for them.
 
 Inside a handler, `WidgetPage` is your declared paginated response, `items` is the already selected page, and
 `nextCursor` is the storage adapter's continuation token. This fragment returns a page window; it does not query storage.

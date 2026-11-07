@@ -77,10 +77,10 @@ These checks do not prove transport-level incoming memory bounds: the native API
 has already delivered a message before the application checks its size.
 
 For an expensive async callback, also limit active operations and queued input.
-An `async` event listener can start another operation on each new event while an
-earlier operation is awaiting I/O. Making the callback async does not serialize
-it. Use a deliberate admission limit and reject or pause according to the
-protocol you define. A CPU-heavy synchronous loop still blocks that JavaScript
+An `async` listener can start work on a new message while an earlier message
+is waiting for a file or network response. If you need a limit, count the work
+already running. When the limit is reached, decide whether to reject the new
+message or pause until there is room. A CPU-heavy synchronous loop still blocks that JavaScript
 thread; [Worker](../../packages/worker/thread/README.md) supplies a separate runtime.
 
 Shutdown closes every accepted socket before awaiting listener shutdown. A

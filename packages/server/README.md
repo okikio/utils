@@ -245,13 +245,17 @@ declarations, unknown status/problem type, incorrect media type and malformed or
 problems return `kind: 'problem'`; protocol defects throw `ClientResponseError`. Validator and transport defects retain
 their original errors. The application owns redaction before showing an error cause.
 
-`maximumRequestBytes` bounds JSON/raw bytes and form name/value bytes plus declared Blob sizes; multipart framing is
-additional. It is not a complete network or heap quota. Raw input consumes its supplied Request under that limit. JSON
-projections reject accessors and cycles. Request locations keep their own authored HTTP parsing limits.
-`maximumResponseBytes` bounds materialized success/problem bytes; byte limits require a signal to interrupt a peer that
-never sends data. Page items decode serially. Successful stream/download/HTML responses return the exact native Response
-as `value`; the caller owns reading/cancelling that body. Other success/problem bodies are consumed once with HTTP's
-bounded reader. Receiving a response or aborting a call does not prove a remote effect committed or was undone.
+`maximumRequestBytes` limits raw or JSON body bytes. For a form, it counts names, values, and declared Blob sizes.
+It does not include multipart separators or measure the total memory or network cost. Reading a raw body consumes
+the supplied Request under that limit. When preparing JSON, the client rejects objects with getters or circular
+references. Each request location still uses the parsing limits you set for it.
+`maximumResponseBytes` limits the bytes the client reads into memory for a success or problem response. If the server
+sends nothing, no byte limit can interrupt the wait. Pass a signal to stop it. The client decodes page items one at
+a time.
+
+For a successful stream, download, or HTML response, `value` is the original Response. Read or cancel that body yourself.
+For other success and problem responses, the client reads the body once under the byte limit. A response does not prove
+the server saved a change. Aborting the call does not undo any change the server already made.
 
 ## Inspect the authoritative service and router
 

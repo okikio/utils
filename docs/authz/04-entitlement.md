@@ -151,7 +151,7 @@ The checker receives one ordered batch. It must return one decision per definiti
 `EntitlementDeniedError`. A malformed decision raises `EntitlementDecisionError`. A batch larger than `maximumChecks`
 fails before policy runs. Checker errors remain errors, rather than becoming denials.
 
-Use exact imported definitions. A record with the same ID cannot acquire definition identity. Use
-`@okikio/authz/entitlement/definition` for static declarations without importing checker execution. `requirements()`
-projects an authored catalog into requirements. `ids()` preserves the catalog's literal keys and IDs. Billing owns plan
-definitions, purchased features, pricing, data queries, and the checker implementation.
+Import the original feature definition when you check access. A new object with the same ID does not count as that
+definition. Use `@okikio/authz/entitlement/definition` if you only need to declare features. Use `requirements()` to
+turn the catalog into rules an operation can check, or `ids()` to read the exact keys and IDs. Your billing code
+supplies the plans, purchases, pricing, and checker that decides whether an account has a feature.

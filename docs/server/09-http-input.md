@@ -251,15 +251,16 @@ budget without accounting for concurrent uploads and retained `File` values.
 
 ## Decide what survives retries, restarts and observation
 
-The replay store is deliberately process-local and capped at 32 live identities. Its synchronous claim gives one caller
-admission in this process; it throws when full instead of evicting still-valid identities. The fixed key and fixed clock
-are fixtures. Use a private rotated key, a real clock and an atomic shared store before multiple replicas receive the
-same callbacks. Authentication alone does not prevent replay.
+The example keeps up to 32 active event IDs in this process. It checks and records an ID in one step, so two
+requests cannot both claim it here. If the store is full, it throws and keeps the IDs that have not expired.
+The example uses a fixed key and clock. For a deployment, use a private key that you can rotate and a real clock.
+If several servers receive the callbacks, use a shared store that checks and records each ID in one operation.
+A valid signature shows that the sender had a signing key. It does not show whether you already received the event.
 
-> A successful replay claim is admission, not a committed business result. This example claims before parsing and creating
-> the greeting. A crash or invalid payload after admission can consume that identity. For reliable work, commit the
-> authenticated identity and a durable inbox entry together, then make the resulting effect idempotent. The webhook
-> wrapper does not create that transaction for you.
+> This example marks an event ID as seen before it parses the payload or creates the greeting. If the payload
+> is invalid or the process crashes after recording the ID, a retry may be refused even though the work did not
+> finish. To keep accepted work after a restart, save the event ID and its inbox entry in the same transaction.
+> Then make it safe for the worker to process that entry again. Your application supplies those guarantees.
 
 This receiver reports duplicates as 409 to make the check visible. A real provider may retry every non-2xx response.
 Choose an acknowledgement policy deliberately—for example, acknowledging an already committed inbox record as 2xx—and
@@ -268,7 +269,8 @@ protocol choice and replay ownership.
 
 Liveness says that the process can answer a request. Readiness says whether this application's dependency check passes.
 The fixture toggles that dependency state; it does not connect to a database. A real probe must have its own deadline
-and safe diagnostics. `/ready` does not itself disable the other routes; the deployment must use it for admission.
+and safe diagnostics. Other routes remain available when `/ready` fails. Configure your deployment to stop sending
+traffic to a server that is not ready.
 
 `access()` reports request start and response creation. `timing()` measures time until the handler returns a response.
 Neither proves that a streaming body was delivered. Observers should avoid retaining whole Requests, headers or bodies;

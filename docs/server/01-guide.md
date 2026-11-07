@@ -125,14 +125,14 @@ namespaces with `@okikio/http/problem.url()`.
 
 ## Observability remains host policy
 
-Service and Gateway can declare import-safe observer definitions. Their runtimes emit lifecycle metadata but do not
-configure a logging backend. Applications can bind those observers directly or use `@okikio/telemetry/server` to
-translate them into portable telemetry records.
+Service and Gateway can report events such as the start or end of a request. Importing an observer definition does
+not start reporting. Your application attaches an observer when it starts the server or uses
+`@okikio/telemetry/server` to turn those events into records for its reporting system.
 
 For a telemetry-bound host, `telemetry.create(reporter, { fields })` creates the reporting scope, and `serverTelemetry.service(Diagnostics, scope)` creates the observer handler passed in `service.create(..., { observers })`. Here the executable supplies the reporter, deployment fields and imported observer definition. Those values are not discovered by the service. The [telemetry Server adapter](../../packages/telemetry/README.md) owns its complete integration example.
 
-This preserves the same ownership rule as the listener: reusable server code owns HTTP lifecycle semantics; the
-executable host owns logging, tracing, redaction, exporters, and vendor configuration.
+The server decides when to report an HTTP event. Your application decides what to log, what to remove before
+sending it, and where to send the logs and traces.
 
 ## HTTP relationship
 

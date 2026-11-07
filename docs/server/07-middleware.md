@@ -33,8 +33,9 @@ sequenceDiagram
   end
 ```
 
-After headers return, the caller still owns consuming or cancelling the body. Completion observers report that later
-boundary. The diagram omits compilation and individual validation stages; the lane table below locates those stages.
+After the caller receives the headers, it must still read or cancel the body. A completion observer reports what
+happens to that body. The diagram leaves out compilation and individual checks. The table below shows where the
+checks run.
 
 ## Follow one greeting through a producer and a consumer
 
@@ -181,8 +182,8 @@ incoming Request
 
 Authored order is preserved within each lane. If A calls `next()` to run B, A's remaining code waits until B returns.
 For two steps, the order is A before, B before, handler, B after, A after. This wrapping behavior is often called
-“onion” middleware; it is ordinary nested function execution. Response completion is deliberately a separate host lifecycle because returning a streaming response is
-not the same as finishing delivery.
+“onion” middleware. These are nested function calls. The host checks body completion separately because the handler
+can return a streaming response before the client has received all of it.
 
 ## Once-per-request handlers
 
@@ -202,8 +203,8 @@ This replaces the `Read` binding in the complete program. Include the exact same
 composition intends it; `once` is not a global suppression mechanism.
 
 
-The wrapper is keyed by the actual `Request` object and exact middleware definition. Duplicate occurrences still call
-`next()`, while the wrapped inner work runs once. A different request is never suppressed.
+The wrapper tracks the exact `Request` object and middleware definition. If the same middleware appears again for
+that request, the wrapper skips its work and still calls `next()`. It runs the work again for a different request.
 
 ## Validation and documentation
 

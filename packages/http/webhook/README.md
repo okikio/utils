@@ -95,9 +95,10 @@ the sender and verifier are separate hosts. Calendar ISO parsing is not involved
 
 ## Admit a signed delivery once
 
-`protect(verifier, options)` adds replay admission to an existing protocol verifier. Pass the returned verifier to
-`verifyRequest` to retain its bounded raw-body read and original Request ownership. Supply
-`store.claim(identity, expiresAt)` with the cross-process atomicity and retention required by the receiving service.
+Wrap your verifier with `protect(verifier, options)` to reject a delivery you already accepted. Pass the wrapped
+verifier to `verifyRequest`. It still reads the original request bytes within the same limit. Supply
+`store.claim(identity, expiresAt)` to remember each accepted identity. If several processes handle deliveries,
+they must share a store that lets only one claim the same identity and keeps the claim for the required time.
 
 Save this independent continuation as `payment-replay.ts` and run `mise exec -- deno run payment-replay.ts`.
 The Map is a **single-process demonstration store**: its synchronous claim has no await between lookup and insertion.

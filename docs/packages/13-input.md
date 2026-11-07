@@ -73,10 +73,12 @@ to lowercase. A binding can match one key or a sequence
 of up to eight strokes. The third argument configures timeout, cancellation and active scopes. Editing controls and
 visible dialogs keep their native keyboard behavior. Command IDs and labels remain caller-owned.
 
-Swipes use pointer events across mouse, touch and pen and report physical direction. Native interruption cancels them.
-The application owns touch-action and the meaning of a direction. Drag, hold and two-contact scale/rotation have
-separate operations in the same gestures family. No global gesture arbitration runs across unrelated owners. Dispose
-before removing the scope.
+A swipe can come from a mouse, touch, or pen. The library reports which way the pointer moved. Your application
+decides what that direction means and sets CSS `touch-action` to say which gestures the browser can handle.
+If the browser cancels the pointer, the library cancels the swipe.
+
+Use separate operations for drag, hold, and two-finger scaling or rotation. One widget does not decide whether
+another widget should accept a gesture. Stop the listeners before removing the widget.
 
 The unit suite uses small structural hosts and native DOM type fixtures for gesture ownership. The browser fixture
 exercises native events, shadow DOM, editable modes and iframe realms. It does not establish browser rendering,

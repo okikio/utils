@@ -119,12 +119,15 @@ observers and resilience after this basic request flow.
 
 ## Define, implement, compile, create
 
-A service has four separate steps. Definitions stay import-safe. Implementations bind runtime behavior. Compilation
-resolves the complete service graph. Runtime creation installs a lazy resource owner and returns a Fetch handler.
+The note program performs four steps. `Api` describes the service without starting it. The implementation connects
+`Save` to the function that saves a note. `service.compile(implementation)` checks the connections between the
+declared parts. `service.create(..., { host: {} })` gives you a live handler and an object to close when you finish.
+The example passes an empty host because it needs no application clients.
 
-The note program above already performs all four steps. `Api` is the definition, `implementation` binds `Save` to its saving callback, `service.compile(implementation)` prepares the checked graph, and `service.create(..., { host: {} })` owns its live lifetime. An empty host means this example needs no injected application clients.
-
-For a durable notes repository, add a Resource definition to the same service and bind its implementation at this composition site. Keep the database client, credentials and shutdown policy with the application that owns them. A definition does not open the client; lazy resource acquisition does. The [complete resource example](../../packages/capability/resource/README.md) supplies those definitions and factories without requiring an unrelated enrichment system.
+To keep notes after a restart, add a Resource definition for your database and connect it to the code that opens
+the client. Defining the resource does not open the database. The service opens it when code first asks for it.
+The [resource example](../../packages/capability/resource/README.md) shows how to supply that code. Your application
+chooses the client, credentials, and when to shut it down.
 
 ## Service extensions
 
@@ -204,9 +207,9 @@ permission check to wait for an object ID without removing the requirement from 
 
 ## Effects, usage, and billing
 
-An effect declares that code in an execution may announce an externally visible side effect. The declaration does not
-mean every request produces that effect. Calling `effect.emit()` announces one occurrence and requires an authoritative
-effect owner to accept responsibility.
+Declare an effect when a handler may need to announce something to another part of the application. For example,
+it may announce that it saved a note. The declaration allows the announcement. The handler still has to call
+`effect.emit()`, and your application must provide a recipient that can accept it.
 
 For the running example, a required announcement would mean “this note save was accepted.” Its schema can keep the same title value. This declaration excerpt uses the imports above and adds `effect`; no emitter is installed just by constructing it.
 
@@ -225,7 +228,10 @@ const TrackedSave = endpoint.post({
 });
 ```
 
-To adopt it, replace the selected endpoint and its exact handler binding, save the note, then call `effect.emit(ctx, NoteSaved, { title }, { key })` using that save's stable stored identity. The application owns `key`; do not derive a new one for each retry. Supply `adapters.effect` at runtime creation. The [complete effect flow](../effect/01-guide.md) shows acceptance and recipient rejection using one occurrence.
+Use `TrackedSave` in place of the original endpoint and attach the handler to that exact definition. After saving a
+note, call `effect.emit(ctx, NoteSaved, { title }, { key })`. Use the saved note operation's stable key so a retry
+does not look like a new announcement. Supply the recipient in `adapters.effect` when you create the service.
+The [effect walkthrough](../effect/01-guide.md) shows what happens when the recipient accepts or rejects it.
 
 The compiler carries exact effect definitions from service, policy, group, path, operation, and middleware contributions
 into each effective operation. A service can start without `adapters.effect` because a declaration only says that
@@ -235,11 +241,12 @@ effect still fails.
 `@okikio/capability/effect/meter` announces measurements through `@okikio/capability/effect`. Billing, usage, audit,
 notification, or webhook-delivery systems can own those announcements without becoming generic service callbacks.
 
-Retry safety depends on the occurrence key. Retries representing the same logical side effect must reuse the same key so
-a durable owner can deduplicate it.
+When you retry the same announcement, reuse its key. A recipient with durable storage can check that key to avoid
+recording the same event twice.
 
-Effect acceptance does not make a domain mutation and an outbox write atomic. If they must commit together, the
-application must use one transaction or another authoritative handoff that covers both.
+A recipient can accept the announcement separately from the note write. If you need both writes to succeed or
+fail together, arrange that in your application. For example, save the note and its outbox entry in one database
+transaction.
 
 ## Observers, metrics, and logging
 
@@ -405,7 +412,7 @@ Both paths resolve the same static contract.
 endpoint requires an explicit method selection. Route parameters are encoded and unknown or missing names reject. The
 host supplies caller-facing OpenAPI security schemes and per-operation alternatives explicitly.
 
-Runtime `source` forwards raw configuration to resource-owned lazy admission; it is mutually exclusive with parsed
-`environment`. Request bodies and middleware share the owned context deadline. An explicit resource `UnavailableError`
-returns a safe 503 and appears in the generated contract when the operation declares resources; private outage causes
-remain diagnostic.
+Pass raw configuration in `source` or already checked values in `environment`, never both. With `source`, the
+resource checks its settings when the service first needs it. The request body and middleware use the same
+deadline. If a resource reports `UnavailableError`, the caller receives a safe 503. The generated API document
+lists that response for operations that declare resources. Keep the private cause in diagnostics.

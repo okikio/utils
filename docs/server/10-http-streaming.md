@@ -113,9 +113,9 @@ The helper contains four roles: the retained SSE fixture, the NDJSON record gene
 returned body-completion lookup. The fixture is immutable application data; the routes own each new stream. The lookup
 observes the exact NDJSON Response rather than treating a wrapper with a new identity as the same factory result.
 
-The NDJSON route limits each serialized record, the total output and the number of items. The projection limits bound
-how much JSON structure and string data the serializer traverses per item. Validate business meaning upstream; these
-serialization limits do not establish that a generated answer is correct or safe.
+The NDJSON route limits the bytes per record, the bytes in the full response, and the number of records. The JSON
+writer also limits how much structure and text it reads from each record. These checks limit the work of writing
+the response. Check what a generated answer means before you pass it to the writer.
 
 The SSE route owns a small, immutable log. Sequence 1 has expired; sequences 2 and 3 remain. A cursor names both the
 feed version and the last event the caller processed. The server validates that cursor before creating a streaming body.
@@ -235,9 +235,10 @@ reconnection behavior; custom Fetch clients must implement theirs explicitly.
 | Replay into live traffic | Finite replay from an immutable fixture | An atomic replay-to-live handoff that cannot miss events or enqueue them without a bound |
 | Authentication | None; local greeting data is public | Authenticate each connection and authorize its feed before sending or replaying data |
 
-Do not reuse `greeting-v1` after replacing its data with unrelated events. Persist a feed epoch with durable records or
-invalidate old cursors explicitly. Do not acknowledge an event ID before it is durably appended. This guide does not
-implement a live subscription, heartbeat timer or snapshot endpoint; those need a separate owner and bounded lifetime.
+If you replace the events with unrelated data, change the feed version from `greeting-v1`. Save that version with
+the events or reject old cursors explicitly. Otherwise a caller can try to resume in the wrong feed. Confirm an
+event ID only after you have saved the event. If you add a live subscription, heartbeat timer, or snapshot
+endpoint, decide which part of your application starts and stops it.
 
 Once headers have been sent, a later serialization or upstream failure errors the body. An outer `catchErrors()` cannot
 replace an already-started 200 with a new JSON error response. The client must treat an interrupted body as incomplete.

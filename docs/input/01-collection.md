@@ -117,11 +117,11 @@ without expressing it as one keydown per character. This distinction follows
 
 ## Preserve form entries before choosing a schema
 
-`forms.read(form, { submitter })` returns ordered `[name, value]` entries from the native FormData algorithm. Disabled
-controls and unchecked boxes follow browser submission semantics. A named submit button contributes its value. The same
-function accepts an existing FormData or an entry iterable. A structural form implements `read(submitter)` and listener
-methods. Native form iteration yields controls, so the adapter deliberately selects FormData before treating an object
-as an entry iterable. See
+`forms.read(form, { submitter })` returns `[name, value]` entries in the order the browser would submit them.
+Disabled fields and unchecked boxes do not contribute values. A named submit button contributes its own value.
+You can also supply existing FormData, an iterable of entries, or a custom form with `read(submitter)` and listener
+methods. A native form can be iterable too, but iterating it gives you controls instead of submitted entries.
+The helper uses FormData for a native form. See
 [HTML form submission](https://html.spec.whatwg.org/multipage/form-control-infrastructure.html).
 
 Use `forms.object(entries, { multiple: ['tags'] })` when a validator expects an object. That policy produces an array
@@ -129,10 +129,10 @@ for `tags` even if one value is present, and an empty array if the field is abse
 by default. Select `duplicates: 'reject'`, `'first'` or `'last'` only when that is the application's intended rule.
 Special names such as `__proto__` remain own data properties and cannot alter an object's prototype.
 
-`forms.validate(ProfileSchema, source, options)` applies that projection and returns Schema's existing `{ value }` or
-`{ issues }` result. It does not create a competing issue format. Owned schemas can coerce numbers deliberately and
-select `unknownKeys: 'preserve'` or `'strip'` for evolving external data. Input retains the File object yielded by the
-source; it never silently reads or stringifies it. A host may allocate a fresh File wrapper when its FormData is read.
+`forms.validate(ProfileSchema, source, options)` builds the object, checks it with your schema, and returns either
+`{ value }` or `{ issues }`. Your schema can convert text to numbers and choose whether to preserve or remove unknown
+fields. Input keeps the File object it receives; it does not read the file or turn it into text. The browser may
+create a new File object when it builds FormData.
 The [package quick start](../../packages/input/README.md) is a complete executable example.
 
 When listening to a real form, opt into preventing native submission if JavaScript will perform the save:

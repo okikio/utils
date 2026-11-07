@@ -116,7 +116,7 @@ app.fetch(request)
 ```
 
 This explains why code after `await next(request)` runs after the handler. Calling `next(request)` at most once prevents
-the same middleware invocation from running downstream side effects twice. You can also return a response without
+one call to your middleware from running the rest of the request twice. You can also return a response without
 calling `next` to stop the request early, for example when rejecting access. There is no need to throw for a normal
 rejected request.
 
