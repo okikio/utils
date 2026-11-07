@@ -100,12 +100,16 @@ import * as context from '@okikio/context';
 import { elapsed, ms, sec } from '@okikio/duration';
 
 const clock = new context.TestClock();
+// Keep time and cleanup under one owner; the child adds a two-second deadline.
 await using operation = context.create({ id: 'import', clock });
 await using step = context.timeout(operation, sec(2));
+
+// The cell writes progress. Its reader lets the display observe without changing it.
 using progress = context.state.create({ completed: 0 });
 const visible = context.view(step, { progress: progress.reader });
 using display = visible.progress.subscribe(({ value }) => console.log(`Completed ${value.completed}`));
 
+// Advancing the test clock releases this wait without sleeping in real time.
 const waiting = context.wait(step, ms(250));
 clock.advance(ms(250));
 await waiting;
@@ -117,6 +121,16 @@ console.log(elapsed(context.remaining(step)!));
 Completed 1
 1750
 ```
+
+The display receives the progress update; it does not control the deadline. The remaining `1750` milliseconds come
+from the child's original two seconds minus the `250` milliseconds advanced by the test:
+
+| Object | What it controls |
+| --- | --- |
+| `clock` | When waits and deadlines advance in this test |
+| `operation` and `step` | Cancellation and cleanup, with the child's deadline |
+| `progress` | The current completed count |
+| `visible.progress` and `display` | Read access and a subscription to updates |
 
 This example uses deterministic time so it runs immediately. A production Context defaults to its system clock. Pass its
 `signal` to Fetch or another cooperative operation. Register cleanup with the owner that acquired the resource.

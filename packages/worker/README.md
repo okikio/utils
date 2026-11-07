@@ -264,6 +264,8 @@ import * as stream from '@okikio/worker/stream';
 await using ctx = context.create({ id: 'byte-owner' });
 const { port1, port2 } = new MessageChannel();
 const policy = { maximumChunkBytes: 64, maximumChunks: 2, maximumBytes: 64 };
+
+// The producer owns its source lifetime. Its cleanup must finish before it confirms completion.
 let released = false;
 await using producer = stream.serve(ctx, port1, async function* (owner) {
 	owner.defer(() => {
@@ -272,10 +274,13 @@ await using producer = stream.serve(ctx, port1, async function* (owner) {
 	yield new TextEncoder().encode('hello ');
 	yield new TextEncoder().encode('world');
 }, policy);
+
+// The receiver owns the other port. Reading drives production; opening it alone requests no chunks.
 await using receiver = stream.open(ctx, port2, { ...policy, id: 'words', timeout: 1000 });
 const words: string[] = [];
 await receiver.readable.pipeThrough(new TextDecoderStream()).pipeTo(
 	new WritableStream<string>({
+		/** Retain decoded output for this small example, not as a bound on a real consumer's memory. */
 		write(value) {
 			words.push(value);
 		},
@@ -289,6 +294,27 @@ console.log((await receiver.closed).status, released);
 hello world
 complete true
 ```
+
+The pipe repeatedly asks for more data. Each request grants permission to produce one chunk, so a slow consumer does
+not create a growing queue inside this protocol. After `world`, one more read discovers that the generator has ended.
+
+```mermaid
+sequenceDiagram
+    participant R as Receiver pipe
+    participant P as Producer
+    participant S as Source and cleanup
+    R->>P: Read grants one chunk
+    P->>S: Ask for next value
+    S-->>P: hello or world value
+    P-->>R: Send one chunk
+    R->>P: Read after last chunk
+    P->>S: Discover end, join cleanup
+    S-->>P: Released
+    P-->>R: Terminal receipt
+```
+
+This explains `complete true`: the receiver has evidence that the producer released its source. Local cancellation
+alone cannot establish that fact. The cancellation path below can instead end with an unconfirmed remote outcome.
 
 Revision one negotiates exact family/version/ID and the minimum of both peers' limits. One downstream read grants one
 sequenced chunk; there is no prefetch or pending chunk queue. A final read is needed to discover EOF. Empty chunks count

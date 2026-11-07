@@ -12,11 +12,16 @@ public workspace imports. After `mise run prepare -- --kind deps`, save it as `e
 
 ```ts runnable=complete-task.ts
 import * as catalog from '@okikio/collection/catalog';
+
+// These are the original declaration objects that later consumers must recognize.
 const Read = Object.freeze({ id: 'asset.read', kind: 'permission' });
 const Write = Object.freeze({ id: 'asset.write', kind: 'permission' });
 const Assets = catalog.create('assets', { Read, Write });
+
 // Selection narrows the available set while preserving each definition's object identity.
 const ReadOnly = catalog.select(Assets, ['Read']);
+
+// Lookup returns the declaration itself, rather than a same-shaped replacement.
 console.log(catalog.get(ReadOnly, 'asset.read') === Read);
 console.log(catalog.has(ReadOnly, Write));
 console.log(JSON.stringify(catalog.ids(ReadOnly)));
@@ -32,6 +37,18 @@ false
 
 The first lookup returns the original `Read` object. `Write` is absent from the selection, and inspection reports the
 remaining public key and ID. Selecting definitions preserves their identity; it does not authorize the current actor.
+
+Identity means the same JavaScript object, not just matching text in an `id` field. Think of the selection as another
+way to reach the declaration you imported:
+
+| Value | Same identity as `Read`? | Reason |
+| --- | --- | --- |
+| The imported `Read` declaration | Yes | It is the original object |
+| `catalog.get(ReadOnly, 'asset.read')` | Yes | Selection retains that object |
+| A newly constructed `{ id: 'asset.read', kind: 'permission' }` | No | Matching fields do not make it the same object |
+
+This distinction matters when a consumer binds implementations or checks an allowed set. Copying a declaration's
+fields cannot grant the authority associated with the original declaration.
 
 ## Combine definitions from several sources
 

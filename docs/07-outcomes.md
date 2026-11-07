@@ -76,6 +76,29 @@ how many callbacks may start. It still needs a cancellation owner to stop admitt
 
 ## Grow one useful job in stages
 
+Suppose a person uploads three contact rows: Ada and Linus have valid addresses, but Grace's address is malformed.
+They need a preview that lists accepted names and identifies the name on the row to correct. The
+[bounded import recipe](./recipes/01-import.md) supplies that complete
+program. Two different kinds of connection make it work:
+
+```mermaid
+flowchart TD
+    Input["CSV input with byte and row budgets"] --> Parse["CSV rows with original cells"]
+    Parse --> Check["Application validates contact fields"]
+    Check --> Accepted["Accepted names"]
+    Check --> Rejected["Rejected row names for correction"]
+    Owner["Context: cancellation and cleanup"] -.-> Parse
+    Owner -.-> Check
+```
+
+Solid arrows carry row data. Dotted arrows show the lifetime supplied to work that can cooperate with cancellation;
+they do not turn cancellation into a rollback. The recipe retains names in two in-memory arrays, not complete row
+records. Choosing whether to retain full rows, save them, let a person correct them, or reject the entire upload remains application policy. Observation
+can display progress, but only the import's returned result says which rows it accepted.
+
+This small flow keeps the reason for each utility visible before adding a queue or separate worker. It omits network
+fetching and durable storage; adding either requires an explicit owner and its own failure handling.
+
 Begin with the [complete bounded import](./03-composition.md#import-rows-with-bounded-work), which validates two company
 rows and stores their domain/name pairs. The [page URL example](./03-composition.md#discover-page-urls) combines Sitemap
 data. Both mirror inspected consumer patterns with local inputs and an explicit result.

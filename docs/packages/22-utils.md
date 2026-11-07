@@ -7,10 +7,8 @@ Use one suite dependency while importing only the capabilities each module needs
 
 Without the umbrella, an application that uses several utilities declares each leaf package separately:
 
-```sh
-# Dependency identities: @okikio/context, @okikio/scheduler, @okikio/workflow
-# scheduler/queue is a subpath of the scheduler dependency.
-```
+For example, declare `@okikio/context`, `@okikio/scheduler`, and `@okikio/workflow` as dependencies.
+The import `@okikio/scheduler/queue` is a subpath of the Scheduler dependency, not another package to install.
 
 That is useful when a reusable library deliberately wants the smallest possible dependency surface. Applications often
 prefer one suite dependency instead.

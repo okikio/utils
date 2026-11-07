@@ -217,10 +217,14 @@ import * as supervisor from '@okikio/worker/supervisor';
 import * as schema from '@okikio/schema';
 const Request = schema.object({ title: schema.string(), text: schema.string(), hold: schema.boolean() });
 const Response = schema.object({ title: schema.string(), words: schema.number({ integer: true }) });
+
+// Separate evidence that the old request started from evidence that a replacement is ready.
 await using owner = context.create({ id: 'supervised-report' });
 const entered = Promise.withResolvers<void>();
 const replacement = Promise.withResolvers<void>();
 let current: thread.WorkerHandle<schema.Output<typeof Request>, schema.Output<typeof Response>> | undefined;
+
+// Each restart calls this factory to open a new native Worker with the same checked protocol.
 await using lifecycle = supervisor.create(owner, () => {
 	current = thread.open(owner, {
 		module: new URL('./supervised-thread.ts', import.meta.url),
@@ -232,10 +236,13 @@ await using lifecycle = supervisor.create(owner, () => {
 	});
 	return current;
 }, { maximumRestarts: 1, maximumRequests: 1, backoff: 0 });
+
 using listener = lifecycle.events.subscribe((event) => {
 	if (event.status === 'ready' && event.generation === 1) replacement.resolve();
 });
 await lifecycle.ready;
+
+// Hold the first request so the example can interrupt it before a reply exists.
 const failed = lifecycle.request(owner, { title: 'Photo notes', text: 'Ada keeps the family photo.', hold: true })
 	.then(() => {
 		throw new Error('Interrupted report unexpectedly completed.');
@@ -245,6 +252,8 @@ await current!.stop('controlled generation loss');
 console.log(await failed);
 await replacement.promise;
 console.log('Ready generation:', lifecycle.status.generation);
+
+// Counting words is safe to repeat. The application explicitly submits it to the new generation.
 const summary = await lifecycle.request(owner, {
 	title: 'Photo notes',
 	text: 'Ada keeps the family photo.',
@@ -265,15 +274,18 @@ stopped
 ```ts support=supervised-thread.ts
 import * as thread from '@okikio/worker/thread';
 import * as schema from '@okikio/schema';
+
 const server = thread.serve({
 	protocol: thread.protocol({
 		request: schema.object({ title: schema.string(), text: schema.string(), hold: schema.boolean() }),
 		response: schema.object({ title: schema.string(), words: schema.number({ integer: true }) }),
 		notice: schema.string(),
 	}),
+	/** Hold only the test request until cancellation; ordinary requests return a word count. */
 	async run(report, ctx, control) {
 		if (report.hold) {
 			await control.notify('report received');
+			// Cooperate with the old generation's shutdown instead of leaving an unfinished callback.
 			await new Promise<never>((_, reject) => {
 				if (ctx.signal.aborted) reject(ctx.signal.reason);
 				else ctx.signal.addEventListener('abort', () => reject(ctx.signal.reason), { once: true });
@@ -284,6 +296,25 @@ const server = thread.serve({
 });
 await server.closed;
 ```
+
+```mermaid
+sequenceDiagram
+    participant A as Application
+    participant G0 as Worker generation 0
+    participant S as Supervisor
+    participant G1 as Worker generation 1
+    A->>G0: Request with hold enabled
+    G0-->>A: Started notice, no result
+    A->>G0: Stop and join
+    G0-->>A: Pending request rejects
+    S->>G1: Open replacement
+    G1-->>A: Ready event for generation 1
+    A->>G1: Submit word count again
+    G1-->>A: Five words
+```
+
+The generation number distinguishes successive Workers behind one supervisor. It is not a count of completed requests.
+Replacing the Worker restores a place to send new work; it does not recover the answer to the interrupted call.
 
 The second request is an application decision after replacement, not automatic replay by the supervisor. Pending calls
 fail when their generation is lost; they are not transferred into generation 1. A lost transport can report

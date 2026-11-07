@@ -15,6 +15,11 @@ A block marked `support=filename.ts` is a companion file for a runnable module. 
 or integration sketches. Names such as a database client or application schema in those sketches are supplied by the
 application; the block does not claim to be independently executable.
 
+When a fence names `runnable=import-rows.ts`, use that entry filename in the run command. Relative imports resolve
+from the importing file, so keep an example's companion files together wherever you choose to put the example.
+The checker gives each document its own directory and uses the owning package's existing Deno configuration; it does
+not require consumers to copy code into a package's implementation directory.
+
 Read the result type and ownership explanation after each runnable block. `await` obtains a value from a Promise;
 `for await` consumes values incrementally; `await using` releases the acquired owner when the enclosing block ends,
 including when work throws. Returning a Promise, a stream, a resource lease, and a plain value are different contracts.
@@ -65,6 +70,22 @@ product-owned column roles. This smaller executable version demonstrates the sam
 application validates company and website values. It then processes two rows at a time and stores a domain-indexed
 result. The in-memory `Map` is an explicit example sink, so the example needs no credentials or external database.
 
+Read the flow from the uploaded bytes to the retained result. The parser produces rows incrementally, the batch limits
+each group to two rows, and the mapper admits at most two validations in that group. Those are working limits. The
+final Map intentionally keeps every accepted domain, so its memory use grows with the number of distinct domains:
+
+```mermaid
+flowchart TD
+    Bytes["CSV bytes: bounded source"] --> Rows["Parse one row at a time"]
+    Rows --> Batch["Batch: at most 2 rows"]
+    Batch --> Map["Validate at most 2 rows concurrently"]
+    Map --> Ordered["Return accounts in input order"]
+    Ordered --> Retained["Retain domain and name in Map"]
+```
+
+The arrows carry values, not ownership. The Context below supplies the cancellation signal across these stages; it
+does not make the retained Map bounded. A production sink can write batches to storage instead of collecting them all.
+
 ```ts runnable=import-rows.ts
 import * as context from '@okikio/context';
 import * as concurrency from '@okikio/scheduler/concurrency';
@@ -75,6 +96,8 @@ import * as streams from '@okikio/streams';
 const CompanySchema = schema.string({ minLength: 1 });
 const WebsiteSchema = schema.refine(schema.string(), (value) => URL.canParse(value), 'Expected an absolute URL.');
 const input = 'Company,Website\n"Northstar, Inc.",https://northstar.example\nHarbor,https://harbor.example\n';
+
+// One deadline owns parser cancellation, batch admission, and admitted mapper calls.
 await using parent = context.create({ id: 'account-import' });
 await using owner = context.timeout(parent, { seconds: 2 });
 await using document = await csv.parseStream(new Response(input).body!, {
@@ -97,7 +120,10 @@ for await (const rows of streams.batch(document.rows, { maximumItems: 2, signal:
 			return { domain: new URL(website).hostname, name };
 		},
 	});
-	for await (const account of accounts) companies.set(account.domain, account.name);
+	for await (const account of accounts) {
+		// Retained application output is separate from the batch's working-memory limit.
+		companies.set(account.domain, account.name);
+	}
 }
 console.log(JSON.stringify(Object.fromEntries(companies)));
 ```
@@ -162,11 +188,18 @@ import * as context from '@okikio/context';
 import * as resource from '@okikio/capability/resource';
 import * as task from '@okikio/task';
 
-const ManifestStore = resource.define<{ put(id: string, value: string): void; get(id: string): string | undefined }>()({
+const ManifestStore = resource.define<{
+	/** Save manifest text under the application's stable asset ID. */
+	put(id: string, value: string): void;
+	/** Read the saved text, or undefined when this asset has not been saved. */
+	get(id: string): string | undefined;
+}>()({
 	id: 'manifest-store',
 	description: 'Store application-owned manifest text.',
 });
 const values = new Map<string, string>();
+
+// The implementation supplies storage; the declaration above only describes access to it.
 const live = resource.implement(ManifestStore, {
 	create: () => ({
 		put: (id, value) => {
@@ -179,6 +212,7 @@ await using owner = context.create({ id: 'media-job' });
 await using stores = resource.create(resource.implementations(live), { ctx: owner, host: {} });
 await using work = task.start(async (ctx) => {
 	const store = await ctx.get(ManifestStore);
+	// Pause takes effect before the application's write; it cannot undo an accepted write.
 	await ctx.checkpoint();
 	store.put('asset-1', JSON.stringify({ title: 'Guide', ready: true }));
 	return store.get('asset-1');

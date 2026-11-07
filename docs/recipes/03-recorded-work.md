@@ -66,26 +66,37 @@ import * as history from '@okikio/workflow/history';
 import * as workflow from '@okikio/workflow';
 import * as schema from '@okikio/schema';
 
+// Schemas and engine identity describe calls; they do not start the executor.
 const TextSchema = schema.string();
 const Local = engine.define({ id: 'local' });
+
+// Activities borrow this contract. The collection below owns its live implementation.
 const Store = resource.define<{
+	/** Append a title and return the new application asset ID. */
 	save(title: string): Promise<string>;
+	/** Append that asset ID to this example's album and return it. */
 	addToAlbum(id: string): Promise<string>;
 }>({ id: 'photo.store', description: 'Save titles and append photo IDs to an album.' });
+
+// These arrays are the entire business store; a restart loses them.
 const titles: string[] = [];
 const album: string[] = [];
 const store = resource.implement(Store, {
 	create: () => ({
+		/** Simulate the title write so the final array reveals any repeat. */
 		async save(title) {
 			titles.push(title);
 			return `asset-${titles.length}`;
 		},
+		/** Keep the album write separate so replay must remember both instructions. */
 		async addToAlbum(id) {
 			album.push(id);
 			return id;
 		},
 	}),
 });
+
+// Declare each checked business operation before supplying its implementation.
 const SaveTitle = activity.define({
 	id: 'photo.save-title',
 	version: '1',
@@ -102,16 +113,21 @@ const AddToAlbum = activity.define({
 	placement: engine.require(Local),
 	resources: [Store],
 });
+
 const saveTitle = activity.implement(SaveTitle, {
 	async run(ctx) {
-		return await (await ctx.get(Store)).save(ctx.input.toUpperCase());
+		const photos = await ctx.get(Store);
+		return await photos.save(ctx.input.toUpperCase());
 	},
 });
 const addToAlbum = activity.implement(AddToAlbum, {
 	async run(ctx) {
-		return await (await ctx.get(Store)).addToAlbum(ctx.input);
+		const photos = await ctx.get(Store);
+		return await photos.addToAlbum(ctx.input);
 	},
 });
+
+// The generator requests jobs. It does not perform the array writes itself.
 const UploadPhoto = workflow.define({
 	id: 'photo.upload',
 	version: '1',
@@ -124,14 +140,19 @@ const uploadPhoto = workflow.implement(UploadPhoto, function* (ctx) {
 	return yield* ctx.trigger(AddToAlbum, id);
 });
 
+// Lifetime owners close in reverse order; activities borrow the resource collection.
 await using parent = context.create({ id: 'photo-parent' });
 await using stores = resource.create(resource.implementations(store), { ctx: parent, host: {} });
+
+// Dispatch retains requests; history retains their recorded answers in this process.
 await using jobs = dispatch.memory();
 await using records = history.memory();
 await using scheduler = workflow.scheduler({
 	activityDispatch: jobs,
 	history: records,
 });
+
+// This executor takes pending jobs and runs the local provider.
 await using executor = await workflow.executor({
 	dispatch: jobs,
 	engine: Local,
@@ -139,6 +160,8 @@ await using executor = await workflow.executor({
 	capacity: 1,
 	provider: local.create({ engine: Local, implementations: [saveTitle, addToAlbum], resources: stores }),
 });
+
+// Both passes use the same run identity and history, so the second reuses completed instructions.
 for (const pass of ['first run', 'replay']) {
 	await using run = await workflow.context({
 		definition: UploadPhoto,

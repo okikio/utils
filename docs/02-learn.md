@@ -160,7 +160,10 @@ examples show where each utility's job begins and ends.
 
 ## Run the demos and check their observations
 
-In this checkout, copy a complete block marked `ts runnable` to a `.ts` file in its owning package and run it with Deno.
+In this checkout, copy a complete block marked `ts runnable` to the entry filename named by the guide, then run it
+with Deno from the location that guide specifies. Simple single-file examples can live at the checkout root; an
+example with relative imports needs its companion files beside its entry module. You do not need to place examples
+inside the package's source directory.
 Keep companion files together when a guide marks them `support=filename.ts`. The Process example needs run permission;
 the Worker example needs its companion module and read permission. See
 [the example convention](./03-composition.md#read-the-examples) for the precise setup.
