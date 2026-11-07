@@ -90,9 +90,9 @@ Family photo notes: 9 words in 2 paragraphs
 
 ## Choose a native opener without changing the protocol
 
-`@okikio/worker/thread` provides a validated correlated protocol over standard Worker threads. The generic package owns
-request IDs, request and response validation, expected failures, transfer lists, cancellation, protocol invalidation,
-cooperative shutdown, and final termination.
+Use `@okikio/worker/thread` to send a checked request to a Worker and get its reply. The parent puts an ID on
+each request so it can match the reply to the caller. The package checks inputs, replies, and declared failures.
+It also coordinates cancellation and shutdown, and stops using a Worker when its messages break the protocol.
 
 The default opener uses the Web `Worker` constructor. Tests or another host can inject a `WorkerFactory`, while
 Deno-specific permission policy remains on the explicit `@okikio/runtime/deno/worker` subpath. This keeps the root
@@ -111,10 +111,10 @@ Cancellation before dispatch prevents a request from being sent. After dispatch,
 and retains the pending request until the Worker confirms that validation, execution, encoding and request cleanup have
 settled. The request then rejects with `ContextCancelledError`; a progress message is not that confirmation.
 
-`cancelMs` bounds this cooperative wait. If the Worker cannot confirm release, the parent retires it and the request
-rejects with `WorkerStoppedError`, retaining the cancellation cause. The host adapter must join actual termination
-before its capacity can be reused. A termination or cleanup failure remains a failure; requesting cancellation alone
-does not establish that the host stopped. See [completion includes cleanup](../packages/worker/thread/README.md#completion-includes-cleanup).
+The parent waits up to `cancelMs` for the Worker to confirm it has released the request. If the Worker does not
+confirm, the parent retires it. The request rejects with `WorkerStoppedError`, which keeps the cancellation cause.
+The host must wait for the Worker to stop before it reuses that slot. If termination or cleanup fails, the caller
+sees the failure. See [completion includes cleanup](../packages/worker/thread/README.md#completion-includes-cleanup).
 
 Follow one request from the caller to its terminal receipt. The request ID associates the reply with the correct
 pending call; cancellation is another correlated message, not a raw exception transported between threads:
@@ -157,8 +157,8 @@ utility does not pretend an `AbortSignal` itself is transferable.
 
 ## Cancellation and progress
 
-The request Context remains the cancellation authority. The Worker receives a serializable Context snapshot plus
-protocol control messages rather than a transferred `AbortSignal`:
+The request Context decides when to cancel. The parent sends the Worker a copy of the Context values it can
+serialize. It sends later control messages instead of sharing an `AbortSignal`:
 
 ```ts
 await using requestCtx = context.child(ctx, { id: 'thumbnail-42' });
@@ -173,8 +173,8 @@ context.cancel(requestCtx, new Error('caller stopped waiting'));
 await pending;
 ```
 
-If the protocol declares notices, Worker code can call `control.notify(...)` for progress. Notices are observations
-only. The validated terminal response or declared failure remains authoritative.
+If the protocol declares notices, the Worker can report progress with `control.notify(...)`. Use these updates
+to show progress. Wait for the checked reply or declared failure to learn how the request ended.
 
 ## Runtime-specific opening
 
@@ -198,9 +198,9 @@ hand-assembling protocol envelopes. Expected host-side failures are:
 
 ## Unexpected faults
 
-Unexpected thrown values are projected through `@okikio/result/fault` before they are sent back in a Worker reply. That
-projection is bounded, detects cycles, and does not intentionally invoke accessor-backed diagnostic fields. Expected
-declared failures still use `@okikio/result/failure` and remain a separate protocol branch.
+If the Worker throws an unexpected value, `@okikio/result/fault` turns it into a report before sending the reply.
+It limits how much it reads, detects circular references, and avoids calling getters on diagnostic fields.
+Expected failures still go through `@okikio/result/failure` and use a separate reply type.
 
 Read the [public source](../packages/worker/thread/mod.ts) for the complete exported contracts and field descriptions.
 

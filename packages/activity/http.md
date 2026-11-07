@@ -166,10 +166,12 @@ another server. That order prevents an active request from borrowing a resource 
 
 ## Know what a lost response means
 
-Authentication runs before body parsing and execution admission. Authorization runs after the bounded body passes the
-shared activity-envelope schema. It must establish that this caller can dispatch this exact attempt: an identity or a
-client-supplied `admitted` flag is not proof of permission. The server's provider and `control` supply the actual resource,
-permission and effect owners. The HTTP client cannot forward its own `ActivityAttemptControl` through a unary response.
+The server checks who is calling before it reads the body or accepts the work. It reads the body within the size limit,
+then checks that the request has the fields an activity attempt needs. Only then does it check whether this caller may
+start this exact attempt. Knowing the caller's identity or seeing an `admitted` flag from the client is not enough.
+
+Supply the server's provider and `control` to connect the resources, permission checks, and effects the job needs.
+With one request and one response, the client cannot pass its own `ActivityAttemptControl` to the server.
 
 The default body budget is 1 MiB per direction, at most 16 MiB. JSON encoding reuses the Streams package; the budget
 limits accepted output, not the temporary allocation required to serialize a caller-owned object. At most 16 requests

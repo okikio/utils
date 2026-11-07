@@ -107,10 +107,11 @@ The receiver and Delete lock the same research row. Delete closes the scope befo
 rejects a new raw write after closure. It keeps the old receipt, version, and digest when bytes are deleted. A duplicate
 request can return prior metadata without recreating the bytes. The published contribution remains available.
 
-The [container scenario](../../tests/workflows/containers.test.ts) checks the cross-engine handoff, receiver-commit
-crash, one publication, a pending saved timer, and deletion after service and worker replacement. The
-[process recovery cases](../../tests/workflows/recovery.test.ts) add grant revocation, missing raw bytes,
-independent-child cancellation, deferred deletion, and individual publication crash windows.
+The [container scenario](../../tests/workflows/containers.test.ts) checks that the research worker hands work
+to the capture worker. It stops a worker after the receiver commits, checks that publication happens once,
+and checks that a saved timer still leads to deletion after the service and workers restart. The
+[process recovery cases](../../tests/workflows/recovery.test.ts) also check revoked permission, missing raw
+bytes, cancellation of independent children, deferred deletion, and interruptions at individual publication steps.
 
 ## Keep the production scheduler choice explicit
 

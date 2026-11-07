@@ -100,11 +100,10 @@ latency requirements. The application still owns server upload/idle timeouts and
 
 ## Distinguish cancellation from joined cleanup
 
-Caller cancellation sends an explicit authenticated cancel POST while retaining the response stream. The host aborts
-the attempt and rejects its unresolved reverse calls. It keeps the admission slot until the provider and Context cleanup
-actually finish. A terminal frame is published only after those joins; active reverse calls cannot be left behind a
-successful result. The client also joins its original authority calls and reply acknowledgements before accepting the
-terminal result.
+When the caller cancels, the client sends an authenticated cancel POST and keeps reading the original response.
+The host asks the attempt to stop and rejects any unanswered calls back to the caller. It keeps the attempt's slot
+until the provider and Context finish cleanup. Only then does it send the final message. Before accepting that
+message as the result, the client also waits for its own callbacks and for the host to acknowledge their replies.
 
 A reply POST can cross the independent cancel POST. If cancellation retires its call first, the reply receives 409.
 The client provisionally retains a 409 observed after it requested cancellation and continues reading the stream. It

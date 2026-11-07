@@ -4,10 +4,11 @@ This comparison was checked on 2026-10-31 against official documentation, select
 checkpoint. It maps product capabilities as well as execution primitives. It does not claim that all three competing
 systems were deployed, benchmarked, or failure-tested in this task.
 
-The implemented candidate strengthens an embedded PostgreSQL engine: durable admission control, explicit inspection,
-committed lifecycle history, finite continuation, conservative retention, and several reproduced scheduling repairs.
-Those changes are useful for Crawl now. A claim that it is generally stronger, faster, cheaper, or more reliable than
-Temporal, Inngest, or Effect Workflow still needs workload-specific evidence.
+The Utils engine uses PostgreSQL to decide which work it can accept, record state changes as they commit, and
+let an operator inspect saved runs. It can split long work into a fixed number of runs and keeps related records
+until their retention periods end. The comparison also records fixes for scheduling failures the tests reproduced.
+These features are useful for Crawl. To compare speed, cost, or reliability with Temporal, Inngest, or Effect
+Workflow, test the workload that matters to the application.
 
 ## Read the complete maps
 

@@ -183,10 +183,12 @@ Postgres.js `query.cancel`, whose cancellation can race with subsequent work. It
 transaction. Connection setup and pool waiting use the application's pool policy. The adapter changes no borrowed pool
 defaults and never calls `database.end`.
 
-The table retains one row per namespace/key with no revision history. Deleting retired keys is explicit application
-maintenance. Concurrent cells learn about another writer through a conflict or an explicit `reload`; no polling or
-notification connection is retained. For crawl jobs requiring claims, retries, fenced completion, or replay history,
-compose this checkpoint with the existing Queue or Workflow store instead of treating it as a scheduler.
+The table keeps one row per namespace and key. It does not save older versions. Your application deletes keys it no
+longer needs. If two cells use the same key, a cell learns about another writer when a write conflicts or when you
+call `reload`. The store does not keep a polling or notification connection.
+
+A checkpoint can tell a crawler where to resume. Use Queue or Workflow alongside it if workers also need to claim
+jobs, retry them, reject results from old attempts, or reuse saved step results.
 
 ## Shared validation and failure rules
 

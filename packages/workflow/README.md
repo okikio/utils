@@ -247,11 +247,13 @@ store needs stable write keys or another duplicate-write policy for that gap.
 
 ## Wall instants and local scheduling
 
-The durable worker uses monotonic host time for polling intervals, registration-renewal cadence, recovery spacing, and
-scan-age readiness. The first recovery scan is immediate even at process startup. Its `checkedAt` diagnostic uses the
-selected Temporal implementation and canonical UTC millisecond text. Persisted deadlines and lease expiry remain the
-store's authority, and workflow execution keeps the Context clock chosen by its owner. A wall-clock correction can
-change a reported instant without changing an already-running local grace or scan interval.
+The worker checks for recoverable jobs as soon as it starts. It uses a clock that measures elapsed time for the waits
+between polls, registration renewals, and recovery scans. It also uses elapsed time to decide whether the last scan
+is recent enough for readiness.
+
+The `checkedAt` report uses Temporal to write the scan time as UTC text with millisecond precision. Adjusting the
+wall clock can change that timestamp without changing an interval or grace period already underway. The store
+decides when saved deadlines and leases expire. Workflow code still uses the clock its caller set on the Context.
 
 ## Execution and wake-ups
 
@@ -368,11 +370,12 @@ console.log(JSON.stringify([checked.value, checked.matched, checked.opaqueContro
 ["hello",1,[]]
 ```
 
-The recording owner bounds retained entry count and encoded metadata/completion bytes before publication. The final
-fixture has its own complete byte check, including input and contract identity. Input uses an explicit undefined marker
-when a workflow accepts no JSON value; its archive never silently substitutes null or drops that input. Individual
-application codecs and command callbacks remain trusted code; this does not bound their private allocations. A failed or
-suspended recording is not exported as a complete fixture. The SHA-256 archive detects accidental corruption; it does
+The recorder limits the number of entries it keeps and the bytes used for stored metadata and results. Before
+exporting, it also checks the size of the complete fixture, including its input and contract identity. If the input
+is `undefined`, the archive records that explicitly. It does not replace it with `null` or omit it.
+
+The limits do not cover memory that your codecs or command callbacks allocate themselves. If a recording fails or
+stops while the workflow is suspended, the recorder does not export it as a complete fixture. The SHA-256 archive detects accidental corruption; it does
 not authenticate a sender. Decode does not schedule work or import definitions. Supply the trusted exact definition
 explicitly when checking; a different ID/version rejects before execution.
 

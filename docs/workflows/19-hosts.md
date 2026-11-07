@@ -195,13 +195,12 @@ executable setup; only selection changes. The real checks fixture in
 
 ## Identity, discovery and saved work
 
-`provider.hosts()` returns an immutable snapshot of live references, excluding
-explicitly retiring hosts. Providers remain lazy unless `minimum` prewarms them.
-An empty list can therefore mean no host has been created yet. Factory results
-become discoverable only after the pool records ownership; a half-published
-creation must not produce a selectable reference. Discovery neither
-waits for protocol readiness nor guarantees a host remains available. A host can
-fail immediately after inspection; the operation must handle that failure.
+`provider.hosts()` returns a fixed list of live references at the time of the call. It leaves out any host
+you have asked to retire. The provider starts hosts only when it needs them unless you set `minimum` to
+start some early. An empty list can mean the provider has not started a host yet.
+
+The pool lists a host only after it takes responsibility for it. Listing does not wait for the host to be
+ready to exchange messages. Handle a lost host even if the reference was in the list a moment earlier.
 
 An unpinned activity can return `ctx.physicalHost` alongside its ordinary result.
 Save that reference with its exact executor ID/generation when subsequent work
@@ -238,14 +237,14 @@ the same exact selection; it never grants permission to choose another host.
 A local provider cannot satisfy physical selection and rejects it. Custom
 providers must honor `attempt.location.host` or reject it too.
 
-`provider.retire(reference)` stops admission immediately. It waits for every
-attempt already assigned there, including cancellation cleanup, then joins
-native close and its host finalizer. Other hosts remain available. Repeated
-retirement while the host remains owned joins its receipt. After removal, the
-reference is lost. Never await retirement from inside an attempt running on that
-host: it would wait for itself. Retirement is graceful, with no separate deadline
-for a noncooperative activity; use the application's cancellation and kill policy
-when a hard stop is required. A crash can lose every attempt sharing that host.
+`provider.retire(reference)` immediately stops sending new attempts to that host. It waits for assigned attempts
+and their cleanup, then waits for the native host to close and its finalizer to finish. Other hosts stay available.
+Call retirement again while the provider still owns the host to wait for the same shutdown. After the provider
+removes the host, the reference is lost.
+
+Never wait for retirement from an attempt running on that host. Retirement would wait for that attempt to finish.
+If an activity ignores cancellation, graceful retirement has no separate deadline. Use the application's
+cancellation and termination rules if you need a hard stop. A crash can lose every attempt on that host.
 
 Closing capacity remains reserved until native close finishes. A close failure
 rejects retirement and remains visible to provider shutdown. Imports do not

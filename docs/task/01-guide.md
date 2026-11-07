@@ -158,9 +158,8 @@ conversion.resume();
 const result = await conversion.done;
 ```
 
-The Task borrows `resources`; it does not dispose the collection. Values acquired through the Task context remain
-subject to the collection's ownership rules. `done` is terminal authority. `status` is only a synchronous lifecycle
-snapshot.
+The Task uses the supplied resource collection without closing it. The collection still decides when its
+values close. Read `status` for the state at that moment. Await `done` for the final result after cleanup.
 
 ## Cancellation
 
@@ -183,9 +182,9 @@ If work fails and cleanup also fails, standard `SuppressedError` semantics keep 
 | `task.start()`         | create a child context, abort controller, pause gate, terminal promise, status state machine, and cleanup ownership yourself | one finite process-local operation lifetime                                                 |
 | `pause()` / `resume()` | manage pause generations and acknowledgement promises around cooperative checkpoints manually                                | pause is explicit/cooperative instead of pretending JavaScript can be suspended arbitrarily |
 
-The manual equivalent is an `AbortController`, a child lifetime, a pause Promise, an `AsyncDisposableStack`, and one
-terminal result Promise. `@okikio/task` packages those process-local lifecycle rules so every caller does not have to
-rebuild the same state machine.
+To write this yourself, use an `AbortController` to ask work to stop, a Promise to wait during a pause, and an
+`AsyncDisposableStack` to close resources. Keep the result in a separate Promise that finishes after cleanup.
+`@okikio/task` coordinates these steps for one process.
 
 It deliberately does not create durable identity, retry state, queue claims, or workflow history.
 

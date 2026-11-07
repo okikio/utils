@@ -119,11 +119,13 @@ Counters reject values outside that safe range instead of silently rounding them
 
 ## Resume the durable lifecycle timeline
 
-`history` records committed transitions, not periodic snapshots. Schema triggers append changes to run state or control,
-job state, and attributable operator actions in the same transaction as the underlying change. The adapter holds the
-owning run lock before job and operator mutations. That lock serializes allocation of event sequences within the run, so
-a later committed event cannot appear below a returned history cursor. Rollbacks leave no event behind. There is no
-cross-run ordering guarantee.
+`history` records changes when they commit. PostgreSQL triggers add an event when the run or job changes state,
+the run's controls change, or a recorded operator action occurs. The event and the change commit together. If the
+transaction rolls back, it leaves no event.
+
+The adapter locks the run before changing a job or applying an operator action. The lock lets PostgreSQL assign
+sequence numbers in order within that run. A later event cannot appear before a cursor you already received.
+Do not use these sequence numbers to order events from different runs.
 
 The history cursor has a deliberate difference from ordinary page cursors: `next` remains available at the current end
 so the caller can resume after a process restart. `hasMore` tells you whether the observed snapshot has another page.
@@ -198,11 +200,12 @@ page raises the same error. An application should surface incomplete history and
 treating the missing interval as an empty, successful read. Pruning may remove a whole run, in which case its reference
 is no longer available. A fabricated cursor beyond the current tail is rejected.
 
-Lifecycle storage is separate from the policy's replay `historyBytes` limit. The reported row bytes include timeline
-metadata and attribution; they exclude index storage, other runtime tables, and application payloads. There is no
-automatic truncation of a live run's timeline. Explicit retention maintenance can remove rows from a wholly terminal
-family after its promised retention window, and a bounded pruning pass can leave partial history visible until a later
-pass finishes. Operators should monitor growth and retain/export evidence according to their application needs.
+The timeline uses storage outside the policy's replay `historyBytes` limit. Its byte count includes the event
+details and who acted, but excludes indexes, other runtime tables, and application payloads.
+
+The store keeps all events for a live run. Once every run in a family has ended and its retention period has
+passed, operators can prune its rows. Pruning works in batches, so one pass can leave part of the timeline
+visible. Monitor how much space the timeline uses and export records you need before you prune them.
 
 ## Interpret times, progress, and capacity
 

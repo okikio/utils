@@ -49,23 +49,28 @@ HTTP request keeps running. Another worker can start a replacement attempt after
 returns later, its old permission must not overwrite the replacement's result. Stopping renewals alone would not prevent
 that late write.
 
-An expired lease does not itself release a database lock. Suspending a process with `SIGSTOP` can leave one of its
-transactions open until PostgreSQL ends it. The adapter bounds transactions to ten seconds and lock waits to two
-seconds, so registration can report a lock timeout before that old transaction ends. The stale-worker test observes
-release of the namespace admission lock before starting its replacement, then resumes the old process to check that
-its write is still rejected. Lock availability does not prove that every old connection closed or that process cleanup
-ran; those are separate lifecycle outcomes.
+A lease can expire while the old worker still holds a database lock. For example, if you suspend the worker with
+`SIGSTOP`, its transaction can stay open until PostgreSQL ends it. The adapter gives a transaction up to ten seconds
+and waits up to two seconds for a lock. A replacement worker can therefore time out during registration even though
+the old worker's lease has expired.
 
-The adapter authenticates the claim object it created and checks the current saved state. Copying its fields or
-constructing a lookalike does not grant permission. Pass the supplied `ctx.claim` to guarded writes. Do not serialize it
-as workflow input or store it for later use. Business authorization still belongs to the application's grant and
-revision checks.
+The stale-worker test waits until PostgreSQL releases the lock on accepting work in that namespace. Then it starts a
+replacement. Finally, it resumes the old process and checks that the store rejects the old worker's write. Releasing
+the lock does not show that the old process closed every connection or ran its cleanup.
+
+For a guarded write, pass the exact `ctx.claim` that the adapter gave the attempt. The adapter checks that it issued
+that object and that the database still grants permission. Copying the fields does not grant permission. Do not save
+the object for later or pass it as workflow input.
+
+The claim answers whether this worker may write for this attempt. Your application still checks whether the caller
+may make the business change and whether the change uses the current revision of the application's data.
 
 ## Put the application write and receipt in one transaction
 
-`store.transaction(ctx.claim, options, callback)` checks permission before application SQL. The callback always runs. It
-must check `receipt.get()` before repeating the application mutation. It then returns either the existing receipt or
-`receipt.save(result)`.
+`store.transaction(ctx.claim, options, callback)` checks whether the attempt can write before running your callback.
+Even if a receipt already exists, the adapter still runs the callback after that check. Call `receipt.get()` first.
+If you find a receipt, return it without repeating the write. Otherwise, make the change and return
+`receipt.save(result)` in the same transaction.
 
 The write key, validated input, and result contract identify the saved write. `contract` defaults to the write key. Use
 a new versioned key or contract when the stored result contract changes. A result validator must accept its own stored
@@ -156,10 +161,12 @@ domain result into a different result.
 actor, a reason, and a bounded extra attempt count. The adapter records an audit entry and invalidates old worker
 permission. It keeps all logical job and external-write identities.
 
-Repair is appropriate after restoring a missing pinned implementation or resolving an uncertain provider result. It is
-not a way to silently replace accepted input, policy, or code version. For `history_limit`, accepted job evidence and
-receipts remain stored. Attempt repair cannot enlarge that run's history limit and rejects with `repair_policy`. Inspect
-its effects before submitting an explicit new command under a new key and policy.
+Request repair after you restore the exact code version the job needs or check what a provider did when its reply
+was lost. Repair leaves the accepted input, policy, and code version unchanged.
+
+If the run blocks with `history_limit`, PostgreSQL still holds the job records and receipts. Repair cannot raise
+the saved limit: it rejects with `repair_policy`. Check what the original run did before submitting a new command
+with a new key and policy.
 
 A code version identifies the workflow program and its expected saved step sequence. Keep the old version available
 during a rolling deployment. A new worker leaves old-version work for a live compatible worker. If no compatible worker
@@ -172,9 +179,10 @@ Aborting `client.wait()` only stops that caller's observation. `client.cancel()`
 work to stop. Draining a worker stops new attempts in that process and waits for active work. Killing a container ends
 that process without running its cleanup. These actions have different purposes.
 
-None of them undoes committed business SQL or guarantees that an in-flight HTTP write was rejected. To withdraw business
-permission, first update the application's grant or mapping revision under its domain lock. Then request cancellation
-and retry that request after interruption if necessary. Independent child runs and already accepted independent
-follow-up work retain their obligations.
+None of these actions undoes committed SQL. An HTTP receiver may also have accepted a write while the request was
+in flight. To withdraw permission for the business action, first take the application's lock for the affected record.
+Update the application's grant or the revision of the mapping it checks. Then request cancellation. If that request
+is interrupted, send it again. Independent children and independent follow-up jobs that the service already accepted
+still need to finish their work.
 
 The [test map](./07-tests.md) identifies the cases for each crash window, stale worker, cancellation race, and repair.

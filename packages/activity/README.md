@@ -181,18 +181,20 @@ flowchart TD
 This is the hosted scheduling path, not an extra requirement for the local `call()` example. See
 [physical hosts](../../docs/workflows/19-hosts.md) for the registration, claim and retirement owners.
 
-Worker and process Activity peers now negotiate internal contract `okikio.activity.attempt`, version 1, with required
-cleanup and reverse-call features before encoding an attempt. Upgrade both host and provider together: a legacy or
-incompatible host fails the handshake instead of accepting unchecked payloads. This negotiation does not authenticate a
-remote host. Process framing limits must match both peers, including envelope overhead above the application value. The
-native conformance corpus checks failure identity, heartbeat and predispatch cancellation across all three providers;
-remote pool cancellation may reject the original context reason while local execution can return a cancelled outcome.
+Before sending an attempt to a Worker or child process, Activity checks that both sides speak
+`okikio.activity.attempt` version 1. Both sides must support cleanup and calls back to the caller. Upgrade the host and
+provider together: an older or incompatible host fails this check. The check does not verify a remote host's identity.
+
+For a child process, set matching message size limits on both ends. Count the bytes that identify and wrap the message
+as well as the job input. The native tests check failures, lease renewal, and cancellation before a job starts on all
+three providers. If you cancel, a remote pool may reject with the original Context reason. Local execution can
+return a cancelled outcome instead.
 Neither form publishes late success. Cancellation is clean only when work stopped for the Context's cancellation
 reason and all owned cleanup finished. An unrelated error or a failed `ctx.defer()` disposer while stopping is not
 clean cancellation. Worker and process providers report `lost` with the transport fault diagnostics and retire that
 physical host; reconcile the attempt before choosing whether to retry. A request to stop does not prove that an
 external write was rolled back. The host lease remains reserved until the cleanup receipt or host retirement joins.
-The dispatch claim remains the authority for accepting a terminal result.
+Dispatch accepts the final result only if the attempt still holds the current claim.
 
 ## Measure attempts and host selection
 

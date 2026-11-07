@@ -85,15 +85,20 @@ The [Deno README](../../packages/runtime/deno/README.md) and its exact source li
 
 ## Explicit startup and operator boundaries
 
-Import `@okikio/runtime/deno/proxy`, `/readiness` or `/health` for disposable transport, bounded loopback TCP admission
-or optional liveness/readiness probes. Imports bind no listener, acquire no client and change no process environment.
-Pass addresses, budgets and signals explicitly. A health listener defaults to all IPv4 interfaces when enabled; select a
-loopback hostname when it should be local. Readiness callbacks report completed outcomes independently for each owned
-loop, including empty polls. These are not queue-progress or crash-recovery guarantees.
+Use `@okikio/runtime/deno/proxy` for a connection you can close, `/readiness` to accept a limited number of
+local TCP connections, or `/health` to report whether the service can respond. An import does not start a
+listener, open a client, or change the process environment. Pass the addresses, limits, and signals when you
+start the service.
 
-`file.readJson` checks regular-file input and strict UTF-8 within a caller-selected byte budget. `file.audit`
-exclusively creates a mode-0600 JSONL file, refuses concurrent appends and synchronizes each completed record. Hosts own
-schemas, audit meaning, redaction and partial-record recovery. Existing context deadlines and `signals.attach` own
-interruption; deployment maintenance policy stays in the executable.
+If you enable a health listener, it listens on all IPv4 interfaces by default. Select a loopback hostname if
+only clients on the same machine should reach it. Each readiness callback reports what happened in its own
+loop, including a poll that found no work. Those reports do not tell you whether a queued job progressed or
+survived a crash.
+
+`file.readJson` checks that the input is a regular file and valid UTF-8. Set a byte limit before reading.
+`file.audit` creates a new JSON Lines file with mode 0600, which gives only the owner read and write access.
+It rejects overlapping appends and waits for each completed record to sync. Your application decides what to
+record, what to hide, and how to recover a partial record. Use Context deadlines and `signals.attach` to stop
+the work when needed.
 
 See the [adoption guide](../04-adoption.md) for composition and verification limits.

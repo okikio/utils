@@ -229,7 +229,7 @@ the whole declared effect.
 one snapshot. A slow earlier emission cannot replace a newer accepted report. Close the observer when its owner ends.
 Unsubscribe when only a display ends. Keep callbacks short because they still run in this process.
 
-This observer does not schedule work after an HTTP response. The application's existing effect recipient still owns that
-scheduling and lifetime. Use an outbox for delivery that must survive process loss. Use
-[Task progress](../task/03-progress.md) for a local operation, or [saved workflow progress](../workflows/12-progress.md)
-for a durable activity.
+The observer reports what it sees. If work needs to continue after the HTTP response, the application's effect
+recipient must start it and keep it running. Use an outbox when delivery must survive a process restart.
+Use [Task progress](../task/03-progress.md) to show a local operation's progress, or
+[saved workflow progress](../workflows/12-progress.md) to keep reports after an activity stops.

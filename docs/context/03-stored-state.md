@@ -58,10 +58,11 @@ The first owner saves `page-2` before its `set` Promise resolves. `await using` 
 | `storage/state/web.open({ mode: 'locked', locks, ... })` | The supplied browser storage area's lifetime    | Cooperating writers using the same lock service and name | Borrowed Storage and LockManager            |
 | `storage/state/postgres.open(...)`                       | Process restart and new pool connections        | Database row and expected-version predicate              | Borrowed application-owned Postgres.js pool |
 
-Storage contains an envelope with a library `format`, application `contract`, opaque `version`, and encoded JSON
-`value`. The application contract identifies a representation, such as `crawl.cursor.v1`. Its nonblank length is 1
-through 256 Unicode code points. Reopening with another contract rejects without overwriting the saved value. Naming a
-contract does not migrate data; the application owns migrations between representations.
+The store saves a record with four fields: the library's `format`, your application's `contract`, a `version`
+to compare with later writes, and the encoded JSON `value`. The contract names the form of the saved value,
+for example `crawl.cursor.v1`. Use a nonblank name of 1 to 256 Unicode code points. If you reopen with a different
+contract, the cell rejects the call and leaves the saved value unchanged. To change its form, migrate it in
+your application.
 
 Use an identity Schema for JSON-shaped application state. Use an explicit two-way Codec for values such as Dates. Both
 directions are checked before creation: a one-way transformation cannot silently discard information during save. Every
@@ -134,15 +135,15 @@ Open loads first. If data exists, it validates the envelope, checks the applicat
 value is saved before open returns. If another atomic writer creates the key first, open loads that winner once. The
 factory is not repeated and the winner is never overwritten.
 
-Each owner serializes its admitted operations in FIFO order. An updater is synchronous and runs once when its turn
-starts, using the preceding published value. Async work should finish before submitting that derivation. While a save is
-pending, `reader.get()` and observations retain the previous value. Publication and the mutation Promise follow storage
-acknowledgement. Equal values skip the write under `Object.is` by default, or the supplied `equal` predicate.
+Each cell runs accepted operations in the order they arrive. When an update starts, it passes the latest visible
+value to your updater and calls it once. The updater must return synchronously; finish any asynchronous work
+before you submit it. Until storage confirms the save, readers still see the previous value and the update Promise
+has not resolved. The cell skips the write if the values match under `Object.is` or your supplied `equal` function.
 
-`maximumPending` defaults to 64 operations, including the active one. Excess calls reject before retaining their input.
-Canceling a waiting call removes its queue entry promptly and does not invoke its updater. The store retains one current
-snapshot; the owner retains one current value, a bounded queue, and the local cell's bounded notification aggregate.
-There is no event history or implicit storage polling.
+`maximumPending` defaults to 64 operations, including the one in progress. The cell rejects extra calls without
+holding on to their inputs. If you cancel a waiting update, the cell removes it without calling your updater.
+The store keeps one saved value. The cell keeps its current value, the waiting operations, and a limited set of
+pending notifications. It does not save a history or poll storage for changes.
 
 `cell.version` identifies the last published saved envelope. Tokens are opaque equality identities, not sortable
 counters. `reader.revision` counts local publications and starts at zero on every new owner. `reload` runs in the same
@@ -159,10 +160,10 @@ publication even when decoded values compare equal.
 | `CommitError` with `outcome: 'committed'` | Previous value; saved version was acknowledged after cancellation/disposal | Reload if still usable, otherwise reopen                           |
 | Subscriber/reporting callback fails       | The accepted value remains published                                       | Inspect `observerError` or `onError`; the write remains successful |
 
-A reported conflict remains authoritative when the same provider call also observes cancellation; the owner still
-requires reload before another mutation. A save rejection is conservatively uncertain once the store has been called.
-Even a host that normally throws before writing may be a structural custom adapter that lost its acknowledgement after
-committing. `cause` preserves the original failure or cancellation reason, including `null` or explicit `undefined`.
+If the store reports a conflict and also sees a cancellation, the cell still requires a reload before the next
+write. Once the cell has called the store, it treats a rejected save as uncertain. A custom store might have saved
+the value and lost the reply, even if it normally reports failures before writing. The error's `cause` keeps the
+original failure or cancellation reason, including `null` or explicit `undefined`.
 
 After conflict or uncertainty, further mutations reject with `ReloadRequiredError` before invoking another updater. A
 successful `reload` clears that state. A missing record, incompatible contract, malformed value, or failed load leaves
@@ -191,12 +192,15 @@ application lifetimes: delete them when their draft, crawl, or job is permanentl
 
 ## Supply another store
 
-Implement the public `Store` interface at the integration that owns the host. Select one key when constructing the
-adapter. `load` returns a copied `SnapshotType` or `undefined`. `save` receives a fresh-version envelope plus the
-expected version, and returns `true` only after acknowledgement. It returns `false` only for a conflict with no write.
-Capture the envelope, expected version, and signal before awaiting locks or host work; later mutation of a caller's
-option object must not redirect an admitted save. Use the exported `SnapshotSchema` to validate data; do not invent
-another serialized envelope. `maximumBytes` is a cell policy; direct Store users also follow their adapter's own limits.
+Implement the public `Store` interface where your application connects to storage. Choose one key when you
+create the store. `load` returns a copy of the saved `SnapshotType`, or `undefined` if the key is missing.
+
+`save` receives the new record with its own version and the version the caller expects to replace. Return `true`
+only when storage confirms the save. Return `false` only when the versions conflict and no write occurred.
+
+Copy the record, expected version, and signal before waiting for locks or storage. Changes to the caller's
+options must not change a save already in progress. Check records with `SnapshotSchema`. A cell enforces its own
+`maximumBytes`; callers using a store directly must follow that store's limits.
 
 Declare `concurrency: 'atomic'` only when the host actually coordinates comparison and replacement for the documented
 writers. Otherwise declare `'single-writer'` and require external exclusion. State the cancellation, commit, and client

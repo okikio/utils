@@ -64,8 +64,8 @@ Expected output:
 ## Follow ordered results from concurrent work
 
 `first` contains five bytes, `second` six, and `third` five. `Array.fromAsync()` collects the sequence into the small
-array `[5,6,5]`. Replace the local URLs with your document URLs to cap an actual batch of requests. The example proves
-the output and admission call shape; it makes no throughput claim. Set `concurrency: 1` to make admission sequential.
+array `[5,6,5]`. Replace the local URLs with your document URLs to cap an actual batch of requests. The example shows the byte counts. It does not measure speed. Set `concurrency: 1` to start each request
+only after the previous one finishes.
 
 `mapPooledOrdered()` returns an `AsyncIterable<R>`, which means a sequence you consume with ordinary `for await`. Your
 mapper still returns `Promise<R>`; the utility neither wraps each result nor asks you to learn a new result language.

@@ -138,11 +138,12 @@ Read the [Thread](./thread/README.md) and [Process](./process/README.md) guides.
 choice; durable resumption requires Workflow and a persistent Storage adapter. Arbitrary JavaScript stacks cannot
 migrate between hosts.
 
-The shared receipt owner uses Dispose to release request correlation before disposing its Context. Every release is
-attempted and its asynchronous cleanup is joined before a terminal result, cancellation, or fault is sent. A cleanup
-failure takes the fault path; the bounded fault projection preserves nested `SuppressedError.error`,
-`SuppressedError.suppressed`, and `AggregateError.errors`, including exact undefined markers. Failure diagnostics remain
-bounded data and cannot execute getters on the original error.
+When a request ends, its owner removes the entry that matches the reply to the request. It then closes the Context.
+The owner uses Dispose to try every release and waits for cleanup before it sends a final result, cancellation, or
+error. If cleanup fails, it sends an error instead.
+
+The error report keeps nested `SuppressedError.error`, `SuppressedError.suppressed`, and `AggregateError.errors`
+within its size limits. It marks `undefined` explicitly and does not call getters on the original error.
 
 Thread stop and process stop publish their completion promise before notifying synchronous lifecycle observers or
 cancelling request signals. Reentrant stop and repeated disposal therefore join the same shutdown. Process-group grace

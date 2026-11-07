@@ -92,9 +92,9 @@ const history = await inspect.history(ref);
 const queue = await inspect.queue({ scope: authorizedScope });
 ```
 
-Each method uses a read-only, repeatable-read transaction. Its result is internally consistent at that observation;
-separate pages are live observations, not one long database snapshot. Default pages contain at most 25 rows, with an
-explicit maximum of 100. Cursors are tied to their operation, reference, and filters. See the
+Each method reads one consistent view of the database in a read-only, repeatable-read transaction. The next page
+opens a new transaction, so changes between pages can affect what you see. A page contains up to 25 rows by default,
+or up to 100 if you ask for more. To use a cursor, keep the same operation, reference, and filters. See the
 [inspection guide](../postgres/03-inspection.md) for the exact method and cursor contracts.
 
 Run metadata includes creation, material-update, and completion times, current lease and host, control revision, policy
@@ -134,11 +134,13 @@ longer hide an available later job. Recovery also retains the earlier fixes that
 limiting expired-claim and timer candidates. These are specific starvation repairs. They do not implement weighted
 tenant scheduling, rate limiting, or preemption of running code.
 
-Root admission collects the namespace's distinct live families once per quota check, then totals their root reservations
-for the selected policy identity. A completed root with a live child or continuation segment still holds its
-reservation, and several live descendants count as one family. Duplicate submissions keep their existing
-identity/conflict behavior. This avoids repeatedly searching for live members of each retained root. It still aggregates
-on every new root admission; large populations and sustained bursts need workload-specific measurement.
+When the service checks whether it can accept a new root run, it finds the namespace's live families once. It then
+adds up their root reservations for the selected policy. A completed root still holds its reservation while a child
+or continuation segment is live. Several live descendants of one root still count as one family.
+
+This check does not change how the service handles duplicate commands. It avoids searching for live members under
+each retained root, but it still adds up reservations for each new root. Measure that cost with your own run counts
+and request rate.
 
 ## Upgrade the schema deliberately
 

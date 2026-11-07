@@ -84,9 +84,9 @@ a new accidental identity.
 Suppose a Resolve worker dies after saving a batch. The workflow replays its saved steps. Resolve's receipt returns the
 already committed batch result. The workflow can rebuild its `after` position and continue.
 
-The [container test](../../tests/workflows/containers.test.ts) covers a real worker-container kill after a row commit.
-The [process recovery suite](../../tests/workflows/recovery.test.ts) covers all three committed boundaries, rollback
-during a write, changed source bytes, and stale mapping revisions.
+The [container test](../../tests/workflows/containers.test.ts) kills a real worker container after PostgreSQL
+commits rows. The [process recovery suite](../../tests/workflows/recovery.test.ts) stops workers at all three
+commit points shown above. It also checks a rolled-back write, changed source bytes, and stale mapping revisions.
 
 ## Keep business rules in the application
 

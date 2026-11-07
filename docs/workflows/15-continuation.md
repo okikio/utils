@@ -244,12 +244,13 @@ A `continued` segment has **no successful business result**. Its outcome remains
 segment has the final success/failure/cancellation result. No code after the continuation instruction executes in that
 segment.
 
-Once the continuation request is accepted, it is an immutable exit intent. Cancellation returns `too_late` even if
-cleanup has subsequently blocked; it cannot replace the request with a contradictory cancelled outcome. An eligible
-failed local cleanup activity can receive an explicit additional attempt through operator repair. A failed terminal
-**cleanup child** cannot be restarted through that parent operation: repair returns `repair_policy` without changing the
-parent's epoch, intent, or audit. The current profile has no child replacement contract; the preserved blocked state
-requires an explicit application recovery decision.
+Once the store accepts the continuation request, it keeps that decision even if cleanup later blocks. A cancellation
+request then returns `too_late`.
+
+An operator can request another attempt for an eligible local cleanup activity. If a **cleanup child** has already
+ended in failure, repairing its parent cannot restart it. The call returns `repair_policy` and leaves the parent's
+recovery version (its epoch), exit decision, and audit records unchanged. The parent stays blocked so the application
+can decide how to recover.
 
 Registered durable cleanup is distinct from arbitrary generator `finally` code. This profile reconstructs and discards
 generator state during durable replay. Use `workflow.defer` for cleanup that must survive restart, and the owning
@@ -339,9 +340,9 @@ new segment does not reuse the previous segment's job receipt. If two segments c
 effect, the application must carry a stable effect key and use its domain/provider idempotency contract. Continuation
 does not make arbitrary HTTP effects exactly once.
 
-Fresh segments bound active replay history. They do not immediately delete older histories or reduce all stored bytes.
-Retention conservatively protects the whole family while any member is live and waits for every required retention
-window before pruning the family. Retained continued segments remain inspectable until that lifecycle removes them.
+A fresh segment limits how many steps the worker must read during replay. PostgreSQL still keeps older segments.
+It will not prune the family while any member is live, and it waits for every required retention period to pass.
+You can inspect the older segments until pruning removes them.
 
 ## Verification boundary
 

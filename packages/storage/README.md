@@ -129,11 +129,11 @@ active capacity is 10,000 items, terminal retention is 10,000 rows/24 hours and 
 operations. Pruning ends the retained deduplication window. Observer events are local notifications after commit, not a
 persisted event stream.
 
-Queue transactions explicitly use PostgreSQL `READ COMMITTED`; they leave the borrowed pool's session defaults
-unchanged. Admission, completion, failure, cancellation and pruning take the namespace policy lock before item locks.
-This serializes admission and terminal maintenance within one queue, so a completion sees earlier committed terminal
-rows before applying retention. Claims, retries and renewal keep their independent item locks. Reusing an admission key
-returns its existing reference without emitting another `added` event.
+The queue runs its transactions with PostgreSQL `READ COMMITTED` and leaves the pool's defaults alone. When it adds,
+finishes, fails, cancels, or prunes an item, it locks the queue's namespace before locking an item. That order lets
+one of these operations finish before the next applies the rules for keeping completed items. A claim, retry, or
+renewal still locks its own item. If you submit the same admission key again, the queue returns the existing
+reference without sending another `added` event.
 
 Each prune removes at most 1,000 eligible terminal rows and skips rows held by external transactions. An explicit
 `prune()` returns `more: true` when another pass is needed; release the external lock and repeat maintenance. Retention

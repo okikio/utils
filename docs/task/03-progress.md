@@ -52,10 +52,10 @@ Latest: 2 / 2
 Cleanup finished: true
 ```
 
-`start` returns a handle while the function runs. Emit after each successful write. `updates` is for a live display;
-`progress` keeps its latest snapshot; `done` supplies the result after cleanup. Reading a counter of 2 is not equivalent
-to awaiting `done`: cleanup or a later operation could still fail. This example reads the snapshot after completion to
-make its output deterministic without needing to coordinate a subscription.
+`start` returns a handle while the import runs. Report progress after each successful write. Read `updates`
+to change a live display, or read `progress` for the latest count. Even when the count reaches 2, cleanup or
+later work can fail. Await `done` for the final result. This example reads the count after `done` so it prints
+the same lines without setting up a live subscription.
 
 ## Give the same import an application-specific report
 

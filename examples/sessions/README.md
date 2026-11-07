@@ -42,4 +42,5 @@ authentication service. The browser and server close when the program ends, incl
 save login state to disk, recover a crashed browser or route work between computers.
 
 Read the [session guide](../../docs/workflows/18-sessions.md) for the browser/context/page model, the purpose of each
-session operation, bounded defaults, routing to the same host and recovery when that host disappears.
+session operation, and the default limits. It also explains why later actions must go back to the same host and
+what to do if that host stops.

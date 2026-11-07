@@ -41,10 +41,11 @@ workflow API.
 
 ## Keep application ownership visible
 
-The service owns validation, authorization at its HTTP boundary, command keys, and response semantics. The worker owns
-its pool, live resource collection, health listener, signals, and final kill deadline. The adapter borrows the pool and
-owns saved execution state. Activities borrow resources and own their per-attempt cleanup. The deployment owns container
-images, networking, credentials, restarts, and scaling.
+The service checks the input and the caller's permission. It chooses the command key and what the HTTP reply means.
+The worker opens and closes its own pool, resources, and health listener. It also handles process signals and decides
+when to force a stop. The adapter uses the supplied pool to save execution state. Each activity borrows resources
+and releases anything it opened during its attempt. The deployment supplies container images, networking, and
+credentials, and decides when to restart or scale the service.
 
 The application owns business rules that utils cannot infer. These include source immutability, customer corrections,
 mapping revisions, grants, capture identity, publication visibility, and deletion rules. The policies state the chosen

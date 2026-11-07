@@ -58,9 +58,18 @@ The input is within the limit, so execution reaches the print statement. Try rep
 
 ## Trace declaration, binding and enforcement
 
-`Size` is ordinary frozen metadata: the maximum allowed upload size. `define` wraps that metadata in an upload-family declaration. Neither operation measures or rejects an upload. `scope` binds this family's evaluator to the borrowed operation lifetime. Only `apply` runs that evaluator. Here it closes over the admitted byte array; an actual service must bind the rule to the exact bytes or trusted length it will consume.
+`Size` records the maximum number of bytes. `define` names that rule in the upload family. Neither checks a
+file. `scope` gives this operation the function that can check rules for that family. `apply` calls it.
 
-To see a rejection, replace the three-byte input with `new Uint8Array(1025)` and catch the call to `apply`. It rejects with `The upload is too large.` before the success line. Perform the write only after that Promise resolves. To see the other failure, omit the `upload` interpreter: applying an active family without an interpreter rejects by default. A test host can explicitly select `unknown: 'ignore'`, but that bypass is a policy decision, not permission enforcement.
+The example checks the byte array it already has. In a service, check the exact bytes you will read or use
+a length from a source you trust.
+
+Replace the three-byte input with `new Uint8Array(1025)`. `apply` rejects with `The upload is too large.` before
+the program prints success. Wait for `apply` to finish before writing any bytes.
+
+Now omit the `upload` interpreter. The check rejects by default because it has no function to apply the rule.
+A test can set `unknown: 'ignore'` to skip missing interpreters. That setting skips the check, so it cannot
+tell you that an upload is allowed.
 
 For permissions the roles are the same: the declaration names a permission, the application supplies a checker, and the active call evaluates the target. A declaration alone grants no access and does not choose a role system, relationship graph or remote authorization service.
 

@@ -227,10 +227,11 @@ A step without a completion needs the configured dispatch and executor.
 
 ![A workflow reuses recorded completions or asks an activity executor for new results](../../packages/workflow/diagram.png)
 
-[Editable diagram source](../../packages/workflow/diagram.mmd). This is the successful path. It omits retry timing,
-cancellation and stale-claim rejection, which the later sections explain. Reusing a result does not rewind the
-JavaScript process. Durable recovery needs authoritative storage and host services: the memory stores in the demo above
-disappear when their process exits.
+[Editable diagram source](../../packages/workflow/diagram.mmd). The diagram shows what happens when each step
+succeeds. It leaves out retry delays, cancellation, and how the store rejects writes from an old attempt.
+Reusing a result means reading a saved answer. It does not restore a JavaScript process. The example's memory
+stores disappear when the process exits. To recover after that, run workers that can read the saved answers
+from persistent storage.
 
 Use a regular function for a simple sequence that can start over safely. Use [task](../../packages/task/README.md) for
 an owned local operation. Use a workflow when named instruction results, independently executed jobs or controlled

@@ -17,9 +17,8 @@ service and worker containers with a new workflow namespace.
 | Receiver           | HTTP from capture worker; SQL to `database` | Save one capture for each stable business request key         |
 | PostgreSQL         | SQL from each owner                         | Keep business state and workflow progress after process loss  |
 
-The workers exchange input and results through database records. They do not invoke each other's JavaScript functions or
-transfer live connections. The test caller uses the service's published HTTP port. Private aliases resolve within the
-Testcontainers network.
+A worker reads its input from PostgreSQL and writes its result back there. It does not call a JavaScript function
+in another worker or pass it a live connection.
 
 The service's published port is the test caller's entry point. Inside the private network, the receiver is named
 `provider` and PostgreSQL is named `database`. The fixture supplies those aliases explicitly:

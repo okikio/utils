@@ -155,11 +155,12 @@ returning the slot. Choose exclusive hosts for work that needs that failure or
 resource isolation. Observation through EventTarget, Observables, and streams
 remains separate from authoritative cancellation, leases, and terminal results.
 
-Ancestor budgets are reserved atomically in memory and PostgreSQL. PostgreSQL
-serializes placement admission and topology registration within one namespace;
-this adds contention and SQL work compared with independent flat host checks.
-There is no tenant-weighted fairness or CPU-time accounting guarantee. Pending
-work does not consume a physical slot merely because its parent is waiting.
+The scheduler reserves capacity on the whole path at once, in memory or in PostgreSQL. In PostgreSQL, reserving
+capacity and registering changes to the host tree wait for each other within a namespace. That adds database work
+and can make requests wait longer than when each host checks only its own capacity.
+
+The scheduler does not divide capacity by tenant weight or track CPU time. A queued job does not take a physical
+slot just because its parent is waiting for it.
 
 ## Yield during CPU work
 

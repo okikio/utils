@@ -253,11 +253,13 @@ reading supplies `key`, `value`, and an explicit matching `unit` when the defini
 The function validates every reading and counts encoded effect-envelope UTF-8 bytes before contacting the sink. Encoding
 allocations happen before the byte check, so this is a wire budget, not a heap quota.
 
-Delivery uses the existing effect emitter sequentially. An accepted result holds the exact accepted occurrences. A
-partial result identifies the rejected index, original error and accepted prefix; later readings are not sent. Preflight
-failures throw with no delivery. Duplicate keys retain authored order. The sink owns deduplication and conflicting
-retries. There is no transaction, rollback, quota authority or automatic retry. Use stable keys if retrying the
-remainder.
+The emitter sends readings one at a time, in the order you supplied, even if two readings share a key. If it rejects a
+reading, the result tells you its index, the original error, and which earlier readings it accepted. It sends none
+of the later readings. If an initial check fails, it throws before sending anything.
+
+A failure does not undo earlier deliveries. The destination decides what to do with repeated keys and conflicting
+values. If you retry the remaining readings, keep their original keys. This call does not retry for you, group the
+writes in a transaction, or enforce a quota.
 
 Save this complete variation as `meter-batch.ts` and run `mise exec -- deno run meter-batch.ts` after the same checkout setup.
 

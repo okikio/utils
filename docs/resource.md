@@ -114,22 +114,26 @@ collection scope that originally acquired it.
 
 ## Borrow lazily and join shutdown
 
-`await resource.open(binding)` owns a lazy collection and any Context it creates. `get(Definition)` borrows under that
-default lifetime; `get(Definition, callerContext)` checks a particular request's access and cancellation instead.
-A supplied parent remains borrowed. For a host that already assembles these pieces,
-`create(implementations, { ctx, host })` supplies the lower-level collection and `get(ctx, Definition)` makes its caller
-explicit. Both paths check current use requirements before lazily creating the requested implementation. Concurrent borrowers of that exact
-definition share the same pending creation. A failed creation releases its partial resources and permits a later
-acquisition.
+`await resource.open(binding)` creates a collection. It closes any Context it created itself and leaves a parent
+Context you supplied open. Call `get(Definition)` to borrow with the default Context. Pass
+`get(Definition, callerContext)` if you need to use a request's own access rules and cancellation signal.
+
+If your host already supplies the pieces, use `create(implementations, { ctx, host })` and pass the caller to
+`get(ctx, Definition)`. Both forms check the rules for the current caller before creating a resource. If two
+callers ask for the same definition while creation is in progress, they wait for the same result. If creation
+fails, the collection releases what it opened so a later call can try again.
 
 Use `await using collection` or await its disposal. Shutdown cancels pending acquisition, joins that cleanup, and closes
 acquired resources in reverse dependency order. An operation that ignores cancellation can prevent the join from
 finishing; shutdown does not preempt JavaScript or terminate an arbitrary provider.
 
-One borrower's cancelled wait does not cancel acquisition shared by another borrower. Disposing the collection does. The
-collection's owner sees cleanup failures even when the borrower stopped waiting. A sole failure retains its exact value;
-independent cleanup failures form an AggregateError. SuppressedError preserves the acquisition failure when its cleanup
-also failed. Ordinary factory failure with successful cleanup does not make later disposal fail.
+If one borrower cancels, another borrower can still wait for the same resource. Closing the collection cancels
+the shared creation. The code that closes the collection can still see cleanup errors, even if the original
+caller stopped waiting.
+
+If cleanup fails once, the collection throws that value as is. It groups separate cleanup failures in
+`AggregateError`. If creation failed and then its cleanup also failed, `SuppressedError` keeps both errors.
+If a factory fails but cleans up successfully, that failure does not make a later close fail.
 
 ## Restrict a consumer's access
 
@@ -153,10 +157,10 @@ const scoped = capability.scope(ctx, {
 const store = await scoped.get(Store);
 ```
 
-This fragment assumes application-owned definitions and providers. The linked package example supplies all of them. The
-scope borrows the collection, and `allowed` is required. Creating a new Capability scope without resources removes
-resource borrowing from that view. Task and Activity reuse this composition while preserving their own execution and
-cleanup rules.
+This fragment uses definitions and providers from your application. The linked package example shows how to
+supply them. The scope can borrow from the collection without closing it. Pass `allowed` to list the resources
+it can borrow. If you create a Capability scope without resources, code using that scope cannot borrow any.
+Task and Activity can use the same scope while running and cleaning up their own work.
 
 Use Pool when a consumer needs exclusive, bounded leases rather than shared access to one value. Use Storage or a
 provider-specific package for persistence. Resource does not choose a database, browser, or deployment.

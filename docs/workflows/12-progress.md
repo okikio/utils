@@ -304,11 +304,13 @@ parallel jobs. `attempt` identifies the attempt that saved a report. A retry can
 parent run's watch reads its own activity jobs by default. Set `{ children: true }` to include child runs. Independently
 submitted roots retain separate references and feeds.
 
-If a worker dies after saving a report, that report remains readable. The retry policy still decides whether to retry or
-block. A new attempt can replace the snapshot. Progress is not a business checkpoint. To avoid repeating a database
-write, save the business checkpoint with the write in the application's transaction. To avoid duplicate external
-requests, use the provider's stable request key or an outbox. Saving a progress message alone provides neither
-guarantee.
+If a worker dies after saving a report, the client can still read that report. The saved policy decides whether
+another worker may try again or the run must block. A new attempt can replace the report.
+
+A report says what the worker observed, not which writes the next worker should skip. If the next worker must
+recognize a saved database write, record that fact in the same transaction as the write. If you send work to
+another system, use the provider's key for repeat requests or an outbox that records the request for delivery.
+Saving a progress message cannot provide either safeguard.
 
 Local Tasks use `progress`, `updates`, and `done` as shown in [Task progress](../task/03-progress.md). A local activity
 can instead receive an `effect.observe()` recipient through its existing effect binding. Neither local mechanism

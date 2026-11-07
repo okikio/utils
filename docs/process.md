@@ -28,18 +28,19 @@ flowchart TD
   J --> D[Stop and disposal finish, wait reports outcome]
 ```
 
-The selected adapter determines signal and process-tree support. Direct-child exit does not prove that every descendant
-exited. Request process-tree ownership only through an adapter that supports it; do not extend a successful direct-child
-result into a claim about unrelated grandchildren. A stream or shutdown failure remains an error rather than proof of a
-clean stop. That join covers output owned by the process abstraction: capture buffers and configured sinks. When
-`stdin` is piped, the caller owns writing and closing it. Outputs selected with `type: 'stream'` also remain
-caller-owned: consume or cancel those readers separately. A completed process wait does not prove that a caller's
-input writer or output consumer finished its own work.
+Check whether the adapter can signal a child and stop its descendants. A result that says the direct child exited
+does not tell you whether its children also exited. Ask for process-tree support only when the adapter supplies it.
+
+The process waits for output it manages, such as capture buffers or a destination you pass to it. If you pipe
+`stdin`, write to it and close it yourself. If you choose `type: 'stream'`, read or cancel that output yourself.
+Waiting for the process does not wait for those caller-managed reads or writes. If output or shutdown fails, the
+process reports the error.
 
 ## Run a child and capture a bounded response
 
-Run the current Deno executable as a child and capture its short reply. The 1,024-byte limit bounds retained stdout;
-stderr is discarded explicitly. The returned value is available after the command and its owned cleanup finish.
+Run the current Deno executable as a child and collect its short reply. The example keeps up to 1,024 bytes
+from standard output and discards standard error. The command returns its result after the child and its
+cleanup finish.
 
 After `mise run prepare -- --kind deps`, save the program as `example.ts` and run `mise exec -- deno run --allow-run example.ts`.
 The permission allows the program to start its child.
@@ -66,9 +67,9 @@ ready
 
 ## Separate process ownership from the native spawn API
 
-`@okikio/worker/process` owns one child-process lifecycle without choosing a runtime for the caller. The generic package
-handles bounded output, input, cancellation, graceful shutdown, forced shutdown, process-tree capability checks, and
-terminal status. A small runtime adapter performs only the spawn and platform translation.
+`@okikio/worker/process` starts and stops one child. It can limit captured output, send input, and report how
+the child exited. It also decides when to ask the child to stop and when to force it. The runtime adapter does
+the host-specific work: it spawns the child and translates those requests to the platform's APIs.
 
 That split keeps process ownership consistent when a library runs in Node or Deno. It also prevents importing the
 generic package from pulling `node:child_process`, `Deno.Command`, or another host-specific process API into unrelated
@@ -84,7 +85,7 @@ another process layer.
 
 ## Choose finite execution or a live child
 
-Select the adapter at the composition point, then pass it to `start()` or `exec()`.
+Choose the adapter where you start the application, then pass it to `start()` or `exec()`.
 
 ```ts
 import * as context from '@okikio/context';
@@ -102,12 +103,12 @@ const result = await process.exec(ctx, node.create(), {
 console.log(new TextDecoder().decode(result.stdout).trim());
 ```
 
-`exec()` owns the complete finite lifecycle. It starts the child, writes optional piped input, waits for termination,
-drains owned output, enforces capture limits, and returns the terminal `ProcessExitType`.
+`exec()` starts the child, sends any input you supplied, and waits for the child to exit. It also reads the
+output it manages and checks capture limits. Its final `ProcessExitType` describes how the child ended.
 
-Use `start()` when the caller needs a live `Process`. The returned handle owns its child after spawn. `wait()` is
-terminal authority, while `stop()` is idempotent lifecycle control. Parent-context cancellation calls the same shutdown
-path, so disposal, explicit stop, and cancellation do not create separate cleanup rules.
+Use `start()` when you need a handle before the child exits. After it starts, call `wait()` for the exit result
+or `stop()` to ask it to shut down. Calling `stop()` again does not start a second shutdown. Closing the handle or
+cancelling the parent Context follows the same shutdown steps.
 
 ## Keep a live child when the caller owns its lifetime
 
@@ -167,20 +168,20 @@ Adapters expose Web streams to the generic owner. They do not decide output limi
 behavior, or final result semantics. A future Bun or operating-system-specific process-tree adapter can therefore add
 host capability without duplicating the lifecycle implementation.
 
-Captured output is always bounded by an explicit `maximumBytes`. Streaming and sink modes preserve backpressure instead
-of collecting output in memory. If a child exceeds a capture limit, `OutputLimitError` becomes the operation failure and
-the generic owner stops the child before returning control.
+Set `maximumBytes` when you capture output. If the child writes more, the utility stops it and reports
+`OutputLimitError`. When you stream output or send it to a destination instead, a slow reader makes the
+process adapter wait rather than collect everything in memory.
 
 ## Expected stop failure
 
-`ProcessStopTimeoutError` means a child did not reach terminal state inside the configured graceful/forced stop window.
-The owned process remains a lifecycle problem the caller must surface; the utility does not pretend the process exited.
+`ProcessStopTimeoutError` means the child did not report an exit before the graceful and forced shutdown
+windows elapsed. Treat that child as still needing attention. A timeout does not tell you that it exited.
 
 ## Unexpected channel faults
 
-The channel subpath projects unexpected thrown values through `@okikio/result/fault` before JSON framing. Expected
-declared failures continue to use `@okikio/result/failure`. This keeps diagnostic serialization bounded and prevents
-arbitrary fault objects from controlling the framing path through getters, cycles, or custom string conversion.
+Before the channel puts an unexpected error in a JSON message, `@okikio/result/fault` turns it into a small
+report. A circular object, getter, or custom string converter should not decide what goes on the channel.
+Expected failures still use `@okikio/result/failure`.
 
 Read the [public source](../packages/worker/process/mod.ts) for the complete exported contracts and field descriptions.
 

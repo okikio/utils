@@ -223,8 +223,9 @@ options and types.
 
 ## Derive a percentage from the same progress
 
-Derived readers retain write authority with their source owner. Dispose the projection when the view closes; it owns its
-upstream subscriptions, and closing the borrowed source alone does not dispose the projection.
+A reader that shows a value derived from another cell cannot change that cell. Only the source owner can write to it.
+Close the derived reader when the view closes so it removes the subscriptions it opened. Closing the source alone
+does not close the derived reader.
 
 Save this example as `display-projection.ts` and run `mise exec -- deno run display-projection.ts` after the checkout setup.
 

@@ -37,10 +37,11 @@ The duplicate key includes namespace, scope, definition kind, definition ID, and
 needs the same version, validated input, and saved policy. A changed command under that key fails with
 `admission_conflict`. Retry the same key after an uncertain response. Use a new key for a new command.
 
-Use `client.in(tx).submit(...)` to accept work inside an application transaction. The transaction must come from
-`postgres.begin(sql, callback)` with this store's exact pool. Inside an activity's guarded transaction, use
-`client.in(tx, { claim: ctx.claim })` for an allowed successor. This ties source publication and follow-up acceptance to
-the same commit. Do not return a provisional reference as accepted before the outer transaction commits.
+If saving an application record and accepting a job must succeed together, use `client.in(tx).submit(...)`. Obtain
+`tx` from `postgres.begin(sql, callback)` using the same pool as the store. If the activity is accepting a follow-up
+job allowed by its policy, use `client.in(tx, { claim: ctx.claim })` inside the guarded transaction. The application
+record and the follow-up job commit together. Wait for the transaction to commit before reporting the reference as
+accepted.
 
 ## Read the policy
 
@@ -92,10 +93,10 @@ a finite tree of those promises. Recursive reservation cycles are rejected. The
 [Intelligence policy](../../tests/workflows/scenarios/intelligence.ts) shows two permitted child runs. Their subsecond
 worker-permission timings are test values. Choose production values from measured execution and database delays.
 
-Started attempts count against `maxAttempts`, including attempts whose worker died. A known transient failure can retry
-if policy permits it. An unknown outcome blocks rather than assuming that repeating it is safe. Static activity timeout
-and retry declarations must agree with the saved policy. This profile rejects incompatible declarations with
-`resilience_binding`.
+Each attempt counts toward `maxAttempts` as soon as it starts, even if the worker dies. The worker can try again
+after a temporary failure if the saved policy allows it. If the worker cannot tell whether the operation finished,
+the run blocks so an operator can check before trying again. If the activity declares timeout or retry settings
+that conflict with the saved policy, the worker rejects the binding with `resilience_binding`.
 
 ## Bind a worker
 

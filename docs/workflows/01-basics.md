@@ -45,10 +45,12 @@ is online. If the service restarts and receives the same command key and input a
 reference. In the [CSV import example](./05-core.md), a successful Parse result means the uploaded rows were read and
 saved. Account resolution is separate work; use the follow-up reference before telling the user their accounts are ready.
 
-The complete [service source](../../tests/workflows/scenarios/service.ts) implements admission and status over HTTP. It
-never calls `serve()`. The complete [worker source](../../tests/workflows/scenarios/host.ts) supplies implementations
-and calls `serve()`. It does not accept customer commands. These fixture endpoints trust their isolated test callers. A
-deployed service must authorize each command and status lookup.
+The complete [service source](../../tests/workflows/scenarios/service.ts) shows how the HTTP service accepts work
+and answers status requests. It saves the source and accepts the job in one PostgreSQL transaction. The service
+can return the job reference once that transaction commits. The service never calls `serve()`. The
+[worker source](../../tests/workflows/scenarios/host.ts) supplies implementations and calls `serve()`, but
+does not accept customer commands. The fixture endpoints trust their isolated test callers. In a deployed
+service, check the caller's permission for each command and status lookup.
 
 Read the following diagram from top to bottom. It shows the successful admission and row-write path. The later sections
 add follow-up work, finalization, and recovery.

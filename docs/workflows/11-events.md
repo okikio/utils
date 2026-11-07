@@ -169,9 +169,10 @@ event counts only if it was saved by the deadline. A new delivery after a saved 
 recovery scan records timeout and resumes the workflow. If every worker is down, the deadline still expires, but the
 workflow continues only after a worker returns.
 
-Sending the same value to the same address again succeeds without a second delivery. Sending a different value
-conflicts. A new delivery to a terminal or blocked run is rejected. An already accepted duplicate remains idempotent
-after completion. Cancellation stops the run; it does not undo previously accepted events or business writes.
+Send the same value to the same address again and the inbox accepts it without delivering it twice. Send a
+different value to that address and the call reports a conflict. A terminal or blocked run rejects a new event,
+but still accepts a repeat of an event it already accepted. Cancellation stops the run without undoing saved
+events or business writes.
 
 ## Limits and recovery
 

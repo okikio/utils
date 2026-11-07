@@ -227,6 +227,7 @@ true
 available
 ```
 
-`inspect()` returns a bounded list of deficient resource names and distinguishes older queued work from unavailable
-capacity. This snapshot reserves nothing and is not authority for a later request. The [source](./capacity/admission.ts)
-and [benchmark](./capacity-immediate.bench.ts) preserve all-or-nothing admission.
+`inspect()` returns a limited list of resources that do not have enough room. It also tells you whether an older request
+is waiting. This is a snapshot: it reserves nothing and cannot guarantee a later request will succeed. The
+[source](./capacity/admission.ts) and [benchmark](./capacity-immediate.bench.ts) show that a request reserves all the room
+it needs or none of it.

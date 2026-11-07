@@ -62,9 +62,9 @@ application should modify globals.
 
 ## Compose with a streaming CSV import
 
-An import owns the CSV document, and the document owns its source reader. Process each row as it arrives instead of
-collecting the entire body into a string or array. The stack closes the document if row processing throws or stops early.
-It also waits for the source's cleanup outcome, so an asynchronous cancellation failure remains visible.
+The import reads rows from a CSV document one at a time. It puts the document on the disposal stack. If the import
+stops early or throws, the stack closes the document, which releases the stream reader. The stack also waits for
+the source to finish cleaning up, so the caller can see if cancellation failed.
 
 Save this complete variation as `example-2.ts` and run it with the same checkout setup.
 
@@ -189,9 +189,9 @@ If acquisition or work throws, the stack still disposes everything it already ow
 
 ## Failure model
 
-Resource cleanup can fail. Standard explicit-resource-management semantics are kept so a cleanup failure does not
-silently erase an earlier operation failure. Do not replace this with project-specific `finally` registries unless a
-provider requires a different contract.
+If the operation throws and cleanup also fails, the disposal stack keeps both errors. A custom `finally` block
+that throws can hide the first error. Keep the standard disposal behavior unless the resource requires a different
+cleanup rule.
 
 ## Decide which bookkeeping to keep in your application
 

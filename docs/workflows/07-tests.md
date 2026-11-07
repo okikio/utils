@@ -76,9 +76,10 @@ case.
 the worker. The event establishes when to interrupt. It does not prove the business result. The test checks PostgreSQL
 rows, receipts, attempts, and public status for that proof.
 
-Condition waits use deadlines and inspect actual progress. Timer cases leave room for startup before expiry and then
-wait for the actual saved due time. They do not assume that a fixed sleep means a worker completed. A forced kill does
-not run JavaScript cleanup. Graceful shutdown tests separately verify joined cleanup before closing borrowed clients.
+The tests wait for an observed change and fail if it does not happen before a deadline. For timer cases, they
+leave enough time for startup, then read the saved due time. A fixed sleep cannot show that a worker completed.
+Killing a worker does not run its JavaScript cleanup. Separate shutdown tests check that the worker finishes
+cleanup before the owner closes the clients it borrowed.
 
 ## Run local programming-model tests
 

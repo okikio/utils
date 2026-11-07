@@ -3,8 +3,9 @@
 An operation can have one useful result and several supporting concerns: a cancellation signal, a deadline, a clock, and
 resources to close. Context carries those concerns while the operation keeps its ordinary parameters and result.
 
-A request owns its context. Its helpers borrow that context, or create a child when a shorter-lived operation needs its
-own cleanup. A view attaches fields to the same lifetime. It does not create another timer or another resource owner.
+The request closes its Context when it ends. Helpers can use that same Context or create a child when their
+work needs to end sooner and run its own cleanup. Use a view to attach fields while keeping the same cleanup
+and deadline. A view adds no timer.
 
 ## Give a download its own deadline
 
@@ -72,10 +73,9 @@ that work rather than treating the notification as proof of completion.
 Cancellation asks cooperative work to stop. Disposal releases resources and joins registered cleanup. An operation that
 ignores its signal can continue; no context can interrupt an indivisible synchronous call or terminate another process.
 
-A local cell keeps synchronous updates simple. A stored cell adds an explicit asynchronous commit step: its reader
-changes only after storage acknowledges the saved version. The cell borrows a single selected storage slot and its
-client. Closing the cell does not delete that snapshot or close a shared database pool. Use the
-[stored-state guide](./03-stored-state.md) when the same application value must be reopened after its owner ends.
+A local cell updates immediately. A stored cell waits for storage to confirm the write before readers see
+the new value. Closing the cell leaves the saved value in its storage slot and leaves a shared database pool
+open. See [stored state](./03-stored-state.md) to reopen a value after you close the first cell.
 
 Use the [state and event examples](../../packages/context/README.md#publish-progress-without-sharing-mutation) after the download above. Use Task when the operation itself needs pause, resume, and a terminal result handle.
 
@@ -108,8 +108,9 @@ milliseconds, so a positive fractional millisecond rounds up at the timer call. 
 slices of at most 2,147,483,647 milliseconds. The target instant remains authoritative after every slice; a timer slice
 is never reported as the full remaining budget.
 
-`delay(number, signal)` is the low-level bounded millisecond timer. Use `wait(ctx, duration)` for elapsed units, long
-waits, and the context's own clock. `TestClock` makes these rules deterministic without requiring a fast machine.
+Use `delay(number, signal)` to wait from 0 to 2,147,483,647 milliseconds. Use `wait(ctx, duration)` for longer
+waits, for other elapsed units, or to use the Context's clock. In tests, use `TestClock` to advance time yourself
+without waiting for the real clock.
 
 ## Cancel, then release what is owned
 

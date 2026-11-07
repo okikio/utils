@@ -179,11 +179,13 @@ Linus
 Completed: 2 cleaned: 2
 ```
 
-`start` waits for admission before returning a normal Task. Excess starts reject with `GroupAdmissionError` before
-retaining their work; use bounded production rather than creating an unlimited Promise.all. `close` stops new starts and
-drains already accepted queued work. `cancel` stops admission, cancels queued/active work cooperatively and joins it.
-Parent cancellation also releases paused checkpoints. Uncooperative work can delay settlement. The group keeps counters,
-not a history of child handles or results; callers keep returned Tasks when they need those outcomes.
+`start` waits for the group to accept the work before it returns a Task. If the group cannot accept another request,
+it rejects with `GroupAdmissionError` without keeping the work. Limit how many starts you request at once.
+
+`close` refuses new starts and waits for the work the group has already accepted to finish. `cancel` also refuses
+new starts, then asks waiting and running work to stop and waits for it. If the parent cancels, paused tasks can leave
+their checkpoints. Work that ignores cancellation can still delay shutdown. The group keeps counts; keep the Task
+handles yourself if you need their results.
 
 `mode: 'fail-fast'` closes admission on the first child rejection, cancels siblings and rejects `done` with that
 original value only after every accepted start and child cleanup settles. `mode: 'settled'` preserves rejections on each

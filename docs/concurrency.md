@@ -43,9 +43,8 @@ Expected output:
 [5,6,5]
 ```
 
-The byte counts above show input order, but local data URLs do not make a useful demonstration of a slow provider.
-For that distinction, give three named tasks an explicit gate. `second` and `third` finish before `first`, while the
-consumer still receives `first`, `second`, `third`:
+The byte counts show the input order. To see what happens when one request takes longer, hold `first` until the
+other two finish. The consumer still receives `first`, `second`, `third`:
 
 ```ts runnable=ordered-tasks.ts
 import { mapPooledOrdered } from '@okikio/scheduler/concurrency';
@@ -88,17 +87,18 @@ Delivered: first, second, third
 | Completion | second, third, first | The explicit gate holds only the first task. |
 | Delivery | first, second, third | Ordered mapping waits for the earliest input position. |
 
-This is a deterministic illustration of ordering, not a network timing measurement. The completed tail values stay
-retained until they can be delivered. Choose completion-order mapping when that delay is unnecessary; each consumer
-must still decide how much output it can keep.
+This example controls when `first` finishes, so it does not measure network speed. The mapper keeps the other two
+results in memory until it can give them to the consumer. If order does not matter, choose completion order to read
+each result sooner. In either case, decide how many results your program should keep.
 
 ## Choose the result order and work limit
 
-`@okikio/scheduler/concurrency` runs independent asynchronous operations with a fixed upper bound. It owns admission,
-sibling cancellation, early-consumer cleanup, and ordered or completion-order delivery.
+`@okikio/scheduler/concurrency` starts up to the number of operations you choose. You can read results in input
+order or as each operation finishes. If one operation fails or you stop reading early, the utility asks the
+remaining operations to stop.
 
-Use it when `Promise.all()` is too eager but introducing a durable queue or a worker pool would add the wrong lifecycle.
-The package is process-local. It does not persist work, retry failed items, lease jobs, or create Worker threads.
+Use it to limit work in one process. It does not save jobs for later, retry failures, assign queue leases, or
+create Worker threads.
 
 ## The ordinary problem
 
@@ -110,9 +110,9 @@ const results = await Promise.all(
 );
 ```
 
-That starts every request at once. For a large input, the caller must add its own semaphore, cancellation propagation,
-iterator cleanup, and failure handling. A hand-written limiter also has to decide whether results stay in input order or
-are delivered as soon as each operation finishes.
+That starts every request at once. If you limit the requests yourself, keep track of how many are active.
+Also decide what to do when one request fails or when the consumer stops reading. If the input is an iterator,
+close it when you stop. Choose whether the reader gets results in input order or as they finish.
 
 ## Run bounded work with explicit cancellation
 
@@ -135,8 +135,8 @@ for await (
 }
 ```
 
-If one mapper fails, the utility aborts already-admitted siblings and drains them before it rethrows the first failure.
-If the consumer stops early, the utility aborts admitted work and closes the source iterator.
+If one call fails, the utility signals the other active calls to stop. It waits for them to settle before throwing
+the first failure. If you stop reading early, it also closes the input iterator.
 
 Use `mapPooledUnordered()` when completed work should be handled immediately:
 
@@ -158,8 +158,8 @@ Use `runBoundedQueue()` when the operation has side effects and does not produce
 
 ## Channels
 
-`Channel<T>` is a bounded asynchronous hand-off primitive. A sender waits when the channel is full. A receiver waits
-when the channel is empty. Closing the channel settles waiting operations and prevents new sends.
+Use `Channel<T>` to pass values from one part of your program to another. A sender waits when the channel is full.
+A receiver waits when the channel is empty. Closing the channel settles waiting calls and prevents new sends.
 
 ```ts
 import { Channel } from '@okikio/scheduler/concurrency';
@@ -201,8 +201,8 @@ for await (
 }
 ```
 
-`@okikio/context` owns the operation lifetime. `@okikio/scheduler/concurrency` owns bounded admission inside that
-lifetime. Neither package becomes the owner of the other.
+Context decides when the operation ends and signals cancellation. Concurrency uses that signal to stop its
+own batch. Limiting the batch does not change when the Context ends.
 
 ## Decide which bookkeeping to keep in your application
 
