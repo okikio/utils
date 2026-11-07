@@ -36,8 +36,8 @@ filter and page on a small array, so you can see each step without a database.
 Declare a name equality filter and a bounded page, parse a caller URL, then apply those checked values to a small people
 array. This local provider lets you see actual matching rows before learning alternate representations.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as a `.ts` file in your project and use
-`mise exec -- deno run example.ts`.
+Run `mise run prepare -- --kind deps` in the checkout. Save the block as `example.ts` at the checkout root and run
+`mise exec -- deno run example.ts` there.
 
 `parse()` means “read and validate this request,” not “run this search.” The returned filter is data describing
 conditions. `conjunction()` reads conditions joined by AND: every condition must match.
@@ -141,6 +141,10 @@ structure and page/offset style. `normalize()` creates a separate canonical repr
 `stringify()` writes that representation as URL text. Here **canonical** means a consistent representation useful
 for comparing requests or building cache keys. It is not a database execution plan or permission to reuse another
 account's cached results.
+
+Use `encode()` for a link you will parse again under the same definition. It uses explicit group indices when
+compact field keys would change the authored tree. `stringify()` is for identity: normalization can merge nested
+groups of the same kind into a wider group, so the canonical text need not fit the original request's sibling limit.
 
 `conjunction(value.filter)` uses the formal word **conjunction**, meaning conditions joined by AND. It reads an
 already checked filter for a simple adapter limited to AND. It does not build a rule or evaluate a condition.
@@ -277,6 +281,61 @@ Standalone inspection defaults to depth 64, 10,000 leaves, and 1,000 children pe
 object to choose a smaller budget. These standalone limits are separate from a collection definition's HTTP budgets.
 Use [the collection example below](#apply-a-real-search-to-an-array) to see how evaluating a filter for each person
 produces a matching array.
+
+## Choose which conditions belong together
+
+Put each pair of parentheses into its own builder call. For example, “(Ada or Lin) and active” requires either
+person to be active. “Ada or (Lin and active)” lets Ada match regardless of activity. The outer builder controls
+which answers are combined last; there is no precedence rule to remember.
+
+```ts runnable=mixed-groups.ts
+import * as query from '@okikio/query';
+import { evaluate } from '@okikio/query/expression';
+import * as schema from '@okikio/schema';
+
+const People = query.define({
+	fields: { name: query.field(schema.string()), active: query.field(schema.boolean()) },
+	filters: { name: [query.eq], active: [query.eq] },
+	expressions: ['all', 'any'],
+	pagination: query.offset(),
+});
+
+const ada = People.condition('name', 'eq', 'Ada');
+const lin = People.condition('name', 'eq', 'Lin');
+const active = People.condition('active', 'eq', true);
+
+// The same three conditions describe two different rules.
+const requireActivity = query.and(query.or(ada, lin), active);
+const allowInactiveAda = query.or(ada, query.and(lin, active));
+
+type Condition = query.QueryFilter<typeof People.fields>;
+/** Recognize a checked field condition rather than a Boolean group. */
+function isCondition(entry: query.QueryExpression<Condition>): entry is Condition {
+	return 'field' in entry;
+}
+
+const person = { name: 'Ada', active: false };
+for (const filter of [requireActivity, allowInactiveAda]) {
+	const checked = await People.create({ filter });
+	const sharedLink = People.encode(checked);
+	const reopened = await People.parse(sharedLink);
+
+	// This request always includes a rule. Refuse to run an unfiltered search if it is absent.
+	if (reopened.filter === undefined) throw new Error('Missing filter.');
+	console.log(evaluate(reopened.filter, isCondition, (condition) =>
+		person[condition.field] === condition.value
+	));
+}
+```
+
+```text output
+false
+true
+```
+
+The first root is `all` with an `any` child. The second root is `any` with an `all` child. For an inactive Ada,
+only the second rule matches. A PostgreSQL adapter puts parentheses around each group; a local adapter can
+walk the same tree with `evaluate()`. Enable `any` in the definition when a request may contain OR at any depth.
 
 ## Choose inclusive, exclusive, or inverted logic
 

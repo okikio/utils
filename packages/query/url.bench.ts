@@ -1,12 +1,12 @@
 /** Query transport must preserve repeated values and embedded commas; raw URL encoding omits validation. */
-import { strictEqual } from 'node:assert';
+import { deepStrictEqual, notStrictEqual, strictEqual } from 'node:assert';
 import { bench, do_not_optimize, group } from 'mitata';
 import { run } from './fixtures/bench.ts';
 import * as query from './mod.ts';
 import * as schema from '@okikio/schema';
 const Search = query.define({
 	fields: { id: query.field(schema.string(), { sortable: true }), name: query.field(schema.string()) },
-	filters: { name: [query.eq, query.in] },
+	filters: { id: [query.eq], name: [query.eq, query.in] },
 	expressions: ['all', 'any', 'not'],
 	order: [query.asc('id', { tiebreaker: true })],
 	pagination: query.offset(),
@@ -28,6 +28,21 @@ for (const count of [1, 32, 100]) {
 		);
 	});
 }
+// These two rules have the same leaves but different parentheses. Check the
+// transport outside timing so deep comparisons do not dominate small trees.
+const ada = Search.condition('name', 'eq', 'Ada');
+const lin = Search.condition('name', 'eq', 'Lin');
+const selected = Search.condition('id', 'eq', '2');
+const mixed = await Search.create({ filter: query.and(query.or(ada, lin), selected) });
+const regrouped = await Search.create({ filter: query.or(ada, query.and(lin, selected)) });
+deepStrictEqual((await Search.parse(Search.encode(mixed))).filter, mixed.filter);
+notStrictEqual(Search.stringify(mixed), Search.stringify(regrouped));
+group('checked mixed AND/OR: three conditions with explicit indices', () => {
+	bench('encode and parse the authored tree', async () => {
+		do_not_optimize(await Search.parse(Search.encode(mixed)));
+	});
+});
+
 const oversized = { filter: { name: { in: Array.from({ length: 101 }, (_, index) => `value${index}`) } } };
 async function rejectOversized(): Promise<void> {
 	try {

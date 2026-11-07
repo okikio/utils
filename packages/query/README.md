@@ -187,6 +187,10 @@ authoring data; the complete request becomes checked data only after `create()` 
 one must match, including when both match. `none()` is the same function as `nor()`: no child may match. Existing
 callers of `all()` and `any()` keep the same behavior; these names do not select different expression engines.
 
+`and(or(a, b), c)` means “(a or b) and c”; `or(a, and(b, c))` means “a or (b and c).”
+Each call creates one group, and the outer call combines its children's answers last. See the
+[typed authoring and URL example](../../docs/query.md#choose-which-conditions-belong-together).
+
 | Builder | Meaning | Number of children |
 | --- | --- | --- |
 | `and()` / `all()` | Every condition matches | One or more |

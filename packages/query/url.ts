@@ -25,7 +25,7 @@ export function encode<Fields extends QueryFields>(
 			? undefined
 			: isFilter(filter)
 			? [filter]
-			: filter.kind === 'all' && filter.filters.every(isFilter)
+			: filter.kind === 'all' && filter.filters.length > 1 && filter.filters.every(isFilter)
 			? filter.filters
 			: undefined;
 		const encoded = flat?.map((leaf) => {
@@ -38,9 +38,7 @@ export function encode<Fields extends QueryFields>(
 				: encodeLegacyValue(operand(leaf));
 			return [name, raw] as const;
 		});
-		const forms = new Map<string, number>();
-		for (const [name, raw] of encoded ?? []) forms.set(name, (forms.get(name) ?? 0) | (isTagged(raw) ? 1 : 2));
-		if (encoded !== undefined && ![...forms.values()].includes(3)) {
+		if (flat !== undefined && encoded !== undefined && preservesOrder(flat, encoded)) {
 			for (const [name, raw] of encoded) parameters.append(name, raw);
 		} else appendExpression(filter, 'filter');
 	}
@@ -88,6 +86,28 @@ export function encode<Fields extends QueryFields>(
 	}
 	for (const [name, entry] of encodePage(definition.pagination, value.pagination)) parameters.set(name, entry);
 	return parameters;
+}
+
+/**
+ * Compact parameters are collected by field and operator before parsing.
+ * Use indexed groups if that collection would reorder children or mix raw and
+ * tagged operands at one path. An explicit one-child AND also needs an index.
+ */
+function preservesOrder(
+	leaves: readonly { readonly field: string }[],
+	entries: readonly (readonly [string, string])[],
+): boolean {
+	const fields = new Map<string, { name: string; tagged: boolean }>();
+	let previous: string | undefined;
+	for (const [index, [name, raw]] of entries.entries()) {
+		const field = leaves[index]!.field;
+		const tagged = isTagged(raw);
+		const seen = fields.get(field);
+		if (seen === undefined) fields.set(field, { name, tagged });
+		else if (previous !== field || seen.name !== name || seen.tagged !== tagged) return false;
+		previous = field;
+	}
+	return true;
 }
 
 /**

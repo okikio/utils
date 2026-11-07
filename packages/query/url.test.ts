@@ -45,6 +45,36 @@ const definition = query.define({
 });
 
 describe('collection Boolean URLs', () => {
+	it('preserves the authored tree when compact field keys would regroup it', async () => {
+		const first = definition.condition('name', 'eq', 'Ada');
+		const middle = definition.condition('id', 'eq', '1');
+		const last = definition.condition('name', 'contains', 'da');
+		for (const filter of [query.and(first), query.and(first, middle, first), query.and(last, first)]) {
+			const checked = await definition.create({ filter });
+			const encoded = definition.encode(checked);
+			expect([...encoded.keys()][0]).toMatch(/^filter\[\$all\]\[0\]/);
+			expect((await definition.parse(encoded)).filter).toEqual(checked.filter);
+		}
+	});
+
+	it('returns structured issues when implicit AND adds depth or siblings', async () => {
+		const bounded = query.define({
+			fields,
+			filters: { name: [query.eq], id: [query.eq] },
+			expressions: ['all', 'any'],
+			pagination: query.offset(),
+			maximumDepth: 2,
+			maximumSiblings: 2,
+		});
+		const cases = [
+			[{ filter: { $any: [{ name: 'Ada', id: '1' }] } }, 'expression-too-deep'],
+			[new URLSearchParams('filter[name]=a&filter[name]=b&filter[name]=c'), 'too-many-siblings'],
+		] as const;
+		for (const [input, code] of cases) {
+			expect(await bounded.safeParse(input)).toMatchObject({ success: false, issues: [{ code }] });
+		}
+	});
+
 	it('parses the shared AST and retains authored group order', async () => {
 		const value = await definition.parse({
 			filter: { $any: [{ name: 'second' }, { $not: { name: 'first' } }] },

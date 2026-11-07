@@ -13,7 +13,11 @@
  * @module
  */
 
-/** One reusable Boolean node around a domain-owned query leaf. */
+/**
+ * One Boolean group whose children can be leaves or other groups.
+ * Nest groups to express parentheses: an AND with an OR child is different
+ * from an OR with an AND child. Child order is the authored evaluation order.
+ */
 export type QueryBooleanExpression<Leaf> =
 	| Readonly<{ kind: 'all'; filters: readonly QueryExpression<Leaf>[] }>
 	| Readonly<{ kind: 'any'; filters: readonly QueryExpression<Leaf>[] }>
@@ -72,7 +76,8 @@ export type QueryExpressionLeaf<Value> = Value extends QueryBooleanExpression<in
 /**
  * Require every supplied condition (Boolean AND). Also exported as and().
  * At least one condition is required; an empty group throws TypeError.
- * The child list is copied; leaf objects are borrowed and retain their types.
+ * The child list is copied; child expressions are borrowed and retain their types.
+ * An OR child stays grouped, as in and(or(a, b), c).
  * Use create() on a query definition to validate field values and enabled operators.
  * The application still owns authorization and record access.
  */
@@ -85,7 +90,8 @@ export function all<const Inputs extends readonly [unknown, ...unknown[]]>(
 
 /**
  * Match at least one supplied condition (inclusive Boolean OR). Also exported as or().
- * At least one condition is required. The child list is copied; leaf objects are borrowed.
+ * At least one condition is required. The child list is copied; child expressions
+ * are borrowed. An AND child stays grouped, as in or(a, and(b, c)).
  */
 export function any<const Inputs extends readonly [unknown, ...unknown[]]>(
 	...filters: Inputs

@@ -33,6 +33,7 @@ const operatorAliases: Readonly<Record<string, QueryOperatorName>> = Object.free
 /** A bounded bracket-token node; values are terminal raw operands, children are grammar tokens. */
 interface WireNode {
 	readonly children: Map<string, WireNode>;
+	/** Repeated operands at this exact bracket path, in request order. */
 	values?: readonly unknown[];
 }
 
@@ -73,11 +74,14 @@ export async function parseFilters<Fields extends QueryFields>(
 	}
 	if (issues.length > 0 || root.children.size === 0) return undefined;
 	const result = await condition(root, ['filter'], 1);
-	if (result !== undefined) {
+	if (result !== undefined && issues.length === 0) {
+		// A wire record can add an implicit AND at each level. Measure the lowered
+		// tree within the parser's construction bounds, then report policy issues
+		// instead of letting the standalone inspector throw on untrusted input.
 		const dimensions = inspectExpression(result, isFilter<Fields>, undefined, {
-			maximumDepth: definition.maximumDepth,
-			maximumLeaves: definition.maximumFilters,
-			maximumSiblings: definition.maximumSiblings,
+			maximumDepth: Math.min(definition.maximumDepth * 2, Number.MAX_SAFE_INTEGER),
+			maximumLeaves: count,
+			maximumSiblings: count,
 		});
 		if (dimensions.maximumDepth > definition.maximumDepth) {
 			issues.push(issue('expression-too-deep', `Filter depth may not exceed ${definition.maximumDepth}.`, ['filter']));
@@ -90,7 +94,7 @@ export async function parseFilters<Fields extends QueryFields>(
 	}
 	return result;
 
-	/** Lower bracket groups in explicit index order; reject structure before invoking field validators. */
+	/** Lower each indexed group in order. Sibling entries in an ordinary record imply AND. */
 	async function condition(
 		node: WireNode,
 		path: readonly PropertyKey[],

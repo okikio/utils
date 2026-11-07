@@ -335,6 +335,24 @@ async function ids(filter: NonNullable<Parameters<typeof Search.create>[0]>['fil
 }
 
 describe('PostgreSQL query adapter execution', () => {
+	it('keeps mixed AND and OR grouping from typed authoring through URL and SQL execution', async () => {
+		const first = Search.condition('id', 'eq', 1);
+		const second = Search.condition('id', 'eq', 2);
+		const namedLin = Search.condition('name', 'eq', 'Lin');
+		const cases = [
+			{ filter: query.and(query.or(first, second), namedLin), expected: [2] },
+			{ filter: query.or(first, query.and(second, namedLin)), expected: [1, 2] },
+		];
+		for (const { filter, expected } of cases) {
+			const checked = await Search.create({ filter });
+			const reparsed = await Search.parse(Search.encode(checked));
+			expect(reparsed.filter).toEqual(checked.filter);
+			const statement = compile(reparsed, { table: [table], columns: { id: 'id', name: 'name' } });
+			const rows = await database.unsafe(statement.text, [...statement.values] as postgres.ParameterOrJSON<never>[]);
+			expect(rows.map((row) => row.id)).toEqual(expected);
+		}
+	});
+
 	it('orders physical columns even when selected public aliases collide with source names', async () => {
 		const Renamed = query.define({
 			fields: {
