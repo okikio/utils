@@ -27,6 +27,25 @@ isolated callers. Core would still own user authentication and authorization for
 
 ## Follow Parse and resolution
 
+Follow one uploaded source through its two separately accepted runs. The service replies after acceptance commits;
+it does not hold the HTTP request open until accounts are resolved:
+
+```mermaid
+flowchart TD
+    A[HTTP service accepts source] --> B[Commit bytes and Parse job]
+    B --> C[Return 202 and Parse reference]
+    B --> D[Parse saves rows and receipts]
+    D --> E[Commit follow-up acceptance]
+    E --> F[Resolution checks revision]
+    F --> G[Save account rows and receipt]
+```
+
+On recovery, each worker reads its receipt before repeating a business write. A changed source revision prevents stale
+resolution; it does not roll back previously committed rows. The application owns corrections and the customer's
+final import status, so Parse success alone must not be presented as resolved accounts. The caller reads the Parse
+result to find its `next` reference and follows that separate run. The diagram omits batch loops
+and finalizer calls to keep that difference between acceptance and completion visible.
+
 | Step                  | Owner                                    | Saved result                                                                         |
 | --------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------ |
 | Accept source         | HTTP service                             | Source bytes and runnable Parse job commit together                                  |

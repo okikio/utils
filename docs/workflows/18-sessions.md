@@ -191,8 +191,8 @@ network or resource costs require it. For example:
 ```ts
 // The application has measured that each browser login is expensive, so admit only four.
 await using profiles = await session.open(ProfileLive, {
-    maximum: 4,
-    policy: { idleMs: 120000 },
+	maximum: 4,
+	policy: { idleMs: 120000 },
 });
 ```
 
@@ -417,10 +417,15 @@ explicit replacement and host finalization. Container labels alone are not proof
 receipts include actual native PIDs and thread IDs.
 
 ```sh
-node tools/testing/run.ts node packages/capability/session.test.ts packages/worker/thread/mod.test.ts packages/worker/process/channel/mod.test.ts
-UTILS_TEST_DATABASE_URL=postgres://... node tools/testing/run.ts postgres tests/workflows/resource-sessions.test.ts
+node tools/testing/run.ts node \
+  packages/capability/session.test.ts \
+  packages/worker/thread/mod.test.ts \
+  packages/worker/process/channel/mod.test.ts
+UTILS_TEST_DATABASE_URL=postgres://... node tools/testing/run.ts postgres \
+  tests/workflows/resource-sessions.test.ts
 node tools/testing/run.ts containers tests/workflows/session-containers.test.ts
-node tools/testing/run.ts deno packages/capability/session.test.ts tests/activity-providers.test.ts
+node tools/testing/run.ts deno \
+  packages/capability/session.test.ts tests/activity-providers.test.ts
 deno task --cwd=packages/capability bench:check
 UTILS_BENCH_DATABASE_URL=postgres://... node bench/resource-sessions.bench.ts --check
 ```

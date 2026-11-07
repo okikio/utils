@@ -17,7 +17,7 @@ configuration. They do not come from an untrusted attempt body. Use Deno's `--en
 [`@std/dotenv` parsing](https://jsr.io/@std/dotenv) if the application reads `.env` configuration;
 this adapter supplies no configuration parser.
 
-```ts
+```ts support=service.ts
 import * as activity from '@okikio/activity';
 import * as engine from '@okikio/activity/engine';
 import * as http from '@okikio/activity/http';
@@ -28,7 +28,8 @@ import * as schema from '@okikio/schema';
 import * as codec from '@okikio/schema/codec';
 
 /** Build one application-owned service; keep it alive until the listener drains. */
-export async function open(secret: string, endpoint: URL) {
+export async function open(secret: string, endpoint: URL, allowLoopbackHttp = false) {
+	// Both ends use the same identities and schemas; these declarations start no work.
 	const Engine = engine.define({ id: 'analysis.http' });
 	const Length = activity.define({
 		id: 'text.length',
@@ -43,9 +44,13 @@ export async function open(secret: string, endpoint: URL) {
 			return ctx.input.length;
 		},
 	});
+
+	// The service owns these resources. The handler only borrows its provider.
 	const owner = context.create({ id: 'analysis-service' });
 	const resources = resource.create(resource.implementations(), { ctx: owner, host: {} });
 	const provider = local.create({ engine: Engine, implementations: [implementation], resources });
+
+	// Authenticate the caller before admitting an activity attempt.
 	const accept = http.handler({
 		provider,
 		activities: [Length],
@@ -57,20 +62,28 @@ export async function open(secret: string, endpoint: URL) {
 		// A multi-tenant host must also verify tenant, registration, generation and claim authority.
 		authorize: (_request, attempt) => attempt.engineId === Engine.id && attempt.activityId === Length.id,
 	});
+
+	// This client can be registered as an executor's provider for the declared engine.
 	const client = http.create({
 		engine: Engine,
 		activities: [Length],
 		url: endpoint,
 		maximumBytes: 64 * 1024,
+		allowLoopbackHttp,
 		headers: () => ({ authorization: `Bearer ${secret}` }),
 	});
 	return {
+		Engine,
+		Length,
 		accept,
 		client,
 		/** Drain the application's listener and requests before closing borrowed resources. */
 		async [Symbol.asyncDispose]() {
-			await resources[Symbol.asyncDispose]();
-			await owner[Symbol.asyncDispose]();
+			try {
+				await resources[Symbol.asyncDispose]();
+			} finally {
+				await owner[Symbol.asyncDispose]();
+			}
 		},
 	};
 }
@@ -81,6 +94,71 @@ checks method and protocol but does not own routing, TLS, server timeouts or lis
 default. `allowLoopbackHttp: true` permits plain HTTP only for `localhost`, `127.0.0.1` or `::1`. Redirects are always
 rejected so credentials cannot follow a redirect to another service. The credentials callback runs per attempt so
 rotation does not require reconstructing the client.
+
+## Make one complete call over a real socket
+
+The following Deno entry starts a loopback listener, registers the client as an executor's provider, and asks a workflow
+to count `hello`. A Scheduler connects the workflow's requested activity to dispatch; an executor takes that request
+and calls the HTTP provider. The server then invokes the local implementation above. The checked answer travels back
+through the same owners to the workflow. None of those objects starts a remote machine.
+
+Save both named blocks beside each other in the prepared repository and run
+`mise exec -- deno run --allow-net call.ts`. This uses Deno's listener API; the adapter itself accepts Web `Request` and
+`Response` objects, so a Node or Bun application's Fetch-compatible route can mount the same `accept` handler.
+The fixed demo secret and loopback HTTP are local teaching choices. Use HTTPS and an actual credential verifier for a
+deployed service.
+
+```ts support=call.ts
+import * as context from '@okikio/context';
+import * as schema from '@okikio/schema';
+import * as workflow from '@okikio/workflow';
+import * as dispatch from '@okikio/workflow/dispatch';
+import { open } from './service.ts';
+
+let service: Awaited<ReturnType<typeof open>> | undefined;
+const listener = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, (request) => {
+	if (new URL(request.url).pathname !== '/activity') return new Response(null, { status: 404 });
+	return service?.accept(request) ?? new Response(null, { status: 503 });
+});
+
+try {
+	const endpoint = new URL(`http://127.0.0.1:${listener.addr.port}/activity`);
+	service = await open('local-demo-secret', endpoint, true);
+	const { Engine, Length, client } = service;
+	const Count = workflow.define({
+		id: 'text.count',
+		version: '1',
+		input: schema.string(),
+		result: schema.number(),
+		activities: [Length],
+	});
+	const count = workflow.implement(Count, function* (ctx) {
+		return yield* ctx.trigger(Length, ctx.input);
+	});
+
+	// These owners close in reverse order after the awaited call settles.
+	await using owner = context.create({ id: 'http-caller' });
+	await using jobs = dispatch.memory();
+	await using scheduler = workflow.scheduler({ activityDispatch: jobs });
+	await using executor = await workflow.executor({
+		dispatch: jobs,
+		engine: Engine,
+		hostId: 'http-service',
+		capacity: 1,
+		provider: client,
+	});
+	await using run = await workflow.context({ definition: Count, runId: 'count-1', input: 'hello', ctx: owner });
+	console.log('Length:', await workflow.run({ ctx: run, implementation: count, scheduler }));
+} finally {
+	// Stop accepting requests and join active handlers before closing their borrowed resources.
+	await listener.shutdown();
+	await service?.[Symbol.asyncDispose]();
+}
+```
+
+Expected output is `Length: 5`. The dispatch store is in memory: this example proves the HTTP round trip and cleanup
+order, not recovery after process loss. Keep the listener's drain before service disposal when mounting the handler in
+another server. That order prevents an active request from borrowing a resource that its application has already closed.
 
 ## Know what a lost response means
 

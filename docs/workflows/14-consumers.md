@@ -22,13 +22,20 @@ requests the next batch with `yield* ctx.trigger(Write, ...)`. When it asks for 
 wait and releases its execution slot. `client.send` accepts the addressed approval even if the worker is down.
 `client.wait(Import, ref)` eventually supplies the terminal result after saved cleanup.
 
-```text
-Authorized submission -> saved Import reference -> worker runs Write -> saved batch receipt
-                                                                    -> saved approval wait
-Authorized approval  -> saved Approved event    -> replacement can resume -> cleanup -> final result
+```mermaid
+flowchart TD
+    A[Service accepts authorized import] --> B[Caller receives reference]
+    A --> C[Worker commits batch and receipt]
+    C --> D[Save progress and approval wait]
+    D --> E[Caller reads progress and approves]
+    E --> F[Service saves addressed event]
+    F --> G[Worker resumes and joins cleanup]
+    G --> H[Caller receives terminal result]
 ```
 
-Read each row left to right; the repeated saved records are the handoff between processes. This omits SQL row-lock order,
+Read downward in time; the saved records are the handoff between processes. A replacement Worker can resume from
+those records without inheriting the old Worker's memory. The progress read is separate from the terminal wait, so
+an updated display cannot be mistaken for completed work. This omits SQL row-lock order,
 which the recovery reference owns. The reference grants no account access by itself. If a worker dies after a write but
 before its completion is recorded, the stable domain write key prevents a duplicate; a progress count does not.
 

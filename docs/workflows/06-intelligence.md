@@ -48,6 +48,24 @@ must decide whether that is the desired business rule.
 
 ## Split work between containers
 
+The cleanup deadline and the desired publication are separate obligations. Scheduling deletion first means a failed
+capture or a parent that never reaches publication cannot silently leave raw bytes without an owner:
+
+```mermaid
+flowchart TD
+    A[Acquire accepts Expire child] --> B[Capture and save manifest]
+    A --> E[Expire saves deadline]
+    E --> D[Delete when allowed]
+    B --> K[Accept Knowledge child]
+    K --> P[Stage and commit publication]
+    P --> R[Acquire receives child result]
+```
+
+Read this as logical order, not a promise that the deadline fires after publication. Expiry can become due while
+capture or publication is still pending. Expire owns that wait and Delete's bounded deferrals; Acquire owns waiting
+for the Knowledge result. Dispatch and history retain the handoffs so no live JavaScript call stack has to remain
+running. The domain's current grant and safe deletion time still decide whether a write or deletion is allowed.
+
 The research worker registers Acquire, Expire, and their local activities. A publication worker supplies the Knowledge
 child with Stage and Commit. It does not register Capture in the container scenario. A separate capture worker registers
 only Capture under `fixture.capture`. Both workers read the same saved queue through their borrowed adapter views.

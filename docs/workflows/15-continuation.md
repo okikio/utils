@@ -125,6 +125,7 @@ const CounterLive = workflow.implement(Counter, function* (ctx) {
 	return ctx.input.cursor;
 });
 const Policy = workflow.PolicySchema.parse({
+	// The accepted policy reserves at most three successors, in addition to the original segment.
 	id: 'counter.policy',
 	version: '1',
 	limits: {
@@ -143,6 +144,7 @@ const Policy = workflow.PolicySchema.parse({
 	finalizers: [],
 	retention: { dedupeMs: 60000, resultsMs: 60000, auditMs: 60000 },
 });
+// The application owns this pool; the store borrows it and the worker must drain before it closes.
 const url = Deno.env.get('DATABASE_URL');
 if (!url) throw new Error('DATABASE_URL must select a disposable PostgreSQL 18.3 database.');
 const sql = postgresjs(url, { max: 4, onnotice() {} });
@@ -151,6 +153,8 @@ try {
 	await using store = postgres.open({ database: sql, namespace: 'docs-counter-v1', notifications: false });
 	await using owner = context.create({ id: 'counter-host' });
 	await using resources = resource.create(resource.implementations(), { ctx: owner, host: {} });
+
+	// Starting the worker is explicit. Declarations and store construction start no execution loop.
 	await using worker = await workflow.serve({
 		store,
 		resources,
@@ -163,6 +167,8 @@ try {
 		pollIntervalMs: 100,
 		capacity: { activations: 1, activities: 1, finalizers: 1, control: 1 },
 	});
+
+	// Keep the original reference: wait follows its chain, while get can inspect the original physical segment.
 	const client = workflow.client({ store, policy: Policy });
 	const ref = await client.trigger(Counter, { cursor: 0, stop: 3 }, { scope: 'example', key: 'counter-one' });
 	console.log('Final:', await client.wait(Counter, ref, { signal: AbortSignal.timeout(30000) }));
@@ -185,6 +191,16 @@ New physical reference: true
 ```
 
 The segments carry cursors 0, 1, 2 and 3. The first three end with a continuation, and the fourth returns 3.
+
+| Physical segment | Input cursor | Result of this segment |
+| --- | ---: | --- |
+| Original | 0 | Continue with cursor 1 |
+| First successor | 1 | Continue with cursor 2 |
+| Second successor | 2 | Continue with cursor 3 |
+| Third successor | 3 | Return final value 3 |
+
+The budget counts successors, not total segments. That is why a limit of three permits four physical segments in
+this example, but does not permit an unbounded loop. Their different IDs still belong to the same logical operation.
 `client.wait` follows the chain from the original reference; physical `get` still returns the first `continued` segment.
 This program exercises finite rollover in one live process. The fresh-process crash test below tests reconstruction
 across process loss. Set `stop: 4` with a new command key to exceed the accepted three-successor budget: the chain blocks

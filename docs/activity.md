@@ -12,7 +12,7 @@ after process loss.
 The same save contract accepts a photo title and rejects a blank one before the store is called. The receipt contains
 the new ID and normalized title; the final labels show exactly what reached the in-memory store.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
+Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `save-title.ts` at the checkout root and use
 `mise exec -- deno run save-title.ts`.
 
 The examples use a few names that can otherwise make this small idea feel larger:
@@ -199,18 +199,22 @@ contracts rather than additional exports from this package.
 
 ```ts
 const DownloadLive = activity.implement(Download, {
-	/** Borrow the declared store through this attempt's context, then return the declared result. */
+	/** Copy source chunks into an owned writer, then await the declared completion effect. */
 	async run(ctx) {
 		await permission.assert(ctx, ReadSource, { url: ctx.input.url });
 		const http = await ctx.get(Http);
+		// Register the writer immediately so failure or cancellation still joins its cleanup.
 		const writer = ctx.use(await openWriter());
 
 		for await (const chunk of http.get(ctx.input.url, ctx.signal)) {
+			// This is where a cooperative pause can stop admission of the next write.
 			await ctx.checkpoint();
 			await writer.write(chunk);
+			// Await the host's heartbeat reply; a local observation alone cannot renew authority.
 			await ctx.heartbeat({ bytes: chunk.byteLength });
 		}
 
+		// Keep the consequence key stable when this logical download is retried.
 		await effect.emit(ctx, DownloadCommitted, {
 			url: ctx.input.url,
 		}, {

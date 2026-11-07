@@ -122,6 +122,30 @@ run. Its saved event, activity completion, child result, or timer makes it ready
 
 ## Wake a worker efficiently
 
+The last replay check closes a race that matters to the person waiting for a result. A completed activity must not
+leave its workflow asleep just because completion arrived during replay:
+
+```mermaid
+flowchart TD
+    Save["Save requested steps and waits"] --> Lock["Final check under the run lock"]
+    Completion["Activity completion races with replay"] --> Lock
+    Lock --> Check{"Did a step become ready?"}
+    Check -->|Yes| Ready["Save ready and release replay slot"]
+    Check -->|No| Waiting["Save waiting and release replay slot"]
+```
+
+The lock keeps the decision and state update together. A later completion can make waiting work ready through the
+store's normal wake-up path. A notification only prompts inspection; it cannot provision a missing worker.
+
+| Work being counted | While it waits | When the slot is released |
+| --- | --- | --- |
+| A live activity attempt | An ordinary `await` still holds its activity slot | After the activity and owned cleanup settle |
+| One workflow replay activation | It saves unfinished instructions rather than retaining a generator indefinitely | After the ready/waiting decision is saved |
+| A dormant saved workflow | Rows remain in the store, with no running activation | It holds no replay slot while dormant |
+
+This view omits retry and lease timing. Those settings decide when another activation may run; they do not turn a
+JavaScript Promise into durable saved work.
+
 The adapter uses PostgreSQL `LISTEN` and `NOTIFY`. A notification contains only the namespace. It tells a worker to scan
 saved work. It does not contain the work or grant permission to run it.
 

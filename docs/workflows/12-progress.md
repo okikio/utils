@@ -20,6 +20,21 @@ Import two contact names and save a report only after their database write commi
 local Task displays and durable workers. It requires no custom effect definition, no authored report key and no worker
 `progress` option. The activity still declares `effects: [task.ProgressEffect]` so the host knows it may emit progress.
 
+The database write comes first. Only its acknowledged receipt can support the displayed count; a progress notification
+cannot make an uncertain write certain:
+
+```mermaid
+flowchart TD
+    A[Activity commits contacts and receipt] --> B[Database acknowledges count]
+    B --> C[Activity saves progress report]
+    C --> D[Reader watches or reopens count]
+    D --> E[Reader separately waits for run result]
+```
+
+The last box represents `client.wait`, which reads the workflow store, not a query of the contacts table. Progress
+can survive a reader restart, but it does not settle the run or substitute for that terminal result. The flow
+omits retries; a repeated attempt checks the business receipt before repeating its inserts.
+
 This complete example uses a disposable PostgreSQL 18.3 database and this checkout's Postgres.js 4.0.0. Migration and the
 application table are explicit setup. Prepare dependencies and start the isolated database from the repository root:
 
@@ -44,6 +59,8 @@ import * as effect from '@okikio/capability/effect';
 import * as context from '@okikio/context';
 import * as task from '@okikio/task';
 import * as schema from '@okikio/schema';
+
+// Declare the checked operation and the SQL capability its implementation may borrow.
 const Local = engine.define({ id: 'import.local' });
 const Store = resource.define<postgres.StoreType>()({ id: 'import.store', description: 'Guarded import SQL.' });
 const Import = activity.define({
@@ -56,6 +73,7 @@ const Import = activity.define({
 	effects: [task.ProgressEffect],
 });
 const Write = activity.implement(Import, {
+	/** Commit names and their repeat-safe receipt before reporting the completed count. */
 	async run(ctx) {
 		const store = await ctx.get(Store);
 		const saved = await store.transaction(
@@ -64,9 +82,10 @@ const Write = activity.implement(Import, {
 			async (tx, receipt) => {
 				const previous = await receipt.get();
 				if (previous !== undefined) return previous;
-				for (
-					const name of ctx.input.names
-				) await tx`insert into utils_docs_contacts values (${store.namespace},${name.trim()})`;
+				// These inserts and their receipt share one guarded transaction.
+				for (const name of ctx.input.names) {
+					await tx`insert into utils_docs_contacts values (${store.namespace},${name.trim()})`;
+				}
 				return await receipt.save(ctx.input.names.length);
 			},
 		);
@@ -79,6 +98,7 @@ const Write = activity.implement(Import, {
 		return saved.value;
 	},
 });
+// Policy bounds retry and authority; it does not choose a database connection.
 const Policy = workflow.PolicySchema.parse({
 	id: 'contacts.policy',
 	version: '1',
@@ -106,6 +126,7 @@ const Policy = workflow.PolicySchema.parse({
 	finalizers: [],
 	retention: { dedupeMs: 60000, resultsMs: 60000, auditMs: 60000 },
 });
+// The application owns the pool. Store views and resources borrow it until the worker drains.
 const url = Deno.env.get('DATABASE_URL');
 if (!url) throw new Error('DATABASE_URL must select a disposable PostgreSQL 18.3 database.');
 const sql = postgresjs(url, { max: 4, onnotice() {} });
@@ -145,6 +166,8 @@ try {
 		console.log('Result:', await client.wait(Import, ref, { signal: AbortSignal.timeout(30000) }));
 		await worker.drain();
 	}
+
+	// A fresh adapter view proves progress was saved, rather than held only by the old display.
 	await using reopened = postgres.open({ database: sql, namespace: 'docs-contacts-v1', notifications: false });
 	const snapshot = await workflow.client({ store: reopened, policy: Policy }).get(Import, ref);
 	const latest = task.ProgressSchema.parse(snapshot.progress?.[0]?.progress);

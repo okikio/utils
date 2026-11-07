@@ -71,6 +71,21 @@ A **root** is a run accepted by the service rather than created by another run. 
 accepted through a guarded activity transaction. A **child** is a run requested by a workflow instruction. A
 **finalizer** is an activity that must finish before the run's intended exit becomes terminal.
 
+For example, accepting an import can promise a resolution child, a permitted follow-up, and exit cleanup. Reserved
+capacity makes room for those obligations before they become runnable work:
+
+```mermaid
+flowchart TD
+    Root["Accepted root import"] --> Child["Declared child: reserved before start"]
+    Root --> Next["Permitted successor: reserved before acceptance"]
+    Root --> Close["Exit activity: reserved before terminal state"]
+```
+
+This is a policy relationship, not three activities running together. Pending reservations count promised work;
+worker capacity counts attempts actually running. A policy must describe a finite family, and the host must still
+start eligible workers. The [continuation guide](./15-continuation.md#declare-the-budget) explains how reservations
+multiply when each segment can promise more work; a per-segment limit alone does not bound the whole family.
+
 Reservations stop a full root queue from preventing work that an accepted run already promised. The policy must describe
 a finite tree of those promises. Recursive reservation cycles are rejected. The
 [complete Core policy](../../tests/workflows/scenarios/core.ts) shows one permitted successor and one exit activity. The

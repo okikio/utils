@@ -173,6 +173,26 @@ Host-registration generations are retained separately. Pruning them without a mo
 generation numbers, so this operation does not collect host records. Choose stable host identities for replacement and
 budget separately for deployments that continually introduce new identities.
 
+Think of retention as protecting a related family until its last obligation ends. In this example a live child keeps
+the completed root and successor available too:
+
+```mermaid
+flowchart TD
+    Root["Completed root"] --> Child["Live child: protects the family"]
+    Root --> Successor["Completed successor"]
+    Child --> Protected["Do not prune this family yet"]
+    Expired["All members terminal and retention elapsed"] --> Dependents["Delete dependent rows within total row budget"]
+    Dependents --> Descendants["Remove descendants before root"]
+    Descendants --> Remaining{"More rows remain?"}
+    Remaining -->|Yes| Next["Continue in another bounded call"]
+    Remaining -->|No| Remove["Remove root last"]
+```
+
+The upper branch explains why a family is retained; the lower branch starts only after it becomes eligible. Each
+deletion call shares one total-row limit across dependent records and runs. The diagram omits individual SQL tables;
+their foreign-key order is the store's responsibility. An application row is never implied to be disposable merely
+because the workflow records have expired.
+
 Pruning does not delete application business tables. Application foreign keys can intentionally refuse deletion. After
 an expired command and its family have been completely removed, the same submission key may create new work. Use
 application-owned permanent business identity when a business consequence must remain deduplicated beyond workflow

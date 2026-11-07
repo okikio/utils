@@ -44,10 +44,13 @@ import * as schema from '@okikio/schema';
 
 const InputSchema = schema.object({ title: schema.string({ pattern: /\S/ }) });
 const ReceiptSchema = schema.object({ id: schema.string(), label: schema.string() });
+
+// Describe the dependency first; the implementation below decides where its values live.
 const Store = resource.define<{ save(label: string): Promise<string> }>()({
 	id: 'photo.store',
 	description: 'Save a photo label and return its ID.',
 });
+
 const labels: string[] = [];
 // Supply a local demo store. The declaration above describes the resource; this implementation creates it.
 const StoreLive = resource.implement(Store, {
@@ -59,6 +62,7 @@ const StoreLive = resource.implement(Store, {
 		},
 	}),
 });
+
 const SaveTitle = activity.define({
 	id: 'photo.save-title',
 	version: '1',
@@ -66,6 +70,7 @@ const SaveTitle = activity.define({
 	result: ReceiptSchema,
 	resources: [Store],
 });
+
 // Bind behavior to the checked activity definition before running an attempt.
 const SaveTitleLive = activity.implement(SaveTitle, {
 	/** Borrow the declared store through this attempt's context, then return the declared result. */
@@ -75,10 +80,13 @@ const SaveTitleLive = activity.implement(SaveTitle, {
 		return { id: await store.save(label), label };
 	},
 });
+
 // Share one lazily opened store across both calls; this scope owns its cleanup.
 await using stores = await resource.open(StoreLive);
 const receipt = await activity.call(SaveTitleLive, { title: 'Summer trip' }, { resources: stores.collection });
 console.log(receipt.id, receipt.label);
+
+// Check the rejected path too: validation must keep a blank title out of the store.
 try {
 	await activity.call(SaveTitleLive, { title: '   ' }, { resources: stores.collection });
 } catch (error) {
@@ -158,6 +166,21 @@ contains identities and reasons, without copying credentials or calling a provid
 constraints; dispatch still owns the later atomic claim. Refresh stale snapshots before presenting diagnostics. Nothing
 in the report grants capacity, permissions or a reusable claim. Activity payload schemas remain the provider boundary's
 responsibility.
+
+For queued work, inspecting a host and claiming its capacity are separate steps. Another caller can take the slot
+between them. The dispatch store must make the claim; a displayed eligibility report cannot reserve it.
+
+```mermaid
+flowchart TD
+    I[Inspect current host facts] --> C[Dispatch tries atomic claim]
+    C -->|Busy or stale| S[Select again or wait]
+    C -->|Claimed| R[Provider runs attempt]
+    R --> J[Join attempt cleanup]
+    J --> E[Record outcome or retire lost host]
+```
+
+This is the hosted scheduling path, not an extra requirement for the local `call()` example. See
+[physical hosts](../../docs/workflows/19-hosts.md) for the registration, claim and retirement owners.
 
 Worker and process Activity peers now negotiate internal contract `okikio.activity.attempt`, version 1, with required
 cleanup and reverse-call features before encoding an attempt. Upgrade both host and provider together: a legacy or

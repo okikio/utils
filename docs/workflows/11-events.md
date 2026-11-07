@@ -92,6 +92,29 @@ their saved representation through an explicit codec when it differs from the ap
 
 ## Use a saved wait
 
+An early approval is useful only if it reaches the right pending decision. The address is the combination of run,
+event name and logical key; sharing just the event name would mix different imports:
+
+```mermaid
+sequenceDiagram
+    participant S as Sender
+    participant I as Inbox
+    participant W as Workflow
+    S->>I: Save true at address
+    Note over I: Before execution
+    W->>I: Wait at same address
+    alt Value available
+        I-->>W: received true
+    else Deadline wins
+        I-->>W: timeout
+    end
+```
+
+The address is the complete run/name/key tuple: `import:42`, `import.approved`, `review`.
+This illustrates one wait, not a broadcast to every listener. The local example's inbox is lost with its process.
+The saved adapter below retains addressed delivery in PostgreSQL so a replacement can rebuild the wait; ordinary
+live notifications only prompt another check. The event schema still decides whether the delivered value is valid.
+
 The [worker fixture](../../tests/workflows/scenarios/events.ts) lists the definitions, policy, resources, engine,
 capacity, and worker setup. It is executable source used by the recovery suite. In an application service, use the same
 definition and policy with a PostgreSQL store:

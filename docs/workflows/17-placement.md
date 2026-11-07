@@ -21,6 +21,23 @@ keeps work within that pod. A preferred location is only a preference and cannot
 In the program below, registration supplies this deployment metadata locally. The printed claim demonstrates selection,
 not a real pod or thread launch.
 
+Read the registered path from machine to thread. The required boundary in this example is `pod-a`, generation `1`:
+
+```mermaid
+flowchart TD
+    Node["node-a, generation 1"] --> Pod["Required: pod-a, generation 1"]
+    Pod --> Container["container-a, generation 1, capacity 2"]
+    Container --> Process["process-a, generation 1"]
+    Process --> Thread["thread-a, generation 1"]
+    Thread --> Executor["executor-a, capacity 4: eligible path"]
+    Node -.-> Other["A sibling pod would be outside the boundary"]
+```
+
+The sibling is an excluded location to illustrate the rule, not another registration made by the program. Each
+capacity-bearing ancestor must have room independently. The executor's capacity of four cannot override the
+container's capacity of two. Registration records this trusted deployment description; it starts none of the hosts
+drawn here. The program below checks admission using that metadata without needing a Kubernetes installation.
+
 After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
 Save the next complete TypeScript block as
 `example.ts` at that root, then run `mise exec -- deno run example.ts`.

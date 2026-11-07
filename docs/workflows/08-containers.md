@@ -21,6 +21,25 @@ The workers exchange input and results through database records. They do not inv
 transfer live connections. The test caller uses the service's published HTTP port. Private aliases resolve within the
 Testcontainers network.
 
+The service's published port is the test caller's entry point. Inside the private network, the receiver is named
+`provider` and PostgreSQL is named `database`. The fixture supplies those aliases explicitly:
+
+```mermaid
+flowchart TD
+    Caller["Test caller on host"] -->|"Published service HTTP port"| Service["Service container: port 8080"]
+    subgraph Private["Testcontainers private network"]
+        Service -->|SQL| Database["database: PostgreSQL"]
+        Workers["Import, research, capture and publication containers"] -->|SQL| Database
+        Workers -->|"Capture HTTP only"| Receiver["provider:8080 receiver"]
+        Receiver -->|SQL| Database
+    end
+```
+
+The worker box groups separate containers; it is not a single process that runs every role. SQL arrows carry saved
+requests, results and domain writes, while the capture arrow is a real HTTP call. The telemetry collector is omitted
+because it observes the scenario rather than deciding job completion. A workflow namespace separates saved work; it
+does not create a network, container or machine. This is a local Docker test, not Kubernetes deployment evidence.
+
 The suite builds ESM from the same TypeScript consumers used by the process tests. It copies the resulting files into
 pinned Node containers. This proves that the worker can run with its bundled dependencies outside the host checkout. It
 does not certify a separately maintained production Dockerfile or deployment manifest.
