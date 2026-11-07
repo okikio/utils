@@ -19,10 +19,25 @@ mise run prepare -- --kind freeze
 mise run bench -- --operation freeze --check
 ```
 
-Preparation inspects actual AST freeze calls and creates four frozen/plain pairs. Both Progress copies omit the
+Preparation reads the abstract syntax tree (AST), the parser's structured representation of the source, to locate
+actual `Object.freeze` calls. It creates four frozen/plain pairs. Both Progress copies omit the
 unmeasured effect registration and its effect import. Shared dependencies retain production behavior. The inventory
 hashes source, generated modules, declarations, the workspace runtime import closure, relevant manifests, locks,
-compiler identity, and measurement controls.
+compiler identity, and measurement controls. The **runtime import closure** is the set of workspace modules reachable
+through imports needed to run the experiment. Hashing those dependencies prevents unchanged workload files from hiding a
+changed implementation.
+
+Each stage consumes the previous stage's evidence:
+
+| Stage | Input | Output or observation |
+| --- | --- | --- |
+| `prepare -- --kind freeze` | Current source and toolchain | Generated frozen/plain pairs, inventory hashes, verification receipt |
+| `bench -- --operation freeze --check` | Prepared files and current source | Read-only agreement checks; no timing samples |
+| `bench -- --operation freeze` | Matching prepared checkpoint and a seed | A fresh raw measurement JSON file |
+| `bench -- --operation freeze:summarize` | Compatible raw files from independent runs | `summary.json` and readable `RESULTS.md` |
+
+The first two rows establish what was measured. The last two measure and summarize it; a successful check alone is not
+a performance result.
 
 The check is read-only after preparation. It verifies those hashes, emitted-code equivalence after the documented
 substitution, successful-output agreement, invalid-input behavior, identity, and mutation differences. It takes no timed
@@ -35,11 +50,33 @@ Run processes sequentially on an idle machine and choose new filenames. Raw outp
 file.
 
 ```sh
-mise run bench -- --operation freeze -- --output .tmp/artifacts/bench/freeze/node-1701.json --seed 1701
-mise run bench -- --operation freeze -- --output .tmp/artifacts/bench/freeze/node-1702.json --seed 1702
-mise exec -- deno run --frozen --no-check --allow-read --allow-write=.tmp/artifacts/bench/freeze --allow-env --allow-sys bench/freeze/freeze.bench.ts --output .tmp/artifacts/bench/freeze/deno-1701.json --seed 1701
-mise exec -- bun bench/freeze/freeze.bench.ts --output .tmp/artifacts/bench/freeze/bun-1701.json --seed 1701
-mise run bench -- --operation freeze:summarize -- .tmp/artifacts/bench/freeze/node-1701.json .tmp/artifacts/bench/freeze/node-1702.json
+# Collect two independent Node processes against the same prepared checkpoint.
+mise run bench -- --operation freeze -- \
+  --output .tmp/artifacts/bench/freeze/node-1701.json \
+  --seed 1701
+mise run bench -- --operation freeze -- \
+  --output .tmp/artifacts/bench/freeze/node-1702.json \
+  --seed 1702
+
+# Keep runtime-specific samples separate; Deno gets only the permissions shown.
+mise exec -- deno run \
+  --frozen \
+  --no-check \
+  --allow-read \
+  --allow-write=.tmp/artifacts/bench/freeze \
+  --allow-env \
+  --allow-sys \
+  bench/freeze/freeze.bench.ts \
+  --output .tmp/artifacts/bench/freeze/deno-1701.json \
+  --seed 1701
+mise exec -- bun bench/freeze/freeze.bench.ts \
+  --output .tmp/artifacts/bench/freeze/bun-1701.json \
+  --seed 1701
+
+# Summarize these two Node trials without pooling unlike runtimes.
+mise run bench -- --operation freeze:summarize -- \
+  .tmp/artifacts/bench/freeze/node-1701.json \
+  .tmp/artifacts/bench/freeze/node-1702.json
 ```
 
 The summarizer writes `summary.json` and `RESULTS.md` under `.tmp/artifacts/bench/freeze/`. Without explicit filenames

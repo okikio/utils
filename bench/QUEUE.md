@@ -9,8 +9,22 @@ retains three fresh Node-process reports.
 Select a disposable PostgreSQL database explicitly through `UTILS_TEST_DATABASE_URL`, then run:
 
 ```sh
-mise run bench -- --operation queue --output .tmp/artifacts/queue-candidate-1 --jobs 128 --concurrency 8 --samples 1
-mise run bench -- --operation queue --output .tmp/artifacts/queue-parent-1 --source-root /absolute/path/to/parent --jobs 128 --concurrency 8 --samples 1
+# Measure this checkout; retain one fresh report for this trial.
+mise run bench -- \
+  --operation queue \
+  --output .tmp/artifacts/queue-candidate-1 \
+  --jobs 128 \
+  --concurrency 8 \
+  --samples 1
+
+# Compare the other checkout with the same workload and a separate output directory.
+mise run bench -- \
+  --operation queue \
+  --output .tmp/artifacts/queue-parent-1 \
+  --source-root /absolute/path/to/parent \
+  --jobs 128 \
+  --concurrency 8 \
+  --samples 1
 ```
 
 Use new output directories for every invocation. The controller refuses to overwrite existing evidence. `--source-root`

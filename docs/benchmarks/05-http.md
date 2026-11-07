@@ -49,6 +49,16 @@ For illustration only, suppose a workload reports a Utils/Hono time ratio of `0.
 Both bounds are below 1, so that run supports lower Utils dispatch time under the stated model. A ratio of `0.98` with
 `[0.90, 1.07]` leaves the difference unresolved. These numbers are teaching examples, not measurements of this checkout.
 
+Use the whole interval, not just the point estimate, to read such a report:
+
+| Hypothetical ratio and interval | Position relative to 1 | Supported reading under this model |
+| --- | --- | --- |
+| `0.90`, `[0.85, 0.96]` | Entire interval below 1 | Lower measured Utils time |
+| `0.98`, `[0.90, 1.07]` | Interval contains 1 | Difference unresolved; this does not establish equivalence |
+| `1.12`, `[1.04, 1.20]` | Entire interval above 1 | Higher measured Utils time |
+
+A ratio compares time, so smaller means less time. These teaching rows make no claim about this checkout's performance.
+
 First confirm the workload and runtime match your intended claim. Then read its interval and the consumed-response
 boundary above. Keep a behavior-preserving change when its actual report and maintenance cost justify it; investigate
 an unresolved or regressed workload rather than substituting a faster unrelated health route. Preserve the raw reports
