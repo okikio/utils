@@ -25,9 +25,12 @@ Run from this checkout after `mise run prepare -- --kind deps`. Save the runnabl
 
 ```ts runnable=package-task.ts
 import * as capacity from '@okikio/scheduler/capacity';
+
 const host = capacity.create({ browsers: 2, uploads: 4 });
 const lease = await capacity.acquire(host, { browsers: 1, uploads: 3 });
 try {
+	// Waiting for asynchronous work does not return this upload's reservation.
+	await Promise.resolve();
 	console.log(JSON.stringify(capacity.available(host)));
 } finally {
 	// Release on success or failure so later work can use these counters again.
@@ -50,8 +53,13 @@ some units separately. `maximumPending` bounds retained waiters; it does not lim
 
 ```ts runnable=waiting-upload.ts
 import * as capacity from '@okikio/scheduler/capacity';
+
 const host = capacity.create({ browsers: 1, uploads: 3 }, { maximumPending: 1 });
+
+// The first caller owns both limits until it explicitly releases them.
 const first = await capacity.acquire(host, { browsers: 1, uploads: 3 });
+
+// The second caller waits for all its limits; cancellation removes only this waiter.
 const stop = new AbortController();
 const waiting = capacity.acquire(host, { browsers: 1, uploads: 3 }, stop.signal);
 const observed = waiting.then(() => 'unexpected admission', (reason) => String(reason));
@@ -59,7 +67,10 @@ console.log('Waiting:', capacity.snapshot(host).queuedRequests);
 stop.abort('upload cancelled');
 console.log(await observed);
 console.log('Active upload still owns:', JSON.stringify(capacity.available(host)));
+
+// Another caller can wait while the first upload is still active.
 const replacement = capacity.acquire(host, { browsers: 1, uploads: 3 });
+await Promise.resolve();
 first.release();
 (await replacement).release();
 console.log('Restored:', JSON.stringify(capacity.available(host)));
@@ -75,6 +86,23 @@ Restored: {"browsers":1,"uploads":3}
 The cancelled caller never acquired a partial reservation. Releasing the first lease admits the replacement in FIFO
 order. Put the actual upload inside `try/finally` or an `await using` lease block; cancellation does not undo already
 sent bytes. The independent validation surface below checks host descriptions before admission is involved.
+
+The same lifetime applies when the wait contains real I/O:
+
+```mermaid
+flowchart TD
+  A["First upload acquires<br/>all requested units"] --> H["First upload awaits I/O<br/>and keeps its lease"]
+  H --> B["Second upload requests<br/>the same units"]
+  B --> W["Second upload waits<br/>without a partial lease"]
+  W --> R["First upload releases<br/>its lease in finally"]
+  R --> N["Second upload receives<br/>its own lease"]
+  N --> E["Second upload finishes<br/>and releases its lease"]
+```
+
+FIFO means first in, first out: the oldest waiting request gets the next chance. If that request needs three upload
+units and only two are free, a later request for one unit waits too. This prevents a stream of small requests from
+continually overtaking a larger one. It can leave some units temporarily unused. Cancelling the oldest wait removes
+that request so the next one can be considered; it does not take units away from an admitted upload.
 
 ## Choose validation or live admission
 

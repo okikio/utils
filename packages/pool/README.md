@@ -189,13 +189,17 @@ This example holds one connection close open to show that both release callers s
 ```ts runnable=joined-release.ts
 import * as context from '@okikio/context';
 import * as pool from '@okikio/pool';
+
 await using owner = context.create({ id: 'joined-close' });
+
+// Hold physical cleanup so a repeated release can join it before it finishes.
 const finish = Promise.withResolvers<void>();
 let closed = 0;
 await using connections = await pool.create({
 	ctx: owner,
 	maximum: 1,
 	maximumWaiting: 32,
+	// A returned connection cannot stay idle, so release must close it.
 	maximumIdle: 0,
 	create: () => ({ id: 'connection' }),
 	async close() {
@@ -203,10 +207,15 @@ await using connections = await pool.create({
 		closed++;
 	},
 });
+
 const lease = await connections.acquire(owner);
 const first = lease[Symbol.asyncDispose]();
+
+// Releasing again joins the same close; it cannot start another close.
 const second = lease[Symbol.asyncDispose]();
 console.log(first === second);
+
+// Complete physical cleanup, then wait for its receipt before checking the count.
 finish.resolve();
 await first;
 console.log(closed);
@@ -216,6 +225,16 @@ console.log(closed);
 true
 1
 ```
+
+`maximumIdle: 0` deliberately sends this returned value to close instead of retaining it. The teaching gate in
+`close()` delays that close so the second caller arrives while cleanup is pending. Both disposal calls receive the same
+Promise, and the close callback runs once. In real code, that pending work might be closing a socket rather than waiting
+on this explicit gate.
+
+| Operation | What it ends | What its completion proves |
+| --- | --- | --- |
+| Dispose one lease | This borrow | Required release checks and cleanup have settled. A healthy value may remain idle. |
+| Dispose the pool | New acquisition and every pool-owned value | Existing borrows, creation, checks and closes have all settled. |
 
 Duration normalization uses the owned native-first Temporal binding. Pool age, acquisition deadlines, and lease
 timestamps stay on the supplied Context clock, including a deterministic `TestClock` when the caller provides one.

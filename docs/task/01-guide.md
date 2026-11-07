@@ -18,8 +18,11 @@ Run from this checkout after `mise run prepare -- --kind deps`. Save the runnabl
 ```ts runnable=package-task.ts
 import * as task from '@okikio/task';
 
+// Fixture: keep the input local so pausing does not depend on network timing.
 const names = [' Ada ', 'Grace ', ' Linus'];
 const saved: string[] = [];
+
+// Start the import; the Task owns its Context and any cleanup registered there.
 await using work = task.start(async (ctx) => {
 	for (const name of names) {
 		// Pause takes effect here, before the next record changes application state.
@@ -28,10 +31,14 @@ await using work = task.start(async (ctx) => {
 	}
 	return saved;
 }, { id: 'contact-import' });
+
 // Wait until the operation reaches a checkpoint; a pause request cannot interrupt arbitrary code.
 await work.pause();
 console.log('Saved while paused:', saved.length);
+
+// Resume permits the next checkpoint to continue; it does not itself produce a result.
 work.resume();
+
 // done settles after task cleanup, so the owner can use the final result.
 console.log((await work.done).join(', '));
 ```
@@ -49,13 +56,19 @@ means the exported text is available and the temporary URL has already been rele
 
 ```ts runnable
 import * as task from '@okikio/task';
+
+// Register the URL immediately, so a failed Fetch also releases it.
 await using work = task.start(async (ctx) => {
 	const url = ctx.adopt(URL.createObjectURL(new Blob(['Name\nAda\nGrace\n'])), URL.revokeObjectURL);
 	const response = await fetch(url, { signal: ctx.signal });
 	return { text: await response.text(), url };
 }, { id: 'contact-preview' });
+
+// The result arrives after registered cleanup, including URL revocation.
 const exportFile = await work.done;
 console.log(exportFile.text.trim());
+
+// This second read checks release; an application would use exportFile.text instead.
 try {
 	await fetch(exportFile.url);
 } catch (error) {
@@ -94,7 +107,9 @@ A link that must stay usable belongs to the screen's longer lifetime instead.
 
 ## Pause and resume
 
-Pausing is cooperative. `pause()` resolves when the operation reaches its next `ctx.checkpoint()` or becomes terminal:
+Pausing is cooperative. `pause()` resolves when the operation reaches its next `ctx.checkpoint()` or becomes terminal.
+The following application sketch assumes `items` and `processItem` are supplied by your import; the complete local
+example above demonstrates the same control sequence:
 
 ```ts
 await using operation = task.start(async (ctx) => {
@@ -105,9 +120,12 @@ await using operation = task.start(async (ctx) => {
 	}
 });
 
+// Request a pause, then wait for acknowledgement at a checkpoint.
 await operation.pause();
 // In this multi-item operation, pause stops new items at a checkpoint.
 operation.resume();
+
+// Join the final result and Task-owned cleanup after work continues.
 await operation.done;
 ```
 

@@ -202,8 +202,15 @@ import * as task from '@okikio/task';
 import * as effect from '@okikio/capability/effect';
 import * as state from '@okikio/context/state';
 import * as progress from '@okikio/task/progress';
+
+// Teaching gate: hold the imports at a known saved count, without a timer.
 const release = Promise.withResolvers<void>();
-/** Start a real import and expose when it reaches this demonstration's pause point. */
+
+/**
+ * Start a contact import and expose when its demonstration gate is reached.
+ * holdAfter is the number of contacts already saved before waiting at that gate.
+ * The gate belongs to this example; real imports report progress as their writes finish.
+ */
 function start(names: string[], holdAfter: number) {
 	const ready = Promise.withResolvers<void>();
 	const work = task.start(async (ctx) => {
@@ -222,16 +229,23 @@ function start(names: string[], holdAfter: number) {
 	});
 	return { work, ready: ready.promise };
 }
+
+// Own both Tasks independently; neither display cells nor combined progress own their work.
 const first = start([' Ada ', ' Grace '], 1);
 const second = start([' Linus '], 0);
 await using firstWork = first.work;
 await using secondWork = second.work;
+
+// These cells copy display snapshots. They do not copy cancellation or result authority.
 using firstCount = state.create<progress.ProgressType | undefined>(firstWork.progress?.value);
 using secondCount = state.create<progress.ProgressType | undefined>(secondWork.progress?.value);
-// Subscribe before either import's asynchronous reports can be missed.
+
+// Initialize from the latest snapshot above, then keep each display cell current.
 using firstUpdates = firstWork.updates.subscribe(({ value }) => firstCount.set(value));
 using secondUpdates = secondWork.updates.subscribe(({ value }) => secondCount.set(value));
 using total = progress.combine([firstCount.reader, secondCount.reader], { weights: [2, 1], maximumChildren: 2 });
+
+// Both Tasks remain pending at their gates while the projection can already show progress.
 try {
 	await Promise.all([first.ready, second.ready]);
 	console.log('Saved share:', total.get().ratio?.toFixed(2));
@@ -249,6 +263,19 @@ Saved share: 0.33
 Ada, Grace / Linus
 Saved share: 1.00
 ```
+
+At the gate, the first import has saved one of its two contacts; the second has saved none of its one contact.
+Each weight is a share of the combined display, so the calculation is:
+
+| Import | Own ratio at the gate | Weight | Contribution to combined ratio |
+| --- | --- | --- | --- |
+| Ada and Grace | `1 / 2` | `2 / 3` | `1 / 3` |
+| Linus | `0 / 1` | `1 / 3` | `0` |
+| Combined | | | `1 / 3`, displayed as `0.33` |
+
+Both `done` promises are still pending here. Opening the gate lets both imports finish; only awaiting their results
+confirms their work and cleanup. The cells and projection belong to the display and can be disposed without cancelling
+the imports.
 
 For display progress, `@okikio/task/progress` exposes `combine(readers, { weights, maximumChildren })`. It borrows
 Context progress readers and returns an owned read-only projection. Each positive finite weight is a relative share

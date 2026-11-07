@@ -80,17 +80,25 @@ reservation intact. A native `AbortController` is sufficient, so this path requi
 
 ```ts runnable=cancel-wait.ts
 import * as capacity from '@okikio/scheduler/capacity';
+
 const uploads = capacity.create({ uploads: 1 });
+
+// Caller one owns the reservation even while other JavaScript work runs.
 const first = await capacity.acquire(uploads, { uploads: 1 });
+
+// Caller two owns only a pending request, not caller one's lease.
 const cancellation = new AbortController();
 const stopped = new Error('The user left the upload page.');
 const waiting = capacity.acquire(uploads, { uploads: 1 }, cancellation.signal);
+
 cancellation.abort(stopped);
 try {
 	await waiting;
 } catch (error) {
+	// Zero available slots proves caller one still owns its reservation.
 	console.log(error === stopped, capacity.available(uploads).uploads);
 } finally {
+	// Caller one is responsible for returning its own reservation.
 	first.release();
 }
 console.log(capacity.available(uploads).uploads);

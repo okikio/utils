@@ -7,6 +7,17 @@ order, including when the operation throws.
 A cancellation signal asks work to stop. Disposing a resource releases it. Decide explicitly whether an injected
 resource is borrowed or transferred to the current owner.
 
+Reverse order is often called **LIFO**, meaning last in, first out. If a session uses a connection, close the session
+before the connection it depends on. Read the two rows below in time order:
+
+```text
+Acquire: connection -> session -> temporary file
+Release: temporary file -> session -> connection
+```
+
+The stack records that order; it cannot discover dependencies that were never registered. Register a release as soon
+as acquisition succeeds so a failure during the next acquisition still unwinds everything already owned.
+
 ## Release resources when the operation throws
 
 The operation fails after registering two cleanup actions. Watch their order in the output: the last registered action
@@ -142,6 +153,7 @@ When the runtime already provides the standard globals, no import is needed:
 
 ```ts
 const resources = new AsyncDisposableStack();
+// Integration sketch: supply your application's openConnection() factory.
 const connection = resources.use(await openConnection());
 resources.defer(() => releaseTemporaryLock());
 await resources.disposeAsync();
@@ -150,6 +162,7 @@ await resources.disposeAsync();
 Use `using` or `await using` when lexical ownership is clearer:
 
 ```ts
+// Integration sketch: supply an openSession() result with asynchronous disposal.
 await using session = await openSession();
 await session.write(value);
 ```
@@ -159,6 +172,7 @@ await session.write(value);
 Use one stack when several resources share one owner and must unwind in reverse acquisition order:
 
 ```ts
+// Integration sketch: supply the connection, session and copy functions used below.
 async function copyAsset() {
 	await using resources = new AsyncDisposableStack();
 

@@ -70,6 +70,7 @@ import * as task from '@okikio/task';
 import * as effect from '@okikio/capability/effect';
 import * as schema from '@okikio/schema';
 
+// Define and validate the display data separately from starting the operation.
 const Rows = effect.define({
 	id: 'import.rows',
 	value: schema.define((value: unknown) => {
@@ -79,6 +80,8 @@ const Rows = effect.define({
 		return value;
 	}),
 });
+
+// Teaching gate: prevent emission until this example has installed its subscriber.
 const ready = Promise.withResolvers<void>();
 await using work = task.start(async (ctx) => {
 	await ready.promise;
@@ -87,9 +90,13 @@ await using work = task.start(async (ctx) => {
 	await effect.emit(ctx, Rows, 200, { key: 'rows:200' });
 	return 200;
 }, { progress: Rows });
+
+// Subscribe before opening the gate; this listens for future reports, not the final answer.
 using subscription = work.updates.subscribe((report) => {
 	console.log('Rows:', report.value);
 });
+
+// Publish one report, then join the operation and its cleanup through done.
 ready.resolve();
 console.log('Result:', await work.done);
 ```

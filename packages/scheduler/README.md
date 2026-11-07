@@ -23,6 +23,18 @@ resource borrow. Those limits protect different things and end at different
 times. Choose separate workers for parallel CPU work; a synchronous loop still
 occupies its thread.
 
+The limits count different things. Keeping them separate prevents an awaited network call from accidentally releasing
+the resource or job ownership it still needs:
+
+| Capability | What remains counted | When it is released |
+| --- | --- | --- |
+| Concurrency | An admitted mapper call; ordered results can also occupy retained item slots | The applicable mapper/consumer acknowledgement completes, or joined cancellation finishes. |
+| Capacity | Every unit in one granted reservation | That caller releases its lease, including after awaited work. |
+| Queue | One attempt's permission to settle one logical item | Completion, failure, retry, cancellation or lease-expiry recovery changes queue ownership. |
+
+Ordinary `await` releases none of those ownership rules by itself. A queue token from an expired or replaced attempt
+cannot publish over the current attempt. None of these counters makes an external side effect repeat-safe.
+
 ## Claim and finish one local item
 
 Add a number, claim its queued calculation, and complete it with twice that value. Looking up the result through the
@@ -30,13 +42,19 @@ original reference returns 42. This queue is in memory and needs no background s
 
 ```ts runnable
 import { queue } from '@okikio/scheduler';
+
 await using jobs = queue.fifo(queue.memory<number, number>());
+
+// Admission creates the logical item; it has no answer yet.
 const ref = await jobs.add(21);
+
 // Taking an item grants an attempt. The result remains pending until that attempt completes.
 const attempt = await jobs.take();
 if (attempt === undefined) throw new Error('Expected the queued item.');
+
 // Commit this attempt's answer to the local queue; this example has no persistent store.
 await attempt.complete(attempt.value * 2);
+
 console.log(await jobs.result(ref));
 ```
 
@@ -135,11 +153,16 @@ mapping; settled mode does not hide defects by converting every exception into a
 ```ts
 import * as context from '@okikio/context';
 import * as queue from '@okikio/scheduler/queue';
+
 await using ctx = context.create({ id: 'operator' });
 await using jobs = queue.memory<string, string>();
+
+// Keep this source terminal so its old claims can never become current again.
 const source = await jobs.add(ctx, 'resize');
 await jobs.cancel(ctx, source);
 const page = await jobs.inspect({ state: 'cancelled', limit: 20, maximumScanned: 100 });
+
+// Redrive creates a distinct logical item; the required key deduplicates this operator request.
 const replacement = await jobs.redrive(ctx, source, { key: 'operator-retry-1' });
 console.log(page.entries, replacement.id !== source.id);
 ```

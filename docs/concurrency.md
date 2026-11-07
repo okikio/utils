@@ -43,6 +43,55 @@ Expected output:
 [5,6,5]
 ```
 
+The byte counts above show input order, but local data URLs do not make a useful demonstration of a slow provider.
+For that distinction, give three named tasks an explicit gate. `second` and `third` finish before `first`, while the
+consumer still receives `first`, `second`, `third`:
+
+```ts runnable=ordered-tasks.ts
+import { mapPooledOrdered } from '@okikio/scheduler/concurrency';
+
+const releaseFirst = Promise.withResolvers<void>();
+const tailsFinished = Promise.withResolvers<void>();
+const completed: string[] = [];
+
+// Collecting starts iteration. All three calls fit, but the first cannot finish yet.
+const delivered = Array.fromAsync(mapPooledOrdered({
+	items: ['first', 'second', 'third'],
+	concurrency: 3,
+	async map(name) {
+		if (name === 'first') {
+			await releaseFirst.promise;
+		}
+		completed.push(name);
+		if (completed.length === 2) {
+			tailsFinished.resolve();
+		}
+		return name;
+	},
+}));
+
+await tailsFinished.promise;
+releaseFirst.resolve();
+const results = await delivered;
+console.log('Finished:', completed.join(', '));
+console.log('Delivered:', results.join(', '));
+```
+
+```text output
+Finished: second, third, first
+Delivered: first, second, third
+```
+
+| What is ordered? | This example's order | Why it differs |
+| --- | --- | --- |
+| Admission | first, second, third | Input supplies the next task while a slot is available. |
+| Completion | second, third, first | The explicit gate holds only the first task. |
+| Delivery | first, second, third | Ordered mapping waits for the earliest input position. |
+
+This is a deterministic illustration of ordering, not a network timing measurement. The completed tail values stay
+retained until they can be delivered. Choose completion-order mapping when that delay is unnecessary; each consumer
+must still decide how much output it can keep.
+
 ## Choose the result order and work limit
 
 `@okikio/scheduler/concurrency` runs independent asynchronous operations with a fixed upper bound. It owns admission,

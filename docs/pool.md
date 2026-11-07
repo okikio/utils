@@ -106,6 +106,21 @@ transition that can still create, lease, inspect, reject, or close a value has s
 
 This rule is what makes process shutdown safe.
 
+Read the following table as the life of one value, rather than four different values. A returned borrow can still be
+using pool capacity while its health check or close operation runs:
+
+| Stage | Who may use the value? | What must finish before shutdown can complete? |
+| --- | --- | --- |
+| Borrowed | The lease holder alone | The holder returns the lease. |
+| Checking after return | The pool's health callback | The check accepts reuse or sends the value to close. |
+| Idle | No caller; the pool retains it for reuse | Drain closes the retained value. |
+| Closing | The pool's close callback | Actual close settles, including any failure. |
+
+Creation is another pending operation: it may produce a value that drain must immediately close. Consequently,
+`stats().leased === 0` is useful information but is not a shutdown receipt. Await `drain()` or pool disposal to join
+all those transitions. The table omits acquisition validation and waiting callers, which cannot receive a lease after
+draining begins.
+
 ## Supply the real client's creation, health and close operations
 
 The earlier note program is complete and local. This configuration shows the later integration with a real client.

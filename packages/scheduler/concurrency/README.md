@@ -129,30 +129,59 @@ Suppose a report must preserve document order, but its first source is slow. Fas
 whole list to accumulate in memory. `map` requires an explicit item budget. This finite example blocks document 0 until
 three calls are admitted, then consumes one result and closes the iterator.
 
+Three counts matter here: **active** callbacks have not finished; **retained** results are finished but not yet
+delivered; **admitted** work includes both. With input ordering, a slow first document can hold back later results.
+Those finished results must still occupy the item budget, or every later document could accumulate behind the first.
+
 ```ts runnable=slow-document.ts
 import { map } from '@okikio/scheduler/concurrency';
+
+// Release the slow head only after both later results have actually finished.
 const releaseFirst = Promise.withResolvers<void>();
 const admitted = Promise.withResolvers<void>();
-let started = 0, sourceClosed = 0;
+const tailFinished = Promise.withResolvers<void>();
+let started = 0;
+let finishedTail = 0;
+let sourceClosed = 0;
+
+/** Supply more input than the budget; finally proves early return closes this source. */
 async function* documents() {
 	try {
-		for (let index = 0; index < 100; index++) yield { index, url: 'data:text/plain,first' };
+		for (let index = 0; index < 100; index++) {
+			yield { index, url: 'data:text/plain,first' };
+		}
 	} finally {
 		sourceClosed++;
 	}
 }
-const iterator = map(documents(), async (document, { signal }) => {
-	if (++started === 3) admitted.resolve();
-	if (document.index === 0) await releaseFirst.promise;
+
+const values = map(documents(), async (document, { signal }) => {
+	if (++started === 3) {
+		admitted.resolve();
+	}
+	if (document.index === 0) {
+		await releaseFirst.promise;
+	}
 	const response = await fetch(document.url, { signal });
-	return (await response.arrayBuffer()).byteLength;
-}, { concurrency: 3, maximumBuffered: 3, ordering: 'input' })[Symbol.asyncIterator]();
+	const bytes = (await response.arrayBuffer()).byteLength;
+	if (document.index !== 0 && ++finishedTail === 2) {
+		tailFinished.resolve();
+	}
+	return bytes;
+}, { concurrency: 3, maximumBuffered: 3, ordering: 'input' });
+
+const iterator = values[Symbol.asyncIterator]();
 const first = iterator.next();
 await admitted.promise;
+await tailFinished.promise;
 console.log('Admitted behind slow first document:', started);
+
 releaseFirst.resolve();
 console.log('First bytes:', (await first).value);
-await iterator.return?.();
+if (iterator.return) {
+	// Return joins admitted work and closes the source instead of reading the remaining 97 inputs.
+	await iterator.return();
+}
 console.log('Total admitted:', started, 'source closed:', sourceClosed);
 ```
 
@@ -161,6 +190,15 @@ Admitted behind slow first document: 3
 First bytes: 5
 Total admitted: 3 source closed: 1
 ```
+
+| Moment | Active | Finished but retained | Delivered |
+| --- | ---: | ---: | ---: |
+| Tail gate has resolved; first document still blocked | 1 | 2 | 0 |
+| First result is returned to this consumer | 0 | 2 | 1 |
+| Consumer returns the iterator | 0 | 0 | 1 |
+
+This trace counts items, not bytes or elapsed time. It describes the deliberate gates in this example; real network
+completion order varies.
 
 The two finished tail results still occupy admitted slots until the consumer advances. Returning the iterator stops
 admission, signals admitted work and joins it, then closes the source. This demonstrates an item bound for one deliberate
