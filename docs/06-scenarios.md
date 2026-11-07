@@ -22,8 +22,8 @@ Stage CRM file streams, preserve original columns/row occurrences, then hand cel
 Failure cases: Late explicit headers, malformed rows, byte/row/cell bounds, and chunk splits cannot silently alter
 original cells.
 
-Ownership: CSV owns the reader until iteration/disposal. The application deliberately materializes rows for editable
-drafts.
+Ownership: CSV releases the reader when reading ends or the caller closes the document. The application keeps the
+rows in memory so the user can edit the draft.
 
 Proof level: Reconstructed generic import composition and exact generated-cell oracles; no browser UI or IndexedDB
 recovery claim.
@@ -44,11 +44,11 @@ Parse Sitemap records and collect page URLs before the application admits bounde
 Failure cases: Namespaces, malformed/hostile documents, producer cancellation, and exhausted capacity must retain their
 distinct outcomes.
 
-Ownership: The parser owns only source iteration; the collector owns Fetch/browser providers and application admission
-policy.
+Ownership: The parser reads the sitemap source. The application collector chooses how to fetch pages, whether to
+use a browser, and how many pages it can start processing at once.
 
-Proof level: Public-import reconstruction plus protocol-scale parser and bounded-admission tests, without executing
-remote crawl workloads.
+Proof level: The tests use public imports to parse sitemap inputs and check the work limits. They do not crawl
+remote sites.
 
 Consumer source:
 
@@ -248,7 +248,8 @@ Carry declared failures and bounded diagnostics across schema, provider, and obs
 Failure cases: Unsafe accessors, unknown identities, invalid nested data, reporter errors, and circular diagnostics
 remain bounded without executing caller code.
 
-Ownership: Live causes remain local; encoded data belongs to transports; reporter output is never terminal authority.
+Ownership: The process keeps the original error. Other processes receive a copy prepared for transport. A report
+does not decide whether the operation succeeded or failed.
 
 Proof level: Focused public contracts and generic lifecycle projections are strongest current evidence; no historical
 deployment dependency is invented.

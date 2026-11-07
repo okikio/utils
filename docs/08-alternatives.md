@@ -104,8 +104,8 @@ the published package inventory and do not manufacture a behavioral competitor.
 | worker      | Existing real Worker cold/warm request/shutdown workload                                                             | A raw Worker omits validated correlation, owned admission, cancellation, and shutdown. Native host support is explicit.                                                                |
 | workflow    | Existing instruction identity, activity dispatch, and Scheduler replacement/replay workloads; equivalent-library N/A | Collection libraries have no instruction history or fencing contract. In-memory replacement is not persisted recovery after process death.                                             |
 
-Lodash and Underscore remain useful collection libraries, but their broad utility label does not make them appropriate
-baselines for capability definitions, lifecycle authority, or workflow recovery. A future comparison with a policy,
+Lodash and Underscore can serve as comparisons for collection operations. They do not answer how a program
+checks permissions, closes its resources, or restarts a saved workflow. A future comparison with a policy,
 resource, queue, or workflow system must first define shared persistence, delivery, failure, and retirement behavior,
 then run the same independently expected scenario. Adding a large deployment framework only to obtain an unrelated
 microbenchmark would not answer that question.

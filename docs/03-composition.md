@@ -140,8 +140,8 @@ console.log(JSON.stringify(Object.fromEntries(companies)));
 
 `parseStream()` returns `Promise<CsvStreamDocument>`. The document owns its byte reader and exposes one-shot
 `AsyncIterable<CsvRow>` data. `batch()` returns an async iterable of bounded row arrays. The mapper returns an async
-iterable of `{ domain: string; name: string }` in input order. The final `Map<string, string>` deliberately materializes
-the retained result; batching limits working groups, not that result's total size.
+iterable of `{ domain: string; name: string }` in input order. The final `Map<string, string>` keeps every accepted domain in memory. Batching limits how many rows each group
+contains. It does not limit the size of the final map.
 
 Fatal CSV parsing or budget violations reject with `CsvParseError`; recoverable diagnostics remain available on the
 document. Invalid application data rejects with `SchemaValidationError`. Failure exits the loop and disposes the
@@ -152,7 +152,7 @@ The child context gives this small example a two-second deadline. It returns an 
 from the import work, not from `timeout()`. The application chooses an appropriate deadline for its real source.
 Disposal clears the deadline wait and releases the child lifetime while leaving its parent independently owned.
 
-The context signal reaches the CSV byte reader, batch admission and mapping. For a network source, also pass it to
+The context passes the same stop signal to the CSV reader, the batch reader, and each row check. For a network source, also pass it to
 `fetch()` so cancellation reaches the request. Here the input is finite local bytes. The parser owns reader release, and
 explicit disposal cancels unfinished parsing. Concurrency joins admitted callbacks, so callbacks must cooperate with
 their signal rather than create detached work.

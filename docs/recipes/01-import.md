@@ -123,10 +123,11 @@ its signal.
 | The caller cancels                         | New work stops and admitted callbacks are joined.       | Pass the signal to any real lookup or save too.                                  |
 | A real save succeeds and a later row fails | Earlier effects may remain.                             | Stage writes or use an explicit transaction if partial acceptance is unsuitable. |
 
-The final arrays grow with accepted and rejected rows. Batching bounds working groups, not retained output. A large
-import should write to a bounded destination or explicitly budget its draft. Add Task when the UI needs cooperative
-pause/resume; add Workflow and persistent Storage when accepted work must resume after process loss. Neither is required
-for this finite local import.
+The two output arrays grow as the importer reads more contacts. Batching limits how many rows you work on
+at once, but it does not limit the arrays. For a large file, limit what you keep or write results out as you go.
+
+Add Task if a user needs to pause and resume the running import. Add Workflow and persistent Storage if the
+import must resume after the process stops. The local example can finish without either.
 
 [CSV](../../packages/format/csv/README.md), [Schema](../../packages/schema/README.md),
 [Concurrency](../../packages/scheduler/concurrency/README.md), and [Context](../../packages/context/README.md) explain

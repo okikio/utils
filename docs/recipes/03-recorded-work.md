@@ -228,9 +228,12 @@ too. It does not depict a transaction between an external write and history reco
 
 ## Understand the failure window before choosing persistence
 
-If a write succeeds and the process stops before its completion is recorded, a replacement can repeat that write.
-Recording instructions alone cannot eliminate this window. A database receipt committed with the business write or a
-receiver-side idempotency key supplies a different guarantee and belongs to that write's owner.
+Suppose the store saves the title and the process stops before Workflow records that step as complete.
+A replacement can run the step again. Saving a history alone cannot prevent a second write.
+
+If the store is a database, save a receipt and the title in one transaction. The next attempt can read the
+receipt before it writes. If the store is another service, use a key it recognizes on repeat requests.
+The code that writes the data must enforce the rule.
 
 Try using fresh memory history to see why the retained history matters. Do not keep the same identity while changing the
 meaning of the input or program and assume an old result still represents the new request. Changing a recorded program

@@ -62,8 +62,8 @@ console.log(JSON.stringify(domains));
 ["EXAMPLE.COM","example.com"]
 ```
 
-CSV owns quoting and column positions. The application owns domain validation and normalization. The umbrella changes
-how the utility is installed and imported. It adds no execution context or lifetime to this job.
+CSV keeps quoted values in one cell and finds the column by name. Your application decides whether a domain
+is valid and how to write it. The umbrella only changes how you install and import CSV.
 
 Use `@okikio/utils/all` only at an intentional composition root that needs broad namespace access. Its `context`, `task`
 and other namespaces give the same operations as the focused entries, but importing it reaches the complete suite graph.

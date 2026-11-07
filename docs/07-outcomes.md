@@ -138,17 +138,20 @@ its transport. A workflow instruction and its input can cross that transport; it
 activity contract. An application can register providers for chosen threads or processes and make their eligibility
 explicit.
 
-Recovery is re-admission of a validated attempt under authoritative dispatch and history, rather than live migration of
-the old JavaScript stack. The native [Worker restart scenario](../tests/restartable-worker.test.ts) terminates a Worker,
-replaces it, fences stale completion and replays accepted history through fresh runtime owners. The
-[process fan-out scenario](../tests/process-orchestration.test.ts) crashes a child, retries through a replacement host,
-and fans results back in. They model history ownership without a deployed database; memory providers lose state when
-their process exits. A durable backend must provide equivalent atomic claim and completion guarantees.
+When a worker stops, its running JavaScript stops with it. A replacement starts a new attempt and reuses results
+that were recorded before the failure. The queue must also reject a late result from an attempt that no longer
+has permission to finish.
+
+The [Worker restart test](../tests/restartable-worker.test.ts) stops a Worker and checks that its replacement reuses
+recorded results and that an old attempt cannot overwrite them. The
+[child process test](../tests/process-orchestration.test.ts) stops a child, retries on a replacement, and gathers the
+results. Both tests use memory, so stopping the process that holds the history loses it. If your backend saves
+that history, it must also prevent two attempts from claiming or completing the same job at once.
 
 The abstraction can represent future host, cluster, pod and container placement. This repository currently implements
 local execution, standard Workers and child processes. It supplies no Kubernetes scheduler, container migration or
-deployed cross-machine storage adapter. Adding one requires explicit admission, transport, fencing, resource ownership
-and failure tests at that boundary.
+deployed cross-machine storage adapter. To add one, decide where jobs may run, how they cross machines, who closes each resource, and how to reject late
+results from replaced workers. Test those rules against failures in that environment.
 
 ## Use local runtime APIs or install globals explicitly
 

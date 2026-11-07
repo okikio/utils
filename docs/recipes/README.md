@@ -10,9 +10,9 @@ curriculum.
 | Reuse a search action and restore its saved input | [02 — Search and drafts](./02-search.md)    | Connect Query, Commands, Context state, and an explicit backing store.                |
 | Reuse completed jobs in a multi-step operation    | [03 — Recorded work](./03-recorded-work.md) | Connect Activity, resources, engine placement, dispatch, history, and Workflow.       |
 
-For smaller combinations, [Composition](../03-composition.md) covers bounded import, sitemap discovery, and a
-controllable manifest save. For actual process-loss recovery, the [durable workflow guide](../workflows/01-basics.md)
-connects the service, database, and executors; the recorded-work recipe explicitly uses memory.
+For a smaller example, see [Composition](../03-composition.md). It covers importing CSV, finding allowed
+URLs, and saving a file list. The recorded-work recipe keeps its history in memory. To resume work after a
+process stops, follow the [workflow guide](../workflows/01-basics.md) to connect a service, database, and workers.
 
 ## Run and adapt a recipe
 

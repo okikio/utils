@@ -4,12 +4,11 @@ This maintainer record describes an earlier transfer of utilities from Core, Int
 application setup guide. To add utilities to your own application, start with the complete
 [composition examples](./03-composition.md); the application keeps its business policy and host ownership.
 
-The transfer changed standalone Utils; Core, Intelligence and Signals supplied the motivating use cases. Use the current
-package code and tests as API authority. The application snapshots below explain provenance, not current integration
-instructions.
+The transfer changed standalone Utils; Core, Intelligence and Signals supplied the motivating use cases. Read the current package code and tests for the API you can use today. The application snapshots below show where
+the ideas came from. They do not show how to connect those applications to the current packages.
 
 Source snapshots inspected for this adoption: Core `776500556870`, Intelligence `c953eeaecec8`, and Signals
-`d44923d32774`. Existing standalone working changes were preserved. These revisions identify source provenance, not
+`d44923d32774`. Existing standalone working changes were preserved. These revisions show where the code came from, not
 deployed application versions.
 
 The utility adoption below predates the separately implemented

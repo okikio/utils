@@ -22,9 +22,10 @@ call. Ask what each call returns. That tells you how to use it with normal JavaS
 | Definition             | Supply it to an implementation or runner.                  | An activity definition describes schemas; declaring it does not perform the job. |
 | Workflow operation     | Hand the instruction to the workflow runner, which records its result. | `activity.request()` describes a job for the scheduler.             |
 
-There is still an ordinary function doing useful work. A context carries its supporting state. A task adds a control
-handle. An activity checks a named call contract. A workflow records instruction completions. Start with the smallest of
-these that meets the requirement.
+Start with an ordinary function. If a download needs a stop signal and cleanup, give it a Context. If the caller
+needs to pause the work or see its progress, use a Task. An Activity names a job and checks what goes in and comes out.
+A Workflow records the results of its steps so it can reuse them when it runs again. Add the piece that solves the
+problem you have.
 
 For example, [Context's download demo](../packages/context/README.md#download-with-a-budget) calls real `fetch`, reads
 text, and returns `Promise<string>`. The context supplies a signal; it does not become the response or require a special
@@ -149,8 +150,8 @@ For an import, follow [the complete CSV composition](./03-composition.md#import-
 cells, Schema checks their meaning, Streams groups them, Concurrency limits active row operations, and Context carries
 their stop request. The application chooses what to store and whether partially accepted rows should be rolled back.
 
-For page discovery, follow [the Sitemap composition](./03-composition.md#discover-page-urls). Sitemap provides candidate
-URLs. The application owns crawl permission, fetching, redirects, and scheduling.
+For page discovery, follow [the Sitemap composition](./03-composition.md#discover-page-urls). Sitemap reads possible
+page addresses. You decide which addresses you can fetch, which redirects to follow, and when to start each fetch.
 
 For a local save, follow
 [the resource and task composition](./03-composition.md#share-a-resource-with-a-finite-operation). The task performs

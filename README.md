@@ -107,8 +107,9 @@ read. Pass `operation.signal` to each cooperating operation; merely creating a C
 
 ## Add progress and test the import's deadline
 
-A Context owns cancellation, deadlines and registered cleanup. A state cell owns updates; its reader grants only reading
-and observation. A view can attach that reader while borrowing the existing lifetime.
+The Context tells the import when to stop and runs cleanup when it closes. A state cell holds the current progress.
+Give the display the cell's reader so it can watch for changes without making them. A Context view can carry that
+reader without creating a second deadline or taking over cleanup.
 
 ```ts runnable=progress-lifetime.ts
 import * as context from '@okikio/context';
@@ -253,8 +254,9 @@ package names and changed ownership; historical delivery receipts are kept separ
 
 ## Work on the repository
 
-Mise owns the pinned toolchain and task families. The private `@okikio/tools` workspace owns repository programs (see [tools](tools/README.md)); tests live with their packages or in
-`tests/` for cross-package flows.
+Mise selects the tool versions and runs the repository commands. The programs those commands call live in
+[the private tools workspace](tools/README.md). A package keeps its own tests beside its code. Tests that
+use several packages together live in `tests/`.
 
 For a ZIP checkout, install [Mise](https://mise.jdx.dev/getting-started.html) version 2026.10.3 or newer, then extract
 the archive. Run the following commands from the directory containing the extracted `utils` folder. These tasks work

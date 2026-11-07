@@ -116,11 +116,13 @@ flowchart TD
     Slot --> Reopen[Next owner restores input]
 ```
 
-Follow the command downward: validation and local search happen before saving, and the backing slot accepts the
-write before the result cell publishes. Reopening reads the same slot under a new owner. Saving and publishing remain
-separate operations, not an atomic transaction. Browser event binding and rendering are
-deliberately outside the local program. The cell reports results; it does not become the authority for authorizing a
-search.
+Follow the arrows from the search control down. The command checks the query and finds matching names before
+it saves the URL. Once storage confirms the save, the command gives the new results to the screen. A later
+screen can open the same slot to restore the input.
+
+If saving succeeds but updating the screen fails, the saved URL can still change. The program does not update
+both in one transaction. It leaves the actual browser listeners and rendering to your application. A result
+cell can display names, but your application still decides which searches are allowed.
 
 ## Adapt the workflow deliberately
 
