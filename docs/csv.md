@@ -17,7 +17,10 @@ Run from this checkout after `mise run prepare -- --kind deps`. Save the runnabl
 
 ```ts runnable=example.ts
 import * as csv from '@okikio/format/csv';
-const document = csv.parse('Company,Email,Note\n"Ada, Inc.",ada@example.com,"hello, world"\n', { headerRow: 1 });
+
+const source = 'Company,Email,Note\n"Ada, Inc.",ada@example.com,"hello, world"\n';
+const options = { headerRow: 1 };
+const document = csv.parse(source, options);
 // Select by the parsed header key so a changed column order does not select the wrong field.
 const email = document.columns.find((column) => column.key === 'email');
 if (email === undefined) throw new Error('The contact file needs an Email column.');
@@ -70,10 +73,16 @@ Use the writer for quoted scalar framing instead of assembling cells by hand:
 ```ts runnable
 import * as csv from '@okikio/format/csv';
 import { cell, comma, recordEnd } from '@okikio/format/csv/write';
-const values = ['a,b', 'line\nbreak', ''];
-const text = ['first', 'second', 'third'].join(comma) + recordEnd + values.map(cell).join(comma) + recordEnd;
+
+// Each source cell is one value, even when it contains commas or line breaks.
+const cells = ['a,b', 'line\nbreak', ''];
+const header = ['first', 'second', 'third'].join(comma);
+const encodedRow = cells.map(cell).join(comma);
+const text = header + recordEnd + encodedRow + recordEnd;
+
 const document = csv.parse(text, { headerRow: 1 });
-console.log(JSON.stringify(document.rows[0]?.values));
+const parsedFields = document.rows[0]?.values;
+console.log(JSON.stringify(parsedFields));
 ```
 
 Expected output:
@@ -123,6 +132,8 @@ import * as csv from '@okikio/format/csv';
 const source = new Response('Company,Email,Note\n"Ada, Inc.",ada@example.com,"hello, world"\n').body!;
 const cancel = new AbortController();
 let saved = 0;
+
+/** Validate one contact before counting its accepted write; replace this sink with an awaited real save. */
 async function saveContact(email: string): Promise<void> {
 	if (!email.includes('@')) throw new Error('Invalid contact email.');
 	saved++;
@@ -141,7 +152,10 @@ try {
 	// Select by the parsed header key so a changed column order does not select the wrong field.
 	const email = document.columns.find((column) => column.key === 'email');
 	if (email === undefined) throw new Error('Missing Email column.');
-	for await (const row of document.rows) await saveContact(row.values[email.index] ?? '');
+	for await (const row of document.rows) {
+		// Await the sink before asking for another row: a slow save limits input consumption.
+		await saveContact(row.values[email.index] ?? '');
+	}
 	console.log('Contacts saved:', saved);
 } finally {
 	cancel.abort();

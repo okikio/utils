@@ -31,6 +31,39 @@ console.log(records.map((record) => record.loc));
 // ['https://example.com/a', 'https://example.com/b']
 ```
 
+An index introduces one extra step: its addresses name other sitemap documents rather than pages. Save this complete
+example as sitemap-index.ts and run it with the same checkout setup as the streaming example below. The output selects
+the kind and location fields so that this distinction remains visible.
+
+```ts runnable=sitemap-index.ts
+import * as sitemap from '@okikio/format/sitemap';
+
+const text = `
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap>
+    <loc>https://example.com/pages.xml</loc>
+  </sitemap>
+</sitemapindex>`;
+const records = sitemap.parse({ url: 'https://example.com/index.xml', text });
+console.log(JSON.stringify(records.map(({ kind, loc }) => ({ kind, loc }))));
+```
+
+```text output
+[{"kind":"sitemap","loc":"https://example.com/pages.xml"}]
+```
+
+```text
+index.xml
+└── pages.xml             child source; application fetches this document
+    ├── /a                page candidate from that child's contents
+    └── /b                page candidate from that child's contents
+```
+
+The tree shows a possible second document, not recursive work the parser performed. The application owns fetching the
+child, checking its status, bounding the number of nested sources and applying crawl policy to the resulting pages.
+The [parser limits](../../packages/format/sitemap/README.md#retain-complete-input-failure-evidence) bound inspection of
+each supplied document; they do not bound an application that keeps following new sources forever.
+
 For unknown or large input, use `parseStream()` as in the complete example below. Its `onRecord` callback is awaited, so
 a slower consumer applies backpressure instead of forcing the package to retain the complete record set.
 

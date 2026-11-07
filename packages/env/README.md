@@ -28,6 +28,7 @@ From a checkout of this experimental workspace, run `mise trust`, `mise install`
 ```ts runnable
 import * as env from '@okikio/env';
 import * as schema from '@okikio/schema';
+
 // Define validation once. Parsing reads only the explicit source supplied below.
 const Service = env.define({
 	PORT: env.variable(
@@ -35,6 +36,7 @@ const Service = env.define({
 		{ description: 'TCP port used by the service.' },
 	),
 });
+
 // The source contains text; the schema converts and checks it before application use.
 const values = Service.parseSync(env.record({ PORT: '4321' }));
 console.log('Listen on port', values.PORT);
@@ -78,7 +80,13 @@ const Service = define({
 		{ description: 'Port on which the service listens.' },
 	),
 });
-const source = merge(record({ HOST: '127.0.0.1', PORT: '8787' }), record({ PORT: '4321' }));
+
+const deployment = record({ HOST: '127.0.0.1', PORT: '8787' });
+const testOverride = record({ PORT: '4321' });
+// Lowest precedence first; an absent field falls through to an earlier source.
+const source = merge(deployment, testOverride);
+
+// Convert selected strings before any startup resource is acquired.
 const config = Service.parseSync(source);
 console.log(`http://${config.HOST}:${config.PORT}`);
 ```
@@ -144,6 +152,7 @@ Save this complete variation as `port-provenance.ts` and run `mise exec -- deno 
 import * as env from '@okikio/env';
 import * as schema from '@okikio/schema';
 import { inspect, resolve } from '@okikio/env/resolve';
+
 // Define validation once. Parsing reads only the explicit source supplied below.
 const Service = env.define({
 	PORT: env.variable(schema.coerce.number({ integer: true, minimum: 1, maximum: 65535 }), {

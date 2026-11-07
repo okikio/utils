@@ -17,6 +17,18 @@ Constructors perform no I/O. Memory acquires no resources; Web Storage borrows i
 borrows the selected Postgres.js pool. Disposing a Context cell leaves the slot, host client, and saved value intact.
 The application owns key deletion and closes shared clients at their real lifetime's end.
 
+A version is a comparison token, not a timestamp or permission. Two writers can read the same version; coordination
+must make comparing that version and replacing its value one operation.
+
+| Backing and coordination | Who may compete? | How a stale writer learns about a change |
+| --- | --- | --- |
+| One shared memory store | Owners using that exact store object | Conditional save rejects the old version; reload reads the winner. |
+| Web Storage, `single-writer` | Only the one writer promised by the application | Other writers are unsupported; the promise must hold outside this adapter too. |
+| Web Storage, `locked` | Cooperating documents using the same Web Locks scope and name | Comparison and replacement share an exclusive lock; reload reads the winner. |
+| PostgreSQL | Clients using the same namespace/key on the authoritative database | Conditional row update rejects the old version; reload reads the winner. |
+
+Reload is an explicit decision. A storage event or a different process's write does not update an already opened cell.
+
 ## Reuse a memory slot across owners
 
 Keep the store object when a new owner needs the previous value within the same process. Each save and load uses a
@@ -54,6 +66,41 @@ console.log(restored.reader.get());
 ```text output
 Saved title
 ```
+
+## See why only one competing save succeeds
+
+This small store-level example makes the comparison visible. Both candidates expect `v1`; the first replacement
+changes it, so the second cannot overwrite that result. A Context cell uses this same store contract on your behalf.
+Run this complete program as `competing-saves.ts` after the checkout setup above.
+
+```ts runnable=competing-saves.ts
+import { memory, SnapshotSchema } from '@okikio/storage/state';
+
+const store = memory();
+const initial = SnapshotSchema.parse({ format: 1, contract: 'draft.v1', version: 'v1', value: 'Original' });
+await store.save(initial, { expectedVersion: undefined });
+
+// Both writers started from v1. Each proposes its own fresh replacement token.
+const left = SnapshotSchema.parse({ ...initial, version: 'left', value: 'Left edit' });
+const right = SnapshotSchema.parse({ ...initial, version: 'right', value: 'Right edit' });
+const accepted = await Promise.all([
+	store.save(left, { expectedVersion: 'v1' }),
+	store.save(right, { expectedVersion: 'v1' }),
+]);
+console.log(accepted.filter(Boolean).length);
+
+// Reload before deciding whether to merge or submit a new edit against the winner.
+console.log((await store.load())?.value);
+```
+
+```text output
+1
+Left edit
+```
+
+The memory adapter performs each comparison and replacement in one synchronous turn, so this ordered example accepts
+the left candidate. Across database clients, do not predict which writer wins. Use the accepted result and reload after
+a conflict rather than treating timing as an ownership rule.
 
 ## Browser storage
 

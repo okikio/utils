@@ -21,6 +21,8 @@ uses public workspace imports. At the checkout root, review `mise.toml`, run `mi
 import { Hono } from 'hono';
 import * as hono from '@okikio/hono';
 import * as http from '@okikio/server/http';
+
+// Hono owns route registration and route selection.
 const app = new Hono();
 app.get('/health', (ctx) => ctx.json({ status: 'ok' }));
 // Wrap Hono's Fetch entry point. Hono still selects routes; this does not open a listener.
@@ -53,17 +55,27 @@ import * as endpoint from '@okikio/server/endpoint';
 import * as response from '@okikio/http/response';
 import * as service from '@okikio/server/service';
 import * as schema from '@okikio/schema';
+
+// Declare portable response, endpoint and service contracts.
 const Healthy = response.ok(schema.object({ status: schema.string() }), {
 	id: 'health.ok',
 	description: 'Health status.',
 });
 const Health = endpoint.get({ id: 'health.get', path: '/health', responses: [Healthy] });
 const Api = service.define({ id: 'health', path: '/', endpoints: [Health] });
+
+// Bind the declared operation to application behavior.
 const implementation = service.implement(Api, {
 	endpoints: [endpoint.handler(Health, () => response.create(Healthy, { status: 'ok' }))],
 });
+
+// The application owns this live runtime; mount only borrows it.
 await using runtime = service.create(service.compile(implementation), { host: {} });
+
+// Hono owns route registration and route selection.
 const app = new Hono();
+
+// Mount after creating the runtime, then retain it until request work drains.
 hono.mount(app, runtime);
 app.onError(hono.catchErrors());
 // Wrap Hono's Fetch entry point. Hono still selects routes; this does not open a listener.

@@ -17,11 +17,15 @@ Save the next complete TypeScript block as
 ```ts runnable=missing-file.ts
 import * as failure from '@okikio/result/failure';
 import * as schema from '@okikio/schema';
+
+// Declare the expected reason once; receivers must trust this declaration independently.
 const Missing = failure.define({
 	id: 'file.missing',
 	description: 'The requested file does not exist.',
 	data: schema.object({ path: schema.string() }),
 });
+
+// The local lookup can raise an occurrence of that declared reason.
 const files = new Map<string, string>([['photo.txt', 'saved']]);
 async function read(path: string): Promise<string> {
 	const text = files.get(path);
@@ -61,6 +65,27 @@ data needs an explicit codec. Freezing an outer wrapper does not establish that 
 
 A queue or Worker can encode a failure occurrence and decode it through a trusted failure catalog. An HTTP service can
 map the same failure to a declared HTTP problem without adding HTTP fields to the failure definition.
+
+To carry the missing-file reason to another component, create one occurrence, encode it as data, and decode against
+that receiver's trusted definitions. Append this to the earlier program; it reuses its exact Missing declaration.
+
+```ts
+const occurrence = await failure.create(Missing, { data: { path: 'absent.txt' } });
+
+// Encoding produces transport data, not a transferable JavaScript object identity.
+const wire = await failure.encode(occurrence);
+
+// A real receiver imports its own trusted catalog; incoming JSON cannot extend it.
+const restored = await failure.decode(wire, [Missing]);
+console.log(failure.is(restored, Missing)); // true
+```
+
+```text
+Trusted definition → one occurrence → encoded wire data → receiver resolves ID in trusted catalog → checked occurrence
+```
+
+The receiver catalog is the authority in the last step. Unknown IDs cannot introduce new definitions, and known IDs
+still require valid data. Encoding does not choose a transport or make an arbitrary error safe to persist.
 
 ## Durable data
 

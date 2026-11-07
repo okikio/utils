@@ -71,13 +71,17 @@ const encoder = new TextEncoder();
 const state = create('sha256');
 let fork: ReturnType<typeof create> | undefined;
 try {
+	// Hash the shared prefix once before separating the two possible suffixes.
 	state.update(encoder.encode('prefix:'));
+	// clone() copies the current state; future writes no longer affect the other branch.
 	fork = state.clone();
 	state.update(encoder.encode('left'));
+	// Each suffix extends only its own state, producing a different complete input.
 	fork.update(encoder.encode('right'));
 	console.log(hex(state.digest()) === await sha256('prefix:left'));
 	console.log(hex(fork.digest()) === await sha256('prefix:right'));
 } finally {
+	// Release both states after success or failure; digesting does not reset them for reuse.
 	state.destroy();
 	fork?.destroy();
 }

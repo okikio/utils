@@ -53,11 +53,16 @@ rather than choosing a crawler.
 
 ```ts runnable=focused-example.ts
 import * as sitemap from '@okikio/format/sitemap';
-const text =
-	'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.com/guide</loc></url></urlset>';
-console.log(
-	JSON.stringify(sitemap.locations({ url: 'https://example.com/sitemap.xml', contentType: 'application/xml', text })),
-);
+
+const text = `
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://example.com/guide</loc>
+  </url>
+</urlset>`;
+const source = { url: 'https://example.com/sitemap.xml', contentType: 'application/xml', text };
+// locations() reads supplied XML. It does not fetch the page named by loc.
+console.log(JSON.stringify(sitemap.locations(source)));
 ```
 
 Expected output:

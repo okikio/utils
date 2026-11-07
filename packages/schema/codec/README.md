@@ -28,6 +28,8 @@ Save this complete variation as `timestamp-codec.ts` and run `mise exec -- deno 
 ```ts runnable=timestamp-codec.ts
 import * as schema from '@okikio/schema';
 import * as codec from '@okikio/schema/codec';
+
+// Accept one canonical spelling and reject dates that JavaScript would normalize.
 const UtcTextSchema = schema.refine(
 	schema.string(),
 	(text) =>
@@ -35,6 +37,8 @@ const UtcTextSchema = schema.refine(
 		Number.isFinite(Date.parse(text)) && new Date(text).toISOString() === text,
 	'Use a valid millisecond UTC timestamp.',
 );
+
+// Author both directions: decoding alone cannot supply the inverse policy.
 const TimestampCodec = codec.define({
 	decode: schema.transform(UtcTextSchema, (text) => new Date(text)),
 	encode: schema.transform(
@@ -46,10 +50,14 @@ const TimestampCodec = codec.define({
 		(date) => date.toISOString(),
 	),
 });
+
+// Compose the conversion into a record, then use the decoded Date.
 const record = codec.object({ savedAt: TimestampCodec });
 const profile = await codec.decode(record, { savedAt: '2026-01-01T00:00:00.000Z' });
 console.log(profile.savedAt instanceof Date);
 console.log(JSON.stringify(await codec.encode(record, profile)));
+
+// A bad saved field produces a path the caller can show beside that field.
 try {
 	await codec.decode(record, { savedAt: 'yesterday' });
 } catch (error) {

@@ -19,7 +19,9 @@ Prepare the checkout from its root with `mise trust`, `mise install` and `mise r
 <!doctype html>
 <meta charset="utf-8">
 <title>Choose a report</title>
-<section id="reports" tabindex="0" aria-label="Report list"><p>Focus here, then press j or k.</p></section>
+<section id="reports" tabindex="0" aria-label="Report list">
+  <p>Focus here, then press j or k.</p>
+</section>
 <p id="selected" role="status">Report 1</p>
 <script type="module" src="report-navigation.js"></script>
 ```
@@ -34,8 +36,15 @@ function select(amount: number): void {
 	index = Math.max(0, Math.min(2, index + amount));
 	status.textContent = `Report ${index + 1}`;
 }
-const stop = keys.listen(panel, [{ key: 'j', run: () => select(1) }, { key: 'k', run: () => select(-1) }]);
+
+// Each offset moves relative to the current choice: +1 next, -1 previous.
+const stop = keys.listen(panel, [
+	{ key: 'j', run: () => select(1) },
+	{ key: 'k', run: () => select(-1) },
+]);
 panel.focus();
+
+// Teardown removes these listeners; a component should also stop when it unmounts.
 window.addEventListener('pagehide', () => stop(), { once: true });
 ```
 

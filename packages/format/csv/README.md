@@ -27,7 +27,10 @@ Save the following module as `example.ts` and run `mise exec -- deno run example
 
 ```ts runnable=example.ts
 import * as csv from '@okikio/format/csv';
-const document = csv.parse('Company,Email,Note\n"Ada, Inc.",ada@example.com,"hello, world"\n', { headerRow: 1 });
+
+const source = 'Company,Email,Note\n"Ada, Inc.",ada@example.com,"hello, world"\n';
+const options = { headerRow: 1 };
+const document = csv.parse(source, options);
 // Select by the parsed header key so a changed column order does not select the wrong field.
 const email = document.columns.find((column) => column.key === 'email');
 if (email === undefined) throw new Error('The contact file needs an Email column.');
@@ -53,12 +56,15 @@ leaves the content as text; it does not decide what a contact record must contai
 ## Read a contact by column name
 
 Once CSV quoting is handled, the rest is ordinary array and object code. Use the normalized column key to find a cell
-instead of assuming every export puts email in the first column.
+instead of assuming every export keeps email at one fixed position. The next export reorders the same three fields;
+the lookup still selects the email, while a fixed second-column index would now select the note.
 
 ```ts runnable=contact-preview.ts
 import { parse } from '@okikio/format/csv';
 
-const document = parse('Company,Email,Note\n"Ada, Inc.",ada@example.com,"hello, world"\n', { headerRow: 1 });
+// This export moved Email to the first column. Header lookup still finds it.
+const source = 'Email,Note,Company\nada@example.com,"hello, world","Ada, Inc."\n';
+const document = parse(source, { headerRow: 1 });
 const emailColumn = document.columns.find((column) => column.key === 'email');
 if (emailColumn === undefined) throw new Error('The contact file needs an Email column.');
 const addresses = document.rows.map((row) => row.values[emailColumn.index] ?? '');

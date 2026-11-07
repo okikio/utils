@@ -24,6 +24,16 @@ validated value back to a different external form.
 
 The codec utility does not own transport, persistence, HTTP, or provider behavior.
 
+These are three different values, even when a console makes them look similar:
+
+| Stage | Example | What the next operation can do |
+| --- | --- | --- |
+| Saved field | `'2026-01-01T00:00:00.000Z'` | Decode the string with the timestamp codec. |
+| Application field | A `Date` object | Call methods such as `getUTCFullYear()`. |
+| JSON text | `'{"createdAt":"2026-01-01T00:00:00.000Z"}'` | Parse the text into a record, then decode its fields. |
+
+`JSON.parse()` alone does not create a Date. Conversely, the codec returns a checked record, not a file or HTTP response.
+
 ## Convert a complete stored user record
 
 Object, optional, nullable and array codecs apply the same two directions to larger values. A missing optional field
@@ -33,17 +43,23 @@ and one visit.
 ```ts runnable=stored-user.ts
 import { array, decode, encode, nullable, object, optional } from '@okikio/schema/codec';
 import { DateSchema as InstantCodec } from '@okikio/schema/time';
+
+// Declare how each saved field becomes an application value.
 const UserCodec = object({
 	createdAt: InstantCodec,
 	deletedAt: optional(nullable(InstantCodec)),
 	visits: array(InstantCodec),
 });
+
+// Decode before application code calls Date methods.
 const user = await decode(UserCodec, {
 	createdAt: '2026-01-01T00:00:00.000Z',
 	deletedAt: null,
 	visits: ['2026-01-02T00:00:00.000Z'],
 });
+
 console.log(user.createdAt.getUTCFullYear(), user.deletedAt);
+// Encode the fields first; JSON then turns the saved record into text.
 console.log(JSON.stringify(await encode(UserCodec, user)));
 ```
 
@@ -67,6 +83,8 @@ Save this complete variation as `reload-user.ts` and run `mise exec -- deno run 
 import * as codec from '@okikio/schema/codec';
 import * as schema from '@okikio/schema';
 import { DateSchema } from '@okikio/schema/time';
+
+// The same field contract is used when reopening the saved record.
 const UserCodec = codec.object({
 	createdAt: DateSchema,
 	deletedAt: codec.optional(codec.nullable(DateSchema)),
@@ -77,12 +95,15 @@ const user = await codec.decode(UserCodec, {
 	deletedAt: null,
 	visits: ['2026-01-02T00:00:00.000Z'],
 });
+
 const saved = await codec.encode(UserCodec, user);
 // JSON owns text serialization; the codec owns checked field conversions.
 const text = JSON.stringify(saved);
 const loaded: unknown = JSON.parse(text);
 const reopened = await codec.decode(UserCodec, loaded);
 console.log(reopened.visits[0]?.getUTCDate());
+
+// Invalid saved data names the field that needs correction.
 try {
 	await codec.decode(UserCodec, { ...saved, visits: ['yesterday'] });
 } catch (error) {

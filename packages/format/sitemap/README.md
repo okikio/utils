@@ -29,12 +29,17 @@ Save the following module as `example.ts` and run `mise exec -- deno run example
 
 ```ts runnable
 import * as sitemap from '@okikio/format/sitemap';
-const text =
-	'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://example.com/guide</loc></url></urlset>';
+
+const text = `
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://example.com/guide</loc>
+  </url>
+</urlset>`;
 // Supply local source text explicitly. Parsing these locations does not fetch pages or crawl the site.
-console.log(
-	JSON.stringify(sitemap.locations({ url: 'https://example.com/sitemap.xml', contentType: 'application/xml', text })),
-);
+const source = { url: 'https://example.com/sitemap.xml', contentType: 'application/xml', text };
+// locations() reads supplied XML. It does not fetch the page named by loc.
+console.log(JSON.stringify(sitemap.locations(source)));
 ```
 
 Expected output:
@@ -58,8 +63,12 @@ import { locations, parse } from '@okikio/format/sitemap';
 const source = {
 	url: 'https://example.com/sitemap.xml',
 	contentType: 'application/xml',
-	text:
-		'<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><sitemap><loc>https://example.com/pages.xml</loc></sitemap></sitemapindex>',
+	text: `
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap>
+    <loc>https://example.com/pages.xml</loc>
+  </sitemap>
+</sitemapindex>`,
 };
 // locations() keeps the child address too; only parse() retains its source/page distinction.
 console.log(JSON.stringify(locations(source)));

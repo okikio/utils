@@ -145,8 +145,14 @@ Save this complete variation as `example-3.ts` and run `mise exec -- deno run ex
 
 ```ts runnable
 import { chunk, index } from '@okikio/collection/iterable';
-for (const values of chunk([1, 2, 3], 2)) console.log(JSON.stringify(values));
+
+// Lazy chunking reads only the next group needed by this loop.
+for (const values of chunk([1, 2, 3], 2)) {
+	console.log(JSON.stringify(values));
+}
 const rows = [{ id: 'a', value: 1 }, { id: 'a', value: 2 }];
+
+// Indexing instead collects a Map, so both input and retained-key limits are required.
 const selected = index(rows, (row) => row.id, {
 	maximumItems: 2,
 	maximumKeys: 1,

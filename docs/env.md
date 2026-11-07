@@ -7,6 +7,24 @@ startup option.
 The application decides when to read its environment. Importing a reusable module should not discover configuration or
 start resources. Vendor metadata is optional; validation uses Standard Schema.
 
+A port setting may come from deployment defaults and then a test override. Source selection and validation are separate:
+a source can win precedence while still supplying an invalid port.
+
+| Source order | PORT input | Result |
+| --- | --- | --- |
+| Deployment first | 8787 | Used unless a later source supplies a string |
+| Test override last | 4321 | Replaces deployment PORT |
+| Later source omits PORT | undefined | Falls through to the deployment value |
+| Later source supplies an empty string | Empty text | Wins selection, then must pass the field schema |
+
+```text
+Raw sources → select by precedence → schema validates/converts → checked startup options → open listener
+                                              └── invalid input → report configuration error; do not start
+```
+
+The flow describes startup order, not a running server. Merging sources does not compose field definitions or give a
+copied definition the identity of its original. The examples keep those two operations separate.
+
 ## Parse a service port before opening a listener
 
 The application supplies port text and asks its environment definition for a checked number. Parsing happens before any
@@ -18,6 +36,7 @@ Run from this checkout after `mise run prepare -- --kind deps`. Save the runnabl
 ```ts runnable=package-task.ts
 import * as env from '@okikio/env';
 import * as schema from '@okikio/schema';
+
 // Define validation once. Parsing reads only the explicit source supplied below.
 const Service = env.define({
 	PORT: env.variable(
@@ -25,6 +44,7 @@ const Service = env.define({
 		{ description: 'TCP port used by the service.' },
 	),
 });
+
 // The source contains text; the schema converts and checks it before application use.
 const values = Service.parseSync(env.record({ PORT: '4321' }));
 console.log('Listen on port', values.PORT);
@@ -128,7 +148,13 @@ const ServiceEnvironment = env.define({
 		description: 'Service listener port.',
 	}),
 });
-const selected = env.merge(env.record({ PORT: '8787' }), env.record({ PORT: '4321' }));
+
+const deployment = env.record({ PORT: '8787' });
+const testOverride = env.record({ PORT: '4321' });
+// Supply sources from lowest to highest precedence.
+const selected = env.merge(deployment, testOverride);
+
+// Validation happens after source selection and before a listener could open.
 console.log(ServiceEnvironment.parseSync(selected).PORT);
 try {
 	ServiceEnvironment.parseSync(env.record({ PORT: '70000' }));

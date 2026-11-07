@@ -15,6 +15,8 @@ queue. A queue can stand alone without a workflow. A workflow store already owns
 the task table below; add another kind of state only when it serves a separate application need. Database credentials,
 namespace and payload contract remain explicit because guessing them could connect unrelated users or incompatible data.
 
+Choose a [storage task](#choose-a-storage-task) below when you need a queue, a workflow, or a transactional message rather than one saved value.
+
 ## Reopen a saved value through a different owner
 
 From the repository root, run `mise run prepare -- --kind deps` once. Save the complete block as the named `.ts` file and run
@@ -51,6 +53,8 @@ Saved title
 The same operation is described in the [focused guide](./state/README.md), including its ownership rules and failure
 behavior.
 
+## Choose a storage task
+
 | Reader task | Start here | Persistence boundary |
 | --- | --- | --- |
 | Restore an editor draft or cursor | [State adapters](./state/README.md) | Memory preserves local owner changes; Web Storage or SQL can survive process loss. |
@@ -84,6 +88,28 @@ For one draft, crawl cursor, or checkpoint, use `state.open` with a [state adapt
 works with local and stored state, while saved mutations are explicitly asynchronous. A stored cell retains one latest
 snapshot, exposes conflicts instead of overwriting another owner, and joins active storage work during disposal. Queue
 claims and Workflow history retain their own contracts and persistence protocols.
+
+## Decide what an interrupted write means
+
+A connection failure is not proof that a write failed. The database may have committed before its acknowledgement
+was lost. Repeating the write immediately can duplicate a business action or overwrite a newer decision.
+
+```text
+write requested
+├── acknowledged → continue with its returned version or receipt
+├── conflict → load current state and reconcile the competing change
+└── connection lost or owner stopped → outcome may be unknown
+    └── inspect the saved identity, version, or receipt
+        ├── accepted result found → use that result
+        ├── retry is permitted by the current contract → retry with that permission
+        └── outcome still uncertain → report uncertainty; do not assume failure
+```
+
+For a snapshot, reload and compare the current value/version before choosing a replacement. For a queue or workflow,
+inspect its receipt and current claim authority: a previous worker's identity does not grant a new lease. A business
+side effect outside the transaction needs its own repeat-safe key or reconciliation. The
+[stored-state guide](../../docs/context/03-stored-state.md) explains save outcomes; the
+[PostgreSQL recovery guide](../../docs/maintenance/07-recovery.md) covers host loss and recovery drills.
 
 ## Queue ownership and persistence
 
@@ -132,7 +158,11 @@ this program makes no connection. It demonstrates setup ownership, not a success
 import postgresjs from 'postgres';
 import * as postgres from '@okikio/storage/queue/postgres';
 import * as schema from '@okikio/schema';
+
+// The application owns this lazy pool and must close it after its borrowers.
 const database = postgresjs('postgres://fixture:fixture@127.0.0.1:1/example');
+
+// This adapter borrows the pool; construction does not request a connection.
 const jobs = postgres.open({
 	database,
 	namespace: 'example',
@@ -140,6 +170,8 @@ const jobs = postgres.open({
 	input: schema.string(),
 	output: schema.string(),
 });
+
+// Close the adapter before the shared pool it borrows.
 await jobs.close();
 await database.end();
 console.log('Closed without connecting.');

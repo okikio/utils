@@ -98,19 +98,32 @@ flags, owns its own RegExp, and resets its matching position on every read.
 
 Validation does not imply an inverse. Use `@okikio/schema/codec` when an application value needs a wire representation:
 
-```ts
+```ts runnable=timestamp-directions.ts
 import * as codec from '@okikio/schema/codec';
 import { DateSchema } from '@okikio/schema/time';
 
-const date = await codec.read(DateSchema, '2026-01-01T00:00:00.000Z');
-const timestamp = await codec.write(DateSchema, date);
+// The stored text cannot call Date methods until the decoder converts it.
+const timestamp = '2026-01-01T00:00:00.000Z';
+console.log(timestamp);
+const date = await codec.read(DateSchema, timestamp);
+console.log(date instanceof Date, date.getUTCFullYear());
+
+// The authored encoder converts the Date back to the saved representation.
+console.log(await codec.write(DateSchema, date));
+```
+
+```text output
+2026-01-01T00:00:00.000Z
+true 2026
+2026-01-01T00:00:00.000Z
 ```
 
 `Contract` accepts a Standard Schema or an explicit Codec. `read()` follows the validation/decode direction. `write()`
 uses the authored encoder, or an owned validator whose output is known to remain valid unchanged. It rejects generic
 validators and transformations without that capability. For an external validator, `codec.identity(schema)` is an
 explicit author promise that its output is accepted unchanged. Use `codec.define({ decode, encode })` whenever
-representations differ.
+representations differ. An identity codec for a string checks and returns a string unchanged; it does not teach the
+library how to turn a Date into that string. That conversion needs an encoder.
 
 Timestamp conversion uses the shared local Temporal implementation from `@okikio/duration/temporal`, which selects the
 host implementation or the existing fallback without installing a global. `schema/time` accepts four-digit UTC years and
@@ -444,21 +457,44 @@ direction explicitly. No profile installs Temporal globals.
 
 ## Validate a recursive value and an exact timestamp
 
+The input below has one parent and one child:
+
+```text
+parent: value 1
+└── child: value 2 (no children)
+```
+
+The depth and visit limits bound traversal before recursive validation begins. Visits include traversal through arrays
+and records, and a shared reference counts again on each visit; `maximumNodes` is not a count of business branches.
+An unexpectedly deep or large input fails instead of requiring unbounded traversal.
+
 Save this complete variation as `recursive-time.ts` and run `mise exec -- deno run recursive-time.ts` after the same checkout setup.
 
 ```ts runnable=recursive-time.ts
 import * as schema from '@okikio/schema';
 import * as codec from '@okikio/schema/codec';
 import { InstantSchema } from '@okikio/schema/time';
+
+// Each branch contains a number and zero or more branches of the same shape.
 interface Branch {
 	value: number;
 	children: Branch[];
 }
+
 const TreeSchema: schema.Reader<Branch, Branch> = schema.lazy<Branch>(
 	() => schema.object({ value: schema.number(), children: schema.array(TreeSchema) }),
 	{ maximumDepth: 16, maximumNodes: 100 },
 );
-console.log(TreeSchema.parse({ value: 1, children: [{ value: 2, children: [] }] }).children[0]!.value);
+
+const tree = {
+	value: 1,
+	children: [
+		{ value: 2, children: [] },
+	],
+};
+console.log(TreeSchema.parse(tree).children[0]!.value);
+
+// Exact timestamps are a separate conversion, unrelated to the tree's recursion.
 const instant = await codec.decode(InstantSchema, '1969-12-31T23:59:59.999999999Z');
 console.log(await codec.encode(InstantSchema, instant));
 console.log(schema.inspect(TreeSchema).output.supported);
