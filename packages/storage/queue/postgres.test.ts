@@ -20,7 +20,7 @@ function fixture(
 	options: Partial<
 		Pick<
 			adapter.Options<ReturnType<typeof schema.string>, ReturnType<typeof schema.string>>,
-			'capacity' | 'retention' | 'maximumBytes'
+			'capacity' | 'retention' | 'maximumBytes' | 'maximumWaiters'
 		>
 	> = {},
 ) {
@@ -405,6 +405,31 @@ describe('PostgreSQL queue authority', { skip: url === undefined, concurrency: f
 	});
 
 	describe('cancellation and transaction rollback', () => {
+		it('shares the local wait limit across claim and result polling and releases it on cancellation', async () => {
+			const { first, second } = fixture({ maximumWaiters: 1 });
+			await using queue = first;
+			await using replacement = second;
+			await using owner = context.create({ id: 'queue-owner' });
+			const ref = await queue.add(owner, 'saved');
+			const stop = new AbortController();
+			await using caller = context.create({ id: 'waiting-caller', signal: stop.signal });
+			const waiting = queue.result(caller, ref);
+			const cancelled = rejects(waiting, /caller stopped/);
+			try {
+				// Observe admission before attempting another waiter; a pending result consumes the only slot.
+				await until(async () => (await queue.stats()).waitingResults === 1);
+				await rejects(queue.claim(owner, { wait: true }), QueueCapacityError);
+			} finally {
+				stop.abort(new Error('caller stopped'));
+				await cancelled;
+			}
+
+			const [claim] = await queue.claim(owner, { wait: true, ref });
+			ok(claim);
+			await queue.complete(owner, claim, 'done');
+			strictEqual(await replacement.result(owner, ref), 'done');
+		});
+
 		it('cancels local waits and closes only the view, preserving the borrowed pool and persisted work', async () => {
 			const { first, second } = fixture();
 			const controller = new AbortController();

@@ -120,19 +120,25 @@ export function open<const Input extends Contract, const Output extends Contract
 class PostgresQueue<Input extends Contract, Output extends Contract>
 	implements Queue<ContractOutput<Input>, ContractOutput<Output>> {
 	readonly #options: Options<Input, Output>;
+	/** Compare the local admission contract with the policy already saved for this namespace. */
 	readonly #policy: ReturnType<typeof policy>;
 	readonly #poll: number;
 	readonly #maximumBytes: number;
 	readonly #maximumWaiters: number;
 	readonly #events = new EventBus<QueueEventType>();
 	readonly #observations: Queue<ContractOutput<Input>, ContractOutput<Output>>['events'];
+	/** Stop local polling and signal driver cancellation when this view closes. */
 	readonly #closed = new AbortController();
 	// These promises own admitted local SQL through driver settlement. Closing joins
 	// them; it neither deletes saved items nor closes the borrowed connection pool.
 	readonly #pending = new Set<Promise<unknown>>();
+	/** Once policy initialization succeeds, ordinary operations need no additional initialization query. */
 	#initialized = false;
+	/** All callers of close join the same local shutdown. */
 	#closing: Promise<void> | undefined;
+	/** Local claim polls count against the waiter budget until they settle. */
 	#waitingClaims = 0;
+	/** Local result polls and claim polls share the same waiter budget. */
 	#waitingResults = 0;
 
 	/** Validate configuration while leaving the borrowed database idle. */
