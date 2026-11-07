@@ -1,6 +1,6 @@
 {
 	"name": "@okikio/capability",
-	"version": "0.0.0",
+	"version": "1.0.0",
 	"type": "module",
 	"sideEffects": false,
 	"license": "MIT",
@@ -25,20 +25,20 @@
 		"./resource/session": "./resource/session/mod.ts"
 	},
 	"dependencies": {
-		"@okikio/collection": "workspace:^",
-		"@okikio/context": "workspace:^",
-		"@okikio/schema": "workspace:^",
-		"@okikio/scheduler": "workspace:^",
+		"@okikio/collection": "workspace:^1.0.0",
+		"@okikio/context": "workspace:^1.0.0",
+		"@okikio/schema": "workspace:^1.0.0",
+		"@okikio/scheduler": "workspace:^1.0.0",
 		"@okikio/observables": "^1.4.0",
 		"@std/encoding": "npm:@jsr/std__encoding@^1.0.11",
-		"@okikio/telemetry": "workspace:^",
-		"@okikio/duration": "workspace:^",
-		"@okikio/env": "workspace:^",
-		"@okikio/dispose": "workspace:^"
+		"@okikio/telemetry": "workspace:^0.1.0",
+		"@okikio/duration": "workspace:^0.1.0",
+		"@okikio/env": "workspace:^1.0.0",
+		"@okikio/dispose": "workspace:^0.1.0"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
-		"@okikio/authz": "workspace:^",
+		"@okikio/authz": "workspace:^0.1.0",
 		"@standard-schema/spec": "^1.1.0",
 		"mitata": "^1.0.34"
 	},

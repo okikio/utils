@@ -1,6 +1,6 @@
 {
 	"name": "@okikio/runtime",
-	"version": "0.0.0",
+	"version": "1.0.0",
 	"type": "module",
 	"sideEffects": false,
 	"license": "MIT",
@@ -25,15 +25,15 @@
 		"./deno/inspect": "./deno/inspect.ts"
 	},
 	"dependencies": {
-		"@okikio/context": "workspace:^",
+		"@okikio/context": "workspace:^1.0.0",
 		"@std/path": "npm:@jsr/std__path@^1.1.6",
-		"@okikio/streams": "workspace:^",
-		"@okikio/worker": "workspace:^",
-		"@okikio/dispose": "workspace:^"
+		"@okikio/streams": "workspace:^0.1.0",
+		"@okikio/worker": "workspace:^1.0.0",
+		"@okikio/dispose": "workspace:^0.1.0"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
-		"@okikio/schema": "workspace:^",
+		"@okikio/schema": "workspace:^1.0.0",
 		"mitata": "^1.0.34"
 	},
 	"publishConfig": {

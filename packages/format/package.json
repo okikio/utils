@@ -1,6 +1,6 @@
 {
 	"name": "@okikio/format",
-	"version": "0.0.0",
+	"version": "1.0.0",
 	"type": "module",
 	"sideEffects": false,
 	"license": "MIT",
@@ -20,10 +20,10 @@
 		".": "./mod.ts"
 	},
 	"dependencies": {
-		"@okikio/collection": "workspace:^",
+		"@okikio/collection": "workspace:^1.0.0",
 		"@std/csv": "npm:@jsr/std__csv@^1.0.6",
-		"@okikio/schema": "workspace:^",
-		"@okikio/streams": "workspace:^",
+		"@okikio/schema": "workspace:^1.0.0",
+		"@okikio/streams": "workspace:^0.1.0",
 		"@std/xml": "npm:@jsr/std__xml@^0.2.0"
 	},
 	"devDependencies": {

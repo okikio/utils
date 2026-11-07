@@ -1,6 +1,6 @@
 {
 	"name": "@okikio/hono",
-	"version": "0.0.0",
+	"version": "0.1.0",
 	"type": "module",
 	"sideEffects": false,
 	"license": "MIT",
@@ -8,13 +8,13 @@
 		".": "./mod.ts"
 	},
 	"dependencies": {
-		"@okikio/server": "workspace:^",
+		"@okikio/server": "workspace:^1.0.0",
 		"hono": "^4.13.5"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
-		"@okikio/http": "workspace:^",
-		"@okikio/capability": "workspace:^",
+		"@okikio/http": "workspace:^1.0.0",
+		"@okikio/capability": "workspace:^1.0.0",
 		"mitata": "^1.0.34"
 	},
 	"publishConfig": {

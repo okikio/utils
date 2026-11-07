@@ -1,6 +1,6 @@
 {
 	"name": "@okikio/activity",
-	"version": "0.0.0",
+	"version": "1.0.0",
 	"type": "module",
 	"sideEffects": false,
 	"license": "MIT",
@@ -17,17 +17,17 @@
 	},
 	"dependencies": {
 		"@standard-schema/spec": "^1.1.0",
-		"@okikio/collection": "workspace:^",
-		"@okikio/context": "workspace:^",
-		"@okikio/capability": "workspace:^",
-		"@okikio/result": "workspace:^",
-		"@okikio/pool": "workspace:^",
-		"@okikio/worker": "workspace:^",
-		"@okikio/schema": "workspace:^",
-		"@okikio/workflow": "workspace:^",
-		"@okikio/authz": "workspace:^",
-		"@okikio/streams": "workspace:^",
-		"@okikio/duration": "workspace:^"
+		"@okikio/collection": "workspace:^1.0.0",
+		"@okikio/context": "workspace:^1.0.0",
+		"@okikio/capability": "workspace:^1.0.0",
+		"@okikio/result": "workspace:^1.0.0",
+		"@okikio/pool": "workspace:^0.1.0",
+		"@okikio/worker": "workspace:^1.0.0",
+		"@okikio/schema": "workspace:^1.0.0",
+		"@okikio/workflow": "workspace:^1.0.0",
+		"@okikio/authz": "workspace:^0.1.0",
+		"@okikio/streams": "workspace:^0.1.0",
+		"@okikio/duration": "workspace:^0.1.0"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",

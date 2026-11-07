@@ -235,37 +235,37 @@ importers:
   packages/activity:
     dependencies:
       '@okikio/authz':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../authz
       '@okikio/capability':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../capability
       '@okikio/collection':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../collection
       '@okikio/context':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../context
       '@okikio/duration':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../duration
       '@okikio/pool':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../pool
       '@okikio/result':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../result
       '@okikio/schema':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../schema
       '@okikio/streams':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../streams
       '@okikio/worker':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../worker
       '@okikio/workflow':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../workflow
       '@standard-schema/spec':
         specifier: ^1.1.0
@@ -282,16 +282,16 @@ importers:
   packages/authz:
     dependencies:
       '@okikio/capability':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../capability
       '@okikio/collection':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../collection
       '@okikio/context':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../context
       '@okikio/schema':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../schema
       '@standard-schema/spec':
         specifier: ^1.1.0
@@ -308,38 +308,38 @@ importers:
   packages/capability:
     dependencies:
       '@okikio/collection':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../collection
       '@okikio/context':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../context
       '@okikio/dispose':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../dispose
       '@okikio/duration':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../duration
       '@okikio/env':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../env
       '@okikio/observables':
         specifier: ^1.4.0
         version: 1.4.0
       '@okikio/scheduler':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../scheduler
       '@okikio/schema':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../schema
       '@okikio/telemetry':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../telemetry
       '@std/encoding':
         specifier: npm:@jsr/std__encoding@^1.0.11
         version: '@jsr/std__encoding@1.0.11'
     devDependencies:
       '@okikio/authz':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../authz
       '@standard-schema/spec':
         specifier: ^1.1.0
@@ -368,22 +368,22 @@ importers:
   packages/context:
     dependencies:
       '@okikio/collection':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../collection
       '@okikio/dispose':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../dispose
       '@okikio/duration':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../duration
       '@okikio/observables':
         specifier: ^1.4.0
         version: 1.4.0
       '@okikio/schema':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../schema
       '@okikio/telemetry':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../telemetry
       '@std/async':
         specifier: npm:@jsr/std__async@^1.5.0
@@ -424,14 +424,14 @@ importers:
   packages/env:
     dependencies:
       '@okikio/collection':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../collection
       '@standard-schema/spec':
         specifier: ^1.1.0
         version: 1.1.0
     devDependencies:
       '@okikio/result':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../result
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
@@ -453,13 +453,13 @@ importers:
   packages/format:
     dependencies:
       '@okikio/collection':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../collection
       '@okikio/schema':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../schema
       '@okikio/streams':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../streams
       '@std/csv':
         specifier: npm:@jsr/std__csv@^1.0.6
@@ -491,7 +491,7 @@ importers:
         specifier: ^2.4.0
         version: 2.4.0
       '@okikio/streams':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../streams
       '@std/encoding':
         specifier: npm:@jsr/std__encoding@^1.0.11
@@ -511,17 +511,17 @@ importers:
   packages/hono:
     dependencies:
       '@okikio/server':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../server
       hono:
         specifier: ^4.13.5
         version: 4.13.5
     devDependencies:
       '@okikio/capability':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../capability
       '@okikio/http':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../http
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
@@ -534,22 +534,22 @@ importers:
   packages/http:
     dependencies:
       '@okikio/collection':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../collection
       '@okikio/dispose':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../dispose
       '@okikio/duration':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../duration
       '@okikio/hash':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../hash
       '@okikio/schema':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../schema
       '@okikio/streams':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../streams
       '@standard-schema/spec':
         specifier: ^1.1.0
@@ -575,22 +575,22 @@ importers:
   packages/input:
     dependencies:
       '@okikio/collection':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../collection
       '@okikio/context':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../context
       '@okikio/dispose':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../dispose
       '@okikio/duration':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../duration
       '@okikio/observables':
         specifier: ^1.4.0
         version: 1.4.0
       '@okikio/schema':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../schema
     devDependencies:
       '@std/expect':
@@ -604,19 +604,19 @@ importers:
   packages/pool:
     dependencies:
       '@okikio/context':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../context
       '@okikio/dispose':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../dispose
       '@okikio/duration':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../duration
       '@okikio/observables':
         specifier: ^1.4.0
         version: 1.4.0
       '@okikio/telemetry':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../telemetry
     devDependencies:
       '@std/expect':
@@ -630,16 +630,16 @@ importers:
   packages/query:
     dependencies:
       '@okikio/collection':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../collection
       '@okikio/duration':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../duration
       '@okikio/hash':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../hash
       '@okikio/schema':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../schema
       '@standard-schema/spec':
         specifier: ^1.1.0
@@ -656,14 +656,14 @@ importers:
   packages/result:
     dependencies:
       '@okikio/collection':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../collection
       '@okikio/schema':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../schema
     devDependencies:
       '@okikio/dispose':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../dispose
       '@standard-schema/spec':
         specifier: ^1.1.0
@@ -679,23 +679,23 @@ importers:
   packages/runtime:
     dependencies:
       '@okikio/context':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../context
       '@okikio/dispose':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../dispose
       '@okikio/streams':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../streams
       '@okikio/worker':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../worker
       '@std/path':
         specifier: npm:@jsr/std__path@^1.1.6
         version: '@jsr/std__path@1.1.6'
     devDependencies:
       '@okikio/schema':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../schema
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
@@ -708,25 +708,25 @@ importers:
   packages/scheduler:
     dependencies:
       '@okikio/collection':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../collection
       '@okikio/context':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../context
       '@okikio/duration':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../duration
       '@okikio/observables':
         specifier: ^1.4.0
         version: 1.4.0
       '@okikio/result':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../result
       '@okikio/schema':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../schema
       '@okikio/telemetry':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../telemetry
       '@standard-schema/spec':
         specifier: ^1.1.0
@@ -749,10 +749,10 @@ importers:
   packages/schema:
     dependencies:
       '@okikio/collection':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../collection
       '@okikio/duration':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../duration
       '@standard-schema/spec':
         specifier: ^1.1.0
@@ -784,37 +784,37 @@ importers:
   packages/server:
     dependencies:
       '@okikio/capability':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../capability
       '@okikio/collection':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../collection
       '@okikio/context':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../context
       '@okikio/duration':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../duration
       '@okikio/env':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../env
       '@okikio/http':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../http
       '@okikio/query':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../query
       '@okikio/result':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../result
       '@okikio/schema':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../schema
       '@okikio/telemetry':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../telemetry
       '@okikio/workflow':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../workflow
       '@standard-schema/spec':
         specifier: ^1.1.0
@@ -824,7 +824,7 @@ importers:
         version: '@jsr/std__async@1.5.0'
     devDependencies:
       '@okikio/authz':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../authz
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
@@ -837,37 +837,37 @@ importers:
   packages/storage:
     dependencies:
       '@okikio/capability':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../capability
       '@okikio/collection':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../collection
       '@okikio/context':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../context
       '@okikio/dispose':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../dispose
       '@okikio/duration':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../duration
       '@okikio/observables':
         specifier: ^1.4.0
         version: 1.4.0
       '@okikio/result':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../result
       '@okikio/scheduler':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../scheduler
       '@okikio/schema':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../schema
       '@okikio/telemetry':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../telemetry
       '@okikio/workflow':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../workflow
       postgres:
         specifier: 4.0.0
@@ -887,13 +887,13 @@ importers:
   packages/streams:
     dependencies:
       '@okikio/dispose':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../dispose
       '@okikio/observables':
         specifier: ^1.4.0
         version: 1.4.0
       '@okikio/schema':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../schema
     devDependencies:
       '@std/expect':
@@ -907,25 +907,25 @@ importers:
   packages/task:
     dependencies:
       '@okikio/capability':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../capability
       '@okikio/collection':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../collection
       '@okikio/context':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../context
       '@okikio/dispose':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../dispose
       '@okikio/observables':
         specifier: ^1.4.0
         version: 1.4.0
       '@okikio/scheduler':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../scheduler
       '@okikio/schema':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../schema
     devDependencies:
       '@std/expect':
@@ -939,29 +939,29 @@ importers:
   packages/telemetry:
     dependencies:
       '@okikio/collection':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../collection
       '@okikio/observables':
         specifier: ^1.4.0
         version: 1.4.0
       '@okikio/result':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../result
       '@okikio/schema':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../schema
     devDependencies:
       '@okikio/pool':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../pool
       '@okikio/scheduler':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../scheduler
       '@okikio/server':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../server
       '@okikio/worker':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../worker
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
@@ -1014,82 +1014,82 @@ importers:
   packages/utils:
     dependencies:
       '@okikio/activity':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../activity
       '@okikio/authz':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../authz
       '@okikio/capability':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../capability
       '@okikio/collection':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../collection
       '@okikio/context':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../context
       '@okikio/dispose':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../dispose
       '@okikio/duration':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../duration
       '@okikio/env':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../env
       '@okikio/format':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../format
       '@okikio/hash':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../hash
       '@okikio/hono':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../hono
       '@okikio/http':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../http
       '@okikio/input':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../input
       '@okikio/pool':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../pool
       '@okikio/query':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../query
       '@okikio/result':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../result
       '@okikio/runtime':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../runtime
       '@okikio/scheduler':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../scheduler
       '@okikio/schema':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../schema
       '@okikio/server':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../server
       '@okikio/storage':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../storage
       '@okikio/streams':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../streams
       '@okikio/task':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../task
       '@okikio/telemetry':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../telemetry
       '@okikio/worker':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../worker
       '@okikio/workflow':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../workflow
     devDependencies:
       mitata:
@@ -1100,22 +1100,22 @@ importers:
   packages/worker:
     dependencies:
       '@okikio/context':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../context
       '@okikio/dispose':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../dispose
       '@okikio/observables':
         specifier: ^1.4.0
         version: 1.4.0
       '@okikio/result':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../result
       '@okikio/schema':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../schema
       '@okikio/telemetry':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../telemetry
     devDependencies:
       '@standard-schema/spec':
@@ -1132,44 +1132,44 @@ importers:
   packages/workflow:
     dependencies:
       '@okikio/authz':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../authz
       '@okikio/capability':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../capability
       '@okikio/collection':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../collection
       '@okikio/context':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../context
       '@okikio/duration':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../duration
       '@okikio/observables':
         specifier: ^1.4.0
         version: 1.4.0
       '@okikio/result':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../result
       '@okikio/schema':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../schema
       '@okikio/task':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../task
       '@okikio/telemetry':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../telemetry
       '@std/encoding':
         specifier: npm:@jsr/std__encoding@^1.0.11
         version: '@jsr/std__encoding@1.0.11'
     devDependencies:
       '@okikio/dispose':
-        specifier: workspace:^
+        specifier: workspace:^0.1.0
         version: link:../dispose
       '@okikio/scheduler':
-        specifier: workspace:^
+        specifier: workspace:^1.0.0
         version: link:../scheduler
       '@standard-schema/spec':
         specifier: ^1.1.0

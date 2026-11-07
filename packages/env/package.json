@@ -1,6 +1,6 @@
 {
 	"name": "@okikio/env",
-	"version": "0.0.0",
+	"version": "1.0.0",
 	"type": "module",
 	"sideEffects": false,
 	"license": "MIT",
@@ -14,14 +14,14 @@
 	},
 	"dependencies": {
 		"@standard-schema/spec": "^1.1.0",
-		"@okikio/collection": "workspace:^"
+		"@okikio/collection": "workspace:^1.0.0"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
 		"fast-check": "^4.9.0",
 		"valibot": "^1.4.2",
 		"zod": "^4.5.4",
-		"@okikio/result": "workspace:^",
+		"@okikio/result": "workspace:^1.0.0",
 		"mitata": "^1.0.34"
 	},
 	"peerDependencies": {

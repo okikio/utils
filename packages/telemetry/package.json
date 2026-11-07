@@ -1,6 +1,6 @@
 {
 	"name": "@okikio/telemetry",
-	"version": "0.0.0",
+	"version": "0.1.0",
 	"type": "module",
 	"sideEffects": false,
 	"license": "MIT",
@@ -19,17 +19,17 @@
 		"./events": "./events.ts"
 	},
 	"dependencies": {
-		"@okikio/result": "workspace:^",
-		"@okikio/schema": "workspace:^",
-		"@okikio/collection": "workspace:^",
+		"@okikio/result": "workspace:^1.0.0",
+		"@okikio/schema": "workspace:^1.0.0",
+		"@okikio/collection": "workspace:^1.0.0",
 		"@okikio/observables": "^1.4.0"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
-		"@okikio/server": "workspace:^",
-		"@okikio/scheduler": "workspace:^",
-		"@okikio/pool": "workspace:^",
-		"@okikio/worker": "workspace:^",
+		"@okikio/server": "workspace:^1.0.0",
+		"@okikio/scheduler": "workspace:^1.0.0",
+		"@okikio/pool": "workspace:^0.1.0",
+		"@okikio/worker": "workspace:^1.0.0",
 		"mitata": "^1.0.34"
 	},
 	"optionalDependencies": {
