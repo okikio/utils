@@ -1,6 +1,6 @@
 /**
  * Compose and inspect Boolean expressions without a query definition or storage.
- * Leaves retain the caller's domain meaning. all(), any(), and not() add only
+ * Leaves retain the caller's domain meaning. and(), or(), and not() add only
  * Boolean structure; evaluate() delegates every leaf comparison to the caller.
  *
  * @example Apply alternatives to an ordinary value
@@ -70,9 +70,11 @@ export interface QueryExpressionLimits {
 export type QueryExpressionLeaf<Value> = Value extends QueryBooleanExpression<infer Leaf> ? Leaf : Value;
 
 /**
- * Require every supplied condition. At least one condition is required.
+ * Require every supplied condition (Boolean AND). Also exported as and().
+ * At least one condition is required; an empty group throws TypeError.
  * The child list is copied; leaf objects are borrowed and retain their types.
- * Use create() on a query definition to validate field values and permissions.
+ * Use create() on a query definition to validate field values and enabled operators.
+ * The application still owns authorization and record access.
  */
 export function all<const Inputs extends readonly [unknown, ...unknown[]]>(
 	...filters: Inputs
@@ -81,7 +83,10 @@ export function all<const Inputs extends readonly [unknown, ...unknown[]]>(
 	return { kind: 'all', filters: [...filters] } as QueryBooleanExpression<QueryExpressionLeaf<Inputs[number]>>;
 }
 
-/** Match at least one supplied condition. The nonempty child list is copied; leaf objects are borrowed. */
+/**
+ * Match at least one supplied condition (inclusive Boolean OR). Also exported as or().
+ * At least one condition is required. The child list is copied; leaf objects are borrowed.
+ */
 export function any<const Inputs extends readonly [unknown, ...unknown[]]>(
 	...filters: Inputs
 ): QueryBooleanExpression<QueryExpressionLeaf<Inputs[number]>> {
@@ -93,6 +98,76 @@ export function any<const Inputs extends readonly [unknown, ...unknown[]]>(
 export function not<const Input>(filter: Input): QueryBooleanExpression<QueryExpressionLeaf<Input>> {
 	return { kind: 'not', filter } as QueryBooleanExpression<QueryExpressionLeaf<Input>>;
 }
+
+/**
+ * Match when none of the supplied conditions match (Boolean NOR). Also exported as none().
+ *
+ * For example, nor(isSuspended, isDeleted) requires both conditions to be false.
+ * This builds NOT around an OR group, so a query definition must enable any and not.
+ * At least one condition is required. The child list is copied; leaves remain borrowed.
+ */
+export function nor<const Inputs extends readonly [unknown, ...unknown[]]>(
+	...filters: Inputs
+): QueryBooleanExpression<QueryExpressionLeaf<Inputs[number]>> {
+	return not(any(...filters)) as QueryBooleanExpression<QueryExpressionLeaf<Inputs[number]>>;
+}
+
+/**
+ * Match unless every supplied condition matches (Boolean NAND).
+ *
+ * For example, nand(isEditor, isOwner) rejects only an account matching both conditions.
+ * This builds NOT around an AND group; it is different from NOR, which requires all
+ * conditions to be false. A query definition must enable not. At least one condition
+ * is required. The child list is copied; leaves remain borrowed.
+ */
+export function nand<const Inputs extends readonly [unknown, ...unknown[]]>(
+	...filters: Inputs
+): QueryBooleanExpression<QueryExpressionLeaf<Inputs[number]>> {
+	return not(all(...filters)) as QueryBooleanExpression<QueryExpressionLeaf<Inputs[number]>>;
+}
+
+/**
+ * Match exactly one of two conditions (binary exclusive OR).
+ *
+ * For example, xor(hasEmail, hasPhone) matches one contact method, but not both.
+ * Exactly two arguments are required; JavaScript callers also receive TypeError for
+ * another arity. This is not a variadic odd-parity or exactly-one-of-many operation.
+ *
+ * The result uses only ALL, ANY and NOT nodes: (left AND NOT right) OR (NOT left AND right).
+ * Each input occurs twice. Inspection and query limits count those repeated occurrences,
+ * and evaluation can compare an input twice. Comparisons must be deterministic and free
+ * of effects. Leaves remain borrowed. Query definitions must enable any and not.
+ * PostgreSQL compilation retains SQL NULL/unknown semantics rather than converting NULL to false.
+ */
+export function xor<const Inputs extends readonly [unknown, unknown]>(
+	...filters: Inputs
+): QueryBooleanExpression<QueryExpressionLeaf<Inputs[number]>> {
+	if (filters.length !== 2) throw new TypeError('XOR requires exactly two conditions.');
+	const [left, right] = filters;
+	// Reuse the existing representation so URL encoding, SQL compilation and safety
+	// checks see the complete expression, including both occurrences of each input.
+	return any(all(left, not(right)), all(not(left), right)) as QueryBooleanExpression<
+		QueryExpressionLeaf<Inputs[number]>
+	>;
+}
+
+/**
+ * Match when two conditions have the same Boolean answer (binary exclusive NOR).
+ *
+ * xnor(hasEmail, hasPhone) matches both present or both absent. Exactly two arguments
+ * are required. This builds NOT around xor(), with the same borrowed leaves, repeated
+ * comparisons and expanded limit costs. SQL NULL remains unknown where SQL dictates;
+ * this builder does not supply a two-valued database comparison policy.
+ */
+export function xnor<const Inputs extends readonly [unknown, unknown]>(
+	...filters: Inputs
+): QueryBooleanExpression<QueryExpressionLeaf<Inputs[number]>> {
+	if (filters.length !== 2) throw new TypeError('XNOR requires exactly two conditions.');
+	return not(xor(...filters)) as QueryBooleanExpression<QueryExpressionLeaf<Inputs[number]>>;
+}
+
+// These names are the same functions, not alternate evaluators or new serialized node kinds.
+export { all as and, any as or, nor as none };
 
 /**
  * Evaluate an expression with the caller's own leaf comparison.

@@ -40,7 +40,7 @@ Run from this checkout after `mise run prepare -- --kind deps`. Save the runnabl
 `mise exec -- deno run example.ts`.
 
 `parse()` means “read and validate this request,” not “run this search.” The returned filter is data describing
-conditions. `conjunction()` is the existing API name for reading conditions joined by AND: every condition must match.
+conditions. `conjunction()` reads conditions joined by AND: every condition must match.
 It returns an empty list when no filter was supplied, and `undefined` for an OR or NOT group. This example's definition
 allows only AND groups, so its array provider can safely use `every()` on that list. It applies every condition rather
 than silently using only the first one.
@@ -142,10 +142,17 @@ structure and page/offset style. `normalize()` creates a separate canonical repr
 for comparing requests or building cache keys. It is not a database execution plan or permission to reuse another
 account's cached results.
 
-`conjunction(value.filter)` uses the formal word **conjunction**, meaning conditions joined by AND. It is a
-convenience for an adapter limited to ALL. It returns all leaves, an empty list for no
-filter, or `undefined` if ANY/NOT prevents a conjunction-only interpretation. The full tree is always `value.filter`;
-reading it does not throw because the caller used a permitted Boolean operation.
+`conjunction(value.filter)` uses the formal word **conjunction**, meaning conditions joined by AND. It reads an
+already checked filter for a simple adapter limited to AND. It does not build a rule or evaluate a condition.
+
+| Checked filter | Result from `conjunction()` | What a simple provider can do |
+| --- | --- | --- |
+| No filter | Frozen empty list | Keep every record; `every()` on an empty list is true. |
+| One condition or nested AND groups | Frozen list of all conditions | Apply every condition to each record. |
+| Any OR or NOT group | `undefined` | Evaluate the full tree or reject unsupported logic; never ignore the group. |
+
+The full tree remains in `value.filter`. An OR cannot be replaced with an AND list without changing the request.
+This advanced reader is optional: an adapter that already walks expressions does not need to flatten them first.
 
 ## The application still owns access and execution
 
@@ -183,13 +190,21 @@ A query **expression** is data that describes a rule. A **tree** means each grou
 conditions. Its top group is the **root**. A condition with no children is a **leaf**. These are shapes in ordinary
 JavaScript data, not database rows or an executing search.
 
-The current builders use the names below. OR is inclusive: either condition may match, and both may match too.
+The builders use familiar Boolean names. OR is inclusive: either condition may match, and both may match too.
 
-| Familiar logic | Current builder | What the group asks |
+| Familiar logic | Builder | What the group asks |
 | --- | --- | --- |
-| AND | `all(a, b)` | Did every child match? |
-| OR | `any(a, b)` | Did at least one child match? |
+| AND | `and(a, b)` or `all(a, b)` | Did every child match? |
+| OR | `or(a, b)` or `any(a, b)` | Did at least one child match? |
 | NOT | `not(a)` | Did the child fail to match? |
+| NOR | `nor(a, b)` or `none(a, b)` | Did none of the children match? |
+| NAND | `nand(a, b)` | Did at least one child fail to match? |
+| XOR | `xor(a, b)` | Did exactly one of these two children match? |
+| XNOR | `xnor(a, b)` | Did these two children give the same answer? |
+
+`and` is the same function as `all`, and `or` is the same function as `any`. `none` is the same function as `nor`.
+Choose the wording that makes your rule easiest to read; those pairs have identical types and behavior. AND, OR,
+NOR and NAND require at least one child. NOT takes one child; XOR and XNOR take exactly two.
 
 Read this tree from the top. The AND group needs a positive answer from both branches. Its left branch asks for at
 least one role. Its right branch reverses the suspension answer. The diagram omits evaluation order; the evaluator
@@ -197,14 +212,14 @@ checks shape first, then compares children in the order written in code.
 
 ```mermaid
 flowchart TD
-    And["AND: all"] --> Or["OR: any"]
+    And["AND: and / all"] --> Or["OR: or / any"]
     And --> Not["NOT: not"]
     Or --> Editor["Leaf: editor"]
     Or --> Administrator["Leaf: administrator"]
     Not --> Suspended["Leaf: suspended"]
 ```
 
-`all()`, `any()` and `not()` only construct that data. They do not know whether an account is an editor, whether a
+The builders only construct that data. They do not know whether an account is an editor, whether a
 name matches a person, or how SQL compares a value. `evaluate()` supplies the missing step: it walks a structurally
 valid expression and combines true/false answers from **your** comparison function. It returns one Boolean for the
 whole rule. It does not return matching records, grant authorization, or call a database.
@@ -214,7 +229,7 @@ what kind of data the node is. The comparison passed to `evaluate()` checks whet
 account. Keeping those jobs separate lets the same expression structure describe other domains.
 
 ```ts runnable
-import { all, any, evaluate, inspect, not } from '@okikio/query/expression';
+import { and, evaluate, inspect, not, or } from '@okikio/query/expression';
 
 type AccountFact = 'editor' | 'administrator' | 'suspended';
 
@@ -224,8 +239,8 @@ function isAccountFact(value: unknown): value is AccountFact {
 }
 
 // Describe the policy without evaluating a particular account yet.
-const rule = all(
-	any('editor', 'administrator'),
+const rule = and(
+	or('editor', 'administrator'),
 	not('suspended'),
 );
 
@@ -254,7 +269,7 @@ The three-leaf inspection count still includes it, because inspection measures t
 This is a local rule example, not an authentication system: trusted application code must supply the actual facts.
 
 The evaluator validates the entire structure before calling the comparison, including branches short-circuiting would
-skip. Cycles and invalid groups throw. Comparisons must be synchronous and return booleans. `all()` and `any()` need
+skip. Cycles and invalid groups throw. Comparisons must be synchronous and return booleans. `and()` and `or()` need
 at least one child. They copy their child arrays but borrow leaf objects, so changing a borrowed object can change
 what a later comparison sees.
 
@@ -262,6 +277,77 @@ Standalone inspection defaults to depth 64, 10,000 leaves, and 1,000 children pe
 object to choose a smaller budget. These standalone limits are separate from a collection definition's HTTP budgets.
 Use [the collection example below](#apply-a-real-search-to-an-array) to see how evaluating a filter for each person
 produces a matching array.
+
+## Choose inclusive, exclusive, or inverted logic
+
+A notification setting can allow email, SMS, both, or neither. Inclusive OR accepts either or both. XOR accepts
+exactly one of the two. XNOR accepts equal answers: both enabled or both disabled. This truth table describes the
+standalone evaluator, whose leaf comparison returns only `true` or `false`:
+
+| Email | SMS | AND | OR | NOR / none | NAND | XOR | XNOR |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| false | false | false | false | true | true | false | true |
+| false | true | false | true | false | true | true | false |
+| true | false | false | true | false | true | true | false |
+| true | true | true | true | false | false | false | true |
+
+Read each row as one saved choice. NAND means “not both”; it is different from NOR, which means “neither”.
+The next complete program selects email only, then evaluates four questions against that same selection:
+
+```ts runnable=notification-choice.ts
+import { evaluate, inspect, nand, none, xnor, xor } from '@okikio/query/expression';
+
+type Channel = 'email' | 'sms';
+
+/** Recognize a channel name; Boolean groups remain separate objects. */
+function isChannel(value: unknown): value is Channel {
+	return value === 'email' || value === 'sms';
+}
+
+// The same saved choices give every leaf comparison a stable answer.
+const selected = new Set<Channel>(['email']);
+const exactlyOne = xor('email', 'sms');
+const neither = none('email', 'sms');
+const notBoth = nand('email', 'sms');
+const sameAnswer = xnor('email', 'sms');
+
+console.log('Exactly one:', evaluate(exactlyOne, isChannel, (channel) => selected.has(channel)));
+console.log('Neither:', evaluate(neither, isChannel, (channel) => selected.has(channel)));
+console.log('Not both:', evaluate(notBoth, isChannel, (channel) => selected.has(channel)));
+console.log('Same answer:', evaluate(sameAnswer, isChannel, (channel) => selected.has(channel)));
+
+// XOR expands into existing groups; inspection counts occurrences in that tree.
+console.log('Leaf occurrences:', inspect(exactlyOne, isChannel).leafCount);
+```
+
+```text output
+Exactly one: true
+Neither: false
+Not both: true
+Same answer: false
+Leaf occurrences: 4
+```
+
+XOR and XNOR deliberately accept two children. With three inputs, “an odd number is true” and “exactly one is true”
+are different rules; these binary builders do not choose a hidden interpretation for that case.
+
+The stored expression still uses only `all`, `any`, and `not` kinds. NOR composes NOT with OR; NAND composes NOT
+with AND. XOR and XNOR repeat their child expressions when composing those existing groups. This needs no new URL
+syntax or adapter operator, but it increases tree depth and leaf occurrences. Budgets apply to the expanded tree,
+and a leaf can be compared more than once. Comparisons must be deterministic for the record being tested; do not use
+them to send messages, mutate records, or perform other commands. Short-circuiting can reduce calls, so the inspected
+leaf count is a structural cost bound, not a promise that every occurrence is compared.
+
+A collection definition enables the underlying kinds through `expressions: ['all', 'any', 'not']`. Familiar builder
+names do not bypass that policy. `conjunction()` still refuses a tree containing OR or NOT, including groups created
+by NOR, NAND, XOR, or XNOR.
+
+Database comparisons need one more distinction. The standalone evaluator accepts Boolean answers only. PostgreSQL
+comparisons can also produce **unknown** for NULL, and NOT does not turn unknown into true. Query's PostgreSQL
+adapter preserves those rules; it does not silently replace unknown with false. Its equality and membership operators
+use null-safe distinctness, while other comparisons retain SQL's three-valued logic. See the
+[PostgreSQL contract](../packages/query/README.md#compile-a-checked-request-for-postgresql) before assuming the local
+truth table describes nullable database values.
 
 ## Read pagination without searchable fields
 
@@ -353,7 +439,7 @@ const Search = query.define({
 
 // Build and validate the request using the same definition as URL callers.
 const value = await Search.create({
-	filter: query.any(
+	filter: query.or(
 		Search.condition('name', 'in', ['a,b', '', '雪']),
 		Search.condition('score', 'gte', 90),
 	),
@@ -474,7 +560,7 @@ if (!compatibility.valid) {
 
 // Request people named Ada OR people with a score of at least 90.
 const checked = await Search.create({
-	filter: query.any(
+	filter: query.or(
 		Search.condition('name', 'eq', 'Ada'),
 		Search.condition('score', 'gte', 90),
 	),

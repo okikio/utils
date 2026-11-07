@@ -34,7 +34,7 @@ export { document, requirements, validateAdapter } from './description.ts';
 export { QueryValidationError } from './validation.ts';
 export { conjunction, inspect, normalize } from './normalize.ts';
 export { stringify } from './url.ts';
-export { all, any, inspectExpression, not } from './expression.ts';
+export { all, and, any, inspectExpression, nand, none, nor, not, or, xnor, xor } from './expression.ts';
 export {
 	between,
 	contains,

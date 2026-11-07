@@ -46,7 +46,7 @@ Save the following module as `example.ts` and run `mise exec -- deno run example
 [Checkout prerequisites](../../README.md#work-on-the-repository) explain installing Mise.
 
 `parse()` means “read and validate this request,” not “run this search.” The returned filter is data describing
-conditions. `conjunction()` is the existing API name for reading conditions joined by AND: every condition must match.
+conditions. `conjunction()` reads conditions joined by AND: every condition must match.
 It returns an empty list when no filter was supplied, and `undefined` for an OR or NOT group. This example's definition
 allows only AND groups, so its array provider can safely use `every()` on that list. It applies every condition rather
 than silently using only the first one.
@@ -124,8 +124,8 @@ together.
 `condition()` keeps field names, enabled operators, and operand types connected. `create()` validates the complete
 request and supplies omitted defaults.
 Here `eq` means “equals” and `gte` means “greater than or equal to.” The request
-means “name equals Ada OR score is at least 90.” `any()` supplies that OR;
-`all()` requires every condition and `not()` reverses a condition. The first
+means “name equals Ada OR score is at least 90.” `or()` supplies that OR;
+`and()` requires every condition and `not()` reverses a condition. The first
 printed value, `2`, counts the two conditions, not two matching people. The
 second, `true`, checks that encoding and parsing preserve this request.
 
@@ -136,7 +136,7 @@ AND/OR/NOT rule and the difference between recognizing a leaf and comparing its 
 
 ```mermaid
 flowchart TD
-    Or["OR: any"] --> Name["name equals Ada"]
+    Or["OR: or / any"] --> Name["name equals Ada"]
     Or --> Score["score is at least 90"]
 ```
 
@@ -157,7 +157,7 @@ const Search = query.define({
 
 // Build and validate the request using the same definition as URL callers.
 const value = await Search.create({
-	filter: query.any(
+	filter: query.or(
 		Search.condition('name', 'eq', 'Ada'),
 		Search.condition('score', 'gte', 90),
 	),
@@ -180,6 +180,42 @@ true
 A scalar operator requires one value, `between` requires a pair, `in`/`nin` require a nonempty list, and
 `isNull`/`isNotNull` take no operand. These rules apply to types and runtime validation. A condition helper constructs
 authoring data; the complete request becomes checked data only after `create()` succeeds.
+
+## Choose the Boolean question your filter asks
+
+`and()` and `all()` are the same function: every child must match. `or()` and `any()` are the same function: at least
+one must match, including when both match. `none()` is the same function as `nor()`: no child may match. Existing
+callers of `all()` and `any()` keep the same behavior; these names do not select different expression engines.
+
+| Builder | Meaning | Number of children |
+| --- | --- | --- |
+| `and()` / `all()` | Every condition matches | One or more |
+| `or()` / `any()` | At least one condition matches | One or more |
+| `not()` | Reverse one child's answer | One |
+| `nor()` / `none()` | None of the conditions match | One or more |
+| `nand()` | At least one condition does not match | One or more |
+| `xor()` | Exactly one of two conditions matches | Exactly two |
+| `xnor()` | Two conditions have equal answers | Exactly two |
+
+For example, XOR is useful when a notification rule must select email or SMS, but not both. XNOR accepts both enabled
+or both disabled. Binary arity avoids confusing “exactly one” with “an odd number” for three or more inputs. The
+[complete notification example and truth table](../../docs/query.md#choose-inclusive-exclusive-or-inverted-logic)
+show every answer and a working evaluator.
+
+These builders construct rule data; `inspect()` measures it and `/expression`'s `evaluate()` combines your leaf
+comparisons into one Boolean. They do not retrieve records. The stored and URL expression kinds remain `all`, `any`
+and `not`; enable those underlying kinds in the collection definition when using the composed builders. NOR is NOT OR,
+NAND is NOT AND, and XOR/XNOR repeat child expressions while composing those existing kinds.
+
+The repeated occurrences count toward depth and leaf budgets and can repeat a comparison. Comparisons should return
+the same Boolean for the same record and leaf, without writes or other effects. Short-circuiting can skip comparisons;
+inspection still counts the complete expanded tree. PostgreSQL comparisons can additionally yield unknown for NULL,
+so the standalone two-valued truth table does not replace the SQL rules below.
+
+`conjunction()` solves a different, narrower job: read a checked AND-only filter as a flat list. It returns a frozen
+empty list for no filter and `undefined` if an OR or NOT prevents that view. It does not build or evaluate a rule.
+Use the full `value.filter` tree when an adapter supports those groups; do not treat `undefined` as permission to drop
+the caller's filter. No flattening step is required before full-tree evaluation.
 
 ## Compile a checked request for PostgreSQL
 
@@ -249,6 +285,24 @@ part of the contract. The compiler checks the order shape and rejects a null
 final boundary key. The application must enforce actual uniqueness and
 immutability in its database model.
 
+**Lexicographic** means compare the first sort key, then use the next key when earlier keys tie. For example,
+`score DESC, id ASC` puts higher scores first and sorts equal scores by ID. Here is an illustrative ordered set,
+with `(80, 42)` chosen as the boundary and a page size of two:
+
+| Position in canonical order | Score | Unique ID | Window relative to `(80, 42)` |
+| ---: | ---: | ---: | --- |
+| 1 | 95 | 40 | Before |
+| 2 | 95 | 41 | Before |
+| 3 | 80 | 42 | Boundary, excluded from both windows |
+| 4 | NULL | 43 | After |
+| 5 | NULL | 44 | After |
+
+Read “before” and “after” in this declared order, not as arithmetic on IDs. NULL scores appear last; the non-null
+unique ID still separates those rows. A forward request returns IDs `43, 44`. A backward request fetches the nearest
+preceding rows as `41, 40`, then the provider reverses them to present `40, 41`. These rows explain ordering, not a
+database measurement or a promise of a fixed snapshot across requests. The code below uses only ID ordering to keep
+the signing and compilation steps focused.
+
 ```ts
 import * as query from '@okikio/query';
 import * as pg from '@okikio/query/postgres';
@@ -265,25 +319,31 @@ const Search = query.define({
 // Demo key only. In a service, borrow a persistent signing key from its owner.
 const signer = await hmac.create('sha256', crypto.getRandomValues(new Uint8Array(32)));
 
-const cursor = cursors.create({
+// A token is valid only for this contract, order, provider policy and authorized context.
+const binding = {
 	contract: 'people.v1',
 	order: Search.order,
 	semantics: 'postgres;nulls-last;immutable-unique-id',
 	context: 'authorized-tenant-and-filter-digest',
 	values: schema.array(schema.number(), { minLength: 1, maxLength: 1 }),
-}, {
+};
+
+// The application owns key rotation, token size, expiry and the clock.
+const keyPolicy = {
 	keys: [{ id: 'current', signer }],
 	activeKey: 'current',
 	maximumKeys: 1,
 	maximumTokenBytes: 4096,
 	expiresIn: 60_000,
 	now: Date.now,
-});
+};
+const cursor = cursors.create(binding, keyPolicy);
 
 // Use the last fetched row's ordered keys to create the next token.
 const token = await cursor.encode([42]);
 const checked = await Search.create({ pagination: { kind: 'cursor', cursor: token, limit: 20 } });
 
+// Authenticate the token before returning SQL and separately bound parameter values.
 const statement = await pg.compilePage(checked, {
 	table: ['public', 'people'],
 	columns: { id: 'person_id' },
@@ -357,6 +417,23 @@ application assertion; it does not inspect database constraints. Back that
 assertion with a PRIMARY KEY or UNIQUE constraint over the complete joined target
 key. Many people may share one account; each person still occupies one page row.
 
+The following illustrative relationship shows two people sharing account 7. Each person can match at most one
+account because `accounts.id` is unique. The third person has no matching account. With LEFT JOIN, that person is
+still one result row and its account name is NULL:
+
+```mermaid
+flowchart TD
+    Person10["Person 10: account_id = 7"] --> Account7["Account 7: unique accounts.id"]
+    Person11["Person 11: account_id = 7"] --> Account7
+    Person12["Person 12: no matching account"] --> Missing["LEFT JOIN keeps person 12; name = NULL"]
+```
+
+Read each arrow as the lookup for one person, not a request to append every account. The diagram omits other columns
+and shows an application-enforced database constraint. `cardinality: 'one'` asserts that constraint to the compiler;
+it does not create or verify it. If several accounts could match one person, the join would multiply that person's
+rows and change what the page counts. Query rejects declared to-many joins rather than claiming parent pagination
+remains unchanged.
+
 ```ts
 import * as query from '@okikio/query';
 import * as pg from '@okikio/query/postgres';
@@ -408,7 +485,7 @@ changing what the parent page counts.
 | `@okikio/query`            | Define a collection search and use typed or HTTP input through one facade.                                                          |
 | `@okikio/query/definition` | Declare fields, sort defaults, page policies, and the complete search contract.                                                     |
 | `@okikio/query/operators`  | Reuse the named operator declarations without importing a complete definition.                                                      |
-| `@okikio/query/expression` | Build `all`, `any`, and `not` trees, inspect them, or evaluate domain-owned leaves. No schema or data source is required.           |
+| `@okikio/query/expression` | Build AND/OR/NOT, NOR/NAND and binary XOR/XNOR rules, inspect them, or evaluate domain-owned leaves. No schema or data source is required. |
 | `@okikio/query/pagination` | Parse and encode bounded pages independently with `cursor`, `offset`, `pagination`, `parse`, `safeParse`, and `encode`.             |
 | `@okikio/query/url`        | Use functional `parse(policy, input)`, `safeParse`, `encode(policy, value)`, and `stringify` with a separately imported definition. |
 | `@okikio/query/types`      | Share the same policy, authoring, result, and adapter contracts.                                                                    |

@@ -208,6 +208,8 @@ await copyPackage('result', ['fault/mod.test.ts']);
 await copyPackage('query', [
 	'authoring.test.ts',
 	'authoring.types.test.ts',
+	'boolean.test.ts',
+	'boolean.types.test.ts',
 	'pagination.test.ts',
 	'expression.test.ts',
 ]);

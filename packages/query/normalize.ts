@@ -10,7 +10,16 @@ export function isFilter<Fields extends QueryFields>(
 	return 'field' in value;
 }
 
-/** Preserve the conjunction view without ever flattening ANY or NOT. */
+/**
+ * Read the conditions of an already checked AND-only filter as one frozen list.
+ *
+ * A conjunction means conditions joined by AND: each must match. Simple array or
+ * storage providers can apply every returned condition without walking a tree.
+ * No filter returns an empty list; a leaf returns a one-condition list. Any OR or
+ * NOT group returns undefined because flattening it into AND would change its meaning.
+ * This reads a filter; it neither builds an expression nor compares records. Call the
+ * definition's create() or parse() first: this reader does not validate untrusted trees.
+ */
 export function conjunction<Fields extends QueryFields>(
 	value: QueryExpression<QueryFilter<Fields>> | undefined,
 ): readonly QueryFilter<Fields>[] | undefined {

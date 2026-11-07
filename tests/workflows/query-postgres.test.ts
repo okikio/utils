@@ -14,6 +14,23 @@ const database = postgres(url, { max: 1, onnotice() {} });
 const table = `query_${crypto.randomUUID().replaceAll('-', '')}`;
 const cursorTable = `${table}_cursor`;
 const accountTable = `${table}_accounts`;
+const booleanTable = `${table}_booleans`;
+/**
+ * A positive number represents true, a negative number false, and SQL NULL an
+ * unknown comparison result. Ordered comparison deliberately keeps NULL
+ * unknown; Query's null-safe equality would test a different contract.
+ */
+const truthInputs = [
+	[1, 1],
+	[1, -1],
+	[1, null],
+	[-1, 1],
+	[-1, -1],
+	[-1, null],
+	[null, 1],
+	[null, -1],
+	[null, null],
+] as const;
 const Search = query.define({
 	fields: {
 		id: query.field(schema.number(), { sortable: true }),
@@ -49,14 +66,114 @@ before(async () => {
 	await database`insert into ${database(cursorTable)} values
 		(1,2,'b',1),(2,2,'a',1),(3,1,'b',2),(4,1,'a',null),
 		(5,null,null,2),(6,null,'a',null),(7,2,'a',1),(8,null,'a',1)`;
+	await database`create table ${
+		database(booleanTable)
+	} (id integer primary key, left_value integer, right_value integer)`;
+	for (const [index, [left, right]] of truthInputs.entries()) {
+		await database`insert into ${database(booleanTable)} values (${index + 1}, ${left}, ${right})`;
+	}
 });
 after(async () => {
 	try {
+		await database`drop table if exists ${database(booleanTable)}`;
 		await database`drop table if exists ${database(cursorTable)}`;
 		await database`drop table if exists ${database(accountTable)}`;
 		await database`drop table if exists ${database(table)}`;
 	} finally {
 		await database.end({ timeout: 2 });
+	}
+});
+
+const BooleanSearch = query.define({
+	fields: {
+		id: query.field(schema.number(), { sortable: true }),
+		left: query.field(schema.nullable(schema.number())),
+		right: query.field(schema.nullable(schema.number())),
+	},
+	filters: { left: [query.gt], right: [query.gt] },
+	expressions: ['all', 'any', 'not'],
+	order: [query.asc('id', { tiebreaker: true })],
+	pagination: query.offset({ defaultLimit: 20 }),
+});
+
+describe('PostgreSQL Boolean builders preserve unknown comparisons', () => {
+	const left = BooleanSearch.condition('left', 'gt', 0);
+	const right = BooleanSearch.condition('right', 'gt', 0);
+	// Native Boolean equality/inequality is an independent oracle for XNOR/XOR,
+	// rather than repeating the builders' AND/OR/NOT lowering in expected SQL.
+	const cases = [
+		{
+			name: 'and',
+			filter: query.and(left, right),
+			native: '(left_value > $1) AND (right_value > $2)',
+			truth: [true, false, null, false, false, false, null, false, null],
+		},
+		{
+			name: 'or',
+			filter: query.or(left, right),
+			native: '(left_value > $1) OR (right_value > $2)',
+			truth: [true, true, true, true, false, null, true, null, null],
+		},
+		{
+			name: 'nor',
+			filter: query.nor(left, right),
+			native: 'NOT ((left_value > $1) OR (right_value > $2))',
+			truth: [false, false, false, false, true, null, false, null, null],
+		},
+		{
+			name: 'none',
+			filter: query.none(left, right),
+			native: 'NOT ((left_value > $1) OR (right_value > $2))',
+			truth: [false, false, false, false, true, null, false, null, null],
+		},
+		{
+			name: 'nand',
+			filter: query.nand(left, right),
+			native: 'NOT ((left_value > $1) AND (right_value > $2))',
+			truth: [false, true, null, true, true, true, null, true, null],
+		},
+		{
+			name: 'xor',
+			filter: query.xor(left, right),
+			native: '(left_value > $1) <> (right_value > $2)',
+			truth: [false, true, null, true, false, null, null, null, null],
+		},
+		{
+			name: 'xnor',
+			filter: query.xnor(left, right),
+			native: '(left_value > $1) = (right_value > $2)',
+			truth: [true, false, null, false, true, null, null, null, null],
+		},
+	] as const;
+
+	for (const scenario of cases) {
+		it(`${scenario.name}: matches all nine true/false/NULL pairs and excludes unknown WHERE results`, async () => {
+			// Only the fixed oracle expression and suite-owned identifier enter SQL
+			// text. Comparison operands remain driver-bound parameters in both paths.
+			const native = await database.unsafe(
+				`SELECT id, (${scenario.native}) AS verdict FROM "${booleanTable}" ORDER BY id`,
+				[0, 0],
+			);
+			expect(native.map((row) => row.verdict)).toEqual(scenario.truth);
+
+			const checked = await BooleanSearch.create({ filter: scenario.filter, fields: ['id'] });
+			const statement = compile(checked, {
+				table: [booleanTable],
+				columns: { id: 'id', left: 'left_value', right: 'right_value' },
+			});
+			const rows = await database.unsafe(statement.text, [...statement.values] as postgres.ParameterOrJSON<never>[]);
+			const accepted = scenario.truth.flatMap((verdict, index) => verdict === true ? [index + 1] : []);
+			expect(rows.map((row) => row.id)).toEqual(accepted);
+
+			// SQL WHERE accepts true only. Unknown must not become false before a
+			// surrounding negation, which would incorrectly admit extra rows.
+			for (const [index, verdict] of scenario.truth.entries()) {
+				if (verdict === null) expect(rows.some((row) => row.id === index + 1)).toBe(false);
+			}
+			expect(statement.values.slice(-2)).toEqual([20, 0]);
+			expect(statement.values.length).toBeGreaterThanOrEqual(4);
+			expect(statement.values.slice(0, -2).every((operand) => operand === 0)).toBe(true);
+		});
 	}
 });
 
