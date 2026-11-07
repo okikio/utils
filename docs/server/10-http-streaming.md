@@ -39,13 +39,18 @@ export function createGreetingStreams() {
 	/** Yield application records; finally marks this generator's owned work as closed. */
 	async function* greetings() {
 		try {
-			for (const name of ['Sam', 'Jo', 'Lee']) yield { message: `Hello, ${name}!` };
+			for (const name of ['Sam', 'Jo', 'Lee']) {
+				yield { message: `Hello, ${name}!` };
+			}
 		} finally {
 			closed += 1;
 		}
 	}
+
+	// The routes adapt application records into two different wire formats.
 	const app = http.create({
 		routes: [
+			// NDJSON has one JSON value per line; body completion and source cleanup are separate.
 			http.route('GET', '/greeting/lines', (request) => {
 				const response = jsonl(streams.readable(greetings()), {
 					maximumBytes: 1024,
@@ -64,6 +69,8 @@ export function createGreetingStreams() {
 				);
 				return response;
 			}),
+
+			// SSE adds event IDs so an application can ask for a later retained sequence.
 			http.route('GET', '/greeting/events', (request) => {
 				// Decide whether replay is possible before sending 200 or acquiring a source reader.
 				const raw = request.headers.get('last-event-id');
@@ -96,9 +103,15 @@ export function createGreetingStreams() {
 			}),
 		],
 	});
+
+	// Keep observations on the exact Response identities created by the NDJSON factory.
 	return { app, completion: (response: Response) => deliveries.get(response), closed: () => closed };
 }
 ```
+
+The helper contains four roles: the retained SSE fixture, the NDJSON record generator, the two route adapters, and the
+returned body-completion lookup. The fixture is immutable application data; the routes own each new stream. The lookup
+observes the exact NDJSON Response rather than treating a wrapper with a new identity as the same factory result.
 
 The NDJSON route limits each serialized record, the total output and the number of items. The projection limits bound
 how much JSON structure and string data the serializer traverses per item. Validate business meaning upstream; these

@@ -28,6 +28,7 @@ import * as endpoint from '@okikio/server/endpoint';
 import * as response from '@okikio/http/response';
 import * as service from '@okikio/server/service';
 import * as schema from '@okikio/schema';
+
 const Greeting = response.ok(schema.object({ message: schema.string() }), {
 	id: 'greeting.ok',
 	description: 'Personal greeting.',
@@ -38,18 +39,29 @@ const Greet = endpoint.get({
 	query: schema.object({ name: schema.string({ minLength: 1 }) }),
 	responses: [Greeting],
 });
+
+// Collect the declared routes before attaching their behavior.
 const Api = service.define({ id: 'greeting-api', path: '/api', endpoints: [Greet] });
 // Bind code to the endpoint contract. The handler receives the query after input validation.
+
+// Bind handlers to the exact definitions above. Matching text IDs alone are insufficient.
 const implementation = service.implement(Api, {
 	endpoints: [
 		endpoint.handler(Greet, ({ input }) => response.create(Greeting, { message: `Hello, ${input.query.name}!` })),
 	],
 });
+
+// Compilation checks the bindings; the live runtime owns request resources.
 await using runtime = service.create(service.compile(implementation), { host: {} });
+
+// Exercise a matched request and consume its body.
 const outgoing = await runtime.fetch(new Request('https://service.invalid/api/greeting?name=Sam'));
 console.log(outgoing.status, await outgoing.text());
+
+// Missing required input rejects before the business callback runs.
 const invalid = await runtime.fetch(new Request('https://service.invalid/api/greeting'));
 console.log(invalid.status);
+// We only inspect the status, so release the otherwise unread problem body.
 await invalid.body?.cancel();
 ```
 

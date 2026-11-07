@@ -31,10 +31,18 @@ Save the following module as `example.ts` and run `mise exec -- deno run example
 ```ts runnable
 import * as response from '@okikio/http/response';
 import * as schema from '@okikio/schema';
-const Saved = response.ok(schema.object({ id: schema.string() }), { id: 'asset.saved', description: 'Saved asset.' });
+
+// Many calls can share this definition; each call supplies its own body.
+const Saved = response.ok(schema.object({ id: schema.string() }), {
+	id: 'asset.saved',
+	description: 'Saved asset.',
+});
 // Validate and materialize the declared body before adapting it to a Web Response.
-const value = await response.materialize(response.create(Saved, { id: 'asset-1' }));
+const occurrence = response.create(Saved, { id: 'asset-1' });
+const value = await response.materialize(occurrence);
 console.log(value.status);
+
+// Encode the checked JSON value as the native response the caller consumes.
 const outgoing = Response.json(value.body, { status: value.status, headers: response.toHeaders(value.headers) });
 console.log(await outgoing.text());
 ```

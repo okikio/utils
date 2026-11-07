@@ -90,6 +90,8 @@ import * as endpoint from '@okikio/server/endpoint';
 import * as response from '@okikio/http/response';
 import * as service from '@okikio/server/service';
 import * as schema from '@okikio/schema';
+
+// Public definitions describe the accepted wire contract without opening resources.
 export const Saved = response.ok(schema.object({ title: schema.string() }), {
 	id: 'note.saved',
 	description: 'Saved note title.',
@@ -101,6 +103,11 @@ export const Save = endpoint.post({
 	responses: [Saved],
 });
 export const Api = service.define({ id: 'notes', path: '/api', endpoints: [Save] });
+
+/**
+ * Open an independent in-memory notes service. Each call starts with an empty note list.
+ * The caller owns the returned runtime and must dispose it after response bodies finish.
+ */
 export function createNotes() {
 	const notes: string[] = [];
 	const implementation = service.implement(Api, {
@@ -110,6 +117,8 @@ export function createNotes() {
 			return response.create(Saved, { title });
 		})],
 	});
+
+	// The returned runtime owns its live service lifetime; definitions remain reusable.
 	return service.create(service.compile(implementation), { host: {} });
 }
 ```
@@ -207,6 +216,15 @@ options and types.
 | `@okikio/server/gateway/openapi`     | Derive OpenAPI for a gateway contract.                                      | [Contract](./gateway/openapi.ts)     |
 | `@okikio/server/service/route`       | Inspect and compose routes derived from a service definition.               | [Contract](./service/route.ts)       |
 | `@okikio/server/client`              | Call an endpoint through its exact wire contract and explicit byte budgets. | [Contract](./client.ts)              |
+
+The client has four separate jobs. Use this table to choose which contract to inspect before adapting the example:
+
+| Task | What the caller supplies or receives | Ownership or failure to keep visible |
+| --- | --- | --- |
+| Construct and call | Exact operation, wire inputs, base URL and transport | Construction performs no I/O; `call()` sends the request |
+| Decode a materialized answer | Declared schema or Codec and byte budget | Malformed bytes or undeclared responses are protocol faults |
+| Receive a streaming answer | Exact native Response as the success value | Caller reads or cancels its body; headers alone do not finish it |
+| Distinguish rejection from fault | Declared problem versus `ClientResponseError` | An expected problem is data; invalid protocol is a thrown failure |
 
 The focused client accepts an exact imported operation from one endpoint. Put group/service mount prefixes in `baseUrl`;
 it contains no credentials, query or fragment. Construction performs no I/O. Request input types are wire inputs, before

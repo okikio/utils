@@ -17,7 +17,15 @@ Save `package-task.ts` and run `mise exec -- deno run package-task.ts`.
 import * as request from '@okikio/http/request';
 import { forward } from '@okikio/http/headers';
 console.log(JSON.stringify(request.parseQuery('?tag=one&tag=two')));
-const headers = forward(new Headers({ Connection: 'X-Internal', 'X-Internal': 'secret', Accept: 'application/json' }));
+
+// Connection names the field that belongs only to this network hop.
+const headers = forward(
+	new Headers({
+		Connection: 'X-Internal',
+		'X-Internal': 'secret',
+		Accept: 'application/json',
+	}),
+);
 console.log(headers.has('x-internal'), headers.get('accept'));
 ```
 
@@ -40,6 +48,10 @@ Here `Connection: X-Internal` nominates `X-Internal` for removal. This is HTTP h
 schemas, pagination, conditional responses, byte ranges, and response-body completion observation.
 
 `@okikio/http/problem` : Defines RFC 9457 problem representations and runtime occurrences.
+
+A response definition is a reusable rule. `create()` associates that rule with one logical answer; it does not send
+bytes. `materialize()` validates and prepares that answer. Finally, a native `Response` encodes the value for its caller.
+Keeping these stages separate lets several handlers share a rule without sharing a particular response body.
 
 ## Carry search filters and a browser preference together
 
@@ -82,15 +94,24 @@ const UnsupportedTheme = problem.define({
 async function search(incoming: Request): Promise<Response> {
 	const query = request.parseQuery(new URL(incoming.url).search);
 	// A missing tag, one tag, and repeated tags have distinct parser shapes. Normalize them for this endpoint.
-	const tags = query.tag === undefined ? [] : typeof query.tag === 'string' ? [query.tag] : query.tag;
+	const rawTags = query.tag;
+	let tags: readonly string[];
+	if (rawTags === undefined) {
+		tags = [];
+	} else if (typeof rawTags === 'string') {
+		tags = [rawTags];
+	} else {
+		tags = rawTags;
+	}
 	const theme = await cookie.safeGet(incoming, Theme);
 	if (!theme.success) {
 		const [body, status] = problem.create(UnsupportedTheme, { detail: 'Choose light or dark.' });
 		return Response.json(body, { status, headers: { 'content-type': 'application/problem+json' } });
 	}
-	const value = await response.materialize(
-		response.create(SearchResult, { tags: [...tags], theme: theme.value ?? 'light' }),
-	);
+
+	// Associate this answer with its reusable definition, then validate and prepare it.
+	const occurrence = response.create(SearchResult, { tags: [...tags], theme: theme.value ?? 'light' });
+	const value = await response.materialize(occurrence);
 	return Response.json(value.body, { status: value.status, headers: response.toHeaders(value.headers) });
 }
 

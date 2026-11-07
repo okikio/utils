@@ -250,8 +250,19 @@ This integration excerpt assumes an application-owned `host` and `telemetryScope
 ```typescript
 const Diagnostics = service.observer.define({
 	id: 'notes.diagnostics',
-	description: 'Observe enrichment request lifecycle.',
+	description: 'Observe notes request lifecycle.',
 });
+// Select the declaration before compilation; the live host binds that exact observer below.
+const ObservedApi = service.define({
+	id: 'notes-observed',
+	path: '/',
+	endpoints: [Save],
+	observers: [Diagnostics],
+});
+const observed = service.implement(ObservedApi, {
+	endpoints: [endpoint.handler(Save, ({ input }) => response.create(Saved, { title: input.json.title.trim() }))],
+});
+const compiled = service.compile(observed);
 
 await using runtime = service.create(compiled, {
 	host,
@@ -291,43 +302,31 @@ Resilience has two independent dimensions.
 
 ## Request lifecycle
 
-The service runtime uses this order:
+The outer request stages run once. A retry policy may repeat only the inner operation attempt. This distinction keeps
+an operation retry from accidentally authenticating or admitting the same logical request again:
 
-```text
-Request
-  |
-  +-- request correlation and deadline
-  +-- server-owned request resilience
-  |     body limit / timeout
-  |
-  +-- wholeRequest middleware
-  |     |
-  |     +-- beforeValidation middleware
-  |           |
-  |           +-- authentication adapter
-  |           +-- bounded HTTP parsing
-  |           +-- Standard Schema validation
-  |           |
-  |           +-- afterValidation middleware
-  |                 |
-  |                 +-- adapter-owned admission resilience
-  |                 |     idempotency / rate limit / bulkhead
-  |                 |
-  |                 +-- direct requirement interpretation
-  |                 |
-  |                 +-- adapter-owned operation resilience
-  |                       retry / circuit breaker
-  |                       |
-  |                       +-- aroundOperation middleware
-  |                             transaction / unit of work
-  |                             |
-  |                             `-- endpoint handler
-  |
-  +-- verify declared response or problem
-  +-- validate successful response body
-  +-- create the native Response
-  `-- observe body completion, cancellation, or failure
+```mermaid
+flowchart TD
+    Request["Request"] --> Once["Authenticate and validate"]
+    Once --> Admission{"Admission accepted?"}
+    Admission -->|No| Rejected["Return rejection"]
+    Admission -->|Yes| Attempt["aroundOperation and handler"]
+    Attempt --> Retry{"Repeat attempt?"}
+    Retry -->|Yes| Attempt
+    Retry -->|No| Result["Check logical result"]
+    Result --> Response["Return headers and body"]
+    Response --> Body["Later: consume or cancel body"]
 ```
+
+Read downward for time. Only the attempt box repeats. A failure at a request gate returns a rejection before that
+loop. The chart omits exception projection and individual adapters, whose contracts are described above.
+
+| Lifetime | Runtime work | Why the boundary matters |
+| --- | --- | --- |
+| Once per request | Middleware around the request, authentication, parsing, validation, admission and direct requirements | A handler retry does not repeat request admission. |
+| Each permitted attempt | Operation policy, `aroundOperation` middleware and the handler | A retry can create a fresh attempt. |
+| After headers return | Body consumption, completion observation and cleanup | Returning a Response does not prove its stream finished. |
+
 
 Admission resilience runs once for the logical HTTP request. Operation resilience wraps endpoint execution. A retry can
 therefore recreate `aroundOperation` middleware for each attempt without repeating authentication or direct requirement

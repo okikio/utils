@@ -25,6 +25,7 @@ import * as http from '@okikio/server/http';
 import { parseForm, parseJson, RequestTransportError } from '@okikio/http/request';
 import * as webhook from '@okikio/http/webhook';
 
+/** Own the local greeting routes, bounded replay fixture and readiness state. */
 export function createGreetings() {
 	const now = new Date(1000_000);
 	// Reproducible fixture only. Deployment supplies a private, rotated secret and real clock.
@@ -39,9 +40,18 @@ export function createGreetings() {
 		maximumFutureSeconds: 0,
 		store: {
 			claim(identity, expiresAt) {
-				for (const [key, expires] of claims) if (expires <= now.getTime()) claims.delete(key);
-				if (claims.has(identity)) return false;
-				if (claims.size >= 32) throw new Error('Replay store capacity exhausted.');
+				// Prune expired claims, then test-and-insert without an await between them.
+				for (const [key, expires] of claims) {
+					if (expires <= now.getTime()) {
+						claims.delete(key);
+					}
+				}
+				if (claims.has(identity)) {
+					return false;
+				}
+				if (claims.size >= 32) {
+					throw new Error('Replay store capacity exhausted.');
+				}
 				claims.set(identity, expiresAt);
 				return true;
 			},
@@ -50,17 +60,22 @@ export function createGreetings() {
 	let ready = false;
 	const phases: string[] = [];
 	const limits = { maximumBodyBytes: 4096 };
+
+	/** Validate application meaning after transport parsing, before producing greetings. */
 	function answer(names: unknown): Response {
 		const values = Array.isArray(names) ? names : [names];
 		if (
 			values.length < 1 || values.length > 3 ||
 			values.some((value) => typeof value !== 'string' || value.trim().length < 1 || value.length > 80)
-		) return Response.json({ error: 'Supply one to three text names of 1–80 characters.' }, { status: 400 });
+		) {
+			return Response.json({ error: 'Supply one to three text names of 1–80 characters.' }, { status: 400 });
+		}
 		return Response.json({ messages: values.map((name) => `Hello, ${String(name).trim()}!`) });
 	}
 	const app = http.create({
 		routes: [
 			http.route('POST', '/greeting', async (request) => {
+				// Bound bytes before JSON decoding; answer() owns the separate field rules.
 				const value = await parseJson(request, limits);
 				return answer(value !== null && typeof value === 'object' && 'name' in value ? value.name : undefined);
 			}),
@@ -69,18 +84,21 @@ export function createGreetings() {
 				return answer(fields.name);
 			}),
 			http.route('POST', '/greeting/webhook', async (request) => {
+				// Authenticate original bytes and atomically admit the identity before application parsing.
 				const verified = await webhook.verifyRequest(request, verifier, { now, maximumBodyBytes: 4096 });
 				if (!verified.ok) {
-					return Response.json({ error: verified.code }, {
-						status: verified.code === 'body-too-large'
-							? 413
-							: verified.code === 'duplicate'
-							? 409
-							: verified.code === 'invalid-content-length'
-							? 400
-							: 401,
-					});
+					// Map each admission failure to an HTTP response before doing greeting work.
+					let status = 401;
+					if (verified.code === 'body-too-large') {
+						status = 413;
+					} else if (verified.code === 'duplicate') {
+						status = 409;
+					} else if (verified.code === 'invalid-content-length') {
+						status = 400;
+					}
+					return Response.json({ error: verified.code }, { status });
 				}
+				// Bound bytes before JSON decoding; answer() owns the separate field rules.
 				const value = await parseJson(request, limits);
 				return answer(value !== null && typeof value === 'object' && 'name' in value ? value.name : undefined);
 			}),
@@ -97,7 +115,9 @@ export function createGreetings() {
 				try {
 					return await next(request);
 				} catch (error) {
-					if (!(error instanceof RequestTransportError)) throw error;
+					if (!(error instanceof RequestTransportError)) {
+						throw error;
+					}
 					const code = error.issues[0]?.code;
 					const status = code === 'body-too-large' ? 413 : code === 'unsupported-content-type' ? 415 : 400;
 					return Response.json({ error: 'Request format rejected.' }, { status });
@@ -120,6 +140,23 @@ The order of middleware matters. `access()` and `timing()` surround `catchErrors
 responses. The innermost middleware maps known transport failures to deliberate 400, 413 and 415 responses. An unexpected
 failure continues outward to the safe 500 response. Log private diagnostics through an application-owned observer;
 do not return exception messages or signed payloads to the caller.
+
+The signed route has an extra gate before the ordinary input path:
+
+```mermaid
+flowchart TD
+  Bytes["Bounded original request bytes"] --> Signed{"Signature and timestamp accepted?"}
+  Signed -->|No| Auth["401; malformed length 400; over budget 413"]
+  Signed -->|Yes| Claim{"Atomic event claim succeeds?"}
+  Claim -->|Duplicate| Conflict["409 duplicate"]
+  Claim -->|New| Json["Decode JSON and validate names"]
+  Json -->|Invalid| Invalid["400; claim already consumed"]
+  Json -->|Valid| Greeting["200 with greeting messages"]
+```
+
+Follow the accepted path downward. Claiming an event and creating a greeting are separate steps; the replay store does
+not commit a business transaction. Operational verifier/store exceptions reach the safe error middleware instead of
+being treated as accepted events.
 
 ## Exercise the successful and rejected requests
 
@@ -176,6 +213,23 @@ ready 503
 ready 200 true
 observed true true
 ```
+
+Each request in the check exercises one boundary in order:
+
+| Check input | Expected status | Reason |
+| --- | --- | --- |
+| JSON name `Sam` | 200 | Accepted text name |
+| Broken JSON `{` | 400 | Decoding fails |
+| `text/plain` on the JSON route | 415 | Unsupported media type |
+| 4,097 body bytes | 413 | Exceeds the 4,096-byte ceiling |
+| Two form names | 200 | Repeated names preserved |
+| File supplied as a name | 400 | Domain requires text |
+| First signed event | 200 | Authenticated and newly admitted |
+| Same signed event again | 409 | Identity already claimed |
+| Changed bytes with old signature | 401 | Signature does not match |
+| Invalid Content-Length | 400 | Malformed framing metadata |
+| Health probe | 200 | Process can answer |
+| Readiness before/after toggle | 503, then 200 | Dependency fixture not ready, then ready |
 
 Read the failures as different questions:
 

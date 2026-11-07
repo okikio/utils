@@ -8,6 +8,31 @@ These examples use the experimental Utils source checkout. From its root, review
 `mise install`, and `mise run prepare -- --kind deps`. Save each named file at that root. The examples use workspace exports;
 they do not assume a newly published registry version.
 
+The middleware forms a call stack. On success, authentication supplies `Actor`, the reader uses it, and the handler
+returns a greeting. A denial returns before either downstream step. The arrows returning upward mean `next()` has
+returned a logical result; they do not mean a streaming response body has finished:
+
+```mermaid
+sequenceDiagram
+  participant Caller
+  participant Auth as Authentication
+  participant Read as Read Actor
+  participant Handler
+  Caller->>Auth: Request
+  alt Credential accepted
+    Auth->>Read: Set Actor, next()
+    Read->>Handler: Read Actor, next()
+    Handler-->>Read: Greeting result
+    Read-->>Auth: Result returns
+    Auth-->>Caller: Response headers and body
+  else Credential rejected
+    Auth-->>Caller: Declared 401 problem
+  end
+```
+
+After headers return, the caller still owns consuming or cancelling the body. Completion observers report that later
+boundary. The diagram omits compilation and individual validation stages; the lane table below locates those stages.
+
 ## Follow one greeting through a producer and a consumer
 
 Save `actor-greeting.ts`. The public `demo-token` is a fixed teaching credential, not a real authentication scheme.
@@ -25,6 +50,8 @@ import * as problem from '@okikio/http/problem';
 import * as service from '@okikio/server/service';
 import * as middleware from '@okikio/server/middleware';
 import * as schema from '@okikio/schema';
+
+// Name the checked request value that later middleware may read.
 const Actor = middleware.context<{ name: string }>()({ id: 'actor', description: 'Verified actor for one request.' });
 const Unauthorized = problem.define({
 	id: 'auth.required',
@@ -45,23 +72,32 @@ const Greeting = response.ok(schema.object({ message: schema.string() }), {
 	description: 'Greeting result.',
 });
 const Greet = endpoint.get({ id: 'greet', path: '/greeting', responses: [Greeting] });
+
+// Collect the declared routes before attaching their behavior.
 const Api = service.define({ id: 'greetings', path: '/', endpoints: [Greet], middleware: [Authentication, Read] });
+
+// Bind handlers to the exact definitions above. Matching text IDs alone are insufficient.
 const implementation = service.implement(Api, {
 	endpoints: [endpoint.handler(Greet, () => response.create(Greeting, { message: 'Hello!' }))],
 	middleware: [
 		middleware.handler(Authentication, async ({ request, values }, next) => {
 			if (request.headers.get('authorization') !== 'Bearer demo-token') return problem.create(Unauthorized);
 			values.set(Actor, { name: 'Sam' });
+			// next() enters the remaining middleware and handler; awaiting it joins their return path.
 			return await next();
 		}),
 		middleware.handler(Read, async ({ values }, next) => {
 			console.log('Actor', values.get(Actor).name);
+			// next() enters the remaining middleware and handler; awaiting it joins their return path.
 			return await next();
 		}),
 	],
 });
+
+// Compilation checks the bindings; the live runtime owns request resources.
 await using runtime = service.create(service.compile(implementation), { host: {} });
 for (const headers of [new Headers({ authorization: 'Bearer demo-token' }), new Headers()]) {
+	// Exercise a matched request and consume its body.
 	const outgoing = await runtime.fetch(new Request('http://localhost/greeting', { headers }));
 	console.log(outgoing.status, (await outgoing.json()).title ?? 'Greeting returned');
 }

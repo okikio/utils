@@ -19,13 +19,20 @@ workspace imports. After `mise run prepare -- --kind deps`, save it as `example.
 ```ts runnable=complete-task.ts
 import * as webhook from '@okikio/http/webhook';
 import * as standard from '@okikio/http/webhook/standard';
-const verifier = standard.create({ secret: 'whsec_' + btoa(String.fromCharCode(...new Uint8Array(32).fill(1))) });
+// Public demonstration key only. A deployed receiver supplies its own securely stored secret.
+const demoSecret = 'whsec_' + btoa(String.fromCharCode(...new Uint8Array(32).fill(1)));
+const verifier = standard.create({ secret: demoSecret });
+
 // Sign the exact text that will be sent. Reformatting equivalent JSON would change its signature.
+
 const body = '{"kind":"payment.received","invoiceId":"invoice-42"}';
 const headers = await verifier.sign({ id: 'event-1', timestamp: 1000, body });
 const request = new Request('https://service.invalid/webhook', { method: 'POST', headers, body });
+
+// Authenticate the exact bytes before decoding the application event.
 const verified = await webhook.verifyRequest(request, verifier, { now: new Date(1000_000) });
 if (!verified.ok) throw new Error(`Payment event rejected: ${verified.code}`);
+
 // Verification reads a bounded clone, leaving the original request available for parsing.
 const event = await request.json();
 console.log(verified.id, event.kind, event.invoiceId);
@@ -39,6 +46,24 @@ event-1 payment.received invoice-42
 
 Compare the output before changing the input. The remaining sections explain the options and limits; the
 [package example](../../packages/http/webhook/README.md) also places this operation among adjacent capabilities.
+
+The receiver crosses two separate boundaries. Authentication decides whether these bytes came from an accepted key;
+a replay claim decides whether this event identity has already been admitted. Neither decision commits an invoice:
+
+```mermaid
+flowchart TD
+  Request["Headers and original body bytes"] --> Verify{"Signature and timestamp valid?"}
+  Verify -->|No| Reject["Reject before application work"]
+  Verify -->|Yes| Claim{"Atomically claim event identity"}
+  Claim -->|Already claimed| Duplicate["Reject duplicate admission"]
+  Claim -->|New| Gap["Claim accepted; business write not committed"]
+  Gap --> Effect["Application validates and commits invoice update"]
+```
+
+Read downward from receipt to the application write. A crash after the claim but before the write can leave an admitted
+event with no business effect. For reliable processing, the application needs a transactional inbox or another recovery
+procedure that records the event and business update together. The diagram omits outbound delivery retries and does
+not promise an atomic transaction between this replay store and an unrelated database.
 
 ## The contract beneath verification
 
@@ -99,8 +124,10 @@ timeout and retry policy belong to the application.
 import * as webhook from '@okikio/http/webhook';
 import * as standard from '@okikio/http/webhook/standard';
 
-// This fixed local key makes the example reproducible. A real host supplies a secret securely.
-const verifier = standard.create({ secret: 'whsec_' + btoa(String.fromCharCode(...new Uint8Array(32).fill(1))) });
+// Public demonstration key only. A deployed receiver supplies its own securely stored secret.
+const demoSecret = 'whsec_' + btoa(String.fromCharCode(...new Uint8Array(32).fill(1)));
+const verifier = standard.create({ secret: demoSecret });
+
 const body = JSON.stringify({ kind: 'payment.received', invoiceId: 'invoice-42' });
 const signed = await verifier.sign({ id: 'event-1', timestamp: 1000, body });
 const outgoing = new Request('https://receiver.invalid/webhook', {

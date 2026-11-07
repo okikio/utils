@@ -23,14 +23,21 @@ import * as response from '@okikio/http/response';
 import * as service from '@okikio/server/service';
 import * as gateway from '@okikio/server/gateway';
 import * as schema from '@okikio/schema';
+
 const Healthy = response.ok(schema.object({ ok: schema.boolean() }), {
 	id: 'health.ok',
 	description: 'Service health.',
 });
 const Health = endpoint.get({ id: 'health.read', path: '/health', responses: [Healthy] });
+
+// Collect the declared routes before attaching their behavior.
 const Api = service.define({ id: 'health-api', path: '/api', endpoints: [Health] });
 const Edge = gateway.define({ id: 'edge', services: [gateway.mount(Api, { origin: 'https://upstream.invalid' })] });
+
+// Prepare route ownership once, before any request can be forwarded.
 const compiled = gateway.compile(Edge);
+
+// Inject a local upstream so forwarding is visible without network traffic.
 let forwarded = 0;
 const runtime = gateway.create(compiled, {
 	fetch: async (input, init) => {
@@ -40,12 +47,16 @@ const runtime = gateway.create(compiled, {
 		return Response.json({ ok: true });
 	},
 });
+
+// Exercise a matched request and consume its body.
 const outgoing = await runtime.fetch(
 	new Request('https://public.invalid/api/health', {
 		headers: { cookie: 'session=private' },
 	}),
 );
 console.log(outgoing.status, await outgoing.text());
+
+// An unmatched public route must not make another upstream call.
 const unmatched = await runtime.fetch(new Request('https://public.invalid/private'));
 console.log('Unmatched', unmatched.status, 'upstream calls', forwarded);
 await unmatched.body?.cancel();
@@ -83,6 +94,34 @@ Compilation does not verify the upstream's business logic or start it. The desig
 keeping a trust boundary at each hop: the gateway owns forwarding policy, and the origin owns domain validation and
 authorization. Use an in-process `http.mount()` when the other Fetch handler is local and no network hop is needed. See
 the [full gateway contracts](../../packages/server/README.md) for policies and injected adapters.
+
+## Follow the forwarded body to completion
+
+A gateway also owns the lifetime after upstream headers arrive. It must preserve cancellation until the caller has
+finished or abandoned the body; returning headers alone does not finish that request:
+
+```mermaid
+flowchart TD
+    A[Gateway accepts matched request] --> B[Apply forwarding policy]
+    B --> C[Request upstream with lifetime signal]
+    C --> D[Return filtered headers and owned body]
+    D --> E[Keep lifetime until body exits]
+```
+
+Read downward to the body handoff. Returning headers does not release that lifetime. The body can then exit in
+three ways, each with a different caller-visible completion rule:
+
+| Exit | What the caller observes | What happens to source cleanup |
+| --- | --- | --- |
+| Read to end | Successful end of the response body | Normal completion releases the reader and request lifetime. |
+| Explicit `body.cancel(reason)` | Its Promise waits for cleanup and can reject if cleanup fails. | The gateway joins the reader owner's cancellation outcome. An uncooperative source can keep this Promise pending. |
+| Request signal abort or deadline expiry | Pending body reads reject promptly with the abort reason. | The reader lock releases without waiting for source cancellation. Cleanup may finish or fail later; the gateway exposes no public join API for that late outcome. |
+
+Explicit cancellation therefore does not have the prompt-rejection guarantee of signal abort. Conversely, a rejected
+read after signal abort does not prove that upstream cleanup finished. Both cancellation paths request the same reader
+owner's single source cancellation. The diagram shows one forwarding attempt, not a retry or exactly-once business
+transaction. Cookie removal in the local example demonstrates policy; it is not a universal rule that all credentials
+must always be removed.
 
 ## Build on the example
 
@@ -289,11 +328,14 @@ import * as response from '@okikio/http/response';
 import * as service from '@okikio/server/service';
 import * as gateway from '@okikio/server/gateway';
 import * as schema from '@okikio/schema';
+
 const Healthy = response.ok(schema.object({ ok: schema.boolean() }), {
 	id: 'health.ok',
 	description: 'Service health.',
 });
 const Health = endpoint.get({ id: 'health.read', path: '/health', responses: [Healthy] });
+
+// Collect the declared routes before attaching their behavior.
 const Api = service.define({ id: 'health-api', path: '/api', endpoints: [Health] });
 const owner = service.compileDefinition(Api);
 const document = await service.openapi(owner, { title: 'Health owner', version: '1' });

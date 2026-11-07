@@ -30,6 +30,8 @@ Save the next complete TypeScript block as
 ```ts runnable
 import * as problem from '@okikio/http/problem';
 import { toHeaders } from '@okikio/http/response';
+
+// Declare one reusable missing-asset rule.
 const Missing = problem.define({
 	id: 'asset.missing',
 	type: problem.url('https://problems.invalid/v1', 'asset-missing'),
@@ -37,9 +39,11 @@ const Missing = problem.define({
 	title: 'Asset missing',
 	description: 'The asset could not be found.',
 });
+
 // Build the declared problem body and use its HTTP status when creating the actual Response.
 const [body, status, headers] = problem.create(Missing, { detail: 'No asset has that ID.' });
 console.log(status, body.type);
+
 // Preserve generated and application headers, including the default no-store policy.
 const outgoing = Response.json(body, { status, headers: toHeaders(headers) });
 console.log(outgoing.headers.get('cache-control'));

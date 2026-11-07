@@ -16,7 +16,11 @@ import { parseJson } from '@okikio/http/request';
 
 async function save(incoming: Request): Promise<Response> {
 	const input = await parseJson(incoming, { maximumBodyBytes: 1024 });
-	if (typeof input !== 'object' || input === null || !('title' in input) || typeof input.title !== 'string') {
+	// JSON syntax can succeed without producing a record or a usable title.
+	if (typeof input !== 'object' || input === null) {
+		return Response.json({ error: 'A title is required.' }, { status: 400 });
+	}
+	if (!('title' in input) || typeof input.title !== 'string') {
 		return Response.json({ error: 'A title is required.' }, { status: 400 });
 	}
 	return Response.json({ title: input.title.trim() });
@@ -27,7 +31,8 @@ const incoming = new Request('https://service.invalid/notes', {
 	headers: { 'content-type': 'application/json' },
 	body: '{"title":"  First note  "}',
 });
-console.log(await (await save(incoming)).text());
+const outgoing = await save(incoming);
+console.log(await outgoing.text());
 ```
 
 ```text output
@@ -62,6 +67,55 @@ If a header/content-type/declared-length check rejects before reading starts, th
 The surrounding transport still owns that unread body. Once a reader is taken, the helper owns releasing its lock and
 recording the outcome of any cancellation it starts. Cancellation may still be pending when the read rejects.
 The enclosing request owner must await `bodyCleanup(request)` when it needs to join that source cleanup.
+
+## Keep the read failure separate from cleanup
+
+An upload that exceeds its budget must fail even if stopping its producer also fails. This local source sends two
+bytes against a one-byte budget, then throws during cancellation. The read retains the `body-too-large` issue; the
+separate cleanup receipt exposes the producer failure. Neither path returns a partial accepted body.
+
+```ts runnable=bounded-upload.ts
+import { bodyCleanup, readBody, RequestTransportError } from '@okikio/http/request';
+
+const source = new ReadableStream<Uint8Array>({
+	start(controller) {
+		controller.enqueue(new Uint8Array([1, 2]));
+	},
+	cancel() {
+		throw new Error('The upload producer could not finish teardown.');
+	},
+});
+const incoming = new Request(
+	'https://service.invalid/import',
+	{
+		method: 'POST',
+		body: source,
+		duplex: 'half',
+	} as RequestInit & { duplex: 'half' },
+);
+
+try {
+	await readBody(incoming, { maximumBodyBytes: 1 });
+	throw new Error('The oversized upload should not be accepted.');
+} catch (error) {
+	if (!(error instanceof RequestTransportError)) throw error;
+	console.log(error.issues[0]!.code);
+}
+
+// Read rejection released the lock. Join and inspect the separately owned source cancellation.
+const cleanup = await bodyCleanup(incoming);
+console.log(incoming.body!.locked, cleanup.status);
+```
+
+```text output
+body-too-large
+false failed
+```
+
+Releasing the reader lock means another reader can acquire it; it does not prove the producer has stopped. If the
+body is one branch of a split stream, cancellation can wait for the sibling branch too. Its owner must consume or
+cancel that sibling before joining shared source cleanup. The byte budget limits this reader, not all memory retained
+by other readers or the network transport.
 
 ## Build on the example
 

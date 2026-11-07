@@ -36,10 +36,14 @@ Save the next complete TypeScript block as
 import { Hono } from 'hono';
 import * as hono from '@okikio/hono';
 import * as http from '@okikio/server/http';
+
+// Hono owns route matching. The wrapper adds HTTP middleware around its Fetch entry.
 const app = new Hono();
 app.get('/health', (ctx) => ctx.json({ status: 'ok' }));
+
 // Wrap Hono's Fetch entry point. Hono still selects routes; this does not open a listener.
 const fetch = hono.fetch(app, [http.securityHeaders()]);
+
 // Exercise the app with an ordinary Request, then consume the response body.
 const response = await fetch(new Request('https://service.invalid/health'));
 console.log((await response.json()).status, response.headers.get('x-content-type-options'));

@@ -15,6 +15,9 @@ public workspace imports. After `mise run prepare -- --kind deps`, save it as `e
 
 ```ts runnable=complete-task.ts
 import * as problem from '@okikio/http/problem';
+import { toHeaders } from '@okikio/http/response';
+
+// Declare the reusable rejection before describing any individual missing asset.
 const Missing = problem.define({
 	id: 'asset.missing',
 	type: problem.url('https://problems.invalid/v1', 'asset-missing'),
@@ -22,9 +25,13 @@ const Missing = problem.define({
 	title: 'Asset missing',
 	description: 'The asset could not be found.',
 });
-const [body, status] = problem.create(Missing, { detail: 'No asset has that ID.' });
+
+// This occurrence retains the generated headers as well as its safe public detail.
+const [body, status, headers] = problem.create(Missing, { detail: 'No asset has that ID.' });
 console.log(status, body.type);
-const outgoing = Response.json(body, { status, headers: { 'content-type': 'application/problem+json' } });
+
+// Convert the occurrence to HTTP without dropping its cache or content-type headers.
+const outgoing = Response.json(body, { status, headers: toHeaders(headers) });
 console.log(await outgoing.text());
 ```
 

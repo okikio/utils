@@ -18,10 +18,13 @@ Save `package-task.ts` and run `mise exec -- deno run package-task.ts`.
 
 ```ts runnable=package-task.ts
 import * as http from '@okikio/server/http';
+
+// Construct a Fetch application; no listener starts here.
 const app = http.create({
 	routes: [http.route('GET', '/health', () => Response.json({ ok: true }))],
 	middleware: [http.securityHeaders()],
 });
+
 // Exercise routing and middleware without opening a listener; a deployment host supplies the network.
 const response = await app.fetch(new Request('https://service.invalid/health'));
 console.log(response.status, (await response.json()).ok);
@@ -93,11 +96,19 @@ const Health = endpoint.get({
 	path: '/health',
 	responses: [Healthy],
 });
+
+// Collect the declared routes before attaching their behavior.
 const Api = service.define({ id: 'api', path: '/', endpoints: [Health] });
+
+// Bind handlers to the exact definitions above. Matching text IDs alone are insufficient.
 const implementation = service.implement(Api, {
 	endpoints: [endpoint.handler(Health, () => response.create(Healthy, { ok: true }))],
 });
+
+// Compilation checks the bindings; the live runtime owns request resources.
 await using runtime = service.create(service.compile(implementation), { host: {} });
+
+// Exercise a matched request and consume its body.
 const outgoing = await runtime.fetch(new Request('https://service.invalid/health'));
 console.log(outgoing.status, await outgoing.text());
 ```

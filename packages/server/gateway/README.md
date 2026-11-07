@@ -30,14 +30,21 @@ import * as response from '@okikio/http/response';
 import * as service from '@okikio/server/service';
 import * as gateway from '@okikio/server/gateway';
 import * as schema from '@okikio/schema';
+
 const Healthy = response.ok(schema.object({ ok: schema.boolean() }), {
 	id: 'health.ok',
 	description: 'Service health.',
 });
 const Health = endpoint.get({ id: 'health.read', path: '/health', responses: [Healthy] });
+
+// Collect the declared routes before attaching their behavior.
 const Api = service.define({ id: 'health-api', path: '/api', endpoints: [Health] });
 const Edge = gateway.define({ id: 'edge', services: [gateway.mount(Api, { origin: 'https://upstream.invalid' })] });
+
+// Prepare route ownership once, before any request can be forwarded.
 const compiled = gateway.compile(Edge);
+
+// Inject a local upstream so forwarding is visible without network traffic.
 let forwarded = 0;
 const runtime = gateway.create(compiled, {
 	// Replace network I/O with a local upstream response so the example can inspect forwarding.
@@ -48,12 +55,16 @@ const runtime = gateway.create(compiled, {
 		return Response.json({ ok: true });
 	},
 });
+
+// Exercise a matched request and consume its body.
 const outgoing = await runtime.fetch(
 	new Request('https://public.invalid/api/health', {
 		headers: { cookie: 'session=private' },
 	}),
 );
 console.log(outgoing.status, await outgoing.text());
+
+// An unmatched public route must not make another upstream call.
 const unmatched = await runtime.fetch(new Request('https://public.invalid/private'));
 console.log('Unmatched', unmatched.status, 'upstream calls', forwarded);
 await unmatched.body?.cancel();
@@ -116,3 +127,7 @@ ownership, and failure behavior.
 The [real proxy drill](../../../docs/maintenance/07-recovery.md#follow-an-event-through-nginx-and-the-gateway) checks
 nginx → gateway → HTTP origin with mixed-speed readers, buffering, idle timeouts, heartbeats and caller cancellation.
 Its recorded plain-HTTP settings are a reproducible starting point for testing your own ingress.
+
+The [gateway lifetime sequence](../../../docs/server/06-gateway.md#follow-the-forwarded-body-to-completion) follows credentials, upstream headers,
+body consumption and cancellation separately. Read rejection can precede eventual source cleanup; a returned header is
+not a completed download.

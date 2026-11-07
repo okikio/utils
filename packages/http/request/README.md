@@ -33,10 +33,18 @@ the second returns the accepted body bytes for the application to interpret.
 
 ```ts runnable
 import * as request from '@okikio/http/request';
-console.log(JSON.stringify(request.parseQuery('?tag=a&tag=b')));
+
+// Query inspection does not consume the request body.
+const query = request.parseQuery('?tag=a&tag=b');
+console.log(JSON.stringify(query));
+
 const incoming = new Request('https://service.invalid/import', { method: 'POST', body: 'abc' });
 // The three-byte limit accepts this exact body; larger input must fail before application parsing.
-console.log(new TextDecoder().decode(await request.readBody(incoming, { maximumBodyBytes: 3 })));
+const bytes = await request.readBody(incoming, { maximumBodyBytes: 3 });
+
+// Decoding bytes produces text; application field validation is a later step.
+const text = new TextDecoder().decode(bytes);
+console.log(text);
 ```
 
 Expected output:

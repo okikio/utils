@@ -139,39 +139,29 @@ therefore compares it with an independent linear matcher.
 The service runtime owns one explicit request order. This order matters because some stages must run before the service
 reads or transforms the body.
 
-```text
-route selection
-    |
-    v
-wholeRequest middleware
-    |
-    v
-beforeValidation middleware
-    |
-    v
-authentication
-    |
-    v
-body admission and parsing
-    |
-    v
-Standard Schema validation and transformation
-    |
-    v
-afterValidation middleware
-    |
-    v
-requirements and admission resilience
-    |
-    v
-operation resilience and handler
-    |
-    v
-response validation and HTTP representation
-    |
-    v
-completion observation
+`wholeRequest` surrounds the complete request. `beforeValidation` can inspect raw bytes before normal parsing;
+`afterValidation` sees checked input. Requirements decide whether this operation may run, and `aroundOperation`
+surrounds each handler attempt. Compilation prepares their order; the decisions below still happen for every request:
+
+```mermaid
+flowchart TD
+  Route{"Match method and path?"} -->|No| Miss["Return route rejection"]
+  Route -->|Yes| Whole["wholeRequest and beforeValidation middleware"]
+  Whole --> Auth{"Authentication accepted?"}
+  Auth -->|No| Denied["Return declared authentication problem"]
+  Auth -->|Yes| Input{"Bounded parsing and schema validation pass?"}
+  Input -->|No| Invalid["Return input problem"]
+  Input -->|Yes| After["afterValidation middleware"]
+  After --> Admit{"Requirements and admission accepted?"}
+  Admit -->|No| Refuse["Return admission rejection"]
+  Admit -->|Yes| Run["Operation policy, aroundOperation and handler"]
+  Run --> Output["Validate declared result; create native Response"]
+  Output --> Finish["Observe later body completion or cancellation"]
 ```
+
+Read the branches as request-time gates, not work removed by compilation. A handler runs only after the accepted path.
+The chart omits operation retries and exception projection; the Service guide expands those lifetimes.
+
 
 Authentication runs before normal body parsing. A rejected caller therefore does not force the service to parse an
 otherwise invalid JSON or multipart body. Webhook verification can use `beforeValidation` to authenticate exact body

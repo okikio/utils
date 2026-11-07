@@ -35,7 +35,15 @@ import { parseQuery } from '@okikio/http/request';
 function search(incoming: Request): Response {
 	const query = parseQuery(new URL(incoming.url).search);
 	// A missing tag, one tag, and repeated tags have distinct parser shapes. Normalize them for this endpoint.
-	const tags = query.tag === undefined ? [] : typeof query.tag === 'string' ? [query.tag] : query.tag;
+	const rawTags = query.tag;
+	let tags: readonly string[];
+	if (rawTags === undefined) {
+		tags = [];
+	} else if (typeof rawTags === 'string') {
+		tags = [rawTags];
+	} else {
+		tags = rawTags;
+	}
 	return Response.json({ filters: tags });
 }
 
@@ -47,6 +55,14 @@ console.log(await outgoing.text());
 {"filters":["art","music"]}
 ```
 
+The parser preserves three distinct cases. The handler converts them into one array shape before application work:
+
+| URL input | Parsed `tag` | Normalized tags |
+| --- | --- | --- |
+| No `tag` | `undefined` | `[]` |
+| `?tag=art` | `'art'` | `['art']` |
+| `?tag=art&tag=music` | `['art', 'music']` | `['art', 'music']` |
+
 The repeated `tag` field represents two choices. The handler preserves both rather than using only the last one.
 It needs no router, schema or execution context. Parsing keeps text intact; deciding which tags a search supports is
 still application work.
@@ -55,7 +71,15 @@ When that same search forwards a request, remove connection-specific fields befo
 
 ```ts runnable=forward-search.ts
 import { forward } from '@okikio/http/headers';
-const headers = forward(new Headers({ Connection: 'X-Internal', 'X-Internal': 'secret', Accept: 'application/json' }));
+
+// Connection names the field that belongs only to this network hop.
+const headers = forward(
+	new Headers({
+		Connection: 'X-Internal',
+		'X-Internal': 'secret',
+		Accept: 'application/json',
+	}),
+);
 console.log(headers.has('x-internal'), headers.get('accept'));
 ```
 
