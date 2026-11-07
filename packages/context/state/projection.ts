@@ -5,6 +5,7 @@ import type { Options, Reader } from './cell.ts';
 
 /** Owned read capability. Disposal disconnects upstream listeners and completes local observations. */
 export interface Projection<Value> extends Reader<Value>, Disposable {
+	/** Once closed, the projection no longer follows upstream changes. */
 	readonly closed: boolean;
 	/** Latest selector/equality/observer/reporting defect. A failed projection keeps its last accepted value. */
 	readonly error: unknown;
@@ -67,7 +68,7 @@ export function combine<const Readers extends readonly Reader<unknown>[], Next>(
 	try {
 		for (const reader of owned) resources.use(reader.subscribe(update));
 	} catch (failure) {
-		// DisposableStack preserves a release failure with the failed acquisition through standard suppression semantics.
+		// Release subscriptions already acquired. Keep both faults if rollback also fails.
 		try {
 			resources.dispose();
 		} catch (cleanup) {

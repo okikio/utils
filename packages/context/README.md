@@ -220,19 +220,30 @@ options and types.
 Derived readers retain write authority with their source owner. Dispose the projection when the view closes; it owns its
 upstream subscriptions, and closing the borrowed source alone does not dispose the projection.
 
-```ts
+Save this example as `display-projection.ts` and run `mise exec -- deno run display-projection.ts` after the checkout setup.
+
+```ts runnable=display-projection.ts
 import * as state from '@okikio/context/state';
+
 using progress = state.create({ completed: 0, total: 10 });
+
+// The display can read and subscribe to the percentage. Only the progress owner can write.
 using percent = state.select(progress.reader, ({ completed, total }) => completed / total);
 using display = percent.subscribe(({ value }) => console.log(value));
-progress.set({ completed: 5, total: 10 }); // prints 0.5
+
+progress.set({ completed: 5, total: 10 });
+```
+
+```text output
+0.5
 ```
 
 `combine([readerA, readerB], project)` observes current values when either source changes. Separate source updates can
 produce intermediate combinations; this is not a transaction across cells. Equality follows normal cell options. Initial
-selector failure throws before subscribing. Later selector or equality failure keeps the last accepted value and is
-available on `error`; `onError` is isolated. The projection has no `set` or `update` method. Its payloads remain
-borrowed.
+selector failure throws before subscribing. If a later reader rejects subscription, the projection releases any earlier
+subscriptions it acquired; an error in that release remains visible alongside the registration error. Later selector
+or equality failure keeps the last accepted value and is available on `error`; `onError` is isolated. The projection has
+no `set` or `update` method. Its payloads remain borrowed.
 
 ## Advance a test clock within a finite budget
 

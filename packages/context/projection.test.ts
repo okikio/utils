@@ -49,6 +49,47 @@ describe('owned read-only projections', () => {
 		right.set('b');
 		expect(seen).toEqual(['1:a', '2:a', '2:b']);
 	});
+	it('releases earlier subscriptions when a later reader refuses registration', () => {
+		using source = state.create(1);
+		const acquisition = new Error('second reader refused subscription');
+		const cleanup = new Error('first reader failed after removing the subscription');
+		const first: state.Reader<number> = {
+			...source.reader,
+			subscribe(observer) {
+				const subscription = source.reader.subscribe(observer);
+				return {
+					...subscription,
+					[Symbol.dispose]() {
+						subscription.unsubscribe();
+						throw cleanup;
+					},
+				};
+			},
+		};
+		const second: state.Reader<number> = {
+			...source.reader,
+			subscribe() {
+				throw acquisition;
+			},
+		};
+		let projections = 0;
+		let observed: unknown;
+		try {
+			state.combine([first, second], ([left, right]) => {
+				projections++;
+				return left + right;
+			});
+		} catch (error) {
+			observed = error;
+		}
+
+		expect(observed).toBeInstanceOf(AggregateError);
+		if (!(observed instanceof AggregateError)) throw observed;
+		expect(observed.errors).toEqual([acquisition, cleanup]);
+		// The borrowed source remains writable, but its rolled-back listener cannot project again.
+		source.set(2);
+		expect(projections).toBe(1);
+	});
 });
 
 describe('bounded clock simulation', () => {
