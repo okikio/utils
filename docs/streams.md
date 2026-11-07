@@ -122,6 +122,7 @@ const source = new ReadableStream<Uint8Array>({
 }, { highWaterMark: 0 }); // Do not prefetch another chunk while the consumer saves a batch.
 
 const saved: string[] = [];
+/** Validate each parsed value before retaining names in this finite, in-memory demonstration. */
 async function saveBatch(records: readonly unknown[]): Promise<void> {
 	for (const value of records) {
 		if (typeof value !== 'object' || value === null || !('name' in value) || typeof value.name !== 'string') {
@@ -130,6 +131,8 @@ async function saveBatch(records: readonly unknown[]): Promise<void> {
 		saved.push(value.name);
 	}
 }
+
+// Pull only the next bounded batch; saving it finishes before asking for another.
 for await (
 	const group of streams.batch(
 		json.lines(source, {
@@ -155,7 +158,7 @@ Reader released: true Cancellation requested: true
 `json.lines()` bounds original bytes, each line, and the number of records. JSON syntax alone does not check your
 application record, so `saveBatch()` validates `name` before saving it. `batch()` holds at most two records; the sink
 must not retain all records in a real large import. The local array makes this small output visible. `break` closes the
-iterator chain and requests source cancellation. It is not successful EOF: later malformed lines were never checked.
+iterator chain and requests source cancellation. It is not successful end of input (EOF): later malformed lines were never checked.
 
 Remove `break` to read all three records. Lower `maximumLineBytes` below the first line's byte size to see a bound
 failure. Previously saved batches remain partial work if a later record fails. Use a staging table and a separate
@@ -171,11 +174,16 @@ promise; that promise resolves to an outcome and never rejects.
 
 ```ts runnable=reader-cleanup.ts
 import { open } from '@okikio/streams/reader';
+// Simulate a producer whose cancellation cannot finish until its own work is released.
 const finish = Promise.withResolvers<void>();
 const source = new ReadableStream<number>({ cancel: () => finish.promise });
 const reader = open(source);
+
+// close() releases our reader lock now, while retaining the producer's pending cleanup.
 const cleanup = reader.close();
 console.log(source.locked);
+
+// The source owner finishes later. Only then can the cleanup outcome say cancelled.
 finish.resolve();
 console.log((await cleanup).status);
 ```
@@ -183,6 +191,24 @@ console.log((await cleanup).status);
 ```text output
 false
 cancelled
+```
+
+The first print happens while source cancellation is still pending. The source is unlocked because the reader
+has released its ownership, not because all producer work has stopped:
+
+```mermaid
+sequenceDiagram
+    participant Caller
+    participant Reader
+    participant Source
+    Caller->>Reader: close()
+    Reader->>Source: Request cancellation
+    Note over Source: Waiting for finish.promise
+    Reader-->>Caller: Lock released, cleanup Promise returned
+    Caller->>Caller: Print locked = false
+    Caller->>Source: finish.resolve()
+    Source-->>Reader: Cancellation finished
+    Reader-->>Caller: cleanup resolves with cancelled
 ```
 
 Choose `preventCancel: true` when the source remains borrowed; cleanup then reports `released`. At EOF it reports

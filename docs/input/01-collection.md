@@ -228,6 +228,21 @@ Select `Ada` in the textarea and click the button. The note becomes `Hello Grace
 surrogate pair and a result longer than 100 code units. An active composition is blocked. It does not synthesize input
 or change events, claim browser undo behavior, or select user-perceived grapheme clusters for you.
 
+JavaScript measures a native selection in UTF-16 **code units**, not visible characters. For `A😀`, the emoji
+uses two units. A boundary is a position between units:
+
+| Boundary | Position | Valid for this operation? |
+| --- | --- | --- |
+| `0` | Before `A` | Yes |
+| `1` | After `A`, before the emoji | Yes |
+| `2` | Between the emoji's two units | No: this would split the emoji |
+| `3` | After the emoji | Yes |
+
+`A😀` therefore has three code units but two Unicode **code points**. A **grapheme** is a user-perceived character;
+a letter plus a combining accent, or an emoji sequence, can contain several code points. This API prevents splitting
+one surrogate pair. It does not find grapheme boundaries for you. Use a grapheme segmenter when an editor must select
+whole user-perceived characters.
+
 Prepare the checkout from its root with `mise trust`, `mise install` and `mise run prepare -- --kind deps` after reviewing
 `mise.toml`. Save the HTML as `contact-edit.html` and TypeScript as `contact-edit.ts`.
 
@@ -324,7 +339,21 @@ materializing text and pass it to a bounded stream parser for large content.
 ## Walk contact exports with explicit directory budgets
 
 Directory access differs between browsers and operating systems, so the walker accepts an injected adapter. This
-portable program demonstrates the actual walker with a supplied tree. It opens no picker and reads no file body. Save
+portable program demonstrates the actual walker with this supplied tree. It opens no picker and reads no file body.
+
+```text
+contacts/              # Root directory, depth 0
+└── customers.csv       # File inside that directory, depth 1
+```
+
+| Budget | What this tree uses | Why |
+| --- | --- | --- |
+| `maximumEntries: 2` | 2 entries | Both the directory and the file count. |
+| `maximumFiles: 1` | 1 file | Only `customers.csv` needs a File result. |
+| `maximumDepth: 1` | 1 directory level | The root at depth 0 can be entered; another directory at depth 1 would reject. |
+| `maximumBytes: 1024` | The supplied File's size | Bounds accepted file bytes, independently of the entry count. |
+
+Save
 as `contact-directory.ts` and run `mise exec -- deno run contact-directory.ts`.
 
 ```ts runnable=contact-directory.ts
@@ -334,16 +363,31 @@ interface Entry {
 	kind: 'directory' | 'file';
 	children?: Entry[];
 }
-const root: Entry = { name: 'contacts', kind: 'directory', children: [{ name: 'customers.csv', kind: 'file' }] };
+// The directory contains one file; this is the whole supplied tree.
+const root: Entry = {
+	name: 'contacts',
+	kind: 'directory',
+	children: [
+		{ name: 'customers.csv', kind: 'file' },
+	],
+};
+
 let metadataReads = 0;
 for await (
 	const found of files.walk([root], {
+		// Enumerate entries inside a directory; do not read their file contents here.
 		children: (entry) => entry.children ?? [],
+		// Supply file metadata. This fixture constructs a File without reading its body.
 		file: async (entry) => {
 			metadataReads++;
 			return new File(['Name,Email\nAda,ada@example.com\n'], entry.name);
 		},
-	}, { maximumDepth: 1, maximumEntries: 2, maximumFiles: 1, maximumBytes: 1024 })
+	}, {
+		maximumDepth: 1,
+		maximumEntries: 2,
+		maximumFiles: 1,
+		maximumBytes: 1024,
+	})
 ) {
 	console.log(found.path, found.file.name);
 }

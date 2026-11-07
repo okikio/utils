@@ -49,9 +49,11 @@ import * as state from '@okikio/context/state';
 import * as web from '@okikio/storage/state/web';
 import * as schema from '@okikio/schema';
 
+// Borrow the mounted controls; this module owns only the listeners, stored cell and feedback handles.
 const button = document.querySelector<HTMLButtonElement>('#save')!;
 const region = document.querySelector<HTMLElement>('#status')!;
 const input = document.querySelector<HTMLInputElement>('#draft')!;
+
 /** The screen owns cancellation; feedback borrows its signal for each operation. */
 const screen = new AbortController();
 const status = announcer(region, { signal: screen.signal });
@@ -69,6 +71,8 @@ async function openDraft() {
 		initial: () => input.value,
 	});
 }
+
+// Finish startup before admitting any click. A failed load leaves Save unavailable.
 try {
 	draft = await openDraft();
 	input.value = draft.reader.get();
@@ -88,8 +92,10 @@ try {
 	}
 	throw error;
 }
+
 /** The same finite cue can be reused by a click, keyboard shortcut or command. */
 const saved = define({ message: 'Changes saved locally', brightness: { amount: 1.12, duration: 180 } });
+
 /** Retain in-flight feedback only until it settles, so teardown can join cleanup. */
 const pending = new Set<Promise<void>>();
 
@@ -134,6 +140,34 @@ window.addEventListener('pagehide', () => {
 	void close();
 }, { once: true });
 ```
+
+Follow one click before considering shutdown. Storage acknowledgement is the success boundary. The status message
+then makes that result available without requiring the optional brightness animation. A component can await `close()`;
+a browser's `pagehide` event cannot keep the page alive until that asynchronous join completes.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Screen
+    participant Storage
+    participant Feedback
+    User->>Screen: Click Save
+    Screen->>Storage: Write draft
+    alt Storage accepts the write
+        Storage-->>Screen: Acknowledgement
+        Screen->>Feedback: Announce saved text, start optional cue
+        Feedback-->>Screen: Cue settles
+    else Storage rejects the write
+        Storage-->>Screen: Failure
+        Screen->>Feedback: Announce retry message, no success cue
+    end
+    User->>Screen: Remove screen
+    Screen->>Screen: Stop clicks and abort cues
+    Screen->>Screen: Join retained saves, dispose owners
+```
+
+The join includes saves already started by clicks. Cancelling the screen signal stops feedback; it does not undo an
+acknowledged storage write. Page exit only requests this cleanup, so save important work before navigating away.
 
 The browser loads the `.js` file named by the HTML script tag. The bundle command turns the TypeScript module and its
 imports into that JavaScript file. The local HTTP server then serves the HTML and JavaScript to your browser.

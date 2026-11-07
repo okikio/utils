@@ -81,12 +81,16 @@ midpoint translation, relative scale and continuous accumulated rotation in degr
 import * as gestures from '@okikio/input/gestures';
 import { ms } from '@okikio/duration';
 
+/** Borrow a mounted SVG surface; its screen must call the returned stop function on unmount. */
 export function mountCanvas(surface: SVGSVGElement, draw: (scale: number, rotation: number) => void): () => void {
-	const stop = gestures.transform(surface, ({ phase, scale, rotation, event }) => {
-		if (phase === 'start' || phase === 'move') draw(scale, rotation);
-		const pressure: number = event.pressure;
-		void pressure;
+	const stop = gestures.transform(surface, ({ phase, scale, rotation }) => {
+		// Start establishes the geometry; moves update it. End/cancel must not draw a new frame.
+		if (phase === 'start' || phase === 'move') {
+			draw(scale, rotation);
+		}
 	}, { capture: true });
+
+	// Remove this recognizer's listeners and active gesture when the canvas leaves the screen.
 	return () => stop();
 }
 

@@ -75,6 +75,9 @@ adds no registration or global input owner.
 
 ## Attach and release a real interaction
 
+In a report, `j` selects the next row, `k` selects the previous row, and the sequence `g g` returns to the first row.
+The callback below interprets these navigation commands; these numbers are an application convention.
+
 A shortcut can be a callback. This reusable mount function installs a single keyboard owner and returns the teardown
 function that a component should call when it leaves the screen. It does not dispose the binding before the user can
 interact.
@@ -82,12 +85,19 @@ interact.
 ```ts support=input-navigation.ts
 import * as keys from '@okikio/input/keys';
 
+/**
+ * Borrow the screen's Window for report navigation; never close that Window.
+ * select(1) means next row, select(-1) previous row, and select(0) the first row.
+ * The report owns row bounds and selection. Its screen owns the returned listener teardown.
+ */
 export function mountNavigation(scope: Window, select: (offset: number) => void): () => void {
 	const stop = keys.listen(scope, [
 		{ key: 'j', run: () => select(1) },
 		{ key: 'k', run: () => select(-1) },
 		{ key: 'g g', run: () => select(0) },
 	]);
+
+	// Call on screen removal, after the user has had a chance to use these bindings.
 	return () => stop();
 }
 ```

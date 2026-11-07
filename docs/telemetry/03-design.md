@@ -44,6 +44,24 @@ own setup and logging bridge in that case.
 6. The worker reports its result to PostgreSQL. That durable result controls recovery. Exported diagnostics have no
    authority over it.
 
+The saved parent connects attempts even when the first worker disappears. Time spent waiting in the queue is not
+represented by a span held open in a worker. The dashed export arrow below is deliberately separate from the
+PostgreSQL receipt that recovery trusts:
+
+```mermaid
+flowchart TD
+    A[Client starts submission span] --> B[Save parent trace with request]
+    B --> C[End submission span]
+    C --> D[Worker A starts attempt span]
+    D --> E[Worker A is lost]
+    E --> F[Worker B starts new attempt span]
+    F --> G[Guarded write and receipt]
+    F -.-> H[Independent diagnostic export]
+```
+
+A shared parent means these attempts belong to one trace; it does not make them the same attempt or give either one
+permission to overwrite the other's work. The workflow store and its guarded writes decide that authority.
+
 Saved identity contains only `{ version: 1, traceparent }`. It contains no baggage, application payload, credentials, or
 vendor state. Invalid diagnostic data is discarded. Old rows with no identity remain valid. The additive `trace` column
 is installed by the workflow migration. Run that migration before deploying this adapter against an older database.

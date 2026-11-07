@@ -155,6 +155,7 @@ const source = new ReadableStream<Uint8Array>({
 	},
 }, { highWaterMark: 0 });
 const saved: string[] = [];
+/** Validate each parsed value before retaining names in this finite, in-memory demonstration. */
 async function saveBatch(records: readonly unknown[]): Promise<void> {
 	for (const value of records) {
 		if (typeof value !== 'object' || value === null || !('name' in value) || typeof value.name !== 'string') {
@@ -163,6 +164,8 @@ async function saveBatch(records: readonly unknown[]): Promise<void> {
 		saved.push(value.name);
 	}
 }
+
+// Pull only the next bounded batch; saving it finishes before asking for another.
 for await (
 	const group of streams.batch(
 		json.lines(source, {
@@ -188,7 +191,7 @@ Reader released: true Cancellation requested: true
 `json.lines()` bounds original bytes, each line, and the number of records. JSON syntax alone does not check your
 application record, so `saveBatch()` validates `name` before saving it. `batch()` holds at most two records; the sink
 must not retain all records in a real large import. The local array makes this small output visible. `break` closes the
-iterator chain and requests source cancellation. It is not successful EOF: later malformed lines were never checked.
+iterator chain and requests source cancellation. It is not successful end of input (EOF): later malformed lines were never checked.
 
 Remove `break` to read all three records. Lower `maximumLineBytes` below the first line's byte size to see a bound
 failure. Previously saved batches remain partial work if a later record fails. Use a staging table and a separate
@@ -204,11 +207,16 @@ promise; that promise resolves to an outcome and never rejects.
 
 ```ts runnable=reader-cleanup.ts
 import { open } from '@okikio/streams/reader';
+// Simulate a producer whose cancellation cannot finish until its own work is released.
 const finish = Promise.withResolvers<void>();
 const source = new ReadableStream<number>({ cancel: () => finish.promise });
 const reader = open(source);
+
+// close() releases our reader lock now, while retaining the producer's pending cleanup.
 const cleanup = reader.close();
 console.log(source.locked);
+
+// The source owner finishes later. Only then can the cleanup outcome say cancelled.
 finish.resolve();
 console.log((await cleanup).status);
 ```
@@ -217,6 +225,21 @@ console.log((await cleanup).status);
 false
 cancelled
 ```
+
+The first print happens while source cancellation is still pending. The source is unlocked because the reader
+has released its ownership, not because all producer work has stopped:
+
+```mermaid
+flowchart TD
+    Close["Caller: reader.close()"] --> Cancel["Reader: ask source to cancel"]
+    Cancel --> Release["Reader: release lock now"]
+    Release --> Pending["Caller: cleanup still pending"]
+    Pending --> Finish["Source owner: finish.resolve()"]
+    Finish --> Outcome["cleanup resolves: cancelled"]
+```
+
+Read downward as the order in this example: the caller can print `false` at the pending step, before the source
+owner permits cleanup to finish.
 
 Choose `preventCancel: true` when the source remains borrowed; cleanup then reports `released`. At EOF it reports
 `completed`. A late cancellation or local release failure reports `{ status: 'failed', error }`. When both fail, `error`
@@ -469,6 +492,29 @@ console.log(JSON.stringify(received));
 work. Capture, passive and once retain native meaning. Signal abort completes observation, while unsubscribing removes
 only that subscription's listener. A supplied event generic asserts the caller's knowledge of the event name; it does
 not validate host events.
+
+The native event source pushes during dispatch. The pipe consumes later, so the queue needs a policy for the case
+where events arrive faster than writes complete. A native event listener cannot make `dispatchEvent()` await a slow
+consumer. For `currentTarget` or `composedPath()`, copy the needed fields in a synchronous subscription before sending
+that snapshot downstream; their dispatch-time values may no longer exist when a pipe receives the Event.
+
+```mermaid
+flowchart TD
+    Native[Native event dispatch] --> Capture[Snapshot transient fields]
+    Capture --> Full{Queue full?}
+    Full -->|No| Queue[Enqueue value]
+    Queue --> Pipe[Transform and write]
+    Full -->|Yes| Policy[Apply overflow policy]
+```
+
+| `overflow` | What happens to an incoming value when the queue is full | Use when |
+| --- | --- | --- |
+| `error` | Fail the stream and unsubscribe. | Missing a value must be visible. |
+| `drop-newest` | Keep queued values; discard the new value. | Earlier accepted values matter most. |
+| `drop-oldest` | Remove the oldest queued value; retain the new value. | Recent state matters more than old updates. |
+
+These policies bound retained values, not their byte size. They cannot slow the native producer or recover a value
+that was deliberately dropped.
 
 `readable()` subscribes immediately and also accepts `EventBus.events` and piped Observables. A push producer cannot
 wait for downstream demand. Choose `overflow: 'error'` for visible loss refusal, `'drop-newest'` to retain the oldest

@@ -163,6 +163,7 @@ const second = telemetry.create(history, { fields: { import_id: 'contacts-2' } }
 await first.report({ name: 'import.started', level: 'debug' });
 await second.report({ name: 'import.started', level: 'debug' });
 console.log(JSON.stringify(history.stats()));
+// Error reaches the default trigger: deliver contacts-2's history before this failure record.
 await second.report({ name: 'import.failed', level: 'error' });
 console.log(output.records.map((event) => event.fields.import_id + ':' + event.name).join(','));
 console.log(JSON.stringify(history.stats()));
@@ -173,6 +174,22 @@ console.log(JSON.stringify(history.stats()));
 contacts-2:import.started,contacts-2:import.failed
 {"keys":0,"records":0,"dropped":1}
 ```
+
+Read the counters as a sequence, not as a count of failed imports. `keys` and `records` describe history retained
+**now**. `dropped` counts retention losses over this buffer's **lifetime** and does not reset on flush.
+
+| After this report | Retained keys | Retained records | Lifetime `dropped` | Delivered to memory so far |
+| --- | --- | --- | --- | --- |
+| `contacts-1:import.started` | `contacts-1` | 1 | 0 | None |
+| `contacts-2:import.started` | `contacts-2` | 1 | 1 | None: the one-key limit evicted contacts-1. |
+| `contacts-2:import.failed` | None | 0 | 1 | contacts-2 start, then failure |
+
+The error itself goes directly to delivery after its key's retained history. It is not another retained record.
+A flush detaches that history before delivery, even if the reporter later fails; it does not erase the earlier eviction.
+Explicit `discard()` also releases
+history, without counting it as a pressure drop. The memory reporter separately retains delivered records; the buffer's
+zero retained records does not mean the destination is empty.
+
 
 The error flush releases that key's history before delivery. Eviction loses diagnostic history deliberately; it must
 never remove authoritative import state. `stats().dropped` counts capacity eviction, not application completion or

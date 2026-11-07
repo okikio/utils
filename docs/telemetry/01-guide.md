@@ -55,6 +55,21 @@ Expected output:
 import.started,import.failed
 ```
 
+The buffer holds diagnostic history, not a queue of business jobs. A retained event has not reached the reporter;
+flushing detaches that history before attempting delivery, so a reporter failure does not put it back.
+
+| State or action | Where the record is | What it means |
+| --- | --- | --- |
+| Retained | In a bounded history for one key | Waiting for a trigger or explicit flush. |
+| Pending delivery | Detached from history; reporter call is in progress | Retention counters no longer include it. |
+| Delivered | The reporter call has returned | The destination accepted the call; durable storage depends on that reporter. |
+| Evicted | Removed because a retention limit was reached | Diagnostic history was lost; `dropped` increases. |
+| Discarded | Explicitly removed with `discard(key)` | The caller no longer needs that history; `dropped` does not increase. |
+
+An error or fatal event triggers that key's history delivery, then its own delivery. Scope-level isolation protects
+business results from reporter failure; it cannot make a failed destination retain the record. None of these states
+proves that the import's business write committed.
+
 ## Compare explicit reporting with ordinary logging
 
 Ordinary code can log useful information directly:
@@ -199,7 +214,7 @@ import * as context from '@okikio/context';
 import * as telemetry from '@okikio/telemetry';
 
 await using ctx = context.create({ id: 'import:42', traceId: 'trace-42' });
-// Attach the request ID once so both events can be traced to the same operation.
+// Use the Context identity and clock for this import event.
 const scope = telemetry.create(reporter, {
 	fields: telemetry.contextFields(ctx),
 	now: () => ctx.clock.now().toString(),
@@ -219,7 +234,7 @@ import { getLogger } from '@logtape/logtape';
 import * as telemetry from '@okikio/telemetry';
 import * as logtape from '@okikio/telemetry/logtape';
 
-// Attach the request ID once so both events can be traced to the same operation.
+// Attach the service identity to the readiness event.
 const scope = telemetry.create(
 	logtape.reporter(getLogger(['app', 'account'])),
 	{ fields: { service_id: 'account' } },
@@ -246,7 +261,7 @@ import { context, trace } from '@opentelemetry/api';
 import * as telemetry from '@okikio/telemetry';
 import * as otel from '@okikio/telemetry/otel';
 
-// Attach the request ID once so both events can be traced to the same operation.
+// Combine the active span identity with this request ID for the account-read event.
 const scope = telemetry.create(reporter, {
 	fields: {
 		...telemetry.traceFields(otel.active({ context, trace })),
@@ -272,7 +287,7 @@ const Diagnostics = service.observer.define({
 	id: 'accounts.diagnostics',
 	description: 'Observe account requests.',
 });
-// Attach the request ID once so both events can be traced to the same operation.
+// Attach deployment identity to every lifecycle record projected by this observer.
 const scope = telemetry.create(reporter, { fields: { deployment_id: 'blue' } });
 
 await using runtime = service.create(compiled, {

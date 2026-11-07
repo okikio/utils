@@ -103,11 +103,17 @@ Prepare the checkout from its root with `mise trust`, `mise install` and `mise r
 
 ```ts support=search-observation.ts
 import * as text from '@okikio/input/text';
+
+// The screen borrows its DOM elements and owns the observation lifetime.
 const field = document.querySelector<HTMLInputElement>('#search')!;
 const output = document.querySelector<HTMLElement>('#results')!;
 const screen = new AbortController();
+
+// A request has a shorter lifetime: the next committed edit replaces it.
 let current: AbortController | undefined;
+
 const observation = text.observe(field, { signal: screen.signal }).subscribe(({ value }) => {
+	// Cancel earlier I/O as well as guarding its eventual result against stale display.
 	current?.abort('new search');
 	const request = new AbortController();
 	current = request;
@@ -121,6 +127,8 @@ const observation = text.observe(field, { signal: screen.signal }).subscribe(({ 
 			if (!request.signal.aborted) console.error(error);
 		});
 });
+
+/** Stop both request work and future input notifications when the screen leaves. */
 function close(): void {
 	current?.abort('screen closed');
 	screen.abort();
@@ -128,6 +136,28 @@ function close(): void {
 }
 window.addEventListener('pagehide', close, { once: true });
 ```
+
+Each controller has a specific job. The screen controller ends input observation; the current request controller
+cancels the fetch started by the most recent edit. This sequence assumes B arrives before A finishes:
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Screen
+    participant Fetch
+    User->>Screen: Edit A
+    Screen->>Fetch: Start A with request signal
+    User->>Screen: Edit B
+    Screen->>Fetch: Abort A, start B with new signal
+    Note over Screen: Ignore results whose request signal is aborted
+    User->>Screen: Close screen
+    Screen->>Fetch: Abort B
+    Screen->>Screen: Abort observation and unsubscribe
+```
+
+`unsubscribe()` removes a listener. It does not cancel or join a Promise that the listener already started. Here the
+request signal reaches fetch, and the result guard prevents an aborted request from repainting the screen. `close()`
+requests cancellation synchronously; it does not wait for those fetch Promises to settle.
 
 The browser loads the `.js` file named by the HTML script tag. The bundle command turns the TypeScript module and its
 imports into that JavaScript file. The local HTTP server then serves the HTML and JavaScript to your browser.
