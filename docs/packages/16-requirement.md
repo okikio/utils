@@ -19,9 +19,13 @@ public workspace imports. After `mise run prepare -- --kind deps`, save it as `e
 ```ts runnable=complete-task.ts
 import * as context from '@okikio/context';
 import * as requirement from '@okikio/capability/requirement';
+
+// The rule and request data exist before runtime enforcement.
 const Size = Object.freeze({ kind: 'upload-rule', id: 'upload.maximum-bytes', maximum: 1024 });
 const NeedsSmallUpload = requirement.define({ family: 'upload', action: 'require', definition: Size });
 const bytes = new Uint8Array([1, 2, 3]);
+
+// Attach the interpreter to this operation without creating a second lifetime.
 await using owner = context.create({ id: 'upload' });
 const ctx = requirement.scope(owner, {
 	interpreters: {
@@ -29,6 +33,7 @@ const ctx = requirement.scope(owner, {
 			/** Check only the exact declared upload rule against this request's bytes. */
 			async apply(_ctx, entries) {
 				for (const entry of entries) {
+					// A matching ID is insufficient: interpret only the canonical rule object.
 					if (entry.definition !== Size) throw new Error('Unknown upload rule.');
 					if (bytes.byteLength > Size.maximum) throw new Error('The upload is too large.');
 				}
@@ -36,6 +41,7 @@ const ctx = requirement.scope(owner, {
 		},
 	},
 });
+
 // Applying the requirement invokes the interpreter. A declaration alone does not check the upload.
 await requirement.apply(ctx, [NeedsSmallUpload]);
 console.log(`Upload admitted: ${bytes.byteLength} bytes`);
@@ -58,6 +64,18 @@ capabilities.
 To see a rejection, replace the three-byte input with `new Uint8Array(1025)` and catch the call to `apply`. It rejects with `The upload is too large.` before the success line. Perform the write only after that Promise resolves. To see the other failure, omit the `upload` interpreter: applying an active family without an interpreter rejects by default. A test host can explicitly select `unknown: 'ignore'`, but that bypass is a policy decision, not permission enforcement.
 
 For permissions the roles are the same: the declaration names a permission, the application supplies a checker, and the active call evaluates the target. A declaration alone grants no access and does not choose a role system, relationship graph or remote authorization service.
+
+Suppose a picture-download operation declares ReadPicture and uses a resource that can open picture storage. The host
+can inspect that contract before it knows which picture the request names. After resolving photo-1, the operation asks
+the application checker about that actual target before borrowing or returning protected data.
+
+```text
+Declare ReadPicture → retain it in the reachable operation/resource contract
+                    → resolve target photo-1 → activate check → application interpreter decides
+```
+
+The arrows show when metadata becomes a real decision. They do not authenticate the caller or supply the picture
+policy; the application must provide both. The upload example uses the same separation for a byte-size rule.
 
 ## Direct, reachable, and active requirements
 

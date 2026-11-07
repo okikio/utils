@@ -31,6 +31,8 @@ import * as schema from '@okikio/schema';
 const Store = capability.resource.define<Map<string, string>>()({ id: 'notes', description: 'Saved notes.' });
 const CanSave = capability.requirement.define({ family: 'notes', action: 'save', definition: Store });
 const Saved = capability.effect.define({ id: 'note.saved', value: schema.object({ id: schema.string() }) });
+
+// The host supplies the concrete store and its cleanup.
 const live = capability.resource.implement(Store, {
 	/** Tie the demo store to the resource context so scope exit also releases its contents. */
 	create({ ctx }) {
@@ -42,6 +44,8 @@ const live = capability.resource.implement(Store, {
 
 await using owner = context.create({ id: 'save-note' });
 await using clients = await capability.resource.open(live, { ctx: owner });
+
+// Attach this account policy and announcement recipient to a borrowed scope.
 const account = { canWrite: true };
 const accepted: string[] = [];
 const ctx = capability.scope(owner, {
@@ -65,10 +69,14 @@ const ctx = capability.scope(owner, {
 		},
 	},
 });
+
 // Check permission before changing the store. Declaring a requirement alone does not enforce it.
 await capability.requirement.apply(ctx, [CanSave]);
+
+// First use creates the lazy Map; the collection retains ownership.
 const store = await ctx.get(Store);
 store.set('note-1', 'Remember the photo');
+
 // This receiver records an occurrence in memory; it does not make the preceding write durable.
 await capability.effect.emit(ctx, Saved, { id: 'note-1' }, { key: 'save:note-1' });
 console.log(store.get('note-1'));
@@ -84,6 +92,10 @@ save:note-1
 borrows its lazily acquired value. `requirement.apply` activates the explicit save rule. `effect.emit` waits for the
 supplied recipient to accept the validated occurrence. These are distinct actions: constructing a scope does not apply
 rules, save data, or accept an effect.
+
+The order is intentional: apply the save rule, borrow the store, write the note, then wait for the announcement
+recipient. A rejected rule prevents the write. A failed announcement happens after the write and cannot undo it.
+This is why the two success lines describe different facts rather than one atomic commit.
 
 The Map write and effect acceptance are two operations. If they must commit atomically, the application needs a
 transactional store/outbox. An effect key permits deduplication by a recipient; it cannot make arbitrary work exactly

@@ -19,13 +19,17 @@ import * as permission from '@okikio/authz/permission';
 import * as role from '@okikio/authz/role';
 import * as context from '@okikio/context';
 import * as schema from '@okikio/schema';
+
+// Canonical declarations describe candidate actions, not a member's current access.
 const TargetSchema = schema.object({ id: schema.string() });
 const Read = permission.define({ id: 'asset.read', target: TargetSchema });
 const Editor = role.define({ id: 'editor', permissions: [Read] });
 const Roles = role.catalog('gallery', { Editor });
+
 // This membership comes from the authenticated account, never from an untrusted URL.
 const member = role.get(Roles, 'editor');
 if (member === undefined) throw new Error('Unknown account role.');
+
 // Role membership supplies candidate grants. The policy below also restricts the concrete target.
 const checker = role.checker([member], {
 	maximumRoles: 1,
@@ -33,8 +37,12 @@ const checker = role.checker([member], {
 	maximumChecks: 10,
 	policy: (_ctx, request) => ({ allowed: TargetSchema.parse(request.target).id === 'photo-1' }),
 });
+
+// Apply that actor-specific checker within one request lifetime.
 await using owner = context.create({ id: 'gallery-request' });
 const ctx = permission.scope(owner, { permissions: [Read], checker });
+
+// Static membership can be true while access to a particular picture is false.
 console.log(role.grants(Editor, Read));
 console.log(await permission.check(ctx, Read, { id: 'photo-1' }));
 console.log(await permission.check(ctx, Read, { id: 'photo-2' }));

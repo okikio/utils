@@ -16,9 +16,14 @@ Save the complete block as `gallery.ts` and run `mise exec -- deno run gallery.t
 import * as context from '@okikio/context';
 import * as permission from '@okikio/authz/permission';
 import * as schema from '@okikio/schema';
+
+// Declare the action and the shape of the picture it applies to.
 const TargetSchema = schema.object({ id: schema.string() });
 const Read = permission.define({ id: 'asset.read', target: TargetSchema });
+
+// These grants represent one authenticated actor's trusted policy data.
 const grants = new Set(['photo-1']);
+
 await using owner = context.create({ id: 'asset-download' });
 const ctx = permission.scope(owner, {
 	permissions: [Read],
@@ -30,11 +35,13 @@ const ctx = permission.scope(owner, {
 		},
 	},
 });
+
 /** Check the target before returning its contents; denial must not enter the read path. */
 async function download(id: string): Promise<Response> {
 	if (!await permission.check(ctx, Read, { id })) return new Response('Forbidden', { status: 403 });
 	return new Response(`Contents of ${id}`);
 }
+// Exercise both branches without starting a web server.
 const allowed = await download('photo-1');
 const denied = await download('photo-2');
 console.log(allowed.status, await allowed.text());
@@ -105,8 +112,17 @@ Compose application checks only when one operation genuinely crosses independent
 Append this to the gallery program. It asks whether both pictures are readable, or at least one is readable.
 
 ```ts
-const both = permission.all(permission.on(Read, { id: 'photo-1' }), permission.on(Read, { id: 'photo-2' }));
-const either = permission.any(permission.on(Read, { id: 'photo-1' }), permission.on(Read, { id: 'photo-2' }));
+// Must this actor be able to read both pictures?
+const both = permission.all(
+	permission.on(Read, { id: 'photo-1' }),
+	permission.on(Read, { id: 'photo-2' }),
+);
+
+// Is access to at least one picture enough?
+const either = permission.any(
+	permission.on(Read, { id: 'photo-1' }),
+	permission.on(Read, { id: 'photo-2' }),
+);
 console.log(await permission.check(ctx, both)); // false
 console.log(await permission.check(ctx, either)); // true
 ```
@@ -119,6 +135,19 @@ A checker can return an error for one atomic decision without discarding success
 Composition remains fail closed without throwing away a decisive result: `any()` returns `true` when another branch
 explicitly allows, and `all()` returns `false` when another branch explicitly denies. If no decisive branch exists, the
 per-check error becomes `PermissionEvaluationError`. A whole-provider failure still rejects the checker call directly.
+
+A returned fault leaves that leaf unanswered; it is not an explicit denial. Use this table to read a combined result:
+
+| Answers in the logical batch | `all()` | `any()` |
+| --- | --- | --- |
+| Every leaf allows | Allows | Allows |
+| At least one denies; no faults | Denies | Allows if another leaf allows; otherwise denies |
+| A fault and an explicit denial | Denies | Throws unless another leaf allows |
+| A fault and an explicit allow | Throws unless another leaf denies | Allows |
+| Only faults | Throws | Throws |
+
+This table covers valid returned decisions. Invalid targets, malformed checker responses, missing configuration and a
+checker that throws reject the call; they are not extra false leaves.
 
 `not()` is deliberately absent. Negation interacts poorly with incomplete information and provider failures. Negative
 policy belongs in the policy evaluator where its complete authorization model is available.

@@ -33,12 +33,18 @@ import * as effect from '@okikio/capability/effect';
 import * as meter from '@okikio/capability/effect/meter';
 import { MeterReadingSchema } from '@okikio/capability/effect/meter';
 import * as schema from '@okikio/schema';
+
+// Declare what is counted; the recipient decides how to retain it.
 const Bytes = meter.define({ id: 'download.bytes', unit: 'byte', aggregation: 'sum' });
+
 await using owner = context.create({ id: 'download' });
+
+// In-memory acceptance lets us compare the received reading with the returned one.
 const accepted: number[] = [];
 const ctx = effect.scope(owner, {
 	effects: [meter.effect(Bytes)],
 	emitter: {
+		/** Accept the checked fact here; this array is not a billing ledger. */
 		async emit(_ctx, occurrence) {
 			accepted.push((await schema.parse(MeterReadingSchema, occurrence.value)).value);
 		},
@@ -49,7 +55,11 @@ const response = await fetch('data:application/octet-stream,' + 'x'.repeat(2048)
 if (!response.ok) throw new Error(`Download failed: HTTP ${response.status}`);
 const bytes = new Uint8Array(await response.arrayBuffer());
 // The key identifies this reading. The receiver decides how it is retained and aggregated.
+
+// Recording awaits the recipient, so an unavailable recipient cannot look like accepted usage.
 const occurrence = await meter.record(ctx, Bytes, bytes.byteLength, { key: 'download:asset-1' });
+
+// Inspect the same reading on both sides of the handoff.
 console.log((await schema.parse(MeterReadingSchema, occurrence.value)).value);
 console.log(accepted.join(','));
 ```

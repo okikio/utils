@@ -31,8 +31,14 @@ From a checkout of this experimental workspace, run `mise trust`, `mise install`
 import * as context from '@okikio/context';
 import * as effect from '@okikio/capability/effect';
 import * as schema from '@okikio/schema';
+
+// Define the announcement before choosing who will accept it.
 const Saved = effect.define({ id: 'asset.saved', value: schema.object({ id: schema.string() }) });
+
+// This lifetime owns cancellation and cleanup, not downstream delivery.
 await using owner = context.create({ id: 'save' });
+
+// This recipient accepts into memory only; restart would lose these records.
 const accepted: string[] = [];
 const ctx = effect.scope(owner, {
 	effects: [Saved],
@@ -43,6 +49,7 @@ const ctx = effect.scope(owner, {
 		},
 	},
 });
+
 // The stable key identifies this occurrence. An in-memory receiver alone cannot deduplicate across restarts.
 await effect.emit(ctx, Saved, { id: 'asset-1' }, { key: 'save:asset-1' });
 console.log(accepted.join(','));
@@ -96,6 +103,8 @@ Save this complete variation as `prepare-save.ts` and run `mise exec -- deno run
 ```ts runnable=prepare-save.ts
 import * as effect from '@okikio/capability/effect';
 import * as schema from '@okikio/schema';
+
+// Define the announcement before choosing who will accept it.
 const Saved = effect.define({ id: 'asset.saved', value: schema.object({ id: schema.string() }) });
 const occurrence = await effect.create(Saved, { id: 'asset-1' }, { key: 'save:asset-1' });
 console.log(occurrence.key, occurrence.value.id);
@@ -119,6 +128,22 @@ complete variation keeps the same saved-asset shape. Its in-memory queue lets yo
 process restart would lose queued announcements. After the same checkout setup, save it as `queued-save.ts` and run
 `mise exec -- deno run queued-save.ts`.
 
+Read the sequence in two parts. The producer finishes after queue acceptance. Delivery starts only when an owner calls
+drain; it must acknowledge the claimed item after the recipient finishes. The same logical key follows both parts.
+
+```mermaid
+flowchart TD
+    A[Producer emits stable occurrence] --> B[Queue accepts]
+    B --> C[Producer emit completes]
+    B --> D[Drain owner claims item]
+    D --> E[Recipient accepts action]
+    E --> F[Drain owner acknowledges claim]
+```
+
+A lost acknowledgement can lead to repeat delivery, so the recipient must deduplicate by the logical key where needed.
+This diagram omits persistence: the memory queue below loses items on restart. For atomic business writes and durable
+announcements, use the [transactional outbox guide](../../../docs/postgres/02-outbox.md).
+
 ```ts runnable=queued-save.ts
 import * as context from '@okikio/context';
 import * as effect from '@okikio/capability/effect';
@@ -126,7 +151,11 @@ import type { EffectEncoded, EffectReceiptType } from '@okikio/capability/effect
 import * as queue from '@okikio/scheduler/queue';
 import * as schema from '@okikio/schema';
 
+
+// Define the announcement before choosing who will accept it.
 const Saved = effect.define({ id: 'asset.saved', value: schema.object({ id: schema.string() }) });
+
+// This lifetime owns cancellation and cleanup, not downstream delivery.
 await using owner = context.create({ id: 'save-asset-1' });
 await using pending = queue.memory<EffectEncoded, EffectReceiptType>();
 const delivered: string[] = [];

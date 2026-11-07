@@ -7,6 +7,20 @@ entry, or something else.
 Acceptance is not proof of downstream delivery. Diagnostic logs cannot replace a required business announcement or a
 durable receipt.
 
+Consider an asset save that needs an audit announcement. The producer must know whether someone accepted the
+announcement before it reports that handoff as successful. The terms below separate the reusable contract from this
+one save, so an accepted record is not confused with an email or database write that has not happened yet.
+
+| Term | Value in this example | Responsibility |
+| --- | --- | --- |
+| Definition | Saved | Name asset.saved and validate its payload shape |
+| Occurrence | Asset asset-1 with key save:asset-1 | Identify this logical announcement across retries |
+| Emitter | The configured emit callback | Accept the checked occurrence or reject the handoff |
+| Recipient | The local accepted array through that callback | Retain the key in memory; supply no restart durability |
+
+The producer validates the occurrence first, then awaits recipient acceptance. Any later external delivery has its own
+owner and acknowledgement. The example below stops at local acceptance.
+
 ## Accept a saved-asset announcement
 
 Declare the announcement and give it a recipient before emitting it. The local recipient lets you inspect the accepted
@@ -19,8 +33,14 @@ Run from this checkout after `mise run prepare -- --kind deps`. Save the runnabl
 import * as context from '@okikio/context';
 import * as effect from '@okikio/capability/effect';
 import * as schema from '@okikio/schema';
+
+// Define the announcement before choosing who will accept it.
 const Saved = effect.define({ id: 'asset.saved', value: schema.object({ id: schema.string() }) });
+
+// This lifetime owns cancellation and cleanup, not downstream delivery.
 await using owner = context.create({ id: 'save' });
+
+// This recipient accepts into memory only; restart would lose these records.
 const accepted: string[] = [];
 const ctx = effect.scope(owner, {
 	effects: [Saved],
@@ -31,6 +51,7 @@ const ctx = effect.scope(owner, {
 		},
 	},
 });
+
 // The stable key identifies this occurrence. An in-memory receiver alone cannot deduplicate across restarts.
 await effect.emit(ctx, Saved, { id: 'asset-1' }, { key: 'save:asset-1' });
 console.log(accepted.join(','));

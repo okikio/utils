@@ -28,6 +28,8 @@ Save the next complete TypeScript block as
 ```ts runnable
 import * as entitlement from '@okikio/authz/entitlement';
 import * as requirement from '@okikio/capability/requirement';
+
+// Name the feature independently of any account or subscription plan.
 const Export = entitlement.define({ id: 'export.csv', description: 'Export rows as CSV.' });
 // This describes a requirement. An application interpreter still decides whether to allow the export.
 console.log(requirement.document(entitlement.require(Export))[0]?.definition);
@@ -76,8 +78,14 @@ its account policy. The host callback checks every active requirement before con
 import * as context from '@okikio/context';
 import * as entitlement from '@okikio/authz/entitlement';
 import * as requirement from '@okikio/capability/requirement';
+
+// Name the feature independently of any account or subscription plan.
 const Export = entitlement.define({ id: 'export.csv' });
+
+// Trusted account-policy input, not proof that the caller is authenticated.
 const enabled = new Set<string>([Export.id]);
+
+// The policy view borrows this operation's cancellation and cleanup lifetime.
 await using owner = context.create({ id: 'account-export' });
 const ctx = requirement.scope(owner, {
 	interpreters: {
@@ -88,16 +96,29 @@ const ctx = requirement.scope(owner, {
 		}),
 	},
 });
+
+// Do not produce the export until the account policy accepts the feature.
 await requirement.apply(ctx, [entitlement.require(Export)]);
 const download = new Response('name,asset\nAda,photo.png\n', {
 	headers: { 'content-type': 'text/csv' },
 });
 console.log((await download.text()).trim());
+
+// Removing a feature changes the policy; the next admission must reject.
+enabled.delete(Export.id);
+try {
+	await requirement.apply(ctx, [entitlement.require(Export)]);
+	throw new Error('A disabled feature must not be accepted.');
+} catch (error) {
+	if (!(error instanceof entitlement.EntitlementDeniedError)) throw error;
+	console.log('Export rejected');
+}
 ```
 
 ```text output
 name,asset
 Ada,photo.png
+Export rejected
 ```
 
 `requirement.scope()` borrows the owner's cancellation lifetime and attaches the policy callback. `apply()` returns

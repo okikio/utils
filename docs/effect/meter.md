@@ -7,6 +7,16 @@ The meter keeps that handoff consistent without choosing a billing backend.
 Meter supports accounting and audit facts. It is not a runtime metrics exporter. Dropping an operational metric may be
 acceptable; dropping a required usage record can change billing or audit outcomes.
 
+| Role | Example | Why it matters |
+| --- | --- | --- |
+| Quantity definition | download.bytes, unit byte, sum aggregation | Every recipient interprets the same unit |
+| Reading | 2048 bytes for download:asset-1 | One fact belongs to one logical download |
+| Recipient | The accepted array | Successful recording means this callback accepted the fact |
+| Billing policy | Application-owned decision | Acceptance alone does not charge an account |
+
+The first example makes this handoff visible without a billing provider. The [billing-policy boundary](#keep-measurement-separate-from-billing-policy)
+explains which decisions remain with the application.
+
 ## Record the bytes accepted from one download
 
 Define a byte counter, attach a recipient, and record one 2,048-byte download. Both output values are 2048: one comes
@@ -22,18 +32,28 @@ import * as effect from '@okikio/capability/effect';
 import * as meter from '@okikio/capability/effect/meter';
 import { MeterReadingSchema } from '@okikio/capability/effect/meter';
 import * as schema from '@okikio/schema';
+
+// Declare what is counted; the recipient decides how to retain it.
 const Bytes = meter.define({ id: 'download.bytes', unit: 'byte', aggregation: 'sum' });
+
 await using owner = context.create({ id: 'download' });
+
+// In-memory acceptance lets us compare the received reading with the returned one.
 const accepted: number[] = [];
 const ctx = effect.scope(owner, {
 	effects: [meter.effect(Bytes)],
 	emitter: {
+		/** Accept the checked fact here; this Map is not a billing ledger. */
 		async emit(_ctx, occurrence) {
 			accepted.push((await schema.parse(MeterReadingSchema, occurrence.value)).value);
 		},
 	},
 });
+
+// Recording awaits the recipient, so an unavailable recipient cannot look like accepted usage.
 const occurrence = await meter.record(ctx, Bytes, 2048, { key: 'download:asset-1' });
+
+// Inspect the same reading on both sides of the handoff.
 console.log((await schema.parse(MeterReadingSchema, occurrence.value)).value);
 console.log(accepted.join(','));
 ```
@@ -111,12 +131,16 @@ import * as meter from '@okikio/capability/effect/meter';
 import { MeterReadingSchema } from '@okikio/capability/effect/meter';
 import * as schema from '@okikio/schema';
 
+
+// Declare what is counted; the recipient decides how to retain it.
 const Bytes = meter.define({ id: 'download.bytes', unit: 'byte', aggregation: 'sum' });
 const accepted = new Map<string, number>();
+
 await using owner = context.create({ id: 'download' });
 const ctx = effect.scope(owner, {
 	effects: [meter.effect(Bytes)],
 	emitter: {
+		/** Retain the checked value by key; this Map is not a billing ledger. */
 		async emit(_ctx, occurrence) {
 			const reading = await schema.parse(MeterReadingSchema, occurrence.value);
 			accepted.set(occurrence.key, reading.value);

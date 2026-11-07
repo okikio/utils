@@ -38,10 +38,14 @@ Save the next complete TypeScript block as
 
 ```ts runnable
 import * as resource from '@okikio/capability/resource';
+
+// The caller knows this contract without choosing a database or opening a client.
 const Store = resource.define<{
 	save(id: string, text: string): void;
 	read(id: string): string | undefined;
 }>()({ id: 'store', description: 'Save and read notes.' });
+
+// Only the application factory decides how the store is created and closed.
 const StoreLive = resource.implement(Store, {
 	/** Tie the demo store to the resource context so scope exit also releases its contents. */
 	create({ ctx }) {
@@ -57,8 +61,11 @@ const StoreLive = resource.implement(Store, {
 		};
 	},
 });
+
 // open() owns the default lifetime. The Store binding stays lazy until the first get().
 await using stores = await resource.open(StoreLive);
+
+// Borrowing does not transfer the collection's cleanup responsibility.
 const store = await stores.get(Store);
 store.save('note-1', 'Bring the family photo');
 console.log(store.read('note-1'));
@@ -130,9 +137,13 @@ the registered cleanup, making ownership visible in the final line.
 
 ```ts runnable=shared-store.ts
 import * as resource from '@okikio/capability/resource';
+
+// The caller knows this contract without choosing a database or opening a client.
 const Store = resource.define<Map<string, string>>()({ id: 'notes', description: 'Share saved notes.' });
 let opened = 0;
 const retained = new Map<string, string>();
+
+// Only the application factory decides how the store is created and closed.
 const StoreLive = resource.implement(Store, {
 	create({ ctx }) {
 		opened++;

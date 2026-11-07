@@ -39,9 +39,13 @@ Save the next complete TypeScript block as
 ```ts runnable
 import * as context from '@okikio/context';
 import * as requirement from '@okikio/capability/requirement';
+
+// The rule and request data exist before runtime enforcement.
 const Size = Object.freeze({ kind: 'upload-rule', id: 'upload.maximum-bytes', maximum: 1024 });
 const NeedsSmallUpload = requirement.define({ family: 'upload', action: 'require', definition: Size });
 const bytes = new Uint8Array([1, 2, 3]);
+
+// Attach the interpreter to this operation without creating a second lifetime.
 await using owner = context.create({ id: 'upload' });
 const ctx = requirement.scope(owner, {
 	interpreters: {
@@ -49,6 +53,7 @@ const ctx = requirement.scope(owner, {
 			/** Check only the exact declared upload rule against this request's bytes. */
 			async apply(_ctx, entries) {
 				for (const entry of entries) {
+					// A matching ID is insufficient: interpret only the canonical rule object.
 					if (entry.definition !== Size) throw new Error('Unknown upload rule.');
 					if (bytes.byteLength > Size.maximum) throw new Error('The upload is too large.');
 				}
@@ -56,6 +61,7 @@ const ctx = requirement.scope(owner, {
 		},
 	},
 });
+
 // Applying the requirement invokes the interpreter. A declaration alone does not check the upload.
 await requirement.apply(ctx, [NeedsSmallUpload]);
 console.log(`Upload admitted: ${bytes.byteLength} bytes`);

@@ -29,6 +29,9 @@ to retry. The output shows both the returned value and the two calls counted by 
 Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
 `mise exec -- deno run example.ts`.
 
+A **jittered** retry varies its delay so many callers do not retry at the same instant after a shared failure.
+This example sets `jitter: false` so its delay is predictable; it demonstrates retry classification without random timing.
+
 ```ts runnable=retry-read.ts
 import { attempt, retry } from '@okikio/capability/resilience';
 import { ms } from '@okikio/duration';

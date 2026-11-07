@@ -31,9 +31,14 @@ Save the complete block as `gallery.ts` and run `mise exec -- deno run gallery.t
 import * as context from '@okikio/context';
 import * as permission from '@okikio/authz/permission';
 import * as schema from '@okikio/schema';
+
+// Declare the action and the shape of the picture it applies to.
 const TargetSchema = schema.object({ id: schema.string() });
 const Read = permission.define({ id: 'asset.read', target: TargetSchema });
+
+// These grants represent one authenticated actor's trusted policy data.
 const grants = new Set(['photo-1']);
+
 await using owner = context.create({ id: 'asset-download' });
 const ctx = permission.scope(owner, {
 	permissions: [Read],
@@ -45,11 +50,13 @@ const ctx = permission.scope(owner, {
 		},
 	},
 });
+
 /** Check the target before returning its contents; denial must not enter the read path. */
 async function download(id: string): Promise<Response> {
 	if (!await permission.check(ctx, Read, { id })) return new Response('Forbidden', { status: 403 });
 	return new Response(`Contents of ${id}`);
 }
+// Exercise both branches without starting a web server.
 const allowed = await download('photo-1');
 const denied = await download('photo-2');
 console.log(allowed.status, await allowed.text());
@@ -88,10 +95,15 @@ and run `mise exec -- deno run gallery-explain.ts`.
 import * as context from '@okikio/context';
 import * as permission from '@okikio/authz/permission';
 import * as schema from '@okikio/schema';
+
+// Declare the action and the shape of the picture it applies to.
 const TargetSchema = schema.object({ id: schema.string() });
 const Read = permission.define({ id: 'asset.read', target: TargetSchema });
 const Write = permission.define({ id: 'asset.write', target: TargetSchema });
+
+// These grants represent one authenticated actor's trusted policy data.
 const grants = new Set(['photo-1']);
+
 await using owner = context.create({ id: 'asset-download' });
 const ctx = permission.scope(owner, {
 	permissions: [Read, Write],
@@ -105,8 +117,15 @@ const ctx = permission.scope(owner, {
 		},
 	},
 });
-const expression = permission.all(permission.on(Read, { id: 'photo-1' }), permission.on(Write, { id: 'photo-1' }));
+
+// The operation needs both read and write access to this same picture.
+const expression = permission.all(
+	permission.on(Read, { id: 'photo-1' }),
+	permission.on(Write, { id: 'photo-1' }),
+);
 console.log(await permission.check(ctx, expression));
+
+// Inspect a bounded report; it is diagnostic evidence, not a grant.
 const report = await permission.explain(ctx, expression, {
 	maximumNodes: 3,
 	maximumDepth: 2,

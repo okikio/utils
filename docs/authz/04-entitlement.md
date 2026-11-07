@@ -4,6 +4,10 @@ A plan can include CSV export while a member still lacks access to a particular 
 availability; Permission checks the actor's action on a target. The application supplies purchased-plan data and policy.
 Declaring the Export feature does not contact billing or make an export available.
 
+An **interpreter** is the application adapter that translates a declared feature into an account decision. In this
+example it maps `export.csv` to allow for one policy and deny for another. The requirement machinery calls that adapter;
+it cannot infer purchased features from the feature name.
+
 ## Allow one plan and reject another
 
 From the `utils` checkout root, review `mise.toml` and run `mise trust`, `mise install`, and `mise run prepare -- --kind deps`.
@@ -14,7 +18,11 @@ import * as entitlement from '@okikio/authz/entitlement';
 import * as requirement from '@okikio/capability/requirement';
 import * as context from '@okikio/context';
 
+
+// Name the feature independently of any account or subscription plan.
 const Export = entitlement.define({ id: 'export.csv' });
+
+// The policy view borrows this operation's cancellation and cleanup lifetime.
 await using owner = context.create({ id: 'export' });
 const ctx = requirement.scope(owner, {
 	interpreters: {
@@ -27,8 +35,12 @@ const ctx = requirement.scope(owner, {
 		}),
 	},
 });
+
+// Do not produce the export until the account policy accepts the feature.
 await requirement.apply(ctx, [entitlement.require(Export)]);
 console.log('Export feature accepted');
+
+// A second account policy refuses the same declared feature.
 const denied = requirement.scope(owner, {
 	interpreters: {
 		entitlement: entitlement.interpreter({
