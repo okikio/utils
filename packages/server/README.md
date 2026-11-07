@@ -12,7 +12,8 @@ they do not assume a newly published registry version.
 
 ## Save one note with ordinary Request and Response values
 
-Save `plain-notes.ts`. The JSON reader admits at most 1,024 bytes; the handler then checks what those bytes mean:
+Save `plain-notes.ts` and run `mise exec -- deno run plain-notes.ts`. The JSON reader admits at most 1,024
+bytes. The handler then checks whether the decoded value contains a usable title:
 
 ```ts runnable=plain-notes.ts
 import * as http from '@okikio/server/http';
@@ -55,7 +56,7 @@ const outgoing = await app.fetch(
 console.log(outgoing.status, await outgoing.text());
 ```
 
-Run `mise exec -- deno run plain-notes.ts`. It prints:
+Expected output:
 
 ```text output
 200 {"title":"First note"}

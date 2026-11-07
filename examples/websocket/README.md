@@ -3,10 +3,11 @@
 A normal HTTP route sends one response to one request. A WebSocket starts with
 an HTTP request that asks to switch protocols. After the switch, client and server
 can each send messages until the connection closes. Use it for two-way live
-interaction; use an ordinary GET for a single answer or SSE for a server event feed.
+interaction. Use an ordinary GET for a single answer, or server-sent events (SSE) when only the server needs to send
+updates.
 
-From the checkout root, prepare dependencies with `mise run prepare -- --kind deps`.
-The complete host check uses Deno's native upgrade API:
+Follow the [checkout setup](../../README.md#work-on-the-repository) first. Run the commands below from the checkout
+root. The check uses Deno's own WebSocket upgrade function and starts and stops its own local server:
 
 ```sh
 deno run --frozen --allow-net=127.0.0.1 examples/websocket/check.deno.ts

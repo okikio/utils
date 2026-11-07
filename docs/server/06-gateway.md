@@ -12,10 +12,11 @@ example.
 
 ## Run a complete task
 
-Forward a health request through a controlled local upstream implementation. This program supplies its own local input
-and uses public workspace imports. From the experimental Utils checkout, run `mise trust`, `mise install`, and `mise run prepare -- --kind deps` at the repository root. Save each named program there and run `mise exec -- deno run <filename>.ts`, replacing `<filename>` with the name shown. These examples use workspace exports, not an assumed published registry release.
+Forward a health request to a local stand-in for the upstream server. The stand-in counts calls and prints what
+the gateway sent, so you can see what crossed the boundary without opening a socket.
 
-Save `complete-task.ts` and run `mise exec -- deno run complete-task.ts`.
+After the [checkout setup](../../README.md#work-on-the-repository), save the block as `complete-task.ts` at the
+checkout root and run `mise exec -- deno run complete-task.ts`.
 
 ```ts runnable=complete-task.ts
 import * as endpoint from '@okikio/server/endpoint';
@@ -70,8 +71,9 @@ GET /api/health false
 Unmatched 404 upstream calls 1
 ```
 
-Compare the output before changing the input. The remaining sections explain the options and limits; the
-[package example](../../packages/server/gateway/README.md) also places this operation among adjacent capabilities.
+The first line comes from the upstream stand-in: it receives GET `/api/health` without the caller’s cookie.
+The second is the reply seen by the caller. The last shows a `404` for a path with no owner, with the upstream
+call count still at one.
 
 The second request asks for `/private`, which the imported service did not declare. It returns 404 without another upstream call. Correct the caller’s URL or explicitly declare and admit the route; the gateway does not forward arbitrary paths just because an origin is configured. The rejected body is canceled because this caller only needs its status.
 

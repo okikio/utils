@@ -13,7 +13,8 @@ example.
 
 An Express or Hono route often combines input checks and the callback. Here `Greet` describes the accepted name and the allowed response; `endpoint.handler` supplies the callback separately. The service links those exact objects before executing any request. Missing input returns 400 before the greeting callback runs.
 
-From the experimental Utils checkout, run `mise trust`, `mise install`, and `mise run prepare -- --kind deps` at the repository root. Save each named program there and run `mise exec -- deno run <filename>.ts`, replacing `<filename>` with the name shown. These examples use workspace exports, not an assumed published registry release. Save this as `declared-greeting.ts` and run `mise exec -- deno run declared-greeting.ts`.
+After the [checkout setup](../../README.md#work-on-the-repository), save the block as `declared-greeting.ts` at the
+checkout root and run `mise exec -- deno run declared-greeting.ts`.
 
 ```ts runnable=declared-greeting.ts
 import * as endpoint from '@okikio/server/endpoint';

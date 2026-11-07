@@ -4,6 +4,13 @@ A plan can include CSV export while a member still lacks access to a particular 
 availability; Permission checks the actor's action on a target. The application supplies purchased-plan data and policy.
 Declaring the Export feature does not contact billing or make an export available.
 
+| Question for this CSV download | Where to answer it |
+| --- | --- |
+| Does this account’s plan include CSV export? | Entitlement looks up the account’s features. |
+| May this member read this dataset? | [Permission](./01-guide.md) checks the member’s action on this dataset. |
+
+An application that needs both checks should do both before starting the export.
+
 An **interpreter** is the application adapter that translates a declared feature into an account decision. In this
 example it maps `export.csv` to allow for one policy and deny for another. The requirement machinery calls that adapter;
 it cannot infer purchased features from the feature name.

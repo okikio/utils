@@ -9,11 +9,10 @@ that rejection as an ordinary Web Response. The example below shows all three va
 
 ## Run a complete task
 
-Return an expected missing-record response using a declared problem. This program supplies its own local input and uses
-public workspace imports. After `mise run prepare -- --kind deps`, save it as `example.ts` at the checkout root and run
-`mise exec -- deno run example.ts`.
+Look up a missing asset and turn that expected rejection into a response. After the [checkout setup](../../README.md#work-on-the-repository),
+save the block as `missing-asset.ts` at the checkout root and run `mise exec -- deno run missing-asset.ts`.
 
-```ts runnable=complete-task.ts
+```ts runnable=missing-asset.ts
 import * as problem from '@okikio/http/problem';
 import { toHeaders } from '@okikio/http/response';
 
@@ -42,8 +41,8 @@ Expected output:
 {"type":"https://problems.invalid/v1/asset-missing","title":"Asset missing","status":404,"detail":"No asset has that ID."}
 ```
 
-Compare the output before changing the input. The remaining sections explain the options and limits; the
-[package example](../../packages/http/problem/README.md) also places this operation among adjacent capabilities.
+Both the status and the type identify the rejection. A client can display the detail to a person and branch on
+the type URL in code. Other 404 problems can have different types.
 
 ## The reusable rule and the individual rejection
 

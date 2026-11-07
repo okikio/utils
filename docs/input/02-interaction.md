@@ -32,6 +32,9 @@ false
 Moved 1
 ```
 
+The first line is `false`: moving by zero is disabled. The second line is the action’s result when it receives a
+nonzero offset. The device does not decide whether a move is allowed.
+
 `run()` checks eligibility and throws `CommandDisabledError` before invoking a disabled action. Otherwise it returns the
 action's exact result, including an unchanged Promise. A binding can use `enabled: () => commands.enabled(Move, 1)` to
 leave the native event unclaimed, then `run: () => commands.run(Move, 1)`. `commands.catalog(name, entries)` is an

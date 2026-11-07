@@ -9,11 +9,10 @@ The program constructs both messages locally so no browser or listener is needed
 
 ## Run a complete task
 
-Store a display preference and reject an unsupported value. This program supplies its own local input and uses public
-workspace imports. After `mise run prepare -- --kind deps`, save it as `example.ts` at the checkout root and run
-`mise exec -- deno run example.ts`.
+Read the current theme, send two separate cookie updates, and reject a theme the application does not support. After the [checkout setup](../../README.md#work-on-the-repository),
+save the block as `theme-cookie.ts` at the checkout root and run `mise exec -- deno run theme-cookie.ts`.
 
-```ts runnable=complete-task.ts
+```ts runnable=theme-cookie.ts
 import * as cookie from '@okikio/http/cookie';
 import * as schema from '@okikio/schema';
 const Theme = cookie.define({
@@ -41,8 +40,8 @@ light
 false
 ```
 
-Compare the output before changing the input. The remaining sections explain the options and limits; the
-[package example](../../packages/http/cookie/README.md) also places this operation among adjacent capabilities.
+Read the output as three checks: the incoming preference is `light`, the outgoing response contains two separate
+`Set-Cookie` fields, and `blue` fails validation. No browser has saved the outgoing preference yet.
 
 ## What is stored in the definition?
 

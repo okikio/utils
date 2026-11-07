@@ -1,9 +1,9 @@
 # Run an example before adopting its utility
 
 Each directory contains a complete program and an executable check of its result.
-After the root README's checkout setup, run `mise run prepare -- --kind deps` once.
-Use each example's README for its direct commands. To run all declared checks for
-one host, select `deno`, `node` or `bun`:
+Follow the [checkout setup](../README.md#work-on-the-repository) to install the tools and dependencies.
+Pick an example by the behavior you want to see. Its README tells you what to run and what output confirms it.
+To run the checks available for one JavaScript runtime, select `deno`, `node` or `bun`:
 
 ```sh
 mise run test -- --suite examples --runtime deno

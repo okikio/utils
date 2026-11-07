@@ -1,8 +1,11 @@
 # Receive greeting requests from forms and signed callbacks
 
-The [first greeting handler](./04-http.md) reads a name from a URL. Keep the same result—`Hello, Sam!`—while changing
-how the name arrives. A browser can submit JSON or a form. Another service can send a signed callback, usually called
-a webhook. Each route needs to decide how much input it accepts, what fields mean, and how to report rejection.
+The [first greeting handler](./04-http.md) reads a name from a URL. Now let someone send a name as JSON or submit two
+names on a form. Another service can send a signed callback, called a webhook. Each route still makes greetings;
+the difference is what the route must check before trusting the name.
+
+Run the check below to see Sam accepted, a form preserve Sam and Jo as separate names, and a second delivery of the
+same signed callback return `409` without generating another greeting.
 
 This guide uses Web `Request`, `Response` and `FormData` values. You can call the application locally before choosing a
 network host. From the Utils checkout, review `mise.toml`, run `mise trust`, `mise install`, and `mise run prepare -- --kind deps`.

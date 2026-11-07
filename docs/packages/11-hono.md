@@ -11,13 +11,13 @@ Middleware wraps that handler: it can inspect the request before the route and u
 example, Hono supplies the health body and the Utils wrapper adds `X-Content-Type-Options: nosniff`. Nothing listens on
 a network port until the application passes the resulting handler to its runtime's server API.
 
-## Run a complete task
+## Call the health route without opening a port
 
 Run a real Hono route in process before integrating a service runtime. This program supplies its own local input and
 uses public workspace imports. At the checkout root, review `mise.toml`, run `mise trust`, `mise install` and
 `mise run prepare -- --kind deps`. Save this as `health-hono.ts` and run `mise exec -- deno run health-hono.ts`.
 
-```ts runnable=complete-task.ts
+```ts runnable=health-hono.ts
 import { Hono } from 'hono';
 import * as hono from '@okikio/hono';
 import * as http from '@okikio/server/http';
@@ -38,8 +38,8 @@ Expected output:
 ok nosniff
 ```
 
-Compare the output before changing the input. The remaining sections explain the options and limits; the
-[package example](../../packages/hono/README.md) also places this operation among adjacent capabilities.
+`ok` comes from the Hono route. `nosniff` comes from the wrapper. The next example keeps the health response but
+also declares its expected shape so the service can check it.
 
 ## Give the same health route a portable contract
 

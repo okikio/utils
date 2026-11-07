@@ -9,9 +9,8 @@ A Web `Request` carries the incoming URL, headers and optional body. A Web `Resp
 Read the repeated query values without collapsing them into a single field. Then prepare headers for forwarding, removing
 headers that the HTTP `Connection` field marks as specific to this connection. The output makes both transformations inspectable.
 
-From the experimental Utils checkout, run `mise trust`, `mise install`, and `mise run prepare -- --kind deps` at the repository root. Save each named program there and run `mise exec -- deno run <filename>.ts`, replacing `<filename>` with the name shown. These examples use workspace exports, not an assumed published registry release.
-
-Save `package-task.ts` and run `mise exec -- deno run package-task.ts`.
+After the [checkout setup](../../README.md#work-on-the-repository), save the block as `package-task.ts` at the checkout
+root and run `mise exec -- deno run package-task.ts`.
 
 ```ts runnable=package-task.ts
 import * as request from '@okikio/http/request';
@@ -40,14 +39,13 @@ Here `Connection: X-Internal` nominates `X-Internal` for removal. This is HTTP h
 
 ## Choose the HTTP value you need
 
-`@okikio/http/request` : Parses and sanitizes an untrusted Web `Request` with explicit size and trust rules.
-
-`@okikio/http/cookie` : Defines stable application cookie contracts and provides Fetch-native cookie helpers.
-
-`@okikio/http/response` : Defines successful HTTP representations and runtime occurrences. It also owns headers, status
-schemas, pagination, conditional responses, byte ranges, and response-body completion observation.
-
-`@okikio/http/problem` : Defines RFC 9457 problem representations and runtime occurrences.
+| I need to… | Start with | What it gives me |
+| --- | --- | --- |
+| Read search filters or a bounded body | [`@okikio/http/request`](./05-request.md) | Decoded values for my application to check. |
+| Read or write a browser preference | [`@okikio/http/cookie`](./03-cookie.md) | A named value with a rule for reading it and attributes for writing it. |
+| Return a checked answer | [`@okikio/http/response`](./06-response.md) | A reusable success rule and helpers for building the response. |
+| Return a rejection clients can identify | [`@okikio/http/problem`](./04-problem.md) | A status, stable type and safe detail for an expected failure. |
+| Check a callback from another service | [`@okikio/http/webhook`](./07-webhook.md) | Verification of the signature over the original request bytes. |
 
 A response definition is a reusable rule. `create()` associates that rule with one logical answer; it does not send
 bytes. `materialize()` validates and prepares that answer. Finally, a native `Response` encodes the value for its caller.

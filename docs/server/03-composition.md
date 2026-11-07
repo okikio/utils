@@ -1,10 +1,11 @@
 # Server compiler and HTTP runtime
 
-This guide helps maintainers understand how `@okikio/server` turns authored service definitions into request handling.
-It focuses on the compiler, the Fetch runtime, and the information that other adapters can reuse.
+A notes route needs to check the title before saving it. With one route you can write that check in one function. With
+a service definition, the same input and response rules can also describe the route to API documentation and gateways.
+Those descriptions can be prepared before any caller sends a request.
 
-The package compiles stable service structure before traffic starts. The request path then uses the compiled route and
-execution plans instead of scanning the service definition again.
+Follow one note through the [working service](./08-service.md) if you are new to the API. Use this design guide when
+you need to know which work happens once, which work repeats for each request, and what adapters can reuse.
 
 ## Run a complete task
 
@@ -64,8 +65,8 @@ Expected output:
 1
 ```
 
-Compare the output before changing the input. The remaining sections explain the options and limits; the
-[package example](../../packages/server/service/README.md) also places this operation among adjacent capabilities.
+The route accepts a text title and rejects the number before it can save another note. The output is what callers
+see; the rest of this guide follows the code that prepares the route and owns each part of that request.
 
 ## Service compilation
 

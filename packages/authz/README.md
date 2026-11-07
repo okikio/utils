@@ -1,14 +1,15 @@
 # Ask whether the current actor may read a picture
 
-Authorization connects a trusted actor, a named action and the object being protected. Permission asks your checker
-about that action and target. Role groups canonical actions for trusted membership. Entitlement checks a plan feature;
-it does not decide which picture a person may read. All three are independent capabilities in this package.
+Signing in tells a gallery who is asking. It does not mean that person can open every picture. **Authorization** is
+the separate decision about whether to let that person read this picture. Use Permission to ask that question, Role
+to group actions such as reading and editing, or Entitlement to check whether an account's plan includes a feature.
+For example, a plan can include export without giving every member access to every picture.
 
 For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters keep their native runtime requirements.
 
 An **actor** is the person or service making the request. A **target** is the particular object they want, such as
-`photo-1`. Signing in establishes an identity; it does not establish permission to every target. A **checker** is your
-application function that answers the concrete access question using trusted identity and object data.
+`photo-1`. A **checker** is your application function that answers the concrete access question using trusted identity
+and object data.
 
 The request path below checks before returning contents. Follow the denied branch as well as the allowed one; declaring
 a permission cannot stop code that forgets to ask it. This diagram leaves login and storage implementation to the host.

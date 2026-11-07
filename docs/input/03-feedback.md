@@ -10,11 +10,10 @@ when importing the whole Input package.
 
 ## Show Save feedback in the browser
 
-Edit the draft and click Save changes. After the browser storage adapter accepts the text, the mounted live region
-changes to “Changes saved locally”. A brief brightness cue is optional;
-reduced-motion or unsupported animation does not change business success. The native region is already mounted before
-its first announcement. The promise join below makes visual cleanup explicit; sound or vibration would need their own
-available devices and permission checks.
+Edit the draft and click Save changes. After the browser accepts the text into local storage, the status changes to
+“Changes saved locally”. The status element is already on the page so assistive technology can announce its new text. A brief brightness cue is optional. If the person requests less motion or the browser cannot animate, the
+draft is still saved. The example waits for any cue it started to finish before releasing it. Sound and vibration would
+need their own available devices and permission checks.
 
 Prepare the checkout from its root with `mise trust`, `mise install` and `mise run prepare -- --kind deps` after reviewing
 `mise.toml`. Create `feedback/`, then save the HTML as `feedback/save-feedback.html` and TypeScript as

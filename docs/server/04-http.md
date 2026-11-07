@@ -20,9 +20,7 @@ mise run prepare -- --kind deps
 [Checkout setup](../../README.md#work-on-the-repository) includes Mise installation. The checks below run without
 opening a port; the mounting section also includes a complete server entry and curl request.
 
-A listener accepts network connections. A router chooses a function from the request's
-method and URL. The function returns a response. These examples call the router
-directly with `new Request(...)` so you can test the answer without a running
+The examples call the router directly with `new Request(...)`, so you can check the answer without a running
 network listener. The later curl example adds the listener; it does not change
 the route function.
 

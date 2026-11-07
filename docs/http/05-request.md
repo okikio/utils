@@ -57,8 +57,9 @@ whether to convert those failures to HTTP responses; the reader does not silentl
 an explicit budget for the route's job rather than using the default as an application policy. See the
 [complete option fields](../../packages/http/README.md).
 
-Under the hood, `readBody()` checks `Content-Length` when framing allows it, takes a body reader, and counts each
-chunk's `byteLength`. A declared length does not bypass that actual count. At success it copies the chunks into one
+A sender can declare a body size in the `Content-Length` header. `readBody()` uses that number to reject an
+oversized body early when the message format permits it. Once reading starts, it also counts the bytes that actually
+arrive. A declared length does not bypass that actual count. At success it copies the chunks into one
 `Uint8Array`. At overflow or abort it releases the reader lock promptly and requests source cancellation.
 Source cancellation can finish later; `bodyCleanup(request)` exposes that separate completion. This is why the
 function is useful for small JSON/uploads but is not a streaming processor for multi-gigabyte files.
@@ -67,6 +68,14 @@ If a header/content-type/declared-length check rejects before reading starts, th
 The surrounding transport still owns that unread body. Once a reader is taken, the helper owns releasing its lock and
 recording the outcome of any cancellation it starts. Cancellation may still be pending when the read rejects.
 The enclosing request owner must await `bodyCleanup(request)` when it needs to join that source cleanup.
+
+An overflow after reading starts has two outcomes. Read across each line separately; the cancellation result can
+arrive after the parsing call has already rejected. This path omits checks that reject before taking a reader.
+
+```text
+Read:   bytes exceed limit -> release reader -> reject body-too-large
+Source: request cancellation -> observe completion in bodyCleanup()
+```
 
 ## Keep the read failure separate from cleanup
 

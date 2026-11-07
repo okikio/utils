@@ -184,10 +184,17 @@ greeting-v1:4 400
 other-feed:2 400
 ```
 
-The first read reaches the end. The second cancels after the first record; the generator closes and its cleanup is
-joined before the check prints `closed 2`. Pull-driven adapters can buffer ahead, so cancellation does not prove that
-only one source value was ever produced. A real provider must also observe cancellation in any pending I/O; closing a
-generator cannot interrupt an arbitrary Promise that never settles.
+Use the output to check three different results:
+
+| What the reader does | What to look for |
+| --- | --- |
+| Reads all the greetings | Three JSON lines, followed by `body completed closed 1`. |
+| Stops reading after Sam | `body cancelled closed 2`. The second generator closes and the check waits for its cleanup. |
+| Reconnects with an event ID | The server sends events after a retained ID. An expired ID returns `410`; a future ID or one for another feed returns `400`. |
+
+A pull-driven adapter can buffer ahead. Stopping after Sam does not prove that the generator produced only one value.
+A real provider must also observe cancellation in any pending I/O; closing a generator cannot interrupt an arbitrary
+Promise that never settles.
 
 The reconnect calls show two different readers. One resumes after event 1 and gets Jo and Lee. Another resumes after
 event 2 and gets Lee. Seeing Lee twice across those calls is expected. The client must save its cursor after applying an

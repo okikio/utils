@@ -31,6 +31,10 @@ invalid true
 blocked 403 403
 ```
 
+Read the first two lines as separate checkpoints: the client first discovers the name `greet`, then receives a text
+result from calling it. `invalid true` checks argument rejection, and the two `403` codes check that the outer HTTP
+route rejects an unacceptable host and origin.
+
 `start.ts` listens at `http://localhost:8000/mcp`. Press Ctrl+C to close it.
 This is a development listener, not an authentication or deployment policy.
 

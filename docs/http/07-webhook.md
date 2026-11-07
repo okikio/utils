@@ -1,22 +1,21 @@
 # Verify signed webhook bytes before reading the event
 
-Start with the [complete package example](../../packages/http/webhook/README.md). The sections below continue that
-example.
-
 A webhook is an event notification another service sends as an HTTP request. For a payment event, you must establish
 who sent the message before changing an invoice. The sender signs the original bytes with a secret; the receiver checks
-those bytes, the signature and the message time. Parsing and formatting the JSON before checking would change the input.
+those bytes, the signature and the message time. If you parse the body and convert it back to JSON text first, even a
+change in whitespace can break a valid signature.
 
 This guide supplies both sender and receiver locally. It shows authentication, not a payment system. Delivery may repeat;
-the application still needs a persistent event identity and a repeat-safe business write.
+the application still needs to record the event ID and make sure a repeated delivery cannot apply the payment twice.
+The [package README](../../packages/http/webhook/README.md) also shows how to accept a delivery only once within a
+limited period.
 
 ## Verify a local payment event
 
-Verify local signed bytes before reading the event payload. This program supplies its own local input and uses public
-workspace imports. After `mise run prepare -- --kind deps`, save it as `example.ts` at the checkout root and run
-`mise exec -- deno run example.ts`.
+Sign and verify a local payment event before interpreting its payload. After the [checkout setup](../../README.md#work-on-the-repository),
+save the block as `verify-payment-event.ts` at the checkout root and run `mise exec -- deno run verify-payment-event.ts`.
 
-```ts runnable=complete-task.ts
+```ts runnable=verify-payment-event.ts
 import * as webhook from '@okikio/http/webhook';
 import * as standard from '@okikio/http/webhook/standard';
 // Public demonstration key only. A deployed receiver supplies its own securely stored secret.
@@ -44,8 +43,8 @@ Expected output:
 event-1 payment.received invoice-42
 ```
 
-Compare the output before changing the input. The remaining sections explain the options and limits; the
-[package example](../../packages/http/webhook/README.md) also places this operation among adjacent capabilities.
+The output connects three different identifiers: the event ID `event-1`, the event name `payment.received`,
+and the invoice ID `invoice-42`. Use the event identity for repeat delivery checks, not the invoice ID.
 
 The receiver crosses two separate boundaries. Authentication decides whether these bytes came from an accepted key;
 a replay claim decides whether this event identity has already been admitted. Neither decision commits an invoice:

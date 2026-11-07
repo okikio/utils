@@ -1,8 +1,10 @@
 # Compose observation and screen lifetimes
 
-A callback is enough to react to a value. Use an Observable when several operations should transform or consume a
-sequence of values. `text.observe()` and `gamepad.observe()` use the existing `@okikio/observables` contract. They do
-not introduce a second subscription protocol.
+A person types Ada into a search box, then closes the screen. While the screen is open, its code needs to hear about
+new edits. Other code may also need the current text between edits. A callback is enough for one reaction. Use an
+Observable to subscribe to a sequence of edits, and a state cell if you also need to retain the latest value.
+
+`text.observe()` and `gamepad.observe()` use the existing `@okikio/observables` contract.
 
 An **Observable** is a source you can subscribe to for future notifications. Calling `subscribe` starts a subscription;
 calling `unsubscribe` ends that subscription. It is useful for a sequence of edits, while a Promise describes one future
@@ -44,6 +46,9 @@ console.log(query.reader.get(), observation.closed);
 Ada
 Ada true
 ```
+
+The first line is the state after the first edit. The second still prints `Ada`, even though the program dispatched
+another edit: the observation was cancelled, and `true` shows the subscription is closed. The state cell kept its last value.
 
 ## Keep updates and observation with different owners
 

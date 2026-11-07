@@ -1,8 +1,11 @@
 # Provide request values before another step uses them
 
-An authentication step checks a credential and produces an actor for one request. A later step needs that actor.
-Middleware declarations make the dependency visible; bound callbacks do the actual checking and populate the value.
-Declaring `provides: [Actor]` does not create or authenticate anyone.
+Suppose a greeting should use the signed-in person's name. One step checks a credential, such as a token, and records
+who it belongs to. A later step can then read that identity instead of checking the token again. In this example the
+checked identity is called `Actor`.
+
+**Middleware** is code that runs around a request handler. Declaring `provides: [Actor]` says what a middleware
+step promises to supply. The callback must still check the credential and set the value for this request.
 
 These examples use the experimental Utils source checkout. From its root, review `mise.toml`, then run `mise trust`,
 `mise install`, and `mise run prepare -- --kind deps`. Save each named file at that root. The examples use workspace exports;
@@ -35,8 +38,8 @@ boundary. The diagram omits compilation and individual validation stages; the la
 
 ## Follow one greeting through a producer and a consumer
 
-Save `actor-greeting.ts`. The public `demo-token` is a fixed teaching credential, not a real authentication scheme.
-Only the example's local comparison accepts it. A deployed host must verify its own credential and authorization rules.
+Save `actor-greeting.ts` and run `mise exec -- deno run actor-greeting.ts`. The public `demo-token` is a fixed teaching credential, not a real
+authentication scheme. Only the example's local comparison accepts it. A deployed host must verify its own credential and authorization rules.
 The first request reaches both middleware steps and the handler; the second is rejected before the actor consumer runs.
 
 `await` waits for an operation's result while allowing other ready JavaScript callbacks to run.
@@ -104,7 +107,7 @@ for (const headers of [new Headers({ authorization: 'Bearer demo-token' }), new 
 console.log(middleware.validate([Read]).valid, middleware.validate([Authentication, Read]).valid);
 ```
 
-Run `mise exec -- deno run actor-greeting.ts`. It prints:
+Expected output:
 
 ```text output
 Actor Sam

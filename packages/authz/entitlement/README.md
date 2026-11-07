@@ -74,6 +74,8 @@ Here the familiar goal is to return an exported row. The application's `enabled`
 its account policy. The host callback checks every active requirement before constructing the response. Removing
 `Export.id` from the set makes `requirement.apply()` reject and prevents the download from being produced.
 
+Save this program as `export-csv.ts` and run `mise exec -- deno run export-csv.ts` from the same checkout.
+
 ```ts runnable=export-csv.ts
 import * as context from '@okikio/context';
 import * as entitlement from '@okikio/authz/entitlement';

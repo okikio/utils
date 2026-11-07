@@ -9,11 +9,10 @@ creates no network listener. A schema is an executable value rule; parsing JSON 
 
 ## Run a complete task
 
-Create an ordinary checked JSON response. This program supplies its own local input and uses public
-workspace imports. After `mise run prepare -- --kind deps`, save it as `example.ts` at the checkout root and run
-`mise exec -- deno run example.ts`.
+Give a saved asset ID a response rule, then read the result as an HTTP caller would. After the [checkout setup](../../README.md#work-on-the-repository),
+save the block as `saved-asset-response.ts` at the checkout root and run `mise exec -- deno run saved-asset-response.ts`.
 
-```ts runnable=complete-task.ts
+```ts runnable=saved-asset-response.ts
 import * as response from '@okikio/http/response';
 import * as schema from '@okikio/schema';
 
@@ -38,8 +37,8 @@ Expected output:
 {"id":"asset-1"}
 ```
 
-Compare the output before changing the input. The remaining sections explain the options and limits; the
-[package example](../../packages/http/response/README.md) also places this operation among adjacent capabilities.
+The two lines show the HTTP status and the body the caller reads. The definition supplies the status; the
+saved asset supplies the ID. The same definition can describe another asset without changing the response rule.
 
 ## Definition, occurrence, native response
 

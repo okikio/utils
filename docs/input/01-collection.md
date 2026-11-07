@@ -1,8 +1,11 @@
 # Collect values without losing their meaning
 
-Input supplies collection rules and ownership. Your application chooses which data to accept and what to do with it.
-Start with a native text input or form when those controls express the interaction. They already support focus, keyboard
-editing, assistive technology, mobile keyboards and browser autofill.
+A contact import form can send a label, two selected tags, and a file in one submission. If you keep just one value
+per field name, you lose a tag. Input keeps those submitted values available while your application decides what to
+accept and how to preview it.
+
+Use the browser's own text fields and forms for editing and file selection. They already support keyboard editing,
+assistive technology, mobile keyboards, and autofill.
 
 ## Preview one contact import from a real form
 

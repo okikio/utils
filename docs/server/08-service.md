@@ -12,10 +12,11 @@ example.
 
 ## Run a complete task
 
-Save a note and observe invalid input being rejected before application work. This program supplies its own local input
-and uses public workspace imports. From the experimental Utils checkout, run `mise trust`, `mise install`, and `mise run prepare -- --kind deps` at the repository root. Save each named program there and run `mise exec -- deno run <filename>.ts`, replacing `<filename>` with the name shown. These examples use workspace exports, not an assumed published registry release.
+Run the same notes route with a text title and a number. The service uses an array as its store so you can see
+whether either request reached the save callback.
 
-Save `complete-task.ts` and run `mise exec -- deno run complete-task.ts`.
+After the [checkout setup](../../README.md#work-on-the-repository), save the block as `complete-task.ts` at the
+checkout root and run `mise exec -- deno run complete-task.ts`.
 
 ```ts runnable=complete-task.ts
 import * as endpoint from '@okikio/server/endpoint';
@@ -65,8 +66,8 @@ Expected output:
 1
 ```
 
-Compare the output before changing the input. The remaining sections explain the options and limits; the
-[package example](../../packages/server/service/README.md) also places this operation among adjacent capabilities.
+The first request reaches the save callback. The numeric title gets a `400` before the callback runs,
+so the final count is one. Saving here means appending to an array; restarting the program loses that note.
 
 ## Why four setup calls?
 

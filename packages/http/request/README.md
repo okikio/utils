@@ -57,13 +57,15 @@ abc
 The query input contains two `tag` fields, and the first output proves that neither was lost. The POST body `abc`
 contains three bytes. `readBody()` accepts those bytes with a budget of three, and `TextDecoder` turns the returned byte
 array back into `abc`. Adding another ASCII byte would exceed this budget. The first read owns the request body. Later
-`readBody()`, `parseJson()` or `parseForm()` calls on the same Request reuse its bounded byte result and receive
-independent byte copies. A later smaller byte limit still rejects oversized data.
+`readBody()`, `parseJson()` or `parseForm()` calls on the same Request start from a copy of those bytes. The parsing
+functions then return decoded values. A later smaller limit still rejects oversized data. Choose the limit before the first read starts: if that
+read consumes the stream and rejects on overflow, a larger limit on the same Request cannot restart it.
 
 ## Cancellation and cleanup
 
 Abort and overflow reject the read promptly and release its stream lock. Underlying source cancellation can continue,
-for example when an application supplied one branch of a tee. `await bodyCleanup(request)` observes the eventual
+for example when an application splits a stream with `tee()` and another reader still uses the other branch.
+`await bodyCleanup(request)` observes the eventual
 `completed`, `cancelled`, `released` or `failed` outcome. A failed outcome retains its exact error without replacing the
 caller's primary read failure. Await that outcome only when the source owner is ready to join cleanup; waiting for a tee
 branch can require its sibling owner to finish first.

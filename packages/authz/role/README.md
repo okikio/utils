@@ -1,8 +1,8 @@
 # Resolve a member's role, then check the picture
 
-A role groups exact permission declarations, such as an editor's right to read assets. The application authenticates the
-member and selects its canonical roles. Even an editor still needs the target policy: a read grant for one gallery does
-not authorize every picture on the system.
+A gallery knows Maya is an editor. Does that let her read a private picture in another gallery? To answer, the
+application first resolves the roles assigned to Maya. A role groups permissions, such as reading pictures. The
+picture rule then checks whether that permission applies to this particular picture.
 
 Think of a role as a named set of candidate actions. `Editor` can include the `Read` permission, but the final policy
 still decides which photo that member can read. The catalog maps a stored role name to a trusted definition; it does not
