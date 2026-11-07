@@ -1,15 +1,12 @@
 # Give a business announcement an explicit recipient
 
-A manual implementation validates an announcement, gives it a stable key, and calls the recipient that accepts
-responsibility for delivery. The recipient chooses whether acceptance means an in-memory callback, a committed outbox
-entry, or something else.
+Suppose saving a photo must also leave a record for an audit. Your save function needs to know whether another part
+of the program accepted that record. `effect.emit()` checks the announcement and waits for the recipient to accept it.
 
-Acceptance is not proof of downstream delivery. Diagnostic logs cannot replace a required business announcement or a
-durable receipt.
-
-Consider an asset save that needs an audit announcement. The producer must know whether someone accepted the
-announcement before it reports that handoff as successful. The terms below separate the reusable contract from this
-one save, so an accepted record is not confused with an email or database write that has not happened yet.
+The recipient decides what acceptance means. A demo can append to an array. A service that must survive a restart
+can save a message in a database table for later delivery. That table is an **outbox**. Saving a message there proves
+the handoff, but it does not prove that the audit system has received the message yet. A diagnostic log alone proves
+neither.
 
 | Term | Value in this example | Responsibility |
 | --- | --- | --- |

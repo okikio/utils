@@ -1,8 +1,8 @@
 # `@okikio/storage/workflow/postgres`
 
-Save accepted jobs and workflow progress in PostgreSQL. A worker can stop without losing committed work. Another
-compatible worker can then continue from saved steps and write receipts. The adapter supplies the saved queue. You do
-not need a second queue package for this path.
+Someone submits a note for background saving. The worker can stop after completing a step but before the rest of
+the job runs. Store the accepted job and its recorded progress in PostgreSQL so a compatible replacement worker
+can continue from committed steps and use saved write receipts. The adapter supplies that job queue itself.
 
 The application owns its Postgres.js pool, business SQL, authorization, and remote-write safety. The adapter borrows
 that pool and owns the tables in `utils_workflow`. Importing it starts no worker, opens no pool, and runs no migration.

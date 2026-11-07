@@ -6,19 +6,18 @@ work. The application decides how to connect those pieces.
 
 For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters keep their native runtime requirements.
 
-Start with a regular function when that is all you need. Activities become useful when several callers or execution
-locations need the same rules: what input is accepted, what result comes back, which dependencies are available, and
-what should stop when the caller cancels. You declare those rules once and attach the actual function separately.
+A request handler can save a title with a regular function. Keep that call if the handler is its only caller.
+When a request handler and a background worker both need to save titles, an activity gives them one contract:
+what input is accepted, what result comes back, which dependencies are available, and what should stop when the
+caller cancels. Declare those rules once, then attach the function that saves the title.
 
 An activity definition is a description. Its implementation is a function. A queued job requests that activity for one
 input. An attempt is one invocation of its implementation. Neither `define()` nor `implement()` runs the work. Use
 `activity.call()` for a local call or `client.submit()` for saved background work with an explicit store and policy. The
 [background-work guide](../../docs/workflows/01-basics.md) explains that service-to-worker path.
 
-For example, a request handler can call a local title-saving activity and await its answer. A background service can
-accept that same named activity into a saved queue and let another executor run it later. The activity declares the
-operation; it does not choose a queue, start a worker, or make a write safe to repeat. That separation lets the same
-business function work in either setting.
+The same title-saving function can run in either setting. The application still chooses whether to use a queue,
+starts any background worker, and makes the save safe to repeat if a failed attempt can run again.
 
 ## Save a photo title with a supplied store
 

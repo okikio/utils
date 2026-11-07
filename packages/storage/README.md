@@ -1,7 +1,9 @@
 # Storage
 
-An editor needs to restore a saved title when a view closes and opens again. A queue needs to retain unprocessed work.
-A workflow needs completed steps and recovery permission. Choose the kind of saved state before choosing its backing.
+A person closes a draft and expects the saved title to be there when they return. Save one current value for that
+job. Use a queue when you need to keep accepted requests until a worker can pick them up. Use workflow storage when
+a replacement worker also needs to know which steps already completed. Each stores a different answer to the
+question “what must still be here when this caller leaves?”
 
 For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters keep their native runtime requirements.
 

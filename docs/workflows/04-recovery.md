@@ -1,26 +1,36 @@
 # Recover work after a worker stops
 
-A crash removes the worker's memory. It does not remove committed PostgreSQL rows. Recovery must therefore use saved
-rows to decide what can run next. Read [the walkthrough](./01-basics.md) before the storage rules on this page.
+The import screen is still waiting. A worker saved the first batch of rows and then crashed before reporting a
+result. Its replacement has to answer two questions: may it run this job now, and which writes have already happened?
+PostgreSQL holds both answers. Permission says who may try; a saved receipt says what committed.
+
+The [admission walkthrough](./01-basics.md#let-the-request-finish-before-the-work-finishes) explains how the service
+first saved the import request.
 
 Three objects play different roles during recovery. The **job** is the accepted request that remains in storage. An
-**attempt** is one worker's try at that job. A **lease** is temporary permission for that attempt, renewed while the
-worker remains responsible. If permission expires, a new attempt may run. The old worker cannot publish a new result
-under its stale claim, but an external effect it already performed still needs a receipt or reconciliation.
+**attempt** is one worker's try at that job. The worker has temporary permission and renews it while it remains
+responsible. If the permission expires, a new attempt may run. The old worker cannot publish a new result, but an
+external effect it already performed still needs a receipt or reconciliation.
 
 ## Follow one interrupted import
 
 Suppose Parse saves its first 1,000 rows and then its container dies. The source has 1,005 rows, so the import is
 unfinished. The worker did not report a completed Parse result.
 
-1. The batch transaction has already saved both rows and a receipt.
-2. The dead worker stops renewing its temporary permission for the job.
-3. Another worker's scan finds that permission expired.
-4. The database makes the repeat-safe job available again.
-5. A compatible worker starts the next attempt with the same logical job ID.
-6. Parse reads the existing receipt and skips that batch write.
-7. Parse saves the remaining rows and accepts resolution.
-8. Resolution preserves the customer's correction and resolves the accounts.
+Read these two timelines together. The replacement needs a new attempt, but it can still recognize the old write:
+
+```text
+Business write                 Attempt permission
+--------------                 ------------------
+1,000 rows + receipt commit    First worker holds permission
+Receipt stays in PostgreSQL    Worker stops; permission expires
+Same receipt is read again     Replacement takes a new attempt
+```
+
+The replacement runs the same logical job. It sees the receipt, skips the first batch write, and saves the remaining
+five rows. It then accepts the separate resolution job, which uses the customer's correction when it creates the
+accounts. The timeline leaves out that follow-up job; the point is that replacing permission does not replace the
+business write or its receipt.
 
 The [container test](../../tests/workflows/containers.test.ts) kills the actual worker at that first committed boundary.
 It adds a correction while the worker is absent. It then checks the rows, correction, duplicate command reference, and

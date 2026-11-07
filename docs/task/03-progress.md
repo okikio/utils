@@ -10,7 +10,8 @@ answer. Progress is a separate stream of updates that can change the display whi
 Use `task.ProgressEffect` for the standard counters, message, and optional JSON data. Emit it without a key. Tasks
 recognize it automatically. The first example uses that standard report to describe the same contact import from the Task README.
 Save it as `import-progress.ts`, after `mise run prepare -- --kind deps`, and run
-`mise exec -- deno run import-progress.ts`.
+`mise exec -- deno run import-progress.ts`. Look for the three separate observations: the saved names, the last
+reported count, and confirmation that cleanup ran before the result became available.
 
 ```ts runnable=import-progress.ts
 import * as task from '@okikio/task';

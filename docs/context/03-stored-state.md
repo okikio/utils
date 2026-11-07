@@ -1,8 +1,12 @@
 # Save one application value and reopen it
 
-Use a stored cell for a draft, crawl cursor, or small checkpoint that has one current value. The owner can save changes;
-renderers and helpers receive its ordinary `Reader`. Choose the store explicitly at the composition site, where the
-application knows the key, connection, and lifetime.
+Suppose a crawler has finished page 1 and should start with page 2 when you open it again. Save `page-2` as its
+**cursor**, the value that tells the crawler where to continue. A **stored cell** gives the crawler one value to read
+and a way to save changes to it. When the first owner closes, a new owner can load that value from the same store.
+
+Use the same pattern for a draft or small checkpoint. Give parts of the program that only display the value a
+`Reader`, and keep saving with the cell owner. Your application chooses the store and its lifetime. An in-memory store
+can outlive the cell that opened it, but it cannot outlive the process.
 
 `state.create` remains synchronous. `state.open` is asynchronous because loading, decoding, and initial creation can
 fail. Its `set`, `update`, and `reload` operations must be awaited. There is no asynchronous `batch`; the local cell's

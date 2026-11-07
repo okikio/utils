@@ -1,16 +1,22 @@
 # Test background work across failures
 
-The [connected consumer guide](./14-consumers.md) adds the preferred trigger API, process/thread engines, standard
-progress, and durable registered cleanup. Its smaller fixtures complement the full domain scenarios described here.
+These tests stop real workers at known points and check what a replacement can recover. For example, an import can lose
+its worker after a batch is saved but before the job reports success. The test checks that the replacement finishes
+the import without losing a saved correction or writing that batch again.
 
-Run `mise run test -- --suite postgres` with `UTILS_TEST_DATABASE_URL` set to a disposable PostgreSQL database, then
-`mise run test -- --suite containers` with Docker available. Node and Deno are pinned by Mise; `DENO_BIN` can select the Deno
-binary used by fresh-process cases. The database task refuses missing configuration, and the container task fails if
-Docker is unavailable. Ordinary source suites exclude these resource orchestrators. CI runs both required jobs
-separately.
+Choose the suite for the failure you need to reproduce. Run both when changing the whole service-to-worker path:
 
-The recovery runner starts one suite at a time. Each suite owns a database and its worker fleet. The timer restart cases
-also assert that a future timer exists before stopping workers, so a slow startup cannot silently skip the wait.
+| What you need to check | Command | What you supply |
+| --- | --- | --- |
+| Saved claims, receipts, and process restart | `mise run test -- --suite postgres` | Set `UTILS_TEST_DATABASE_URL` to a disposable PostgreSQL database. |
+| HTTP service, worker-container loss, and replacement | `mise run test -- --suite containers` | Start Docker. The suite creates its own database and workers. |
+
+Mise pins Node and Deno. Set `DENO_BIN` to select the binary for fresh-process cases. A missing database URL or Docker
+daemon is a setup failure; the corresponding suite does not silently skip. CI runs the two suites separately from
+ordinary source tests.
+
+For a timer restart check, look for evidence that a future timer was saved before the worker stopped. Without that
+checkpoint, a slow startup could let the timer expire before the test exercises recovery.
 
 ## Read the deployment test first
 

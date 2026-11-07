@@ -1,11 +1,11 @@
 # 12 — Observe saved progress
 
-A customer starts an import and sees that 200 rows have been written. The service can restart and still show that
-report. The report does not prove that the whole import succeeded. The customer gets completion from the run's terminal
-result.
+A customer starts an import and sees a report that 200 rows have been written. The service can restart and still show
+that report. To tell the customer whether the whole import succeeded, the service reads the run's final outcome, called
+its terminal result.
 
-Use `task.ProgressEffect` for standard reports without keys. Declare it on the activity; `workflow.serve()` saves it
-automatically. Local Tasks recognize it automatically too. See
+Use `task.ProgressEffect` to report counts and messages in the standard format. Emit it without a key. Declare it on
+the activity so `workflow.serve()` can save its reports. Local Tasks recognize it automatically too. See
 [connected consumers](./14-consumers.md#report-progress-without-making-it-the-result) for counters, application data,
 child reports, and replay limits.
 
@@ -177,7 +177,8 @@ try {
 }
 ```
 
-Expected application output:
+Check both lines. `Result` comes from waiting for the import to finish. `Reopened progress` comes from reading the
+last saved report after the original store view has closed:
 
 ```text
 Result: 2

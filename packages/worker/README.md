@@ -1,9 +1,9 @@
 # Worker
 
-Run an operation in another JavaScript thread or operating-system process, send it checked input, and receive its
-answer. Use this when CPU-heavy work should leave the main thread, or when a native program needs its own lifetime.
-A **thread** runs another JavaScript module; a **process** runs a separate program with input/output streams. Both
-need an owner that stops accepting calls, requests shutdown, and waits for cleanup.
+A page can become unresponsive while the JavaScript that draws it is busy analyzing a large report. Move the analysis
+to a worker when the page should remain available. The page sends a request and later receives a checked answer. A
+**thread** runs another JavaScript module. A **process** runs a separate program, such as a converter, with input and
+output streams. Either way, the application must own shutdown and wait for cleanup.
 
 For Deno, Node, and Bun execution, see
 [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters

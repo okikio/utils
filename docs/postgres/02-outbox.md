@@ -1,37 +1,39 @@
 # Commit a message with a business write
 
-A transactional outbox saves a message in the same PostgreSQL transaction as the
-business change that requires it. If that transaction rolls back, neither is
-visible. After commit, a dispatcher can deliver the message even if the producer
-has exited. A delivery may repeat when the sink accepts it but the dispatcher
-does not save the acknowledgement.
+Someone saves a note called “Read later.” The app saves the note in PostgreSQL, then asks another service to send a
+notification. What if the app stops between those two calls? The note is there when the person comes back, but no
+service knows it still needs to send the notification. Sending first has the opposite problem: the notification could
+go out for a note that never gets saved.
 
-Use `@okikio/storage/outbox/postgres` for finite JSON messages and
-`@okikio/storage/outbox/effect` for declared effects with trusted decoders. This
-adapter is separate from Workflow's internal delivery tables. It does not start
-workflows, poll automatically, manage hosts or own the application's pool.
+A **transactional outbox** lets you save the note and a message asking for the notification in the same transaction.
+A transaction makes both writes visible together when it commits. If it rolls back, neither write is saved. A separate
+process, called a **dispatcher**, reads the saved messages and delivers them. It can pick up the message even if the
+app that saved the note has stopped.
 
-For example, saving an order can require notifying another system. Calling that system before SQL commits can notify
-it about an order that later rolls back. Calling it only after commit can lose the notification if the producer crashes
-between those actions. The outbox closes that gap by committing the order and the message together, then delivering
-from the saved message. It does not remove duplicate delivery: the receiver must recognize the same message identity.
+## When the dispatcher stops before marking delivery complete
 
-The producer, outbox and receiver have separate responsibilities. Follow the message through the failure that makes a
-receipt necessary:
+The dispatcher can still stop after the receiver saves the notification and before the dispatcher marks the message
+complete. A replacement cannot tell from the outbox alone whether the receiver finished. After the first reservation
+expires, it can try again with the same message key. The receiver uses that key to look up its **receipt**: a saved
+record that it already did the work.
 
 ```mermaid
 flowchart TD
-    A[Producer commits row and message] --> B[Dispatcher claims message]
-    B --> C[Receiver checks stable identity]
-    C --> D{Receipt exists?}
-    D -->|No| E[Commit receipt and consequence]
-    D -->|Yes| F[Accept without repeat write]
-    E --> G[Dispatcher acknowledges claim]
-    F --> G
+    A["App saves note + outbox message"] --> B["Receiver saves notification + receipt"]
+    B --> C["Dispatcher stops before marking complete"]
+    C -->|After reservation expires| D["Replacement delivers note:one again"]
+    D --> E["Receiver finds receipt and accepts"]
+    E --> F["Replacement marks message complete"]
 ```
 
-If acknowledgement is lost, recovery may deliver the same identity again. Accepting it again without another write is safe here because the receiver's receipt and consequence share a transaction. With an external API,
-use that API's stable idempotency key or reconcile its saved outcome; the outbox cannot supply its atomicity.
+The receiver can accept the second delivery without saving another notification because its receipt and notification
+were saved in one transaction. If your receiver calls an external API, use the API's own key for recognizing repeat
+requests, or check what the external system saved before trying again. The outbox cannot include that call in the
+receiver's database transaction.
+
+Use `@okikio/storage/outbox/postgres` to store JSON messages and `@okikio/storage/outbox/effect` to deliver messages
+that have a declared format and a trusted decoder. The example below uses both. This adapter is separate from
+Workflow's internal delivery tables. Your application supplies the database pool and decides when to run delivery.
 
 ## Save and deliver one note
 

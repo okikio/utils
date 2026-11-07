@@ -10,13 +10,13 @@ how another host can apply its own policy. A declaration with no effective evalu
 Start with the [package example](../../packages/capability/requirement/README.md) for the smallest declaration and
 evaluator. The complete upload below shows where that check belongs in an application.
 
-## Run a complete task
+## Admit a three-byte upload
 
-Check an upload rule through an application-supplied evaluator. This program supplies its own local input and uses
-public workspace imports. After `mise run prepare -- --kind deps`, save it as `example.ts` at the checkout root and run
-`mise exec -- deno run example.ts`.
+Try a three-byte input against a 1,024-byte limit. The application supplies the callback that performs the check.
+After the [checkout setup](../../README.md#run-a-complete-example-from-this-checkout), save this as `check-upload.ts`
+and run `mise exec -- deno run check-upload.ts`.
 
-```ts runnable=complete-task.ts
+```ts runnable=check-upload.ts
 import * as context from '@okikio/context';
 import * as requirement from '@okikio/capability/requirement';
 
@@ -53,9 +53,8 @@ Expected output:
 Upload admitted: 3 bytes
 ```
 
-Compare the output before changing the input. The remaining sections explain the options and limits; the
-[package example](../../packages/capability/requirement/README.md) also places this operation among adjacent
-capabilities.
+The input is within the limit, so execution reaches the print statement. Try replacing the three-byte array with
+`new Uint8Array(1025)`: the check throws before the upload could continue.
 
 ## Trace declaration, binding and enforcement
 

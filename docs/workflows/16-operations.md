@@ -1,8 +1,17 @@
 # 16. Operate and test durable execution
 
-Use the PostgreSQL runtime when accepted work must survive the process that accepted it. This chapter covers the
-operator controls, storage maintenance, capacity measurements, and local failure tests added to that runtime. The
-application still owns its database pool, authorization, worker deployment, log configuration, and business effects.
+An import has stopped moving. First inspect the saved run and its attempts. A paused run, an overdue wait, and a
+failed worker may look the same to the customer, but they call for different actions:
+
+| What you need to do | Start here |
+| --- | --- |
+| Find what the run is waiting on | [Inspect state, waits, and history](#inspect-state-time-progress-and-history). |
+| Stop a run from taking new work while you investigate | [Pause the physical run](#pause-and-resume-a-physical-run). In-flight work can still settle. |
+| Find out if a business write can be repeated | [Recover after a worker stops](./04-recovery.md). Check receipts before requesting repair. |
+| Bring workers back after the database primary failed | [Recover after a PostgreSQL primary fails](#recover-after-a-postgresql-primary-fails). |
+
+These controls use saved PostgreSQL state. Your application still owns the database pool, authorization, worker
+deployment, log configuration, and business effects.
 
 A **slot** is permission to keep one operation active, not a measurement of how much CPU it currently uses. Waiting on
 a network call often uses little CPU, but the operation still holds memory, connections, or a browser. Releasing its

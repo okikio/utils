@@ -1,7 +1,7 @@
 # `@okikio/worker/thread`
 
-An application needs to analyze a large file without putting all of that work in its main JavaScript execution thread. A
-standard Worker runs another module in a separate execution environment. `@okikio/worker/thread` lets the parent call
+A report viewer needs to count words without making its controls wait for a large calculation. A standard Worker
+runs another module in a separate execution environment. `@okikio/worker/thread` lets the parent call
 that module with validated requests, receive the matching result, and own shutdown without writing its own message
 protocol.
 

@@ -20,10 +20,10 @@ This job reserves a browser instance and three upload slots together. The counte
 A browser upload needs one browser slot and three upload slots at the same time. The first snapshot shows the remaining
 capacity while that reservation is held. Releasing the lease restores both counters in the second snapshot.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
-`mise exec -- deno run example.ts`.
+Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `upload-capacity.ts` at the checkout root and use
+`mise exec -- deno run upload-capacity.ts`.
 
-```ts runnable=package-task.ts
+```ts runnable=upload-capacity.ts
 import * as capacity from '@okikio/scheduler/capacity';
 
 const host = capacity.create({ browsers: 2, uploads: 4 });

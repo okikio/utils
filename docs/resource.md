@@ -12,8 +12,9 @@ methods. A **collection** keeps the created clients and closes what it owns; bor
 cleanup responsibility to the caller.
 
 `await using` closes a disposable value when its block ends, including after an exception. Declarations are disposed in
-reverse order. The collection supplies its own Context unless you pass an existing lifetime. An `await` inside the save operation waits for a Promise;
-it does not release or move the borrowed client while the operation is paused.
+reverse order. `resource.open()` supplies a default Context for cancellation and cleanup. If you pass an existing
+Context, the collection uses a child lifetime and leaves the parent open when it closes. An `await` inside the save
+operation waits for an answer. It does not return or move the borrowed client while the operation is waiting.
 
 ## Save and read a note through a supplied store
 
@@ -64,9 +65,20 @@ Expected output:
 Bring the family photo
 ```
 
-The ownership path is application factory → collection-owned value → operation borrow. If a report client depends on
-a store client, the store must remain open while the report client closes. The collection therefore releases the report
-client first and its store dependency afterward. The borrower neither owns that order nor closes either client itself.
+Follow the lifetime of the store in the example. Read down to see who acts; the indented lines describe what the
+collection does during a call. A rejected borrow stops before the operation receives a client.
+
+```text
+App opens collection      No store created yet.
+Operation gets Store      Collection checks any borrow rules.
+                          First allowed get creates the store.
+Operation saves a note    It uses the store the collection owns.
+App leaves the scope      Collection closes the store it created.
+```
+
+A later allowed borrow can reuse the same store, but it still needs its own access check. The example has one store.
+If a report client depends on a store client, the collection closes the report client first so that its dependency
+is still available during cleanup.
 
 ## Declare what acquisition needs
 

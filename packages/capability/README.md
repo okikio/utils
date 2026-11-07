@@ -1,20 +1,21 @@
 # Capability
 
-Give ordinary work explicit access to shared resources, application rules, and accepted effects. The application
-supplies providers and policies. Capability connects their contracts while Context supplies the operation lifetime.
+Saving a note may need a shared store, an account permission check, and an announcement for an audit trail.
+Capability lets the application supply those three pieces without putting database, permission, or delivery setup
+inside the save function. Context supplies cancellation and cleanup for the operation.
 
 For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters keep their native runtime requirements.
 
-Use a focused subpath when one mechanism is enough. Use `scope` when a function needs several of them together. Use Task
-when the operation itself needs pause, resume, cancellation, and a terminal result handle.
+Use a focused import when you need just one of these pieces. Use `scope` to supply several of them together. Use
+[Task](../task/README.md) when a caller also needs controls such as Pause or Cancel and a way to await the final result.
 
 ## Save a note with explicit dependencies
 
 The note has three separate concerns. A **resource** lends the Map that stores it. A **requirement** asks whether this account may save. An **effect** announces that the save happened and waits for a recipient. Definitions describe these concerns; live bindings supply the Map, evaluator and recipient. None of them performs a save simply by being declared.
 
-This complete example declares a store, checks a save rule, and announces the saved note. The store implementation uses
-a real in-memory Map. Its collection owns cleanup; the operation borrows it. The supplied requirement interpreter checks
-a real application condition before the write.
+Follow the note through the example: the application checks whether this save is allowed, borrows the store to save
+the note, and only then tells the recipient. The store is an in-memory Map. The resource collection owns its cleanup
+and the operation only borrows it.
 
 A **scope** here is a view of the same operation lifetime with selected dependencies, rules and recipients attached.
 It is not a new thread or a background service. The `ctx` variable carries that view through ordinary function calls.

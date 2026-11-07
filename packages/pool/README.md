@@ -7,7 +7,8 @@ opening an unlimited number of resources.
 For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters keep their native runtime requirements.
 
 A **lease** is a temporary loan. The pool owns the underlying value; the caller owns the lease and returns it after use.
-This prevents two unrelated callers from accidentally using the same value at the same time.
+For example, if a connection can only run one transaction at a time, the next caller waits until the current caller
+returns its lease. The caller returns the lease rather than closing the connection, so the pool can lend it again.
 
 ```text
 Pool owns at most 2 connections

@@ -1,8 +1,8 @@
 # `@okikio/workflow`
 
-A workflow is a named sequence of jobs whose instruction results can be recorded and reused. Suppose preparing a photo
-means reading its dimensions, creating a preview, and saving the preview's location. If the last step fails, starting
-the whole sequence again can repeat work you already finished.
+A photo upload saves a title and adds the photo to an album. If a caller repeats the same upload after losing the
+reply, it wants the original photo ID. Calling the two functions again can create a second title and album entry.
+A workflow names those steps so the runner can record their results and reuse them for the same run.
 
 For Deno, Node, and Bun execution, see
 [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters
@@ -12,12 +12,10 @@ This package separates the sequence from the code that performs each job. An [ac
 one job; the workflow requests those jobs in order. A scheduler consults recorded results and sends new work to an
 executor. An executor is the host that runs the supplied job implementation.
 
-For work that must survive process loss, use `client` and `serve` with the optional
-[`@okikio/storage/workflow/postgres`](../storage/workflow/postgres/README.md) adapter. The
-[durable workflow guide](https://github.com/okikio/utils/blob/main/docs/workflows/01-basics.md) links complete Core
-import and Intelligence consumer examples, including policy, resources, health checks, transaction receipts and
-shutdown. The example below uses in-memory history to teach the local programming model; its arrays and history do not
-survive a restart.
+The tutorial below keeps the photo and its recorded results in memory. Run it first if you want to see what replay
+does without setting up a server. If accepted work must survive a process restart, follow the
+[durable workflow guide](../../docs/workflows/01-basics.md). That path uses `client` and `serve` with the
+[PostgreSQL adapter](../storage/workflow/postgres/README.md) and supplies its own business storage and write receipts.
 
 ## Save a photo and reuse its completed steps
 

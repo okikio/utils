@@ -1,7 +1,12 @@
 # Replay completed steps in a local photo upload
 
-This guide follows a photo upload from ordinary calls to recorded local instructions. It also serves as a reference
-for local scheduling. Read [the durable service chapters](./README.md) when committed work must survive worker crashes.
+Run a photo upload twice and count the writes. The ordinary program saves two titles and two album entries. In
+the second program, both passes return `asset-1`, with one saved title and one album entry. The workflow reuses
+the recorded answers from the first pass.
+
+You need Mise and the [checkout dependencies](../../README.md#run-a-complete-example-from-this-checkout) for the
+second program. Its records stay in memory. For work that must survive worker crashes, use the
+[durable service walkthrough](./01-basics.md).
 
 ## See what ordinary calls repeat
 
@@ -9,8 +14,8 @@ Save a title, then put its new ID into an album. Repeat the same call to see why
 be useful. This first program deliberately does not record anything.
 
 Save this first program as `ordinary-upload.ts` and run `mise exec -- deno run ordinary-upload.ts`.
-It uses only ordinary JavaScript and needs no package setup. Before recording anything, consider those calls. Each call to `save` appends a title. Repeating the function
-therefore appends twice, even though its input is unchanged:
+It needs no library imports. Watch the saved titles: each call to `save` appends one, so repeating the function
+appends twice even when its input is unchanged.
 
 ```ts runnable=ordinary-upload.ts
 const titles: string[] = [];

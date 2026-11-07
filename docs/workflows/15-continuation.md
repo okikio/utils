@@ -1,17 +1,16 @@
 # Bounded durable continuation
 
-The PostgreSQL execution profile supports `workflow.continue(nextInput)` for an externally admitted root workflow. It
-finishes the current segment and starts the same workflow definition with new input and fresh history. Each segment has
-a new physical run ID. The original accepted reference can still be used with `client.wait` to obtain the chain's final
-result.
+An import can process 100 rows, save the next row position, and start a fresh segment for the next 100. Splitting the
+import this way keeps each segment's history from growing with the entire file. The caller can keep the reference
+it received at submission and pass it to `client.wait` to get the final result.
 
-Continuation has an explicit finite budget. It preserves accepted work and its evidence; it does not serialize
-JavaScript stacks, reuse a live browser, or transfer arbitrary transaction authority to another execution resource.
+Use `workflow.continue(nextInput)` in a root workflow accepted by the service with a PostgreSQL store. It finishes
+the current segment and starts the same workflow definition with new input, a new run ID, and fresh history. A policy
+sets the maximum number of these extra segments.
 
-For example, an import can process 100 rows, save the next row position, then start a fresh segment for the next 100.
-This keeps each segment's instruction history finite. The next input is ordinary checked data, such as a row cursor;
-it cannot contain a running function or an open database transaction. The client keeps its original reference while
-the runtime follows the saved chain to the final result.
+The next input is checked data, such as the next row number. An open browser or database transaction cannot move
+with it. The store preserves the completed segment and the link to its successor, so the caller can still use the
+original reference.
 
 ```mermaid
 sequenceDiagram
@@ -27,10 +26,13 @@ sequenceDiagram
     Store-->>Client: Final chain result
 ```
 
-Read down the diagram as successive saved transitions. It omits activity writes and cleanup; those must finish under
-the rules below before a segment can hand off. Continuation bounds history. A receipt committed in the same transaction as a business write can prevent that SQL write
-from repeating. An external HTTP or browser action needs its receiver’s idempotency or reconciliation contract; a local
-receipt alone cannot prove its outcome.
+Read down the diagram. Each handoff gives the worker a new run ID, but the caller still waits with the reference it
+received at submission. The diagram leaves out business writes and cleanup; both must finish as described below
+before the handoff.
+
+Starting a fresh history does not make a write safe to repeat. Save a receipt with a SQL write so a retry can
+recognize it. For an HTTP or browser action, rely on the receiving system to recognize the request or inspect
+what it saved before trying again.
 
 ## Declare the budget
 

@@ -1,9 +1,10 @@
 # Let an HTTP activity call its original authority
 
-An activity running in another service may need the caller to check a permission, accept an effect or renew its queue
-claim. `@okikio/activity/http/duplex` keeps that authority with the original caller. It adds paired requests to the
-[unary HTTP adapter](../http.md): the start response carries requests back to the caller, and separate authenticated
-POSTs return the answers while the activity is still running.
+An activity running in another service may still need an answer from the original caller. For example, a job may
+need more time to finish, but only the caller can renew its temporary claim on the queued item.
+`@okikio/activity/http/duplex` gives the job a way to ask. Unlike the [single request and response](../http.md) path,
+the start response carries questions back to the caller. Separate authenticated POST requests return the answers
+while the activity is still running.
 
 For example, a remote activity asks to renew its queue claim. The caller receives that request and awaits its actual
 `ActivityAttemptControl.heartbeat()`. Only after that authority resolves does the remote activity receive an

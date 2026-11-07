@@ -1,12 +1,12 @@
 # Inspect saved workflow execution
 
-`postgres.inspector()` reads the PostgreSQL runtime's saved state for an operator, an internal API, or a progress
-display. It does not start a worker, recover expired claims, renew a lease, migrate the schema, or close the
-application's pool. Imports and inspector construction perform no database work.
-
 A service that accepts background work can return before the work finishes. Its status page therefore needs saved
 answers to questions such as “is this import waiting, running, or complete?” The inspector reads those answers from
 storage. Reading a snapshot does not grant permission to execute or repair that work.
+
+Use `postgres.inspector()` to construct that reader. Importing the module or constructing the inspector performs no
+database work. Its read methods use the application's existing connection pool. The inspector does not close the
+pool, start workers, recover expired claims, renew leases, or upgrade database tables.
 
 The following excerpt belongs inside an application that already has `databaseUrl`, its authorization policy, and a
 shutdown path. It is not a complete database setup. Start with the [save-one-note example](../../packages/storage/workflow/postgres/README.md#save-one-accepted-note-and-reopen-its-result)
@@ -35,6 +35,11 @@ The inspector requires schema revision 2. Apply migrations explicitly through th
 [saved execution](./01-workflow.md). Opening an inspector never upgrades an older database.
 
 ## Choose a view
+
+Start with `inspect(ref)` when someone asks why a particular import has stopped. If it is waiting, use `waits(ref)`
+to find the timer, event, or child it needs. If a worker has tried the job, use `attempts(ref)` to see what happened.
+Use `history(ref)` when the question is about the order of saved changes, such as whether an operator paused it before
+the latest attempt finished.
 
 Every list accepts a page `limit` from 1 through 100, with a default of 25. Each method returns `observedAt`, a UTC
 database timestamp, and an explicit `next` cursor. Schemas and their derived TypeScript output types are exported from

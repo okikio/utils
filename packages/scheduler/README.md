@@ -1,6 +1,8 @@
 # Scheduler
 
-Choose by the operation you need to perform:
+A folder holds many documents to download. Limiting the downloads to two at a time solves one problem. Holding two
+different resources before an upload starts, or leaving an invoice calculation for another caller to run later,
+requires a different kind of control. Choose based on what needs to wait:
 
 For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters keep their native runtime requirements.
 

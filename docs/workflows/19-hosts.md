@@ -6,8 +6,9 @@ The [sessions guide](./18-sessions.md) explains this browser state and how to re
 
 Now let the application run actions in several JavaScript threads or child processes. Each has its own memory. A
 **provider** starts those hosts and sends activities to them; its **pool** is the set it can choose from. Naming the
-provider selects that group, but does not yet identify which member holds this login. A **physical-host reference**
-identifies the particular member that must receive the later action.
+provider selects that group, but does not yet identify which member holds this login. For example, if thread A opened
+the context and thread B is idle, the later report request still has to go to A. A **physical-host reference** identifies
+that particular member of the pool.
 
 For stateless work, such as resizing an image from supplied bytes, any eligible free host may be suitable. Retained
 browser state creates a different requirement: return to the host that actually owns it. A reference routes the request;
@@ -19,10 +20,8 @@ one provider lifetime, and `id` names one host lifetime inside it. Both change
 when their owner is replaced. Neither identifier is an OS PID, a thread number,
 a reusable pool index, an authorization credential or a capacity reservation.
 
-Suppose two threads share one provider pool. Thread A opened a browser context and holds its cookies. A later action
-must use A, even when B is idle, because B does not have that live context. The host reference selects A's current
-lifetime. If A is busy, the call reports busy; if A has gone away, the call reports lost. Selecting B as a fallback would
-silently operate on a different resource.
+Follow the later report request through the pool below. If A is busy, the call reports busy; if A has gone away,
+the call reports lost. Neither case can fall back to B because B does not have the signed-in context.
 
 ```mermaid
 flowchart LR

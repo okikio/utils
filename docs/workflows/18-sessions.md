@@ -15,6 +15,11 @@ For example, those actions might be separate requests to your application. If th
 state, the second cannot continue that login. If each action creates a fresh isolated browser context, the second
 starts signed out. Keeping Chrome running is not enough: the second action needs the same state within it.
 
+For example, a user might connect an account, then ask for its latest report in a later request. Making each report
+request sign in again adds work and may require the user to complete another verification step. The later request
+can reuse the login while the context stays open and the website still accepts its cookie. Keep a separate context
+for each account that needs isolated state.
+
 This guide uses **browser automation**, which means code opens pages, clicks controls and reads displayed content.
 Collecting information from pages is often called scraping. You do not need prior scraping experience here. The example
 uses a tiny local website and a pretend account so you can observe the login boundary without real credentials.
@@ -50,8 +55,8 @@ actions need to find and safely use one particular live object after its creatio
 A **resource session** gives that object an explicit lifetime. One owner keeps the browser context in memory; callers
 keep a small **reference** identifying which retained context they need. Each action temporarily borrows that context,
 finishes its work and closes its temporary pages. Returning the borrow leaves the context available for the next action.
-Closing the session closes the retained context too. Exclusive borrowing is the default, so two actions cannot change
-that login's state at the same time through this owner.
+Closing the session closes the retained context too. By default, only one action can borrow that context at a time.
+For example, one action cannot start signing out while another reads the report through the same session owner.
 
 A website's login session and a Utils resource session have different jobs. The website decides whether its cookie
 still grants account access. Utils decides which live browser context an action may borrow and who must close it.
@@ -79,8 +84,8 @@ mise exec -- node examples/sessions/browser.ts
 mise exec -- node examples/sessions/check.browser.ts
 ```
 
-The program prints `Ada`. The check asserts that result. If Chromium is missing, run the install command above; closing
-all browser windows on your desktop will not install the separate browser build used by Playwright.
+The program prints `Ada`. The check asserts that result. If Playwright cannot find Chromium, run the install command
+above. Playwright uses its own browser build, separate from the Chrome you may already have installed.
 
 The [example directory](../../examples/sessions/README.md) contains both files. `website.ts` owns the small HTTP server;
 `browser.ts`, shown below, owns the browser and sessions. Keep them together when copying the example. The fixture uses

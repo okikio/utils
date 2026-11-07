@@ -1,19 +1,18 @@
 # Save workflow progress beside business state
 
-A manual durable queue inserts accepted work in SQL, selects ready jobs, records progress, and detects abandoned
-attempts. A receipt committed with a business write lets a replacement distinguish completed work from work it still
-owes.
-
-The application owns the Postgres.js pool and domain tables. The adapter owns utils_workflow tables. A saved step cannot
-make an unrelated remote service safe to call twice.
-
-The transaction operations below connect job acceptance to application writes. The
-[Storage README](../../packages/storage/README.md) distinguishes snapshots, queues, and workflow history.
+Suppose someone submits a note, then the worker stops before the site can show “Saved.” Storing the accepted job in
+PostgreSQL gives a replacement worker something to pick up. Saving a receipt with the note lets that worker tell
+whether it still needs to write the note.
 
 A **transaction** commits several SQL changes together or rolls all of them back. A **receipt** records the answer to
 one logical operation inside that same transaction. If the client loses the commit reply, it cannot tell from the
 network error whether the transaction succeeded. Reading the original receipt lets a later attempt reuse the committed
 answer instead of blindly repeating the business write.
+
+The application supplies the Postgres.js connection pool and owns the tables that hold its notes. The adapter uses
+that pool and manages its own `utils_workflow` tables for jobs and results. Those tables cannot make an unrelated
+remote service safe to call twice. The [Storage README](../../packages/storage/README.md) compares the available
+stores if you only need to save a draft or keep a queue.
 
 ## Accept and save one note, then reopen the result
 

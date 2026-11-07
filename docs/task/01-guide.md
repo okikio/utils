@@ -12,10 +12,10 @@ history.
 Start one local import and await its terminal result. The task supplies the lifetime and controls; the operation still
 returns the value. Later examples add checkpoints where pause and cancellation can cooperate with the work.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
-`mise exec -- deno run example.ts`.
+Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `finish-import.ts` at the checkout root and use
+`mise exec -- deno run finish-import.ts`.
 
-```ts runnable=package-task.ts
+```ts runnable=finish-import.ts
 import * as task from '@okikio/task';
 
 // Fixture: keep the input local so pausing does not depend on network timing.

@@ -8,8 +8,6 @@ For example, a photo resize can run in a Node thread on a server or a browser Wo
 chooses where it runs and owns stopping it. Importing an adapter only makes its functions available; calling its launch
 operation is what starts another execution context.
 
-Select runtime-specific APIs explicitly while keeping portable packages independent of host globals.
-
 For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters keep their native runtime requirements.
 
 | Host    | Entry points                                                                                                                       |
@@ -19,7 +17,8 @@ For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-ru
 | Bun     | `@okikio/runtime/bun/worker`                                                                                                       |
 | Browser | `@okikio/runtime/browser/worker`                                                                                                   |
 
-The root exports the `Host` type and does not inspect globals, import a native adapter or start a process. Node threads
+If you only need to describe a host in TypeScript, import `Host` from the root. To start a real worker or subprocess,
+select its adapter above. The root does not inspect globals, import a native adapter or start a process. Node threads
 use `node:worker_threads`. Browser and Bun worker adapters accept their host's Worker capabilities. Deno adapters stay
 available through JSR/source exports and are omitted from the npm projection, where Deno globals are unavailable.
 

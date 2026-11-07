@@ -1,8 +1,15 @@
 # Learn workflows
 
-Choose the path that matches your task. The package [README](../../packages/workflow/README.md) and
-[recorded-work recipe](../recipes/03-recorded-work.md) teach local replay with complete runnable programs; they require
-no database. The durable chapters add explicitly configured persistence and executors.
+Start with what needs to survive. If your program only needs to reuse a result while it is running, the
+[photo-upload tutorial](./10-local.md) shows two passes in one process. The first saves a title and album entry;
+the second reuses both recorded results. You can run it without a database.
+
+If a user needs to submit an import, close the page, and come back to a result after a worker restarts, start with
+[background work basics](./01-basics.md). The service must save the request before replying. A worker can then pick
+it up later, using saved receipts to recognize writes that already committed.
+
+If you already run a PostgreSQL worker, go to [operations](./16-operations.md) for decisions about pausing,
+inspecting, and repairing saved work.
 
 | Your task                         | Read these together                                                                                | Outcome                                                                            |
 | --------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
