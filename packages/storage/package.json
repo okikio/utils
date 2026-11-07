@@ -1,6 +1,6 @@
 {
 	"name": "@okikio/storage",
-	"version": "0.0.0",
+	"version": "1.0.0",
 	"type": "module",
 	"sideEffects": false,
 	"license": "MIT",
@@ -18,18 +18,18 @@
 		"./outbox/effect": "./outbox/effect.ts"
 	},
 	"dependencies": {
-		"@okikio/workflow": "workspace:^",
-		"@okikio/schema": "workspace:^",
+		"@okikio/workflow": "workspace:^1.0.0",
+		"@okikio/schema": "workspace:^1.0.0",
 		"postgres": "4.0.0",
-		"@okikio/collection": "workspace:^",
-		"@okikio/telemetry": "workspace:^",
-		"@okikio/scheduler": "workspace:^",
-		"@okikio/context": "workspace:^",
-		"@okikio/result": "workspace:^",
+		"@okikio/collection": "workspace:^1.0.0",
+		"@okikio/telemetry": "workspace:^0.1.0",
+		"@okikio/scheduler": "workspace:^1.0.0",
+		"@okikio/context": "workspace:^1.0.0",
+		"@okikio/result": "workspace:^1.0.0",
 		"@okikio/observables": "^1.4.0",
-		"@okikio/capability": "workspace:^",
-		"@okikio/dispose": "workspace:^",
-		"@okikio/duration": "workspace:^"
+		"@okikio/capability": "workspace:^1.0.0",
+		"@okikio/dispose": "workspace:^0.1.0",
+		"@okikio/duration": "workspace:^0.1.0"
 	},
 	"devDependencies": {
 		"zod": "^4.5.4",

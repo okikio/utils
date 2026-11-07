@@ -1,6 +1,6 @@
 {
 	"name": "@okikio/input",
-	"version": "0.0.0",
+	"version": "1.0.0",
 	"type": "module",
 	"sideEffects": false,
 	"license": "MIT",
@@ -19,11 +19,11 @@
 		"./types": "./types.ts"
 	},
 	"dependencies": {
-		"@okikio/dispose": "workspace:^",
-		"@okikio/collection": "workspace:^",
-		"@okikio/schema": "workspace:^",
-		"@okikio/duration": "workspace:^",
-		"@okikio/context": "workspace:^",
+		"@okikio/dispose": "workspace:^0.1.0",
+		"@okikio/collection": "workspace:^1.0.0",
+		"@okikio/schema": "workspace:^1.0.0",
+		"@okikio/duration": "workspace:^0.1.0",
+		"@okikio/context": "workspace:^1.0.0",
 		"@okikio/observables": "^1.4.0"
 	},
 	"devDependencies": {

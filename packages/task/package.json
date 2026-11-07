@@ -1,6 +1,6 @@
 {
 	"name": "@okikio/task",
-	"version": "0.0.0",
+	"version": "0.1.0",
 	"type": "module",
 	"sideEffects": false,
 	"license": "MIT",
@@ -11,13 +11,13 @@
 		"./progress": "./progress.ts"
 	},
 	"dependencies": {
-		"@okikio/context": "workspace:^",
-		"@okikio/scheduler": "workspace:^",
-		"@okikio/capability": "workspace:^",
+		"@okikio/context": "workspace:^1.0.0",
+		"@okikio/scheduler": "workspace:^1.0.0",
+		"@okikio/capability": "workspace:^1.0.0",
 		"@okikio/observables": "^1.4.0",
-		"@okikio/schema": "workspace:^",
-		"@okikio/collection": "workspace:^",
-		"@okikio/dispose": "workspace:^"
+		"@okikio/schema": "workspace:^1.0.0",
+		"@okikio/collection": "workspace:^1.0.0",
+		"@okikio/dispose": "workspace:^0.1.0"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",

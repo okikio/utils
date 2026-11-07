@@ -1,6 +1,6 @@
 {
 	"name": "@okikio/workflow",
-	"version": "0.0.0",
+	"version": "1.0.0",
 	"type": "module",
 	"sideEffects": false,
 	"license": "MIT",
@@ -15,23 +15,23 @@
 	},
 	"dependencies": {
 		"@std/encoding": "npm:@jsr/std__encoding@^1.0.11",
-		"@okikio/collection": "workspace:^",
-		"@okikio/context": "workspace:^",
-		"@okikio/duration": "workspace:^",
-		"@okikio/capability": "workspace:^",
-		"@okikio/result": "workspace:^",
-		"@okikio/schema": "workspace:^",
-		"@okikio/telemetry": "workspace:^",
+		"@okikio/collection": "workspace:^1.0.0",
+		"@okikio/context": "workspace:^1.0.0",
+		"@okikio/duration": "workspace:^0.1.0",
+		"@okikio/capability": "workspace:^1.0.0",
+		"@okikio/result": "workspace:^1.0.0",
+		"@okikio/schema": "workspace:^1.0.0",
+		"@okikio/telemetry": "workspace:^0.1.0",
 		"@okikio/observables": "^1.4.0",
-		"@okikio/task": "workspace:^",
-		"@okikio/authz": "workspace:^"
+		"@okikio/task": "workspace:^0.1.0",
+		"@okikio/authz": "workspace:^0.1.0"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
 		"zod": "^4.5.4",
 		"@standard-schema/spec": "^1.1.0",
-		"@okikio/dispose": "workspace:^",
-		"@okikio/scheduler": "workspace:^",
+		"@okikio/dispose": "workspace:^0.1.0",
+		"@okikio/scheduler": "workspace:^1.0.0",
 		"mitata": "^1.0.34"
 	},
 	"publishConfig": {

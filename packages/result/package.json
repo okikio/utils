@@ -1,6 +1,6 @@
 {
 	"name": "@okikio/result",
-	"version": "0.0.0",
+	"version": "1.0.0",
 	"type": "module",
 	"sideEffects": false,
 	"license": "MIT",
@@ -14,13 +14,13 @@
 		"./failure/migrate": "./failure/migrate.ts"
 	},
 	"dependencies": {
-		"@okikio/collection": "workspace:^",
-		"@okikio/schema": "workspace:^"
+		"@okikio/collection": "workspace:^1.0.0",
+		"@okikio/schema": "workspace:^1.0.0"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
 		"@standard-schema/spec": "^1.1.0",
-		"@okikio/dispose": "workspace:^",
+		"@okikio/dispose": "workspace:^0.1.0",
 		"mitata": "^1.0.34"
 	},
 	"publishConfig": {
