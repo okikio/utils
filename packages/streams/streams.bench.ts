@@ -41,15 +41,20 @@ for (const size of [1024, 1024 * 1024]) {
 	const decoded = async function (native = false, verify = false): Promise<number> {
 		let count = 0;
 		let collected = '';
-		const nativeSource: ReadableStream<BufferSource> = source(bytes);
+		// Both candidates construct exactly one source over the same fixture.
+		const input = source(bytes);
+		const nativeSource: ReadableStream<BufferSource> = input;
 		const chunks = native
-			? iterable(nativeSource.pipeThrough(new TextDecoderStream()))
-			: text.decode(source(bytes), { ...policy, fatal: true, ignoreBOM: false });
+			? iterable(nativeSource.pipeThrough(new TextDecoderStream('utf-8', { fatal: true })))
+			: text.decode(input, { ...policy, fatal: true, ignoreBOM: false });
 		for await (const chunk of chunks) {
 			if (verify) collected += chunk;
 			count += chunk.length;
 		}
-		if (verify) strictEqual(collected, new TextDecoder().decode(bytes));
+		if (verify) {
+			strictEqual(collected, new TextDecoder().decode(bytes));
+			strictEqual(input.locked, false);
+		}
 		return count;
 	};
 	if (await framed(true) !== size || await decoded(false, true) !== size || await decoded(true, true) !== size) {

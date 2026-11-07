@@ -16,6 +16,7 @@ for (const count of [1, 1_000, 10_000]) {
 		throw new Error('Sitemap fixture failed.');
 	}
 	const bytes = new TextEncoder().encode(text);
+	/** Create a fresh byte stream for each run; retain callback values only in the untimed check. */
 	const stream = async function (verify = false): Promise<number> {
 		let seen = 0;
 		let offset = 0;
@@ -37,8 +38,10 @@ for (const count of [1, 1_000, 10_000]) {
 				locations?.push(record.loc);
 			},
 		});
-		if (seen !== count || parsed.problems.length) throw new Error('Streaming sitemap fixture failed.');
 		if (verify) {
+			strictEqual(seen, count);
+			strictEqual(parsed.problems.length, 0);
+			strictEqual(parsed.capped, false);
 			deepStrictEqual(locations, expected);
 			strictEqual(source.locked, false);
 		}

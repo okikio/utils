@@ -29,7 +29,7 @@ for (const count of [1, 1_000, 10_000]) {
 		});
 		for (let index = 0; index < count; index++) output.report(sample);
 		await output.close();
-		if (writes !== count || output.stats().bytes !== 0 || output.stats().records !== 0) {
+		if (verify && (writes !== count || output.stats().bytes !== 0 || output.stats().records !== 0)) {
 			throw new Error('Queue drain oracle failed.');
 		}
 		return writes;

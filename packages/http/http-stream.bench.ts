@@ -14,12 +14,13 @@ for (const count of [1, 1_000]) {
 			{ length: Math.ceil(bytes.length / size) },
 			(_, index) => bytes.slice(index * size, (index + 1) * size),
 		);
-		const read = async function (bounded: boolean): Promise<number> {
+		/** Read the same chunks to EOF; only the direct candidate needs a separate pipe. */
+		const read = async function (bounded: boolean, verify = false): Promise<number> {
 			let seen = 0;
 			const source = readable(chunks);
-			const parser = new ServerSentEventParseStream();
-			const joined = bounded ? undefined : source.pipeTo(parser.writable);
-			const messages = bounded
+			const parser = bounded ? undefined : new ServerSentEventParseStream();
+			const joined = parser === undefined ? undefined : source.pipeTo(parser.writable);
+			const messages = parser === undefined
 				? events.read(source, {
 					maximumBytes: bytes.length,
 					maximumEventBytes: 64,
@@ -28,37 +29,40 @@ for (const count of [1, 1_000]) {
 				})
 				: parser.readable;
 			for await (const message of messages) {
-				if (message.id !== String(seen) || message.data !== `é-${seen}`) {
+				if (verify && (message.id !== String(seen) || message.data !== `é-${seen}`)) {
 					throw new Error('SSE identity, payload or ordering oracle failed.');
 				}
 				seen++;
 			}
 			await joined;
-			if (seen !== count || source.locked) throw new Error('SSE count/ownership oracle failed.');
+			if (verify && (seen !== count || source.locked)) throw new Error('SSE count/ownership oracle failed.');
 			return seen;
 		};
-		await read(true);
-		await read(false);
+		await read(true, true);
+		await read(false, true);
 		group(`SSE ${count} records; ${size} byte chunks`, () => {
 			bench('bounded owned parser', async () => do_not_optimize(await read(true)));
 			bench('direct STD parser reference without bounds', async () => do_not_optimize(await read(false)));
 		});
 	}
-	const response = async function (): Promise<number> {
-		const native = jsonl(readable(Array.from({ length: count }, (_, value) => ({ value }))), {
+	const records = Array.from({ length: count }, (_, value) => ({ value }));
+	const expected = Array.from({ length: count }, (_, value) => `{"value":${value}}\n`).join('');
+	/** Include response construction, body consumption, and the completion join, not oracle generation. */
+	const response = async function (verify = false): Promise<number> {
+		const native = jsonl(readable(records), {
 			maximumBytes: count * 16,
 			maximumRecordBytes: 16,
 			maximumItems: count,
 			projection: { maximumDepth: 2, maximumNodes: 4, maximumStringCodeUnits: 8 },
 		});
 		const text = await native.text();
-		const expected = Array.from({ length: count }, (_, value) => `{"value":${value}}\n`).join('');
-		if (text !== expected || (await jsonlCompletion(native)).bytes !== text.length) {
+		const completion = await jsonlCompletion(native);
+		if (verify && (text !== expected || completion.bytes !== text.length)) {
 			throw new Error('JSONL completion oracle failed.');
 		}
 		return text.length;
 	};
-	await response();
+	await response(true);
 	group(`JSONL ${count} values, bounded copy and native completion`, () => {
 		bench('construct and fully consume response', async () => do_not_optimize(await response()));
 	});

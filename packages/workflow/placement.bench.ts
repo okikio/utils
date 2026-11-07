@@ -4,9 +4,13 @@ import { run } from './fixtures/bench.ts';
 import * as context from '@okikio/context';
 import * as dispatch from './dispatch.ts';
 import * as placement from './placement.ts';
+import type { ActivityDispatchStatsType } from './types.ts';
 
-/** Includes registration, matching, claiming and completion; correctness precedes timing. */
-async function cycle(hosts: number, depth: number): Promise<void> {
+/** Register hosts, place eight items, settle claims, then inspect the final counts. */
+async function cycle(
+	hosts: number,
+	depth: number,
+): Promise<{ readonly claims: number; readonly stats: ActivityDispatchStatsType }> {
 	await using ctx = context.create({ id: 'placement-bench' });
 	await using store = dispatch.memory();
 	const ancestors = Array.from({ length: depth - 1 }, (_, index) => ({
@@ -50,17 +54,18 @@ async function cycle(hosts: number, depth: number): Promise<void> {
 		}, { key: String(index) });
 	}
 	const claims = await store.claim(ctx, joined[0]!, { limit: 8, duration: 'PT1M' });
-	if (claims.length !== 8) throw new Error('Nested placement claim oracle failed.');
 	for (const claim of claims) await store.complete(ctx, claim, { type: 'success', value: { kind: 'undefined' } });
-	const stats = await store.stats();
-	if (stats.claimed !== 0 || stats.completed !== 8) throw new Error('Nested placement settlement oracle failed.');
-	do_not_optimize(stats);
+	return { claims: claims.length, stats: await store.stats() };
 }
 for (const hosts of [1, 32]) {
 	for (const depth of [1, 5]) {
-		await cycle(hosts, depth);
+		// Check each shape before registering timings so assertion work does not enter the sample.
+		const { claims, stats } = await cycle(hosts, depth);
+		if (claims !== 8 || stats.claimed !== 0 || stats.completed !== 8) {
+			throw new Error(`Placement oracle failed for ${hosts} hosts and ${depth} levels.`);
+		}
 		group(`${hosts} hosts, ${depth} compute levels, eight fixed attempts`, () => {
-			bench('register + place + claim + settle', () => cycle(hosts, depth));
+			bench('register + place + claim + settle + inspect', async () => do_not_optimize(await cycle(hosts, depth)));
 		});
 	}
 }
