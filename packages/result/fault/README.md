@@ -74,9 +74,10 @@ The settings file is not valid JSON.
 | Limits                     | `maximumDepth`, `maximumEntries`, `maximumStringLength`                 | Bound nesting, entries per container and each string. They are not a total serialized byte budget. |
 | `message(value, options?)` | Unknown value → bounded string                                          | Uses the safe projection with stack inclusion off, not arbitrary `toString()` methods.             |
 
-Under the hood, projection follows own property descriptors. Data properties are copied; accessors become `[accessor]`
-instead of being called. A set tracks the current object path to mark cycles, and limits stop deeper or larger
-traversal. Errors get a specific name/message/cause projection because those useful fields are often non-enumerable.
+Fault checks how each property is defined before reading it. It copies values stored directly on the object. If a
+property would call a getter, Fault writes `[accessor]` instead. When a value refers back to an object already on the
+current path, Fault marks the cycle and stops following it. Size and depth limits also stop the copy. Fault reads an
+error's name, message, and cause separately because a normal walk through the fields can miss them.
 
 Cleanup can fail after the operation has already failed. `SuppressedError` keeps the cleanup failure in `error` and the
 earlier failure in `suppressed`; `AggregateError` keeps its children in `errors`. Projection preserves these own fields

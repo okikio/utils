@@ -39,10 +39,9 @@ what it identifies. Keep the full digest when you need to compare source content
 
 ## Hash a large response without collecting its body
 
-The quick start passes complete text to `sha256`. That path copies its input before asynchronous hashing, which is
-useful for a small value but retains the complete value in memory. When a response is already a byte stream, pass that
-stream directly to `@okikio/hash/stream`. The utility creates and destroys its incremental hasher and releases the
-reader; the caller supplies a byte budget because the library cannot know how large an acceptable download is.
+The first example keeps the whole input in memory and copies it before hashing. If you already have a response
+body as a byte stream, pass it to `@okikio/hash/stream` instead. The utility hashes one chunk at a time, then
+releases the reader and closes the hasher. Set a byte limit that fits the download you expect.
 
 The [stream example](../../packages/hash/capabilities.md#bound-and-cancel-a-stream) shows that path with five local bytes.
 Use the algorithm string for SHA-2. A hasher factory is needed only for another algorithm family; it is not an extra

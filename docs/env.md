@@ -233,8 +233,8 @@ Valibot schema remains the runtime validator and the source of inferred output t
 
 ### Generic Standard Schema
 
-Standard Schema defines validation interoperability but does not define a shared metadata protocol. Generic callers
-therefore provide environment metadata explicitly:
+Standard Schema gives validators a common way to check values. It does not say how to describe a deployment
+setting. Supply those details explicitly when you use a generic Standard Schema validator:
 
 Save this complete variation as `standard-schema.ts` and run `mise exec -- deno run standard-schema.ts` after the same checkout setup.
 
@@ -278,8 +278,8 @@ deployment availability
 replacement key
 ```
 
-Explicit metadata passed to `env.variable()` or `env.secret()` overrides schema metadata. This lets one reusable schema
-carry a general description while a service gives the binding a more specific operational meaning.
+Details you pass to `env.variable()` or `env.secret()` take precedence over details from the schema. A schema can
+describe a connection string in general. One service can then describe which database its own setting points to.
 
 Secrets never project examples, including examples attached to the schema.
 
@@ -368,5 +368,6 @@ and the design decisions behind those contracts.
 `@okikio/env` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics by passing a
 `Record<string, string | undefined>` into Zod, Valibot, or another Standard Schema.
 
-The utility adds canonical field identity, source composition, secret classification, manifests, examples, and
-requirement metadata. It deliberately does not discover files or load dotenv documents.
+The utility gives each setting a stable identity. It can read from more than one source and mark which
+settings are secret. Use its descriptions to produce deployment inventories and examples. Find the files
+and load any dotenv values in your own application.

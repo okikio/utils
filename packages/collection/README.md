@@ -85,9 +85,9 @@ application schema if a more specific result type is needed.
 | `@okikio/collection/record/json`   | Validate and copy finite JSON with depth, node, and aggregate text budgets                    |
 | `@okikio/collection/record/change` | Compare, diff, and patch the same JSON model                                                  |
 
-Catalog materializes finite authored definitions for repeated lookup. It is not a live event collection. Record
-validates containers, while Schema owns the meanings of their fields. Input can collect a user's request; Record can
-prepare a bounded data copy; Schema can validate that request before an application accepts it.
+Catalog keeps a fixed set of definitions so you can look them up again. If you are reading a form instead, use Input
+to collect the fields. Record can check and copy the data within limits. Use Schema to check what those fields mean
+for your application, such as whether an age is a whole number.
 
 Read the [Catalog guide](./catalog/README.md), [Record guide](./record/README.md), [JSON contract](./record/json.md),
 and [change contract](./record/change.md).

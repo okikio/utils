@@ -20,7 +20,7 @@ Use `schema` when you only need to check input or convert it in one direction. A
 convert the checked value back. For example, reading a saved timestamp as a `Date` is one direction; writing the
 `Date` back as a timestamp string is the other.
 
-The codec utility does not own transport, persistence, HTTP, or provider behavior.
+The codec returns a converted value. Your application decides whether to save that value or send it over HTTP.
 
 These are three different values, even when a console makes them look similar:
 

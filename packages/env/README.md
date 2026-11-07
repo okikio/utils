@@ -179,7 +179,10 @@ console.log(report.valid, JSON.stringify(report.unknown));
 false ["PORRT"]
 ```
 
-The later source wins for `PORT`; the misspelled extra key is visible without printing its value. `resolve` validates declared settings, while `inspect` can additionally reject unknown source keys. Correct `PORRT` before starting a listener. Neither function opens that listener. Keep credentials out of application logs even though provenance itself contains no values.
+The later source supplies `PORT`. The report also names the misspelled key without printing its value. Use `resolve`
+to check the settings you declared. Use `inspect` if you also want to reject names you did not declare. Correct
+`PORRT` before starting the listener. Neither function starts it for you. The source report (called provenance)
+contains no setting values. Keep credentials out of any logs that include the settings themselves.
 
 Import `resolve` and `inspect` from `@okikio/env/resolve`. Supply named sources in lowest-to-highest precedence order
 and explicit `{ maximumKeys, maximumSources }`. Each declared key is read once per source. Undefined allows a lower
@@ -198,8 +201,9 @@ Zod/Valibot/Standard Schema definitions retain their normal parsing owner.
 
 ## Measure parsing and source resolution
 
-The focused benchmarks measure typed field parsing and validated two-source provenance. The benchmark compares against
-direct Zod parsing. Direct parsing omits source diagnostics and provenance.
+The benchmarks measure how long it takes to check fields and to read values from two sources while keeping track
+of where each value came from. Direct Zod parsing is the comparison. It checks values without tracking their
+source or reporting source-specific problems.
 
 From the repository root, run the package's tests and untimed benchmark checks before collecting timings:
 

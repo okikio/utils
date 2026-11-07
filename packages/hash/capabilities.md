@@ -204,6 +204,7 @@ DigestContext is internal. We do not deep-import it or buffer input to imitate i
 without a WASM loader. Its algorithm implementations remain in optional focused graphs. Root and native HMAC use Web
 Crypto; the root does not load Noble, UUID or stream code.
 
-Keep those boundaries when adding algorithms. Verify published vectors, admission semantics, lifecycle errors and
-focused export parity. Statistical sampling tests do not prove randomness quality, timing safety or collision freedom.
-The tests exercise runtime compatibility and published behavior; they are not a cryptographic audit.
+When adding an algorithm, check it against published input and output pairs. Test when the API accepts or refuses work,
+which errors it returns as work starts or stops, and whether the same exports are available where documented. Sampling
+cannot prove that the output is sufficiently random, that timing reveals no secrets, or that inputs never collide.
+These tests check compatibility and documented behavior. They do not constitute a cryptographic audit.

@@ -80,8 +80,9 @@ behavior.
 A contact export becomes rows, while a sitemap index becomes references to more sources. Both require explicit input and
 application decisions about what to do next.
 
-Choose the focused CSV or Sitemap entry. Add Streams for bounded transport, Schema for application records, and
-Scheduler for bounded asynchronous enrichment.
+Choose CSV to read rows or Sitemap to find page addresses. Add Streams if you need to limit or group the input.
+Use Schema to check each value before your application uses it. If you need to fetch each address or look up each
+row, use Scheduler to limit how many calls run at once.
 
 Parsing does not persist records, fetch linked sources, or grant crawl permission. A bounded batch does not bound a
 final array that retains every result.

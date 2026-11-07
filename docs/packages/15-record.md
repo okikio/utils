@@ -40,9 +40,10 @@ localhost:4321
 false
 ```
 
-The snapshot keeps the supplied plain fields; the schema converts the port text to a valid number. The last check
-rejects the getter-backed shape without running its getter. Change the plain port to `'70000'` to fail the value check
-instead. Snapshotting is shallow: nested objects would still need their own ownership and validation rules.
+The snapshot copies the plain fields. The schema turns the port text into a number and checks its range.
+The last example rejects an object with a getter without calling the getter. Change the plain port to
+`'70000'` to fail the range check instead. The copy is shallow: it still refers to any nested objects.
+Check those separately if you cannot trust their shape.
 
 ## Immutable snapshots
 
@@ -70,9 +71,9 @@ The manual implementation uses `Object.getPrototypeOf()`, `Object.getOwnProperty
 runtime string keys and unknown values: structural TypeScript types can omit properties that exist at runtime. Use
 `pick()` when a consumer needs an explicitly selected set of statically known fields.
 
-Use the outer shape helpers when **record shape itself is part of the contract**. They do not validate nested values or
-application rules. `record.json` validates bounded JSON data, while Schema checks the application-specific meaning of
-that data. Class instances and fault diagnostics need their own explicit contracts.
+Use these helpers to check the outside of an object: for example, whether it uses ordinary properties instead
+of getters. They do not check what's inside each property. Use `record.json` to check JSON data against size
+limits and Schema to check what the values must mean in your application.
 
 ## Source guide
 

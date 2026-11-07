@@ -372,10 +372,9 @@ and the last row's keys for the next page. Keyset traversal avoids offset shifts
 caused by inserts before a boundary; updates to sort keys still require a
 transaction snapshot or an application consistency policy.
 
-Keep the ordered keys available to the provider when building a continuation.
-If a client's sparse projection omits them, fetch them privately in the provider
-and remove them from the public response. The compiler does not manufacture row
-keys or widen a requested projection automatically.
+To build a page token, the provider needs the values it sorted by. If the client did not ask to see those
+fields, fetch them for the token and leave them out of the response. The compiler uses the fields you request;
+it does not add sort fields or invent row keys.
 
 A keyset predicate does not guarantee a range scan. The final non-null unique key
 uses a plain comparison so a single-key cursor can become an index condition.

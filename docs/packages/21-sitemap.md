@@ -112,15 +112,16 @@ can apply backpressure. The final application result is `string[]`; it is delibe
 the stream reader and releases it when parsing finishes or fails. No context is needed for this supplied finite source;
 the byte budget is the useful input bound.
 
-For a fetched source, pass the caller's cancellation signal to both `fetch()` and `parseStream()`, reject unwanted HTTP
-status, and limit nested source counts. Cancellation cannot undo an already accepted sink write. Sitemap owns parsing.
-The application owns acquisition and crawl policy.
+Pass the caller's cancellation signal to both `fetch()` and `parseStream()`. Check the HTTP status before
+parsing and limit how many linked sitemaps you follow. Stopping the parser does not undo a write you have
+already made. The package reads the sitemap; your application chooses which URLs to fetch and which results
+to save.
 
 ## Parser and safety model
 
-Production XML parsing uses `@std/xml`. The adapter tracks default namespace scope itself because unprefixed callbacks
-do not carry enough namespace state for Sitemap semantics by themselves. Prefixed and unprefixed Sitemap documents
-therefore pass through one semantic reducer.
+The parser uses `@std/xml` to read XML. Utils also tracks the namespace, which tells it what an XML name means.
+For example, two documents can both use `loc` for a sitemap location even if one writes it with a prefix.
+Tracking the default namespace lets the parser apply the same Sitemap rules to both forms.
 
 The streaming parser also:
 
@@ -133,8 +134,9 @@ The streaming parser also:
 - treats Atom `alternate` links as page candidates while excluding feed-control links such as `self` and `next`;
 - reports an unexpected Sitemap namespace in standards mode.
 
-Saxes is a **test-only differential oracle**. Production code does not import it. Keep the differential corpus until the
-pinned `@std/xml` path continues to prove the same Sitemap semantics.
+The tests also parse the same files with Saxes and compare the results. The files include namespace variations
+and input split across chunks. Keep those checks when changing `@std/xml`. The Sitemap parser does not import Saxes
+when your application runs.
 
 ## Convenience and the manual equivalent
 

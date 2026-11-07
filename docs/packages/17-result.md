@@ -103,17 +103,17 @@ additional mechanisms when the application needs them.
 | `match()` / `unwrap()`    | switch on the discriminant and repeat narrowing/throwing behavior manually | typed branch handling without casts                                |
 | `getOr()` / `getOrElse()` | branch explicitly between a value fallback and a lazy fallback factory     | function-valued results are never confused with fallback factories |
 
-`@okikio/result` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics with a discriminated
-union such as { ok: true, value } | { ok: false, failure }.
+You can define the two cases yourself: `{ ok: true, value }` for success and `{ ok: false, failure }` for an
+expected failure. Branch on `ok` to tell TypeScript which field is present.
 
 The utility supplies the tiny constructors, guards, matching, unwrap, and fallback operations without adding schema or
 transport semantics.
 
 ## Runtime guard
 
-`isOk()` and `isFailure()` are lightweight discriminant guards for a typed `Result<Value, Reason>`. They make
-branch-local narrowing convenient; they are not validators for arbitrary unknown input. If an untyped transport or
-callback can produce unknown values, validate that outer contract before treating the value as a `Result`.
+Use `isOk()` and `isFailure()` when you already have a typed `Result<Value, Reason>`. Inside each branch,
+TypeScript knows which field you can read. For data from an untyped callback or another service, check the
+shape and contents before treating it as a Result.
 
 ## Source guide
 

@@ -77,8 +77,8 @@ Unrecognized status: paused
 The second validation is an application classification step. It must not be confused with a guarantee made by the
 database.
 
-The opposite case is also useful: if the durable schema or provider contract really enforces the finite vocabulary,
-retain that exact type through the adapter instead of widening it back to `string`.
+If the store or provider really accepts only those names, keep that exact type in your adapter. Changing it
+back to `string` would let callers supply other names.
 
 ## Choose a validator that matches the value
 
@@ -148,10 +148,12 @@ contract, including target negotiation and vendor options.
 Do not assume that the two JSON Schemas are identical. Coercions, defaults, codecs, and transforms can make accepted
 input different from validated output.
 
-Native projection supports draft 07 and 2020-12. Unsupported targets and unrepresentable predicates fail at conversion
-time while validation remains usable. A transform's input projection describes its source before the callback; the
-callback can still reject and its output cannot be inferred. Conversion executes no factories or callbacks. JSON
-representation also does not express property descriptors, object ownership or runtime work budgets.
+The native converter supports JSON Schema draft 07 and 2020-12. If it cannot describe a check, or you ask for
+an unsupported version, conversion throws. The original validator still works.
+
+For a transform, the input description shows what can reach the callback. The callback can still reject that
+input, and the converter cannot infer what it returns. Conversion does not call your factories or callbacks.
+JSON Schema also cannot describe property attributes, who may change an object, or limits on work at run time.
 
 The [package guide](../../packages/schema/README.md) provides complete runnable adapters for Ajv, asynchronous Ajv,
 current `typebox` and legacy `@sinclair/typebox`, plus a direction-by-direction support table. Those engines are
@@ -180,6 +182,6 @@ truncated. Keep a string or Temporal contract when source precision matters.
 
 ## Optional Zod adapter
 
-`@okikio/schema/zod` exports `jsonSchema(schema, io)` with separate input/output projection. It returns undefined for
-other Standard Schema vendors so hosts can compose projectors. This adapter requires the Zod peer. Native builders,
-`schema/time`, and `schema/codec` do not load Zod.
+`@okikio/schema/zod` exports `jsonSchema(schema, io)` so you can describe the input and output separately. For
+a schema from another vendor, the function returns `undefined` so you can try a different converter. Install
+the Zod peer dependency only to use this adapter. The native builders, `schema/time`, and `schema/codec` do not load it.

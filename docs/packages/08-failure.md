@@ -58,10 +58,10 @@ to send remains the caller's decision.
 Do not put secrets in encoded failure data. Unexpected exceptions belong to fault diagnostics; declared failures
 describe expected domain outcomes.
 
-Definitions and occurrences freeze their own outer objects, but validated failure `data` is owned by its
-schema/producer. The utility does not recursively freeze arbitrary schema output. `encode()` validates the declared
-application-to-wire direction before transport. Native identity schemas support that direction directly; transformed
-data needs an explicit codec. Freezing an outer wrapper does not establish that its data is durable.
+A definition and an occurrence freeze their top-level objects. They do not freeze everything inside
+`data`. Check any nested values separately before you save them. Before sending a failure, `encode()` checks
+whether its data can become the declared external form. A schema that leaves the value unchanged can do this
+directly. If the schema transforms the value, supply a codec to convert it back.
 
 A queue or Worker can encode a failure occurrence and decode it through a trusted failure catalog. An HTTP service can
 map the same failure to a declared HTTP problem without adding HTTP fields to the failure definition.

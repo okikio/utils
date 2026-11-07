@@ -60,10 +60,9 @@ to send a live Error instance, stack, or provider client to another runtime.
 
 ## Results, expected failures and diagnostics
 
-Result is the small success/failure wrapper. This module defines stable expected rejection such as a missing asset.
-Fault projects an unexpected thrown value into bounded diagnostic data. A failed Result can contain a declared Failure
-occurrence; an unexpected exception can be reported through Fault. No projection silently declares a new expected
-failure or selects retry policy.
+Use Result when a call can return success or failure as data. If a missing asset is an expected outcome, define it
+with Failure and put the actual failure in the result. If the call throws something unexpected, use Fault to prepare
+a report within size limits. Your code decides which failures it expects and when a retry is safe.
 
 For transformed data, supply a codec as `data`. `create()` decodes incoming data once, `encode()` uses the reverse
 direction, and `decode()` resolves the ID through trusted definitions before validating the wire value. Native identity

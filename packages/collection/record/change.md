@@ -48,10 +48,10 @@ copied. Neither input nor the authored changes are mutated. Prototype-shaped rec
 traversal operates only on copied null-prototype records and own fields. A missing `__proto__` or `constructor` path
 cannot reach `Object.prototype`.
 
-Options reuse the [JSON depth, node, and text budgets](./json.md). Each input, inserted value, and final result must fit
-those budgets. `maximumChanges` additionally bounds the produced or accepted operation count, defaulting to 100,000.
-Equality does not use that change count. These operations materialize copies and a diff list; they are intended for
-bounded documents, not unbounded streams.
+Each input, inserted value, and final result must fit the [limits on JSON depth, nodes, and text](./json.md).
+`maximumChanges` limits how many edits `diff` produces or `patch` accepts. The default is 100,000. An equality check
+does not use that limit. These operations keep copies and the list of edits in memory, so use them on documents
+with a known size limit.
 
 The result of patch is the shared JSON `Value` type. It is deliberately not typed as the original object, since a patch
 can replace the entire root with a different JSON value. Parse the result through your own schema when the application

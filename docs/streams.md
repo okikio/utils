@@ -221,9 +221,9 @@ enclosing owner decide when to join the source without keeping its reader lock h
 
 ## Ownership
 
-This package does not own process lifecycle, retries, persistence, durable jobs, or domain-specific codecs.
-`@okikio/worker/process` owns child process lifecycle. `@okikio/scheduler/queue` owns claimed work. Product-specific
-durable representations belong in product packages.
+Use Streams to move data while the reader is active. Use `@okikio/worker/process` to start and stop a child
+process, and `@okikio/scheduler/queue` to claim queued work. Choose how your application saves its own data,
+retries work, or converts values between formats.
 
 ## Bound failures
 

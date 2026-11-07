@@ -172,16 +172,16 @@ and bigint epoch nanoseconds for records that need finer precision.
 
 ## Runtime behavior and public source
 
-Ordinary Duration imports select native Temporal when available and use the bundled local implementation otherwise. They
-do not install globals. Import `@okikio/duration/polyfill` only when another consumer explicitly requires global
-Temporal. The separate `/temporal` entry exports the selected `temporal` binding and the explicit local `Temporal`
-implementation and type namespace.
+Duration uses the host's Temporal implementation if it exists. Otherwise it uses the local implementation it
+ships with. Neither choice changes global variables. Use `@okikio/duration/polyfill` only when other code needs
+global Temporal. If you need to choose explicitly, `/temporal` exports both the selected `temporal` binding and
+the local `Temporal` implementation and types.
 
 The fallback is a real dependency cost. A focused unit import avoids unrelated utility code but still carries the time
 implementation required on hosts without Temporal. The implementation does not use `instanceof` to distinguish native
 and local Temporal values.
 
-`units.ts` owns construction, `conversion.ts` owns calendar and fixed conversion, and `instant.ts` owns the millisecond
-timestamp helpers. Public inference tests and runtime suites cover named units, exact bigint values, invalid input,
-calendar transitions, rounding, and cross-implementation values. The declared subpaths are tested again in emitted
-packages.
+Look in `units.ts` for how to create a duration, `conversion.ts` for conversions, and `instant.ts` for
+millisecond timestamps. The tests check units, exact bigint values, invalid input, calendar changes, and
+rounding. They also check that the imports work with native and local Temporal values and that the
+published subpaths resolve in a built package.

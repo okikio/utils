@@ -60,9 +60,9 @@ console.log(JSON.stringify(diagnostic));
 {"details":"[circular]","message":"Provider response was invalid."}
 ```
 
-The limits are operational safety controls for diagnostic data. `encode()` and `message()` require an ordinary
-plain/null-prototype options record; accessor-backed configuration is rejected without executing the getter. They do not
-turn an unexpected fault into a declared business failure.
+The limits keep one unexpected fault from producing a huge report. Pass options in a plain object or an object
+with no prototype. If an option is a getter, the functions reject it without calling it. Use the report for
+diagnostics; it does not declare a new business failure.
 
 ## Convenience and the manual equivalent
 
