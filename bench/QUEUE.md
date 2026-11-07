@@ -1,8 +1,8 @@
 # PostgreSQL queue contention
 
-This experiment measures the cost of serializing terminal writes within a queue namespace. It does not claim the new
-implementation is faster. The default workload creates 200 jobs, completes them with eight concurrent callers, and
-retains three fresh Node-process reports.
+When several callers finish jobs in the same named queue, their completion transactions can wait on the same database
+lock. This experiment measures that wait together with the rest of each completion. By default it creates 200 jobs,
+uses eight callers, and repeats the batch in three fresh Node processes.
 
 ## Run
 

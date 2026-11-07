@@ -1,6 +1,7 @@
 # Package release intent
 
-Add a changeset with the same change that needs a package release:
+A changeset tells Sampo which package needs a new version and what changed for users. Add the file alongside the fix or
+feature it describes:
 
 ```sh
 mise run release -- --operation add --project streams --bump patch --message 'Stop reading when the consumer cancels.'

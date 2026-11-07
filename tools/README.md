@@ -2,7 +2,9 @@
 
 `@okikio/tools` is a private workspace package. It owns the programs used to inspect, build and test Utils, rather than
 another set of library APIs. Mise is the local and CI entry point. Start with a task family and select the package or
-runtime you need:
+runtime you need. For example, after changing how Streams releases a reader, run its tests on the runtime that exposed
+the problem. Benchmark only after the tests establish the expected result. If you changed an exported path, check the
+workspace first; use the export write operation when you intend to update the derived manifests and forwarders.
 
 ```sh
 mise run check
@@ -16,7 +18,8 @@ mise run release -- --operation plan
 `--project` accepts a short name or `@okikio/name`. Test selection accepts repeated projects. Benchmark measurements
 keep one project per report so a result has an unambiguous owner. Adding an ordinary package or test does not require
 adding a new Mise task. `mise run test -- --help` explains selectors, and `mise run test -- --suite list` explains test
-ownership. Type checks still protect the full public inference graph.
+ownership. Choosing one package's tests does not narrow the workspace type check, which checks types that callers
+receive across package boundaries.
 
 ```text
 tools/

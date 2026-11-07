@@ -1,8 +1,8 @@
 # Compare compiled HTTP applications
 
-Use this comparison when deciding whether route dispatch or application policy needs less CPU work. The same account API
-runs through Utils, Hono, Elysia and Vixeny. Each implementation must satisfy authored request and response literals
-before Mitata records a number.
+Use this comparison to see where CPU time goes: choosing a route for a request, or running the application rules after
+that choice. The same account API runs through Utils, Hono, Elysia and Vixeny. Before timing, the check sends fixed
+requests to each implementation and compares the replies with the expected status, headers and body.
 
 Older local timings and flamegraphs are historical evidence, not prerequisites
 for this guide. Run the tracked fixtures below to compare the current source;

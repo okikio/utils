@@ -4,6 +4,11 @@ Tests describe public behavior and ownership. One authored `node:test` suite, wi
 Deno, Node and Bun wherever its capabilities exist. A host adapter, database or browser is tested in its actual
 execution environment. A passing import or generated bundle does not substitute for those checks.
 
+Choose the check based on what broke. If the CSV parser splits a quoted name into two cells, start with its package
+tests. If the command in a guide no longer prints the shown result, run the documentation suite. If the same import
+works in the checkout and fails after installing the package archive, run the installed-consumer suite. Each check
+puts the same kind of failure in front of a different caller.
+
 ## Put the test beside its contract
 
 Package-local `*.test.ts` files own behavior, edge cases, cancellation and cleanup for that package. Split a large file

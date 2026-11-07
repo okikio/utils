@@ -6,11 +6,19 @@ The root integration fixtures exercise those extra owners. Package tests remain 
 
 Use this page to reproduce the checks and interpret their limits. Follow the
 [checkout setup](../../README.md#work-on-the-repository) first. The fixtures own disposable resources; they do not
-use an application database. Start from the Utils checkout with `mise install` and `mise run prepare -- --kind deps` complete.
-Docker must be running, and the selected Deno and Node versions come from `mise.toml`.
+use an application database. Start Docker before running the commands below. Mise selects the Deno and Node versions
+from `mise.toml`.
 
-Run the complete container fault matrix with `mise run test -- --suite containers`. It includes native placement,
-resource sessions, streaming and SQL recovery. Use file selectors when investigating a particular boundary:
+| What you want to reproduce | Start here |
+| --- | --- |
+| A browser or client reads more slowly than the producer writes | [Slow-reader checks](#find-where-a-slow-reader-changes-the-outcome) |
+| A proxy buffers events or drops a connection | [nginx and gateway checks](#follow-an-event-through-nginx-and-the-gateway) |
+| The writer disappears and saved work must continue | [Database promotion](#recover-saved-work-after-the-database-writer-disappears) |
+| The write may have committed but the client never got a reply | [Lost COMMIT reply](#recover-when-commit-succeeded-but-its-reply-disappeared) |
+
+Run all container tests with `mise run test -- --suite containers`. The suite tests where workers run, what happens to
+resources they own, and how streaming and saved database work recover. To investigate just streaming and database
+failover, pass the two test filenames:
 
 ```sh
 mise run test -- --suite containers tests/workflows/streaming-load.test.ts tests/workflows/postgres-failover.test.ts

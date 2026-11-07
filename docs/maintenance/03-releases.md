@@ -4,7 +4,8 @@ A release starts with an explanation of a user-visible change. Sampo turns that 
 changelogs. The Release workflow then tests one Git revision before publishing its ESM artifacts to npm and its
 TypeScript source to JSR. GitHub release notes appear only after both registry jobs succeed.
 
-For example, suppose you fix cancellation in `@okikio/streams`. Add a patch changeset while the change is still in review:
+For example, suppose you fix cancellation in `@okikio/streams`. A changeset is a small file that names the package,
+the version change, and the note for users. Add a patch changeset for this fix while it is still in review:
 
 ```sh
 mise run release -- --operation add --project streams --bump patch --message 'Stop reading when the consumer cancels.'

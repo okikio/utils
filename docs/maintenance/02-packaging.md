@@ -1,7 +1,8 @@
 # Packaging and tree-shaking
 
-This guide helps maintainers preserve small consumer bundles while the Okikio utility suite grows. The public package
-graph supports focused dependencies and a single-install application dependency without duplicating implementations.
+A program that reads CSV should not have to load web servers and worker adapters. Maintainers check that a focused
+import reaches only the code it needs. When a bundler omits unused code from the files it produces, that is called
+tree-shaking. This guide shows how to verify it for an individual package and for the suite package.
 
 ## Public package layout
 

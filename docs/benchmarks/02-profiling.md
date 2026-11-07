@@ -1,8 +1,9 @@
 # Profile an operation before changing it
 
-A CPU profile answers “where did this particular run spend samples?” It does not answer “which implementation is
-faster?” Start with one forwarded gateway request, inspect its profile, then repeat unprofiled timings before making a
-speed claim. A **frame** is one function on the sampled call stack; a **hotspot** is work with many samples.
+A CPU profiler periodically records which functions are running. A **frame** represents one function in that record.
+A **hotspot** is work that appears in many samples. Start with one request that the gateway forwards, then inspect its
+profile to see which functions appear.
+To tell whether a change makes the request faster, repeat timings with the profiler turned off.
 
 From a fresh checkout, review `mise.toml`, run `mise trust`, `mise install` and `mise run prepare -- --kind deps`. Run the commands
 below from the repository root. They write new evidence under `.tmp/artifacts/profile/gateway`; keep that directory for

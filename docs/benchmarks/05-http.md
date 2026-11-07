@@ -7,7 +7,7 @@ construction. These definitions matter because constructing a router and dispatc
 At the repository root, review `mise.toml`, run `mise trust`, `mise install` and `mise run prepare -- --kind deps`. The first
 command below must report passing request checks. The second checks benchmark observations without trusting timings.
 Only then run the multi-process comparison, which writes retained reports under `.tmp/artifacts/comparison/http`. If
-checks fails, stop and inspect that request rather than comparing invalid runs. Read each report alongside its
+a request check fails, inspect that request before comparing timings. Read each report alongside its
 runtime, fixture size and selected contract; a ratio alone cannot establish production throughput.
 
 Correctness precedes performance. The same explicit request corpus runs through independent Hono and Utils API

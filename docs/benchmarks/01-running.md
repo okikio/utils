@@ -1,8 +1,8 @@
 # Benchmarks
 
-Start with the operation that costs your caller time or resources. Run its package tests, compare the same required
-work, then check the larger workflow before deciding whether a change helps. A benchmark must preserve the behavior
-being compared.
+Suppose a CSV import takes longer than expected. First test that the parser still reads the same rows. Then measure the
+same input before and after your change. If parsing gets faster, measure the full import too: the parser may account for
+only a small part of the time the user waits.
 
 Use the [profiling guide](./02-profiling.md) when you need to locate CPU work inside a trial. Profiling explains where
 time goes; repeat unprofiled timings to establish a speedup.
