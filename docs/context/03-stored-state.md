@@ -16,18 +16,24 @@ From this experimental checkout, run `mise trust`, `mise install`, and `mise run
 import * as state from '@okikio/context/state';
 import * as stores from '@okikio/storage/state';
 import * as schema from '@okikio/schema';
+
 // This store outlives each state view, but its data still belongs to this process.
 const store = stores.memory();
+
 {
+	// This owner loads the cursor and is the only writer exposed to this operation.
 	await using cursor = await state.open({
 		store,
 		contract: 'crawl.cursor.v1',
 		value: schema.string(),
 		initial: () => 'page-1',
 	});
+	// Await the save acknowledgement before relying on the reader's new value.
 	await cursor.set('page-2');
 	console.log(cursor.reader.get());
 }
+
+// A new owner reads the retained snapshot; the old owner's lifetime has ended.
 await using reopened = await state.open({ store, contract: 'crawl.cursor.v1', value: schema.string() });
 console.log(reopened.reader.get());
 ```
@@ -100,6 +106,24 @@ nor advances a revision. Replace state through the owner. If a candidate object 
 until that Promise settles because it remains borrowed while waiting for its queue turn.
 
 ## Open and publish in a defined order
+
+Saving a cursor is useful only if the displayed cursor tells the truth about the accepted write. The cell therefore
+checks a candidate before saving it, then waits for storage before changing its reader. Follow the arrows below as
+decisions inside one mutation; they do not represent background polling:
+
+```mermaid
+flowchart TD
+  Candidate["Candidate value"] --> Check["Encode, bound and decode"]
+  Check --> Save["Conditional save against loaded version"]
+  Save -->|Acknowledged| Publish["Publish value to reader"]
+  Save -->|Conflict or unknown outcome| Keep["Keep previous reader value"]
+  Keep --> Reload["Reload saved value before another mutation"]
+```
+
+An unknown outcome means the save might have reached storage even though its acknowledgement did not reach this owner.
+Keeping the previous display avoids announcing success that the owner cannot prove. Reloading resolves what is actually
+saved; it does not repeat the business action that produced the candidate. The failure table below covers cancellation
+and disposal cases that this small flow omits.
 
 Open loads first. If data exists, it validates the envelope, checks the application contract, and decodes it. The
 `initial` factory runs only when the key is absent; omit it when missing state must be an error. A candidate initial

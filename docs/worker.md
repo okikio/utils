@@ -116,6 +116,25 @@ rejects with `WorkerStoppedError`, retaining the cancellation cause. The host ad
 before its capacity can be reused. A termination or cleanup failure remains a failure; requesting cancellation alone
 does not establish that the host stopped. See [completion includes cleanup](../packages/worker/thread/README.md#completion-includes-cleanup).
 
+Follow one request from the caller to its terminal receipt. The request ID associates the reply with the correct
+pending call; cancellation is another correlated message, not a raw exception transported between threads:
+
+```mermaid
+flowchart TD
+    A[Send request ID and input] --> B{Request path}
+    B -->|Complete| C[Join request cleanup]
+    C --> R[Return checked reply]
+    B -->|Cancelled| D[Send cancel for request ID]
+    D --> E{Receipt in time?}
+    E -->|Yes| F[Cleanup confirmed]
+    E -->|No| G[Retire and join host]
+    F --> H[Reject cancelled request]
+    G --> I[Reject stopped Worker]
+```
+
+The cooperative branch proves request cleanup finished. Forced retirement proves only what the host adapter can join;
+it cannot guarantee that application code in the stopped Worker ran its `finally` blocks.
+
 ## Serve the same protocol inside the Worker
 
 This extension sketch assumes an application-owned `MediaProtocol` and `convert()` function. Use the complete report
@@ -149,7 +168,9 @@ const pending = handle.request(requestCtx, { assetId: '42' }, {
 });
 
 context.cancel(requestCtx, new Error('caller stopped waiting'));
-await pending; // rejects with the cancellation reason
+// Cooperative acknowledgement rejects with ContextCancelledError; forced retirement uses
+// WorkerStoppedError. Each retains the cancellation cause, rather than throwing this Error unchanged.
+await pending;
 ```
 
 If the protocol declares notices, Worker code can call `control.notify(...)` for progress. Notices are observations

@@ -80,6 +80,19 @@ Cancellation or replacement waits for that transaction. A later transaction with
 application writes. Thus expiry prevents a new stale write. It does not roll back a write that already won the lock
 order.
 
+The clock alone does not decide whether a write may finish. The decisive boundary is the permission check while the
+transaction owns the required locks:
+
+| Case | Timeline | Business SQL and competing control |
+| --- | --- | --- |
+| Permission valid when locks are acquired | Transaction locks registration, run and job; lease time then passes; transaction finishes | Its business write and receipt may commit. Cancellation or replacement waits for those locks, subject to its timeout. |
+| Permission already expired when a new transaction checks | Old worker requests another guarded transaction after expiry | Permission check rejects before the callback can issue business SQL. A replacement may acquire current permission. |
+
+For the first case, imagine a database write already in progress when an operator presses Cancel. The adapter lets
+that permitted transaction reach commit or rollback before control changes ownership. It does not claim that Cancel
+can undo a committed write. For the second case, holding an old claim object cannot authorize a new write merely
+because the worker still runs.
+
 Application-owned `postgres.begin()` transactions need their own database timeouts. For writes to existing guarded
 records, preserve permission-before-business lock ordering. The adapter serializes guarded writes within one run in this
 first profile. This is a correctness choice, not a throughput claim.

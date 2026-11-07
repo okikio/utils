@@ -12,6 +12,30 @@ A local command and a portable activity protocol have different contracts. Use s
 cancellation request, and completed cleanup are separate facts. Cancellation asks the process owner to stop work; the
 awaited result and cleanup tell you when the owned process and streams have actually settled.
 
+Stopping has several boundaries. A signal is a request; an observed exit and joined stream cleanup are evidence that
+the owned operation has finished:
+
+```mermaid
+flowchart TD
+  C[Context cancellation or explicit stop] --> G[Adapter sends graceful shutdown signal]
+  G --> W{Settled within grace period?}
+  W -->|Yes| E[Observe child exit]
+  W -->|No| F[Adapter sends forced shutdown signal]
+  F --> X{Settled within force period?}
+  X -->|Yes| E
+  X -->|No| T[Reject with stop timeout]
+  E --> J[Join owned capture and sink output pumps]
+  J --> D[Stop and disposal finish, wait reports outcome]
+```
+
+The selected adapter determines signal and process-tree support. Direct-child exit does not prove that every descendant
+exited. Request process-tree ownership only through an adapter that supports it; do not extend a successful direct-child
+result into a claim about unrelated grandchildren. A stream or shutdown failure remains an error rather than proof of a
+clean stop. That join covers output owned by the process abstraction: capture buffers and configured sinks. When
+`stdin` is piped, the caller owns writing and closing it. Outputs selected with `type: 'stream'` also remain
+caller-owned: consume or cancel those readers separately. A completed process wait does not prove that a caller's
+input writer or output consumer finished its own work.
+
 ## Run a child and capture a bounded response
 
 Run the current Deno executable as a child and capture its short reply. The 1,024-byte limit bounds retained stdout;

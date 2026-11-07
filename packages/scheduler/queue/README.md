@@ -54,12 +54,19 @@ From the repository root, run `mise run prepare -- --kind deps` once. Save the c
 
 ```ts runnable
 import * as queue from '@okikio/scheduler/queue';
+
 await using jobs = queue.fifo(queue.memory<readonly number[], number>());
+
+// The producer retains this stable reference, even if another executor does the calculation.
 const ref = await jobs.add([1999, 500]);
+
 // Claim one attempt before computing its answer. The queue result is still pending at this point.
 const task = await jobs.take();
 if (task === undefined) throw new Error('No work was available.');
+
+// Settlement is required; simply disposing the taken handle does not choose an outcome.
 await task.complete(task.value.reduce((cents, price) => cents + price, 0));
+
 console.log(`$${((await jobs.result(ref)) / 100).toFixed(2)}`);
 ```
 
@@ -104,13 +111,19 @@ including its version. This example deliberately submits identical work twice an
 
 ```ts runnable=repeat-report.ts
 import * as queue from '@okikio/scheduler/queue';
+
 await using jobs = queue.fifo(queue.memory<string, string>());
+
+// Repeated admission uses the key; it does not create a second calculation.
 const first = await jobs.add('report revision 7', { key: 'account-1:report:7' });
 const repeated = await jobs.add('report revision 7', { key: 'account-1:report:7' });
 console.log(first.id === repeated.id);
+
+// The executor must still settle the one retained item.
 const task = await jobs.take();
 if (task === undefined) throw new Error('No report was available.');
 await task.complete('Report ready');
+
 console.log(await jobs.result(repeated));
 ```
 
@@ -144,20 +157,26 @@ one memory queue. The logical invoice keeps its reference, while the replacement
 ```ts runnable=recover-invoice.ts
 import * as context from '@okikio/context';
 import * as queue from '@okikio/scheduler/queue';
+// First attempt: hold temporary permission for the accepted invoice.
 const clock = new context.TestClock();
 await using owner = context.create({ id: 'invoice-owner', clock });
 await using jobs = queue.memory<readonly number[], number>({ clock, capacity: 1 });
 const ref = await jobs.add(owner, [1999, 500]);
 const first = (await jobs.claim(owner, { owner: 'calculator-a', duration: { seconds: 5 } }))[0]!;
+
+// Recovery: move past expiry, then claim the same logical invoice with new permission.
 clock.advance({ seconds: 6 });
 const replacement = (await jobs.claim(owner, { owner: 'calculator-b', duration: { seconds: 5 } }))[0]!;
 console.log('Same invoice:', first.itemId === replacement.itemId, 'attempt:', replacement.attempt);
+
+// The old worker may still run, but its expired claim cannot publish a result.
 try {
 	await jobs.complete(owner, first, 0);
 } catch (error) {
 	if (!(error instanceof queue.StaleClaimError)) throw error;
 	console.log('Old completion rejected');
 }
+// Only the current attempt settles the result awaited through the stable reference.
 await jobs.complete(owner, replacement, replacement.value.reduce((total, price) => total + price, 0));
 console.log('Accepted cents:', await jobs.result(owner, ref));
 ```

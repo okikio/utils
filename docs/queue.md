@@ -125,6 +125,29 @@ await task.complete('transcode finished');
 what happened. Disposal alone chooses none of them. An abandoned claim remains recoverable after expiry and its work may
 run again.
 
+An absent claim must also be handled explicitly. Optional chaining such as `task?.complete()` can silently skip the
+settlement while a later `result(ref)` waits for an answer no attempt produced. This small negative case fails clearly
+at admission rather than starting a result waiter:
+
+```ts runnable=absent-claim.ts
+import * as queue from '@okikio/scheduler/queue';
+
+await using jobs = queue.fifo(queue.memory<string, string>());
+try {
+	const task = await jobs.take({ wait: false });
+	if (task === undefined) {
+		throw new Error('No claim is available; do not wait for an unproduced result.');
+	}
+	await task.complete('ready');
+} catch (error) {
+	console.log((error as Error).message);
+}
+```
+
+```text output
+No claim is available; do not wait for an unproduced result.
+```
+
 Use this mental model for both FIFO and lower-level claims:
 
 - `QueueRef` names the logical item.
@@ -175,7 +198,8 @@ const task = await jobs.take();
 // task.value might be: 'transcode file'
 
 // Publish a successful outcome for the logical item.
-await task?.complete('ok');
+if (task === undefined) throw new Error('Expected a claim before settlement.');
+await task.complete('ok');
 
 // Read that outcome later through the stable item reference.
 const output = await jobs.result(ref);
@@ -214,53 +238,22 @@ then maps `complete()`, `fail()`, `retry()`, and `renew()` back to the underlyin
 
 One item moves through these states.
 
-```text
-ADD WORK
-===============================================================================
-
-caller
-  |
-  | add(input)
-  v
-queued
-
-CLAIM WORK
-===============================================================================
-
-queued
-  |
-  | claim(owner, duration)
-  v
-claimed
-  claim id
-  owner
-  attempt
-  claimedAt
-  expiresAt
-
-FINISH OR RETURN
-===============================================================================
-
-claimed
-  |
-  +-- complete(output) -----------------------------> completed
-  |
-  +-- fail(encoded failure) ------------------------> failed
-  |
-  +-- cancel(reason) -------------------------------> cancelled
-  |
-  +-- retry(delay or availableAt) -----------------> queued
-  |
-  `-- claim expiry without completion -------------> queued
-
-SAFETY RULE
-===============================================================================
-
-Only the current claim id and owner may change claimed work.
-
-Old claim after expiry or re-claim
-  -> StaleClaimError
+```mermaid
+stateDiagram-v2
+  [*] --> queued: add input
+  queued --> claimed: take a new claim
+  claimed --> completed: complete with live claim
+  claimed --> failed: fail with live claim
+  claimed --> cancelled: cancel item
+  claimed --> retry: request another attempt
+  retry --> queued: delay becomes due
+  claimed --> queued: recover expired lease
 ```
+
+A retry can be delayed; the separate `retry` box shows that wait rather than an additional public item state. Queued
+work becomes claimable when its availability time arrives. Only a current claim can complete, fail, retry or renew the
+item. An expired or replaced token rejects with `StaleClaimError`; the rejected attempt never changes the current
+item. Cancellation also applies before claiming, a branch omitted from this small attempt-focused view.
 
 The queue keeps item identity even after terminal state. `result(ref)` can still find the same logical item later.
 
@@ -299,7 +292,8 @@ const task = await jobs.take({ duration: { seconds: 30 } });
 
 // The same logical item goes back to the queue.
 // The next take gets a new lease attempt for that item.
-await task?.retry({ delay: { seconds: 10 } });
+if (task === undefined) throw new Error('Expected a claim before settlement.');
+await task.retry({ delay: { seconds: 10 } });
 
 const immediate = await jobs.take();
 console.log(immediate, ref.id); // No item is ready; ref still identifies the delayed work.
@@ -352,7 +346,8 @@ const recovered = await jobs.take({ duration: { seconds: 5 } });
 // recovered?.id might be: 'claim-2'
 
 // task-b publishes the successful terminal result.
-await recovered?.complete('recovered');
+if (recovered === undefined) throw new Error('Expected a claim before settlement.');
+await recovered.complete('recovered');
 
 // The stable item reference still points at the same logical item.
 const result = await jobs.result(ref);
@@ -368,7 +363,8 @@ The stale write looks like this in code:
 ```ts
 // task-a still holds the old lease object.
 // The queue rejects that stale write because task-b owns the newer lease.
-await expect(first?.complete('late result')).rejects.toThrow(queue.StaleClaimError);
+if (first === undefined) throw new Error('Expected the original claim.');
+await expect(first.complete('late result')).rejects.toThrow(queue.StaleClaimError);
 ```
 
 The next situation explains why `result()` is separate from `claim()`.
@@ -399,7 +395,8 @@ const waiting = jobs.result(ref);
 // waiting will later resolve to: 'ready'
 
 // Another caller can publish the outcome.
-await task?.complete('ready');
+if (task === undefined) throw new Error('Expected a claim before settlement.');
+await task.complete('ready');
 
 const output = await waiting;
 console.log(output); // ready

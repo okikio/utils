@@ -143,6 +143,22 @@ Storage and PostgreSQL adapters select a durable host key explicitly; their conc
 documented in [Storage state](../storage/state/README.md). A failed write never appears as a successful local update.
 Conflicts and uncertain commits require explicit reconciliation with `reload` before another mutation.
 
+That save-before-display order matters when a database accepts a write but the connection drops before returning its
+answer. The reader keeps its previously accepted value until the owner reconciles the saved record:
+
+```mermaid
+flowchart TD
+  Loaded["Loaded value and saved version"] --> Save["Validate candidate and conditionally save"]
+  Save -->|Acknowledged| Reader["Publish new reader value"]
+  Save -->|Conflict or unknown commit| Previous["Keep previous reader; require reload"]
+  Previous --> Reload["Load and validate actual saved value"]
+  Reload --> Reader
+```
+
+The arrows show publication order, not an automatic retry. `cell.version` identifies a saved envelope; compare it only
+for equality. `reader.revision` counts local publications for observers and starts again at zero on a new owner. A new
+notification revision therefore does not prove a particular database write succeeded.
+
 ## Observe a host event within a lifetime
 
 This example subscribes to a borrowed EventTarget. The same function accepts a native element, Worker, socket, or typed
@@ -237,7 +253,10 @@ Save this as `migrate-progress.ts` and run `mise exec -- deno run migrate-progre
 import * as schema from '@okikio/schema';
 import * as state from '@okikio/context/state';
 import * as stores from '@okikio/storage/state';
+
 const store = stores.memory();
+
+// Write the old representation so the conversion starts from actual saved data.
 const LegacySchema = schema.object({ completed: schema.number({ integer: true, minimum: 0 }) });
 {
 	await using old = await state.open({
@@ -247,17 +266,23 @@ const LegacySchema = schema.object({ completed: schema.number({ integer: true, m
 		initial: () => ({ completed: 1 }),
 	});
 }
+
+// Describe one direct conversion; the new total comes from this application's known import size.
 const CurrentSchema = schema.object({
 	completed: schema.number({ integer: true, minimum: 0 }),
 	total: schema.number({ integer: true, minimum: 1 }),
 });
 const convert = state.migration('catalog.progress.v1', LegacySchema, ({ completed }) => ({ completed, total: 4 }));
+
+// Opening validates and saves the converted representation before returning a reader.
 await using progress = await state.open({
 	store,
 	contract: 'catalog.progress.v2',
 	value: CurrentSchema,
 	migrations: [convert],
 });
+
+// A projection copies the percentage for display; progress remains the only writer.
 using percent = state.select(progress.reader, ({ completed, total }) => completed / total);
 console.log(percent.get());
 await progress.update((current) => ({ ...current, completed: 2 }));

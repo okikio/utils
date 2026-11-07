@@ -125,7 +125,37 @@ so the caller can resume after a process restart. `hasMore` tells you whether th
 Polling that saved tail cursor after all available events have been delivered returns an empty `items` array until a new
 transition commits.
 
+| View | At the current end | How to continue |
+| --- | --- | --- |
+| Ordinary lists, such as `queue()` | `next: null` | Start a new listing when refreshing the display |
+| Lifecycle `history()` | A resumable `next` cursor, with `hasMore: false` | Save that cursor, then poll from it for later committed events |
+
+The consumer must accept a page before advancing its saved position. Otherwise a crash could permanently skip events
+that were read but never applied:
+
+```mermaid
+flowchart TD
+  R["Read after<br/>the saved cursor"] --> A["Application accepts events<br/>and skips known run + sequence"]
+  A --> S["Save this<br/>page's cursor"]
+  S --> N["Read or poll<br/>the next page"]
+```
+
+The saved cursor is the restart boundary. A crash has different consequences on either side of its save:
+
+| Crash point | Next read | Required consumer action |
+| --- | --- | --- |
+| Before accepting the page | Reads the page again | Accept its events |
+| After acceptance, before cursor save | Can repeat already accepted events | Skip known run-and-sequence pairs, then save the cursor |
+| After cursor save | Continues after that page | Accept later events |
+
+For example, if the application records event sequence `12` and crashes before saving its cursor, the next read can
+include `12` again. Deduplicate by the full run identity plus `event.sequence`, then accept the rest of the page and
+save its cursor. A sequence alone is insufficient because each run has its own sequence. If acceptance and cursor
+storage share one application transaction, the application can make that local boundary atomic; an external recipient
+still needs its own duplicate protection.
+
 ```ts
+// Resume from the last page whose events the application accepted.
 let page = await operations.history(ref, {
 	limit: 50,
 	...(
@@ -137,6 +167,7 @@ for (;;) {
 	await application.acceptLifecycleEvents(page.items);
 	// Persist after accepting events. Re-delivery after a crash is possible; deduplicate by run + sequence.
 	await application.saveLifecycleCursor(ref, page.next);
+	// Stop this scan at its observed tail; keep next for a later poll.
 	if (!page.hasMore) break;
 	page = await operations.history(ref, { limit: 50, after: page.next! });
 }

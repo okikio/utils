@@ -16,6 +16,23 @@ it about an order that later rolls back. Calling it only after commit can lose t
 between those actions. The outbox closes that gap by committing the order and the message together, then delivering
 from the saved message. It does not remove duplicate delivery: the receiver must recognize the same message identity.
 
+The producer, outbox and receiver have separate responsibilities. Follow the message through the failure that makes a
+receipt necessary:
+
+```mermaid
+flowchart TD
+    A[Producer commits row and message] --> B[Dispatcher claims message]
+    B --> C[Receiver checks stable identity]
+    C --> D{Receipt exists?}
+    D -->|No| E[Commit receipt and consequence]
+    D -->|Yes| F[Accept without repeat write]
+    E --> G[Dispatcher acknowledges claim]
+    F --> G
+```
+
+If acknowledgement is lost, recovery may deliver the same identity again. Accepting it again without another write is safe here because the receiver's receipt and consequence share a transaction. With an external API,
+use that API's stable idempotency key or reconcile its saved outcome; the outbox cannot supply its atomicity.
+
 ## Save and deliver one note
 
 Prepare workspace dependencies as described in the root README. Save the complete
@@ -59,12 +76,14 @@ try {
 	await using ctx = context.create({ id: 'save-note' });
 	const occurrence = await effects.create(Saved, { title: 'Read later' }, { key: 'note:one' });
 
+	// Producer: commit the note and its delivery obligation together.
 	await database.begin(async (tx) => {
 		await tx`insert into example_notes values ('note:one','Read later')`;
 		// This emitter borrows tx. Do not retain it after the transaction callback.
 		await delivery.emitter(box, tx).emit(ctx, occurrence);
 	});
 
+	// Receiver: the receipt and visible consequence either both commit or both roll back.
 	const notify = effects.implement(Saved, async (_ctx, saved) => {
 		await database.begin(async (tx) => {
 			const inserted = await tx`insert into example_receipts values ('notify',${Saved.id},${saved.key})

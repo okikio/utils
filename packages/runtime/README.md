@@ -206,6 +206,31 @@ fallback. `FilePublicationError.published` is true when final synchronization or
 published. Inspect the destination before retrying. Cancellation is checked before publication; cancellation racing a
 publication syscall cannot roll it back. Keep input bytes stable until settled.
 
+The two option groups answer different questions: may this write replace a name, and what must be synchronized?
+
+| Option | Effect |
+| --- | --- |
+| `overwrite: 'replace'` (default) | Rename the complete new file over the destination entry |
+| `overwrite: 'create'` | Link the complete new file only if the destination does not exist |
+| `durability: 'none'` (default) | Publish without requesting filesystem synchronization |
+| `durability: 'file'` | Synchronize the new file before publishing its name |
+| `durability: 'directory'` | Synchronize the new file, publish it, remove the temporary entry, then synchronize the parent directory |
+
+```mermaid
+flowchart TD
+  T["Write owned<br/>temporary file"] --> F["Sync file<br/>if requested"]
+  F --> P["Publish<br/>destination entry"]
+  P --> S["Remove temporary entry<br/>and sync directory if requested"]
+  S -->|Success| D[Return success]
+  S -->|Failure| E["Publication error<br/>published: true"]
+  E --> I["Inspect destination<br/>before retry"]
+```
+
+Before publication, a failure leaves the previous destination in place and cleanup removes the owned temporary entry.
+After publication, a synchronization failure can reject even though readers can already see the new contents. Treating
+that rejection as “nothing happened” can overwrite a successful write. Inspecting the destination is therefore a
+recovery step, not merely an error message.
+
 Temporary files use exclusive creation and mode 0600 subject to umask. Replacement does not preserve old ownership or
 modes. Normal failures remove only an owned temporary entry; process death can leave one for application recovery. Local
 process-kill tests demonstrate complete old/new visibility at instrumented boundaries, not power-loss durability.
