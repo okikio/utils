@@ -11,9 +11,10 @@ whole workspace:
 | Save work that can recover after a worker exits | [Workflow](./workflows/01-basics.md) |
 | Choose another capability | Use the package and guide tables below. |
 
-The workspace has 27 packages, with related operations available at focused subpaths. Each package README gives its
-entry task; guides explain larger workflows and exact limits. Numbered files help navigation, rather than requiring
-a suite-wide reading order. Historical design records retain their original snapshot and are not current API authority.
+This checkout has 27 packages. A subpath is the part of an import after the package name. For example, install
+`@okikio/format` and import `@okikio/format/csv` to use just its CSV functions. The table shows those suffixes in the
+second column. Start with the package README for a runnable example, then follow a guide when you need a larger task
+or an exact limit. The numbers help you find pages; you do not need to read them in order.
 
 ## Consolidated package map
 

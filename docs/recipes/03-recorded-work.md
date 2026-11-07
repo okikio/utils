@@ -1,17 +1,18 @@
 # Reuse completed jobs in a multi-step operation
 
-A photo upload saves a title, then adds the returned photo ID to an album. Repeating the same logical operation should
-reuse recorded completions. A normal function is sufficient until that reuse becomes a requirement; Workflow adds
-recorded instructions while Activity keeps each job's input, dependencies, and result explicit.
+A photo upload saves a title, then adds the returned photo ID to an album. Calling that function twice creates two
+entries. If the second call is a retry of the same upload, you may want the original photo ID instead. Workflow can
+reuse a job result it has already recorded for that run. Activity describes the input and result for each job.
 
 ## See why ordinary repeated calls repeat writes
 
-Start with array-backed storage so every write can be inspected. After observing repeated ordinary calls, add memory
-dispatch and history to retain the results in this process. Those memory owners disappear after process loss.
+Start with arrays so you can count every title and album entry. In the first run below, expect two IDs and two entries
+in each array. Then run the recorded version with the same title. Expect the same ID on both passes and one entry in
+each array. The second program keeps its history in memory, so restarting it loses those recorded results.
 
-Save this first program as `ordinary-upload.ts` and run `mise exec -- deno run ordinary-upload.ts`.
-It uses only ordinary JavaScript and needs no package setup. Before recording anything, consider those calls. Each call to `save` appends a title. Repeating the function
-therefore appends twice, even though its input is unchanged:
+With Mise and Deno ready from the [checkout setup](../../README.md#work-on-the-repository), save this first program as
+`ordinary-upload.ts` and run `mise exec -- deno run ordinary-upload.ts`. This program has no package imports. Each
+call to `save` appends a title, so calling it twice appends twice even when its input is unchanged:
 
 ```ts runnable=ordinary-upload.ts
 const titles: string[] = [];

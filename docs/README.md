@@ -1,8 +1,9 @@
 # Choose a task, then learn the mechanism
 
-You can use one utility without learning the suite. Start with a familiar job, run its package example, and inspect the
-result before adding another capability. Package READMEs provide independent entry examples and a map of every public
-submodule. Deeper guides explain distinct tasks, limits, and failure recovery.
+Pick the page that answers your question. If you're writing your first program with Utils, start with a package README:
+it shows what to import, what to run, and what you should see. If you're deciding whether to use a utility at all,
+start with the problem it solves. For example, [read a contact file](./recipes/01-import.md) to learn by doing, or
+[follow a note through a retry](./postgres/02-outbox.md) to see why saving and sending need separate owners.
 
 | What you need now                                | Read                                                                         | What you should be able to do afterward                                       |
 | ------------------------------------------------ | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
@@ -10,7 +11,6 @@ submodule. Deeper guides explain distinct tasks, limits, and failure recovery.
 | Understand unfamiliar utility concepts           | [02 — Read definitions and results](./02-learn.md)                                                  | Recognize ordinary values, definitions, owners, and results.                  |
 | Combine a few packages                           | [03 — Composition](./03-composition.md)                                      | Run bounded input, discovery, and resource-backed operations.                 |
 | Follow a larger user task                        | [Workflow recipes](./recipes/README.md)                                      | Build an import, search/draft flow, or recorded multi-step operation.         |
-| Add utilities to an application | [03 — Composition](./03-composition.md) | Add one capability while keeping business policy and host ownership explicit. |
 | Inspect where utilities came from | [04 — Adoption history](./04-adoption.md) | Trace the historical transfer from application repositories. |
 | Select a supported host                          | [05 — Runtime](./05-runtime.md)                                              | Choose adapters and understand which capability each environment supplies.    |
 | Inspect executable evidence                      | [06 — Scenarios](./06-scenarios.md)                                          | Locate actual tests and distinguish their claims from deployment guarantees.  |
@@ -23,10 +23,6 @@ convention. Each larger recipe repeats the setup needed for its own task.
 For persistent background work, [Workflows](./workflows/README.md) separates learning, integration, recovery, and
 operations. For logs, traces, and metrics, [Telemetry design](./telemetry/03-design.md) explains what observations can
 establish, and [setup](./telemetry/04-setup.md) supplies application-owned configuration and shutdown.
-
-To publish a consequence of a business write, the [transactional outbox guide](./postgres/02-outbox.md) shows one SQL
-transaction for acceptance and a separate sink receipt for safe redelivery. It explains what remains uncertain after
-cancellation, lease expiry or a lost acknowledgement.
 
 For HTTP beyond a single GET, keep one greeting application while adding [POST, forms and webhooks](./server/09-http-input.md),
 [streamed bodies and replay cursors](./server/10-http-streaming.md), a [real MCP tool](./server/11-mcp.md), or [two-way WebSocket messages](./server/12-websocket.md). Each workflow

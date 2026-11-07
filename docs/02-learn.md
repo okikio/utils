@@ -1,9 +1,8 @@
 # Read definitions, owners and return values
 
-Use this page to understand the call shapes you meet in package examples. You do not need to learn the entire suite
-before using one package. Start with a problem you can recognize: an
-imported file has quoted commas, too many downloads run at once, cancelled work keeps using a connection, or an
-interrupted job repeats its completed steps. Each package owns one part of that problem.
+When you call a utility, ask what you got back. A CSV parser may return rows you can read immediately. A download
+returns a Promise for a result that may arrive later. A database connection also gives you something to close when
+you finish. Those differences tell you how to use the function before you learn any other package.
 
 The package README introduces the problem and supplies a complete runnable example. Its task guide adds contracts,
 limits, and composition. The README includes the necessary setup and critical limits; use the guide for a deeper task,
@@ -21,7 +20,7 @@ call. Ask what each call returns. That tells you how to use it with normal JavaS
 | `AsyncIterable<Value>` | Read one result per `for await` iteration.                 | Bounded mapping returns your mapper's values.                                    |
 | Owned object           | Keep it for a block and await its disposal.                | `context.timeout()` gives `fetch` a signal and owns the deadline wait.           |
 | Definition             | Supply it to an implementation or runner.                  | An activity definition describes schemas; declaring it does not perform the job. |
-| Workflow operation     | Yield it from the program to obtain a recorded completion. | `activity.request()` describes a job for the scheduler.                          |
+| Workflow operation     | Hand the instruction to the workflow runner, which records its result. | `activity.request()` describes a job for the scheduler.             |
 
 There is still an ordinary function doing useful work. A context carries its supporting state. A task adds a control
 handle. An activity checks a named call contract. A workflow records instruction completions. Start with the smallest of
@@ -32,9 +31,9 @@ text, and returns `Promise<string>`. The context supplies a signal; it does not 
 HTTP abstraction. Its next section shows the controller, clock wait, and cleanup stack underneath. The guide also
 expresses disposal with familiar `try/finally` before asking you to adopt `await using`.
 
-This is a reading pattern, not a proposed replacement API: **familiar job → usable result → supporting contract →
-mechanics and tradeoff → optional composition**. Keeping those roles visible makes it possible to learn one package
-without first learning the suite's vocabulary.
+You can read the download example in that order: find the line that returns the text, then trace where its signal
+comes from and who removes the deadline timer. Use the same approach when a larger example opens a client or runs a
+job. Look for the result first, then find the owner of anything that needs cleanup.
 
 ## Let the common path own its setup
 

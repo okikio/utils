@@ -1,13 +1,19 @@
 # Consumer scenarios
 
-Start with a problem owned by an application. Compose the focused utility contracts around that problem, and keep the
-external provider, cancellation owner, and terminal result visible. The examples in
-[composition.md](./03-composition.md) teach executable public-import flows. This catalogue explains their source
-provenance and the limits of the test evidence.
+Use this index when you want to know what a test actually proves. Each entry names the original application task,
+the failures the Utils tests exercise, and what the application still has to supply. To write and run an example
+instead, start with the [composition guide](./03-composition.md).
+
+| What you want evidence for | Start here |
+| --- | --- |
+| Keep a contact file's original cells | [CRM import](#crm-import) |
+| Discover URLs or run a child process | [Crawl discovery](#crawl-discovery) or [crawl processes](#crawl-processes) |
+| Check that a replacement worker can finish saved work | [Workflow recovery](#workflow-recovery) |
+| Verify a signed request before using its contents | [Signed callback](#signed-callback) |
 
 The [testing guide](./maintenance/01-testing.md) explains how to run source tests, emitted package consumers, and
 container recovery. The [27-package capability map](./maintenance/06-capabilities.md) adds advanced scenarios, boundary
-tests and the remaining checks gaps. Read the executable suites for the actual assertions.
+tests and the limits of each check. Read the executable suites for the actual assertions.
 
 ## crm-import
 

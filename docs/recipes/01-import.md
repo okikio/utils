@@ -1,20 +1,17 @@
 # Import contacts with validation and bounded work
 
-A user uploads contacts and needs to know which rows were accepted and which need correction. CSV owns quoting and row
-boundaries. The application owns the contact rules and the destination. Start with those two facts before adding
-execution control.
+Build a contact import that tells someone what to fix in their spreadsheet. At the end, your program will print
+`Accepted: ["Ada, Inc.","Linus"]` and `Correct: ["Grace"]`. Grace's row has a missing email address. Ada’s row is for a business,
+and the comma in its name belongs inside one cell. First check the name, then import the full list.
 
 From the checkout root, review `mise.toml`, run `mise trust`, `mise install`, then
-`mise run prepare -- --kind deps`. Save the first complete block as `preview.ts`
-and run `mise exec -- deno run preview.ts`. Save the larger block as `import.ts`
-and run `mise exec -- deno run import.ts`. Each supplies its own local input and
-needs no database, network, environment or filesystem permission. The output
-blocks show the expected results, so you can compare before changing the input.
+`mise run prepare -- --kind deps`. Both programs supply their own input. You can run them without a database or
+permissions for network, environment, or file access.
 
-## First preserve the source fields
+## 1. Check that the company name stays in one cell
 
-The company name contains a comma, so splitting the input text on commas would corrupt a cell. This complete program
-only parses the file; it makes no contact-validity decision.
+Start with Ada's row. Splitting the line at every comma would turn `Ada, Inc.` into two cells. Save this program as
+`preview.ts` in the checkout root and run `mise exec -- deno run preview.ts`.
 
 ```ts runnable=preview.ts
 import { parse } from '@okikio/format/csv';
@@ -30,11 +27,15 @@ console.log(JSON.stringify(document.rows[0]?.values));
 The returned document is ordinary buffered data. Keep this smaller form when the input is small and parsing is the whole
 job. A malformed email is still a valid CSV cell.
 
-## Add bounded validation and a receipt
+## 2. Sort the contacts into accepted rows and corrections
 
-Now require a nonempty name and a simple email shape, keep invalid rows available for correction, and admit at most two
-row callbacks at once. The schema below is an example application policy, not a comprehensive email-address
-specification. The destination remains an explicit array so the example needs no database.
+Keep Ada's row and add Grace and Linus. CSV still separates the cells, but your application now decides which rows
+are usable. It requires a name and a value that looks like an email address. This example checks the shape of the
+address; it cannot tell you whether someone can receive mail there.
+
+Save the complete program as `import.ts` in the checkout root and run `mise exec -- deno run import.ts`. It keeps the
+results in arrays and runs at most two row checks at once. That limit gives you a place to control simultaneous work
+if you later add a lookup or save for each row.
 
 ```ts runnable=import.ts
 import * as context from '@okikio/context';
@@ -49,7 +50,8 @@ const ContactSchema = schema.object({
 	name: schema.string({ minLength: 1 }),
 	email: schema.string({ pattern: /^[^@ ]+@[^@ ]+\.[^@ ]+$/ }),
 });
-const input = 'Name,Email\nAda,ada@example.test\nGrace,missing-address\nLinus,linus@example.test\n';
+// Reuse the quoted company name. Grace has a cell, but no usable email.
+const input = 'Name,Email\n"Ada, Inc.",ada@example.test\nGrace,\nLinus,linus@example.test\n';
 await using parent = context.create({ id: 'contact-import' });
 await using owner = context.timeout(parent, sec(2));
 await using document = await parseStream(new Response(input).body!, {
@@ -75,14 +77,14 @@ for await (const rows of batch(document.rows, { maximumItems: 20, signal: owner.
 	for await (const row of checked) (row.accepted ? accepted : rejected).push(row.name);
 }
 const digest = await sha256(input);
-console.log('Accepted:', accepted.join(', '));
-console.log('Correct:', rejected.join(', '));
+console.log('Accepted:', JSON.stringify(accepted));
+console.log('Correct:', JSON.stringify(rejected));
 console.log('Receipt digest length:', digest.length);
 ```
 
 ```text output
-Accepted: Ada, Linus
-Correct: Grace
+Accepted: ["Ada, Inc.","Linus"]
+Correct: ["Grace"]
 Receipt digest length: 64
 ```
 
@@ -90,7 +92,13 @@ The digest identifies the exact supplied text, including the rejected row. It is
 proof of a database commit. The example chooses positional columns because its own input fixes their order; an uploaded
 file should validate and map header names first, as shown in the CSV README.
 
-## Follow data and ownership
+## 3. Fix Grace's row and run it again
+
+Change `Grace,\n` in the input string to `Grace,grace@example.test\n`. Grace should move to the accepted list and the
+correction list should be empty. The CSV structure was valid in both runs. What changed was the result of the contact
+rule you supplied.
+
+## See what each part contributes
 
 ```mermaid
 flowchart LR

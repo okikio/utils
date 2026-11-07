@@ -4,12 +4,18 @@ Start with the smallest operation that returns the value you need. Add another u
 input validation, a bounded group, cancellation, reusable resources, or independently executed work. An application
 still owns the meaning of the data and chooses providers, storage, logging configuration, and deployment.
 
+For the full progression, start with [two company records](#start-with-an-ordinary-account-import) and follow the same
+names into a [streamed CSV import](#import-the-same-rows-with-bounded-work). Both produce a map from website domains to
+company names. The second version shows where to put checks and limits when the input is an upload. If your immediate
+task is different, jump to [discovering page URLs](#discover-page-urls) or
+[sharing one resource](#share-a-resource-with-a-finite-operation).
+
 ## Read the examples
 
-A code block marked `runnable` is a complete module: its imports are public package entries, its input is supplied, and
-the next `text output` block records its observable output. Copy it into a `.ts` file and run it from this workspace
-with `mise exec -- deno run example.ts`. Registry use first requires installing the published package. The process guide
-explicitly needs `--allow-run`; the Worker guide needs both listed files and module-read permission.
+Follow the [checkout setup](../README.md#run-a-complete-example-from-this-checkout) once. Each complete example tells
+you what filename to use and what to expect when it runs. Save the code under that name, then run the command from the
+checkout. If you use a separate application, install the released dependencies there first. The process and Worker
+guides list their extra permissions and companion files.
 
 A block marked `support=filename.ts` is a companion file for a runnable module. Other code blocks are focused fragments
 or integration sketches. Names such as a database client or application schema in those sketches are supplied by the
@@ -20,10 +26,10 @@ from the importing file, so keep an example's companion files together wherever 
 The checker gives each document its own directory and uses the owning package's existing Deno configuration; it does
 not require consumers to copy code into a package's implementation directory.
 
-Read the result type and ownership explanation after each runnable block. `await` obtains a value from a Promise;
-`for await` consumes values incrementally; `await using` releases the acquired owner when the enclosing block ends,
-including when work throws. Returning a Promise, a stream, a resource lease, and a plain value are different contracts.
-A `scope()` or `view()` usually attaches capabilities to an existing lifetime; it does not imply a new cleanup owner.
+Watch for three forms as the examples grow. A Promise represents a result that may arrive later; `await` waits for it.
+`for await` reads a sequence one value at a time. `await using` closes a resource when you leave its block, including
+when the work fails. A `scope()` or `view()` can give a function access to an existing owner without making the function
+responsible for closing it.
 
 `tools/testing/examples.ts` compiles and runs authored examples through their public imports and compares declared
 output. It does not test heading wording, prose, or an arbitrary example count.

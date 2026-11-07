@@ -1,14 +1,18 @@
 # @okikio/utils
 
-TypeScript utilities for working with values, handling input, and running work with explicit ownership. Choose a focused
-package for the job in front of you. The packages share Duration values, cancellation signals, schemas, observable
-sources and resource contracts so you can compose them when the job grows.
+Use these TypeScript utilities to read a CSV file, give a download a time limit, or save a job so a worker can pick it
+up later. Each package solves one part of the job. Start with that package, then add others when you need them. For
+example, Duration expresses a two-second limit and Context passes that limit to the work that should stop.
 
-The workspace contains 27 experimental packages. `@okikio/utils` is an installation facade: its focused subpaths forward
-to the same implementations as the individual packages. Examples here run against this workspace; version `0.0.0` is not
-a claim that these changes have been published to a registry.
+This checkout contains 27 experimental packages. The `@okikio/utils` package lets you install the suite together and
+import one part at a time, such as `@okikio/utils/format/csv`. That import uses the same CSV code as the individual
+Format package. The examples below use the code in this checkout; `0.0.0` does not indicate a published version.
 
 ## Choose by what you need to do
+
+If you have no package in mind yet, try the [first runnable example](#run-a-complete-example-from-this-checkout).
+If you have a job in mind, use the table to find a package. The [docs home](docs/README.md) also points to tutorials
+that combine packages and guides that explain what happens when something fails.
 
 | You need to                                               | Start here                                      | Add another utility when                                                               |
 | --------------------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------- |
@@ -29,11 +33,19 @@ resource ownership.
 
 ## Run a complete example from this checkout
 
-The examples target this workspace's public exports. Review `mise.toml`, run `mise trust`, install the pinned tools with `mise install`, then run
-`mise run prepare -- --kind deps`. Copy one block marked `ts runnable` into `example.ts`, and run
-`mise exec -- deno run example.ts`. A following `text output` block shows the expected result. Blocks marked
-`support=filename.ts` are companion files; keep them beside the copied entry. Unmarked fragments can require
-named application inputs. When an example names a different entry file, use that basename in your project.
+Open a terminal in the folder that contains this README. Install [Mise](#work-on-the-repository) if needed; it selects the Deno
+version used by these examples. Review `mise.toml`, then prepare the checkout once:
+
+```sh
+mise trust
+mise install
+mise run prepare -- --kind deps
+```
+
+Copy the first TypeScript example below into `readable-time.ts` in that folder. Run
+`mise exec -- deno run readable-time.ts` and compare the printed lines with the output below the example.
+For later examples, use the filename shown in the instructions. Keep any named companion files (`support=filename.ts`)
+beside the file you run. Unmarked code fragments may require values from your own application.
 
 Process examples explicitly need subprocess permission, and Worker examples need their listed companion files and
 module-read permission. Their focused READMEs name those requirements. Run `mise run test -- --suite docs` to compile and execute
@@ -42,8 +54,8 @@ maintained examples together. Passing local examples does not establish database
 
 ## Write time in the units you mean
 
-Long and short unit names construct the same ordinary `Temporal.Duration` values. Conversion is a separate operation.
-This module works without installing a global Temporal object.
+If an option expects milliseconds, typing `2500` makes a reader work out how long it means. `sec(2.5)` puts the unit
+beside the number. It returns a duration value you can format for display or convert to the units another API expects.
 
 ```ts runnable=readable-time.ts
 import { days, elapsed, hr, min, ms, ns, sec, total } from '@okikio/duration';
@@ -58,6 +70,9 @@ PT2.5S PT0.0005S PT0.000000001S
 172800000 1.5
 PT1H30M
 ```
+
+The first line prints standard duration text: `PT2.5S` means two and a half seconds. The second prints two days in
+milliseconds and ninety minutes in hours. The last prints an hour and a half as one hour and thirty minutes.
 
 Use `elapsed()` for fixed timer arithmetic: a day is 24 hours and a week is seven days. Use `total()` with a real
 `relativeTo` date or zoned date-time when calendar length matters. Months, years and daylight-saving transitions need

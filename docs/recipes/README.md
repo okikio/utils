@@ -16,16 +16,18 @@ connects the service, database, and executors; the recorded-work recipe explicit
 
 ## Run and adapt a recipe
 
-From this checkout, install the pinned tools and dependencies:
+Follow the [checkout setup](../../README.md#work-on-the-repository) to install Mise and review the repository settings.
+From the folder that contains the root README, run:
 
 ```sh
 mise install
 mise run prepare -- --kind deps
 ```
 
-Copy one `ts runnable` block into a `.ts` file at the repository root, then run `mise exec -- deno run example.ts`. Each
-block is independent unless companion `support` files are explicitly named. The following `text output` fence is output
-to compare, not code to paste. `mise run test -- --suite docs` compiles and executes the marked programs in maintained guides and
+Save one `ts runnable` block as the `.ts` file named in its recipe. Use that same filename in the run command. For
+example, save the search program as `search.ts` and run `mise exec -- deno run search.ts` from the root. A recipe
+will name any companion files it needs. Compare the terminal result with the `text output` block rather than copying
+that block into the program. `mise run test -- --suite docs` runs the marked programs in the maintained guides and
 package READMEs.
 
 The examples use local data and public workspace exports. They are not claims of registry publication, database

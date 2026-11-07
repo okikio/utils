@@ -1,7 +1,8 @@
 # Choose a utility when built-ins omit a needed guarantee
 
-Start with the annoying job in your application. Choose the smallest mechanism that makes that job explicit, then add
-the owners needed to run it. Every package below starts with a complete example, expected output and ways to extend it.
+Start with the behavior you need. For example, a download can use plain `fetch`. If several downloads must stop
+together when the user cancels, add a shared cancellation signal. Each package linked below includes an example, its
+expected result, and the conditions that make the utility worth adding.
 The `runnable` fence identifies a complete program through public imports; its following `output` fence records the
 expected result. Unmarked fragments explain options and may require named application dependencies. Read the
 [example convention](./03-composition.md#read-the-examples) before copying a fragment into a program.

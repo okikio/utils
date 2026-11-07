@@ -1,14 +1,14 @@
 # Comparisons with established alternatives
 
-Choose a comparison by the operation you need. Parsing CSV cells, mapping a finite list, selecting HTML links, and
-matching a Result branch have established alternatives with overlapping outputs. A resource definition, a fenced queue
-claim, and a replayable workflow have additional ownership contracts. A faster array operation does not replace those
-contracts.
+Choose a comparison by what you need the code to do. Several libraries can read the same CSV cells or select the same
+HTML links. Check the matching outputs before comparing speed. Other jobs need different guarantees: a queue must reject
+a completion from a worker whose permission expired, and a saved workflow must reuse steps that already finished. A
+faster array operation does not answer either of those questions.
 
 [The executable fixtures](../tests/fixtures/alternatives.ts) expose named public imports and two implementations per
-case. [The tests](../tests/alternatives.test.ts) check each implementation against a separately written expected value;
-neither implementation is the expected-output oracle. The focused suite passed its 27 cases on the pinned Deno runner on
-2026-10-07. This is a local corpus result, not comprehensive compatibility with any upstream library.
+case. [The tests](../tests/alternatives.test.ts) compare both implementations with the same independently written
+expected value. The focused suite passed its 27 cases on the pinned Deno runner on 2026-10-07. That result applies to
+the selected cases and does not establish compatibility with every feature of either library.
 
 ## Versions and upstream contracts
 

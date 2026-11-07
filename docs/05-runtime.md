@@ -1,7 +1,9 @@
 # Runtime and distribution contracts
 
-TypeScript is the shared implementation source. JSR publishes it; the npm build projects supported public entries into
-emitted Node packages. The same package name does not prove that every adapter or native capability works in every host.
+The same TypeScript source supplies two package formats. The JSR package contains TypeScript. The npm package contains
+JavaScript modules that use `import` and `export` (ESM), plus type declarations for editors and type checkers. A function
+that parses a string can run in several environments. A function that starts a process needs an adapter for the environment
+that actually starts it.
 
 ## Run portable value code first
 
@@ -21,10 +23,9 @@ Run `mise exec -- deno run runtime-check.ts`. It prints:
 {"tag":["photo","audio"]}
 ```
 
-This checks portable parsing on Deno source. For a Node application, select the built npm package's ESM
-entry and follow [the installed-consumer procedure](./maintenance/02-packaging.md). Do not infer Node artifact behavior
-from a successful Deno run, or assume that a browser parser import can launch an OS process. The table below explains
-which source, artifact and native-host checks support each choice.
+Both `tag` values survive parsing because the URL contains the key twice. This run uses Deno and the source checkout.
+To run a portable example in an application, see [the runtime commands below](#run-a-portable-example-in-your-own-project).
+The table explains which checks cover the source, the installed package, and features that need a particular environment.
 
 ## Choose the surface for your host
 
