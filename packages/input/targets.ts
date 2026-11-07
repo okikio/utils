@@ -6,7 +6,11 @@ export function object(value: unknown): value is Record<PropertyKey, unknown> {
 	return typeof value === 'object' && value !== null;
 }
 
-/** Return the original event path when supplied, then fall back to its target. */
+/**
+ * Inspect the dispatch path when the host supplies it. Keep the reported
+ * target as a candidate even if the host omits it from that path. Outside
+ * dispatch, a native path can be empty; the target may be the only evidence.
+ */
 export function path(event: { readonly target?: unknown; composedPath?(): readonly unknown[] }): readonly unknown[] {
 	if (typeof event.composedPath === 'function') {
 		const values = event.composedPath();

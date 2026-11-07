@@ -154,15 +154,19 @@ class Channel<Request, Response, Notice, CallRequest, CallResponse> {
 	readonly #options: ProcessChannelOptions<Request, Response, Notice, CallRequest, CallResponse>;
 	readonly #maximumFrameBytes: number;
 	readonly #writer: WritableStreamDefaultWriter<Uint8Array>;
+	/** Admitted requests stay here through send, terminal response, or process retirement. */
 	readonly #pending = new Map<string, Pending<Response>>();
+	/** Requests reserve an ID while validation runs; closing can abort admission before send. */
 	readonly #admitting = new Map<string, AbortController>();
 	readonly #events = new EventBus<ProcessEventType>();
 	readonly #receiveController = new AbortController();
 	readonly #createRequestId: () => string;
 	readonly #cancelMs: number;
+	/** If correlation is lost, join child shutdown before settling unfinished requests. */
 	#retirement: Promise<void> | undefined;
 	#state: 'open' | 'closing' | 'closed' = 'open';
 	#closePromise: Promise<void> | undefined;
+	/** Recovered tail serializes writes without poisoning the next frame with the previous rejection. */
 	#writeQueue = Promise.resolve();
 	readonly #loop: Promise<void>;
 	readonly channel: ProcessChannel<Request, Response>;
@@ -562,12 +566,15 @@ class Server<Request, Response, Notice, CallRequest, CallResponse> {
 	readonly #options: ProcessServeOptions<Request, Response, Notice, CallRequest, CallResponse>;
 	readonly #maximumFrameBytes: number;
 	readonly #writer: WritableStreamDefaultWriter<Uint8Array>;
+	/** Owns request contexts and reverse-call correlation until each request settles. */
 	readonly #active = new Map<string, Active<CallResponse>>();
+	/** Recently settled request IDs tolerate specific late control frames; close clears their timers. */
 	readonly #ended = new Map<string, ReturnType<typeof setTimeout>>();
 	readonly #receiveController = new AbortController();
 	readonly #createCallId: () => string;
 	#state: 'open' | 'closing' | 'closed' = 'open';
 	#closePromise: Promise<void> | undefined;
+	/** Frame boundaries depend on sequential writes; individual send failures still reject the sender. */
 	#writeQueue = Promise.resolve();
 	#resolveClosed: (() => void) | undefined;
 	#rejectClosed: ((error: unknown) => void) | undefined;

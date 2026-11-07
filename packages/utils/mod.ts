@@ -7,7 +7,10 @@
  *
  * @module
  */
-/** Package identities included by this installation. */
+/**
+ * Frozen inventory of focused package names. Reading it imports no focused
+ * implementations; use the selected subpath to load one capability.
+ */
 export const packages = Object.freeze(
 	[
 		'@okikio/activity',

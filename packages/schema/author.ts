@@ -327,6 +327,7 @@ function build<InputValue, OutputValue>(
 		'~standard': Object.freeze({
 			version: 1 as const,
 			vendor: 'okikio',
+			/** Return only expected validation issues; implementation failures still throw. */
 			validate(value: unknown, options?: StandardSchemaV1.Options): StandardSchemaV1.Result<OutputValue> {
 				const policy = budget(options);
 				try {

@@ -496,14 +496,19 @@ export type ControlOptions = schema.Output<typeof ControlOptionsSchema>;
 
 /** Latest accepted effect for one activity job and effect ID. Old attempts cannot replace it. */
 export interface ProgressType {
-	/** Owning run and deterministic operation path, including child runs when requested. */
+	/** Owning run, which may be a child when child progress is requested. */
 	readonly run?: ReferenceType;
+	/** Stable instruction path of the job inside its owning run. */
 	readonly operation?: string;
 	/** Plain report value. The effect envelope remains available for existing consumers. */
 	readonly progress?: unknown;
+	/** Saved activity job ID, stable when another attempt takes over. */
 	readonly job: string;
+	/** One-based attempt that published this report. */
 	readonly attempt: number;
+	/** Storage revision token used to distinguish updates to the same report. */
 	readonly revision: string;
+	/** Accepted effect envelope, including the effect ID and occurrence key. */
 	readonly effect: EffectEncoded;
 }
 
@@ -649,7 +654,9 @@ export interface IntentType {
 	readonly type: 'activity' | 'child-workflow' | 'sleep' | 'sleep-until' | 'wait-event' | 'control' | 'defer';
 	/** Saved cleanup request, registered before the generator continues. */
 	readonly cleanup?: IntentType;
+	/** Declared event ID for a saved wait instruction. */
 	readonly event?: string;
+	/** Address within the event ID; two waits can use the same event with different keys. */
 	readonly eventKey?: string;
 	/** Containing branch path. Root steps have no parent. */
 	readonly parent?: string;

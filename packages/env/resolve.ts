@@ -33,7 +33,9 @@ export interface ProvenanceType {
 }
 /** A source failed to read a key. Cause/message are excluded because a source may include raw secret values. */
 export class EnvironmentSourceError extends Error {
+	/** Declared configuration key whose provider failed. */
 	readonly key: string;
+	/** Zero-based position in the caller's source list, in precedence order. */
 	readonly sourceIndex: number;
 	/** Retain only the key and source position; a provider error may contain a secret value. */
 	constructor(key: string, sourceIndex: number) {

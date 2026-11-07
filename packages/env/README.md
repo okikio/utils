@@ -52,6 +52,10 @@ The description explains the setting to a person through manifests and generated
 set the port. The schema owns that rule, including the default, so test and deployment sources use the same validation.
 `define` accepts the fields once; the returned definition can parse many different sources without another setup step.
 
+`example(definition)` formats the authored metadata as a human-editable `.env.example`. It does not read deployed
+values or quote dotenv syntax. Supply keys and one-line examples that your dotenv reader accepts. Secret fields
+always render `<secret>`; supply the actual values through a configuration source outside the template.
+
 `parseSync()` returns the inferred configuration object immediately: here `{ PORT: number }` with PORT `4321`. Invalid
 fields throw validation diagnostics before host startup. The record source reads only supplied values, so this example
 needs no environment permission and opens no listener.

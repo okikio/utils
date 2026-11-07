@@ -53,7 +53,9 @@ interface Events {
 class NodeThread implements RawWorker {
 	readonly #thread: Thread;
 	readonly #events = new EventTarget();
+	/** The first terminate call owns the native exit receipt; later callers join it. */
 	#termination: Promise<void> | undefined;
+	/** Set before requesting native termination so its exit is not reported as an unexpected fault. */
 	#stopping = false;
 	readonly #message = (value: unknown): void => {
 		this.#events.dispatchEvent(new MessageEvent('message', { data: value }));

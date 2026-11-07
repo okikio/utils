@@ -27,10 +27,12 @@ export function manifest(definition: EnvironmentDefinition): EnvironmentManifest
 }
 
 /**
- * Render a safe `.env.example` template from a definition.
+ * Render a human-editable `.env.example` template from authored metadata.
  *
- * Ordinary variables may include a safe example. Secrets always use the
- * literal `<secret>` placeholder and never project schema metadata as a value.
+ * Keys and ordinary examples are copied as text. Supply keys and one-line
+ * values already written for your dotenv reader. This formatter does not quote
+ * or validate dotenv syntax. Secrets use the literal `<secret>` placeholder;
+ * no resolved configuration is read.
  */
 export function example(definition: EnvironmentDefinition): string {
 	const projection = manifest(definition);

@@ -35,7 +35,9 @@ export class CleanupStepError extends Error {
  * ```
  */
 export class Branch<Value> implements BranchView {
+	/** Cancellation request for this branch. Observe the result to know when cleanup has joined. */
 	readonly signal: AbortSignal;
+	/** Owns nested branches and disposables until this branch exits. */
 	readonly scope = new Scope();
 	readonly #controller = new AbortController();
 	readonly #iterator: Generator<Step<unknown>, Value, Exit<unknown>>;
@@ -43,10 +45,13 @@ export class Branch<Value> implements BranchView {
 	readonly #pause: Pause;
 	readonly #result: Promise<Exit<Value>>;
 	#resolveResult!: (exit: Exit<Value>) => void;
+	/** Discard callback for the currently waiting step, cleared before another step enters. */
 	#activeExit: StepExit | undefined;
 	#state: 'ready' | 'running' | 'waiting' | 'closing' | 'terminal' = 'ready';
 	#cancelReason: unknown;
+	/** The requested reason may be undefined, so presence is tracked independently. */
 	#cancelRequested = false;
+	/** Block duplicate discard requests while the current step acknowledges cleanup. */
 	#discarding = false;
 	#started = false;
 

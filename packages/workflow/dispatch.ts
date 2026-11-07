@@ -158,14 +158,21 @@ class Runtime {
 	readonly #clock: context.Clock;
 	readonly #id: () => string;
 	readonly #items = new Map<string, ItemState>();
+	/** Admission keys retain the original item ID so retries resolve to the same logical work. */
 	readonly #keys = new Map<string, string>();
+	/** Live and draining registrations remain addressable by their exact lease ID. */
 	readonly #executors = new Map<string, ExecutorState>();
+	/** Current registration per engine and host; replacing it revokes the previous lease. */
 	readonly #current = new Map<string, ExecutorState>();
+	/** Keep generations after removal so returning hosts cannot reuse stale authority. */
 	readonly #generations = new Map<string, number>();
 	/** Trusted namespace registration and incarnation authority, independent of live executor leases. */
 	readonly #topology = new placement.Registry();
+	/** Wake blocked claims to recheck both eligible work and capacity. */
 	readonly #claimWaiters = new Set<Waiter>();
+	/** Wait for one item's terminal result without waking subscribers for unrelated work. */
 	readonly #resultWaiters = new Map<string, Set<Waiter>>();
+	/** Wake observers of claim and registration state changes. */
 	readonly #stateWaiters = new Set<Waiter>();
 	readonly #dispatch: ActivityDispatch;
 	#order = 0;

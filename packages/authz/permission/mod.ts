@@ -163,6 +163,7 @@ export function interpreter(
 				...(checker === undefined ? {} : { checker }),
 			});
 		},
+		/** Enforce targetless declarations at admission; target-aware checks need the operation's actual target. */
 		async apply(ctx: import('@okikio/context').Context, requirements: readonly PermissionRequirement[]) {
 			const definitions = definitionsOf(requirements).filter(
 				(definition): definition is PermissionDefinition<string, undefined> => definition.target === undefined,

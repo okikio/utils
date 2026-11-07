@@ -34,6 +34,7 @@ export function wrap(state: StateType): HasherType {
 		if (closed) throw new Error('Hasher is finalized or destroyed.');
 	};
 	return {
+		/** Feed the visible bytes while the wrapper still owns a live provider state. */
 		update(input) {
 			assert();
 			state.update(input);
@@ -53,6 +54,7 @@ export function wrap(state: StateType): HasherType {
 			assert();
 			return wrap(state.clone());
 		},
+		/** Discard unfinished state without requiring callers to track prior finalization. */
 		destroy() {
 			if (!closed) {
 				closed = true;

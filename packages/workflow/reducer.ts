@@ -20,10 +20,13 @@
  * ```
  */
 export class Reducer {
+	/** Maximum actions in one microtask drain, including critical cleanup; defaults to 256. */
 	readonly stepBudget: number;
 	#critical: (() => void)[] = [];
 	#normal: (() => void)[] = [];
+	/** Only one future drain may be queued while no drain is active. */
 	#scheduled = false;
+	/** Synchronous callbacks can enqueue work but cannot enter a nested drain. */
 	#draining = false;
 
 	constructor(stepBudget = 256) {

@@ -102,11 +102,14 @@ class Runtime {
 	readonly #child: Spawned;
 	readonly #events = new EventBus<ProcessEventType>();
 	readonly #captured: { stdout?: Uint8Array; stderr?: Uint8Array } = {};
+	/** Joined capture and sink operations. Streams handed to callers do not enter this list. */
 	readonly #outputPumps: Promise<void>[] = [];
+	/** The adapter owns a process group rather than only its leader, so leader exit alone cannot finish shutdown. */
 	readonly #ownsTree: boolean;
 	#streamStdout: ReadableStream<Uint8Array> | undefined;
 	#streamStderr: ReadableStream<Uint8Array> | undefined;
 	#outputFailure: unknown;
+	/** A pump may reject with undefined, so the error value alone cannot mark failure. */
 	#hasOutputFailure = false;
 	#stopPromise: Promise<void> | undefined;
 	#exitPromise: Promise<ProcessExitType> | undefined;

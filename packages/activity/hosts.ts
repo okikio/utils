@@ -78,6 +78,7 @@ class Shared<Value> implements Hosts<Value> {
 	#draining = false;
 	/** Original owner reason included in unavailable acquisition errors. */
 	#reason: unknown;
+	/** Forward owner cancellation to the joined drain without throwing into its signal handler. */
 	readonly #abort = () => {
 		void this.drain(this.#options.ctx.signal.reason).catch(() => {});
 	};

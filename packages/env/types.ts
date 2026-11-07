@@ -22,7 +22,7 @@ export interface EnvironmentFieldMetadata {
 	readonly title?: string;
 	/** Operator-facing explanation of what the value controls and why it exists. */
 	readonly description: string;
-	/** Safe example used by `.env.example` projections for ordinary variables. */
+	/** One-line example in the intended dotenv syntax, copied literally for ordinary variables. */
 	readonly example?: string;
 	/** External reference that explains how to obtain or configure the value. */
 	readonly documentationUrl?: string;

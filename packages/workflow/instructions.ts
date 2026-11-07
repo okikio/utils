@@ -185,9 +185,11 @@ export function wait<Value>(
 	definition: WorkflowSignal<Value>,
 	options?: WorkflowCommandOptions & { readonly until?: string },
 ): WorkflowOperation<import('./types.ts').EventResult<Value>>;
+/** Wait for the named event and key, optionally until its deadline. */
 export function wait<Value>(
 	options: EventWaitType<Value>,
 ): WorkflowOperation<import('./types.ts').EventResult<Value>>;
+/** Wait for a relative duration or absolute instant and receive the timer's result. */
 export function wait(
 	options: DurationWaitType | UntilWaitType,
 ): WorkflowOperation<Temporal.Instant>;

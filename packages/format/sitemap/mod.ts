@@ -349,11 +349,13 @@ export async function parseStream(input: {
 	};
 }
 
+/** A selected element can receive several text and CDATA events before it closes. */
 interface CapturedXmlText {
 	readonly tagName: 'loc' | 'link' | 'lastmod' | 'changefreq' | 'priority';
 	text: string;
 }
 
+/** Accumulate fields for the active XML record before emitting its public projection. */
 interface MutableXmlRecord {
 	readonly kind: 'url' | 'sitemap';
 	url?: string;
@@ -363,6 +365,7 @@ interface MutableXmlRecord {
 	alternates: SitemapAlternate[];
 }
 
+/** Normalize start events from tree traversal and incremental XML callbacks for the same reducer. */
 interface XmlStart {
 	readonly rawName: string;
 	readonly uri?: string;
@@ -371,12 +374,16 @@ interface XmlStart {
 
 /** Sitemap semantic reducer shared by complete-tree and streaming @std/xml APIs. */
 class SitemapXmlCollector {
+	/** One default namespace per open element; popping restores the parent's namespace after a local override. */
 	readonly #defaultNamespaces: (string | undefined)[] = [];
 	readonly #policy: SitemapParsePolicy;
 	readonly #fallbackEmit: (record: SitemapRecord) => void;
+	/** Only a selected text field is retained; unrelated parser text is ignored. */
 	#capture: CapturedXmlText | undefined;
+	/** Fields wait for record completion so optional metadata can follow its location. */
 	#current: MutableXmlRecord | undefined;
 	#format: SitemapFormat | undefined;
+	/** Keep a semantic root-namespace rejection separate from XML syntax diagnostics. */
 	#namespaceProblem: SitemapProblem | undefined;
 
 	/** Share semantic state across complete-tree and streaming XML adapters without owning their source. */
@@ -535,10 +542,15 @@ class SitemapByteSource {
 	readonly cleanup: Promise<CleanupOutcome>;
 	readonly #maxBytes: number | undefined;
 	readonly #signal: AbortSignal | undefined;
+	/** Accepted chunks retained for format detection; iteration replays them without reading them again. */
 	readonly #prefixChunks: Uint8Array<ArrayBufferLike>[] = [];
+	/** Prefix discovery runs at most once, even if the caller inspects its text again. */
 	#prepared = false;
+	/** No more reads after EOF or a byte-limit stop. */
 	#done = false;
+	/** Count accepted uncompressed bytes once, including the replayed prefix. */
 	byteLength = 0;
+	/** True when the allowance stops input; a zero allowance stops before checking for EOF. */
 	capped = false;
 
 	constructor(

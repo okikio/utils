@@ -561,6 +561,7 @@ class Handle<Request, Response, Notice, CallRequest, CallResponse> {
 	readonly #id: string;
 	readonly #raw: RawWorker;
 	readonly #events = new EventBus<WorkerEventType>();
+	/** Correlate sent requests until their terminal frame or joined thread termination. */
 	readonly #pending = new Map<string, Pending<Response>>();
 	/** Admission owns IDs before a validated request is sent to the Worker. */
 	readonly #admitting = new Map<string, AbortController>();

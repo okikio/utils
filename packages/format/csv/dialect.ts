@@ -4,6 +4,7 @@ const CANDIDATES: readonly CsvDelimiter[] = [',', ';', '	'];
 const DEFAULT_SAMPLE_BYTES = 128 * 1024;
 const DEFAULT_SAMPLE_ROWS = 100;
 
+/** Keep counts per logical row so scoring can distinguish consistency from a wide row. */
 interface DelimiterProfile {
 	delimiter: CsvDelimiter;
 	counts: number[];

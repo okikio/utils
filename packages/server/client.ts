@@ -282,6 +282,8 @@ export function create<const Definition extends EndpointDefinition>(
 						>;
 					}
 					if (['stream', 'download', 'html'].includes(success.mode)) {
+						// The caller now owns the original body. The byte limit below applies
+						// only to responses this client reads and validates itself.
 						return { kind: 'success', definition: success, value: incoming, response: incoming } as OutcomeType<
 							typeof operation,
 							Definition

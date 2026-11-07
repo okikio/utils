@@ -48,7 +48,9 @@ export class UnknownFailureDefinitionError extends TypeError {
  * @internal
  */
 class FailureOccurrence<FailureDefinition extends Definition> extends Error implements Occurrence<FailureDefinition> {
+	/** Keep the trusted definition identity for same-process handling. */
 	readonly definition: FailureDefinition;
+	/** Checked occurrence data; encoded values use the definition's stable wire ID. */
 	readonly data: Data<FailureDefinition>;
 
 	constructor(definition: FailureDefinition, data: Data<FailureDefinition>, message: string, cause?: unknown) {

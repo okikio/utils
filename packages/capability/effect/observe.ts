@@ -9,13 +9,17 @@ import type { EffectDefinition, EffectEmitter, EffectOccurrence } from './types.
 
 /** Borrow an optional recipient. Subscriber errors go to onError, never to the emitter. */
 export interface ObserveOptions extends ObservationOptions {
+	/** Recipient whose acceptance precedes publication. The observer never closes it. */
 	readonly emitter?: EffectEmitter;
 }
 /** An effect recipient with a read-only stream of accepted occurrences. Closing it never closes the borrowed recipient. */
 export interface EffectObserver<Effect extends EffectDefinition = EffectDefinition>
 	extends EffectEmitter<Effect>, Disposable {
+	/** Asynchronous notifications may skip intermediate accepted occurrences. */
 	readonly events: Observable<EffectOccurrence<Effect>>;
+	/** Most recently started occurrence to be accepted, or undefined before the first acceptance. */
 	readonly latest: EffectOccurrence<Effect> | undefined;
+	/** Reject new emits and complete subscribers after any queued notification. */
 	close(): void;
 }
 /**

@@ -65,10 +65,15 @@ interface ProviderRuntime {
 
 /** Inputs used by the Scheduler-owned activity admission facade. */
 export interface ActivityJobsOptions {
+	/** Scheduler identity used to name its local Context. */
 	readonly id: string;
+	/** Borrowed clock for the scheduler's lifetime. */
 	readonly clock: context.Clock;
+	/** Store that owns saved item state and claim authority. */
 	readonly dispatch: ActivityDispatch;
+	/** Initial lifetime of an executor's claim on one item. */
 	readonly claimDuration: Temporal.Duration;
+	/** Whether scheduler shutdown closes the dispatch; otherwise it is borrowed. */
 	readonly disposeDispatch: boolean;
 }
 
@@ -189,6 +194,7 @@ export class ActivityJobs implements AsyncDisposable {
 		return this.close();
 	}
 
+	/** Reject new scheduler work with the original close reason once shutdown begins. */
 	#assertOpen(): void {
 		if (this.#closed) throw new SchedulerClosedError(this.#reason);
 	}
@@ -219,10 +225,15 @@ class ExecutorRuntime {
 	readonly #disposeProvider: boolean;
 	readonly #claimDuration: Temporal.Duration;
 	readonly #registrationDuration: Temporal.Duration;
+	/** Owns active attempts and stays live while a graceful drain stops further claims. */
 	readonly #control: context.Owned;
+	/** Closing the admission child interrupts a blocked claim without cancelling running attempts. */
 	readonly #claimCtx: context.Owned;
+	/** Local capacity stays reserved until each claim's run path settles. */
 	readonly #active = new Set<Promise<void>>();
+	/** Cancellation hooks can outlive fenced attempts; disposal still joins these hooks. */
 	readonly #cancellations = new Set<Promise<void>>();
+	/** Preserve rejected hooks even after their promises leave the active cancellation set. */
 	readonly #cancellationFailures: unknown[] = [];
 	readonly #registration: EngineRegistration;
 	#lease: ExecutorLeaseType | undefined;
@@ -230,7 +241,9 @@ class ExecutorRuntime {
 	#draining = false;
 	#closed = false;
 	#loop: Promise<void> | undefined;
+	/** Renews registration authority while live; disposal clears the interval before leaving dispatch. */
 	#renewal: ReturnType<typeof setInterval> | undefined;
+	/** An unexpected admission or renewal error remains visible through joined shutdown. */
 	#fault: unknown;
 
 	constructor(options: ExecutorOptions) {

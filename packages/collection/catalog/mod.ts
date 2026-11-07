@@ -343,6 +343,7 @@ export function document(input: DefinitionInput<CatalogEntryIdentity>): CatalogD
  * @internal
  */
 class ImmutableMap<Key, Value> implements ReadonlyMap<Key, Value> {
+	/** Owned snapshot of the index; its values still refer to the original definitions. */
 	readonly #source: ReadonlyMap<Key, Value>;
 
 	constructor(source: ReadonlyMap<Key, Value>) {

@@ -339,7 +339,9 @@ class Store implements StoreType {
 	]);
 	/** Borrowed query pool. Disposal closes this view and its listeners, never this pool. */
 	#database: Sql;
+	/** Reject new work on this view after disposal starts; the caller still owns the pool. */
 	#closed = false;
+	/** When disabled, subscriptions do not acquire a LISTEN connection and callers can poll. */
 	#notifications: boolean;
 	#instrument: telemetry.Instrument;
 	/** Close callbacks for the LISTEN connections owned by this view. */
@@ -355,6 +357,7 @@ class Store implements StoreType {
 		this.#notifications = notifications;
 		this.namespace = namespace;
 	}
+	/** Close this view's notification connections without closing the borrowed query pool. */
 	async [Symbol.asyncDispose](): Promise<void> {
 		this.#closed = true;
 		await Promise.all([...this.#subscriptions].map((close) => close()));
@@ -515,6 +518,7 @@ class Store implements StoreType {
 			signal?.removeEventListener('abort', abort);
 		}
 	}
+	/** Admit a root request or a guarded successor, optionally in the caller's own transaction. */
 	async accept(input: AdmissionType, native?: unknown): Promise<ReferenceType> {
 		this.#assert();
 		const work = async (tx: Transaction) => {
@@ -831,6 +835,7 @@ class Store implements StoreType {
 			await tx`update utils_workflow.hosts set expires=clock_timestamp()+${leaseMs}*interval '1 millisecond' where namespace=${this.namespace} and id=${host.id} and generation=${host.generation}`;
 		});
 	}
+	/** Stop admission for this generation only; an older host cannot drain its replacement. */
 	async leave(host: HostType): Promise<void> {
 		await this
 			.#database`update utils_workflow.hosts set draining=true where namespace=${this.namespace} and id=${host.id} and generation=${host.generation}`;
@@ -1372,6 +1377,7 @@ class Store implements StoreType {
 			await tx`update utils_workflow.runs set state=case when state='advancing' then state else 'ready' end where namespace=${this.namespace} and id=${run.id}`;
 		}
 	}
+	/** Persist a blocking reason only while this activation still holds the live claim. */
 	async block(activation: ActivationType, reason: string): Promise<void> {
 		await this.#transaction(async (tx) => {
 			await this.#guard(tx, activation.claim, true);

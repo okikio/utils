@@ -23,6 +23,7 @@ export interface Reservation extends Disposable {
 	readonly address: Deno.NetAddr;
 	/** Borrowed access to the reservation's listener. The reservation owns closure. */
 	readonly listener: Deno.TcpListener;
+	/** Whether the reservation has begun disposal; repeated disposal does not close again. */
 	readonly closed: boolean;
 }
 

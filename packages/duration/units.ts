@@ -109,6 +109,7 @@ export function from(value: DurationInput | number | bigint, unit?: Unit): Tempo
 			'A duration count must be finite and its whole part must be a safe integer; use bigint for larger clock counts.',
 		);
 	}
+	// Calendar counts keep their named unit; only clock counts can become exact nanoseconds.
 	if (!(field in CLOCK_SCALES)) {
 		if (typeof value === 'bigint') {
 			throw new TypeError('Bigint counts require a clock unit, from hours through nanoseconds.');

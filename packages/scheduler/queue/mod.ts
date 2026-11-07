@@ -254,6 +254,7 @@ class Runtime<Input, Output> {
 	readonly #capacity: number;
 	/** Pending result/claim waits share a bounded local admission budget. */
 	readonly #maximumWaiters: number;
+	/** Currently reserved wait slots across claim and result operations, released on settlement. */
 	#waiting = 0;
 	/** Terminal state is retained only within this shared queue policy. */
 	readonly #retention: ReturnType<typeof policy>['retention'];
