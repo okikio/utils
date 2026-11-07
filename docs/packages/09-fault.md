@@ -1,11 +1,11 @@
 # Fault
 
-JavaScript can throw an Error, a string or even a circular object. A support log needs a printable description without
-walking that object forever or calling a getter it contains. Fault projects the thrown value into plain diagnostic data
-under explicit size limits. The [package example](../../packages/result/fault/README.md) shows the smallest report.
+JavaScript can throw an Error, a string, or even an object that refers to itself. A log needs a printable description
+without following that reference forever or running code hidden in a property. Fault turns the thrown value into plain
+data with size limits. The [package example](../../packages/result/fault/README.md) shows a short report.
 
-This projection is not secret redaction. A retained message or ordinary field can still contain a credential. Choose
-what may leave the application before exporting diagnostics.
+A size limit does not remove secrets. An error message or ordinary field can still contain a credential. Decide what
+may leave the application before sending diagnostics to another system.
 
 ## Expected failures and unexpected diagnostics
 

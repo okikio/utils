@@ -56,6 +56,7 @@ candidate, not proof that the page exists or should be crawled.
 
 The same parser handles a page list and an index of other sitemap files. Check `kind` before deciding what work to
 schedule. The example only prints decisions; it performs no recursive downloads.
+Save it as `index-decisions.ts` and run `mise exec -- deno run index-decisions.ts` from the same checkout.
 
 ```ts runnable=index-decisions.ts
 import { locations, parse } from '@okikio/format/sitemap';

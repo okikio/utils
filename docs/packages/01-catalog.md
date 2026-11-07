@@ -6,11 +6,11 @@ selection, composition, and inspection. The application continues to decide what
 
 ## Select the definitions one consumer may use
 
-Select canonical declarations without copying their identities. This program supplies its own local input and uses
-public workspace imports. After `mise run prepare -- --kind deps`, save it as `example.ts` at the checkout root and run
-`mise exec -- deno run example.ts`.
+Give a consumer access to the original `Read` definition while leaving `Write` out of its catalog. After the
+[checkout setup](../../README.md#run-a-complete-example-from-this-checkout), save this as `read-only.ts` and run
+`mise exec -- deno run read-only.ts`.
 
-```ts runnable=complete-task.ts
+```ts runnable=read-only.ts
 import * as catalog from '@okikio/collection/catalog';
 
 // These are the original declaration objects that later consumers must recognize.

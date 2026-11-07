@@ -1,8 +1,8 @@
 # Keep source bytes distinct from interpreted rows
 
-A contact file contains a company name with a comma inside it. The importer must preserve that cell, find its header,
-and let the application decide whether the contact is valid. For a large file, it must do the same work incrementally
-and close the source if the user stops the import.
+A contact file contains `"Ada, Inc."` in its Company column. The parser keeps that company name in one cell and
+lets you find the email by column name. Your application still decides whether the email is valid. For a large file,
+you can read rows as they arrive instead of storing the whole file in memory.
 
 Splitting text on commas or newlines breaks quoted cells. This package uses @std/csv for field syntax, with an adapter
 for blank records and exact quoted newlines. Application policy owns header and conversion decisions.
@@ -41,6 +41,9 @@ A review screen may need to point a person back to the record that needs attenti
 **logical record** number, including the header and any blank records before it. It is not a physical line number:
 a quoted cell can contain several lines. `preserveBlankRows: true` also emits blank records instead of discarding them.
 `rawHeader` keeps the exact decoded header next to its normalized lookup key.
+
+Save this separate program as `contact-positions.ts` and run `mise exec -- deno run contact-positions.ts`. It prints
+the original header text, then the number and label of each record, including the blank one.
 
 ```ts runnable=contact-positions.ts
 import * as csv from '@okikio/format/csv';

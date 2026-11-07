@@ -1,14 +1,15 @@
 # Record
 
-A configuration map may look like ordinary data while hiding a getter or inherited field. Record checks the outer
-container before code enumerates or snapshots it. Schema then checks what each accepted field means. For a detached
-nested value, use the [bounded JSON operations](../../packages/collection/record/json.md); for edits, use the
+A settings object may look like plain data, but reading a property can run code through a getter. Record checks
+that the object's own fields are plain data before you read or copy them. Schema can then check their values, such
+as whether a port number is in range. To copy nested JSON data, use the
+[bounded JSON operations](../../packages/collection/record/json.md); for edits, use the
 [change operations](../../packages/collection/record/change.md).
 
 ## Try checking structure before checking meaning
 
-An import-safe options map can still contain an invalid value. This mini-demo uses Record for its outer shape and Schema
-for the port's meaning, so each check answers a distinct question.
+An object with plain fields can still contain an invalid port. This example copies the fields, checks the port value,
+then tries a second object whose getter must never run.
 
 After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
 Save the next complete TypeScript block as

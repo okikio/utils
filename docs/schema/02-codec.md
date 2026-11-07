@@ -16,11 +16,9 @@ shows the smallest conversion; this guide keeps those directions when the record
 
 ## Choose a saved representation separately from the application value
 
-`@okikio/schema` supplies the common Standard Schema validation operations. `@okikio/schema/codec` adds bidirectional
-composition on top of those operations.
-
-Use `schema` when a value only needs validation or normalization. Use `codec` when callers must also convert the
-validated value back to a different external form.
+Use `schema` when you only need to check input or convert it in one direction. Add `codec` when you also need to
+convert the checked value back. For example, reading a saved timestamp as a `Date` is one direction; writing the
+`Date` back as a timestamp string is the other.
 
 The codec utility does not own transport, persistence, HTTP, or provider behavior.
 
@@ -39,6 +37,10 @@ These are three different values, even when a console makes them look similar:
 Object, optional, nullable and array codecs apply the same two directions to larger values. A missing optional field
 stays `undefined`; an explicitly nullable field can stay `null`. This stored user has a creation date, no deletion date
 and one visit.
+
+Follow the [checkout setup](../../README.md#work-on-the-repository), then save this program as `stored-user.ts` at the
+repository root and run `mise exec -- deno run stored-user.ts`. The inputs are in the program, so you do not need a
+file or a server.
 
 ```ts runnable=stored-user.ts
 import { array, decode, encode, nullable, object, optional } from '@okikio/schema/codec';

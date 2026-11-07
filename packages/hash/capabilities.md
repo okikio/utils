@@ -1,11 +1,16 @@
 # Hash content, authenticate messages, and create identifiers
 
-Use full digests to compare content, HMAC to authenticate a message with a secret, and random IDs for new records. The
-existing root `id()` remains a stable key for an ordered string tuple. These operations have different collision and
-trust properties.
+Choose the operation by what you need to know. To check whether a file changed, compare its full digest with a trusted
+copy of the earlier digest. To check whether a receipt came from someone who holds a shared secret, verify its message
+authentication code (HMAC). To name a new record, create a random ID and let your store reject duplicates. The root
+`id()` has a different job: it returns the same key each time you supply the same prefix and ordered list of strings.
 
-This complete example signs an integrity receipt. Both peers must agree on the exact receipt bytes and already share a
-random secret through a separate secure channel.
+This example puts the file digest in a receipt, then uses a secret to create a **tag** from the receipt bytes. It prints
+`true` when verification accepts the tag. In a real exchange, sender and receiver must agree on the exact receipt bytes
+and already share the random secret through a separate secure channel.
+
+Follow the [checkout setup](../../README.md#work-on-the-repository). Save this program as `hash-receipt.ts` at the
+repository root and run `mise exec -- deno run hash-receipt.ts`.
 
 ```ts runnable=hash-receipt.ts
 import { id, sha256 } from '@okikio/hash';
@@ -62,6 +67,10 @@ silently normalize a signed wire representation before checking the protocol's c
 
 ## Own incremental state
 
+When two inputs start with the same bytes, you can process that shared prefix once and copy the unfinished hash state.
+The following program adds a different ending to each copy and checks both results against a full hash. Save it as
+`hash-fork.ts` and run `mise exec -- deno run hash-fork.ts` from the same checkout.
+
 ```ts runnable=hash-fork.ts
 import { create } from '@okikio/hash/sync';
 import { hex } from '@okikio/hash/encoding';
@@ -104,6 +113,10 @@ outside this API. CRC-32 uses the IEEE reflected polynomial; CRC-32C uses Castag
 for portable correctness, without a claim of hardware-level throughput.
 
 ## Bound and cancel a stream
+
+When bytes arrive in pieces, hash each piece as it arrives instead of keeping the entire input. This program admits
+at most five bytes. It prints `true` for the matching digest and `false` because the stream reader no longer holds
+the lock. Save it as `hash-stream.ts` and run `mise exec -- deno run hash-stream.ts`.
 
 ```ts runnable=hash-stream.ts
 import { read } from '@okikio/hash/stream';

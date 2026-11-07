@@ -1,18 +1,19 @@
 # `@okikio/result/fault`
 
-A provider throws an unexpected error and you need a useful support report. Serializing the raw error often produces
-`{}`, while walking an arbitrary thrown object can encounter cycles or executable getters. `fault` creates bounded plain
-diagnostic data instead of handing the live object to the next component.
+A service returns a value your program cannot use, so your code throws an error. To send a useful support report, you
+need the error's name and message. `JSON.stringify(error)` can print just `{}`. `fault.encode()` copies useful details
+into ordinary data, with limits on how far it looks and how much it keeps. It can stop when a value points back to
+itself and avoids calling ordinary getters, which are functions that run when a property is read.
 
 | Value in the demo          | Diagnostic projection | What remains local    |
 | -------------------------- | --------------------- | --------------------- |
 | `TypeError` with a message | Name and message      | The live Error object |
 | `includeStack: false`      | No stack field        | Stack trace           |
 
-Read this table as a diagnostic copy, not as recovery from the error. It shows the small example only; depth, entry and
-string limits govern larger inputs. Projection is not secret redaction.
+The table shows what the small example copies for a support report. Larger inputs have depth, entry and string
+limits. Choose what the recipient is allowed to see: copying with these limits does not remove secrets.
 
-The [public source contracts](./mod.ts) lists projection options and diagnostic value types.
+The [public source](./mod.ts) lists the options and the types of diagnostic values it can return.
 
 ## Turn an exception into bounded diagnostic data
 
@@ -44,6 +45,7 @@ a stable application contract.
 
 You can keep using `try` and `catch`. Project the caught value when it becomes a diagnostic. This local response example
 shows that conversion without running a server.
+Save it as `support-response.ts` and run `mise exec -- deno run support-response.ts` from the same checkout.
 
 ```ts runnable=support-response.ts
 import { encode, message } from '@okikio/result/fault';
@@ -80,6 +82,9 @@ Cleanup can fail after the operation has already failed. `SuppressedError` keeps
 earlier failure in `suppressed`; `AggregateError` keeps its children in `errors`. Projection preserves these own fields
 even though the standard constructors make them non-enumerable. Their values use the same depth, entry, cycle and string
 limits as other diagnostics. A getter in one of those fields becomes `[accessor]`, and inherited fields are not copied.
+
+Save this example as `cleanup-diagnostics.ts` and run `mise exec -- deno run cleanup-diagnostics.ts`. Check that the
+printed report includes both `close failed` and `read failed`.
 
 ```ts runnable=cleanup-diagnostics.ts
 import { SuppressedError } from '@okikio/dispose';

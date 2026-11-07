@@ -48,8 +48,9 @@ ada@example.com
 
 ## Read a different kind of source
 
-A sitemap is XML describing URLs, not CSV rows. This local source demonstrates that Format preserves the selected format
-rather than choosing a crawler.
+A sitemap can list addresses for pages on a website. The example reads one address from XML tags supplied in the
+program. It does not visit that address. Save it as `focused-example.ts` and run
+`mise exec -- deno run focused-example.ts` from the same checkout.
 
 ```ts runnable=focused-example.ts
 import * as sitemap from '@okikio/format/sitemap';
@@ -108,6 +109,7 @@ options and types.
 
 Typed CSV import checks the text cells after CSV quoting has been resolved. This complete program reads one name
 from a local byte stream, so it needs neither a file nor a server.
+Save it as `typed-contacts.ts` and run `mise exec -- deno run typed-contacts.ts`.
 
 ```ts runnable=typed-contacts.ts
 import * as csv from '@okikio/format/csv';

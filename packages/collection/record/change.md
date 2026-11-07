@@ -8,6 +8,10 @@ These are data operations, not a synchronization protocol. They do not detect th
 in the meantime. Your storage layer must check a version before accepting a patch. Use `equal(left, right)` when only
 comparison is needed; it validates both values without building a change list.
 
+Follow the [checkout setup](../../../README.md#work-on-the-repository). Save the example as `patch-json.ts` at the
+repository root and run `mise exec -- deno run patch-json.ts`. The last line shows that the original draft still
+has two items after the patch.
+
 ```ts runnable=patch-json.ts
 import { diff, equal, patch } from '@okikio/collection/record/change';
 

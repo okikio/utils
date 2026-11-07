@@ -1,8 +1,8 @@
 # Collection
 
-Keep authored definitions and ordinary data usable without losing what makes each valuable. Catalog preserves the exact
-objects that define resources, permissions, effects, or failures. Record inspects and transforms data without reading
-inherited properties or ordinary getters.
+Suppose an editor can publish a draft. You have two kinds of object: the permission the editor needs and the draft
+itself. Use Catalog to select the permission without replacing the object other code already recognizes. Use Record
+to copy the draft or inspect its fields without reading inherited properties or running ordinary getters.
 
 For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters keep their native runtime requirements.
 

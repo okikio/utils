@@ -4,8 +4,13 @@ Passing an object to another function passes a reference to the same object. If 
 array, the recipient sees that change too. Use `copy(value, options)` when the recipient needs a separate data snapshot.
 Unlike a spread such as `{ ...value }`, it also copies accepted nested containers. It rejects ordinary getters rather
 than invoking code while inspecting them.
-The result contains only null, booleans, finite numbers, strings, dense arrays, and ordinary record values. It owns
-fresh containers; repeated aliases are copied by value. Signed zero becomes zero.
+The result contains only null, booleans, finite numbers, strings, arrays without gaps, and plain record values. It
+uses new objects and arrays. If two input fields refer to the same object, each gets its own copy. Signed zero
+becomes zero.
+
+Follow the [checkout setup](../../../README.md#work-on-the-repository). Save the example as `copy-json.ts` at the
+repository root and run `mise exec -- deno run copy-json.ts`. The new label goes into the input array, so the printed
+copy still contains only `draft`.
 
 ```ts runnable=copy-json.ts
 import { copy } from '@okikio/collection/record/json';

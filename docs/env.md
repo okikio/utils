@@ -1,8 +1,8 @@
 # Separate raw configuration from validated options
 
-Read caller-selected sources, apply an explicit precedence order, and validate the resulting strings before opening
-resources. A schema can convert values and supply defaults. Keep the source of each field visible when explaining a bad
-startup option.
+Your service needs a port number, but the environment supplies `PORT` as text. Check that text before starting the
+service. If deployment and a test both supply `PORT`, choose which source wins first. Then use a schema to check the
+chosen value, convert it to a number, or use a default if no source supplies it.
 
 The application decides when to read its environment. Importing a reusable module should not discover configuration or
 start resources. Vendor metadata is optional; validation uses Standard Schema.
@@ -30,10 +30,10 @@ copied definition the identity of its original. The examples keep those two oper
 The application supplies port text and asks its environment definition for a checked number. Parsing happens before any
 listener is opened, so an invalid setting can be corrected without starting a partially configured service.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
-`mise exec -- deno run example.ts`.
+Run from this checkout after `mise run prepare -- --kind deps`. Save the block as `service-port.ts` at the checkout
+root and run `mise exec -- deno run service-port.ts`.
 
-```ts runnable=package-task.ts
+```ts runnable=service-port.ts
 import * as env from '@okikio/env';
 import * as schema from '@okikio/schema';
 
@@ -65,8 +65,9 @@ For this example, omitting `PORT` selects `8787`; an invalid port still fails th
 Concrete packages define the environment fields they need. An executable host selects raw sources and parses those
 definitions during startup. Importing a definition never reads ambient process state.
 
-Metadata can produce an operator's configuration checklist. `secret()` keeps the credential value out of that generated
-template, so the same definitions used for startup checks can also produce safe deployment instructions:
+Use the field definitions to print a configuration template. `env.example()` formats the examples you wrote and
+prints `<secret>` for secret fields. It does not read deployed values, and it does not quote or validate the resulting
+text for a dotenv parser.
 
 Save this complete variation as `configuration-template.ts` and run `mise exec -- deno run configuration-template.ts` after the same checkout setup.
 
@@ -122,7 +123,7 @@ env.variable(...)     classify an ordinary host variable
 env.secret(...)       classify protected secret material
 
 env.manifest(...)     project deployment metadata
-env.example(...)      generate a safe .env.example
+env.example(...)      format an authored .env.example template
 env.requirement(...)  explain why a resource selects canonical fields
 env.requirementReport(...) project selected requirements without exposing secret values
 ```

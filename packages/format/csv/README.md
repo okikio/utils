@@ -58,6 +58,7 @@ leaves the content as text; it does not decide what a contact record must contai
 Once CSV quoting is handled, the rest is ordinary array and object code. Use the normalized column key to find a cell
 instead of assuming every export keeps email at one fixed position. The next export reorders the same three fields;
 the lookup still selects the email, while a fixed second-column index would now select the note.
+Save it as `contact-preview.ts` and run `mise exec -- deno run contact-preview.ts` from the same checkout.
 
 ```ts runnable=contact-preview.ts
 import { parse } from '@okikio/format/csv';

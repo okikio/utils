@@ -1,8 +1,9 @@
 # `@okikio/result`
 
 A lookup can find a contact or find nothing. Both outcomes are ordinary, and the caller needs to decide what to show.
-`result` puts a value or a reason into a small tagged object so that choice stays visible. A **result** is the answer
-wrapper; it does not perform the lookup. Exception capture is explicit.
+`result` gives the caller an object with an `ok` flag. Read `value` when the flag is `true` and `failure` when it is
+`false`. Your code still performs the lookup. If you want a thrown exception returned as a failure, call
+`result.capture()` around the operation explicitly.
 
 For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters keep their native runtime requirements.
 
@@ -11,7 +12,7 @@ For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-ru
 | Contact `ada` exists    | `{ ok: true, value: 'Ada Lovelace' }` | `Hello, Ada Lovelace.`    |
 | Contact `lin` is absent | `{ ok: false, failure: 'not-found' }` | `Contact lin: not-found.` |
 
-The [public source contracts](./mod.ts) includes branch helpers and fallback contracts.
+The [public source](./mod.ts) lists the functions for choosing a branch or supplying a fallback value.
 
 A Promise and a Result answer different questions. A Promise represents work that finishes later; a Result represents
 which answer was produced. An asynchronous lookup can return `Promise<Result<Contact, 'not-found'>>`: first `await` the

@@ -10,12 +10,10 @@ be converted back again.
 
 ## Validate a value through one contract
 
-This package prevents each utility from implementing its own schema-library adapter. `result`, `schema/codec`,
-`activity`, `workflow`, `http`, and other packages can accept Standard Schema contracts without requiring Zod or Valibot
-in their core APIs.
-
-Use the native builders for ordinary schemas. Optional adapters support applications that already use another validator
-library; the shared Standard Schema contract keeps those applications interoperable.
+Start with built-in rules such as `string()`, `number()`, and `object()`. They are enough to check the profile below.
+If your project already uses a validator such as Zod or Valibot, you can reuse a schema that supports Standard Schema.
+That shared interface lets different libraries ask the same question: does this value pass, and what checked value or
+issues should I get back?
 
 ## Check a submitted profile before saving
 

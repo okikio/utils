@@ -13,13 +13,13 @@ caller-owned. Keep the full digest with the receipt and use a unique constraint 
 
 For message authentication with a shared secret, choose `@okikio/hash/hmac`; for HTTP-specific signature wire conventions, choose `@okikio/http/signature`. See the [complete Hash capability examples](../../packages/hash/capabilities.md) for HMAC, streaming, random IDs, UUIDs and encodings. The application owns key rotation, audience, expiry and replay policy.
 
-## Run a complete task
+## Check a source fingerprint and make a shorter key
 
-Compute a full digest and a compact correlation key from local text. This program supplies its own local input and uses
-public workspace imports. After `mise run prepare -- --kind deps`, save it as `example.ts` at the checkout root and run
-`mise exec -- deno run example.ts`.
+Compute the fingerprint of `source text` and make a short key to identify the import in logs or records. After the
+[checkout setup](../../README.md#run-a-complete-example-from-this-checkout), save this as `source-fingerprint.ts` and
+run `mise exec -- deno run source-fingerprint.ts`.
 
-```ts runnable=complete-task.ts
+```ts runnable=source-fingerprint.ts
 import { id, sha256 } from '@okikio/hash';
 
 const digest = await sha256('source text');
@@ -34,8 +34,8 @@ Expected output:
 64 true
 ```
 
-Compare the output before changing the input. The remaining sections explain the options and limits; the
-[package example](../../packages/hash/README.md) also places this operation among adjacent capabilities.
+The SHA-256 digest has 64 hexadecimal characters. The separate key starts with `import-`, which helps you recognize
+what it identifies. Keep the full digest when you need to compare source contents.
 
 ## Hash a large response without collecting its body
 

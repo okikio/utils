@@ -31,9 +31,9 @@ console.log(records.map((record) => record.loc));
 // ['https://example.com/a', 'https://example.com/b']
 ```
 
-An index introduces one extra step: its addresses name other sitemap documents rather than pages. Save this complete
-example as sitemap-index.ts and run it with the same checkout setup as the streaming example below. The output selects
-the kind and location fields so that this distinction remains visible.
+An index introduces one extra step: its addresses name other sitemap documents rather than pages. After the
+[checkout setup](../../README.md#run-a-complete-example-from-this-checkout), save this as `sitemap-index.ts` and run
+`mise exec -- deno run sitemap-index.ts`. The output labels each address so you can tell what to read next.
 
 ```ts runnable=sitemap-index.ts
 import * as sitemap from '@okikio/format/sitemap';
