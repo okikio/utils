@@ -70,9 +70,10 @@ when those jobs succeed. It does not infer readiness from a different CI run or 
 
 The installed-package job builds and tests the npm candidates, then uploads those exact staged directories. The npm job
 downloads them; it does not rebuild. Each source package's `publishConfig.directory` points pnpm at its staged package.
-Sampo discovers the source workspace and invokes native pnpm publication. The staged manifest contains ESM JavaScript
-and declaration exports, rather than source-only TypeScript exports. The JSR job publishes source at the same revision
-with Deno's frozen lockfile. Tsdown is not needed to publish JSR subpaths.
+Sampo discovers the source workspace and invokes native pnpm publication. This repository maps `@okikio` to
+`https://registry.npmjs.org/` even when a maintainer uses GitHub Packages for the same scope elsewhere. Each staged
+manifest names the public registry and source repository and exports ESM JavaScript and declarations. The JSR job
+publishes source at the same revision with Deno's frozen lockfile. Tsdown is not needed to publish JSR subpaths.
 
 For local inspection, these commands perform no upload:
 

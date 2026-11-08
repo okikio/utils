@@ -3,6 +3,9 @@ import { spawnSync } from 'node:child_process';
 import { readdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
+/** Public registry for the npm projection; JSR publishes through Deno separately. */
+export const npmRegistry = 'https://registry.npmjs.org/';
+
 /**
  * Validate every package before the first registry mutation.
  * Source manifests select the artifact directory. Candidate identities must agree with source;
@@ -22,6 +25,9 @@ export async function candidates(root: string): Promise<void> {
 		const artifact = JSON.parse(await readFile(resolve(directory, expected, 'package.json'), 'utf8'));
 		if (artifact.name !== source.name || artifact.version !== source.version) {
 			throw new Error(`${source.name}: artifact identity differs from source. Rebuild and retest the release.`);
+		}
+		if (artifact.publishConfig?.registry !== npmRegistry) {
+			throw new Error(`${source.name}: rebuild the artifact for ${npmRegistry}.`);
 		}
 		if (artifact.publishConfig?.directory || artifact.type !== 'module') {
 			throw new Error(`${source.name}: expected an ESM artifact without another publication redirect.`);
