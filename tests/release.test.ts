@@ -42,7 +42,7 @@ describe('release version projection', () => {
 });
 
 describe('npm candidate ownership', () => {
-	it('rejects stale artifacts and publication redirects before publication', async () => {
+	it('rejects stale artifacts, the wrong registry, and publication redirects', async () => {
 		await using scope = await fixture();
 		const source = {
 			name: '@example/owned',
@@ -53,13 +53,24 @@ describe('npm candidate ownership', () => {
 		const directory = resolve(scope.root, '.tmp/artifacts/npm/example');
 		await mkdir(directory, { recursive: true });
 		const path = resolve(directory, 'package.json');
-		const artifact = { name: source.name, version: '1.2.2', type: 'module' };
+		const artifact = {
+			name: source.name,
+			version: '1.2.2',
+			type: 'module',
+			publishConfig: { registry: 'https://npm.pkg.github.com/' },
+		};
 		await writeFile(path, JSON.stringify(artifact));
 		await expect(candidates(scope.root)).rejects.toThrow('identity differs');
 		artifact.version = source.version;
 		await writeFile(path, JSON.stringify(artifact));
+		await expect(candidates(scope.root)).rejects.toThrow('rebuild the artifact for https://registry.npmjs.org/');
+		artifact.publishConfig.registry = 'https://registry.npmjs.org/';
+		await writeFile(path, JSON.stringify(artifact));
 		await candidates(scope.root);
-		await writeFile(path, JSON.stringify({ ...artifact, publishConfig: { directory: '../other' } }));
+		await writeFile(
+			path,
+			JSON.stringify({ ...artifact, publishConfig: { ...artifact.publishConfig, directory: '../other' } }),
+		);
 		await expect(candidates(scope.root)).rejects.toThrow('publication redirect');
 	});
 });
