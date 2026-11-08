@@ -5,24 +5,33 @@ and cancellation. Create one client for an upstream origin. Pass the current
 request signal to each call so cancellation can stop transport and decoding.
 The client does not read environment variables or discover authentication.
 
-This finite JSON read keeps its 15-second timeout active until decoding ends.
-The decoder rejects a response that exceeds the configured 64 KiB limit.
+Save this as `read-status.ts` and run `deno run read-status.ts` from the Utils workspace. The injected Fetch function
+returns a local response, so the example opens no network connection. The 15-second deadline stays active until the
+JSON decoder finishes, and the decoder enforces the 64 KiB limit.
 
-```ts
+```ts runnable=read-status.ts
 import * as client from '@okikio/http/client';
 
 const upstream = client.create({
-  origin: 'https://api.example.invalid',
-  timeoutMs: 15_000,
-  maximumResponseBytes: 64 * 1024,
+	origin: 'https://api.example.invalid',
+	fetch: () => Promise.resolve(Response.json({ status: 'ready' })),
+	timeoutMs: 15_000,
+	maximumResponseBytes: 64 * 1024,
 });
-export async function readStatus(signal: AbortSignal): Promise<unknown> {
-  return await upstream.request(
-    { method: 'GET', path: '/status', signal },
-    (response, scoped) => client.json(response, upstream.maximumResponseBytes, scoped),
-  );
-}
+const caller = new AbortController();
+const status = await upstream.request(
+	{ method: 'GET', path: '/status', signal: caller.signal },
+	(response, scoped) => client.json(response, upstream.maximumResponseBytes, scoped),
+);
+console.log(JSON.stringify(status));
 ```
+
+```text output
+{"status":"ready"}
+```
+
+For a real upstream, omit `fetch` to use the host's Fetch implementation and pass the caller's signal through the same
+request. Enable network access for that origin if your runtime requires it.
 
 Browser callers can omit the origin and use `credentials: 'same-origin'`.
 Server callers supply an absolute origin and verified credentials. Per-call

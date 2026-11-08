@@ -22,7 +22,7 @@ Read the left side as ways to interpret an incoming message and the right side a
 application connects them with its own decisions. Parsing a token does not authenticate it, and accepting bytes does not
 make their contents valid for your business rules.
 
-For outbound requests without a service definition, use the [bounded Fetch client](client/README.md). It keeps the
+For outbound requests without a service definition, use [`@okikio/http/client`](client/README.md). It keeps the
 caller’s cancellation and a deadline active through decoding or streaming and leaves retry decisions to the caller.
 
 ## Keep every search filter in a native handler
