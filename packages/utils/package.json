@@ -107,6 +107,7 @@
 		"./hash/uuid": "./hash/uuid.ts",
 		"./hono": "./hono.ts",
 		"./http": "./http.ts",
+		"./http/client": "./http/client.ts",
 		"./http/cookie": "./http/cookie.ts",
 		"./http/events": "./http/events.ts",
 		"./http/headers": "./http/headers.ts",
