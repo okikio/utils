@@ -454,7 +454,7 @@ class PostgresQueue<Input extends Contract, Output extends Contract>
 			this.#admitWait('results');
 			try {
 				while (true) {
-					const row = await this.#item(ref, signal);
+					const row = await this.#item(ref, signal, 'join-read');
 					if (row.state === 'completed') return await codec.read(this.#options.output, row.output);
 					if (row.state === 'failed') throw new QueueItemFailedError(ref.id, readFailure(row.failure));
 					if (row.state === 'cancelled') throw new QueueItemCancelledError(ref.id, row.cancellation);
@@ -680,13 +680,22 @@ class PostgresQueue<Input extends Contract, Output extends Contract>
 	}
 
 	/** Find one stable identity and compute eligibility using the database clock. */
-	async #item(ref: QueueRef, signal: AbortSignal): Promise<Row> {
-		const rows = await this.#query(
-			this.#options.database,
-			"select *,((state='queued' and available<=clock_timestamp()) or (state='claimed' and expires<=clock_timestamp())) as claimable from utils_queue.items where namespace=$1 and id=$2",
-			[this.#options.namespace, ref.id],
-			signal,
-		);
+	async #item(
+		ref: QueueRef,
+		signal: AbortSignal,
+		cancellation: 'cancel-query' | 'join-read' = 'cancel-query',
+	): Promise<Row> {
+		const statement =
+			"select *,((state='queued' and available<=clock_timestamp()) or (state='claimed' and expires<=clock_timestamp())) as claimable from utils_queue.items where namespace=$1 and id=$2";
+		const parameters = [this.#options.namespace, ref.id];
+		signal.throwIfAborted();
+		// A PostgreSQL CancelRequest addresses a backend, not a statement. A late
+		// cancel from a finished read can hit the next claim on the borrowed pool.
+		// Finish this read before releasing the result waiter slot; sleep remains abortable.
+		const rows = cancellation === 'join-read'
+			? await this.#options.database.unsafe<Row[]>(statement, parameters)
+			: await this.#query(this.#options.database, statement, parameters, signal);
+		signal.throwIfAborted();
 		if (!rows[0]) throw new QueueItemNotFoundError(ref.id);
 		return rows[0];
 	}
