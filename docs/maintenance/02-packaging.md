@@ -1,7 +1,8 @@
 # Packaging and tree-shaking
 
-This guide helps maintainers preserve small consumer bundles while the Okikio utility suite grows. The public package
-graph supports focused dependencies and a single-install application dependency without duplicating implementations.
+A program that reads CSV should not have to load web servers and worker adapters. Maintainers check that a focused
+import reaches only the code it needs. When a bundler omits unused code from the files it produces, that is called
+tree-shaking. This guide shows how to verify it for an individual package and for the suite package.
 
 ## Public package layout
 
@@ -68,22 +69,21 @@ faster request handling, and a faster router does not prove that unused modules 
 
 ## Build output
 
-`tsdown.config.ts` defines the staged npm projection with ESM output. Unbundled source-module granularity
-keeps independently removable modules available to downstream bundlers. Tests, fixtures, and benchmarks are not runtime
-entry points.
+`tsdown.config.ts` builds JavaScript modules in ESM format for npm. The build keeps source modules in separate
+files so a user's bundler can drop the files the application does not need. Tests, fixtures, and benchmarks are
+not runtime entry points.
 
-Runtime JavaScript and TypeScript declarations have different performance costs. Fine JavaScript granularity helps
-bundlers. Declaration size and generic expansion affect editor and type-check performance. Measure these costs
-separately before changing declaration bundling.
+Measure JavaScript and TypeScript declarations separately. Smaller JavaScript modules let bundlers omit unused
+code. Large declarations and complex generic types can still slow down editors and type checks.
 
 ## Dependency policy
 
 Generic packages should depend on protocols and focused foundational utilities. They should not depend on a validator
 provider only to inspect its internal schema representation.
 
-Standard Schema owns validator interoperability. Standard JSON Schema owns a validator's input and output schema
-projections. Current Zod releases expose that protocol directly, so `@okikio/schema` does not need a Zod runtime
-dependency only to generate an OpenAPI schema.
+Use Standard Schema to call validators from different libraries through one interface. Use Standard JSON Schema
+to describe the values a validator accepts and returns. Zod exposes that interface directly, so
+`@okikio/schema` can generate an OpenAPI schema from it without importing Zod at runtime.
 
 Provider-specific adapters are appropriate when they expose behavior or metadata that the common protocol does not
 represent.
@@ -162,11 +162,12 @@ conversion and an owned Node subprocess through the installed packages. Explicit
 are bundled and executed; their module graphs must exclude unrelated adapters and their emitted implementations must
 agree.
 
-The archive build checks the configured Node version and package projection. The following behavior lane also runs
-portable canonical tests against those installed archives in Deno and Bun. Deno uses the installed npm projection here;
-its source-only `/deno/*` adapters remain covered by native source tests. A browser-selected bundle executed in a Node
-Web API host remains bundle evidence, not an executed browser guarantee. npm publication is separate from artifact
-checks and is not performed by these commands.
+The archive build checks the packaged files and the configured Node version. The behavior tests then run the
+same portable tests against the installed archives in Deno and Bun. Deno uses the npm archives in this check.
+Separate tests run the source-only `/deno/*` adapters in Deno.
+
+Running a bundle that targets browsers in Node checks whether the bundle builds and runs there. To check behavior
+in a browser, run it in a browser. These commands do not publish to npm.
 
 ## npm registry setup
 

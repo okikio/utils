@@ -56,6 +56,7 @@ candidate, not proof that the page exists or should be crawled.
 
 The same parser handles a page list and an index of other sitemap files. Check `kind` before deciding what work to
 schedule. The example only prints decisions; it performs no recursive downloads.
+Save it as `index-decisions.ts` and run `mise exec -- deno run index-decisions.ts` from the same checkout.
 
 ```ts runnable=index-decisions.ts
 import { locations, parse } from '@okikio/format/sitemap';
@@ -111,12 +112,14 @@ A valid `<urlset/>` has no records and no problems. Malformed XML produces `malf
 and sets `capped` when evidence is discarded. Unexpected defects throw. The older `parse`/`locations` operations
 preserve their permissive array results.
 
-Streaming `maximumProblems` defaults to 128 and accepts a non-negative safe integer. It caps retained comment, XML
-syntax and namespace evidence; dropping evidence sets `capped` without stopping record delivery. Choose `maxBytes`
-explicitly to bound consumed input. A stream emits repeated locations in source order, awaits each callback and retains
-no deduplication index; the callback owns any accumulation. Complete `inspect` instead merges duplicate retained
-identities under maximumRecords and bounds the complete input before STD materializes its XML tree. A small record cap
-therefore does not make complete XML parsing use constant memory. The duplicate-heavy 10,000-record tests exercise these
+`maximumProblems` limits how many comments and XML syntax or namespace problems the stream reports. The default is
+128; use a nonnegative safe integer. If the reader drops any of that information, it sets `capped` and keeps sending
+records. Set `maxBytes` to limit how much input it can read.
+
+The stream sends locations in source order, including repeats, and waits for each callback to finish. It does not
+remember which locations it sent. Your callback decides whether to keep them. In contrast, `inspect` merges duplicates
+among the records it keeps, up to `maximumRecords`. It checks the input size before the Standard Library builds an
+XML tree in memory. A small record limit therefore does not make that tree small. The duplicate-heavy 10,000-record tests exercise these
 different contracts; the benchmark reports timing and source identity, not a peak-memory guarantee.
 
 ## Choose complete text or incremental input

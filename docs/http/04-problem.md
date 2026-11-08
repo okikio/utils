@@ -9,11 +9,10 @@ that rejection as an ordinary Web Response. The example below shows all three va
 
 ## Run a complete task
 
-Return an expected missing-record response using a declared problem. This program supplies its own local input and uses
-public workspace imports. After `mise run prepare -- --kind deps`, save it as `example.ts` at the checkout root and run
-`mise exec -- deno run example.ts`.
+Look up a missing asset and turn that expected rejection into a response. After the [checkout setup](../../README.md#work-on-the-repository),
+save the block as `missing-asset.ts` at the checkout root and run `mise exec -- deno run missing-asset.ts`.
 
-```ts runnable=complete-task.ts
+```ts runnable=missing-asset.ts
 import * as problem from '@okikio/http/problem';
 import { toHeaders } from '@okikio/http/response';
 
@@ -42,8 +41,8 @@ Expected output:
 {"type":"https://problems.invalid/v1/asset-missing","title":"Asset missing","status":404,"detail":"No asset has that ID."}
 ```
 
-Compare the output before changing the input. The remaining sections explain the options and limits; the
-[package example](../../packages/http/problem/README.md) also places this operation among adjacent capabilities.
+Both the status and the type identify the rejection. A client can display the detail to a person and branch on
+the type URL in code. Other 404 problems can have different types.
 
 ## The reusable rule and the individual rejection
 
@@ -53,15 +52,15 @@ Compare the output before changing the input. The remaining sections explain the
 | `CreateProblemOptions` | Optional safe `detail`, `instance`, extensions, headers and private `cause`                         | Describes this occurrence of that rejection  |
 | `ProblemResult`        | Readonly `[body, status, headers]`                                                                  | Ready-to-materialize RFC 9457 representation |
 
-`define()` checks the ID, absolute type URI, error status and required text, then snapshots the description. `create()`
-builds the public body, protects canonical members from extension collisions, and keeps the exact definition and
-optional cause in hidden metadata. A service can therefore check that this result was declared on its endpoint, rather
-than accepting any object that happens to contain `status: 404`.
+`define()` checks the ID, absolute type URI, error status, and required text. It saves a copy of the description.
+`create()` builds the body that the caller can see. Extra fields cannot replace standard problem fields such as
+`status` or `type`. The result also retains the exact definition and optional cause in local metadata. The service
+uses the definition to check that the endpoint allows this problem. A plain object with `status: 404` does not pass
+that check.
 
-When an extension schema is supplied, a service validates it before sending the response. `create()` does not perform
-that asynchronous schema check; a manual host can call `validateExtensions()` when receiving unknown extension values.
-This is why construction, validation and transport remain separate. The
-[complete contracts](../../packages/http/README.md) explain exposure and retry metadata too.
+If you supply a schema for extra fields, the service checks those fields before sending the response. `create()`
+does not do that check. If you send responses without Service, call `validateExtensions()` yourself when the values
+need checking. See the [complete contracts](../../packages/http/README.md) for public fields and retry details.
 
 ## Build on the example
 
@@ -90,12 +89,13 @@ result are examples of protocol or server conditions.
 Problem extensions cannot overwrite canonical RFC 9457 members. An optional Standard Schema validates extension data
 before the server sends it.
 
-Definitions distinguish public and internal exposure. Provider causes can be retained in hidden local metadata for
-diagnostics while the public problem body stays controlled.
+The definition says whether a problem is public or internal. Keep the original error in local diagnostics when it
+helps you investigate. The public body contains only the fields you intend to send.
 
 The `Missing` definition above describes every missing asset response. Its `type` remains stable while the safe
 `detail` can explain this occurrence. Keep private storage failures in diagnostic metadata rather than the public detail.
 
 
-`problem.catalog()`, `select()`, and `compose()` build declared problem universes. `problem.is()` and `match()` preserve
-exact definition identity at runtime.
+Use `problem.catalog()`, `select()`, and `compose()` to collect the problem definitions an endpoint can use.
+`problem.is()` and `match()` check the exact definition, so two unrelated 404 problems do not match just because
+they share a status.

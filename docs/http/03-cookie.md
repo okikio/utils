@@ -9,11 +9,10 @@ The program constructs both messages locally so no browser or listener is needed
 
 ## Run a complete task
 
-Store a display preference and reject an unsupported value. This program supplies its own local input and uses public
-workspace imports. After `mise run prepare -- --kind deps`, save it as `example.ts` at the checkout root and run
-`mise exec -- deno run example.ts`.
+Read the current theme, send two separate cookie updates, and reject a theme the application does not support. After the [checkout setup](../../README.md#work-on-the-repository),
+save the block as `theme-cookie.ts` at the checkout root and run `mise exec -- deno run theme-cookie.ts`.
 
-```ts runnable=complete-task.ts
+```ts runnable=theme-cookie.ts
 import * as cookie from '@okikio/http/cookie';
 import * as schema from '@okikio/schema';
 const Theme = cookie.define({
@@ -41,8 +40,8 @@ light
 false
 ```
 
-Compare the output before changing the input. The remaining sections explain the options and limits; the
-[package example](../../packages/http/cookie/README.md) also places this operation among adjacent capabilities.
+Read the output as three checks: the incoming preference is `light`, the outgoing response contains two separate
+`Set-Cookie` fields, and `blue` fails validation. No browser has saved the outgoing preference yet.
 
 ## What is stored in the definition?
 
@@ -54,9 +53,9 @@ Compare the output before changing the input. The remaining sections explain the
 | `set(headers, Theme, 'dark', options?)` | `void`                                                            | Appends an outgoing `Set-Cookie` field; mutates only the supplied `Headers`            |
 | `delete(headers, Theme)`                | `void`                                                            | Appends an empty expired cookie; does not delete stored application data               |
 
-Under the hood, reading parses the incoming Cookie header, selects the definition's name, decodes the text and invokes
-the schema. Writing percent-encodes the supplied value and combines it with the declared attributes. Writing does not
-run the value schema again. Keep runtime validation at the boundary where unknown tokens enter the application.
+On a read, the helper finds the named value in the incoming `Cookie` header. It decodes the text, then checks it
+against the value rule. On a write, the helper percent-encodes the value and adds the browser attributes from the
+definition. It does not run the value rule again. Check values you receive from a browser before using them.
 
 Definition construction rejects incompatible browser policies. For example, a `__Host-` cookie must be Secure, use Path
 `/` and omit Domain. Keeping these attributes beside the name prevents sign-in and logout code from accidentally using
@@ -79,8 +78,8 @@ the [response](../../packages/http/response/README.md). Preserve separate `Set-C
 This package belongs in `@okikio/http` because cookies are HTTP protocol data. `@okikio/server` can apply these
 definitions while executing a request, but the cookie contract does not depend on Hono or service composition.
 
-Provider-owned authentication cookies remain inside the provider adapter that owns them. A generic utility should not
-redefine Clerk, Better Auth, or another provider's cookie semantics.
+If Clerk, Better Auth, or another sign-in provider sets a cookie, let its adapter read and write that cookie. Use
+these helpers for cookies your application defines.
 
 ## Operations
 

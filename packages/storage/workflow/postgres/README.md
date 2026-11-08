@@ -1,8 +1,8 @@
 # `@okikio/storage/workflow/postgres`
 
-Save accepted jobs and workflow progress in PostgreSQL. A worker can stop without losing committed work. Another
-compatible worker can then continue from saved steps and write receipts. The adapter supplies the saved queue. You do
-not need a second queue package for this path.
+Someone submits a note for background saving. The worker can stop after completing a step but before the rest of
+the job runs. Store the accepted job and its recorded progress in PostgreSQL so a compatible replacement worker
+can continue from committed steps and use saved write receipts. The adapter supplies that job queue itself.
 
 The application owns its Postgres.js pool, business SQL, authorization, and remote-write safety. The adapter borrows
 that pool and owns the tables in `utils_workflow`. Importing it starts no worker, opens no pool, and runs no migration.
@@ -11,11 +11,14 @@ The adapter uses PostgreSQL `transaction_timeout` for its owned transactions. Ru
 PostgreSQL 18.3, which matches CI; a server without that setting rejects this workflow path. The separate state and
 queue adapters have their own contracts and do not imply compatibility for this one.
 
-Server-side timeouts start after a transaction obtains a connection and require PostgreSQL to remain responsive.
-The application's pool owner must separately bound waiting work, set an appropriate Postgres.js `queue_timeout`, and
-choose transport failure detection. Leave lease margin for connection admission as well as SQL execution. The adapter
-does not close a borrowed pool to force pending work to settle. The [recovery tests](../../../../docs/maintenance/07-recovery.md#keep-permission-alive-during-a-long-database-run)
-show separate checks for queued work, a physically paused server, and expired write permission.
+PostgreSQL can apply its own timeouts only after a transaction gets a connection and while the server can respond.
+If your application supplies the pool, limit how much work can wait for a connection. Set Postgres.js
+`queue_timeout` and decide how the client detects a broken connection. When you choose a lease duration, allow time
+to get a connection as well as time to run the SQL.
+
+The adapter does not close your pool to force a pending call to end. The
+[recovery tests](../../../../docs/maintenance/07-recovery.md#keep-permission-alive-during-a-long-database-run)
+check three different failures: work waiting for a connection, a paused server, and a worker whose write permission expired.
 
 Start with [the background-work walkthrough](../../../../docs/workflows/01-basics.md). Then read the complete
 [HTTP service](../../../../tests/workflows/scenarios/service.ts),

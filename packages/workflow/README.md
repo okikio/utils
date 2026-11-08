@@ -1,8 +1,8 @@
 # `@okikio/workflow`
 
-A workflow is a named sequence of jobs whose instruction results can be recorded and reused. Suppose preparing a photo
-means reading its dimensions, creating a preview, and saving the preview's location. If the last step fails, starting
-the whole sequence again can repeat work you already finished.
+A photo upload saves a title and adds the photo to an album. If a caller repeats the same upload after losing the
+reply, it wants the original photo ID. Calling the two functions again can create a second title and album entry.
+A workflow names those steps so the runner can record their results and reuse them for the same run.
 
 For Deno, Node, and Bun execution, see
 [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters
@@ -12,12 +12,10 @@ This package separates the sequence from the code that performs each job. An [ac
 one job; the workflow requests those jobs in order. A scheduler consults recorded results and sends new work to an
 executor. An executor is the host that runs the supplied job implementation.
 
-For work that must survive process loss, use `client` and `serve` with the optional
-[`@okikio/storage/workflow/postgres`](../storage/workflow/postgres/README.md) adapter. The
-[durable workflow guide](https://github.com/okikio/utils/blob/main/docs/workflows/01-basics.md) links complete Core
-import and Intelligence consumer examples, including policy, resources, health checks, transaction receipts and
-shutdown. The example below uses in-memory history to teach the local programming model; its arrays and history do not
-survive a restart.
+The tutorial below keeps the photo and its recorded results in memory. Run it first if you want to see what replay
+does without setting up a server. If accepted work must survive a process restart, follow the
+[durable workflow guide](../../docs/workflows/01-basics.md). That path uses `client` and `serve` with the
+[PostgreSQL adapter](../storage/workflow/postgres/README.md) and supplies its own business storage and write receipts.
 
 ## Save a photo and reuse its completed steps
 
@@ -249,11 +247,13 @@ store needs stable write keys or another duplicate-write policy for that gap.
 
 ## Wall instants and local scheduling
 
-The durable worker uses monotonic host time for polling intervals, registration-renewal cadence, recovery spacing, and
-scan-age readiness. The first recovery scan is immediate even at process startup. Its `checkedAt` diagnostic uses the
-selected Temporal implementation and canonical UTC millisecond text. Persisted deadlines and lease expiry remain the
-store's authority, and workflow execution keeps the Context clock chosen by its owner. A wall-clock correction can
-change a reported instant without changing an already-running local grace or scan interval.
+The worker checks for recoverable jobs as soon as it starts. It uses a clock that measures elapsed time for the waits
+between polls, registration renewals, and recovery scans. It also uses elapsed time to decide whether the last scan
+is recent enough for readiness.
+
+The `checkedAt` report uses Temporal to write the scan time as UTC text with millisecond precision. Adjusting the
+wall clock can change that timestamp without changing an interval or grace period already underway. The store
+decides when saved deadlines and leases expire. Workflow code still uses the clock its caller set on the Context.
 
 ## Execution and wake-ups
 
@@ -370,11 +370,12 @@ console.log(JSON.stringify([checked.value, checked.matched, checked.opaqueContro
 ["hello",1,[]]
 ```
 
-The recording owner bounds retained entry count and encoded metadata/completion bytes before publication. The final
-fixture has its own complete byte check, including input and contract identity. Input uses an explicit undefined marker
-when a workflow accepts no JSON value; its archive never silently substitutes null or drops that input. Individual
-application codecs and command callbacks remain trusted code; this does not bound their private allocations. A failed or
-suspended recording is not exported as a complete fixture. The SHA-256 archive detects accidental corruption; it does
+The recorder limits the number of entries it keeps and the bytes used for stored metadata and results. Before
+exporting, it also checks the size of the complete fixture, including its input and contract identity. If the input
+is `undefined`, the archive records that explicitly. It does not replace it with `null` or omit it.
+
+The limits do not cover memory that your codecs or command callbacks allocate themselves. If a recording fails or
+stops while the workflow is suspended, the recorder does not export it as a complete fixture. The SHA-256 archive detects accidental corruption; it does
 not authenticate a sender. Decode does not schedule work or import definitions. Supply the trusted exact definition
 explicitly when checking; a different ID/version rejects before execution.
 

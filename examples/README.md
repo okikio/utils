@@ -1,9 +1,9 @@
 # Run an example before adopting its utility
 
 Each directory contains a complete program and an executable check of its result.
-After the root README's checkout setup, run `mise run prepare -- --kind deps` once.
-Use each example's README for its direct commands. To run all declared checks for
-one host, select `deno`, `node` or `bun`:
+Follow the [checkout setup](../README.md#work-on-the-repository) to install the tools and dependencies.
+Pick an example by the behavior you want to see. Its README tells you what to run and what output confirms it.
+To run the checks available for one JavaScript runtime, select `deno`, `node` or `bun`:
 
 ```sh
 mise run test -- --suite examples --runtime deno
@@ -19,5 +19,5 @@ does not establish that the Deno WebSocket host was tested.
 | [Browser sessions](./sessions/README.md) | Keep real Chromium cookies across actions and close each temporary page. Its browser check is explicit and requires a browser installation. |
 | [WebSocket](./websocket/README.md) | Upgrade a Deno HTTP connection, exchange a greeting, then close it; native clients run on all three hosts. |
 
-These directories are authored, copyable programs. Maintainer logs and generated
-reports are separate from the files a reader needs to run them.
+You can copy the programs in these directories. Follow each README to find the files you need. You do not need
+maintainer logs or generated reports to run the examples.

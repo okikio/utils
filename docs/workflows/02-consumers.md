@@ -1,12 +1,15 @@
 # Read the complete service and worker consumers
 
-The [connected consumer guide](./14-consumers.md) adds the preferred trigger API, process/thread engines, standard
-progress, and durable registered cleanup. Its smaller fixtures complement the full domain scenarios described here.
-
-Use this page to find actual code instead of assembling setup from unrelated fragments. Start with
-[the bottom-up walkthrough](./01-basics.md) for the concepts. Every file below is current executable test code.
+Use this page to find the complete setup for a service that accepts work and a separate worker that runs it. Start with
+[the walkthrough](./01-basics.md) for the concepts or the [smaller import example](./14-consumers.md) to trace a request
+from submission through approval and cleanup. The files below are part of the executable tests.
 Core and Intelligence are the separate applications that inspired these import and research scenarios; neither is a
 dependency you must install for the examples.
+
+To follow one import in source, start at the HTTP route in `service.ts`. It saves the request and returns a reference.
+Then open `core.ts` to see how Parse saves the rows, and `host.ts` to see which worker registers that activity. Finish
+with the container test: it checks the saved job before any worker starts and checks the resolved accounts after a
+replacement finishes.
 
 | File                                                               | What to inspect                                                                                             |
 | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
@@ -38,10 +41,11 @@ workflow API.
 
 ## Keep application ownership visible
 
-The service owns validation, authorization at its HTTP boundary, command keys, and response semantics. The worker owns
-its pool, live resource collection, health listener, signals, and final kill deadline. The adapter borrows the pool and
-owns saved execution state. Activities borrow resources and own their per-attempt cleanup. The deployment owns container
-images, networking, credentials, restarts, and scaling.
+The service checks the input and the caller's permission. It chooses the command key and what the HTTP reply means.
+The worker opens and closes its own pool, resources, and health listener. It also handles process signals and decides
+when to force a stop. The adapter uses the supplied pool to save execution state. Each activity borrows resources
+and releases anything it opened during its attempt. The deployment supplies container images, networking, and
+credentials, and decides when to restart or scale the service.
 
 The application owns business rules that utils cannot infer. These include source immutability, customer corrections,
 mapping revisions, grants, capture identity, publication visibility, and deletion rules. The policies state the chosen

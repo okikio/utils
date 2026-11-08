@@ -4,7 +4,8 @@ A release starts with an explanation of a user-visible change. Sampo turns that 
 changelogs. The Release workflow then tests one Git revision before publishing its ESM artifacts to npm and its
 TypeScript source to JSR. GitHub release notes appear only after both registry jobs succeed.
 
-For example, suppose you fix cancellation in `@okikio/streams`. Add a patch changeset while the change is still in review:
+For example, suppose you fix cancellation in `@okikio/streams`. A changeset is a small file that names the package,
+the version change, and the note for users. Add a patch changeset for this fix while it is still in review:
 
 ```sh
 mise run release -- --operation add --project streams --bump patch --message 'Stop reading when the consumer cancels.'
@@ -43,10 +44,11 @@ mise run release -- --operation version
 mise run check -- --kind versions
 ```
 
-`package.json` owns each package's identity, version, source exports and npm dependency ranges. Sampo owns version
-selection and changelogs. `tools/releases/versions.ts` copies only the version into `deno.jsonc`, preserving comments
-and other authored fields. A name mismatch stops the projection before it writes anything. Deno still owns JSR imports,
-compiler settings and source-publication policy. The two lockfiles describe different resolution graphs.
+Read `package.json` for the package name, version, source exports, and npm dependency ranges. Sampo chooses
+the next version and writes the changelog. `tools/releases/versions.ts` copies that version to `deno.jsonc`
+without changing comments or other fields. If the package names disagree, it stops before writing anything.
+Deno still reads JSR imports, compiler settings, and source publishing rules from its own config. Each lockfile
+records the dependencies its tool resolves.
 
 ## Check the hosted setup without publishing
 

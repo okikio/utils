@@ -1,22 +1,21 @@
 # Verify signed webhook bytes before reading the event
 
-Start with the [complete package example](../../packages/http/webhook/README.md). The sections below continue that
-example.
-
 A webhook is an event notification another service sends as an HTTP request. For a payment event, you must establish
 who sent the message before changing an invoice. The sender signs the original bytes with a secret; the receiver checks
-those bytes, the signature and the message time. Parsing and formatting the JSON before checking would change the input.
+those bytes, the signature and the message time. If you parse the body and convert it back to JSON text first, even a
+change in whitespace can break a valid signature.
 
 This guide supplies both sender and receiver locally. It shows authentication, not a payment system. Delivery may repeat;
-the application still needs a persistent event identity and a repeat-safe business write.
+the application still needs to record the event ID and make sure a repeated delivery cannot apply the payment twice.
+The [package README](../../packages/http/webhook/README.md) also shows how to accept a delivery only once within a
+limited period.
 
 ## Verify a local payment event
 
-Verify local signed bytes before reading the event payload. This program supplies its own local input and uses public
-workspace imports. After `mise run prepare -- --kind deps`, save it as `example.ts` at the checkout root and run
-`mise exec -- deno run example.ts`.
+Sign and verify a local payment event before interpreting its payload. After the [checkout setup](../../README.md#work-on-the-repository),
+save the block as `verify-payment-event.ts` at the checkout root and run `mise exec -- deno run verify-payment-event.ts`.
 
-```ts runnable=complete-task.ts
+```ts runnable=verify-payment-event.ts
 import * as webhook from '@okikio/http/webhook';
 import * as standard from '@okikio/http/webhook/standard';
 // Public demonstration key only. A deployed receiver supplies its own securely stored secret.
@@ -44,8 +43,8 @@ Expected output:
 event-1 payment.received invoice-42
 ```
 
-Compare the output before changing the input. The remaining sections explain the options and limits; the
-[package example](../../packages/http/webhook/README.md) also places this operation among adjacent capabilities.
+The output connects three different identifiers: the event ID `event-1`, the event name `payment.received`,
+and the invoice ID `invoice-42`. Use the event identity for repeat delivery checks, not the invoice ID.
 
 The receiver crosses two separate boundaries. Authentication decides whether these bytes came from an accepted key;
 a replay claim decides whether this event identity has already been admitted. Neither decision commits an invoice:
@@ -80,10 +79,13 @@ For Standard Webhooks v1 the signed input is `id + "." + timestamp + "." + exact
 header syntax and timestamp window, bounds the number of signatures and keys, then verifies HMAC-SHA256 through Web
 Crypto. That is why parsing JSON first is unsafe: changing whitespace changes the signed bytes.
 
-`verifyRequest()` translates body admission failures into rejection codes, but unexpected reader or verifier faults
-reject its promise. Treat `ok: false` as an authentication decision and a thrown failure as a separate operational
-failure. The clone keeps the original body available, but cloning is not free: a stream tee can retain bytes for the
-other reader. The configured byte budget bounds this verification read, not every upstream transport allocation. See the
+`verifyRequest()` returns a rejection code when it refuses a body, such as one that is too large. If the reader
+or verifier fails unexpectedly, its Promise rejects instead. Use `ok: false` to refuse the request. Handle a thrown
+error separately as a problem with reading or checking the request.
+
+The helper reads a clone so the endpoint can read the original after verification. The two bodies share a source,
+which can keep bytes in memory for the reader that has not caught up. The byte limit applies to the verification
+read. It does not limit all memory used by the HTTP connection. See the
 [full contracts](../../packages/http/README.md) for the available codes and options.
 
 ## Build on the example
@@ -95,9 +97,9 @@ before changing domain state. The [request package](../../packages/http/request/
 a budget appropriate to your provider's events.
 
 For an event that starts background work, record its ID together with the application's accepted work, then use your
-chosen [workflow](../../packages/workflow/README.md) to run it. Design the recording and duplicate check to fit your
-persistence owner. Signature checks, timestamp tolerance and key rotation are not a durable replay store; subscriptions,
-delivery retries and delivery history remain application-owned.
+chosen [workflow](../../packages/workflow/README.md) to run it. Choose where to save the ID so you can detect a
+duplicate after a restart. A valid signature and timestamp do not tell you whether you already accepted that ID.
+Your application also keeps the subscriptions, schedules retries, and records deliveries.
 
 ## Inbound webhooks
 

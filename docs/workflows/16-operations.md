@@ -1,8 +1,17 @@
 # 16. Operate and test durable execution
 
-Use the PostgreSQL runtime when accepted work must survive the process that accepted it. This chapter covers the
-operator controls, storage maintenance, capacity measurements, and local failure tests added to that runtime. The
-application still owns its database pool, authorization, worker deployment, log configuration, and business effects.
+An import has stopped moving. First inspect the saved run and its attempts. A paused run, an overdue wait, and a
+failed worker may look the same to the customer, but they call for different actions:
+
+| What you need to do | Start here |
+| --- | --- |
+| Find what the run is waiting on | [Inspect state, waits, and history](#inspect-state-time-progress-and-history). |
+| Stop a run from taking new work while you investigate | [Pause the physical run](#pause-and-resume-a-physical-run). In-flight work can still settle. |
+| Find out if a business write can be repeated | [Recover after a worker stops](./04-recovery.md). Check receipts before requesting repair. |
+| Bring workers back after the database primary failed | [Recover after a PostgreSQL primary fails](#recover-after-a-postgresql-primary-fails). |
+
+These controls use saved PostgreSQL state. Your application still owns the database pool, authorization, worker
+deployment, log configuration, and business effects.
 
 A **slot** is permission to keep one operation active, not a measurement of how much CPU it currently uses. Waiting on
 a network call often uses little CPU, but the operation still holds memory, connections, or a browser. Releasing its
@@ -83,9 +92,9 @@ const history = await inspect.history(ref);
 const queue = await inspect.queue({ scope: authorizedScope });
 ```
 
-Each method uses a read-only, repeatable-read transaction. Its result is internally consistent at that observation;
-separate pages are live observations, not one long database snapshot. Default pages contain at most 25 rows, with an
-explicit maximum of 100. Cursors are tied to their operation, reference, and filters. See the
+Each method reads one consistent view of the database in a read-only, repeatable-read transaction. The next page
+opens a new transaction, so changes between pages can affect what you see. A page contains up to 25 rows by default,
+or up to 100 if you ask for more. To use a cursor, keep the same operation, reference, and filters. See the
 [inspection guide](../postgres/03-inspection.md) for the exact method and cursor contracts.
 
 Run metadata includes creation, material-update, and completion times, current lease and host, control revision, policy
@@ -125,11 +134,13 @@ longer hide an available later job. Recovery also retains the earlier fixes that
 limiting expired-claim and timer candidates. These are specific starvation repairs. They do not implement weighted
 tenant scheduling, rate limiting, or preemption of running code.
 
-Root admission collects the namespace's distinct live families once per quota check, then totals their root reservations
-for the selected policy identity. A completed root with a live child or continuation segment still holds its
-reservation, and several live descendants count as one family. Duplicate submissions keep their existing
-identity/conflict behavior. This avoids repeatedly searching for live members of each retained root. It still aggregates
-on every new root admission; large populations and sustained bursts need workload-specific measurement.
+When the service checks whether it can accept a new root run, it finds the namespace's live families once. It then
+adds up their root reservations for the selected policy. A completed root still holds its reservation while a child
+or continuation segment is live. Several live descendants of one root still count as one family.
+
+This check does not change how the service handles duplicate commands. It avoids searching for live members under
+each retained root, but it still adds up reservations for each new root. Measure that cost with your own run counts
+and request rate.
 
 ## Upgrade the schema deliberately
 

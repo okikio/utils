@@ -4,6 +4,11 @@ Tests describe public behavior and ownership. One authored `node:test` suite, wi
 Deno, Node and Bun wherever its capabilities exist. A host adapter, database or browser is tested in its actual
 execution environment. A passing import or generated bundle does not substitute for those checks.
 
+Choose the check based on what broke. If the CSV parser splits a quoted name into two cells, start with its package
+tests. If the command in a guide no longer prints the shown result, run the documentation suite. If the same import
+works in the checkout and fails after installing the package archive, run the installed-consumer suite. Each check
+puts the same kind of failure in front of a different caller.
+
 ## Put the test beside its contract
 
 Package-local `*.test.ts` files own behavior, edge cases, cancellation and cleanup for that package. Split a large file
@@ -242,11 +247,12 @@ consumer must be outside the source checkout, so ancestor resolution cannot acci
 Archive integrity, resolved JavaScript paths, runtime versions and complete diagnostics are retained under
 `.tmp/artifacts/`. Native package tests never substitute workspace TypeScript for emitted code.
 
-Native source tasks stream complete stdout and stderr to unique logs and write the selected files, real runtime version
-and exit/signal receipt before returning. A five-minute Node default diagnoses stuck tests; an authored case can select
-a justified timeout. CI retains test JSON/log reports and the container drill JSON/log/SQL evidence, on both success and
-failure, for fourteen days. The AST audit recognizes registration calls; native runner results remain the authority for
-which assertions actually executed.
+Each source test task writes standard output and errors to its own logs. Before it returns, the task also records
+which files ran, the runtime version, and the exit code or signal. Node tests time out after five minutes by
+default so a stuck test cannot wait forever. Set a different timeout for a case only when it needs one.
+
+CI keeps test reports, logs, and container SQL dumps for fourteen days, whether the run passes or fails. The
+source audit can see where a test registers. Check the native runner's report to see which assertions actually ran.
 
 ## Exercise meaningful boundaries
 

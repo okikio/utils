@@ -1,8 +1,8 @@
 # Retry, polling, and inspectable protection policies
 
-Use `attempt` to repeat one ordinary operation after an explicitly classified failure. Use `poll` to keep checking for
-work. Use policy values when a service, queue, or workflow must inspect protection rules before choosing their owner.
-These jobs share timing and retry math; they have different completion and ownership rules.
+A read can fail because a service is briefly offline. Use `attempt` when a known temporary failure should lead to
+another try of that read. Use `poll` when the first call succeeds but answers “nothing ready yet.” If a service,
+queue or workflow owns the calls, give it a policy value so it can inspect the rules before running them.
 
 A **retry** calls the operation again after a failure. **Polling** asks repeatedly whether something has become ready.
 A delay between calls gives a temporarily unavailable service time to recover; **backoff** increases that delay over

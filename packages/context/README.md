@@ -1,7 +1,8 @@
 # Context
 
-Give related work one cancellation signal, deadline, clock, and cleanup owner. A context travels alongside an ordinary
-function; the function still returns its own result. Use it for a download, request, local job, or screen lifetime.
+A download has two waits: one for the response and another for its body. If the caller leaves or runs out of time,
+both waits should stop, and anything the download opened should still close. A Context carries the cancellation
+signal, deadline, clock and cleanup for related work. Your function still returns the downloaded text.
 
 For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters keep their native runtime requirements.
 
@@ -41,10 +42,15 @@ The `id` labels this operation in snapshots and diagnostics. It is not a globall
 Reuse an existing request or job ID when you have one. Otherwise choose a useful local label, as this example does.
 The default clock is real time; no clock, registry or global polyfill setup is needed for ordinary work.
 
-`timeout()` returns the child immediately. Its deadline requests cancellation through the signal; cooperative I/O must
-receive that signal. `await using` cancels the child's timer and awaits its registered cleanup when the block ends.
-Disposing the child leaves the request owner open. Deadline expiry requests cancellation but does not independently run
-the owner's cleanup stack.
+`timeout()` returns the child immediately. Two events can happen after that, and each has a different job:
+
+| Event | What the download observes | What happens to cleanup |
+| --- | --- | --- |
+| The deadline arrives while the download is active | The child's signal asks the download to stop. Pass that signal to the I/O so it can respond. | The signal alone does not run the cleanup stack. |
+| Execution leaves the `await using` scope | The child ends and its timer is cancelled. The parent request remains open. | The scope waits for the child's registered cleanup. |
+
+Both rules matter on the slow path: the deadline gives a blocked read a way to stop, and leaving the scope gives its
+owner a way to join cleanup before returning.
 
 ## Choose the operation you need
 
@@ -217,8 +223,9 @@ options and types.
 
 ## Derive a percentage from the same progress
 
-Derived readers retain write authority with their source owner. Dispose the projection when the view closes; it owns its
-upstream subscriptions, and closing the borrowed source alone does not dispose the projection.
+A reader that shows a value derived from another cell cannot change that cell. Only the source owner can write to it.
+Close the derived reader when the view closes so it removes the subscriptions it opened. Closing the source alone
+does not close the derived reader.
 
 Save this example as `display-projection.ts` and run `mise exec -- deno run display-projection.ts` after the checkout setup.
 

@@ -1,12 +1,13 @@
 # Measure the cost of Object.freeze without changing production
 
-This experiment compares generated frozen and plain versions of Result, Collection record/catalog, and Task progress.
-The plain variants remove selected `Object.freeze` calls and deliberately weaken mutation guarantees. Matching
-successful outputs does not make a plain variant a production replacement.
+`Object.freeze()` prevents changes to an object's own properties. This experiment asks what that protection costs in
+Result, Collection record and catalog, and Task progress. It generates a second version of each selected module without
+the freeze calls. Both versions must return the same outputs in the workload, but the plain versions deliberately allow
+changes that production code prevents.
 
-Authored workload code stays in `freeze.bench.ts`; orchestration stays in `tools/bench/freeze/`. Generated modules,
-inventories, verification receipts, samples, and summaries belong under `.tmp/artifacts/bench/freeze/` and are not
-tracked.
+Read `freeze.bench.ts` for the code the benchmark measures. The commands in `tools/bench/freeze/` prepare and run
+the comparison. They keep the generated copies, checks, samples, and summaries under `.tmp/artifacts/bench/freeze/`,
+outside Git.
 
 ## Prepare and check one source checkpoint
 

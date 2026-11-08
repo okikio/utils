@@ -1,10 +1,12 @@
 # Set up collection and shut it down
 
-This complete Node service uses the real LogTape functions. `open()` owns the telemetry providers. `configure()` owns
-logging policy. Neither function starts a workflow worker.
+Send one greeting request and check two destinations: the caller receives the greeting, and a collector can receive
+the diagnostic records. The application uses `open()` to start and own the telemetry providers, and LogTape’s
+`configure()` to choose where its logs go. Neither call starts a workflow worker.
 
-A **collector** is a separate service that receives diagnostic records and forwards or stores them. OTLP is the
-OpenTelemetry wire format used for that delivery. The **endpoint** is its receiving URL; it is not the greeting API URL.
+A **collector** is a separate service that receives diagnostic records and forwards or stores them. OpenTelemetry
+Protocol (OTLP) defines how the application sends those records. The collector's **endpoint** is its receiving URL;
+it is separate from the greeting API URL.
 LogTape is the application's logging API, and the configured **sink** is the callback that forwards its records.
 
 One request therefore follows two paths: the HTTP response goes back to the caller, while diagnostic records go to the
@@ -36,9 +38,12 @@ OTEL_URL=http://127.0.0.1:4318 mise exec -- deno run --allow-env --allow-net tel
 
 For a native Node deployment, first build and install the npm projection as described in the
 [packaging guide](../maintenance/02-packaging.md); Node does not resolve Deno workspace imports by itself.
-In a second terminal, `curl http://127.0.0.1:3000` prints `hello`. Ctrl-C stops admission, joins HTTP responses, resets
-LogTape, and closes the collection. Inspect your collector for `app.greet` and `Greeting requested` to test export;
-a successful curl alone only proves the application response. Sampling is 10%, so not every request has a trace.
+In a second terminal, `curl http://127.0.0.1:3000` sends a request to the local service and prints `hello`.
+That confirms the greeting, but does not check delivery to the collector. Look for the log `Greeting requested` in
+your collector. The example keeps about 10% of traces, so one request might not produce an `app.greet` trace.
+
+Press Ctrl+C in the service terminal when finished. The service stops accepting requests, waits for active responses,
+resets LogTape, and closes the collection.
 
 ```ts support=telemetry-service.ts
 import { createServer } from 'node:http';
@@ -118,9 +123,10 @@ The [container service](../../tests/workflows/scenarios/service.ts) and
 bindings, policy selection, readiness, drain, and cleanup. Their telemetry setup is visible at the top of each file.
 These are test consumers of utils. They do not change Core or Intelligence.
 
-On worker shutdown, stop admission and await worker drain first. Then close resources and the database. Reset LogTape
-after those owners finish, so their cleanup logs still have a destination. Dispose the collection last. If the worker is
-killed, none of that cleanup is guaranteed. PostgreSQL's saved progress controls replacement work.
+To shut down a worker, stop taking new jobs and wait for work already in progress to finish. Then close
+the resources and database. Reset LogTape afterward so the cleanup messages still have somewhere to go. Close the
+telemetry collection last. If the process is killed, those steps may not run. The replacement worker uses the
+progress saved in PostgreSQL.
 
 ## Choose what to collect
 

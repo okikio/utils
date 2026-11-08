@@ -1,8 +1,8 @@
 # PostgreSQL queue contention
 
-This experiment measures the cost of serializing terminal writes within a queue namespace. It does not claim the new
-implementation is faster. The default workload creates 200 jobs, completes them with eight concurrent callers, and
-retains three fresh Node-process reports.
+When several callers finish jobs in the same named queue, their completion transactions can wait on the same database
+lock. This experiment measures that wait together with the rest of each completion. By default it creates 200 jobs,
+uses eight callers, and repeats the batch in three fresh Node processes.
 
 ## Run
 
@@ -27,9 +27,9 @@ mise run bench -- \
   --samples 1
 ```
 
-Use new output directories for every invocation. The controller refuses to overwrite existing evidence. `--source-root`
-selects the actual queue, Context, Schema and polyfill modules from that checkout; Node resolves their dependencies
-through that checkout's package links. Install its frozen dependencies first. The parent source is never modified. The
+Use a new output directory each time. The command refuses to overwrite an earlier report. With `--source-root`,
+the benchmark uses the queue, Context, Schema, and polyfill modules from the checkout you name. Node also loads their
+dependencies from that checkout. Install its frozen dependencies first. The parent source is never modified. The
 same harness and Postgres.js driver from the current checkout serve both versions.
 
 `mise run bench -- --operation queue -- --help` lists the controls. Jobs are bounded to 1–10,000, completion concurrency to 1–64 and no

@@ -1,8 +1,8 @@
 # Compare compiled HTTP applications
 
-Use this comparison when deciding whether route dispatch or application policy needs less CPU work. The same account API
-runs through Utils, Hono, Elysia and Vixeny. Each implementation must satisfy authored request and response literals
-before Mitata records a number.
+Use this comparison to see where CPU time goes: choosing a route for a request, or running the application rules after
+that choice. The same account API runs through Utils, Hono, Elysia and Vixeny. Before timing, the check sends fixed
+requests to each implementation and compares the replies with the expected status, headers and body.
 
 Older local timings and flamegraphs are historical evidence, not prerequisites
 for this guide. Run the tracked fixtures below to compare the current source;
@@ -102,7 +102,7 @@ bill idle gaps to a JavaScript frame; check the runtime's idle control before in
 CPU. All profiled elapsed values are diagnostic. Establish throughput changes with fresh unprofiled comparisons after
 correctness passes.
 
-The graph renderer retains raw CPU profiles and creates SVG flamegraphs plus JSON function summaries. A wide parent
-includes its descendants; do not sum inclusive percentages as independent costs. Use the individual vector profiles to
-distinguish routing, validation, body admission, response construction and cleanup rather than attributing an entire API
-batch to the router.
+The renderer keeps the raw profiles and writes SVG flame graphs and JSON function summaries. A wide parent
+frame includes time spent in the functions it calls. Adding those percentages again would count the same
+work twice. Inspect a request's profile to see how much work goes into choosing a route, checking input,
+accepting the body, building a response, or closing resources.

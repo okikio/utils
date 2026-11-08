@@ -1,9 +1,8 @@
 # `@okikio/server/service`
 
-A route can compile successfully as TypeScript while still be missing its handler, validation rule or database provider
-at startup. This package joins endpoint descriptions with their concrete implementations, checks the resulting service
-and creates a Fetch runtime for it. You gain one place to see what the API accepts, what it can return and which live
-resources its requests may use.
+Imagine declaring that `POST /notes` takes a title, but forgetting to connect the function that saves it. The
+description alone cannot answer a request. A service joins the route description, the function that answers it, and
+the live resources the function needs. The service compiler checks those links before you send the first request.
 
 ```text
 Endpoint + response descriptions -> service.define

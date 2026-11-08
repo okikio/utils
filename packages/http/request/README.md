@@ -9,9 +9,9 @@ A `Request` is the incoming HTTP message. Its URL and headers are text; a JSON b
 after it has been read and decoded. That decoded value still needs field validation. For example, valid JSON can contain
 `{ "age": "many" }` even when the application requires a number.
 
-A request body is a stream that is normally read once. These helpers share one bounded byte read for the same Request,
-then decode it for the selected format. They deliberately buffer the accepted body; use a separately owned streaming
-upload path when the whole file must not be retained in memory.
+You can normally read a request body only once. If you call these helpers on the same Request, they share that
+read and turn the bytes into the format you asked for. They keep the body in memory up to the allowed size.
+For a large upload that must stay out of memory, read the stream yourself and close it when you finish.
 
 ```text
 Repeated query: tag=a&tag=b -> { tag: [a, b] }
@@ -57,13 +57,15 @@ abc
 The query input contains two `tag` fields, and the first output proves that neither was lost. The POST body `abc`
 contains three bytes. `readBody()` accepts those bytes with a budget of three, and `TextDecoder` turns the returned byte
 array back into `abc`. Adding another ASCII byte would exceed this budget. The first read owns the request body. Later
-`readBody()`, `parseJson()` or `parseForm()` calls on the same Request reuse its bounded byte result and receive
-independent byte copies. A later smaller byte limit still rejects oversized data.
+`readBody()`, `parseJson()` or `parseForm()` calls on the same Request start from a copy of those bytes. The parsing
+functions then return decoded values. A later smaller limit still rejects oversized data. Choose the limit before the first read starts: if that
+read consumes the stream and rejects on overflow, a larger limit on the same Request cannot restart it.
 
 ## Cancellation and cleanup
 
 Abort and overflow reject the read promptly and release its stream lock. Underlying source cancellation can continue,
-for example when an application supplied one branch of a tee. `await bodyCleanup(request)` observes the eventual
+for example when an application splits a stream with `tee()` and another reader still uses the other branch.
+`await bodyCleanup(request)` observes the eventual
 `completed`, `cancelled`, `released` or `failed` outcome. A failed outcome retains its exact error without replacing the
 caller's primary read failure. Await that outcome only when the source owner is ready to join cleanup; waiting for a tee
 branch can require its sibling owner to finish first.

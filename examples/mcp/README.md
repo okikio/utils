@@ -8,7 +8,7 @@ This check is an ordinary client, so it needs no model.
 
 The client first discovers available tools, then calls one with checked input.
 This example exposes `greet` through Utils HTTP routing and MCP SDK 2.4.0. The SDK
-owns protocol messages; Utils owns the outer route and its host/origin admission.
+reads and writes MCP messages. Before the SDK sees a request, the Utils route checks its Host and Origin headers.
 
 ## Run the checked example
 
@@ -30,6 +30,10 @@ closes owned resources. It needs no AI service or credentials.
 invalid true
 blocked 403 403
 ```
+
+Read the first two lines as separate checkpoints: the client first discovers the name `greet`, then receives a text
+result from calling it. `invalid true` checks argument rejection, and the two `403` codes check that the outer HTTP
+route rejects an unacceptable host and origin.
 
 `start.ts` listens at `http://localhost:8000/mcp`. Press Ctrl+C to close it.
 This is a development listener, not an authentication or deployment policy.

@@ -1,11 +1,11 @@
 # 12 — Observe saved progress
 
-A customer starts an import and sees that 200 rows have been written. The service can restart and still show that
-report. The report does not prove that the whole import succeeded. The customer gets completion from the run's terminal
-result.
+A customer starts an import and sees a report that 200 rows have been written. The service can restart and still show
+that report. To tell the customer whether the whole import succeeded, the service reads the run's final outcome, called
+its terminal result.
 
-Use `task.ProgressEffect` for standard reports without keys. Declare it on the activity; `workflow.serve()` saves it
-automatically. Local Tasks recognize it automatically too. See
+Use `task.ProgressEffect` to report counts and messages in the standard format. Emit it without a key. Declare it on
+the activity so `workflow.serve()` can save its reports. Local Tasks recognize it automatically too. See
 [connected consumers](./14-consumers.md#report-progress-without-making-it-the-result) for counters, application data,
 child reports, and replay limits.
 
@@ -177,7 +177,8 @@ try {
 }
 ```
 
-Expected application output:
+Check both lines. `Result` comes from waiting for the import to finish. `Reopened progress` comes from reading the
+last saved report after the original store view has closed:
 
 ```text
 Result: 2
@@ -303,11 +304,13 @@ parallel jobs. `attempt` identifies the attempt that saved a report. A retry can
 parent run's watch reads its own activity jobs by default. Set `{ children: true }` to include child runs. Independently
 submitted roots retain separate references and feeds.
 
-If a worker dies after saving a report, that report remains readable. The retry policy still decides whether to retry or
-block. A new attempt can replace the snapshot. Progress is not a business checkpoint. To avoid repeating a database
-write, save the business checkpoint with the write in the application's transaction. To avoid duplicate external
-requests, use the provider's stable request key or an outbox. Saving a progress message alone provides neither
-guarantee.
+If a worker dies after saving a report, the client can still read that report. The saved policy decides whether
+another worker may try again or the run must block. A new attempt can replace the report.
+
+A report says what the worker observed, not which writes the next worker should skip. If the next worker must
+recognize a saved database write, record that fact in the same transaction as the write. If you send work to
+another system, use the provider's key for repeat requests or an outbox that records the request for delivery.
+Saving a progress message cannot provide either safeguard.
 
 Local Tasks use `progress`, `updates`, and `done` as shown in [Task progress](../task/03-progress.md). A local activity
 can instead receive an `effect.observe()` recipient through its existing effect binding. Neither local mechanism

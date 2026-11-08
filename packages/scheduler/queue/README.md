@@ -144,10 +144,13 @@ deduplicating the item cannot by itself prevent duplicate external writes made d
 
 ## Recover an item through its current claim
 
-Start with FIFO convenience for a small local producer, then use explicit claims for multiple executors, priority or
-expiry recovery. Renewal extends an attempt; completion must present the exact live claim. Expired claims can be
-recovered and stale owners cannot replace the result. memory() loses all state when the process exits. A storage adapter
-must make admission, claiming and fenced completion atomic for durable or distributed work.
+For a small local queue, start with the first-in, first-out API. Use claims when several workers share the queue,
+jobs have priorities, or a replacement must pick up work after a claim expires. A renewal gives the current attempt
+more time. To complete the job, the worker must still hold the exact claim; a replaced worker cannot overwrite the result.
+
+`memory()` loses the queue when its process stops. If several processes share a storage adapter, the adapter must
+make each add, claim, and completion an indivisible change. When it saves a completion, it must check that the claim
+is still current as part of the same change.
 
 ## Recover the invoice and reject the old completion
 

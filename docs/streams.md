@@ -4,8 +4,8 @@ A log export arrives in chunks while its destination accepts one batch at a time
 across chunk boundaries and wait for the destination before retaining more data. Streams supplies those small operations
 so an ordinary async loop can connect them.
 
-Streaming avoids whole-input materialization only when transforms also stay incremental. Each item and batch can still
-be large; bound bytes as well as item counts where required.
+Reading one piece at a time only saves memory if later steps avoid keeping every piece. A batch of ten items can still
+be large if one item is a large file. Set a byte limit as well as an item limit when the destination needs both.
 
 A producer supplies values; a consumer asks for and uses them. Network chunks
 are arbitrary pieces of bytes, not complete lines, characters or JSON records.
@@ -23,6 +23,9 @@ request next -> decode one record -> await destination write -> request next
        producer buffers + unfinished record + current write remain owned
 ```
 
+Read left to right. The next request waits for the current write; the source and decoder can still hold their own
+buffers.
+
 If the consumer stops early, close or cancel the reader under its ownership
 policy. Cancelling a pending read can finish before the source's cleanup does;
 join the separately exposed cleanup when your operation owns that obligation.
@@ -32,10 +35,10 @@ join the separately exposed cleanup when your operation owns that obligation.
 Three records become two bounded groups. A separate byte stream becomes two text lines. These small inputs let you
 inspect the returned values before introducing a network source or a destination that applies backpressure.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
-`mise exec -- deno run example.ts`.
+Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `group-records.ts` at the checkout root and use
+`mise exec -- deno run group-records.ts`.
 
-```ts runnable=package-task.ts
+```ts runnable=group-records.ts
 import * as streams from '@okikio/streams';
 
 // Materializing is deliberate here: these fixtures contain only three records.
@@ -218,9 +221,9 @@ enclosing owner decide when to join the source without keeping its reader lock h
 
 ## Ownership
 
-This package does not own process lifecycle, retries, persistence, durable jobs, or domain-specific codecs.
-`@okikio/worker/process` owns child process lifecycle. `@okikio/scheduler/queue` owns claimed work. Product-specific
-durable representations belong in product packages.
+Use Streams to move data while the reader is active. Use `@okikio/worker/process` to start and stop a child
+process, and `@okikio/scheduler/queue` to claim queued work. Choose how your application saves its own data,
+retries work, or converts values between formats.
 
 ## Bound failures
 

@@ -1,8 +1,8 @@
-# Record a usage fact through a responsible recipient
+# Record how many bytes a download used
 
-A download accepts 2,048 bytes. Recording that usage should identify the measured quantity, its unit, the time, and the
-logical download. A supplied recipient accepts responsibility for the record and decides how to store or aggregate it.
-The meter keeps that handoff consistent without choosing a billing backend.
+A download accepts 2,048 bytes. To keep a useful record, your code needs to say what it measured, when it measured it,
+and which download it belongs to. A **meter** names the quantity and its unit. Your code supplies a recipient that
+accepts each reading and decides how to keep or combine it.
 
 Meter supports accounting and audit facts. It is not a runtime metrics exporter. Dropping an operational metric may be
 acceptable; dropping a required usage record can change billing or audit outcomes.
@@ -23,10 +23,10 @@ Define a byte counter, attach a recipient, and record one 2,048-byte download. B
 from the returned occurrence and the other from the recipient that accepted it. The array is local evidence of
 acceptance.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
-`mise exec -- deno run example.ts`.
+Run from this checkout after `mise run prepare -- --kind deps`. Save the block as `download-usage.ts` at the checkout
+root and run `mise exec -- deno run download-usage.ts`.
 
-```ts runnable=package-task.ts
+```ts runnable=download-usage.ts
 import * as context from '@okikio/context';
 import * as effect from '@okikio/capability/effect';
 import * as meter from '@okikio/capability/effect/meter';
@@ -43,7 +43,7 @@ const accepted: number[] = [];
 const ctx = effect.scope(owner, {
 	effects: [meter.effect(Bytes)],
 	emitter: {
-		/** Accept the checked fact here; this Map is not a billing ledger. */
+		/** Keep the accepted number in this demo's array. A restart loses it. */
 		async emit(_ctx, occurrence) {
 			accepted.push((await schema.parse(MeterReadingSchema, occurrence.value)).value);
 		},
@@ -124,6 +124,8 @@ The recording operation returns `Promise<EffectOccurrence>`. The sink receives t
 to acknowledge it. Here the application keeps accepted keys and readings in a Map. Repeating a key replaces the same
 local entry; it does not add a second reading.
 
+Save this separate program as `accepted-readings.ts` and run `mise exec -- deno run accepted-readings.ts`.
+
 ```ts runnable=accepted-readings.ts
 import * as context from '@okikio/context';
 import * as effect from '@okikio/capability/effect';
@@ -158,15 +160,16 @@ Expected output:
 1 2048
 ```
 
-The meter owns identity and reading validation. The emitter owns acceptance. If the emitter throws, `record()` rejects;
-the caller must decide whether to retry. A durable emitter must commit its key and reading atomically before resolving.
-The Map above loses its contents when the process exits and establishes no billing or warehouse delivery guarantee.
-Disposing the context releases its registered cleanup; it cannot roll back a fact already accepted by an external sink.
+The meter names the measurement and checks the reading. The emitter decides whether it can accept that reading.
+If it throws, `record()` rejects, and you decide whether to try again. An emitter that saves readings must save
+the key and reading together before it returns. The Map in this example loses both when the process exits.
+It does not charge an account or deliver data to a warehouse. Closing the Context runs cleanup, but it does not
+undo a reading an external service already accepted.
 
 ## Catalogs
 
-Use `catalog()`, `select()`, and `compose()` when several meters are declared as one capability surface. These
-operations reuse `@okikio/collection/catalog` semantics; they do not start a sink.
+Use `catalog()`, `select()`, and `compose()` to list, choose, and combine named meters. They use the same rules
+as `@okikio/collection/catalog`. Call them without starting a service to accept measurements.
 
 ```ts
 const Meters = meter.catalog('media', {

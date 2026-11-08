@@ -7,7 +7,8 @@ opening an unlimited number of resources.
 For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters keep their native runtime requirements.
 
 A **lease** is a temporary loan. The pool owns the underlying value; the caller owns the lease and returns it after use.
-This prevents two unrelated callers from accidentally using the same value at the same time.
+For example, if a connection can only run one transaction at a time, the next caller waits until the current caller
+returns its lease. The caller returns the lease rather than closing the connection, so the pool can lend it again.
 
 ```text
 Pool owns at most 2 connections
@@ -162,16 +163,19 @@ at the end of that block. `await using connections` closes retained values at th
 | `Pool<Value>`          | `acquire(ctx): Promise<Lease<Value>>`, `stats()`, and `drain(): Promise<void>`.                      |
 | `Lease<Value>`         | `value`, `acquiredAt`, `invalid`, and `invalidate(reason)`, plus async disposal.                     |
 
-The pool keeps idle values, current leases, creation/closing transitions, and a FIFO waiter list. Acquisition first
-tries an idle value, checks it if configured, and creates another value only when the total owned count permits it.
-Lease disposal returns a healthy value to idle or closes an invalid value. A borrower should call `invalidate()` after a
-failure only when that failure makes the underlying connection unsafe to reuse; an ordinary missing database row does
-not necessarily mean a broken connection. The [public source contracts](./mod.ts) explains optional age and wait limits.
+When you borrow from the pool, it tries an idle value first and runs a health check if you configured one. If it needs
+to create a value, it does so only when the pool has room. If callers have to wait, the pool wakes them in the order
+they joined the wait list. A caller that wakes tries to borrow again.
 
-`drain()` stops admission and waits for idle-value cleanup as well as active leases, creation and health checks.
-Concurrent callers join the same shutdown; a lifecycle observer may request drain again without restarting it. The pool
-attempts every scheduled close even when one fails. Failed provider closes are reported to their immediate caller and
-retained for drain and disposal, so shutdown cannot report successful cleanup after an earlier retirement failed.
+When you release the lease, the pool can lend a healthy value again. It closes an invalid value instead. Call
+`invalidate()` if a failure makes the value unsafe to reuse. For example, a missing database row does not by itself
+mean the connection is broken. The [public source](./mod.ts) describes the optional age and wait limits.
+
+`drain()` stops new borrows. It waits for current borrowers to release their leases and for pending creation,
+health checks, and cleanup to finish. If several callers request a drain, they wait for the same shutdown.
+
+The pool tries every scheduled close even if one fails. It reports a close error to the caller and keeps it for
+`drain()` and disposal. A later shutdown therefore cannot report successful cleanup after an earlier close failed.
 `maintain()` groups the failures from that maintenance pass in an `AggregateError`, preserving each original reason,
 including `undefined`.
 

@@ -13,9 +13,8 @@ success value or a failure value.
 This separation keeps `@okikio/result` free of schemas, catalogs, and transport behavior. A result can therefore contain
 a failure occurrence, a validation problem, a string, or another exact reason type.
 
-The wrapper is shallowly immutable. `ok()` and `fail()` freeze the discriminated result object, but they borrow the
-supplied `value` or `failure`. They do not deep-freeze caller-owned objects, functions, collections, or errors. If a
-payload must itself be immutable, its producer owns that contract.
+`ok()` and `fail()` freeze the outer result object. If you pass in a contact object, the result still holds the same
+contact object, and its fields can still change. Copy or freeze that value separately if the caller needs a snapshot.
 
 ## Transform or provide a fallback
 
@@ -53,13 +52,13 @@ separate also matters when the result contains a function: `getOr()` returns tha
 The manual equivalent is simply `value.ok ? value.value : fallback`, or the same branch with `fallback()` when lazy
 creation is useful. The utility does not guess whether a function is data or a callback.
 
-`unwrap()` is intentionally the sharp operation: it returns the success value or throws the stored failure. Use it only
-when the surrounding control flow already treats failure as exceptional.
+`unwrap()` returns the success value or throws the stored failure. Use it where the caller already expects an exception.
+If a missing value is a normal outcome, keep the result and choose how to display it.
 
 ## Keep expected validation failure in a branch
 
-Import adapters validate input before admitting provider work. A schema owns valid values; Result lets the caller choose
-an explicit rejection branch without turning every invalid value into an unexpected fault.
+A server can check its configured port before opening a listener. Save the example as `validated-port.ts` and run
+`mise exec -- deno run validated-port.ts`. The program prints what it would do for each setting; it opens no port.
 
 ```ts runnable=validated-port.ts
 import * as result from '@okikio/result';
@@ -104,17 +103,17 @@ additional mechanisms when the application needs them.
 | `match()` / `unwrap()`    | switch on the discriminant and repeat narrowing/throwing behavior manually | typed branch handling without casts                                |
 | `getOr()` / `getOrElse()` | branch explicitly between a value fallback and a lazy fallback factory     | function-valued results are never confused with fallback factories |
 
-`@okikio/result` is a convenience layer, not a hidden runtime. You can reproduce its core mechanics with a discriminated
-union such as { ok: true, value } | { ok: false, failure }.
+You can define the two cases yourself: `{ ok: true, value }` for success and `{ ok: false, failure }` for an
+expected failure. Branch on `ok` to tell TypeScript which field is present.
 
 The utility supplies the tiny constructors, guards, matching, unwrap, and fallback operations without adding schema or
 transport semantics.
 
 ## Runtime guard
 
-`isOk()` and `isFailure()` are lightweight discriminant guards for a typed `Result<Value, Reason>`. They make
-branch-local narrowing convenient; they are not validators for arbitrary unknown input. If an untyped transport or
-callback can produce unknown values, validate that outer contract before treating the value as a `Result`.
+Use `isOk()` and `isFailure()` when you already have a typed `Result<Value, Reason>`. Inside each branch,
+TypeScript knows which field you can read. For data from an untyped callback or another service, check the
+shape and contents before treating it as a Result.
 
 ## Source guide
 

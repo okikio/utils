@@ -1,20 +1,19 @@
 # Separate an API contract from its live host
 
-A manual server validates request input, authorizes the call, acquires dependencies, calls business code, validates its
-result, and writes an HTTP response. Keeping declaration, binding, compilation, and serving separate makes each owner
-visible.
+A web server answers requests. A health check might ask only whether the program is responding. A save request
+may also need to check the submitted data, decide who is allowed to write, and save a record before it can answer.
 
-A compiled service does not deploy itself. The application owns listeners, authentication policy, live resources,
-logging configuration, readiness, and shutdown.
+Start by calling a small request handler directly. When several routes share rules or dependencies, you can describe
+their contracts separately from the functions that carry them out. Your application still decides how to accept network
+connections, check access, and shut down.
 
 ## Answer a health request without opening a port
 
 Create a Fetch handler and call it with a local Request. The returned Response demonstrates the health route without a
 listener, credentials, or network. Later examples add a checked service contract when the application needs one.
 
-From the experimental Utils checkout, run `mise trust`, `mise install`, and `mise run prepare -- --kind deps` at the repository root. Save each named program there and run `mise exec -- deno run <filename>.ts`, replacing `<filename>` with the name shown. These examples use workspace exports, not an assumed published registry release.
-
-Save `package-task.ts` and run `mise exec -- deno run package-task.ts`.
+After the [checkout setup](../../README.md#work-on-the-repository), save the block as `package-task.ts` at the checkout
+root and run `mise exec -- deno run package-task.ts`.
 
 ```ts runnable=package-task.ts
 import * as http from '@okikio/server/http';
@@ -38,12 +37,15 @@ Expected output:
 nosniff
 ```
 
+The first line confirms that the route answered and its body reported health. The second comes from middleware, which
+ran around the route and added a header. No network request was needed to check either result.
+
 ## Follow a contract into a live request handler
 
 Static definitions are import-safe. They do not read the environment, start a listener, configure logging, open a
 database, or create a provider client.
 
-A composition root follows this sequence:
+The application's startup code, sometimes called the composition root, puts the service together:
 
 ```text
 import definitions and implementations
@@ -54,8 +56,8 @@ import definitions and implementations
   -> dispose the runtime
 ```
 
-`service.compile()` verifies the imported service graph and derives its route, resource, response, problem, and policy
-plans.
+`service.compile()` checks that each route has the right handler, that its dependencies can be supplied, and that its
+allowed answers are declared. It prepares those lookups before the first request arrives.
 
 `service.create()` creates a resource owner and a framework-neutral Fetch runtime for a compiled service. The runtime
 exposes its exact routes plus a native `Request -> Response` entry point. It does not import Hono.
@@ -123,14 +125,14 @@ namespaces with `@okikio/http/problem.url()`.
 
 ## Observability remains host policy
 
-Service and Gateway can declare import-safe observer definitions. Their runtimes emit lifecycle metadata but do not
-configure a logging backend. Applications can bind those observers directly or use `@okikio/telemetry/server` to
-translate them into portable telemetry records.
+Service and Gateway can report events such as the start or end of a request. Importing an observer definition does
+not start reporting. Your application attaches an observer when it starts the server or uses
+`@okikio/telemetry/server` to turn those events into records for its reporting system.
 
 For a telemetry-bound host, `telemetry.create(reporter, { fields })` creates the reporting scope, and `serverTelemetry.service(Diagnostics, scope)` creates the observer handler passed in `service.create(..., { observers })`. Here the executable supplies the reporter, deployment fields and imported observer definition. Those values are not discovered by the service. The [telemetry Server adapter](../../packages/telemetry/README.md) owns its complete integration example.
 
-This preserves the same ownership rule as the listener: reusable server code owns HTTP lifecycle semantics; the
-executable host owns logging, tracing, redaction, exporters, and vendor configuration.
+The server decides when to report an HTTP event. Your application decides what to log, what to remove before
+sending it, and where to send the logs and traces.
 
 ## HTTP relationship
 

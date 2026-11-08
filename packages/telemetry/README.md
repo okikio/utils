@@ -324,11 +324,14 @@ output.report(telemetry.event({ name: 'import.finished', fields: { rows: 12 } })
 await output.flush();
 ```
 
-`report` returns after admission. `maximumBytes` limits each projected line; `maximumQueuedBytes` counts exact UTF-8
-bytes, including LF, across the active write and waiting lines. It excludes caller Events, temporary projection memory,
-JavaScript string overhead and the sink's own buffers. Stats expose these charged bytes and records, dropped lines and
-sink-error count. JSON redaction is the same as the direct reporter, before queue admission. Raw Events and live Errors
-are not retained in this queue.
+`report` applies the queue limits and overflow policy, then returns without waiting for the destination to write.
+`maximumBytes` limits one JSON line. `maximumQueuedBytes` counts the UTF-8 bytes of the line being written and all waiting lines,
+including each newline. The count excludes the original events, temporary copies, JavaScript string overhead, and the
+destination's buffers.
+
+Read the stats for the counted bytes and lines, dropped lines, and destination errors. Before the reporter queues a line, it masks
+recognized sensitive fields and applies your text redactor, using the same rules as the direct reporter. It does not
+keep the original events or errors.
 
 `drop-newest` discards incoming lines at capacity. `drop-oldest` evicts waiting lines in order, never the active write;
 when the active write prevents admission, it discards the incoming line. A line larger than the total byte budget is

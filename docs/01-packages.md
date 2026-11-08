@@ -11,9 +11,10 @@ whole workspace:
 | Save work that can recover after a worker exits | [Workflow](./workflows/01-basics.md) |
 | Choose another capability | Use the package and guide tables below. |
 
-The workspace has 27 packages, with related operations available at focused subpaths. Each package README gives its
-entry task; guides explain larger workflows and exact limits. Numbered files help navigation, rather than requiring
-a suite-wide reading order. Historical design records retain their original snapshot and are not current API authority.
+This checkout has 27 packages. A subpath is the part of an import after the package name. For example, install
+`@okikio/format` and import `@okikio/format/csv` to use just its CSV functions. The table shows those suffixes in the
+second column. Start with the package README for a runnable example, then follow a guide when you need a larger task
+or an exact limit. The numbers help you find pages; you do not need to read them in order.
 
 ## Consolidated package map
 
@@ -75,8 +76,8 @@ The capability guide table below keeps the detailed chapters accessible after th
 | [worker](../packages/worker/thread/README.md)               | [Guide](./worker.md)                     | Call code in another execution environment                                  |
 | [workflow](../packages/workflow/README.md)                  | [Guide](./workflows/README.md)           | Follow service admission, saved work, workers, and crash recovery.          |
 
-The workflow reading path additionally connects service admission, worker binding, SQL receipts, crash recovery, and
-complete application examples. Start at [workflows](./workflows/README.md).
+Start at [workflows](./workflows/README.md) to see a service accept a job and a worker pick it up. The examples show
+how a saved receipt tells a replacement worker which write already finished before a crash.
 
 Use [telemetry design](./telemetry/03-design.md) to understand event reporting, tracing, metrics, and profiling. This
 index is for readers. CI does not enforce a separate documentation coverage matrix.

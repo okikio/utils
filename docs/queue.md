@@ -377,7 +377,8 @@ producer adds work
   -> queue wakes observer on terminal state
 ```
 
-`result()` waits for terminal state. `result()` does not claim ownership.
+`result()` waits until the item finishes, fails, or is cancelled. It does not claim the item or give the caller
+permission to run it.
 
 The matching code looks like this:
 

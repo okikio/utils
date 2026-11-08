@@ -1,19 +1,18 @@
 # Save workflow progress beside business state
 
-A manual durable queue inserts accepted work in SQL, selects ready jobs, records progress, and detects abandoned
-attempts. A receipt committed with a business write lets a replacement distinguish completed work from work it still
-owes.
-
-The application owns the Postgres.js pool and domain tables. The adapter owns utils_workflow tables. A saved step cannot
-make an unrelated remote service safe to call twice.
-
-The transaction operations below connect job acceptance to application writes. The
-[Storage README](../../packages/storage/README.md) distinguishes snapshots, queues, and workflow history.
+Suppose someone submits a note, then the worker stops before the site can show “Saved.” Storing the accepted job in
+PostgreSQL gives a replacement worker something to pick up. Saving a receipt with the note lets that worker tell
+whether it still needs to write the note.
 
 A **transaction** commits several SQL changes together or rolls all of them back. A **receipt** records the answer to
 one logical operation inside that same transaction. If the client loses the commit reply, it cannot tell from the
 network error whether the transaction succeeded. Reading the original receipt lets a later attempt reuse the committed
 answer instead of blindly repeating the business write.
+
+The application supplies the Postgres.js connection pool and owns the tables that hold its notes. The adapter uses
+that pool and manages its own `utils_workflow` tables for jobs and results. Those tables cannot make an unrelated
+remote service safe to call twice. The [Storage README](../../packages/storage/README.md) compares the available
+stores if you only need to save a draft or keep a queue.
 
 ## Accept and save one note, then reopen the result
 
@@ -217,11 +216,13 @@ the same run. The worker later saves the note and its receipt in another transac
 before writing: when a replacement retries after that transaction committed, it returns the saved receipt rather than
 inserting again. The receipt belongs to that logical activity job and key, not to every note with the same title.
 
-Closing a store view and reopening it reads saved state without rerunning the activity. This program demonstrates
-acceptance deduplication and owner reconstruction; it deliberately does not kill the process between write and result
-publication. The [recovery suite](../../tests/workflows/recovery.test.ts) exercises that distinct crash window. Repeating
-this script while the same command/result are retained reattaches to the same run. After pruning ends deduplication,
-new acceptance can write again: production domain keys or retention policy must protect the intended business lifetime.
+Close the store view and open it again to read the saved result without running the activity again. If you repeat the
+script while PostgreSQL still holds the command and result, the client attaches to the same run. If cleanup removes
+the records that identify the original command, the client can accept it again and another worker can write again.
+Choose an application key or keep those records for as long as a repeat request must reuse the first write.
+
+This program keeps the process alive between the write and the result. The
+[recovery suite](../../tests/workflows/recovery.test.ts) stops the process in that window.
 
 | Failure point | What remains | Recovery |
 | --- | --- | --- |
@@ -261,9 +262,8 @@ contracts, and remote-request safety.
 ## Run and maintain this profile
 
 Run `mise run test -- --suite postgres` with `UTILS_TEST_DATABASE_URL` selecting a disposable PostgreSQL database. Run
-`mise run test -- --suite containers` for Docker deployment cases. CI uses pinned PostgreSQL 18.3 and Postgres.js 4.0.0. The finer
-cases use the same host TypeScript under Node and Deno. The deployment cases bundle that source into separate Node
-service and worker containers.
+`mise run test -- --suite containers` for Docker deployment cases. CI uses pinned PostgreSQL 18.3 and Postgres.js 4.0.0. The tests run the same host code in Node and Deno. The deployment tests bundle that code into two Node containers:
+one accepts requests and one runs jobs.
 
 The profile supports activities, children, relative/absolute timers, saved events, bounded branches, registered cleanup,
 root continuation, finalizers, cancellation and audited blocked repair. Generic custom-host commands and workflow-level

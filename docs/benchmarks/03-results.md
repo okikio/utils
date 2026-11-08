@@ -94,10 +94,10 @@ represents JavaScript, V8 and exposed runtime-operation frames, not a native ker
 transport fixture does not contact an external server. Profile source line numbers refer to transpiled scripts and must
 not be treated as verified TypeScript line numbers without source maps.
 
-The renderer retains every raw profile unchanged. One 4096-route Utils sample had a negative 2 microsecond delta; only
-the SVG displays that sample with zero width. Its summary records the correction explicitly. The other seven profiles
-need no such correction. Sampled percentages describe execution attribution, not causal proof that changing one function
-will change elapsed time by that percentage.
+The renderer keeps each raw profile unchanged. One Utils profile with 4,096 routes recorded a negative
+2-microsecond sample interval. The SVG draws that sample with zero width, and its summary records the
+correction. The other seven profiles did not need it. The sampled percentages show where the profiler
+observed work. They cannot tell you how much time a change to one function will save.
 
 ## Verification
 

@@ -1,8 +1,8 @@
 # `@okikio/http/problem`
 
-When an asset is missing or an input is unacceptable, callers need an answer they can understand and act on. A status
-such as `404` gives the broad reason, but a stable problem type distinguishes this rejection from other failures with
-the same status. This package describes expected HTTP rejections and creates their values consistently.
+A gallery tries to open a saved picture and gets `404`. Is the picture missing, or did the app request a URL this
+server does not support? The HTTP status says the request found nothing. A named problem in the response lets the
+gallery recognize “picture missing” and give the person a useful next step.
 
 A **status** is HTTP's numeric result, such as 200 for success or 404 for a missing resource. A **problem body** adds
 machine-readable information to a rejected request. Its stable `type` tells client code which case occurred; `detail`

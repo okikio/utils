@@ -1,10 +1,11 @@
 # 11 — Wait for an event
 
-An import may need approval after validation. A research run may need a callback from an external service. The workflow
-should stop at that point. It should continue when the matching event arrives.
+An import may need a person to approve it after validation. The workflow records what it is waiting for and continues
+when it receives the matching approval. With saved execution, no worker has to stay running just to listen for it.
 
-`wait(Approved, { key })` describes that wait once `Approved` declares its value shape. `client.send()` saves a delivery for a durable run. The existing `signal()`
-function declares the event's name and value schema. It does not deliver anything by itself.
+`signal()` declares an event's name and the data it accepts. For example, `Approved` accepts a boolean: `true` or
+`false`. The workflow asks for that event with `wait(Approved, { key })`; the key identifies which approval it needs.
+An authorized sender uses `client.send()` to save a delivery for that run. Declaring the event alone sends nothing.
 
 For an ordinary event inside one running process, use Observables directly. No workflow is needed:
 
@@ -44,7 +45,8 @@ alive in a durable worker. Context owns local cleanup, the inbox owns addressed 
 the program to that inbox. These memory owners disappear with the process.
 
 After `mise run prepare -- --kind deps`, save this block as `approval.ts` and run
-`mise exec -- deno run approval.ts`. No database or service is required:
+`mise exec -- deno run approval.ts`. No database or service is required. Look for `approved`: it shows that the
+event was retained even though the workflow had not started waiting when it arrived.
 
 ```ts runnable
 import * as schema from '@okikio/schema';
@@ -81,6 +83,9 @@ console.log(await workflow.run({ ctx, implementation: Review, scheduler }));
 ```text output
 approved
 ```
+
+Try changing the value passed to `inbox.send()` from `true` to `false`, keeping the address the same. The program
+prints `rejected`. The message still arrived; it carried the opposite decision.
 
 The delivery address contains the run, event name, and logical key. Use a different key for each separate approval or
 callback. Two instruction positions cannot consume the same address. This is one delivery per logical wait, not a
@@ -164,9 +169,10 @@ event counts only if it was saved by the deadline. A new delivery after a saved 
 recovery scan records timeout and resumes the workflow. If every worker is down, the deadline still expires, but the
 workflow continues only after a worker returns.
 
-Sending the same value to the same address again succeeds without a second delivery. Sending a different value
-conflicts. A new delivery to a terminal or blocked run is rejected. An already accepted duplicate remains idempotent
-after completion. Cancellation stops the run; it does not undo previously accepted events or business writes.
+Send the same value to the same address again and the inbox accepts it without delivering it twice. Send a
+different value to that address and the call reports a conflict. A terminal or blocked run rejects a new event,
+but still accepts a repeat of an event it already accepted. Cancellation stops the run without undoing saved
+events or business writes.
 
 ## Limits and recovery
 

@@ -1,6 +1,6 @@
-> Research baseline, checked 2026-10-31. Statements about the supplied Utils source describe the checkpoint before this
-> improvement package. See [the delivered capability status](./README.md) and [operations](../16-operations.md) for
-> implemented changes and restrictions. Local research-workspace paths are provenance notes, not required runtime files.
+> Research baseline, checked 2026-10-31. This page describes the Utils source before the changes listed in
+> [the comparison index](./README.md). See [operations](../16-operations.md) for the current procedures and limits.
+> Local workspace paths show where the research ran. Utils does not need those files to run.
 
 # Inngest, Effect Workflow, and the uploaded Utils runtime
 

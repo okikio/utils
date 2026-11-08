@@ -1,13 +1,19 @@
 # Consumer scenarios
 
-Start with a problem owned by an application. Compose the focused utility contracts around that problem, and keep the
-external provider, cancellation owner, and terminal result visible. The examples in
-[composition.md](./03-composition.md) teach executable public-import flows. This catalogue explains their source
-provenance and the limits of the test evidence.
+Use this index when you want to know what a test actually proves. Each entry names the original application task,
+the failures the Utils tests exercise, and what the application still has to supply. To write and run an example
+instead, start with the [composition guide](./03-composition.md).
+
+| What you want evidence for | Start here |
+| --- | --- |
+| Keep a contact file's original cells | [CRM import](#crm-import) |
+| Discover URLs or run a child process | [Crawl discovery](#crawl-discovery) or [crawl processes](#crawl-processes) |
+| Check that a replacement worker can finish saved work | [Workflow recovery](#workflow-recovery) |
+| Verify a signed request before using its contents | [Signed callback](#signed-callback) |
 
 The [testing guide](./maintenance/01-testing.md) explains how to run source tests, emitted package consumers, and
 container recovery. The [27-package capability map](./maintenance/06-capabilities.md) adds advanced scenarios, boundary
-tests and the remaining checks gaps. Read the executable suites for the actual assertions.
+tests and the limits of each check. Read the executable suites for the actual assertions.
 
 ## crm-import
 
@@ -16,8 +22,8 @@ Stage CRM file streams, preserve original columns/row occurrences, then hand cel
 Failure cases: Late explicit headers, malformed rows, byte/row/cell bounds, and chunk splits cannot silently alter
 original cells.
 
-Ownership: CSV owns the reader until iteration/disposal. The application deliberately materializes rows for editable
-drafts.
+Ownership: CSV releases the reader when reading ends or the caller closes the document. The application keeps the
+rows in memory so the user can edit the draft.
 
 Proof level: Reconstructed generic import composition and exact generated-cell oracles; no browser UI or IndexedDB
 recovery claim.
@@ -38,11 +44,11 @@ Parse Sitemap records and collect page URLs before the application admits bounde
 Failure cases: Namespaces, malformed/hostile documents, producer cancellation, and exhausted capacity must retain their
 distinct outcomes.
 
-Ownership: The parser owns only source iteration; the collector owns Fetch/browser providers and application admission
-policy.
+Ownership: The parser reads the sitemap source. The application collector chooses how to fetch pages, whether to
+use a browser, and how many pages it can start processing at once.
 
-Proof level: Public-import reconstruction plus protocol-scale parser and bounded-admission tests, without executing
-remote crawl workloads.
+Proof level: The tests use public imports to parse sitemap inputs and check the work limits. They do not crawl
+remote sites.
 
 Consumer source:
 
@@ -242,7 +248,8 @@ Carry declared failures and bounded diagnostics across schema, provider, and obs
 Failure cases: Unsafe accessors, unknown identities, invalid nested data, reporter errors, and circular diagnostics
 remain bounded without executing caller code.
 
-Ownership: Live causes remain local; encoded data belongs to transports; reporter output is never terminal authority.
+Ownership: The process keeps the original error. Other processes receive a copy prepared for transport. A report
+does not decide whether the operation succeeded or failed.
 
 Proof level: Focused public contracts and generic lifecycle projections are strongest current evidence; no historical
 deployment dependency is invented.

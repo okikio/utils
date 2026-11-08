@@ -73,7 +73,8 @@ Expected output:
 ```
 
 `batch()` returns an async iterable of readonly item arrays; `lines()` returns an async iterable of strings.
-`Array.fromAsync()` returns a Promise of a materialized array. The example deliberately collects small finite inputs;
+`Array.fromAsync()` reads the whole sequence into an array and returns a Promise for that array. This example
+collects only a small, finite input;
 its output has two groups and two lines. Streaming adapters release owned readers when iteration completes or stops.
 
 ## Read each group and line in the output
@@ -300,8 +301,8 @@ names array is intentionally retained application data and needs its own bound f
 An uploaded document needs a byte budget; a log stream needs line framing; a network reader must release its lock even
 when a consumer stops early.
 
-Use Bytes for bounded materialization, JSON for structured framing, and Reader when you need explicit cleanup results.
-Format adds CSV and Sitemap interpretation.
+Use Bytes to read data into memory with a size limit. Use JSON to read or write separate JSON messages in a stream.
+Use Reader when you need to know whether closing the source succeeded. Use Format when the input is CSV or a sitemap.
 
 A bounded input read does not bound data retained later. Prompt reader-lock release and completion of underlying source
 cancellation are separate events.

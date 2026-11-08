@@ -113,9 +113,9 @@ The helper contains four roles: the retained SSE fixture, the NDJSON record gene
 returned body-completion lookup. The fixture is immutable application data; the routes own each new stream. The lookup
 observes the exact NDJSON Response rather than treating a wrapper with a new identity as the same factory result.
 
-The NDJSON route limits each serialized record, the total output and the number of items. The projection limits bound
-how much JSON structure and string data the serializer traverses per item. Validate business meaning upstream; these
-serialization limits do not establish that a generated answer is correct or safe.
+The NDJSON route limits the bytes per record, the bytes in the full response, and the number of records. The JSON
+writer also limits how much structure and text it reads from each record. These checks limit the work of writing
+the response. Check what a generated answer means before you pass it to the writer.
 
 The SSE route owns a small, immutable log. Sequence 1 has expired; sequences 2 and 3 remain. A cursor names both the
 feed version and the last event the caller processed. The server validates that cursor before creating a streaming body.
@@ -184,10 +184,17 @@ greeting-v1:4 400
 other-feed:2 400
 ```
 
-The first read reaches the end. The second cancels after the first record; the generator closes and its cleanup is
-joined before the check prints `closed 2`. Pull-driven adapters can buffer ahead, so cancellation does not prove that
-only one source value was ever produced. A real provider must also observe cancellation in any pending I/O; closing a
-generator cannot interrupt an arbitrary Promise that never settles.
+Use the output to check three different results:
+
+| What the reader does | What to look for |
+| --- | --- |
+| Reads all the greetings | Three JSON lines, followed by `body completed closed 1`. |
+| Stops reading after Sam | `body cancelled closed 2`. The second generator closes and the check waits for its cleanup. |
+| Reconnects with an event ID | The server sends events after a retained ID. An expired ID returns `410`; a future ID or one for another feed returns `400`. |
+
+A pull-driven adapter can buffer ahead. Stopping after Sam does not prove that the generator produced only one value.
+A real provider must also observe cancellation in any pending I/O; closing a generator cannot interrupt an arbitrary
+Promise that never settles.
 
 The reconnect calls show two different readers. One resumes after event 1 and gets Jo and Lee. Another resumes after
 event 2 and gets Lee. Seeing Lee twice across those calls is expected. The client must save its cursor after applying an
@@ -228,9 +235,10 @@ reconnection behavior; custom Fetch clients must implement theirs explicitly.
 | Replay into live traffic | Finite replay from an immutable fixture | An atomic replay-to-live handoff that cannot miss events or enqueue them without a bound |
 | Authentication | None; local greeting data is public | Authenticate each connection and authorize its feed before sending or replaying data |
 
-Do not reuse `greeting-v1` after replacing its data with unrelated events. Persist a feed epoch with durable records or
-invalidate old cursors explicitly. Do not acknowledge an event ID before it is durably appended. This guide does not
-implement a live subscription, heartbeat timer or snapshot endpoint; those need a separate owner and bounded lifetime.
+If you replace the events with unrelated data, change the feed version from `greeting-v1`. Save that version with
+the events or reject old cursors explicitly. Otherwise a caller can try to resume in the wrong feed. Confirm an
+event ID only after you have saved the event. If you add a live subscription, heartbeat timer, or snapshot
+endpoint, decide which part of your application starts and stops it.
 
 Once headers have been sent, a later serialization or upstream failure errors the body. An outer `catchErrors()` cannot
 replace an already-started 200 with a new JSON error response. The client must treat an interrupted body as incomplete.

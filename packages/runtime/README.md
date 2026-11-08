@@ -8,8 +8,6 @@ For example, a photo resize can run in a Node thread on a server or a browser Wo
 chooses where it runs and owns stopping it. Importing an adapter only makes its functions available; calling its launch
 operation is what starts another execution context.
 
-Select runtime-specific APIs explicitly while keeping portable packages independent of host globals.
-
 For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters keep their native runtime requirements.
 
 | Host    | Entry points                                                                                                                       |
@@ -19,7 +17,8 @@ For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-ru
 | Bun     | `@okikio/runtime/bun/worker`                                                                                                       |
 | Browser | `@okikio/runtime/browser/worker`                                                                                                   |
 
-The root exports the `Host` type and does not inspect globals, import a native adapter or start a process. Node threads
+If you only need to describe a host in TypeScript, import `Host` from the root. To start a real worker or subprocess,
+select its adapter above. The root does not inspect globals, import a native adapter or start a process. Node threads
 use `node:worker_threads`. Browser and Bun worker adapters accept their host's Worker capabilities. Deno adapters stay
 available through JSR/source exports and are omitted from the npm projection, where Deno globals are unavailable.
 
@@ -200,11 +199,14 @@ synchronization. `overwrite: 'create'` publishes with an exclusive hard link, re
 check/rename race; `'replace'` renames over the destination entry. Replacing a symlink replaces its entry and does not
 write through it. Parent directories must be trusted; this API does not enforce containment against parent symlinks.
 
-`durability: 'file'` requests file synchronization before publication. `'directory'` additionally synchronizes the
-parent after publication and removal of the temporary entry. Unsupported host operations fail; there is no silent
-fallback. `FilePublicationError.published` is true when final synchronization or cleanup fails after the destination was
-published. Inspect the destination before retrying. Cancellation is checked before publication; cancellation racing a
-publication syscall cannot roll it back. Keep input bytes stable until settled.
+With `durability: 'file'`, the utility asks the filesystem to sync the new file before making it visible at the
+destination. With `'directory'`, it also syncs the parent directory after making the file visible and removing the
+temporary entry. If the host cannot perform an operation you requested, the write fails.
+
+If final cleanup or synchronization fails after the file becomes visible, `FilePublicationError.published` is true.
+Inspect the destination before retrying. The utility checks cancellation before it makes the file visible. If the
+filesystem operation has already started, cancellation cannot undo it. Leave the input bytes unchanged until the
+write finishes or fails.
 
 The two option groups answer different questions: may this write replace a name, and what must be synchronized?
 

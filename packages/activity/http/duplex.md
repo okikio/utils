@@ -1,9 +1,10 @@
 # Let an HTTP activity call its original authority
 
-An activity running in another service may need the caller to check a permission, accept an effect or renew its queue
-claim. `@okikio/activity/http/duplex` keeps that authority with the original caller. It adds paired requests to the
-[unary HTTP adapter](../http.md): the start response carries requests back to the caller, and separate authenticated
-POSTs return the answers while the activity is still running.
+An activity running in another service may still need an answer from the original caller. For example, a job may
+need more time to finish, but only the caller can renew its temporary claim on the queued item.
+`@okikio/activity/http/duplex` gives the job a way to ask. Unlike the [single request and response](../http.md) path,
+the start response carries questions back to the caller. Separate authenticated POST requests return the answers
+while the activity is still running.
 
 For example, a remote activity asks to renew its queue claim. The caller receives that request and awaits its actual
 `ActivityAttemptControl.heartbeat()`. Only after that authority resolves does the remote activity receive an
@@ -99,11 +100,10 @@ latency requirements. The application still owns server upload/idle timeouts and
 
 ## Distinguish cancellation from joined cleanup
 
-Caller cancellation sends an explicit authenticated cancel POST while retaining the response stream. The host aborts
-the attempt and rejects its unresolved reverse calls. It keeps the admission slot until the provider and Context cleanup
-actually finish. A terminal frame is published only after those joins; active reverse calls cannot be left behind a
-successful result. The client also joins its original authority calls and reply acknowledgements before accepting the
-terminal result.
+When the caller cancels, the client sends an authenticated cancel POST and keeps reading the original response.
+The host asks the attempt to stop and rejects any unanswered calls back to the caller. It keeps the attempt's slot
+until the provider and Context finish cleanup. Only then does it send the final message. Before accepting that
+message as the result, the client also waits for its own callbacks and for the host to acknowledge their replies.
 
 A reply POST can cross the independent cancel POST. If cancellation retires its call first, the reply receives 409.
 The client provisionally retains a 409 observed after it requested cancellation and continues reading the stream. It

@@ -214,12 +214,14 @@ for await (const message of events.read(readable(encoded), limits)) console.log(
 2 Hello, Jo!
 ```
 
-The focused entry composes STD's browser-compatible SSE parser and writer. Read budgets count total original bytes, each
-provider chunk, raw bytes between blank logical lines, and returned wire messages. Comments and unknown fields consume
-raw byte budgets too. CR, LF, CRLF and split initial UTF-8 BOM follow the parser's rules. Admission checks a complete
-input chunk before giving it to STD, so a later oversize frame can reject earlier messages in that same chunk. The
-parser's retention is bounded by admitted event/chunk sizes; these byte limits do not count JavaScript object overhead
-or the provider's original allocation.
+This entry uses the Standard Library's SSE parser and writer. The reader checks four limits: total input bytes,
+bytes in one chunk, bytes between blank lines, and the number of messages it returns. Comments and unknown fields
+still count toward the byte limits. The parser accepts CR, LF, and CRLF line endings and handles an initial UTF-8
+byte-order mark even when it spans chunks.
+
+The reader checks a whole chunk before it passes any of that chunk to the parser. If a later message in the chunk
+exceeds a limit, the reader can reject the chunk before returning earlier messages from it. These limits bound the
+input the parser keeps. They do not measure JavaScript object overhead or memory the source allocated.
 
 These are **wire messages**: comments, id-only and retry-only messages are exposed, and STD emits a nonempty final
 message without a terminating blank line. This is not browser EventSource dispatch. An absent ID is not filled from an

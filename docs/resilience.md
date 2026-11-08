@@ -1,8 +1,9 @@
 # Repeat work only under an explicit policy
 
-A transient read failure can justify another attempt. A partially completed payment needs application-level idempotency
-before repetition is safe. Resilience makes the timing and classification choices explicit without choosing the service
-or storage that owns an operation's effects.
+A read can fail because a service is briefly unavailable. Trying again may help. A payment is different: if the charge
+succeeded but its reply was lost, a second call could charge the customer again. Before retrying a write, decide how
+the application can recognize the same request and recover its original result. Resilience controls when to try again
+and which failures allow it. The application still owns the write.
 
 There are three independent uses:
 
@@ -26,8 +27,8 @@ exposed as `resilience.attempt` from the package family and as `attempt` from Ca
 The first read throws a specific temporary error; the second returns the report. The classifier permits only that error
 to retry. The output shows both the returned value and the two calls counted by the application.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
-`mise exec -- deno run example.ts`.
+Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `retry-read.ts` at the checkout root and use
+`mise exec -- deno run retry-read.ts`.
 
 A **jittered** retry varies its delay so many callers do not retry at the same instant after a shared failure.
 This example sets `jitter: false` so its delay is predictable; it demonstrates retry classification without random timing.
@@ -58,17 +59,25 @@ Report ready
 
 ## Time, cancellation, and attempts
 
-An attempt number starts at one. `maximumAttempts` includes the initial operation. After an eligible failure, the
-utility calculates `retryDelay`, awaits `onRetry`, and waits on the borrowed clock. The next call receives the same
-AbortSignal. Long waits use Context's bounded timer slices while keeping the absolute target intact.
+Count the initial call as attempt one. In the report example, `maximumAttempts: 2` allows the first read and one retry.
+A successful read returns its value. If a read fails, the next step depends on the budget and the error:
 
-Cancellation is checked before and after each awaited operation. A result arriving after an abort is not returned as
-success. The exact signal reason is thrown, including null. An underlying provider must cooperate with the supplied
-signal to interrupt its pending I/O. A never-settling provider cannot be forcibly joined by this utility.
+| What happened | What `attempt()` does |
+| --- | --- |
+| No attempts remain | Throws the last read error. |
+| The classifier rejects the error | Throws that error immediately. |
+| The classifier permits a retry | Calculates the delay, awaits `onRetry`, waits on the clock, and calls the reader again. |
 
-Only operation failures reach `isRetryable`. Classifier, entropy, retry-hook, and clock failures stop execution
-directly. Exhausted attempts rethrow the operation's last rejected value by identity. No generic error wrapper replaces
-it.
+The next call receives the same AbortSignal. When a delay is too long for one timer, Context splits it into shorter
+waits without changing the target time.
+
+`attempt()` checks for cancellation before and after each awaited step. If a result arrives after cancellation,
+the function throws the signal's reason, even if that reason is `null`. Pass the signal into your I/O call so it
+can stop waiting. If that call never finishes, the retry utility cannot force it to stop.
+
+Only errors from the operation go to `isRetryable`. If that callback, the source of random values, `onRetry`,
+or the clock throws, the retry loop stops. When no attempts remain, it throws the last value from the operation
+without wrapping it.
 
 ## Inspect configuration separately
 
@@ -82,12 +91,12 @@ circuit, timer, or store.
 
 ## Compose with Task or Workflow
 
-A Task may call `attempt` around one provider operation while retaining its own progress, checkpoints, and cleanup. A
-Workflow scheduler can instead use the pure delay calculation to persist a next wake-up. Do not put an opaque local
-retry loop around work whose every attempt must be represented in workflow history; let that scheduler own the retries.
+A Task can retry one operation with `attempt()` and still report progress and clean up as before. A Workflow
+scheduler can use `retryDelay()` to calculate when to run again and save that time. If you need workflow history
+to show every attempt, let the scheduler run the retries rather than hiding them inside one activity.
 
-An accepted effect remains accepted after producer cancellation. A retry must reuse the application's logical identity
-and its recipient must implement the required duplicate policy. A log or progress event cannot make a write idempotent.
+Cancelling a sender does not undo an effect the receiver has accepted. When you retry, send the same logical ID.
+The receiver needs to recognize that ID and handle the repeat safely. Logging the write does not prevent a duplicate.
 
 The [package guide](../packages/capability/resilience/README.md) supplies runnable standalone examples. Source contracts
 are in [attempt.ts](../packages/capability/resilience/attempt.ts), [poll.ts](../packages/capability/resilience/poll.ts),

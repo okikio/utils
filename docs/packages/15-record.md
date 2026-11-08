@@ -1,14 +1,15 @@
 # Record
 
-A configuration map may look like ordinary data while hiding a getter or inherited field. Record checks the outer
-container before code enumerates or snapshots it. Schema then checks what each accepted field means. For a detached
-nested value, use the [bounded JSON operations](../../packages/collection/record/json.md); for edits, use the
+A settings object may look like plain data, but reading a property can run code through a getter. Record checks
+that the object's own fields are plain data before you read or copy them. Schema can then check their values, such
+as whether a port number is in range. To copy nested JSON data, use the
+[bounded JSON operations](../../packages/collection/record/json.md); for edits, use the
 [change operations](../../packages/collection/record/change.md).
 
 ## Try checking structure before checking meaning
 
-An import-safe options map can still contain an invalid value. This mini-demo uses Record for its outer shape and Schema
-for the port's meaning, so each check answers a distinct question.
+An object with plain fields can still contain an invalid port. This example copies the fields, checks the port value,
+then tries a second object whose getter must never run.
 
 After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
 Save the next complete TypeScript block as
@@ -39,9 +40,10 @@ localhost:4321
 false
 ```
 
-The snapshot keeps the supplied plain fields; the schema converts the port text to a valid number. The last check
-rejects the getter-backed shape without running its getter. Change the plain port to `'70000'` to fail the value check
-instead. Snapshotting is shallow: nested objects would still need their own ownership and validation rules.
+The snapshot copies the plain fields. The schema turns the port text into a number and checks its range.
+The last example rejects an object with a getter without calling the getter. Change the plain port to
+`'70000'` to fail the range check instead. The copy is shallow: it still refers to any nested objects.
+Check those separately if you cannot trust their shape.
 
 ## Immutable snapshots
 
@@ -69,9 +71,9 @@ The manual implementation uses `Object.getPrototypeOf()`, `Object.getOwnProperty
 runtime string keys and unknown values: structural TypeScript types can omit properties that exist at runtime. Use
 `pick()` when a consumer needs an explicitly selected set of statically known fields.
 
-Use the outer shape helpers when **record shape itself is part of the contract**. They do not validate nested values or
-application rules. `record.json` validates bounded JSON data, while Schema checks the application-specific meaning of
-that data. Class instances and fault diagnostics need their own explicit contracts.
+Use these helpers to check the outside of an object: for example, whether it uses ordinary properties instead
+of getters. They do not check what's inside each property. Use `record.json` to check JSON data against size
+limits and Schema to check what the values must mean in your application.
 
 ## Source guide
 

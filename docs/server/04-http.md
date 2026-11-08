@@ -20,9 +20,7 @@ mise run prepare -- --kind deps
 [Checkout setup](../../README.md#work-on-the-repository) includes Mise installation. The checks below run without
 opening a port; the mounting section also includes a complete server entry and curl request.
 
-A listener accepts network connections. A router chooses a function from the request's
-method and URL. The function returns a response. These examples call the router
-directly with `new Request(...)` so you can test the answer without a running
+The examples call the router directly with `new Request(...)`, so you can check the answer without a running
 network listener. The later curl example adds the listener; it does not change
 the route function.
 
@@ -118,7 +116,7 @@ app.fetch(request)
 ```
 
 This explains why code after `await next(request)` runs after the handler. Calling `next(request)` at most once prevents
-the same middleware invocation from running downstream side effects twice. You can also return a response without
+one call to your middleware from running the rest of the request twice. You can also return a response without
 calling `next` to stop the request early, for example when rejecting access. There is no need to throw for a normal
 rejected request.
 

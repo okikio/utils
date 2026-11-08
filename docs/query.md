@@ -102,11 +102,14 @@ try {
 Unknown filter rejected before searching
 ```
 
-The URL supplies a name and a page bound. Query checks which fields and operators are allowed, then returns ordinary
-checked data. Our array provider applies that exact equality and page. `Search.parse()` only checks the request; it retrieves no rows.
-The optional `@okikio/query/postgres` compiler can translate that checked request into SQL, which the application executes.
-The rejected password filter never reaches the provider. A production adapter must preserve every operation enabled
-by its definition and add trusted tenant/access restrictions separately.
+The URL asks for a name and limits how many results can come back. `Search.parse()` checks the allowed fields
+and operators. It returns a checked request without reading any rows. In this example, the array provider uses
+that request to match the name and select a page.
+
+The optional `@okikio/query/postgres` compiler turns the checked request into SQL for your application to run.
+The rejected password filter never reaches the array or database. When you write a provider, apply every
+operation you let callers request. Add trusted access rules separately, such as limiting a search to the
+caller's account.
 
 
 ## Three values with different jobs
@@ -142,9 +145,11 @@ structure and page/offset style. `normalize()` creates a separate canonical repr
 for comparing requests or building cache keys. It is not a database execution plan or permission to reuse another
 account's cached results.
 
-Use `encode()` for a link you will parse again under the same definition. It uses explicit group indices when
-compact field keys would change the authored tree. `stringify()` is for identity: normalization can merge nested
-groups of the same kind into a wider group, so the canonical text need not fit the original request's sibling limit.
+Use `encode()` to make a link that you will parse again with the same definition. If short field keys would
+change which conditions belong to each group, `encode()` adds group numbers to preserve that structure.
+
+Use `stringify()` to compare the meaning of requests. It can merge nested groups of the same kind. The merged
+group can have more children than the original URL was allowed to contain in one group.
 
 `conjunction(value.filter)` uses the formal word **conjunction**, meaning conditions joined by AND. It reads an
 already checked filter for a simple adapter limited to AND. It does not build a rule or evaluate a condition.
@@ -163,19 +168,20 @@ This advanced reader is optional: an adapter that already walks expressions does
 A checked query limits public search syntax. It does not replace tenant restrictions, authentication, authorization, or
 row access checks. Add those trusted restrictions separately in the provider adapter.
 
-The adapter owns parameterized provider expressions, collation, null behavior, keyset traversal, cursor verification,
-and row retrieval. `validateAdapter()` catches declared capability gaps before a request runs. An adapter must reject
-unsupported semantics instead of dropping an operator or flattening ANY into ALL.
+The adapter turns checked expressions into provider queries and passes values as parameters. It decides
+how the store compares text and treats missing values. It also checks cursors, finds the next page, and reads
+the rows. Use `validateAdapter()` to find unsupported operations before a request runs. If the adapter cannot
+evaluate a group, reject it. Changing ANY to ALL would return a different set of rows.
 
 For a small in-memory list, the same rule can be expressed with ordinary array operations and `/expression` evaluation.
 The cookbook defines the exact subset that such an adapter implements.
 
 ## What the utility saves
 
-Without Query, each endpoint would need to maintain field permissions, operand validation, bracket parsing, repeated
-parameters, typed literal escaping, expression budgets, sorting, field selection, page bounds, canonical identity, and
-schema documentation. These rules interact, so keeping them in one contract gives more than a set of unrelated parsing
-helpers.
+If you read these URLs yourself, each endpoint must agree on which fields are allowed and how to read repeated
+parameters and values with type tags. It must also limit expressions, apply sorts and field selection, and
+check pages. Query keeps those rules together, including the representation for comparing requests and the
+schema that describes what callers can send.
 
 The checked result remains ordinary data. Applications can inspect it, pass it to a different adapter, serialize a URL,
 or test provider behavior without constructing a server or workflow runtime.
@@ -390,12 +396,13 @@ Leaf occurrences: 4
 XOR and XNOR deliberately accept two children. With three inputs, “an odd number is true” and “exactly one is true”
 are different rules; these binary builders do not choose a hidden interpretation for that case.
 
-The stored expression still uses only `all`, `any`, and `not` kinds. NOR composes NOT with OR; NAND composes NOT
-with AND. XOR and XNOR repeat their child expressions when composing those existing groups. This needs no new URL
-syntax or adapter operator, but it increases tree depth and leaf occurrences. Budgets apply to the expanded tree,
-and a leaf can be compared more than once. Comparisons must be deterministic for the record being tested; do not use
-them to send messages, mutate records, or perform other commands. Short-circuiting can reduce calls, so the inspected
-leaf count is a structural cost bound, not a promise that every occurrence is compared.
+The tree stores only `all`, `any`, and `not` groups. NOR means NOT around OR; NAND means NOT around AND.
+XOR and XNOR use the same kinds of groups but repeat some conditions. This can make the tree deeper and add
+more copies of a condition. The limits apply to that larger tree.
+
+The checker may test the same condition more than once. For a given record, return the same answer each time.
+Do not send messages or change records from a comparison. The checker can also stop as soon as it knows a
+group's answer, so the number of conditions gives a maximum, not an exact count of calls.
 
 A collection definition enables the underlying kinds through `expressions: ['all', 'any', 'not']`. Familiar builder
 names do not bypass that policy. `conjunction()` still refuses a tree containing OR or NOT, including groups created
@@ -582,8 +589,8 @@ written back into a URL accepted by the same schema.
 
 ## Apply a real search to an array
 
-This adapter supports name equality, minimum score, Boolean groups, simple projection, and offset pages. Those are
-concrete promises. Its declaration excludes sorting and cursor pagination, so it does not need to guess their semantics.
+This adapter can match an exact name, check a minimum score, combine conditions, return selected fields, and
+skip rows for an offset page. It does not allow sorting or cursor pages, so the caller cannot request them.
 
 For each person, the comparison returns true or false for one condition. `evaluate()` combines those answers using
 the expression's AND/OR/NOT groups, and `Array.filter()` keeps people whose whole expression is true. Ada matches
@@ -707,8 +714,8 @@ score,id
 5
 ```
 
-The adapter's maximum sort count includes the appended tiebreaker. A limit of one client-selected sort can therefore
-require two provider sort keys. The provider must use that complete order to build seek predicates and cursor payloads.
+Count the final tiebreaker toward the adapter's sort limit. Even if a caller requests one sort, the adapter may
+need two sort keys. Use the complete order to compare rows after the cursor and to write the cursor's values.
 
 ## Failures, budgets, and schema projections
 
@@ -727,10 +734,10 @@ A malformed query produces stable issue codes and paths. Examples include `unkno
 `invalid-value`, `pagination-conflict`, and the `too-many-*` limits. Safe parsing does not invoke accessor properties
 from plain-data input and rejects cyclic semantic expression records.
 
-The definition implements Standard Schema from wire input to checked `QueryValue`; it is a transforming validator.
-`wireSchema()` is its explicit HTTP documentation projection. Standard JSON Schema input conversion throws because
-tagged operands must first be decoded and checked by their field validators. A prefix pattern cannot represent that
-operation. Input metadata cannot stand in for a differently typed output projection.
+The definition uses Standard Schema to turn incoming data into a checked `QueryValue`. Use `wireSchema()` to
+describe the HTTP input. Standard JSON Schema input conversion throws: the parser must decode values with type
+tags and run the validator for each field. A pattern that checks the tag alone cannot do that. Keep the input
+description separate from the checked output shape.
 
 Wire documentation requires inline field `jsonSchema` metadata. Documents containing resource IDs, anchors or references
 fail with the field name and a request for inline constraints, because separate HTTP parameter schemas cannot preserve

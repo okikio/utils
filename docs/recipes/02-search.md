@@ -1,19 +1,23 @@
 # Reuse a search action and restore its input
 
-A user searches for a person, leaves the screen, and returns to the same saved search text. Several UI controls can
-invoke one command. Query owns the allowed search grammar, Commands owns the reusable action, Context owns state
-observation, and Storage supplies an explicitly chosen snapshot slot.
+A user searches for Ada, leaves the screen, and returns to find `Ada` still in the search box. A button and a keyboard
+shortcut can call the same function, which checks the search, finds matches, and saves the search URL. Here that
+reusable action is a **command**.
 
-This program uses a local array as its provider and a memory store as its backing slot. It exercises the actual command
-and stored-state APIs without pretending to render a browser screen.
+The program searches an array of names and saves the URL in memory. It prints the matches and then reads the saved URL
+after closing and reopening access to it. No browser is needed. Restarting the program loses the saved URL.
 
 ## Run the saved-search workflow
 
+Check three things in the output: the command finds Ada, the screen's result list has one entry, and a fresh owner
+loads Ada back into the search box. The third check reads the saved input; it does not run the search again.
+
 At the checkout root, review `mise.toml`, run `mise trust`, `mise install` and `mise run prepare -- --kind deps`. Save the complete
 program below as `search.ts` and run `mise exec -- deno run search.ts`; it needs no network or filesystem permissions.
-Follow four steps: parse the permitted name filter, search the local people, save the exact URL, then reopen that saved
-URL under a new owner. `await` waits for an asynchronous step before the next one. `using` closes the result cell and
-`await using` joins each saved-state owner's cleanup. Neither deletes the memory store, which is why reopening works.
+Follow four steps: read the requested name from the URL, search the array, save the exact URL, then read it back.
+`await` waits for a step to finish. `results` is a cell: it holds the latest matches and lets another part of the
+program read them. `using` closes the cell at the end of its scope, and `await using` waits for saved-state cleanup.
+Neither deletes the memory store, which is why reopening works.
 
 Parsing checks that the caller used the allowed field, comparison and page size. It does not search people.
 This definition allows only name equality joined by AND, meaning every supplied condition must match. The local
@@ -112,11 +116,13 @@ flowchart TD
     Slot --> Reopen[Next owner restores input]
 ```
 
-Follow the command downward: validation and local search happen before saving, and the backing slot accepts the
-write before the result cell publishes. Reopening reads the same slot under a new owner. Saving and publishing remain
-separate operations, not an atomic transaction. Browser event binding and rendering are
-deliberately outside the local program. The cell reports results; it does not become the authority for authorizing a
-search.
+Follow the arrows from the search control down. The command checks the query and finds matching names before
+it saves the URL. Once storage confirms the save, the command gives the new results to the screen. A later
+screen can open the same slot to restore the input.
+
+If saving succeeds but updating the screen fails, the saved URL can still change. The program does not update
+both in one transaction. It leaves the actual browser listeners and rendering to your application. A result
+cell can display names, but your application still decides which searches are allowed.
 
 ## Adapt the workflow deliberately
 
@@ -128,9 +134,10 @@ search.
 | Prevent an old slow search replacing a newer result | Add cancellation or an application revision check before saving and publishing. | Commands does not serialize or cancel overlapping invocations automatically.                |
 | Save succeeds but result publication fails          | Reconcile the saved draft and visible state explicitly.                         | Saving the draft and publishing results are not one transaction.                            |
 
-Change the filter from Ada to Grace and both the result and restored input change. Change the field name to an
-undeclared field and parsing rejects before either save or publication. The local provider applies exactly the declared
-equality filter and offset page; a production provider must preserve every enabled operation.
+To try a different search, replace `filter[name]=Ada` with `filter[name]=Grace` in the command call. Keep the last line
+reading `filter[name]`. The program should now print `Grace`, `1`, and `Grace`. Next, try `filter[city]=Ada`. The
+program rejects that request before it saves input or updates the result cell: the application never declared `city`
+as a searchable field. In your own provider, apply each filter and page option you let callers request.
 
 See [Query](../../packages/query/README.md), [Input commands](../../packages/input/README.md#choose-an-entry-point), and
 [stored state](../context/03-stored-state.md) for focused options and conflict recovery.

@@ -10,7 +10,8 @@ answer. Progress is a separate stream of updates that can change the display whi
 Use `task.ProgressEffect` for the standard counters, message, and optional JSON data. Emit it without a key. Tasks
 recognize it automatically. The first example uses that standard report to describe the same contact import from the Task README.
 Save it as `import-progress.ts`, after `mise run prepare -- --kind deps`, and run
-`mise exec -- deno run import-progress.ts`.
+`mise exec -- deno run import-progress.ts`. Look for the three separate observations: the saved names, the last
+reported count, and confirmation that cleanup ran before the result became available.
 
 ```ts runnable=import-progress.ts
 import * as task from '@okikio/task';
@@ -51,10 +52,10 @@ Latest: 2 / 2
 Cleanup finished: true
 ```
 
-`start` returns a handle while the function runs. Emit after each successful write. `updates` is for a live display;
-`progress` keeps its latest snapshot; `done` supplies the result after cleanup. Reading a counter of 2 is not equivalent
-to awaiting `done`: cleanup or a later operation could still fail. This example reads the snapshot after completion to
-make its output deterministic without needing to coordinate a subscription.
+`start` returns a handle while the import runs. Report progress after each successful write. Read `updates`
+to change a live display, or read `progress` for the latest count. Even when the count reaches 2, cleanup or
+later work can fail. Await `done` for the final result. This example reads the count after `done` so it prints
+the same lines without setting up a live subscription.
 
 ## Give the same import an application-specific report
 

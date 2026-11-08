@@ -3,15 +3,21 @@
 Use one suite dependency while importing only the capabilities each module needs. Start with the
 [package example](../../packages/utils/README.md), then use this guide to choose between the umbrella and leaf packages.
 
-## The ordinary problem
+## Decide what to install
 
-Without the umbrella, an application that uses several utilities declares each leaf package separately:
-
-For example, declare `@okikio/context`, `@okikio/scheduler`, and `@okikio/workflow` as dependencies.
+An application that runs background jobs might install three individual packages: `@okikio/context`,
+`@okikio/scheduler`, and `@okikio/workflow`.
 The import `@okikio/scheduler/queue` is a subpath of the Scheduler dependency, not another package to install.
 
-That is useful when a reusable library deliberately wants the smallest possible dependency surface. Applications often
-prefer one suite dependency instead.
+The difference is in what you install and import:
+
+| If you install | The queue import is |
+| --- | --- |
+| `@okikio/scheduler` | `@okikio/scheduler/queue` |
+| `@okikio/utils` | `@okikio/utils/scheduler/queue` |
+
+Both paths give you the same queue implementation. Choose individual packages when you want to declare each dependency
+separately. Choose the umbrella when you want one dependency for several utilities.
 
 ## Use the umbrella
 
@@ -37,7 +43,7 @@ console.log(packages.includes('@okikio/telemetry')); // true
 
 It lists package identities, such as Scheduler, rather than every subpath such as Scheduler Queue. It exposes installation inventory rather than loading the full utility graph.
 
-## Use utilities together
+## Read a named CSV column through the umbrella
 
 An imported contact file may reorder its columns and contain quoted commas. Read the domain column by name. Keep the
 source cells intact so the application can validate them and show an import preview.
@@ -56,8 +62,8 @@ console.log(JSON.stringify(domains));
 ["EXAMPLE.COM","example.com"]
 ```
 
-CSV owns quoting and column positions. The application owns domain validation and normalization. The umbrella changes
-how the utility is installed and imported. It adds no execution context or lifetime to this job.
+CSV keeps quoted values in one cell and finds the column by name. Your application decides whether a domain
+is valid and how to write it. The umbrella only changes how you install and import CSV.
 
 Use `@okikio/utils/all` only at an intentional composition root that needs broad namespace access. Its `context`, `task`
 and other namespaces give the same operations as the focused entries, but importing it reaches the complete suite graph.

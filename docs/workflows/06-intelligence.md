@@ -1,12 +1,11 @@
 # Publish research and expire its capture data
 
-The [connected consumer guide](./14-consumers.md) adds the preferred trigger API, process/thread engines, standard
-progress, and durable registered cleanup. Its smaller fixtures complement the full domain scenarios described here.
+A customer requests research on a URL. They need one published result, even if a worker stops and another retries
+the work. The service can publish the result before it deletes the captured page data, so it saves deletion as a
+separate job that can finish later. This fixture tests those rules without calling paid services or requiring
+Intelligence, the separate application that inspired it.
 
-The customer needs one useful published contribution from requested research. Raw capture data also has an expiry
-obligation. Publication can finish before expiry, so those outcomes need separate saved work. This fixture tests those
-rules without calling paid services. Intelligence is the separate application that inspired this scenario; the fixture
-does not require that application.
+The [connected consumer guide](./14-consumers.md) has a smaller example that follows submission, progress, and cleanup.
 
 Read [intelligence.ts](../../tests/workflows/scenarios/intelligence.ts) for all definitions, implementations, and
 policy. The [receiver](../../tests/workflows/scenarios/provider.ts) is an actual HTTP process with persistent capture
@@ -17,7 +16,8 @@ receipts. The [host](../../tests/workflows/scenarios/host.ts) supplies each reso
 The user submits a research ID, scope, URL, grant, expiry time, and command key to `POST /research`. The service saves
 the research record and accepts `Acquire` in one transaction. It returns HTTP `202` with a run reference. The user
 checks `GET /research?id=...&scope=...` for the saved result. Completion returns the committed contribution ID after
-required finalization. It does not wait for future raw-data expiry.
+required finalization. At that point the customer can use the published result. If you need to confirm that the
+captured page data was deleted, check Expire separately. Publication can finish before the deletion deadline.
 
 The fixture creates a simple grant record for trusted test callers. It does not reproduce Intelligence's authorization
 service, evidence storage, browser fleet, models, or publication stores. Those remain application-owned concerns.
@@ -107,10 +107,11 @@ The receiver and Delete lock the same research row. Delete closes the scope befo
 rejects a new raw write after closure. It keeps the old receipt, version, and digest when bytes are deleted. A duplicate
 request can return prior metadata without recreating the bytes. The published contribution remains available.
 
-The [container scenario](../../tests/workflows/containers.test.ts) checks the cross-engine handoff, receiver-commit
-crash, one publication, a pending saved timer, and deletion after service and worker replacement. The
-[process recovery cases](../../tests/workflows/recovery.test.ts) add grant revocation, missing raw bytes,
-independent-child cancellation, deferred deletion, and individual publication crash windows.
+The [container scenario](../../tests/workflows/containers.test.ts) checks that the research worker hands work
+to the capture worker. It stops a worker after the receiver commits, checks that publication happens once,
+and checks that a saved timer still leads to deletion after the service and workers restart. The
+[process recovery cases](../../tests/workflows/recovery.test.ts) also check revoked permission, missing raw
+bytes, cancellation of independent children, deferred deletion, and interruptions at individual publication steps.
 
 ## Keep the production scheduler choice explicit
 

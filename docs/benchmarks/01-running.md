@@ -1,8 +1,8 @@
 # Benchmarks
 
-Start with the operation that costs your caller time or resources. Run its package tests, compare the same required
-work, then check the larger workflow before deciding whether a change helps. A benchmark must preserve the behavior
-being compared.
+Suppose a CSV import takes longer than expected. First test that the parser still reads the same rows. Then measure the
+same input before and after your change. If parsing gets faster, measure the full import too: the parser may account for
+only a small part of the time the user waits.
 
 Use the [profiling guide](./02-profiling.md) when you need to locate CPU work inside a trial. Profiling explains where
 time goes; repeat unprofiled timings to establish a speedup.
@@ -94,10 +94,10 @@ Use the [installed Mitata API](https://github.com/evanwashere/mitata#readme) del
 - Consume outputs with `do_not_optimize()`. Preserve the runner's `throw: true` policy so a failed trial fails the task.
   Retain GC mode and runtime metadata when interpreting samples.
 
-Full-value oracles matter. The [Collection workload](../../packages/collection/collection.bench.ts) compares each mapped
-key/value pair, then separately checks the immutable null-prototype result. Its JSON oracle compares decoded values and
-key order. A sum or row count alone could accept values assigned to the wrong keys. The native mapping reference still
-omits the utility's safe-key and immutable-output guarantees.
+Compare complete results before timing. The [Collection workload](../../packages/collection/collection.bench.ts)
+checks the value for every key, then checks that the result is immutable and has no prototype. Its JSON check
+compares decoded values and key order. A sum or row count could match even if values went to the wrong keys.
+The native mapping comparison does not protect keys or make the output immutable.
 
 Resource cleanup is part of the selected measurement boundary. The [Pool workload](../../packages/pool/pool.bench.ts)
 times lease return and joins accepted borrowers even if admission checks fail. Its warm pool is prepared once; rotation
@@ -278,11 +278,13 @@ cgroup quotas. Deno requires full permission for those special filesystem paths 
 permissions are granted. Package benchmarks have restricted package-local profiles; the measurement owner has the
 authority of the selected fixture programs.
 
-Heap deltas from Mitata are parent V8 allocation observations, exclude Worker and subprocess RSS, and not a leak proof
-or peak-RSS experiment. The stream cases prove incremental application consumption and measure increasing work; they do
-not publish a numeric memory bound. Native host tests and composed lifecycle scenarios separately prove ownership and
-terminal behavior. Browser engines, deployed durable adapters and remote clusters require their own
-environment-tested measurements.
+Mitata reports how much heap allocation changes in the parent V8 process. It does not report peak resident
+memory, include memory from Workers or subprocesses, or prove that the code has no memory leak. The stream cases
+show that the caller reads in parts and measure how the cost changes with input size. They do not set a memory
+ceiling.
+
+Separate tests check which host releases each resource and how work finishes. To measure a browser, a deployed
+storage adapter, or a remote cluster, run a benchmark in that environment.
 
 After `mise run test -- --suite packages` creates the physical clean consumer, measure its ESM package
 roots with `mise run bench -- --operation npm`. Read the owned temporary consumer path from
@@ -352,9 +354,10 @@ Timeouts, crashes and out-of-memory outcomes remain evidence; never drop them fr
 fixture bounds input, not necessarily intermediate allocation or process memory. Larger stress runs need explicit time,
 input and host memory budgets before launch.
 
-Package collections also write `<index>.resources.json`. This records native whole-process peak RSS when supported and
-endpoint `memoryUsage()` values. These include fixture and Mitata sample retention; top-level fixture disposal can
-follow the snapshot. They cannot attribute memory to one operation or establish a post-GC retained-heap plateau.
+Package benchmark runs also write `<index>.resources.json`. On supported hosts, it reports peak resident memory
+for the whole process. It also includes the final `memoryUsage()` readings. The process may still hold test
+data and Mitata samples when it takes those readings. A reading cannot show how much memory one operation used
+or whether the heap levels off after garbage collection.
 
 Measure peak RSS separately from retained heap and allocation churn. Timed throughput does not prove bounded memory, and
 a single before/after heap difference does not prove a leak. Repeated acquire/work/cancel/dispose cycles must reach a

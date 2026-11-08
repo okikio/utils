@@ -1,17 +1,18 @@
 # Reuse completed jobs in a multi-step operation
 
-A photo upload saves a title, then adds the returned photo ID to an album. Repeating the same logical operation should
-reuse recorded completions. A normal function is sufficient until that reuse becomes a requirement; Workflow adds
-recorded instructions while Activity keeps each job's input, dependencies, and result explicit.
+A photo upload saves a title, then adds the returned photo ID to an album. Calling that function twice creates two
+entries. If the second call is a retry of the same upload, you may want the original photo ID instead. Workflow can
+reuse a job result it has already recorded for that run. Activity describes the input and result for each job.
 
 ## See why ordinary repeated calls repeat writes
 
-Start with array-backed storage so every write can be inspected. After observing repeated ordinary calls, add memory
-dispatch and history to retain the results in this process. Those memory owners disappear after process loss.
+Start with arrays so you can count every title and album entry. In the first run below, expect two IDs and two entries
+in each array. Then run the recorded version with the same title. Expect the same ID on both passes and one entry in
+each array. The second program keeps its history in memory, so restarting it loses those recorded results.
 
-Save this first program as `ordinary-upload.ts` and run `mise exec -- deno run ordinary-upload.ts`.
-It uses only ordinary JavaScript and needs no package setup. Before recording anything, consider those calls. Each call to `save` appends a title. Repeating the function
-therefore appends twice, even though its input is unchanged:
+With Mise and Deno ready from the [checkout setup](../../README.md#work-on-the-repository), save this first program as
+`ordinary-upload.ts` and run `mise exec -- deno run ordinary-upload.ts`. This program has no package imports. Each
+call to `save` appends a title, so calling it twice appends twice even when its input is unchanged:
 
 ```ts runnable=ordinary-upload.ts
 const titles: string[] = [];
@@ -227,9 +228,12 @@ too. It does not depict a transaction between an external write and history reco
 
 ## Understand the failure window before choosing persistence
 
-If a write succeeds and the process stops before its completion is recorded, a replacement can repeat that write.
-Recording instructions alone cannot eliminate this window. A database receipt committed with the business write or a
-receiver-side idempotency key supplies a different guarantee and belongs to that write's owner.
+Suppose the store saves the title and the process stops before Workflow records that step as complete.
+A replacement can run the step again. Saving a history alone cannot prevent a second write.
+
+If the store is a database, save a receipt and the title in one transaction. The next attempt can read the
+receipt before it writes. If the store is another service, use a key it recognizes on repeat requests.
+The code that writes the data must enforce the rule.
 
 Try using fresh memory history to see why the retained history matters. Do not keep the same identity while changing the
 meaning of the input or program and assume an old result still represents the new request. Changing a recorded program

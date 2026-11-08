@@ -1,12 +1,16 @@
 # Run a bounded activity through authenticated HTTP
 
-Use `@okikio/activity/http` when an existing service can accept short activity attempts through a dedicated HTTP route.
-The client implements the same engine-provider contract as the local, Worker and process adapters. The server borrows
-an existing provider. Neither constructor opens a listener, configures credentials or starts a background loop.
+Suppose one service needs another to measure a string's length. The caller sends the string and receives a
+checked result without running the counting function itself. Use `@okikio/activity/http` to connect the caller to an
+existing service that exposes short jobs through a dedicated HTTP route.
 
-This is a unary request/response adapter. It does not carry reverse permission, effect or heartbeat calls back to the
-calling Scheduler. The receiving application must own those services and connect `control(attempt)` to the actual
-claim authority when they are needed. Without that connection, heartbeat throws instead of claiming to renew a lease.
+The client fits the same job-running interface as the local, Worker and process adapters. On the server, the route
+passes admitted work to a provider you supply. Your application opens the listener and configures credentials.
+
+One attempt uses one request and one response. This pattern is called **unary**. A running job cannot use that
+exchange to ask the caller to check a permission, accept an announcement, or renew its temporary right to finish the
+job. The receiving application must supply those operations if needed. For renewal, connect `control(attempt)` to
+the owner that can actually renew the claim. Without it, a renewal request through `heartbeat()` throws.
 Use the optional [duplex HTTP adapter](./http/duplex.md) when reverse calls must reach the original caller over HTTP, or choose a Worker/process adapter when its transport matches the deployment.
 
 ## Connect a local provider to a Fetch route
@@ -162,10 +166,12 @@ another server. That order prevents an active request from borrowing a resource 
 
 ## Know what a lost response means
 
-Authentication runs before body parsing and execution admission. Authorization runs after the bounded body passes the
-shared activity-envelope schema. It must establish that this caller can dispatch this exact attempt: an identity or a
-client-supplied `admitted` flag is not proof of permission. The server's provider and `control` supply the actual resource,
-permission and effect owners. The HTTP client cannot forward its own `ActivityAttemptControl` through a unary response.
+The server checks who is calling before it reads the body or accepts the work. It reads the body within the size limit,
+then checks that the request has the fields an activity attempt needs. Only then does it check whether this caller may
+start this exact attempt. Knowing the caller's identity or seeing an `admitted` flag from the client is not enough.
+
+Supply the server's provider and `control` to connect the resources, permission checks, and effects the job needs.
+With one request and one response, the client cannot pass its own `ActivityAttemptControl` to the server.
 
 The default body budget is 1 MiB per direction, at most 16 MiB. JSON encoding reuses the Streams package; the budget
 limits accepted output, not the temporary allocation required to serialize a caller-owned object. At most 16 requests

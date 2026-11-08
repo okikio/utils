@@ -10,13 +10,13 @@ how another host can apply its own policy. A declaration with no effective evalu
 Start with the [package example](../../packages/capability/requirement/README.md) for the smallest declaration and
 evaluator. The complete upload below shows where that check belongs in an application.
 
-## Run a complete task
+## Admit a three-byte upload
 
-Check an upload rule through an application-supplied evaluator. This program supplies its own local input and uses
-public workspace imports. After `mise run prepare -- --kind deps`, save it as `example.ts` at the checkout root and run
-`mise exec -- deno run example.ts`.
+Try a three-byte input against a 1,024-byte limit. The application supplies the callback that performs the check.
+After the [checkout setup](../../README.md#run-a-complete-example-from-this-checkout), save this as `check-upload.ts`
+and run `mise exec -- deno run check-upload.ts`.
 
-```ts runnable=complete-task.ts
+```ts runnable=check-upload.ts
 import * as context from '@okikio/context';
 import * as requirement from '@okikio/capability/requirement';
 
@@ -53,15 +53,23 @@ Expected output:
 Upload admitted: 3 bytes
 ```
 
-Compare the output before changing the input. The remaining sections explain the options and limits; the
-[package example](../../packages/capability/requirement/README.md) also places this operation among adjacent
-capabilities.
+The input is within the limit, so execution reaches the print statement. Try replacing the three-byte array with
+`new Uint8Array(1025)`: the check throws before the upload could continue.
 
 ## Trace declaration, binding and enforcement
 
-`Size` is ordinary frozen metadata: the maximum allowed upload size. `define` wraps that metadata in an upload-family declaration. Neither operation measures or rejects an upload. `scope` binds this family's evaluator to the borrowed operation lifetime. Only `apply` runs that evaluator. Here it closes over the admitted byte array; an actual service must bind the rule to the exact bytes or trusted length it will consume.
+`Size` records the maximum number of bytes. `define` names that rule in the upload family. Neither checks a
+file. `scope` gives this operation the function that can check rules for that family. `apply` calls it.
 
-To see a rejection, replace the three-byte input with `new Uint8Array(1025)` and catch the call to `apply`. It rejects with `The upload is too large.` before the success line. Perform the write only after that Promise resolves. To see the other failure, omit the `upload` interpreter: applying an active family without an interpreter rejects by default. A test host can explicitly select `unknown: 'ignore'`, but that bypass is a policy decision, not permission enforcement.
+The example checks the byte array it already has. In a service, check the exact bytes you will read or use
+a length from a source you trust.
+
+Replace the three-byte input with `new Uint8Array(1025)`. `apply` rejects with `The upload is too large.` before
+the program prints success. Wait for `apply` to finish before writing any bytes.
+
+Now omit the `upload` interpreter. The check rejects by default because it has no function to apply the rule.
+A test can set `unknown: 'ignore'` to skip missing interpreters. That setting skips the check, so it cannot
+tell you that an upload is allowed.
 
 For permissions the roles are the same: the declaration names a permission, the application supplies a checker, and the active call evaluates the target. A declaration alone grants no access and does not choose a role system, relationship graph or remote authorization service.
 

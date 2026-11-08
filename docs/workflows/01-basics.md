@@ -1,8 +1,8 @@
 # Run background work that survives a worker restart
 
-A customer uploads a dataset. They expect the import to finish after they close the page. They also expect saved
-corrections to remain intact if a worker crashes. A research customer has a similar need. The research must produce one published contribution, and
-temporary capture data must expire later. Repeated attempts must not publish duplicate contributions.
+A customer uploads a dataset. They expect the import to finish after they close the page, and they expect their saved
+corrections to survive if a worker crashes. A research request has a similar problem: the service needs to publish
+the result once and remove the temporary data later, even if the original worker stops.
 
 This guide builds that system one decision at a time. It describes the current utils code, not a proposed application
 migration. The import and research scenarios come from separate applications named Core and Intelligence. They use
@@ -10,7 +10,8 @@ small test datasets here; you do not need either application to follow the guide
 
 ## Start with a function
 
-An ordinary async function runs code and returns a result:
+An ordinary async function runs code and returns its result through a Promise. In this sketch, the application
+supplies `readRows` and `saveRows`; each `await` waits for that call to finish before moving on:
 
 ```ts
 const rows = await readRows(file);
@@ -39,13 +40,17 @@ The first complete flow is:
 5. A worker takes the saved job and imports the rows.
 6. The user checks the run reference to see the result.
 
-`202` means **accepted**, not **finished**. The worker can be offline at step 4. The service can also restart after step
-4 without losing the accepted work.
+`202` means **accepted**, not **finished**. At that point you should be able to check the reference even if no worker
+is online. If the service restarts and receives the same command key and input again, the fixture returns the same
+reference. In the [CSV import example](./05-core.md), a successful Parse result means the uploaded rows were read and
+saved. Account resolution is separate work; use the follow-up reference before telling the user their accounts are ready.
 
-The complete [service source](../../tests/workflows/scenarios/service.ts) implements admission and status over HTTP. It
-never calls `serve()`. The complete [worker source](../../tests/workflows/scenarios/host.ts) supplies implementations
-and calls `serve()`. It does not accept customer commands. These fixture endpoints trust their isolated test callers. A
-deployed service must authorize each command and status lookup.
+The complete [service source](../../tests/workflows/scenarios/service.ts) shows how the HTTP service accepts work
+and answers status requests. It saves the source and accepts the job in one PostgreSQL transaction. The service
+can return the job reference once that transaction commits. The service never calls `serve()`. The
+[worker source](../../tests/workflows/scenarios/host.ts) supplies implementations and calls `serve()`, but
+does not accept customer commands. The fixture endpoints trust their isolated test callers. In a deployed
+service, check the caller's permission for each command and status lookup.
 
 Read the following diagram from top to bottom. It shows the successful admission and row-write path. The later sections
 add follow-up work, finalization, and recovery.

@@ -1,8 +1,15 @@
 # `@okikio/schema/codec`
 
-A codec keeps validation and reverse conversion together. For example, an API sends a timestamp string while an
-application works with a Date. The decode schema validates the string and produces a Date. The encode schema validates
-the Date and produces the canonical string.
+An API sends a timestamp as text. Your JavaScript code wants a `Date` so it can compare times, and the API still needs
+text when you send that value back. A codec keeps both rules together:
+
+| Direction | Given | Returns after validation |
+| --- | --- | --- |
+| Decode | Timestamp text from the API | A JavaScript `Date` |
+| Encode | A JavaScript `Date` | Timestamp text in the codec's standard form |
+
+Run the example to see the timestamp make that round trip. The text you see at the end comes from encoding the
+`Date`, so the program is testing both directions.
 
 From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare -- --kind deps` at the repository root. Save the following program as `example.ts` and run `mise exec -- deno run example.ts`. These commands use the workspace export maps; they do not assume a published registry version.
 
@@ -89,6 +96,9 @@ properties remain present.
 
 Object codecs strip undeclared keys by default. Set each direction's policy when provider growth and authored output
 need different rules:
+
+Save this example as `profile-directions.ts` and run `mise exec -- deno run profile-directions.ts` from the same
+checkout. It compares what the decoder retains from input with what the encoder accepts for output.
 
 ```ts runnable=profile-directions.ts
 import * as schema from '@okikio/schema';

@@ -1,16 +1,20 @@
 # Collect input and own interactions
 
-Start with the [package quick start](../../packages/input/README.md).
+A person reading a list of reports can choose the next report with a button or a key. The selection should change only
+when the person interacts with that list. The tutorial below builds that behavior with a keyboard listener on one
+panel. A second example shows how to test what the action does without a browser.
 
-Input collects text, forms, files and clipboard values; interprets keyboard, pointer and gamepad interactions; and
-offers a separate feedback family. Begin with the [collection guide](../input/01-collection.md), then
-[interaction](../input/02-interaction.md), [feedback](../input/03-feedback.md), and
-[observation and cleanup](../input/04-observation.md).
+For a different task, start with the [package quick start](../../packages/input/README.md). Read
+[collection](../input/01-collection.md) for values such as form fields and files,
+[interaction](../input/02-interaction.md) for actions from keys and other devices,
+[feedback](../input/03-feedback.md) for showing a response, and [observation](../input/04-observation.md) for keeping
+the display and its subscriptions in sync.
 
 ## Choose a report with a keyboard scope
 
-Press j to select Report 2, then k to return to Report 1. The native focusable panel owns these shortcuts; editing
-controls elsewhere keep their text behavior. The application bounds the selection and owns what each report means.
+Click the report panel, then press `j` to select Report 2 and `k` to return to Report 1. The example listens on that
+panel, so typing elsewhere keeps its usual behavior. The app decides what each report means and stops the selection
+at the first or last report.
 
 Prepare the checkout from its root with `mise trust`, `mise install` and `mise run prepare -- --kind deps` after reviewing
 `mise.toml`. Save the HTML as `report-navigation.html` and TypeScript as `report-navigation.ts`.
@@ -57,20 +61,24 @@ mise exec -- deno bundle --platform browser report-navigation.ts -o report-navig
 python3 -m http.server 8000 --bind 127.0.0.1
 ```
 
-Open `http://127.0.0.1:8000/report-navigation.html`. Keep the server terminal open; stop it with Ctrl+C when finished.
+Open `http://127.0.0.1:8000/report-navigation.html`. The status starts at Report 1. Focus the panel, press `j` twice,
+and check for Report 3. A third press should leave it there. Move focus away from the panel and press `k`; the report
+should stay at 3. Keep the server terminal open during the exercise, then stop it with Ctrl+C.
 After TypeScript edits, rebuild the bundle and refresh the browser. The HTTP server serves this checkout locally; do not
 expose it on a public address. The module owns its listeners and releases them on page exit. In an application, call its
 teardown when removing the screen instead. The browser interaction is separate from the portable example checks below.
 
-The example supplies `select` and `panel` and calls the listener teardown on page exit. A component should call it at its actual teardown. Imports install no
-listeners. Keyboard bindings snapshot the supplied array and lower-case keys; bindings can match one key or a sequence
+Importing `keys` does not install listeners. Calling `keys.listen` copies the supplied bindings and converts their keys
+to lowercase. A binding can match one key or a sequence
 of up to eight strokes. The third argument configures timeout, cancellation and active scopes. Editing controls and
 visible dialogs keep their native keyboard behavior. Command IDs and labels remain caller-owned.
 
-Swipes use pointer events across mouse, touch and pen and report physical direction. Native interruption cancels them.
-The application owns touch-action and the meaning of a direction. Drag, hold and two-contact scale/rotation have
-separate operations in the same gestures family. No global gesture arbitration runs across unrelated owners. Dispose
-before removing the scope.
+A swipe can come from a mouse, touch, or pen. The library reports which way the pointer moved. Your application
+decides what that direction means and sets CSS `touch-action` to say which gestures the browser can handle.
+If the browser cancels the pointer, the library cancels the swipe.
+
+Use separate operations for drag, hold, and two-finger scaling or rotation. One widget does not decide whether
+another widget should accept a gesture. Stop the listeners before removing the widget.
 
 The unit suite uses small structural hosts and native DOM type fixtures for gesture ownership. The browser fixture
 exercises native events, shadow DOM, editable modes and iframe realms. It does not establish browser rendering,

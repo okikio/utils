@@ -104,10 +104,11 @@ number, and opening a cancellation/cleanup lifetime. It still validates input an
 It saves no job, makes no retry, and grants no permission. `activity.run()` remains available to a host that already
 owns those attempt details.
 
-The example borrows `stores.collection` so both calls share its lazily created store. For one call, pass
-`{ resources: StoreLive }` and let the call own that store's lifetime. To cancel from an existing request, also pass
-`{ ctx: requestContext }`; the call closes only its own child lifetime. A definition can opt into explicit engine
-placement later. The default is `engine.local`, and `call()` never chooses a remote engine implicitly.
+Both calls in this example use `stores.collection`. The first borrow opens the store, and the next call can reuse
+it. For one call, pass `{ resources: StoreLive }` to let the call open and close the store itself. Pass
+`{ ctx: requestContext }` to cancel with an existing request. The call closes its child Context and leaves the
+request Context open. Unless the definition says otherwise, it uses `engine.local`. The call never picks a
+remote engine on its own.
 
 A photo title arrives from a form. Before a storage client sees it, the activity checks that it contains text. After the
 client saves it, the activity checks the receipt. Different callers can use that same contract without copying
@@ -128,15 +129,15 @@ The result schema determines the Promise's value type. Changing a definition's i
 typed `ctx.input`. Keeping those schemas on one definition prevents separate callers and remote hosts from quietly
 drifting into different versions of the same job.
 
-Underneath a direct `run()`, the runner checks engine and attempt identity, validates input, and creates an owned child
-context. It adds the declared resource/permission/effect views, applies admission requirements, calls your function,
-validates its result, and awaits attempt cleanup. Invalid input never reaches the function. Schemas may be asynchronous,
-so the outward result is a Promise even when your function returns a string immediately.
+On a direct `run()` call, the runner checks the engine and attempt IDs and then checks the input. Invalid
+input never reaches your function. For valid input, the runner creates a child Context and makes the declared
+resources, permissions, and effects available. It checks the rules for starting the attempt, calls your
+function, checks its result, and waits for cleanup. A schema may check a value asynchronously, so even a
+function that returns a string immediately gives the caller a Promise.
 
-`call()` supplies the local engine identity and owns those attempt details for you. The lower-level `run()` asks the
-caller for them because a scheduler already owns that identity, retry count and resource lifetime. An engine is a named
-execution capability, not a running process. Supplying its identity never launches a remote host or makes an external
-write durable. Keep this lower-level control for the point where another owner actually needs it.
+`call()` fills in the attempt details for a local call. With `run()`, the scheduler supplies the job and attempt
+IDs, the attempt count, and the resource Context it already manages. The engine name tells the scheduler where
+the implementation can run. Giving an engine a name does not start a process or save an external write.
 
 ## Follow one job from input to result
 
@@ -146,12 +147,13 @@ activity runner and store are separate participants.
 
 ![A photo application checks a save job, borrows its supplied store, and receives the saved receipt](../packages/activity/diagram.png)
 
-[Editable diagram source](../packages/activity/diagram.mmd). The store does the saving; the activity adds one consistent
-call contract around it. Resource declarations describe and type the job's dependencies; they are not a sandbox for
-untrusted implementations. This picture shows a successful local attempt. A failed input check stops before the
-implementation runs. Cancellation asks cooperative work to stop; it does not undo a write that the store has already
-accepted. Retries and durable scheduling belong to a host such as [workflow](../packages/workflow/README.md), rather
-than to this direct call.
+The store saves the title. The activity checks what goes in and what comes back. Its resource declarations
+describe the dependencies it expects. They do not isolate untrusted code. The diagram shows a successful
+local attempt. If the input fails its check, the function never runs. If you cancel during a save, the function
+must observe the signal; cancellation does not undo a write. Use [Workflow](../packages/workflow/README.md)
+when another part of the application must retry the job or save it for later.
+
+[Editable diagram source](../packages/activity/diagram.mmd).
 
 For shared terms such as `await` and `await using`, see
 [the short glossary](./02-learn.md#read-the-small-amount-of-code-you-need).
@@ -168,9 +170,9 @@ For the exact functions, types and field explanations, read the
 | Create a preview, then save its location              | Activities + [workflow](../packages/workflow/README.md)                                                    | The sequence requests named steps and can reuse recorded completions through its configured history.     |
 | Run costly work outside the caller's execution thread | Activity [Worker provider](../packages/activity/worker.ts) + [worker](../packages/worker/thread/README.md) | Serializable input and results cross a transport; the receiving host supplies its own live dependencies. |
 
-The workflow guide runs two real activity implementations through a local provider. Start there before adding a remote
-host. Sharing dispatch and history across computers needs authoritative adapters; drawing an engine in a diagram does
-not supply that infrastructure.
+The workflow guide runs two activities in one process. Start there before adding a remote host. If different
+computers must share pending jobs and completed results, supply adapters that let them read and update the
+same dispatch and history records.
 
 ## Request a job from a workflow
 
@@ -246,9 +248,9 @@ An implementation receives `ctx.get()` for borrowed resources and standard owned
 
 ## Scheduler admission
 
-The default workflow Scheduler applies an activity's direct active requirements before it reserves engine capacity. It
-then records that this attempt already passed admission. The provider calls `activity.run()` with that attempt, which
-binds dynamic permission/effect/resource scopes without repeating the admission check.
+The default workflow scheduler checks the activity's direct requirements before it reserves a slot on the
+engine. It marks the attempt as checked. When the provider passes that attempt to `activity.run()`, the call
+makes the relevant permission checks, effects, and resources available without repeating the earlier check.
 
 A caller that invokes `activity.run()` directly has no Scheduler above it, so direct requirements are applied by `run()`
 itself.

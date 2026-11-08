@@ -172,9 +172,9 @@ Save `check.ts`. A **transport** carries protocol messages between client and se
 Streamable HTTP transport builds real protocol requests and sends them to the loopback listener.
 `client.connect()` establishes the protocol conversation before discovery or tool calls.
 
-The check creates two application instances from the same definition. `listen()` owns the one reached by the SDK
-client. `admissionApp` receives direct Requests with hostile headers, so those checks can exercise HTTP admission
-without starting a protocol conversation. Each instance has its own lifetime and must close.
+The check starts two copies of the application. The SDK client talks to the copy that `listen()` starts.
+The test sends requests with rejected headers directly to `admissionApp`, the other copy. This tests the HTTP checks
+without starting an MCP conversation. The check closes both copies.
 
 ```ts source=../../examples/mcp/check.ts
 /** Discover and call a real tool without a model; assert failures and close every owned connection. @module */
@@ -254,13 +254,13 @@ invalid true
 blocked 403 403
 ```
 
-The first line proves discovery. The second is the tool's protocol content. `invalid true` shows that an empty name did
-not produce a successful greeting. The final two 403 responses come from HTTP admission, before the SDK parses a tool
-request. These are different failure owners; a tool error is not automatically an HTTP 4xx status.
+The first line shows that the client found `greet`. The second shows the text the tool returned. `invalid true` means
+the tool rejected an empty name. The last two 403 responses show that the HTTP route blocked those requests before
+the SDK read them. An MCP tool error does not automatically become an HTTP 4xx response.
 
-The client, direct admission application, and listener close in `finally`, including when a call fails. Closing the
-listener also closes its own application. The nested cleanup attempts each release even if an earlier release fails. Listener acquisition happens inside that scope, so a bind failure still closes the direct
-application. Neither side should be left alive because the success path was the only path tested.
+The check closes the client, the direct test application, and the listener in `finally`, even when a call fails.
+Closing the listener also closes the application it started. If one cleanup step fails, the check still tries
+the others. If the listener cannot open a port, the check still closes the direct test application.
 
 ## Let another application connect
 

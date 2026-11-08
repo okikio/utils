@@ -1,16 +1,17 @@
 # Keep source bytes distinct from interpreted rows
 
-A contact file contains a company name with a comma inside it. The importer must preserve that cell, find its header,
-and let the application decide whether the contact is valid. For a large file, it must do the same work incrementally
-and close the source if the user stops the import.
+Suppose a contact file contains `"Ada, Inc."` in its Company column. If you split the text at every comma,
+you get two cells instead of one company name. A quoted cell can contain a line break too. The CSV parser keeps
+both the comma and the line break inside the cell.
 
-Splitting text on commas or newlines breaks quoted cells. This package uses @std/csv for field syntax, with an adapter
-for blank records and exact quoted newlines. Application policy owns header and conversion decisions.
+You choose which row contains the column names, or let the parser look for one. The parser returns each cell as
+text. Your application decides what the columns mean, whether an email address is valid, and whether to convert
+a value such as `00123` to a number. For a large file, you can read one row at a time.
 
 ## Read a contact by its column name
 
-The contact source contains a quoted company name. Parse the complete record, then select its email through the header
-lookup. The lookup keeps column position out of the application code.
+The example tells the parser that row 1 contains the column names. It finds `Email` by name and uses the
+column's index to read the address. If the file moves that column, the lookup still finds it.
 
 Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
 `mise exec -- deno run example.ts`.
@@ -37,10 +38,15 @@ ada@example.com
 
 ## Keep logical record positions when reviewing contacts
 
-A review screen may need to point a person back to the record that needs attention. `row.row` is the one-based
-**logical record** number, including the header and any blank records before it. It is not a physical line number:
-a quoted cell can contain several lines. `preserveBlankRows: true` also emits blank records instead of discarding them.
-`rawHeader` keeps the exact decoded header next to its normalized lookup key.
+When you show a validation error, give the reader the record number from `row.row`. The count starts at 1 and
+includes the header and any blank records. It counts complete CSV records. A quoted cell can span several lines in
+a text editor and still belong to one record.
+
+Set `preserveBlankRows: true` if you also want blank records in the result. Use `rawHeader` when you need to show
+the original header text, including spaces. Use the normalized key when you need to look up the column.
+
+Save this separate program as `contact-positions.ts` and run `mise exec -- deno run contact-positions.ts`. It prints
+the original header text, then the number and label of each record, including the blank one.
 
 ```ts runnable=contact-positions.ts
 import * as csv from '@okikio/format/csv';
@@ -68,7 +74,9 @@ renumber later records. If you need byte offsets or physical line spans, this AP
 
 ## Quote cells when writing contacts
 
-Use the writer for quoted scalar framing instead of assembling cells by hand:
+Use `cell()` to turn one string into a CSV cell. It adds quotes where needed. Join the cells with `comma` and
+end each record with `recordEnd`. This example reads the result back to show that both special characters
+survive.
 
 ```ts runnable
 import * as csv from '@okikio/format/csv';
@@ -91,16 +99,15 @@ Expected output:
 ["a,b","line\nbreak",""]
 ```
 
-One complete cell is buffered by `cell()`. The caller can stream the surrounding record using the exported framing
-strings. Cells remain text, and quoting is not spreadsheet formula protection. Applications choose whether to reject or
-escape formula-like values for their export destination. Collection and streaming use `@std/csv` for field parsing. A
-record-framing adapter preserves blank records, CR record endings, and exact quoted newlines. Streaming rejects
-`maximumCharacters` because it is a collecting-only source limit rather than silently ignoring it.
+`cell()` holds one complete cell in memory while it adds any quotes. You can write each encoded cell and separator
+to your destination as you go. If someone opens the file in a spreadsheet, the spreadsheet may still run a cell
+as a formula. Decide whether to reject or escape those values before you export the file.
 
 ## Parse original bytes
 
-Use `parseBytes()` when byte encoding and the source-byte limit matter. The text path above already has decoded input;
-the byte path also has to choose an encoding. Both keep `00123` as the string `'00123'` instead of guessing a number.
+Use `parse()` when you already have a JavaScript string. Use `parseBytes()` when you have the original file
+bytes and need to limit their size. The parser first chooses how to turn those bytes into text. Both calls keep
+`00123` as text, so the leading zeros stay in the result.
 
 ```ts
 import * as csv from '@okikio/format/csv';
@@ -122,10 +129,10 @@ Options use complete words. `maximumRows` is intentional; there is no `maxRows` 
 
 ## Stream unknown or large input
 
-`parseStream()` is the primary API when you do not want to retain the complete source or complete row set in memory.
-This complete continuation streams the same contacts rather than materializing every row. Save it as
-`import-contacts.ts` and run `mise exec -- deno run import-contacts.ts`. The awaited sink counts accepted rows; replace
-it with a real write only after choosing validation and commit behavior.
+Use `parseStream()` to read rows as they arrive, without collecting the whole file or keeping all the parsed rows.
+Save the example as `import-contacts.ts` and run `mise exec -- deno run import-contacts.ts`. It reads the same contact
+as before, checks the email address, and counts one accepted row. To save to a real database, replace the counter
+with a write and decide when those writes should become visible.
 
 ```ts runnable=import-contacts.ts
 import * as csv from '@okikio/format/csv';
@@ -168,22 +175,23 @@ Contacts saved: 1
 Reader released: true
 ```
 
-Each `await saveContact()` finishes before the loop requests another row. Lower `maximumBytes` to 16 to reject this source,
-or change the email to `missing` to fail in application validation. Neither kind of failure rolls back earlier writes.
-Stage records under an import ID and publish only after successful EOF when partial imports must stay invisible. The
-abort signal stops this consumer; a real fetch source must receive the same signal. Disposal releases the document's
-reader even when validation throws.
+The loop waits for `saveContact()` before it asks for the next row. Set `maximumBytes` to 16 to make the parser reject
+the file. Change the email to `missing` to make the application reject the row. If you already wrote earlier rows,
+neither error undoes those writes. To hide a partial import, save rows under an import ID and publish them only
+after reading the whole file successfully.
 
-The returned `CsvStreamDocument` is one-shot. Consuming all rows or calling its `AsyncDisposable` releases the owned
-reader. Attempting to iterate a second time fails rather than silently replaying or buffering the source.
+Pass the same abort signal to `fetch()` if the rows come from a network response. This lets cancellation reach both
+the parser and the network request. The document lets you read its rows once. When you finish reading, it releases
+the reader. The `await using` block also releases it if you leave early or validation throws. To read the rows again,
+open a new source.
 
 ## Safety limits
 
-`textOnly: true` rejects binary signatures and non-text controls. The default text policy is permissive; choose
-strict rejection when the upload contract requires text. Explicit `headerRow` selection is independent of the
-automatic discovery budget.
+Set `textOnly: true` when the upload must be text. The parser then rejects known binary file markers and control
+characters it does not accept as text. By default, the parser skips these extra checks. If you pass `headerRow`, it
+uses that row number rather than looking for a header within `headerScanRows`.
 
-Each growing dimension has its own bound:
+Set a limit on each part that can grow:
 
 | Option                  | Bounds                                        |          Default |
 | ----------------------- | --------------------------------------------- | ---------------: |
@@ -195,28 +203,29 @@ Each growing dimension has its own bound:
 | `headerScanRows`        | rows inspected for automatic header selection |               25 |
 | `maximumPeekBytes`      | bytes inspected before streaming begins       |          256 KiB |
 
-The stream parser snapshots options **before the first asynchronous source read**. Mutating the object after
-`parseStream()` is called does not change an in-flight parse.
+`parseStream()` copies its settings before it starts reading. If you change the options object later, the current
+parse still uses the original settings.
 
-`maximumCharacters` belongs only to collecting parses because it bounds the complete decoded source retained in memory.
-`parseStream()` rejects that option; streaming instead enforces `maximumBytes`, row, column, cell, and peek limits as
-data flows.
+Use `maximumCharacters` with `parse()` or `parseBytes()` to limit the length of the full decoded text. The stream
+parser does not keep that full text, so it rejects this option. It still limits bytes, rows, columns, cell length,
+and how much input it can inspect before streaming begins.
 
 ## Header normalization
 
 `normalizeHeader('\ufeff Company:Website_URL ')` returns `'company website url'`. The contact preview above uses the
 corresponding normalized key to locate a column without depending on its position.
 
-Normalization handles BOMs, Unicode normalization, camel-case word transitions, common punctuation, separators, and
-repeated whitespace. It is idempotent: normalizing an already-normalized header returns the same value.
+The function removes a leading byte order mark (BOM), puts Unicode text into a consistent form, and separates words
+at camel-case boundaries or common punctuation. It also trims and combines spaces. Calling it again on the result
+returns the same key.
 
-The generic parser uses normalized headers only for stable keys and structural header selection. It does **not**
-classify columns as `company`, `email`, `website`, or `domain`.
+The parser uses the cleaned names to make keys and help find the header row. It does not know whether a column
+contains company names, email addresses, websites, or domains. Your application makes that decision.
 
 ## Product classification belongs above CSV
 
-For example, a product import feature can classify parsed columns without teaching `@okikio/format/csv` about CRM
-semantics:
+This contact importer assigns a role to each column. It maps two known names to `domain` and `website`. If it does
+not recognize a name, it uses `unknown`.
 
 ```ts
 import * as csv from '@okikio/format/csv';
@@ -238,29 +247,24 @@ console.log(columns.map((column) => `${column.key}: ${column.role}`).join(', '))
 // company domain name: domain, website url: website
 ```
 
-That separation is important. `@okikio/format/csv` remains reusable for media metadata, financial exports, scientific
-data, logs, and other CSV documents that have nothing to do with account enrichment.
+The same parser can read a financial export or a log because it does not assume that those files contain contacts.
+Each application can use different column names and rules.
 
 ## What the parser owns
 
-The collecting and streaming APIs intentionally share the same structural CSV rules. The package owns the repetitive
-correctness work needed to make those rules consistent:
+Whether you read a whole file or stream it, the parser finds the same cells. It uses `@std/csv` to read fields and
+check their quotes. Utils finds the record boundaries before handing the records to that parser. This lets Utils
+count blank records, accept a lone carriage return as a record ending, and restore the original line breaks inside
+quoted cells.
 
-- source byte and decoded-data limits;
-- BOM and byte-encoding detection;
-- quote-aware delimiter selection;
-- stable header normalization and duplicate handling;
-- row, column, and cell limits;
-- structural diagnostics;
-- one-shot stream ownership, backpressure, and cleanup.
-
-Applications still own domain interpretation. If a product needs a different header canonicalization policy, a different
-cell type system, or CRM-specific column roles, implement that policy above `@okikio/format/csv` rather than hiding it
-inside parser configuration.
+The parser also checks the input limits, gives duplicate header names distinct keys, and reports problems it can
+read past. When you stream rows, it slows its reads as the consumer slows down and releases the reader when you finish.
+Handle any custom header names, value conversions, or contact rules in the code that uses the parsed rows.
 
 ## Diagnostics and failures
 
-Recoverable observations stay in `document.diagnostics` and, where applicable, `row.diagnostics`:
+When the parser can keep going, it reports what it found in `document.diagnostics` or in the affected row's
+`diagnostics`. You can show these notes in an import preview:
 
 - blank or duplicate headers;
 - a skipped instructional preamble;
@@ -269,55 +273,53 @@ Recoverable observations stay in `document.diagnostics` and, where applicable, `
 - spreadsheet-formula markers;
 - header-only documents.
 
-`CsvParseError` is reserved for unrecoverable structural or configured-limit failures such as malformed CSV, missing
-headers, oversized input, too many columns/rows, or oversized cells.
+The parser throws `CsvParseError` if it cannot read the CSV, find a usable header, or stay within the configured
+limits. For example, a malformed quote or a cell that is too long can stop the parse.
 
 ## Tests and benchmarks
 
-The package deliberately separates adapters:
+Choose the test that covers the behavior you changed:
 
-- `headers.test.ts` checks normalization and generated idempotence properties;
-- `dialect.test.ts` checks quote-aware delimiter ranking;
-- `encoding.test.ts` checks BOM/line-ending/fallback behavior;
-- `options.test.ts` checks deterministic option records and limits;
-- `parse.test.ts` runs the representative CRM/generic fixture matrix as structural CSV data, not as product
-  classification;
-- `stream.test.ts` checks chunk splits, limits, one-shot disposal, and option snapshotting;
-- `type.test.ts` protects the namespace API and rejects obsolete abbreviated option names;
-- `parse.bench.ts` compares a 10,000-row workload against `@std/csv` structural parsing and measures the streaming path
-  with 64 KiB chunks.
+- `headers.test.ts` checks that cleaning a header twice gives the same result as cleaning it once.
+- `dialect.test.ts` checks that commas inside quotes do not count when choosing a separator.
+- `encoding.test.ts` checks byte order marks, line endings, and the fallback encoding.
+- `options.test.ts` checks the option values and limits.
+- `parse.test.ts` checks how the parser reads contact files and other sample CSV files.
+- `stream.test.ts` checks that the parser handles records split across chunks, enforces limits, releases the reader,
+  and ignores changes to options after reading begins.
+- `types.test.ts` checks namespace imports and rejects obsolete abbreviated option names.
 
-The benchmark baseline is there to make parser overhead visible. It is not a claim that `@std/csv` and
-`@okikio/format/csv` perform identical work.
+The [CSV benchmark](../packages/format/csv.bench.ts) uses 10,000 rows to compare parsing with `@std/csv` and
+measures the streaming path with 64 KiB chunks. Compare the times with the extra work Utils does in mind,
+including its limits, header processing, and diagnostics.
 
 ## Implementation layout
 
-The runtime surface is split by responsibility so consumers can import only what they need and maintainers can benchmark
-the hot paths independently:
-
-- `options.ts` owns deterministic option validation and defaults;
-- `headers.ts` owns header canonicalization;
-- `dialect.ts` and `encoding.ts` own bounded source detection;
-- `parse.ts` owns collecting composition;
-- `stream.ts` owns streaming state, backpressure, and reader cleanup.
-
-Executable tests cover malformed input, limits, option snapshotting, structural diagnostics, one-shot streaming, and
-namespace typing. Benchmarks compare the collecting and streaming paths with representative `@std/csv` work so parser
-overhead remains visible.
+Start with `parse.ts` for a file that is already in memory, or `stream.ts` for rows read from a stream.
+Both use `records.ts` to find record boundaries and read fields. Look in `options.ts` for limits and defaults,
+`headers.ts` for changes to column names, and `dialect.ts` and `encoding.ts` for how the parser chooses a separator
+and decodes the source.
 
 ## Preserve source framing during export
 
-`parse` and `parseBytes` now return a `dialect` with delimiter, encoding, record terminator, quoting choice and
-final-newline policy. On a streamed document, `dialect` stays undefined until the row iterator reaches successful EOF.
-Mixed input endings use the first observed record terminator for output; quoted cell newlines do not count as record
-endings. Arbitrary source quoting and whitespace are not byte-preserved.
+Use the returned `dialect` when a new export should follow the source file's format. It describes the encoding,
+the separators between cells and records, whether every cell was quoted, and whether the file ended with a line
+break. When you stream rows, this information is available only after you finish reading them successfully.
 
-Use `serialize(records, dialect, limits)` from `@okikio/format/csv/write` to emit byte chunks incrementally. Supply
-preamble and header records explicitly, and keep the destination unpublished until EOF. The serializer bounds bytes,
-rows, cell characters and chunk size. It closes the input iterator after early return or failure, but blocked input must
-cooperate with the supplied signal. Strict Windows-1252 output throws `EncodingError` for unrepresentable new text;
-explicitly offer UTF-8 instead. Formula cells stay unchanged unless the caller applies `spreadsheet` to generated
-presentation cells. Dialect validation uses a native Standard Schema reader. CSV does not require Zod, csv-parse, or
-csv-stringify.
+If the source mixes different record endings, the writer uses the first one it found outside a quoted cell.
+Writing the same values back can still change how individual cells are quoted or spaced. Keep the original bytes
+if you need an exact copy.
+
+Call `serialize(records, dialect, limits)` from `@okikio/format/csv/write` to write the file in chunks. Include any
+introductory records and the header yourself. Keep the new file private until the writer finishes successfully.
+The writer limits the total bytes, number of records, length of each cell, and size of each chunk.
+
+If writing fails or you stop early, the writer closes the input iterator. If that iterator is waiting for another
+record, it must observe the supplied signal to stop the wait. If new text cannot be written in Windows-1252,
+the writer throws `EncodingError`. Offer UTF-8 if the user needs to export those characters.
+
+The writer leaves formula-like cells unchanged. Apply `spreadsheet` to generated cells for spreadsheet display
+when you want that protection. `CsvDialectSchema` checks the format settings with Standard Schema; you do not
+need to install Zod, csv-parse, or csv-stringify.
 
 The [adoption guide](./04-adoption.md) contains a complete bounded read/parse/write boundary.

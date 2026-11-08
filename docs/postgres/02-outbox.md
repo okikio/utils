@@ -1,37 +1,39 @@
 # Commit a message with a business write
 
-A transactional outbox saves a message in the same PostgreSQL transaction as the
-business change that requires it. If that transaction rolls back, neither is
-visible. After commit, a dispatcher can deliver the message even if the producer
-has exited. A delivery may repeat when the sink accepts it but the dispatcher
-does not save the acknowledgement.
+Someone saves a note called “Read later.” The app saves the note in PostgreSQL, then asks another service to send a
+notification. What if the app stops between those two calls? The note is there when the person comes back, but no
+service knows it still needs to send the notification. Sending first has the opposite problem: the notification could
+go out for a note that never gets saved.
 
-Use `@okikio/storage/outbox/postgres` for finite JSON messages and
-`@okikio/storage/outbox/effect` for declared effects with trusted decoders. This
-adapter is separate from Workflow's internal delivery tables. It does not start
-workflows, poll automatically, manage hosts or own the application's pool.
+A **transactional outbox** lets you save the note and a message asking for the notification in the same transaction.
+A transaction makes both writes visible together when it commits. If it rolls back, neither write is saved. A separate
+process, called a **dispatcher**, reads the saved messages and delivers them. It can pick up the message even if the
+app that saved the note has stopped.
 
-For example, saving an order can require notifying another system. Calling that system before SQL commits can notify
-it about an order that later rolls back. Calling it only after commit can lose the notification if the producer crashes
-between those actions. The outbox closes that gap by committing the order and the message together, then delivering
-from the saved message. It does not remove duplicate delivery: the receiver must recognize the same message identity.
+## When the dispatcher stops before marking delivery complete
 
-The producer, outbox and receiver have separate responsibilities. Follow the message through the failure that makes a
-receipt necessary:
+The dispatcher can still stop after the receiver saves the notification and before the dispatcher marks the message
+complete. A replacement cannot tell from the outbox alone whether the receiver finished. After the first reservation
+expires, it can try again with the same message key. The receiver uses that key to look up its **receipt**: a saved
+record that it already did the work.
 
 ```mermaid
 flowchart TD
-    A[Producer commits row and message] --> B[Dispatcher claims message]
-    B --> C[Receiver checks stable identity]
-    C --> D{Receipt exists?}
-    D -->|No| E[Commit receipt and consequence]
-    D -->|Yes| F[Accept without repeat write]
-    E --> G[Dispatcher acknowledges claim]
-    F --> G
+    A["App saves note + outbox message"] --> B["Receiver saves notification + receipt"]
+    B --> C["Dispatcher stops before marking complete"]
+    C -->|After reservation expires| D["Replacement delivers note:one again"]
+    D --> E["Receiver finds receipt and accepts"]
+    E --> F["Replacement marks message complete"]
 ```
 
-If acknowledgement is lost, recovery may deliver the same identity again. Accepting it again without another write is safe here because the receiver's receipt and consequence share a transaction. With an external API,
-use that API's stable idempotency key or reconcile its saved outcome; the outbox cannot supply its atomicity.
+The receiver can accept the second delivery without saving another notification because its receipt and notification
+were saved in one transaction. If your receiver calls an external API, use the API's own key for recognizing repeat
+requests, or check what the external system saved before trying again. The outbox cannot include that call in the
+receiver's database transaction.
+
+Use `@okikio/storage/outbox/postgres` to store JSON messages and `@okikio/storage/outbox/effect` to deliver messages
+that have a declared format and a trusted decoder. The example below uses both. This adapter is separate from
+Workflow's internal delivery tables. Your application supplies the database pool and decides when to run delivery.
 
 ## Save and deliver one note
 
@@ -42,10 +44,9 @@ root. The example installs adapter tables and three example tables. It leaves it
 committed rows for inspection, so use a fresh database or a new note key when
 repeating it. These are explicit application writes, not import-time work.
 
-The sink records its receipt and consequence in one transaction. Its receipt's
-unique key prevents a repeated delivery from writing the consequence twice. The
-producer and sink transactions are separate: the outbox cannot make an arbitrary
-external effect exactly once.
+The receiver saves its receipt and the notification in one transaction. If the message arrives again, the receipt's
+unique key tells the receiver that it already saved the notification. The app saves the original note in a separate
+transaction. The outbox cannot make an external system perform an action exactly once.
 
 ```ts
 import process from 'node:process';
@@ -103,26 +104,28 @@ try {
 }
 ```
 
-Expected output is `{ accepted: 1, retried: 0 }` followed by `complete`. A committed
-business row means message acceptance is durable. A `complete` outbox row means
-the selected sink accepted and the dispatcher saved that acknowledgement. It
-does not establish that every downstream system finished its work.
+Expect `{ accepted: 1, retried: 0 }` followed by `complete`. When PostgreSQL commits the note, it also saves the
+outbox message. When the outbox row says `complete`, the receiver has accepted the message and the dispatcher
+has recorded its reply. Other systems that act on that notification may still be working.
 
 ## Identity, leases and recovery
 
-A retained message is identified by namespace, exact definition ID and occurrence
-key. Repeating `append()` with the same key and canonical JSON payload succeeds
-without adding a row. A different payload under that retained identity rejects
-with `conflict`. Change the definition ID when the payload contract changes
-incompatibly; a handler for a different ID cannot decode it implicitly.
+While the outbox keeps a message, it identifies it by three values: the namespace, the exact definition ID, and the
+key for that occurrence. If you call `append()` again with those values and the same canonical JSON payload, the
+call succeeds without adding a row. If the payload differs, the call rejects with `conflict`.
 
-`claim()` reserves up to 100 messages and assigns each a fresh token and one-based
-attempt number. Only that token, while unexpired, can acknowledge or retry the
-message. Expiry uses database time. `dispatch()` does not renew leases automatically: choose a lease
-longer than the entire sequential batch, including handler calls, scheduling and SQL delays. A custom claim loop can
-call `renew(claim, leaseMs)` before expiry; the [renewal section](#inspect-and-recover-failed-delivery) explains that ownership.
-Even then, a slow sink can overlap redelivery after expiry. The sink needs its
-own atomic receipt, provider idempotency key or stronger resource-specific fence.
+If old handlers cannot read the new payload format, give the new definition its own ID. The dispatcher will not
+hand a message to a handler registered for a different ID.
+
+`claim()` reserves up to 100 messages. It gives each reservation a fresh token and counts attempts starting at one.
+To acknowledge the message or request a retry, pass the current token before it expires. PostgreSQL supplies the
+clock that determines expiry.
+
+`dispatch()` runs the handlers one at a time and does not renew reservations. Set the lease long enough for the
+entire batch, including handler calls, scheduling delays, and SQL waits. If you write your own claim loop, call
+[`renew(claim, leaseMs)`](#inspect-and-recover-failed-delivery) before the lease expires. If the receiver is still
+working after expiry, a replacement can send the same message again. The receiver needs a receipt it saves with the
+action, a provider key that prevents a repeat action, or a stronger check that rejects attempts from old workers.
 
 | Observation | Meaning and next action |
 | --- | --- |
@@ -149,12 +152,12 @@ an epoch-millisecond cutoff. Pruning ends the outbox's deduplication window and
 permits reuse of those identities. Retain sink receipts for at least the whole
 possible redelivery window as well.
 
-The outbox borrows the pool and each producer transaction. It never commits a
-producer's transaction, closes the pool or acquires an autonomous background
-lifetime. Opening a view issues no SQL. Applications own polling cadence,
-dispatcher concurrency, authorization, transaction timeouts and total retained
-namespace count. A namespace is not tenant access control. Delivery order across
-concurrent dispatchers is not an aggregate-ordering guarantee.
+The outbox uses the pool and transactions you pass to it. It does not commit your transactions, close the pool,
+or start a background process. Opening a view does not issue SQL.
+
+Your application decides when to poll, how many dispatchers run, who may use them, when transactions time out,
+and how many namespaces to keep. Use a separate access check for each tenant. If several dispatchers run at once,
+do not rely on them to deliver messages about the same business object in order.
 
 ## Inspect and recover failed delivery
 
@@ -196,31 +199,31 @@ async function retryReconciled(
 }
 ```
 
-Redrive accepts only a retained `failed` row at the observed lifetime attempt.
-A competing or stale decision rejects with `OutboxError` code `stale`. The
-transaction records the actor, reason and database time in `utils_outbox.repairs`
-and grants another `maximumAttempts` budget. Lifetime attempt numbers never
-reset; the payload and logical identity remain unchanged, and all earlier tokens
-remain invalid. Completed, pending and leased messages cannot be redriven.
-Pruning a terminal message also removes its repair history. Export that history
-before pruning if application audit policy requires longer retention.
-`history(id, key, { limit, after })` reads at most 1,000 decisions in ascending
-attempt order; use the last returned attempt as `after` to continue. Inspection
-and audit reads do not authorize redelivery or extend a lease.
+Call `redrive()` only for a retained `failed` row. Pass the total attempt number you saw when you inspected it.
+If another operator has already reopened the message or the attempt number has changed, the call throws
+`OutboxError` with code `stale`. Completed, pending, and leased messages cannot be reopened this way.
 
-For low-level dispatchers, `renew(claim, leaseMs)` extends a current unexpired
-reservation using database time. It cannot revive a lost lease. Stop admitting
-effects after renewal failure and reconcile the sink; renewal cannot stop a
-request already accepted by another system. `dispatch()` does not run a renewal
-timer: choose its batch size and lease duration for the whole sequential batch,
-or use low-level claims for longer work and explicitly own the renewal loop.
+In one transaction, the outbox grants another `maximumAttempts` tries and records who made the decision, why,
+and at what database time in `utils_outbox.repairs`. The attempt counter keeps increasing. The payload and
+identity stay the same, and old tokens cannot be used again.
+
+Pruning a finished message also removes its repair history. Export the history before pruning if you need to
+keep it longer. Call `history(id, key, { limit, after })` to read up to 1,000 decisions in increasing attempt
+order. Use the last attempt number as `after` for the next page. Reading a row does not reopen it or extend its
+lease.
+
+If you write your own dispatcher, call `renew(claim, leaseMs)` before the reservation expires. PostgreSQL's
+clock decides whether the reservation is still valid. Renewal cannot restore an expired reservation.
+
+If renewal fails, stop sending new work and check what the receiver already did. Another system may still
+finish work it already accepted. `dispatch()` has no renewal timer. Set its batch size and lease duration
+so one reservation covers the whole batch, or write a claim loop that renews during longer work.
 
 `retry(claim, { delayMs, reason })` stores an application-supplied safe label.
-Do not pass secrets, payloads or raw exceptions. Effect dispatch stores only its
-safe failure stage (`handler_missing`, `decode_rejected`,
-`acceptance_unconfirmed` or `acknowledgement_unconfirmed`). These labels locate
-the uncertainty; they do not prove that a sink effect did not occur. Successful
-completion clears the label.
+Do not pass secrets, payloads, or raw exceptions. The effect dispatcher records only the stage that failed:
+`handler_missing`, `decode_rejected`, `acceptance_unconfirmed`, or `acknowledgement_unconfirmed`.
+The label tells you where to look. It cannot tell you whether the receiver performed the action. When
+delivery completes, the dispatcher clears the label.
 
 Run `migrate()` before deploying this API. Revision 2 adds the budget baseline,
 safe failure label and repair table without resetting existing attempts. Drain

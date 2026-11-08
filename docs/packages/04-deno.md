@@ -1,14 +1,28 @@
 # Deno
 
-A launcher chooses Deno capabilities explicitly. Begin by encoding that choice, then use the
+When your program starts another Deno program, it can decide which files that child may read or write and which
+commands it may run. Build those choices as arguments first. Then use the
 [complete two-file launch](../../packages/runtime/deno/README.md#launch-a-real-child-with-the-chosen-grants) to see the
 child reject an ungranted file read. These are source-checkout examples: review `mise.toml`, run `mise trust`,
 `mise install` and `mise run prepare -- --kind deps` from the repository root. Save the first block as `scoped-permissions.ts` and
 run `mise exec -- deno run scoped-permissions.ts`.
 
-## Scoped arguments and comma escaping
+## Permission values and their flags
 
-Import the submodule as a namespace:
+`permissions.args(grants)` returns a list of strings to pass to the child command. Choose a value for each permission
+such as `read`, `write` or `run`:
+
+| Value for `read` | Argument produced | What it grants |
+| --- | --- | --- |
+| Omitted or `false` | No argument | No read access from this grant. It does not emit an explicit deny flag. |
+| `true` | `--allow-read` | Read access without a path restriction. |
+| `['/srv/input', '/srv/cache']` | `--allow-read=/srv/input,/srv/cache` | Read access scoped to those paths. |
+| `[]` | Throws `TypeError` | An empty list is not a valid scope. Omit the value to emit no grant. |
+
+### Build arguments for a child
+
+Allow all reads, restrict writes to two directories, and let the child run only `chromium`. The second directory
+contains a comma, so the generated argument must distinguish that character from the separator between paths:
 
 ```ts runnable=scoped-permissions.ts
 import * as permissions from '@okikio/runtime/deno/permissions';
@@ -29,13 +43,11 @@ console.log(JSON.stringify(args));
 `args()` produces stable `--allow-*` arguments. Scoped values are deduplicated without reordering. Literal commas are
 escaped by doubling them, matching Deno's CLI syntax for comma-delimited permission scopes.
 
-`parse()` accepts only `--allow-*` arguments. It does not silently ignore command options or entrypoints. Repeated
-scoped grants are merged. An unscoped grant wins over scoped grants for the same permission.
-
 ## Round-trip existing arguments
 
-`parse()` is useful when a host receives permission arguments and needs a normalized grant model before composing
-another command:
+Use `permissions.parse(flags)` when you have existing permission flags and want to combine them with other grants
+before building a child command. Pass only permission arguments, without the command name, entry file, or other options.
+Save this block as `permission-roundtrip.ts` and run `mise exec -- deno run permission-roundtrip.ts`:
 
 ```ts runnable=permission-roundtrip.ts
 import * as permissions from '@okikio/runtime/deno/permissions';
@@ -53,8 +65,8 @@ console.log(JSON.stringify(canonical));
 ["--allow-read=/srv/input,/srv/cache","--allow-net=example.invalid:443"]
 ```
 
-An unscoped grant such as `--allow-read` dominates scoped grants for the same permission. Unsupported flags are rejected
-instead of being silently ignored.
+Repeated scoped grants for the same permission are merged. An unscoped grant such as `--allow-read` takes precedence
+over all scoped read grants. Unknown permissions and other command arguments are rejected.
 
 This package constructs permission arguments. It does not decide which permissions a particular executable should
 receive. That policy stays with the executable owner.
@@ -73,15 +85,20 @@ The [Deno README](../../packages/runtime/deno/README.md) and its exact source li
 
 ## Explicit startup and operator boundaries
 
-Import `@okikio/runtime/deno/proxy`, `/readiness` or `/health` for disposable transport, bounded loopback TCP admission
-or optional liveness/readiness probes. Imports bind no listener, acquire no client and change no process environment.
-Pass addresses, budgets and signals explicitly. A health listener defaults to all IPv4 interfaces when enabled; select a
-loopback hostname when it should be local. Readiness callbacks report completed outcomes independently for each owned
-loop, including empty polls. These are not queue-progress or crash-recovery guarantees.
+Use `@okikio/runtime/deno/proxy` for a connection you can close, `/readiness` to accept a limited number of
+local TCP connections, or `/health` to report whether the service can respond. An import does not start a
+listener, open a client, or change the process environment. Pass the addresses, limits, and signals when you
+start the service.
 
-`file.readJson` checks regular-file input and strict UTF-8 within a caller-selected byte budget. `file.audit`
-exclusively creates a mode-0600 JSONL file, refuses concurrent appends and synchronizes each completed record. Hosts own
-schemas, audit meaning, redaction and partial-record recovery. Existing context deadlines and `signals.attach` own
-interruption; deployment maintenance policy stays in the executable.
+If you enable a health listener, it listens on all IPv4 interfaces by default. Select a loopback hostname if
+only clients on the same machine should reach it. Each readiness callback reports what happened in its own
+loop, including a poll that found no work. Those reports do not tell you whether a queued job progressed or
+survived a crash.
+
+`file.readJson` checks that the input is a regular file and valid UTF-8. Set a byte limit before reading.
+`file.audit` creates a new JSON Lines file with mode 0600, which gives only the owner read and write access.
+It rejects overlapping appends and waits for each completed record to sync. Your application decides what to
+record, what to hide, and how to recover a partial record. Use Context deadlines and `signals.attach` to stop
+the work when needed.
 
 See the [adoption guide](../04-adoption.md) for composition and verification limits.

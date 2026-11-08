@@ -4,11 +4,10 @@ A checkout should contain the code, fixtures, and instructions needed to reprodu
 what happened during one run; it is not a dependency of the capability it describes. Keeping these roles separate makes
 reviews smaller and prevents an old successful run from being mistaken for proof of current source.
 
-New temporary work belongs in `.tmp/`, including Codex reports, JSON, logs and diagnostic programs. A fresh checkout
-reproduces tests from tracked source; it does not need these local records. Preserve useful failure and recovery runs
-there without overwriting them. Generated build and benchmark outputs also belong under `.tmp/`, in the directories
-owned by their reproduction tasks. Native CI reports and container test dumps use the same boundary.
-Maintained guides explain current behavior without requiring a local run report.
+Keep new reports, JSON, logs, and diagnostic programs in `.tmp/`. A fresh checkout must be able to run the
+commands without those files. Keep old runs there when they help you compare failures. Build and benchmark
+tasks write their generated files under `.tmp/` too, as do the tasks that save native test reports and container
+SQL dumps. The guides explain current behavior without relying on those local reports.
 
 ## Decide what belongs in Git
 

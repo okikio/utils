@@ -1,11 +1,11 @@
 # Fault
 
-JavaScript can throw an Error, a string or even a circular object. A support log needs a printable description without
-walking that object forever or calling a getter it contains. Fault projects the thrown value into plain diagnostic data
-under explicit size limits. The [package example](../../packages/result/fault/README.md) shows the smallest report.
+JavaScript can throw an Error, a string, or even an object that refers to itself. A log needs a printable description
+without following that reference forever or running code hidden in a property. Fault turns the thrown value into plain
+data with size limits. The [package example](../../packages/result/fault/README.md) shows a short report.
 
-This projection is not secret redaction. A retained message or ordinary field can still contain a credential. Choose
-what may leave the application before exporting diagnostics.
+A size limit does not remove secrets. An error message or ordinary field can still contain a credential. Decide what
+may leave the application before sending diagnostics to another system.
 
 ## Expected failures and unexpected diagnostics
 
@@ -60,9 +60,9 @@ console.log(JSON.stringify(diagnostic));
 {"details":"[circular]","message":"Provider response was invalid."}
 ```
 
-The limits are operational safety controls for diagnostic data. `encode()` and `message()` require an ordinary
-plain/null-prototype options record; accessor-backed configuration is rejected without executing the getter. They do not
-turn an unexpected fault into a declared business failure.
+The limits keep one unexpected fault from producing a huge report. Pass options in a plain object or an object
+with no prototype. If an option is a getter, the functions reject it without calling it. Use the report for
+diagnostics; it does not declare a new business failure.
 
 ## Convenience and the manual equivalent
 

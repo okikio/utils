@@ -1,7 +1,7 @@
 # `@okikio/worker/thread`
 
-An application needs to analyze a large file without putting all of that work in its main JavaScript execution thread. A
-standard Worker runs another module in a separate execution environment. `@okikio/worker/thread` lets the parent call
+A report viewer needs to count words without making its controls wait for a large calculation. A standard Worker
+runs another module in a separate execution environment. `@okikio/worker/thread` lets the parent call
 that module with validated requests, receive the matching result, and own shutdown without writing its own message
 protocol.
 
@@ -22,9 +22,9 @@ matching summary + same ID <--------- validate response -> settle this request
 await using ends -------------------> cooperative stop / bounded termination
 ```
 
-Read across each row as a message crossing the boundary, then down as the lifecycle. The Worker owns its local
-execution; the parent owns the handle and shutdown. This diagram omits progress notices and reverse calls, which have
-separate meanings from a terminal response.
+Read down to follow the call. Each arrow shows a message between the parent and the Worker. The Worker runs the
+function. The parent keeps the handle and decides when to shut it down. The diagram leaves out progress messages
+and calls from the Worker back to the parent. Those can arrive while the caller still waits for the final result.
 
 ## Summarize a report in a separate module
 

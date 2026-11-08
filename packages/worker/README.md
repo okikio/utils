@@ -1,9 +1,9 @@
 # Worker
 
-Run an operation in another JavaScript thread or operating-system process, send it checked input, and receive its
-answer. Use this when CPU-heavy work should leave the main thread, or when a native program needs its own lifetime.
-A **thread** runs another JavaScript module; a **process** runs a separate program with input/output streams. Both
-need an owner that stops accepting calls, requests shutdown, and waits for cleanup.
+A page can become unresponsive while the JavaScript that draws it is busy analyzing a large report. Move the analysis
+to a worker when the page should remain available. The page sends a request and later receives a checked answer. A
+**thread** runs another JavaScript module. A **process** runs a separate program, such as a converter, with input and
+output streams. Either way, the application must own shutdown and wait for cleanup.
 
 For Deno, Node, and Bun execution, see
 [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters
@@ -138,11 +138,12 @@ Read the [Thread](./thread/README.md) and [Process](./process/README.md) guides.
 choice; durable resumption requires Workflow and a persistent Storage adapter. Arbitrary JavaScript stacks cannot
 migrate between hosts.
 
-The shared receipt owner uses Dispose to release request correlation before disposing its Context. Every release is
-attempted and its asynchronous cleanup is joined before a terminal result, cancellation, or fault is sent. A cleanup
-failure takes the fault path; the bounded fault projection preserves nested `SuppressedError.error`,
-`SuppressedError.suppressed`, and `AggregateError.errors`, including exact undefined markers. Failure diagnostics remain
-bounded data and cannot execute getters on the original error.
+When a request ends, its owner removes the entry that matches the reply to the request. It then closes the Context.
+The owner uses Dispose to try every release and waits for cleanup before it sends a final result, cancellation, or
+error. If cleanup fails, it sends an error instead.
+
+The error report keeps nested `SuppressedError.error`, `SuppressedError.suppressed`, and `AggregateError.errors`
+within its size limits. It marks `undefined` explicitly and does not call getters on the original error.
 
 Thread stop and process stop publish their completion promise before notifying synchronous lifecycle observers or
 cancelling request signals. Reentrant stop and repeated disposal therefore join the same shutdown. Process-group grace

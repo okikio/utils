@@ -15,6 +15,11 @@ For example, those actions might be separate requests to your application. If th
 state, the second cannot continue that login. If each action creates a fresh isolated browser context, the second
 starts signed out. Keeping Chrome running is not enough: the second action needs the same state within it.
 
+For example, a user might connect an account, then ask for its latest report in a later request. Making each report
+request sign in again adds work and may require the user to complete another verification step. The later request
+can reuse the login while the context stays open and the website still accepts its cookie. Keep a separate context
+for each account that needs isolated state.
+
 This guide uses **browser automation**, which means code opens pages, clicks controls and reads displayed content.
 Collecting information from pages is often called scraping. You do not need prior scraping experience here. The example
 uses a tiny local website and a pretend account so you can observe the login boundary without real credentials.
@@ -50,8 +55,8 @@ actions need to find and safely use one particular live object after its creatio
 A **resource session** gives that object an explicit lifetime. One owner keeps the browser context in memory; callers
 keep a small **reference** identifying which retained context they need. Each action temporarily borrows that context,
 finishes its work and closes its temporary pages. Returning the borrow leaves the context available for the next action.
-Closing the session closes the retained context too. Exclusive borrowing is the default, so two actions cannot change
-that login's state at the same time through this owner.
+Closing the session closes the retained context too. By default, only one action can borrow that context at a time.
+For example, one action cannot start signing out while another reads the report through the same session owner.
 
 A website's login session and a Utils resource session have different jobs. The website decides whether its cookie
 still grants account access. Utils decides which live browser context an action may borrow and who must close it.
@@ -79,8 +84,8 @@ mise exec -- node examples/sessions/browser.ts
 mise exec -- node examples/sessions/check.browser.ts
 ```
 
-The program prints `Ada`. The check asserts that result. If Chromium is missing, run the install command above; closing
-all browser windows on your desktop will not install the separate browser build used by Playwright.
+The program prints `Ada`. The check asserts that result. If Playwright cannot find Chromium, run the install command
+above. Playwright uses its own browser build, separate from the Chrome you may already have installed.
 
 The [example directory](../../examples/sessions/README.md) contains both files. `website.ts` owns the small HTTP server;
 `browser.ts`, shown below, owns the browser and sessions. Keep them together when copying the example. The fixture uses
@@ -259,10 +264,11 @@ to make the request succeed: that member does not hold the original browser or i
 
 ## Ownership and borrowing rules
 
-The composition keeps resource creation alive after its factory returns. Internally, it registers newly acquired
-values on a disposable stack and transfers that stack to the session after acquisition succeeds. If acquisition fails,
-the original stack closes partial construction. A `using` scope around the collection inside the factory alone would
-close it before a later action could borrow it. Feature code uses `session.open()` instead of reproducing that transfer.
+The session must keep the browser context open after the factory returns. As it opens each resource, the factory
+adds it to a disposable stack so it can close anything it already opened if a later step fails. On success,
+the factory hands that stack to the session. The session can then lend those resources to a later action and
+close them at the end. If the factory used only a local `using` scope, it would close them before the later
+action could borrow them. Use `session.open()` to have Utils handle that handoff.
 
 Each session has a unique ID, resource kind, executor ID/generation and random
 owner incarnation. A new physical owner has a new incarnation even if deployment
@@ -277,14 +283,15 @@ accumulate unbounded borrow requests inside an owner. `maximum` bounds opening,
 live and closing sessions together. The memory store separately bounds retained
 records, including terminal records, to 4096 by default.
 
-`close(reference)` revokes new admission, aborts current borrows, waits for their
-callbacks and cleanup, then closes the transferred resource. If acquisition is
-still pending, it first joins that acquisition before recording revocation, so a
-delayed store creation cannot publish a new open record after closure. Repeated close on
-the same owner joins closure or accepts an already terminal record. Owner disposal
-stops all renewal and joins all acquisitions, borrows and resource closes. It
-never disposes an injected registry or database pool. Cleanup failures remain
-visible to the owner, with bounded retained error evidence.
+`close(reference)` prevents new borrows and asks current borrowers to stop. It waits for their callbacks and
+cleanup before it closes the resource. If the owner is still acquiring the resource, it waits for that
+acquisition before it records the closure. This prevents a slow acquisition from leaving an open record
+after the session has closed. If you call close again on the same owner, it waits for the same closure or
+accepts the record if it has already ended.
+
+Disposing the owner stops renewal and waits for acquisitions, borrows, and resource closes. It does not close
+a registry or database pool that you supplied. The owner can see cleanup failures; it retains only a bounded
+amount of error information.
 
 The recommended ownership rule is therefore one physical owner, with exclusive
 borrowing unless sharing is a deliberate resource capability. A reference is
@@ -311,17 +318,16 @@ transaction. Different client clocks do not decide lease validity. The memory
 store uses `Date.now()` unless a test supplies a clock. Neither adapter treats
 wall-clock time as a CPU-time quota.
 
-Any elapsed owner lease, idle deadline or active borrow lease makes the reference
-**permanently lost**. In particular, an expired borrow does not become available
-for a competitor: its previous callback may still be running. Late renewal
-cannot revive it. An authority error makes the physical owner stop using and
-close the local resource after its borrowers join. Cancellation alone does not
-release a still-running borrow.
+If the owner's lease, the idle deadline, or an active borrow's lease expires, the registry marks the reference
+**permanently lost**. It does not offer the resource to another borrower: the first callback may still be using it.
+A late renewal cannot restore the reference. If the registry rejects the owner's permission, the owner stops
+lending the resource, waits for its borrowers, and then closes it. A cancellation request alone does not release
+a borrow while its callback is still running.
 
-A `lost` or `closed` record means admission is revoked. It does not prove physical
-cleanup finished. `Owner.close()` joins local cleanup; a remote host needs an
-acknowledgement after its own finalization. Noncooperative JavaScript requires a
-separately killable host. Forced termination can prevent all application cleanup.
+A `lost` or `closed` record tells you that the registry will not admit new borrowers. It cannot tell you whether
+the local host finished cleanup. `Owner.close()` waits for cleanup on that host. If cleanup runs on another host,
+wait for that host to confirm it finished. To stop JavaScript that ignores cancellation, run it on a host you can
+terminate separately. Terminating the host can interrupt application cleanup.
 
 ## Persist authority and route work
 
@@ -365,13 +371,11 @@ Handle failures explicitly. Registry inspection shows state and timing; it does 
 | `closed` | Stop using that reference; normal admission was revoked |
 | `lost` | Use the operation error and resource-specific recovery policy; never renew or silently substitute |
 
-The recommended recovery rule is to fail the old reference permanently, reconcile
-external effects/orphans where necessary, and explicitly create a fresh session.
-That may rebuild state from an application checkpoint or fail the surrounding
-workflow. It cannot recover arbitrary browser state or a native connection from
-an identifier. A new reference may represent a different resource and should be
-recorded as a new workflow result. Do not rewrite an old saved reference to make
-replay attach to the replacement.
+Treat a lost reference as permanently unusable. Before opening a new session, check whether the old host left
+work running or changed anything in an external system. Then create a fresh session explicitly. Restore a
+checkpoint if your application saved enough state, or fail the workflow if it cannot continue. A reference
+alone cannot recover browser state or a live connection. Save the replacement reference as a new workflow
+result. If you overwrite the old result, replay could attach to a different resource without asking.
 
 `Registry.close(reference, 'lost')` is an explicit operator revocation. The owner
 observes it on renewal, aborts borrowers and joins cleanup. `inspect(id)` also
@@ -380,12 +384,11 @@ retention; do this after cleanup or orphan reconciliation, and never reuse IDs.
 Persistent storage retention is application-owned. There is no unbounded event
 history or automatic scan of all application sessions in the renewal loop.
 
-A borrow token correlates an operation; it cannot by itself stop a stale external
-write. Exactly-once external effects are not promised. A sink must support an
-appropriate fence or atomically validate authority with its own write. Creating
-a fresh session does not prove an old external operation stopped. Exclusive
-external devices and remotely hosted browsers therefore need resource-specific
-fencing or orphan reconciliation before replacement.
+A borrow token identifies one operation. It cannot stop an old callback from writing to another system.
+If that system must reject old attempts, it needs its own guard, or it must check the caller's current
+permission in the same transaction as the write. Opening a new session does not stop work still running
+on the old one. Before replacing a session for an exclusive device or a remote browser, make sure its
+host can reject old operations or check for and stop any leftover work.
 
 Observation remains separate: EventTarget, Observables and streaming reports
 can describe sessions, but their delivery does not grant borrowing, extend a

@@ -1,9 +1,9 @@
 # Input
 
-Collect text, forms, files and clipboard values; bind keyboard actions; measure pointer gestures; and observe gamepad
-controls. Feedback is a separate family for optional haptics, sound, visual cues and accessible status. Each operation
-receives the target or host capability it actually uses. You can use one subpath without creating a command catalog,
-Context, Task or application runtime.
+Someone submits a profile with two tags selected. Your app needs both tags, and the age still arrives as text.
+Start with the form example below to collect those values before validating or saving them. Use a different entry
+point when you need to listen for a keyboard shortcut, measure a gesture or collect files. Optional feedback, such as
+sound or accessible status, is separate from collecting the input.
 
 For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters keep their native runtime requirements.
 
@@ -48,6 +48,10 @@ console.log(`${checked.value.name}: ${checked.value.age}; ${checked.value.tags.j
 ```text output
 Ada: 37; writer, engineer
 ```
+
+In the output, `37` is the checked age and `writer, engineer` lists both selected tags. The form reader kept
+both entries; the schema converted the text age to a number. That distinction is useful when you later swap the
+test FormData for a form in a browser.
 
 `forms.read(form, { submitter })` uses a native form's successful-control rules and preserves File methods. A FormData
 or ordered entry iterable works without a DOM. `forms.object()` exposes the projection separately. Repeated scalar names

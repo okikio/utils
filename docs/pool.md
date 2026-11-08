@@ -209,10 +209,10 @@ Activity thread/process providers explicitly allow one waiting caller per config
 
 ## Return to one particular value
 
-Use `select(ctx, value)` when work must borrow the same retained value again.
-It requires a unique `Object.is` identity and rejects busy or missing values
-immediately. It never creates a replacement. `retire(value)` stops reuse and
-joins existing borrowers and physical close; do not await it from inside that
-value's own lease. `values()` reports already owned values without transferring
-disposal authority. For portable references to native activity hosts, use the
-[physical-host API](./workflows/19-hosts.md) instead of serializing a pool value.
+Call `select(ctx, value)` to borrow the same object again. The pool must find one match by `Object.is`.
+If the object is busy or missing, the call fails right away. It does not create another object.
+
+Call `retire(value)` to stop the pool from lending that object again. Retirement waits for current borrowers to
+finish, then closes the object. Return your lease before awaiting retirement, or each call will wait for the
+other. `values()` lists the pool's objects without giving you permission to close them. To pass a reference to a
+native activity host, use the [physical-host API](./workflows/19-hosts.md).

@@ -220,12 +220,14 @@ survive that process.
 | `telemetry/instrument`, LogTape                                     | Observe utility execution. The application configures destinations and resets logging last.               |
 | `record`                                                            | Checks plain progress data without invoking getters or accepting inherited configuration.                 |
 
-The saved workflow queue already exists in the PostgreSQL adapter. Adding `queue.local()` would create a second
-acceptance authority. `concurrency` is useful inside activity code for streaming batches; it does not replace durable
-branch scheduling. `capacity` and `resilience` help callers with local admission or retry contracts. The runner uses
-saved policy for those durable decisions, so an extra local retry loop must not silently multiply attempts. `csv`,
-`streams`, `hash`, and `codec` belong in actual parsing and artifact activities when those capabilities are required;
-this small fixture writes structured test rows and does not pretend to parse source files.
+The PostgreSQL adapter already accepts and queues workflow jobs. Adding `queue.local()` would give the
+application two places to accept work. Use `concurrency` inside an activity to limit the batches it handles at
+once. The workflow runner still decides when saved branches run.
+
+`capacity` can limit local work and `resilience` can retry a local call. For a saved job, the runner already
+applies the saved limits and retry rules. If you add an inner retry loop, count its calls when you work out
+how often the job can call the provider. The fixture writes structured test rows. Add tools such as `csv`,
+`streams`, `hash`, and `codec` when the actual activity must read source files or write artifacts.
 
 ## Read capacity, readiness, and shutdown literally
 

@@ -57,16 +57,25 @@ whether to convert those failures to HTTP responses; the reader does not silentl
 an explicit budget for the route's job rather than using the default as an application policy. See the
 [complete option fields](../../packages/http/README.md).
 
-Under the hood, `readBody()` checks `Content-Length` when framing allows it, takes a body reader, and counts each
-chunk's `byteLength`. A declared length does not bypass that actual count. At success it copies the chunks into one
+A sender can declare a body size in the `Content-Length` header. `readBody()` uses that number to reject an
+oversized body early when the message format permits it. Once reading starts, it also counts the bytes that actually
+arrive. A declared length does not bypass that actual count. At success it copies the chunks into one
 `Uint8Array`. At overflow or abort it releases the reader lock promptly and requests source cancellation.
 Source cancellation can finish later; `bodyCleanup(request)` exposes that separate completion. This is why the
 function is useful for small JSON/uploads but is not a streaming processor for multi-gigabyte files.
 
-If a header/content-type/declared-length check rejects before reading starts, the helper has not taken a body reader.
-The surrounding transport still owns that unread body. Once a reader is taken, the helper owns releasing its lock and
-recording the outcome of any cancellation it starts. Cancellation may still be pending when the read rejects.
-The enclosing request owner must await `bodyCleanup(request)` when it needs to join that source cleanup.
+If a header check fails before reading starts, the helper leaves the body untouched. The code that received the
+request must deal with that unread body. After the helper starts reading, it releases the lock and records the
+outcome of any cancellation it requests. A failed read can return before cancellation finishes. To wait for the
+source to stop, await `bodyCleanup(request)` separately.
+
+An overflow after reading starts has two outcomes. Read across each line separately; the cancellation result can
+arrive after the parsing call has already rejected. This path omits checks that reject before taking a reader.
+
+```text
+Read:   bytes exceed limit -> release reader -> reject body-too-large
+Source: request cancellation -> observe completion in bodyCleanup()
+```
 
 ## Keep the read failure separate from cleanup
 
@@ -164,8 +173,8 @@ cookies, query values, or request bodies.
 
 ## Request-owned memoization
 
-`memoize()` shares pending request work such as authentication, body reads, hashes, or canonical-origin resolution.
-Failed loads are removed so an explicit retry can run.
+When two parts of a request call `memoize()` for the same key, they can wait for the same work. For example, both
+can use the result of one sign-in check. If the work fails, `memoize()` removes that entry. A later call can try again.
 
 `disposeMemo()` releases disposable memoized values after the response body finishes, cancels, aborts, or fails.
 Releasing values only when headers are created would end request-owned resources too early for streaming responses.

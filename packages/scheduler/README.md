@@ -1,6 +1,8 @@
 # Scheduler
 
-Choose by the operation you need to perform:
+A folder holds many documents to download. Limiting the downloads to two at a time solves one problem. Holding two
+different resources before an upload starts, or leaving an invoice calculation for another caller to run later,
+requires a different kind of control. Choose based on what needs to wait:
 
 For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters keep their native runtime requirements.
 
@@ -225,6 +227,7 @@ true
 available
 ```
 
-`inspect()` returns a bounded list of deficient resource names and distinguishes older queued work from unavailable
-capacity. This snapshot reserves nothing and is not authority for a later request. The [source](./capacity/admission.ts)
-and [benchmark](./capacity-immediate.bench.ts) preserve all-or-nothing admission.
+`inspect()` returns a limited list of resources that do not have enough room. It also tells you whether an older request
+is waiting. This is a snapshot: it reserves nothing and cannot guarantee a later request will succeed. The
+[source](./capacity/admission.ts) and [benchmark](./capacity-immediate.bench.ts) show that a request reserves all the room
+it needs or none of it.

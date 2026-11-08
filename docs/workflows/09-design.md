@@ -92,6 +92,7 @@ Retention settings are minimum preservation obligations. The application schedul
 required evidence windows. Read [operations](./16-operations.md) for preservation and migration rules before deleting
 saved history or upgrading a deployment.
 
-The local tests prove selected recovery and lifecycle behavior with real PostgreSQL and separate containers. They do not
-prove database failover, a Kubernetes rollout, multi-region safety, sustained throughput, or an arbitrary provider's
-duplicate-request behavior. Adding those claims requires separate failure drills against those actual systems.
+The local tests use real PostgreSQL and separate containers to check specific recovery and shutdown cases.
+They do not cover database failover, Kubernetes rollouts, or failures across regions. They also do not show how
+much traffic the system can sustain or what an external provider does when a request arrives twice. Test each
+of those cases against the system that must handle it.

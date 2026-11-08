@@ -58,6 +58,7 @@ leaves the content as text; it does not decide what a contact record must contai
 Once CSV quoting is handled, the rest is ordinary array and object code. Use the normalized column key to find a cell
 instead of assuming every export keeps email at one fixed position. The next export reorders the same three fields;
 the lookup still selects the email, while a fixed second-column index would now select the note.
+Save it as `contact-preview.ts` and run `mise exec -- deno run contact-preview.ts` from the same checkout.
 
 ```ts runnable=contact-preview.ts
 import { parse } from '@okikio/format/csv';
@@ -84,13 +85,14 @@ console.log(JSON.stringify(addresses));
 
 Under the hood, the parser separates three decisions:
 
-1. Byte entrypoints choose an encoding, then dialect detection or your explicit option chooses the delimiter.
-2. A record scanner carries quote state. A comma or newline inside quotes belongs to the current cell, not the next row.
-3. Header selection assigns unique lookup keys; data records retain strings and attach recoverable diagnostics.
+1. If you supply bytes, the parser turns them into text. Tell it which character separates cells, or let it check the input.
+2. As it reads, the parser remembers whether a quote is open. A comma or line break inside quotes stays in that cell.
+3. If you select a header row, the parser gives each column a distinct key. It returns the remaining cells as text and
+   reports problems it can recover from alongside the rows.
 
 Keeping structure separate from meaning preserves phone numbers, leading zeroes and formula-like text instead of
 guessing their types. Your importer still validates email addresses and decides whether warnings should stop the import.
-The contact preview above materializes the small source; use streamed rows for large input.
+The preview keeps every row in memory. For a large file, read one row at a time with `parseStream()`.
 
 A **stream** makes the next piece available as it is read instead of first collecting the whole file. A source chunk is
 only a delivery fragment: it may split a quoted cell or a line ending. The parser carries that unfinished record into the
@@ -114,19 +116,19 @@ all returned rows if the goal is bounded memory.
 
 ## Own a streaming import
 
-Pass `signal` to `parseStream()` so cancellation can interrupt initial format discovery as well as later row reads. An
-already aborted signal prevents reader acquisition. Specify both `delimiter` and `encoding` when the format is known;
-discovery then reads only enough to identify a possible byte-order mark before finding the requested headers. The byte
-limit is checked before retaining a discovery chunk that already proves the input is too large.
+Pass `signal` to `parseStream()` so you can stop it while it looks for the format or reads rows. If you already
+cancelled the signal, the parser does not open a reader. If you know the encoding and the character that separates
+cells, set `encoding` and `delimiter`. The parser then reads only enough to check for a byte-order mark before it
+looks for the header. If an incoming chunk would exceed the byte limit, the parser rejects it before keeping it.
 
-Use `await using document = await parseStream(...)` or call `document[Symbol.asyncDispose]()` when done. Disposal
-releases owned reader locks promptly and requests source cancellation. The source cancellation hook can take longer;
-`document.cleanup` preserves its eventual outcome. Supply `onCleanup(completion)` when that outcome must remain
-available even if discovery fails before returning a document. The Promise resolves to the shared
-`@okikio/streams/reader` cleanup result, including `{ status: 'failed', error }` for a late cleanup failure.
+Use `await using document = await parseStream(...)` or call `document[Symbol.asyncDispose]()` when you finish.
+Closing the document releases the reader's lock promptly and asks the source to stop. The source may take longer
+to stop. Await `document.cleanup` for its result, or pass `onCleanup(completion)` if you also need that result when
+format detection fails before returning a document. A later cleanup failure appears as `{ status: 'failed', error }`
+in the result from `@okikio/streams/reader`.
 
-Collecting and streaming parsers use the same row construction and diagnostics. Row width, unsafe cell content, and
-column identity therefore have one interpretation across both entrypoints.
+Whether you read the whole input at once or stream it, the parser uses the same rules for column names, cell
+contents, row width, and reported problems.
 
 ## Carry rows into a bounded import
 
@@ -138,8 +140,9 @@ column identity therefore have one interpretation across both entrypoints.
 
 ## Choose adjacent capabilities
 
-The application owns header mappings, validation, and persistence. Use Streams for transport and Concurrency when row
-enrichment needs bounded asynchronous work.
+You decide which columns your application uses, which values are valid, and where to save the accepted rows. If each
+row needs a lookup, use Concurrency to limit how many lookups run at once. Use Streams when you need to read or group
+pieces of the input as they arrive.
 
 The [package choice map](../README.md#choose-an-entry-point) lists the other public entries and when to use them.
 

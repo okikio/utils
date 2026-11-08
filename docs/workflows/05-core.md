@@ -1,11 +1,11 @@
 # Import a CSV without losing saved corrections
 
-The [connected consumer guide](./14-consumers.md) adds the preferred trigger API, process/thread engines, standard
-progress, and durable registered cleanup. Its smaller fixtures complement the full domain scenarios described here.
-
 The customer needs usable accounts from an uploaded CSV. The customer may correct a row while background work is
 interrupted. A worker restart must preserve both the uploaded values and those corrections. This fixture tests that
 contract. Core is the separate application that inspired this scenario; the fixture runs without changing or installing it.
+
+For a smaller import example that follows one request from submission through approval and cleanup, see
+[connected consumers](./14-consumers.md).
 
 Read [core.ts](../../tests/workflows/scenarios/core.ts) for the complete definitions, implementations, and policy. Read
 [service.ts](../../tests/workflows/scenarios/service.ts) for the complete HTTP admission path. The
@@ -19,8 +19,9 @@ reference after commit. The user checks `GET /imports?id=...&scope=...` for save
 
 The accepted Parse result includes a `next` reference when it admits resolution or verification. Parse completion means
 source ingestion finished. It does not mean the independently accepted resolution has completed. The container test
-checks resolved account rows separately. An application UI must track the follow-up reference if its visible outcome
-requires resolved accounts. The fixture does not implement a customer UI or an aggregate import-status endpoint.
+checks resolved account rows separately. If the page promises usable accounts, keep following the reference in
+`next` before showing that the import is complete. The fixture does not implement a customer UI or an aggregate
+import-status endpoint.
 
 A repeated matching command key returns the same run. A changed input under that key conflicts. The fixture trusts its
 isolated callers. Core would still own user authentication and authorization for the source and scope.
@@ -83,9 +84,9 @@ a new accidental identity.
 Suppose a Resolve worker dies after saving a batch. The workflow replays its saved steps. Resolve's receipt returns the
 already committed batch result. The workflow can rebuild its `after` position and continue.
 
-The [container test](../../tests/workflows/containers.test.ts) covers a real worker-container kill after a row commit.
-The [process recovery suite](../../tests/workflows/recovery.test.ts) covers all three committed boundaries, rollback
-during a write, changed source bytes, and stale mapping revisions.
+The [container test](../../tests/workflows/containers.test.ts) kills a real worker container after PostgreSQL
+commits rows. The [process recovery suite](../../tests/workflows/recovery.test.ts) stops workers at all three
+commit points shown above. It also checks a rolled-back write, changed source bytes, and stale mapping revisions.
 
 ## Keep business rules in the application
 

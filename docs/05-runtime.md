@@ -1,7 +1,9 @@
 # Runtime and distribution contracts
 
-TypeScript is the shared implementation source. JSR publishes it; the npm build projects supported public entries into
-emitted Node packages. The same package name does not prove that every adapter or native capability works in every host.
+The same TypeScript source supplies two package formats. The JSR package contains TypeScript. The npm package contains
+JavaScript modules that use `import` and `export` (ESM), plus type declarations for editors and type checkers. A function
+that parses a string can run in several environments. A function that starts a process needs an adapter for the environment
+that actually starts it.
 
 ## Run portable value code first
 
@@ -21,10 +23,9 @@ Run `mise exec -- deno run runtime-check.ts`. It prints:
 {"tag":["photo","audio"]}
 ```
 
-This checks portable parsing on Deno source. For a Node application, select the built npm package's ESM
-entry and follow [the installed-consumer procedure](./maintenance/02-packaging.md). Do not infer Node artifact behavior
-from a successful Deno run, or assume that a browser parser import can launch an OS process. The table below explains
-which source, artifact and native-host checks support each choice.
+Both `tag` values survive parsing because the URL contains the key twice. This run uses Deno and the source checkout.
+To run a portable example in an application, see [the runtime commands below](#run-a-portable-example-in-your-own-project).
+The table explains which checks cover the source, the installed package, and features that need a particular environment.
 
 ## Choose the surface for your host
 
@@ -37,11 +38,12 @@ which source, artifact and native-host checks support each choice.
 | Browser                   | Pure parsing and Web API composition have selected bundle/source evidence. That does not test the entire suite in an actual browser or grant a global Worker, listener, filesystem, or process capability.                                           |
 | Bun                       | A separate Bun installed-consumer lane checks packed ESM imports and portable behavior. Native Worker behavior uses the explicit `@okikio/runtime/bun/worker` adapter; portable imports do not establish every native capability.                                                                                                                 |
 
-The current npm metadata selects Node `>=26.10.0`, the runtime selected for artifact test. It does not claim
-that older hosts pass the same emitted artifact and lifecycle gates. The ordinary Worker opener still needs a standard
-module `Worker` constructor or a caller-supplied factory. On Node, use `@okikio/runtime/node/worker`; the installed-consumer lane exercises that
-adapter separately from entry imports. Use `process/node` for the Node child-process adapter; native lifecycle checks are separate from
-entry imports.
+The npm package requires Node `>=26.10.0`. Tests install and run the built package on the pinned Node version.
+They do not establish support for older releases.
+
+The ordinary Worker opener needs a standard module `Worker` constructor or a factory you supply. On Node, use
+`@okikio/runtime/node/worker` for a thread or `process/node` for a child process. Separate tests actually start and
+stop those hosts. Importing a package entry alone cannot show that a thread or process runs.
 
 The [testing guide](./maintenance/01-testing.md) separates source tests, emitted package consumers, and container
 recovery. Each check proves its observed scope. A test selection alone is not evidence that it passed.

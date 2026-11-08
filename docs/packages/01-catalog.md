@@ -6,11 +6,11 @@ selection, composition, and inspection. The application continues to decide what
 
 ## Select the definitions one consumer may use
 
-Select canonical declarations without copying their identities. This program supplies its own local input and uses
-public workspace imports. After `mise run prepare -- --kind deps`, save it as `example.ts` at the checkout root and run
-`mise exec -- deno run example.ts`.
+Give a consumer access to the original `Read` definition while leaving `Write` out of its catalog. After the
+[checkout setup](../../README.md#run-a-complete-example-from-this-checkout), save this as `read-only.ts` and run
+`mise exec -- deno run read-only.ts`.
 
-```ts runnable=complete-task.ts
+```ts runnable=read-only.ts
 import * as catalog from '@okikio/collection/catalog';
 
 // These are the original declaration objects that later consumers must recognize.
@@ -98,19 +98,19 @@ internally.
 | `catalog.create()`               | freeze entries, build identity/key indexes, reject duplicate IDs, and retain namespace metadata | one authoritative immutable definition set              |
 | `catalog.select()` / `compose()` | look up keys, preserve order, de-duplicate identities, and reject conflicts manually            | safe subsets and unions without parallel registry logic |
 
-An ordinary frozen record plus an ID map can store the definitions. You would still need duplicate-ID detection, reverse
-key lookup, key-preserving selections, deterministic flattening, immutable metadata, and a JSON-safe document projection
-yourself. `@okikio/collection/catalog` packages those mechanics. It does not own the meaning or lifecycle of the
-definitions.
+You can store the definitions in a frozen object and a Map of IDs. You still need to reject duplicate IDs and
+look up the original key from an ID. If you combine or select entries, decide which keys to preserve and in
+which order to list them. The catalog does this work, keeps the accompanying information immutable, and can
+describe the result as JSON. The code that defines each entry still decides what it means and when to use it.
 
 Use a catalog when several reusable definitions need one named, inspectable universe. Do not use it as a service
 locator, startup mechanism, mutable registry, or dependency container.
 
 ## Preserve definition identity when selecting a catalog
 
-Definition-oriented utilities such as `failure`, `resource`, `activity`, `workflow`, `http/problem`, and `http/response`
-can use this package to share one composition model. The catalog utility does not know what an entry means. Domain
-semantics stay with the package that owns the definition.
+Utilities such as `failure`, `resource`, `activity`, `workflow`, `http/problem`, and `http/response` can use the
+same catalog to organize definitions. The catalog can find an entry by ID. Only the package that defined the
+entry knows what to do with it.
 
 ## Progressive usage
 

@@ -98,7 +98,9 @@ such as `all()` and `any()` when one boolean question is no longer enough.
 ## Use that decision in an ordinary HTTP response
 
 This complete version demonstrates the actual protected outcome. An allowed request returns the file text; a denied
-request returns status 403. It uses the standard `Response` class and starts no HTTP listener.
+request returns status 403 (`Forbidden`). A `Response` holds the status and body that a web server could send back.
+Here the program reads them directly without opening a listener. Save it as `protected-response.ts` and run
+`mise exec -- deno run protected-response.ts` from the same checkout.
 
 ```ts runnable=protected-response.ts
 import * as context from '@okikio/context';

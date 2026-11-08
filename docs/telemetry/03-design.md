@@ -72,9 +72,10 @@ A killed process cannot flush its buffers. Its last spans may be missing. A repl
 trace from PostgreSQL. A collector failure cannot repeat an activity or undo a write. Customer recovery remains the
 workflow's responsibility.
 
-This release does not automatically accept an incoming HTTP `traceparent` or wrap arbitrary outgoing HTTP/SQL clients.
-That boundary needs an application trust policy. The server span begins within the service; workflow submission inherits
-any trusted active context the application already established.
+Choose which callers you trust before using the trace ID from an incoming HTTP `traceparent` header. The service
+starts its own span and does not automatically read that header. Workflow submission uses the active trace
+context your application has already set up. If you want traces from outgoing HTTP or SQL calls, instrument
+those clients separately.
 
 ## Know what is measured
 

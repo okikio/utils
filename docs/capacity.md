@@ -17,13 +17,13 @@ This job reserves a browser instance and three upload slots together. The counte
 
 ## Reserve two limits together, then release them
 
-A browser upload needs one browser slot and three upload slots at the same time. The first snapshot shows the remaining
-capacity while that reservation is held. Releasing the lease restores both counters in the second snapshot.
+A browser upload needs one browser slot and three upload slots at the same time. The first printout shows how many
+slots are left during the upload. When the upload releases its reservation, both counts go back up.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
-`mise exec -- deno run example.ts`.
+Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `upload-capacity.ts` at the checkout root and use
+`mise exec -- deno run upload-capacity.ts`.
 
-```ts runnable=package-task.ts
+```ts runnable=upload-capacity.ts
 import * as capacity from '@okikio/scheduler/capacity';
 
 const host = capacity.create({ browsers: 2, uploads: 4 });
@@ -106,15 +106,15 @@ that request so the next one can be considered; it does not take units away from
 
 ## Choose validation or live admission
 
-`@okikio/scheduler/capacity` describes measurable capacity and owns small, process-local admission pools. It does not
-own durable jobs, retries, claims, or remote queue leases. Those remain `@okikio/scheduler/queue` responsibilities.
+Use `@okikio/scheduler/capacity` to answer two kinds of questions:
 
-The package has two related surfaces:
+- **Do these numbers fit?** Use `unit()`, `field()`, `define()`, `compose()`, and `constraint()` to describe the
+  rules. Then use `check()` or `assert()` to check the numbers through Standard Schema.
+- **Can this upload start now?** Use `create()` and `acquire()` to reserve whole units such as browser slots.
+  The request gets all its units or none. Use `available()` and `snapshot()` to inspect the counts.
 
-- `unit()`, `field()`, `define()`, `compose()`, `constraint()`, `check()`, and `assert()` describe and validate capacity
-  relationships through Standard Schema.
-- `create()`, `acquire()`, `available()`, and `snapshot()` reserve named integer limits atomically with FIFO fairness
-  and cancellation.
+These reservations live in one process. For work that needs queue claims, retries, or saved job state, use
+`@okikio/scheduler/queue`.
 
 ## Validate a host topology
 
@@ -177,9 +177,9 @@ await using lease = await capacity.acquire(work, {
 }, ctx);
 ```
 
-A request receives all named units or none of them. Waiting requests are FIFO. A later request cannot skip a blocked
-head request. Cancellation removes the waiter without consuming capacity. `lease.release()` is idempotent and async
-disposal releases the same reservation.
+A request receives all its units or none. Requests wait in the order they arrive. A later request cannot go first
+just because it needs fewer units. If you cancel a waiting request, the pool removes it without taking any units.
+Call `lease.release()` or leave the `await using` block to return the units. Releasing twice has no extra effect.
 
 Read the [public source](../packages/scheduler/capacity/mod.ts) for the complete exported contracts and field
 descriptions.
@@ -196,9 +196,8 @@ because those aliases did not add distinct behavior. Use the same capacity API w
 | `capacity.check()` / `capacity.assert()` | read all capacity fields, execute each constraint, collect violations, and decide whether to throw   | one deterministic constraint report                 |
 | `capacity.create()` + `acquire()`        | maintain counters, FIFO waiters, abort listeners, impossible-request checks, and release bookkeeping | a reusable admission semaphore with explicit leases |
 
-The same behavior can be built with counters, a FIFO waiter list, and AbortSignal listeners.
-
-The utility adds atomic multi-name admission, fairness, cancellation cleanup, and disposable leases.
+If you write the pool yourself, keep a count for each kind of slot and a list of waiting requests. Check every count
+before taking any slots. Remove cancelled requests and return the slots when work finishes.
 
 ## Reserve only the phase that uses a scarce resource
 

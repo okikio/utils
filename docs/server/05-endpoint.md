@@ -13,7 +13,8 @@ example.
 
 An Express or Hono route often combines input checks and the callback. Here `Greet` describes the accepted name and the allowed response; `endpoint.handler` supplies the callback separately. The service links those exact objects before executing any request. Missing input returns 400 before the greeting callback runs.
 
-From the experimental Utils checkout, run `mise trust`, `mise install`, and `mise run prepare -- --kind deps` at the repository root. Save each named program there and run `mise exec -- deno run <filename>.ts`, replacing `<filename>` with the name shown. These examples use workspace exports, not an assumed published registry release. Save this as `declared-greeting.ts` and run `mise exec -- deno run declared-greeting.ts`.
+After the [checkout setup](../../README.md#work-on-the-repository), save the block as `declared-greeting.ts` at the
+checkout root and run `mise exec -- deno run declared-greeting.ts`.
 
 ```ts runnable=declared-greeting.ts
 import * as endpoint from '@okikio/server/endpoint';
@@ -143,10 +144,10 @@ const document = await endpoint.openapi([Greet], {
 
 The next standalone example extends greeting discovery with a `/search` query contract. It generates documentation only; it does not search records or run a service. Save `query-documentation.ts` and run the command shown.
 
-A documented endpoint input can provide `jsonSchema` when HTTP documentation needs an explicit wire description. Query
-definitions require this choice: their `wireSchema()` describes transport syntax, while Standard JSON Schema input
-conversion cannot express tagged-value decoding and field validation. Response definitions have the matching
-serialized-body override. The runtime still validates with the original schema.
+Use `jsonSchema` when the OpenAPI document needs a separate description of what the client sends. For Query,
+pass its `wireSchema()`. It describes the text in the URL, while the input converter alone cannot describe how
+Query decodes tags and checks allowed fields. You can also supply a separate description of the body you send in a
+response. These options change the document. The server still uses the original schema to check values.
 
 Save `query-documentation.ts` and run `mise exec -- deno run query-documentation.ts`.
 
@@ -224,7 +225,9 @@ const TrackedGreet = endpoint.get({
 });
 ```
 
-The handler must explicitly call `effect.emit` and the live host must supply a recipient before acceptance can occur. Use an observer for optional diagnostics; a declared effect is appropriate when the announcement needs an owner. See the [same-occurrence effect flow](../effect/01-guide.md).
+The handler calls `effect.emit` when it has a greeting to announce. Your application must supply a recipient to
+accept that announcement. If you only need a diagnostic record, use an observer instead. The
+[effect walkthrough](../effect/01-guide.md) shows how the sender and receiver use the same event.
 
 Groups and endpoint paths can contribute the same effect declarations. Service compilation combines those definitions
 with service, service-policy, operation, and middleware contributions. The live service runtime may supply an effect

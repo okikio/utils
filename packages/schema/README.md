@@ -445,8 +445,9 @@ invoking the factory. Shared references count each visit. Arrays and plain recor
 opaque. Each separately supplied recursive root has its own traversal limit. These limits do not bound trusted validator
 callbacks or the allocation needed to enumerate keys.
 
-`inspect(reader)` reports input and output JSON projection support separately. It invokes declared converters, never
-validation or lazy factories. Unsupported recursive projection is explicit; it does not invent `$ref` targets.
+Use `inspect(reader)` to see whether the reader can describe its input and its output as JSON Schema. It calls the
+converters the reader declares. It does not validate data or run a factory that creates a schema later. If it cannot
+describe a recursive schema, it reports that limit without making up a target for `$ref`.
 
 The `@okikio/schema/time` profiles separate exact instants, calendar durations and fixed elapsed durations.
 `InstantSchema` accepts four-digit UTC years, seconds and up to nine fractional digits, and encodes exactly nine digits.

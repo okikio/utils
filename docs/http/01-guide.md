@@ -9,9 +9,8 @@ A Web `Request` carries the incoming URL, headers and optional body. A Web `Resp
 Read the repeated query values without collapsing them into a single field. Then prepare headers for forwarding, removing
 headers that the HTTP `Connection` field marks as specific to this connection. The output makes both transformations inspectable.
 
-From the experimental Utils checkout, run `mise trust`, `mise install`, and `mise run prepare -- --kind deps` at the repository root. Save each named program there and run `mise exec -- deno run <filename>.ts`, replacing `<filename>` with the name shown. These examples use workspace exports, not an assumed published registry release.
-
-Save `package-task.ts` and run `mise exec -- deno run package-task.ts`.
+After the [checkout setup](../../README.md#work-on-the-repository), save the block as `package-task.ts` at the checkout
+root and run `mise exec -- deno run package-task.ts`.
 
 ```ts runnable=package-task.ts
 import * as request from '@okikio/http/request';
@@ -40,14 +39,13 @@ Here `Connection: X-Internal` nominates `X-Internal` for removal. This is HTTP h
 
 ## Choose the HTTP value you need
 
-`@okikio/http/request` : Parses and sanitizes an untrusted Web `Request` with explicit size and trust rules.
-
-`@okikio/http/cookie` : Defines stable application cookie contracts and provides Fetch-native cookie helpers.
-
-`@okikio/http/response` : Defines successful HTTP representations and runtime occurrences. It also owns headers, status
-schemas, pagination, conditional responses, byte ranges, and response-body completion observation.
-
-`@okikio/http/problem` : Defines RFC 9457 problem representations and runtime occurrences.
+| I need to… | Start with | What it gives me |
+| --- | --- | --- |
+| Read search filters or a bounded body | [`@okikio/http/request`](./05-request.md) | Decoded values for my application to check. |
+| Read or write a browser preference | [`@okikio/http/cookie`](./03-cookie.md) | A named value with a rule for reading it and attributes for writing it. |
+| Return a checked answer | [`@okikio/http/response`](./06-response.md) | A reusable success rule and helpers for building the response. |
+| Return a rejection clients can identify | [`@okikio/http/problem`](./04-problem.md) | A status, stable type and safe detail for an expected failure. |
+| Check a callback from another service | [`@okikio/http/webhook`](./07-webhook.md) | Verification of the signature over the original request bytes. |
 
 A response definition is a reusable rule. `create()` associates that rule with one logical answer; it does not send
 bytes. `materialize()` validates and prepares that answer. Finally, a native `Response` encodes the value for its caller.
@@ -139,8 +137,9 @@ the declared type at construction; a service would additionally validate unknown
 
 ## Query wire forms
 
-Query parsing keeps transport syntax separate from endpoint schema semantics. When the runtime has the raw `URL.search`
-string, it preserves the difference between a bare parameter and an explicitly empty value:
+When `parseQuery()` reads the original `URL.search` string, it can tell `?loud` from `?loud=`. The first names a
+parameter without giving it a value. The second gives it an empty value. Your endpoint can decide whether to accept
+either form.
 
 ```text
 ?loud        bare parameter
@@ -154,21 +153,22 @@ string, it preserves the difference between a bare parameter and an explicitly e
 - `empty` maps it to an empty string;
 - `reject` reports the bare form as invalid input.
 
-The default is `empty`, which matches `URLSearchParams`. An endpoint that defines presence-as-true syntax can opt into
-`flag`; `endpoint.input(...)` can scope that policy to one query contract. Explicit `=` values are never rewritten, so
-`?loud=` remains empty and can fail a schema that accepts only `true` or `false`. Repeated values retain authored order.
-WHATWG `URLSearchParams` still owns percent decoding and `+`-as-space behavior. Passing an existing `URLSearchParams`
-cannot preserve the bare-versus-empty distinction because the Web API has already normalized both forms to an empty
-string.
+By default, `empty` treats both forms like `URLSearchParams`. If your endpoint treats the presence of `?loud` as true,
+select `flag` in `endpoint.input(...)`. The parser still leaves `?loud=` empty. A schema that accepts only `true` or
+`false` can reject it. The parser keeps repeated values in the order they appeared.
 
-The generic reader does not coerce arbitrary text such as `42`, `null`, or JSON. The endpoint Standard Schema remains
-responsible for domain-specific conversion and validation.
+`URLSearchParams` decodes percent escapes and reads `+` as a space. If you pass an existing `URLSearchParams` object,
+it has already turned `?loud` and `?loud=` into the same empty string. Pass the original query string if you need to tell
+them apart.
+
+The parser returns text, even for a value such as `42`. Use your endpoint's Standard Schema to turn that text into a
+number and check whether your application accepts it.
 
 ## Use HTTP values without starting a service
 
-Domain code can define expected failures without HTTP. Endpoint code selects which success responses and HTTP problems
-the operation may expose. The server runtime validates the selected definitions and materializes the final native
-`Response`.
+Your application can define a failure such as a missing picture without choosing an HTTP status. The endpoint
+lists the success and error replies it allows. When the handler returns a value, the server checks that it belongs
+to one of those replies and builds the Web `Response` the client receives.
 
 ```text
 domain result or expected failure
@@ -213,9 +213,9 @@ uses the single-install suite can import the same implementation from `@okikio/u
 ## Bounded responses and byte signatures
 
 `@okikio/http/response` exports `readBytes` and `readText` with an explicit byte budget and optional abort signal.
-Content-Length is only an early admission hint; counted body bytes remain authoritative. The signal interrupts stalled
-reads. Reader release does not wait indefinitely for an uncooperative producer's cancellation promise; eventual producer
-cleanup remains caller-owned.
+A `Content-Length` header can help reject an oversized response before reading. The reader still counts the bytes it
+actually receives. Use the signal to interrupt a stalled read. The reader releases its lock without waiting for the
+source to stop. If you need to know when the source has stopped, arrange that separately.
 
 `@okikio/http/signature` signs and verifies exact bytes with HMAC-SHA-256 and exposes the full SHA-256 digest.
 Signatures use canonical lower-case hexadecimal. Callers own secrets and rotation, authenticated audience, protocol

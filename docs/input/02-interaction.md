@@ -32,6 +32,9 @@ false
 Moved 1
 ```
 
+The first line is `false`: moving by zero is disabled. The second line is the action’s result when it receives a
+nonzero offset. The device does not decide whether a move is allowed.
+
 `run()` checks eligibility and throws `CommandDisabledError` before invoking a disabled action. Otherwise it returns the
 action's exact result, including an unchanged Promise. A binding can use `enabled: () => commands.enabled(Move, 1)` to
 leave the native event unclaimed, then `run: () => commands.run(Move, 1)`. `commands.catalog(name, entries)` is an
@@ -104,10 +107,10 @@ durations mean milliseconds. Native cancellation, loss of capture and disposal e
 single-contact recognizers. A transform tracks at most two contacts and cancels on an extra contact. Coincident contacts
 establish a transform only after there is a nonzero separation.
 
-Set CSS `touch-action` deliberately for the surface. Capture keeps events routed to a target; it does not grant control
-of native panning. `preventDefault` is separately opt-in. Default recognizers leave native defaults alone and ignore
-interactive origins. For a custom control that owns manipulation, set `interactive: true` after providing its keyboard
-and accessibility behavior. [Pointer Events](https://www.w3.org/TR/pointerevents4/) defines these distinct policies.
+Set CSS `touch-action` for the area where you recognize gestures. Pointer capture keeps sending events to the same
+target. The browser can still pan the page. Configure `preventDefault` separately if you need it. By default, the
+recognizers leave browser behavior alone and ignore gestures that start on an interactive control. For a custom
+control, supply keyboard and accessibility behavior before setting `interactive: true`. [Pointer Events](https://www.w3.org/TR/pointerevents4/) defines these distinct policies.
 
 ## Read a gamepad or own one polling loop
 

@@ -50,9 +50,9 @@ console.log(await workflow.run({ ctx: run, implementation: ImportLive, scheduler
 Published customer rows
 ```
 
-This demonstrates addressed delivery, not crash recovery. It sends `true` before the program starts, so no timing race is
-needed. A real publication write belongs in an activity. The saved tests below use SQL, independent processes and
-interruption boundaries for that additional claim.
+The program sends `true` to the approval's address before the workflow starts, so it can read the event without
+waiting for a sender. The example uses memory and does not test a crash. Put the actual publication write in an
+activity. The recovery tests below use PostgreSQL and stop a separate worker process at known points.
 
 ## Request work in the program
 
@@ -86,10 +86,11 @@ const ImportLive = workflow.implement(Import, function* (ctx) {
 for an event still occupies a branch position. The worker's `capacity.activities` separately limits activity code that
 runs in that worker. Several workers can share queued work without sharing their JS memory.
 
-`map()` applies the same branch limit to an ordered list. `retry()` repeats a failed operation within a logical attempt
-budget. Activity recovery has a separate budget because a process can disappear during any logical attempt. A fault or
-cancellation does not become a business failure that `retry()` can catch. Settled failures retain their declared failure
-occurrence. Select serializable data from that occurrence when constructing a saved final result.
+`map()` applies the same branch limit to an ordered list. `retry()` repeats an operation when it returns a declared
+business failure and has tries left. An activity has a separate budget for recovery because a worker can stop during
+any of those tries. Unexpected faults and cancellation do not count as business failures that `retry()` can catch.
+A settled failure keeps its declared failure details. If you include those details in a saved result, select data
+the store can serialize.
 
 `race()` returns the first terminal branch observed by its host. Simultaneous completions have no guaranteed winner.
 PostgreSQL saves the observed winner before the parent continues. A replacement reads that saved decision. Losing queued
