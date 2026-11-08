@@ -61,7 +61,8 @@ Additional operation inputs are validated by their owning program.`);
 	process.exit(0);
 }
 const projects =
-	values.project?.map((name) => name.replace(/^@okikio\//u, '').replace(/^packages\//u, '').replace(/\/$/u, '')) ?? [];
+	values.project?.map((name) => name.replace(/^@okikio\//u, '').replace(/^packages\//u, '').replace(/\/$/u, '')) ??
+		[];
 const members = readdirSync('packages', { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) =>
 	entry.name
 );
