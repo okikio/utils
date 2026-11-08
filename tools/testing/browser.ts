@@ -125,7 +125,10 @@ try {
 		await writeFile(context, contextFixture);
 		let collectionFixture = await readFile(collection, 'utf8');
 		for (
-			const [file, name] of [['mod', '@okikio/collection/record'], ['json', '@okikio/collection/record/json']] as const
+			const [file, name] of [['mod', '@okikio/collection/record'], [
+				'json',
+				'@okikio/collection/record/json',
+			]] as const
 		) {
 			const original = `from '../record/${file}.ts'`;
 			if (!collectionFixture.includes(original)) throw new Error(`Canonical Collection ${file} import changed.`);

@@ -8,7 +8,12 @@ import type { Sql, TransactionSql } from 'postgres';
 import * as context from '@okikio/context';
 import * as schema from '@okikio/schema';
 import * as codec from '@okikio/schema/codec';
-import { QueueCapacityError, QueueClosedError, QueueItemNotFoundError, StaleClaimError } from '@okikio/scheduler/queue';
+import {
+	QueueCapacityError,
+	QueueClosedError,
+	QueueItemNotFoundError,
+	StaleClaimError,
+} from '@okikio/scheduler/queue';
 import * as adapter from './postgres.ts';
 
 const url = process.env.UTILS_QUEUE_DATABASE_URL;

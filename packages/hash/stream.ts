@@ -1,7 +1,10 @@
 /** Bounded streaming digests with explicit reader and hasher ownership. @module */
 import { open } from '@okikio/streams/reader';
 import type { ReaderOptions as ReaderOptionsType } from '@okikio/streams/reader';
-export type { CleanupOutcome as CleanupOutcomeType, ReaderOptions as ReaderOptionsType } from '@okikio/streams/reader';
+export type {
+	CleanupOutcome as CleanupOutcomeType,
+	ReaderOptions as ReaderOptionsType,
+} from '@okikio/streams/reader';
 export type { AlgorithmType } from './digest.ts';
 export type { HasherType } from './_hasher.ts';
 import { create } from './sync.ts';
