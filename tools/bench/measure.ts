@@ -169,8 +169,8 @@ async function identity(): Promise<Record<string, string>> {
 		'pnpm-lock.yaml',
 		'mise.toml',
 		'tools/workspace/run.ts',
-		'.mise/tasks/ops/bench/run.sh',
-		'.mise/tasks/ops/prepare/bench.sh',
+		'.mise/tasks/bench/run.sh',
+		'.mise/tasks/prepare/bench.sh',
 	];
 	await visit(new URL('packages/', root), paths);
 	await visit(new URL('bench/', root), paths);

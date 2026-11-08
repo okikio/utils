@@ -85,7 +85,7 @@ function command(binary: string, args: readonly string[], environment: NodeJS.Pr
 
 /** Mise owns recipe dependencies; this CLI only selects an operation and forwards its arguments. */
 function operation(name: string, args: readonly string[] = []): void {
-	command('mise', ['run', `ops:${name}`, '--', ...args]);
+	command('mise', ['run', name, '--', ...args]);
 }
 
 /** Test source publication, including explicit public declarations, without uploading packages. */
@@ -104,7 +104,7 @@ function check(kind = values.kind): void {
 		? [kind]
 		: ['format', 'lint', 'types', 'portable', 'exports', 'packages', 'hono', 'tests', 'versions'];
 	if (kinds.length > 1) {
-		command('mise', ['run', ...kinds.flatMap((name, index) => [...(index ? [':::'] : []), `ops:check:${name}`])]);
+		command('mise', ['run', ...kinds.flatMap((name, index) => [...(index ? [':::'] : []), `check:${name}`])]);
 		return;
 	}
 	for (const name of kinds) {

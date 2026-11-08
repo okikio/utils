@@ -32,7 +32,7 @@ tools/
 └── bench/              fixture checks, measurements, comparisons and profiling
 ```
 
-`workspace/run.ts` checks options such as `--project`, then calls the matching task under `.mise/tasks/ops/`.
+`workspace/run.ts` checks options such as `--project`, then calls the matching task under `.mise/tasks/`.
 Those shell tasks select the runtime, set its environment, and pass permissions. The TypeScript programs run the
 steps. Mise chooses the pinned runtime versions and runs prerequisites first. Package scripts and Deno tasks
 call the same task families.
