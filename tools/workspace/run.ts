@@ -55,7 +55,7 @@ if (values.help) {
   --output <path>    Fresh report directory
 
 Preparation kinds: deps, bench, browser, freeze
-Check kinds: format, lint, types, portable, exports, packages, hono, tests, versions, jsr
+Check kinds: actions, format, lint, types, portable, exports, packages, hono, tests, versions, jsr
 Build targets: npm, exports. Export generation is explicit with --write.
 Additional operation inputs are validated by their owning program.`);
 	process.exit(0);
@@ -101,18 +101,18 @@ function jsr(): void {
 
 /** Run checks independently; the caller decides which checks are advisory in CI. */
 function check(kind = values.kind): void {
-	const kinds = kind
-		? [kind]
-		: ['format', 'lint', 'types', 'portable', 'exports', 'packages', 'hono', 'tests', 'versions'];
-	if (kinds.length > 1) {
-		command('mise', ['run', ...kinds.flatMap((name, index) => [...(index ? [':::'] : []), `check:${name}`])]);
-		return;
-	}
-	for (const name of kinds) {
-		if (name === 'jsr') jsr();
-		else if (['format', 'lint'].includes(name) && projects.length) {
-			command('deno', [name === 'format' ? 'fmt' : 'lint', ...(name === 'format' ? ['--check'] : []), ...selectors]);
-		} else operation(`check:${name}`);
+	if (selectors.length) {
+		if (kind !== 'format' && kind !== 'lint') {
+			throw new TypeError('Select --kind format or --kind lint to check a specific project or file.');
+		}
+		command('deno', [kind === 'format' ? 'fmt' : 'lint', ...(kind === 'format' ? ['--check'] : []), ...selectors]);
+	} else if (!kind) {
+		// Match the shared check aggregate; newly selected packs join the same task family.
+		command('mise', ['run', 'check:**']);
+	} else if (kind === 'jsr') {
+		jsr();
+	} else {
+		operation(`check:${kind}`);
 	}
 }
 
@@ -198,6 +198,7 @@ async function ci(): Promise<void> {
 		switch (values.lane) {
 			case 'source':
 				for (const kind of ['types', 'portable', 'exports', 'packages', 'hono', 'tests', 'versions']) check(kind);
+				check('actions');
 				break;
 			case 'advisory':
 				check('format');

@@ -78,7 +78,7 @@ For local inspection, these commands perform no upload:
 
 ```sh
 mise run test -- --suite packages
-mise run check:jsr
+mise run check -- --kind jsr
 mise run release -- --operation publish --target npm --check
 mise run release -- --operation publish --target jsr --check
 ```

@@ -8,6 +8,7 @@ workspace first; use the export write operation when you intend to update the de
 
 ```sh
 mise run check
+mise run check -- --kind lint --project streams
 mise run test -- --project streams --runtime node
 mise run test -- --project tools --runtime bun
 mise run bench -- --check --project streams --runtime deno
@@ -54,7 +55,9 @@ Repository-owned generated artifacts and execution evidence live in `.tmp/`. Exi
 consumers use isolated directories so this checkout's workspace dependencies cannot conceal a missing dependency.
 These locations are internal test details, not application layout recommendations.
 
-CI uses the GitHub tooling catalog for pinned Node preparation and caching pnpm downloads and Deno modules. Each job shows its
+CI uses the GitHub tooling catalog for Actions validation, pinned Node preparation and caching pnpm downloads and Deno modules. Use
+`mise run actions .github/workflows/ci.yml --event workflow_dispatch` for a local Act run, or `mise run check:actions` for
+the same workflow validation used by CI. Each job shows its
 setup directly. Restoring downloads does not skip tests, reuse an unverified build or imply a passing check. The release
 workflow reuses exact tested artifacts at the same revision.
 

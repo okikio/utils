@@ -6,8 +6,8 @@
 		"tools"
 	],
 	"tasks": {
-		"fmt": "mise run check -- --kind format",
-		"lint": "mise run check -- --kind lint",
+		"fmt": "mise run check:format",
+		"lint": "mise run check:lint",
 		"check": "mise run check",
 		"test": "mise run test",
 		"test:docs": "mise run test -- --suite docs"
