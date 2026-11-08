@@ -39,7 +39,7 @@ Install the declared tools and frozen dependencies, then prepare the treatment m
 
 ```sh
 mise install
-mise run prepare -- --kind deps
+mise run prepare:node
 mise run prepare -- --kind freeze
 mise run bench -- --operation freeze --check
 ```

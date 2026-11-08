@@ -26,7 +26,7 @@ it('selects preparation and container recipes without an installed workspace', a
 	});
 	expect(result.stderr).toBe('');
 	expect(result.status).toBe(0);
-	expect(result.stdout.trim().split('\n')).toEqual(['run', 'prepare:deps', '--']);
+	expect(result.stdout.trim().split('\n')).toEqual(['run', 'prepare:node', '--']);
 
 	// Default preparation stays small; explicit engine names reach Playwright unchanged.
 	for (
@@ -43,6 +43,6 @@ it('selects preparation and container recipes without an installed workspace', a
 		expect(selected.stderr).toBe('');
 		expect(selected.status).toBe(0);
 		expect(selected.stdout.trim().split('\n').slice(0, expected.length + 3))
-			.toEqual(['run', 'prepare:browser', '--', ...expected]);
+			.toEqual(['run', 'fixture:browser', '--', ...expected]);
 	}
 });

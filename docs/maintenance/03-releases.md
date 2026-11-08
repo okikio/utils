@@ -41,7 +41,7 @@ To inspect the same preparation locally, use a clean checkout of `main`:
 mise run release -- --operation version --check
 # The following command writes versions and consumes changesets. Review its diff.
 mise run release -- --operation version
-mise run check -- --kind versions
+mise run check:versions
 ```
 
 Read `package.json` for the package name, version, source exports, and npm dependency ranges. Sampo chooses
@@ -78,7 +78,7 @@ For local inspection, these commands perform no upload:
 
 ```sh
 mise run test -- --suite packages
-mise run check -- --kind jsr
+mise run check:jsr
 mise run release -- --operation publish --target npm --check
 mise run release -- --operation publish --target jsr --check
 ```

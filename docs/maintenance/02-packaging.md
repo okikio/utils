@@ -129,7 +129,7 @@ The npm build stages independent packages under `.tmp/artifacts/npm/`. It does n
 the focused implementations into the umbrella.
 
 ```sh
-mise run prepare -- --kind deps
+mise run prepare:node
 mise run test -- --suite packages
 ```
 
@@ -218,7 +218,7 @@ published utility packages.
 
 ## Check JSR source separately from npm artifacts
 
-Run `mise run check -- --kind jsr` before a release. This performs a workspace-wide
+Run `mise run check:jsr` before a release. This performs a workspace-wide
 `deno publish --dry-run` without uploading anything. It checks the source dependency
 graph and reports the publication file list. The release workflow repeats this on
 the exact tested revision before registry publication.
@@ -238,7 +238,7 @@ This complete example retains both the validated value and the object shape used
 by operations such as `schema.pick`. The type annotation describes the reader;
 `schema.Output` continues to derive application data from it.
 
-After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare:node` from the root.
 Save the next complete TypeScript block as
 `explicit-schema.ts` at that root, then run `mise exec -- deno run explicit-schema.ts`.
 

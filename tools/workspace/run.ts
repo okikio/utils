@@ -219,7 +219,7 @@ async function ci(): Promise<void> {
 				operation('bench:freeze:check');
 				break;
 			case 'browser':
-				operation('prepare:browser', ['chromium', '--with-deps']);
+				operation('fixture:browser', ['chromium', '--with-deps']);
 				test('browser');
 				break;
 			case 'docs':
@@ -234,7 +234,7 @@ async function ci(): Promise<void> {
 				break;
 			case 'containers':
 				// The container suite also drives real browsers through its reverse proxies.
-				operation('prepare:browser', ['chromium', 'firefox', 'webkit', '--with-deps']);
+				operation('fixture:browser', ['chromium', 'firefox', 'webkit', '--with-deps']);
 				test('containers');
 				break;
 			default:
@@ -246,7 +246,7 @@ async function ci(): Promise<void> {
 switch (family) {
 	case 'prepare':
 		if (values.kind === 'freeze') operation('bench:freeze:prepare');
-		else {operation(`prepare:${values.kind ?? 'deps'}`, [
+		else {operation(values.kind === undefined || values.kind === 'deps' ? 'prepare:node' : `fixture:${values.kind}`, [
 				...(values.kind === 'browser' && positionals.length === 0 ? ['chromium'] : positionals),
 				...forwarded,
 				...(values['with-deps'] ? ['--with-deps'] : []),
@@ -294,26 +294,16 @@ switch (family) {
 				...(values.message ? ['--message', values.message] : []),
 				...forwarded,
 			]);
-		} else if (action === 'plan') {
+		} else if (action === 'plan' || (action === 'version' && values.check)) {
 			await versions(root);
-			// A PR checks its release target, not GitHub's synthetic <number>/merge ref.
-			// This override applies only to a read-only preview; writes retain Sampo's branch policy.
+			// Both read-only entry points preview the PR base; writes use Sampo's normal branch check.
 			command('pnpm', ['exec', 'sampo', 'release', '--dry-run'], {
 				...process.env,
 				SAMPO_RELEASE_BRANCH: process.env.GITHUB_BASE_REF || 'main',
 			});
 		} else if (action === 'version') {
-			command(
-				'pnpm',
-				['exec', 'sampo', 'release', ...(values.check ? ['--dry-run'] : [])],
-				values.check
-					? {
-						...process.env,
-						SAMPO_RELEASE_BRANCH: process.env.GITHUB_BASE_REF || 'main',
-					}
-					: process.env,
-			);
-			if (!values.check) await versions(root, true);
+			command('pnpm', ['exec', 'sampo', 'release']);
+			await versions(root, true);
 		} else if (action === 'publish') {
 			if (!values.check) clean(root);
 			await versions(root);

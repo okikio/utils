@@ -54,7 +54,7 @@ Repository-owned generated artifacts and execution evidence live in `.tmp/`. Exi
 consumers use isolated directories so this checkout's workspace dependencies cannot conceal a missing dependency.
 These locations are internal test details, not application layout recommendations.
 
-CI installs pinned tools with the official Mise action and caches pnpm downloads and Deno modules. Each job shows its
+CI uses the GitHub tooling catalog for pinned Node preparation and caching pnpm downloads and Deno modules. Each job shows its
 setup directly. Restoring downloads does not skip tests, reuse an unverified build or imply a passing check. The release
 workflow reuses exact tested artifacts at the same revision.
 

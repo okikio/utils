@@ -39,7 +39,7 @@ version used by these examples. Review `mise.toml`, then prepare the checkout on
 ```sh
 mise trust
 mise install
-mise run prepare -- --kind deps
+mise run prepare:node
 ```
 
 Copy the first TypeScript example below into `readable-time.ts` in that folder. Run
@@ -266,7 +266,7 @@ without initializing a Git repository. Review `utils/mise.toml` before trusting 
 cd utils
 mise trust
 mise install
-mise run prepare -- --kind deps
+mise run prepare:node
 mise run check
 mise run test -- --runtime node
 mise run test -- --runtime deno
