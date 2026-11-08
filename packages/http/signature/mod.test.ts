@@ -1,3 +1,4 @@
+// @installed-consumer: Verify exact-byte authentication through the packed HTTP subpath too.
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { digest, sign, verify } from '@okikio/http/signature';
