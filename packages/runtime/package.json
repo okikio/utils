@@ -34,7 +34,8 @@
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
 		"@okikio/schema": "workspace:^1.0.0",
-		"mitata": "^1.0.34"
+		"mitata": "^1.0.34",
+		"@okikio/duration": "workspace:^0.1.0"
 	},
 	"publishConfig": {
 		"access": "public",

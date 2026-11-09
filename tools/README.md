@@ -60,6 +60,41 @@ runs the same workflow validation as CI (actionlint). `mise run actions .github/
 runs one workflow locally with act, which needs Docker. Each job shows its setup directly. Restoring downloads does not skip tests, reuse an unverified build or imply a passing check. The release
 workflow reuses exact tested artifacts at the same revision.
 
+Successful work now writes the download cache explicitly. A read-only planner does not save a partially warmed
+store before the test jobs can populate it. Cache identity includes the operating system, CPU architecture, actual
+tool versions and native lockfiles; frozen installation still verifies dependencies after a restore. The quality
+jobs use Ubicloud's 2-CPU x86 runner, preserving the previous private GitHub runner's architecture and 8 GB memory
+shape. Runner duration must be measured before claiming an execution-time improvement.
+
+Automatic PR checks keep source contracts on every layer. Chromium, benchmark correctness and example checks run
+on ordinary PRs and the top of a native GitHub stack. The top compares its combined candidate with the ultimate
+stack base. The planner reports runtime, installed-package, PostgreSQL, container and documentation jobs as deferred
+because their measured complete jobs exceeded the 120-second automatic budget. Formatting and lint feedback run
+on main or manual requests. Main pushes retain all affected lanes, and dispatching CI runs all lanes on the selected
+branch. This changes how often costly work runs; it does not establish that those tests became faster.
+
+For complete checks before landing a stack, dispatch **CI** on its exact top branch. A lower layer reports its
+expensive checks as deferred and skips the required aggregate. It does not certify a passing top. The selected top's
+aggregate requires actual success from every selected lane and rejects missing, failed, cancelled or unexpectedly
+skipped work. Before landing only a lower prefix, dispatch the complete checks on that prefix. Repository branch
+rules must enforce the intended stack landing policy; this workflow does not change those rules.
+
+Affected runtime checks use package manifests to include changed packages and their transitive runtime, peer,
+optional and development consumers. Root compositions, tool tests, benchmarks and library comparisons remain in
+the selection. Empty owner lists mean all packages. Full checks and release checks retain the complete runtime
+matrix and the exact tested npm candidate handoff.
+
+Tests and fixtures declare their cross-package imports as native development dependencies. The import-ownership
+test parses the actual source and verifies that the planner retains each observed consumer, including type imports
+and literal dynamic imports. Computed module addresses require a complete runtime selection. Git renames retain
+both the old and new paths so moving a file cannot hide its previous package's consumers. These development edges
+do not change the runtime dependency graph used to build or publish npm candidates.
+
+The source, runtime and documentation cohorts also use the shared native Deno compiler cache. It stores only Deno's
+module analysis, compiler databases and generated code, separately from dependency downloads. Deno still checks
+current source and executes each selected command. Full and manual checks bypass this compiler-state restore/save
+path. This cache is neither a test-success receipt nor a release artifact.
+
 Read [testing](../docs/maintenance/01-testing.md), [packaging](../docs/maintenance/02-packaging.md),
 [releases](../docs/maintenance/03-releases.md) and [artifact ownership](../docs/maintenance/05-artifacts.md) for the contracts
 behind these commands. JSR renders API reference from public source comments; longer explanations belong in `docs/`.

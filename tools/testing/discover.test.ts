@@ -4,7 +4,7 @@ import { expect } from '@std/expect';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { classify, discover, select, supports } from '#tools/testing/discover.ts';
+import { classify, discover, runtimeProjects, select, supports } from '#tools/testing/discover.ts';
 
 describe('test discovery', () => {
 	it('automatically admits a new package test without executing fixtures or following dependency links', async () => {
@@ -78,5 +78,26 @@ describe('test discovery', () => {
 		]);
 		expect(() => select(files, ['packages/contxt'])).toThrow(TypeError);
 		expect(() => select(files, ['../packages/context'])).toThrow(TypeError);
+	});
+
+	it('narrows package tests while retaining compositions, tools and the native runtime contract', () => {
+		const files = [
+			'packages/duration/mod.test.ts',
+			'packages/server/mod.test.ts',
+			'packages/unrelated/mod.test.ts',
+			'packages/runtime/deno/mod.test.ts',
+			'tests/composed.test.ts',
+			'tools/workspace/ci.test.ts',
+			'bench/selection.test.ts',
+			'tests/workflows/postgres-load.test.ts',
+		].map(classify);
+		expect(runtimeProjects(files, ['duration', 'server', 'runtime'], 'node').map((file) => file.path)).toEqual([
+			'packages/duration/mod.test.ts',
+			'packages/server/mod.test.ts',
+			'tests/composed.test.ts',
+			'tools/workspace/ci.test.ts',
+			'bench/selection.test.ts',
+		]);
+		expect(runtimeProjects(files, [], 'deno')).toEqual(files.filter((file) => supports(file, 'deno')));
 	});
 });

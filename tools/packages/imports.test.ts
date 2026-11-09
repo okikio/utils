@@ -7,31 +7,44 @@ import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { parse } from '@std/jsonc';
 import ts from 'typescript';
+import { plan, projectFromManifest } from '../workspace/ci.ts';
 
 const root = new URL('../../', import.meta.url);
 
-/** Walk authored runtime modules without traversing dependencies or executable fixtures. */
-async function* modules(directory: string): AsyncGenerator<string> {
+/** Walk authored modules; CI ownership also needs test and fixture imports. */
+async function* modules(directory: string, includeTests = false): AsyncGenerator<string> {
 	for (const entry of await readdir(directory, { withFileTypes: true })) {
-		if (entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === 'fixtures') continue;
+		if (entry.name.startsWith('.') || entry.name === 'node_modules' || !includeTests && entry.name === 'fixtures') {
+			continue;
+		}
 		const path = resolve(directory, entry.name);
-		if (entry.isDirectory()) yield* modules(path);
-		else if (entry.name.endsWith('.ts') && !/\.(?:test|bench)\.ts$/u.test(entry.name)) yield path;
+		if (entry.isDirectory()) yield* modules(path, includeTests);
+		else if (entry.name.endsWith('.ts') && (includeTests || !/\.(?:test|bench)\.ts$/u.test(entry.name))) yield path;
 	}
 }
 
 /** Collect literal module specifiers from imports, re-exports, dynamic imports, and imported types. */
-function specifiers(path: string, text: string): readonly string[] {
+function specifiers(path: string, text: string, requireStatic = false): readonly string[] {
 	const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true);
 	const values: string[] = [];
+	if (requireStatic && 'parseDiagnostics' in source) expect(source.parseDiagnostics).toEqual([]);
+	/** Computed addresses cannot prove that a narrowed runtime plan retains every consumer. */
 	function visit(node: ts.Node): void {
 		if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier) {
-			if (ts.isStringLiteral(node.moduleSpecifier)) values.push(node.moduleSpecifier.text);
-		} else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+			if (ts.isStringLiteralLike(node.moduleSpecifier)) values.push(node.moduleSpecifier.text);
+		} else if (
+			ts.isCallExpression(node) &&
+			(node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+				ts.isIdentifier(node.expression) && node.expression.text === 'require')
+		) {
 			const argument = node.arguments[0];
-			if (argument && ts.isStringLiteral(argument)) values.push(argument.text);
+			if (argument && ts.isStringLiteralLike(argument)) values.push(argument.text);
+			else if (requireStatic) throw new Error(`${path}: computed imports require full runtime selection.`);
 		} else if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)) {
-			if (ts.isStringLiteral(node.argument.literal)) values.push(node.argument.literal.text);
+			if (ts.isStringLiteralLike(node.argument.literal)) values.push(node.argument.literal.text);
+		} else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
+			const argument = node.moduleReference.expression;
+			if (argument && ts.isStringLiteralLike(argument)) values.push(argument.text);
 		}
 		ts.forEachChild(node, visit);
 	}
@@ -110,5 +123,37 @@ describe('workspace import ownership', () => {
 			}
 		}
 		expect(problems).toEqual([]);
+	});
+
+	it('retains every statically observed package test consumer in the actual CI plan', async () => {
+		const packages = fileURLToPath(new URL('packages/', root));
+		const owners = (await readdir(packages, { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((
+			entry,
+		) => entry.name);
+		const projects = await Promise.all(owners.map(async (owner) =>
+			projectFromManifest(
+				owner,
+				JSON.parse(await readFile(resolve(packages, owner, 'package.json'), 'utf8')),
+			)
+		));
+		const selected = new Map(owners.map((owner) => [owner, plan([`packages/${owner}/mod.ts`], projects).projects]));
+		for (const owner of owners) {
+			for await (const file of modules(resolve(packages, owner), true)) {
+				for (const specifier of specifiers(file, await readFile(file, 'utf8'), true)) {
+					let target: string | undefined;
+					if (specifier.startsWith('@okikio/')) target = specifier.split('/')[1];
+					else if (specifier.startsWith('.')) {
+						const address = fileURLToPath(new URL(specifier, pathToFileURL(file)));
+						const local = relative(packages, address);
+						if (!local.startsWith('../')) target = local.split('/')[0];
+					}
+					if (!target || target === owner) continue;
+					expect(
+						selected.get(target),
+						`${relative(packages, file)} imports ${specifier}; declare its native test dependency`,
+					).toContain(owner);
+				}
+			}
+		}
 	});
 });

@@ -271,6 +271,9 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
     devDependencies:
+      '@okikio/dispose':
+        specifier: workspace:^0.1.0
+        version: link:../dispose
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
         version: '@jsr/std__expect@1.0.20'
@@ -341,6 +344,9 @@ importers:
       '@okikio/authz':
         specifier: workspace:^0.1.0
         version: link:../authz
+      '@okikio/workflow':
+        specifier: workspace:^1.0.0
+        version: link:../workflow
       '@standard-schema/spec':
         specifier: ^1.1.0
         version: 1.1.0
@@ -354,6 +360,9 @@ importers:
 
   packages/collection:
     devDependencies:
+      '@okikio/schema':
+        specifier: workspace:^1.0.0
+        version: link:../schema
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
         version: '@jsr/std__expect@1.0.20'
@@ -389,6 +398,9 @@ importers:
         specifier: npm:@jsr/std__async@^1.5.0
         version: '@jsr/std__async@1.5.0'
     devDependencies:
+      '@okikio/storage':
+        specifier: workspace:^1.0.0
+        version: link:../storage
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
         version: '@jsr/std__expect@1.0.20'
@@ -433,6 +445,9 @@ importers:
       '@okikio/result':
         specifier: workspace:^1.0.0
         version: link:../result
+      '@okikio/schema':
+        specifier: workspace:^1.0.0
+        version: link:../schema
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
         version: '@jsr/std__expect@1.0.20'
@@ -694,6 +709,9 @@ importers:
         specifier: npm:@jsr/std__path@^1.1.6
         version: '@jsr/std__path@1.1.6'
     devDependencies:
+      '@okikio/duration':
+        specifier: workspace:^0.1.0
+        version: link:../duration
       '@okikio/schema':
         specifier: workspace:^1.0.0
         version: link:../schema
@@ -758,6 +776,18 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
     devDependencies:
+      '@okikio/hono':
+        specifier: workspace:^0.1.0
+        version: link:../hono
+      '@okikio/http':
+        specifier: workspace:^1.0.0
+        version: link:../http
+      '@okikio/query':
+        specifier: workspace:^1.0.0
+        version: link:../query
+      '@okikio/server':
+        specifier: workspace:^1.0.0
+        version: link:../server
       '@sinclair/typebox':
         specifier: 0.34.52
         version: 0.34.52
@@ -826,6 +856,9 @@ importers:
       '@okikio/authz':
         specifier: workspace:^0.1.0
         version: link:../authz
+      '@okikio/dispose':
+        specifier: workspace:^0.1.0
+        version: link:../dispose
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
         version: '@jsr/std__expect@1.0.20'
@@ -928,6 +961,9 @@ importers:
         specifier: ^1.4.0
         version: 1.4.0
     devDependencies:
+      '@okikio/duration':
+        specifier: workspace:^0.1.0
+        version: link:../duration
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
         version: '@jsr/std__expect@1.0.20'
@@ -1118,6 +1154,9 @@ importers:
         specifier: ^1.4.0
         version: 1.4.0
     devDependencies:
+      '@okikio/runtime':
+        specifier: workspace:^1.0.0
+        version: link:../runtime
       '@standard-schema/spec':
         specifier: ^1.1.0
         version: 1.1.0
@@ -1165,6 +1204,9 @@ importers:
         specifier: npm:@jsr/std__encoding@^1.0.11
         version: '@jsr/std__encoding@1.0.11'
     devDependencies:
+      '@okikio/activity':
+        specifier: workspace:^1.0.0
+        version: link:../activity
       '@okikio/dispose':
         specifier: workspace:^0.1.0
         version: link:../dispose

@@ -5,6 +5,7 @@ import { z } from 'zod';
 export const PlanSchema = z.strictObject({
 	version: z.literal(1),
 	projects: z.array(z.string()),
+	deferred: z.array(z.enum(['runtimes', 'packages', 'postgres', 'containers', 'docs'])),
 	lanes: z.strictObject({
 		source: z.boolean(),
 		runtimes: z.boolean(),
@@ -21,12 +22,45 @@ export type PlanType = z.infer<typeof PlanSchema>;
 
 /** Minimal package facts needed to include consumers of a changed utility. */
 export interface Project {
+	/** Directory name beneath packages/, independent of its registry scope. */
 	readonly name: string;
+	/** Local consumers include test-only, optional and peer dependencies. */
 	readonly dependencies: readonly string[];
 }
 
+/** Native package manifests describe both published and development consumers. */
+interface PackageManifest {
+	/** Runtime dependencies used by the package. */
+	readonly dependencies?: Readonly<Record<string, string>>;
+	/** Test and build dependencies also require checks when their owner changes. */
+	readonly devDependencies?: Readonly<Record<string, string>>;
+	/** Optional dependencies can still be selected by a supported consumer. */
+	readonly optionalDependencies?: Readonly<Record<string, string>>;
+	/** Peer dependencies are supplied by the installed consumer. */
+	readonly peerDependencies?: Readonly<Record<string, string>>;
+}
+
+/** Remove the actual registry scope so a scope rename cannot truncate owner names. */
+export function projectFromManifest(name: string, manifest: PackageManifest): Project {
+	const scope = '@okikio/';
+	return {
+		name,
+		dependencies: Object.keys({
+			...manifest.dependencies,
+			...manifest.devDependencies,
+			...manifest.optionalDependencies,
+			...manifest.peerDependencies,
+		}).filter((dependency) => dependency.startsWith(scope)).map((dependency) => dependency.slice(scope.length)),
+	};
+}
+
 /** Unknown source ownership selects all lanes; documentation only selects its runnable examples. */
-export function plan(paths: readonly string[], projects: readonly Project[], full = false): PlanType {
+export function plan(
+	paths: readonly string[],
+	projects: readonly Project[],
+	full = false,
+	pullRequest = false,
+): PlanType {
 	const lanes = {
 		source: false,
 		runtimes: false,
@@ -39,6 +73,8 @@ export function plan(paths: readonly string[], projects: readonly Project[], ful
 		examples: false,
 	};
 	const selected = new Set<string>();
+	// Removed or unclassified package owners require the complete remaining graph.
+	const known = new Set(projects.map((project) => project.name));
 	let broad = full;
 	for (const path of paths) {
 		if (path.startsWith('.tmp/')) continue;
@@ -51,7 +87,7 @@ export function plan(paths: readonly string[], projects: readonly Project[], ful
 			continue;
 		}
 		const match = /^packages\/([^/]+)\//u.exec(path);
-		if (match) selected.add(match[1]!);
+		if (match && known.has(match[1]!)) selected.add(match[1]!);
 		else broad = true;
 	}
 	// Include consumers until no new package is reachable. Cycles cannot loop here.
@@ -79,5 +115,15 @@ export function plan(paths: readonly string[], projects: readonly Project[], ful
 				selected.has(name)
 			);
 	}
-	return { version: 1, projects: broad ? [] : [...selected].sort(), lanes };
+	// These measured jobs exceeded 120 seconds including setup. Keep every main
+	// and explicit full check; PRs report their manual deferral without claiming
+	// a test passed. Re-enable a lane only after its complete job is measured.
+	const deferred: PlanType['deferred'] = [];
+	if (pullRequest && !full) {
+		for (const lane of ['runtimes', 'packages', 'postgres', 'containers', 'docs'] as const) {
+			if (lanes[lane]) deferred.push(lane);
+			lanes[lane] = false;
+		}
+	}
+	return { version: 1, projects: broad ? [] : [...selected].sort(), deferred, lanes };
 }

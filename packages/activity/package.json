@@ -31,7 +31,8 @@
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
-		"mitata": "^1.0.34"
+		"mitata": "^1.0.34",
+		"@okikio/dispose": "workspace:^0.1.0"
 	},
 	"publishConfig": {
 		"access": "public",

@@ -163,9 +163,17 @@ timeout or a passing Chromium run cannot establish that Firefox starts and compl
 
 [`.github/workflows/quality.yml`](../../.github/workflows/quality.yml) selects jobs for source contracts, the
 Deno/Node/Bun matrix, native Chromium, installed packages, PostgreSQL recovery, container recovery, benchmark
-correctness, documentation and native examples. Formatting and linting run as separate advisory checks. Every job checks
+correctness, documentation and native examples. Formatting and linting run as separate advisory checks on main or manual requests. Every job checks
 out the caller's commit and receives a read-only repository token. The runtime matrix, resource fixtures, pinned actions
 and report retention are defined once in that workflow.
+
+Automatic PRs run source contracts on each layer. The top of a native stack runs the combined candidate's selected
+Chromium, benchmark and example checks. Runtime, package-consumer, PostgreSQL, container and documentation jobs are
+reported as manual deferrals after their measured job durations exceeded the 120-second automatic budget. Main
+keeps every affected lane. Dispatch **CI** on the exact top branch for all lanes before landing a stack; dispatch
+the selected lower branch first if only a prefix will land. Lower layers do not receive a passing required aggregate
+for unexecuted expensive work. A selected top fails its aggregate when any selected job is missing, skipped,
+cancelled or failed. The [workflow guide](../../tools/README.md) explains cache identity and owner selection.
 
 Ordinary CI calls it through the `quality` job. Its separate `changesets` job checks the Sampo plan with a read-only
 repository token. The Release workflow calls the full quality workflow before either registry job can publish. The npm

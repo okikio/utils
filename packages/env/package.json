@@ -22,7 +22,8 @@
 		"valibot": "^1.4.2",
 		"zod": "^4.5.4",
 		"@okikio/result": "workspace:^1.0.0",
-		"mitata": "^1.0.34"
+		"mitata": "^1.0.34",
+		"@okikio/schema": "workspace:^1.0.0"
 	},
 	"peerDependencies": {
 		"valibot": "^1.4.2",

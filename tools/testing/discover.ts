@@ -135,6 +135,23 @@ export function supports(file: TestFile, runtime: Runtime): boolean {
 		(file.family === 'web-worker' && runtime !== 'node');
 }
 
+/**
+ * Limit package tests to changed owners and their transitive consumers.
+ * Repository compositions, tools and benchmarks still run because they can
+ * combine packages without owning a package manifest. An empty owner list is
+ * the planner's conservative full selection, never an empty test suite.
+ */
+export function runtimeProjects(
+	files: readonly TestFile[],
+	projects: readonly string[],
+	runtime: Runtime,
+): readonly TestFile[] {
+	return files.filter((file) =>
+		supports(file, runtime) &&
+		(projects.length === 0 || !file.path.startsWith('packages/') || projects.includes(file.path.split('/')[1]!))
+	);
+}
+
 /** Select exact files or directory prefixes, rejecting typos instead of silently running an empty suite. */
 export function select(files: readonly TestFile[], filters: readonly string[]): readonly TestFile[] {
 	if (filters.length === 0) return files;
