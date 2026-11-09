@@ -51,6 +51,11 @@ package, and cross-package measurements remain in root `bench/`. Tools select th
 assertions. External-resource tests declare their database, browser or container needs; ordinary portable tests are
 discovered automatically. Fixed upstream fixture inventories record provenance, not a second editable source tree.
 
+The worker scan-retry test advances each runtime's native `node:test` timers through the complete twelve-attempt
+policy. It checks both sides of every backoff delay, then verifies the terminal error and resource cleanup. A real
+watchdog still detects a stuck worker. This checks the actual retry behavior without spending 7,240 milliseconds
+waiting for time to pass on each runtime; service expiry tests keep their real clocks.
+
 Repository-owned generated artifacts and execution evidence live in `.tmp/`. Existing evidence is preserved. Installed
 consumers use isolated directories so this checkout's workspace dependencies cannot conceal a missing dependency.
 These locations are internal test details, not application layout recommendations.
