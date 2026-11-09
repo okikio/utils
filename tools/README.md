@@ -85,6 +85,15 @@ because their measured complete jobs exceeded the 120-second automatic budget. F
 on main or manual requests. Main pushes retain all affected lanes, and dispatching CI runs all lanes on the selected
 branch. This changes how often costly work runs; it does not establish that those tests became faster.
 
+Copyable examples prepare the pinned tools and locked dependencies once, then run on Deno, Node and Bun in separate
+steps. The previous three jobs used 89 seconds of total runner execution while each test step took one second in
+[the measured run](https://github.com/Kaiju-Ind/Utils/actions/runs/42586114449). Any runtime failure fails the shared
+job; the remaining runtimes still execute unless the job is cancelled. `Required checks` still requires that job
+to succeed. The job is now named `Copyable examples`; before landing, check whether branch protection directly
+requires any former `Copyable examples on deno`, `Copyable examples on node` or `Copyable examples on bun` context.
+The aggregate check name is unchanged. Job duration includes preparation and cleanup; queue time is reported
+separately and does not establish compute savings.
+
 For complete checks before landing a stack, dispatch **CI** on its exact top branch. A lower layer reports its
 expensive checks as deferred and skips the required aggregate. It does not certify a passing top. The selected top's
 aggregate requires actual success from every selected lane and rejects missing, failed, cancelled or unexpectedly
