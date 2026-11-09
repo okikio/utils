@@ -189,12 +189,12 @@ Review branch-protection names when changing workflows; the release-metadata job
 Install the browser before its source or package checks:
 
 ```sh
-mise run fixture:browser
+mise run fixture:browser chromium
 mise run test -- --suite browser
 mise run test -- --suite packages
 ```
 
-On a fresh Linux CI machine, `mise run fixture:browser --with-deps` also installs Chromium's system
+On a fresh Linux CI machine, `mise run fixture:browser chromium --with-deps` also installs Chromium's system
 dependencies. To run the browser/container matrix locally, select all three engines before running its tests:
 
 ```sh
@@ -202,9 +202,12 @@ mise run fixture:browser chromium firefox webkit --with-deps
 mise run test -- --suite containers tests/workflows/duplex-browser.test.ts
 ```
 
-The container CI lane performs this preparation itself. Ordinary browser preparation still defaults to Chromium.
-Playwright is an exact development dependency. The browser tool records the actual browser version and
-exercised checks; browser-selected code executed by Node is labeled separately.
+The container CI lane performs this preparation itself. `mise run prepare -- --kind browser` selects Chromium by
+default; the lower-level `fixture:browser` command forwards its browser selection directly to Playwright.
+CI caches browser downloads by the installed Playwright version, operating system release, architecture and
+browser set. A restored download never skips system dependency installation or current tests. Playwright is an
+exact development dependency. The browser tool records the actual browser version and exercised checks;
+browser-selected code executed by Node is labeled separately.
 
 ## Keep resource admission explicit
 

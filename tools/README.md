@@ -62,9 +62,20 @@ workflow reuses exact tested artifacts at the same revision.
 
 Successful work now writes the download cache explicitly. A read-only planner does not save a partially warmed
 store before the test jobs can populate it. Cache identity includes the operating system, CPU architecture, actual
-tool versions and native lockfiles; frozen installation still verifies dependencies after a restore. The quality
+tool versions and native lockfiles; frozen installation still verifies dependencies after a restore. Most quality
 jobs use Ubicloud's 2-CPU x86 runner, preserving the previous private GitHub runner's architecture and 8 GB memory
-shape. Runner duration must be measured before claiming an execution-time improvement.
+shape. Chromium keeps the original GitHub Ubuntu runner: its complete job took
+[53 seconds](https://github.com/Kaiju-Ind/Utils/actions/runs/42533807113/job/128893804351), compared with
+[184 seconds](https://github.com/Kaiju-Ind/Utils/actions/runs/42551564846/job/128948369203) on Ubicloud. Ubuntu package
+downloads accounted for 124 seconds of the latter run. This observation motivates the runner choice; the corrected
+job's complete duration still needs measurement against the 120-second automatic PR budget.
+
+Browser, installed-package and container jobs also restore native Playwright downloads. Keys include the installed
+Playwright version, operating system release, architecture and selected browser set. Chromium has its own cache;
+the existing package and container preparation share an all-browser cache. Each native installer still runs with
+`--with-deps`, then each selected test runs against the current source. The cache does not contain Ubuntu packages,
+browser profiles or test results. Successful trusted runs can save downloads under GitHub's ordinary ref scope;
+PR cache writes cannot populate main or release caches. Cache failures fall back to normal installation.
 
 Automatic PR checks keep source contracts on every layer. Chromium, benchmark correctness and example checks run
 on ordinary PRs and the top of a native GitHub stack. The top compares its combined candidate with the ultimate
