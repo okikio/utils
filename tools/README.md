@@ -90,14 +90,18 @@ because their measured complete jobs exceeded the 120-second automatic budget. F
 on main or manual requests. Main pushes retain all affected lanes, and dispatching CI runs all lanes on the selected
 branch. This changes how often costly work runs; it does not establish that those tests became faster.
 
-Copyable examples prepare the pinned tools and locked dependencies once, then run on Deno, Node and Bun in separate
-steps. The previous three jobs used 89 seconds of total runner execution while each test step took one second in
-[the measured run](https://github.com/Kaiju-Ind/Utils/actions/runs/42586114449). Any runtime failure fails the shared
-job; the remaining runtimes still execute unless the job is cancelled. `Required checks` still requires that job
-to succeed. The job is now named `Copyable examples`; before landing, check whether branch protection directly
-requires any former `Copyable examples on deno`, `Copyable examples on node` or `Copyable examples on bun` context.
-The aggregate check name is unchanged. Job duration includes preparation and cleanup; queue time is reported
-separately and does not establish compute savings.
+Benchmark correctness and copyable examples now share one hosted runner because neither needs PostgreSQL,
+Chromium or a separate service. Mise installs the native toolchain and prepares the frozen package graph once.
+The benchmark correctness step runs when selected; the copyable examples run on Deno, Node and Bun when selected.
+The latter steps continue after a preceding failed check unless the job is cancelled. A failure in any selected step
+fails the shared job. `Required checks` verifies the selected benchmark and example lanes against that one result;
+it never considers a skipped or failed combined job successful.
+
+The successful reference run [#42675516922](https://github.com/Kaiju-Ind/Utils/actions/runs/42675516922)
+spent approximately 23 seconds in benchmark checks and 2.3 seconds in example tests, but the separate jobs required
+45 and 28 seconds of runner execution. Sharing setup may reduce billed seconds; it does not guarantee lower wall-clock
+time. Measure the new successful hosted run and check the repository's protected required check names before merging,
+because the individual `Benchmark correctness` and `Copyable examples` job names become one combined status.
 
 For complete checks before landing a stack, dispatch **CI** on its exact top branch. A lower layer reports its
 expensive checks as deferred and skips the required aggregate. It does not certify a passing top. The selected top's

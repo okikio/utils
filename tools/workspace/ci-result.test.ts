@@ -62,3 +62,18 @@ it('keeps deliberate PR deferrals distinct from successful or failed selected wo
 		})
 	).toThrow();
 });
+
+/** The two inexpensive pure selections must both be represented by one observed job. */
+it('requires the shared benchmark/examples job for either or both selected lanes', () => {
+	for (const [benchmark, examples] of [[true, false], [false, true], [true, true]]) {
+		const jobs = documentation();
+		const plan = { ...jobs.plan, outputs: { ...jobs.plan.outputs, benchmark: String(benchmark), examples: String(examples) } };
+		const shared = { ...jobs, plan, benchmark: { result: 'success' } };
+		expect(() => requireSelectedResults(shared)).not.toThrow();
+		for (const result of ['failure', 'cancelled', 'skipped', '']) {
+			expect(() => requireSelectedResults({ ...shared, benchmark: { result } })).toThrow();
+		}
+		const missing = Object.fromEntries(Object.entries(shared).filter(([name]) => name !== 'benchmark'));
+		expect(() => requireSelectedResults(missing)).toThrow();
+	}
+});

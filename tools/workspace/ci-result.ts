@@ -8,7 +8,7 @@ interface JobResult {
 	readonly outputs?: Readonly<Record<string, string>>;
 }
 
-/** These names match the plan and required workflow jobs, excluding advisory feedback. */
+/** These selection names remain independent even when two lanes share a hosted job. */
 const Lanes = ['source', 'runtimes', 'browser', 'packages', 'postgres', 'containers', 'benchmark', 'docs', 'examples'];
 
 /**
@@ -31,7 +31,9 @@ export function requireSelectedResults(jobs: Readonly<Record<string, JobResult>>
 		const selected = jobs.plan.outputs[lane];
 		if (selected !== 'true' && selected !== 'false') throw new Error(`Missing ${lane} selection.`);
 		if (deferred.includes(lane) && selected !== 'false') throw new Error(`${lane} cannot be selected and deferred.`);
-		const result = jobs[lane]?.result;
+		// The benchmark job executes both pure lanes. One failed step fails the shared job.
+		const job = lane === 'examples' ? 'benchmark' : lane;
+		const result = jobs[job]?.result;
 		if (selected === 'true' ? result !== 'success' : !['success', 'skipped'].includes(result ?? '')) {
 			throw new Error(
 				`${lane}: expected ${selected === 'true' ? 'success' : 'success or skipped'}, received ${result}.`,
