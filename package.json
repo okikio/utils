@@ -82,5 +82,5 @@
 		"@sinclair/typebox": "0.34.52",
 		"sampo": "0.24.0"
 	},
-	"packageManager": "pnpm@11.17.0"
+	"packageManager": "pnpm@12.18.0"
 }
