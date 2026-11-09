@@ -79,7 +79,8 @@ PR cache writes cannot populate main or release caches. Cache failures fall back
 
 Automatic PR checks keep source contracts on every layer. Chromium, benchmark correctness and example checks run
 on ordinary PRs and the top of a native GitHub stack. The top compares its combined candidate with the ultimate
-stack base. The planner reports runtime, installed-package, PostgreSQL, container and documentation jobs as deferred
+stack base. The `stacked` event repeats selection when an existing PR joins a native stack. The planner reports
+runtime, installed-package, PostgreSQL, container and documentation jobs as deferred
 because their measured complete jobs exceeded the 120-second automatic budget. Formatting and lint feedback run
 on main or manual requests. Main pushes retain all affected lanes, and dispatching CI runs all lanes on the selected
 branch. This changes how often costly work runs; it does not establish that those tests became faster.
@@ -103,8 +104,16 @@ do not change the runtime dependency graph used to build or publish npm candidat
 
 The source, runtime and documentation cohorts also use the shared native Deno compiler cache. It stores only Deno's
 module analysis, compiler databases and generated code, separately from dependency downloads. Deno still checks
-current source and executes each selected command. Full and manual checks bypass this compiler-state restore/save
-path. This cache is neither a test-success receipt nor a release artifact.
+current source and executes each selected command. Full CI and release checks reuse this state by default. Select
+**fresh** when dispatching CI or Release to bypass compiler-state restore and save during a diagnostic run.
+Selecting all checks and rebuilding compiler state are separate choices. This cache is neither a test-success
+receipt nor a release artifact.
+
+Automatic CI runs replace an older run for the same PR or branch. Ordinary manual CI uses the exact source SHA
+as its concurrency identity, so an automatic PR update cannot interrupt a complete manual check. The single
+pending slot coalesces ordinary requests with the same inputs; it does not skip a request already running or
+reuse its test result. Each **fresh** attempt has its own identity and executes independently. Changeset checks
+also restore and save the shared dependency download stores.
 
 Read [testing](../docs/maintenance/01-testing.md), [packaging](../docs/maintenance/02-packaging.md),
 [releases](../docs/maintenance/03-releases.md) and [artifact ownership](../docs/maintenance/05-artifacts.md) for the contracts
