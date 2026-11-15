@@ -79,7 +79,7 @@ From that directory, select one command column:
 | Verify the complete workflow | `deno run --frozen --allow-net=localhost,127.0.0.1 check.ts` | `node check.ts` | `bun check.ts` |
 | Start the listener | `deno run --frozen --allow-net=localhost:8000,127.0.0.1:8000 start.ts` | `node start.ts` | `bun start.ts` |
 
-The checkout pins Deno 2.9.7, Node 26.10.0, and Bun 1.4.2. The listener uses native `Deno.serve` on Deno and Node's HTTP stream API on Node/Bun;
+Use the runtime versions pinned in [mise.toml](../../mise.toml). The listener uses native `Deno.serve` on Deno and Node's HTTP stream API on Node/Bun;
 the application itself receives the same Web Requests.
 No model, credentials, or external AI service is needed for verification.
 
@@ -104,57 +104,9 @@ on this page test the pinned example, not every client/version combination.
 
 ## Give the SDK one checked greeting operation
 
-Read `server.ts`. `createMcpHandler()` supplies a Fetch-compatible SDK handler. Its factory registers the
+Read [server.ts](../../examples/mcp/server.ts). `createMcpHandler()` supplies a Fetch-compatible SDK handler. Its factory registers the
 tool on a fresh `McpServer`. The tool's input schema and callback describe what the application can do. They do not own
 HTTP routing, listeners or user credentials.
-
-```ts source=../../examples/mcp/server.ts
-import {
-	createMcpHandler,
-	hostHeaderValidationResponse,
-	McpServer,
-	originValidationResponse,
-} from '@modelcontextprotocol/server';
-import * as schema from '@okikio/schema';
-import * as http from '@okikio/server/http';
-
-/**
- * Create a local HTTP application that exposes one MCP tool.
- * The caller owns the returned close() operation. Creating this application
- * does not open a network port or authenticate a user.
- */
-export function createGreetingMcp() {
-	// The SDK creates a fresh protocol server for each HTTP request.
-	// Keep durable application state in a separate owner, not this callback.
-	const mcp = createMcpHandler(() => {
-		const server = new McpServer({ name: 'greetings', version: '1.0.0' });
-		// Registration advertises this operation during discovery. Only a call runs
-		// the callback; the description helps a client decide when to offer it.
-		server.registerTool('greet', {
-			description: 'Greet one person.',
-			inputSchema: schema.object({ name: schema.string({ minLength: 1, maxLength: 80 }) }),
-		}, async ({ name }) => {
-			// The SDK checked name before entering this function. Tool replies use
-			// protocol content blocks; the SDK turns them into the HTTP response.
-			return { content: [{ type: 'text', text: `Hello, ${name}!` }] };
-		});
-		return server;
-	});
-
-	const app = http.create({
-		routes: [
-			http.mount('/mcp', async (request) => {
-				// Refuse unapproved hostnames before the SDK reads a protocol message.
-				// These development guards are separate from user authentication.
-				const rejected = hostHeaderValidationResponse(request, ['localhost']) ??
-					originValidationResponse(request, ['localhost']);
-				return rejected ?? mcp.fetch(request);
-			}, { requestPath: 'strip-prefix' }),
-		],
-	});
-	return { app, close: () => mcp.close() };
-}
-```
 
 Follow one request into the function. Utils matches `/mcp`, strips that prefix for the child handler and preserves the
 method, headers, query, body and signal. The hostname guards can return a refusal immediately. Otherwise `mcp.fetch()`
@@ -168,78 +120,13 @@ tool argument is still untrusted input.
 
 ## Discover the tool, call it, then try the rejection paths
 
-Save `check.ts`. A **transport** carries protocol messages between client and server. Here the SDK's
+Open [check.ts](../../examples/mcp/check.ts). A **transport** carries protocol messages between client and server. Here the SDK's
 Streamable HTTP transport builds real protocol requests and sends them to the loopback listener.
 `client.connect()` establishes the protocol conversation before discovery or tool calls.
 
 The check starts two copies of the application. The SDK client talks to the copy that `listen()` starts.
 The test sends requests with rejected headers directly to `admissionApp`, the other copy. This tests the HTTP checks
 without starting an MCP conversation. The check closes both copies.
-
-```ts source=../../examples/mcp/check.ts
-/** Discover and call a real tool without a model; assert failures and close every owned connection. @module */
-import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
-import { createGreetingMcp } from './server.ts';
-import { listen } from './listen.ts';
-import { strict as assert } from 'node:assert';
-
-// The listener owns a separate application for real protocol requests.
-// This application tests HTTP admission directly, without a network client.
-const admissionApp = createGreetingMcp();
-let listener: Awaited<ReturnType<typeof listen>> | undefined;
-const client = new Client({ name: 'greeting-check', version: '1.0.0' }, { versionNegotiation: { mode: 'auto' } });
-try {
-	// Acquire inside the cleanup scope so a failed bind still closes the direct application.
-	listener = await listen(0);
-	// Use the actual SDK transport over a real loopback connection.
-	// The network client supplies Host; the outer route checks it before MCP.
-	await client.connect(
-		new StreamableHTTPClientTransport(listener.url),
-	);
-
-	// Discovery tells a client which tools exist; calling one is a separate step.
-	const names = (await client.listTools()).tools.map((tool) => tool.name);
-	assert.deepEqual(names, ['greet']);
-	console.log(JSON.stringify(names));
-	const greeting = await client.callTool({ name: 'greet', arguments: { name: 'Sam' } });
-	assert.deepEqual(greeting.content, [{ type: 'text', text: 'Hello, Sam!' }]);
-	console.log(JSON.stringify(greeting.content));
-	const invalid = await client.callTool({ name: 'greet', arguments: { name: '' } });
-	assert.equal(invalid.isError, true);
-	console.log('invalid', invalid.isError);
-
-	// Exercise the outer HTTP policy independently of valid protocol input.
-	const badHost = await admissionApp.app.fetch(
-		new Request('http://localhost/mcp', {
-			method: 'POST',
-			headers: { host: 'attacker.invalid' },
-		}),
-	);
-	const badOrigin = await admissionApp.app.fetch(
-		new Request('http://localhost/mcp', {
-			method: 'POST',
-			headers: { host: 'localhost', origin: 'https://attacker.invalid' },
-		}),
-	);
-	assert.equal(badHost.status, 403);
-	assert.equal(badOrigin.status, 403);
-	console.log('blocked', badHost.status, badOrigin.status);
-	await badHost.body?.cancel();
-	await badOrigin.body?.cancel();
-} finally {
-	// Each side owns resources. Closing the server must still be attempted if
-	// closing the client rejects, so the two cleanup operations are nested.
-	try {
-		await client.close();
-	} finally {
-		try {
-			await admissionApp.close();
-		} finally {
-			await listener?.close();
-		}
-	}
-}
-```
 
 Use the runtime command above. For an additional Deno type check, run `deno check server.ts listen.ts check.ts`.
 The check opens an OS-selected loopback port, uses the real SDK client over HTTP, asserts every expected

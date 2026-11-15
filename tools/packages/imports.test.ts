@@ -7,6 +7,7 @@ import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { parse } from '@std/jsonc';
 import ts from 'typescript';
+import { packagePrograms } from '../bench/suite.ts';
 import { plan, projectFromManifest } from '../workspace/ci.ts';
 
 const root = new URL('../../', import.meta.url);
@@ -119,6 +120,37 @@ describe('workspace import ownership', () => {
 							problems.push(`${relative(packages, path)} escapes its package through ${specifier}`);
 						}
 					}
+				}
+			}
+		}
+		expect(problems).toEqual([]);
+	});
+
+	it('keeps standalone benchmark imports inside their package or declared dependencies', async () => {
+		const problems: string[] = [];
+		for (const program of packagePrograms) {
+			const owner = fileURLToPath(new URL(`packages/${program.split('/')[1]}/`, root));
+			const path = fileURLToPath(new URL(program, root));
+			const manifest = JSON.parse(await readFile(resolve(owner, 'package.json'), 'utf8'));
+			for (const specifier of specifiers(path, await readFile(path, 'utf8'), true)) {
+				if (specifier.startsWith('#')) {
+					problems.push(`${program} imports root-private ${specifier}`);
+				} else if (specifier.startsWith('.')) {
+					const target = fileURLToPath(new URL(specifier, pathToFileURL(path)));
+					const within = relative(owner, target);
+					if (within === '..' || within.startsWith('../')) {
+						problems.push(`${program} escapes its package through ${specifier}`);
+					}
+				} else if (!specifier.startsWith('node:')) {
+					const dependency = specifier.startsWith('@')
+						? specifier.split('/').slice(0, 2).join('/')
+						: specifier.split('/')[0]!;
+					if (
+						dependency !== manifest.name &&
+						![manifest.dependencies, manifest.devDependencies, manifest.peerDependencies].some((group) =>
+							group?.[dependency]
+						)
+					) problems.push(`${program} imports undeclared ${dependency}`);
 				}
 			}
 		}
