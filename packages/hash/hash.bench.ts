@@ -1,19 +1,24 @@
 /**
- * Compare warm SHA-256 APIs as input grows from 1 KiB to 4 MiB.
- * Native comparisons both copy caller bytes. Streaming additionally owns a reader
- * and incremental state; varying chunk size exposes that coordination cost.
- * Corpus creation and correctness checks are outside timing. Stream construction,
- * reading, finalization and lock release are inside each streaming trial.
+ * Compare warm SHA-256 APIs as input grows from 64 bytes to 4 MiB.
+ *
+ * The public paths use the host's built-in `node:crypto` where it exists. The Web Crypto and Noble trials measure the
+ * fallbacks that a host without it, such as a browser, uses. `node:crypto` called directly is the reference. Streaming
+ * additionally owns a reader and incremental state; varying chunk size exposes that coordination cost. Corpus creation
+ * and correctness checks are outside timing. Stream construction, reading, finalization and lock release are inside
+ * each streaming trial.
  * @module
  */
 import { deepStrictEqual, rejects, strictEqual } from 'node:assert';
+import { createHash } from 'node:crypto';
 import { bench, do_not_optimize, group } from 'mitata';
 import { run } from './fixtures/bench.ts';
 import { digest } from './digest.ts';
 import * as sync from './sync.ts';
 import * as stream from './stream.ts';
+import { portable } from './_portable.ts';
+import { web } from './_web.ts';
 
-const sizes = [1024, 16384, 262144, 4194304];
+const sizes = [64, 1024, 16384, 262144, 4194304];
 const chunks = [1024, 16384, 65536];
 
 /** Numeric dimensions registered below; avoid leaking Mitata's untyped getter into fixture lookup. */
@@ -46,7 +51,10 @@ for (const size of sizes) {
 	const expected = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
 	fixtures.set(size, bytes);
 	deepStrictEqual(await digest('sha256', bytes), expected);
+	deepStrictEqual(await web('sha256', bytes, 'bytes'), expected);
 	deepStrictEqual(sync.digest('sha256', bytes), expected);
+	deepStrictEqual(portable('sha256').update(bytes).digest(), expected);
+	deepStrictEqual(new Uint8Array(createHash('sha256').update(bytes).digest()), expected);
 	for (const chunkSize of chunks) {
 		const input = source(bytes, chunkSize);
 		deepStrictEqual(await stream.read('sha256', input, { maximumBytes: size }), expected);
@@ -58,19 +66,29 @@ for (const size of sizes) {
 }
 
 group('warm SHA-256; corpus preparation excluded', () => {
-	bench('owned native digest, $bytes bytes', function* (state: ParametersType) {
+	bench('public async digest, $bytes bytes', function* (state: ParametersType) {
 		const bytes = fixtures.get(state.get('bytes'))!;
 		yield async () => do_not_optimize(await digest('sha256', bytes));
 	}).args('bytes', sizes);
 
-	bench('Web Crypto with matching input copy, $bytes bytes', function* (state: ParametersType) {
-		const bytes = fixtures.get(state.get('bytes'))!;
-		yield async () => do_not_optimize(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes.slice())));
-	}).args('bytes', sizes);
-
-	bench('portable synchronous digest, $bytes bytes', function* (state: ParametersType) {
+	bench('public sync digest, $bytes bytes', function* (state: ParametersType) {
 		const bytes = fixtures.get(state.get('bytes'))!;
 		yield () => do_not_optimize(sync.digest('sha256', bytes));
+	}).args('bytes', sizes);
+
+	bench('node:crypto createHash reference, $bytes bytes', function* (state: ParametersType) {
+		const bytes = fixtures.get(state.get('bytes'))!;
+		yield () => do_not_optimize(createHash('sha256').update(bytes).digest());
+	}).args('bytes', sizes);
+
+	bench('Web Crypto fallback, $bytes bytes', function* (state: ParametersType) {
+		const bytes = fixtures.get(state.get('bytes'))!;
+		yield async () => do_not_optimize(await web('sha256', bytes, 'bytes'));
+	}).args('bytes', sizes);
+
+	bench('Noble fallback, $bytes bytes', function* (state: ParametersType) {
+		const bytes = fixtures.get(state.get('bytes'))!;
+		yield () => do_not_optimize(portable('sha256').update(bytes).digest());
 	}).args('bytes', sizes);
 });
 

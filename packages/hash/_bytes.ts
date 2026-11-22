@@ -10,3 +10,10 @@ export function copy(input: InputType): Uint8Array<ArrayBuffer> {
 			: new Uint8Array(input),
 	);
 }
+/** The visible bytes without copying them, for a consumer that reads them before it returns. Text is encoded. */
+export function view(input: InputType): Uint8Array {
+	if (typeof input === 'string') return new TextEncoder().encode(input);
+	return ArrayBuffer.isView(input)
+		? new Uint8Array(input.buffer, input.byteOffset, input.byteLength)
+		: new Uint8Array(input);
+}
