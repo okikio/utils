@@ -1,0 +1,146 @@
+# Algorithms, families and crates
+
+Status: proposed. Read [Backends](01-backends.md) first.
+
+The package groups algorithms into **families**. A family is one WASM module and one entry point. You load and pay for
+only the families you import. The list comes from Wikipedia's
+[list of hash functions](https://en.wikipedia.org/wiki/List_of_hash_functions), filtered by one rule: an algorithm is
+included when a maintained, `no_std` Rust crate implements it and has published test vectors. "Maintained" means a
+release in the last two years or an owner organization that still ships releases (RustCrypto, the BLAKE3 team).
+
+Columns: **native** is `node:crypto` (OpenSSL 3 default provider), **web** is Web Crypto, **portable** is pure
+JavaScript. Every algorithm in this page is available through **packed** and **wasm**.
+
+## sha2
+
+| Algorithm                                   | Crate  | native | web            | portable |
+| ------------------------------------------- | ------ | ------ | -------------- | -------- |
+| SHA-224, SHA-256, SHA-384, SHA-512          | `sha2` | yes    | SHA-224 no     | yes      |
+| SHA-512/224, SHA-512/256                    | `sha2` | yes    | no             | yes      |
+
+## sha3
+
+| Algorithm                                            | Crate  | native            | web | portable |
+| ---------------------------------------------------- | ------ | ----------------- | --- | -------- |
+| SHA3-224, SHA3-256, SHA3-384, SHA3-512               | `sha3` | yes               | no  | yes      |
+| Keccak-224, -256, -384, -512 (pre-standard padding)  | `sha3` | no                | no  | yes      |
+| SHAKE128, SHAKE256 (variable output)                 | `sha3` | yes               | no  | yes      |
+| cSHAKE128, cSHAKE256                                 | `sha3` | no                | no  | yes      |
+| TurboSHAKE128, TurboSHAKE256                         | `sha3` | no                | no  | yes      |
+| KangarooTwelve (KT128)                               | `k12`  | no                | no  | yes      |
+| KMAC128, KMAC256                                     | none   | no                | no  | yes      |
+
+KMAC has no maintained Rust crate, so it is portable only. The package will not write its own KMAC in Rust.
+
+## blake
+
+| Algorithm                                         | Crate    | native              | web | portable |
+| ------------------------------------------------- | -------- | ------------------- | --- | -------- |
+| BLAKE2b, BLAKE2s (any output length, keyed, salt) | `blake2` | 512 and 256 only    | no  | yes      |
+| BLAKE3 (hash, keyed, derive key, any output)      | `blake3` | no                  | no  | yes      |
+
+The `blake3` crate has a WASM SIMD path (`wasm32_simd` feature). It roughly halves the time per KiB.
+
+## legacy
+
+These algorithms are broken or weak for collision resistance. Use them only to read existing data or speak an existing
+protocol.
+
+| Algorithm                                 | Crate          | native        | web   | portable |
+| ----------------------------------------- | -------------- | ------------- | ----- | -------- |
+| MD2, MD4                                  | `md2`, `md4`   | no            | no    | no       |
+| MD5                                       | `md-5`         | yes           | no    | yes      |
+| SHA-1                                     | `sha1`         | yes           | yes   | yes      |
+| SHA-1 with collision detection            | `sha1-checked` | no            | no    | no       |
+| RIPEMD-128, -160, -256, -320              | `ripemd`       | RIPEMD-160    | no    | RIPEMD-160 |
+| Tiger, Tiger2                             | `tiger`        | no            | no    | no       |
+
+## national
+
+Standards from national bodies. Some regulated systems require them.
+
+| Algorithm                                     | Standard              | Crate       |
+| --------------------------------------------- | --------------------- | ----------- |
+| Streebog-256, Streebog-512                    | GOST R 34.11-2012     | `streebog`  |
+| GOST R 34.11-94                               | GOST R 34.11-94       | `gost94`    |
+| SM3                                           | GM/T 0004-2012        | `sm3`       |
+| Kupyna-256, Kupyna-512                        | DSTU 7564:2014        | `kupyna`    |
+| BelT hash                                     | STB 34.101.31-2020    | `belt-hash` |
+| bash-hash                                     | STB 34.101.77-2020    | `bash-hash` |
+| Ascon-Hash256, Ascon-XOF128                   | NIST SP 800-232       | `ascon-hash`|
+
+`node:crypto` has SM3 when OpenSSL is built with it. No other column applies.
+
+## contest
+
+Finalists and candidates of the SHA-3 competition, and other published designs.
+
+| Algorithm                                     | Crate       |
+| --------------------------------------------- | ----------- |
+| Grøstl-224 … Grøstl-512                       | `groestl`   |
+| JH-224 … JH-512                               | `jh`        |
+| Skein-256, Skein-512, Skein-1024              | `skein`     |
+| Shabal-192 … Shabal-512                       | `shabal`    |
+| CubeHash                                      | `cubehash`  |
+| Whirlpool                                     | `whirlpool` |
+| FSB-160 … FSB-512                             | `fsb`       |
+
+These have no native, web or portable implementation.
+
+## mac
+
+| Algorithm                       | Crate             | native  | web     | portable |
+| ------------------------------- | ----------------- | ------- | ------- | -------- |
+| HMAC over any family above      | `hmac`            | SHA-1/2/3, MD5 | SHA-1/2 | where the hash is portable |
+| Poly1305 (one-time key)         | `poly1305`        | no      | no      | no       |
+| POLYVAL, GHASH                  | `polyval`, `ghash`| no      | no      | no       |
+| SipHash-2-4, SipHash-1-3 (64 and 128 bits) | `siphasher` | no | no | no |
+| HighwayHash (64, 128, 256 bits) | `highway`         | no      | no      | no       |
+
+HMAC for a family lives in that family's module, so `import '@okikio/hash/sha3'` gives HMAC-SHA3 without loading
+`mac`.
+
+## fast
+
+Non-cryptographic hashes for hash tables, deduplication and sharding. Do not use them where an attacker picks the input.
+
+| Algorithm                                     | Crate          | Notes                                   |
+| --------------------------------------------- | -------------- | --------------------------------------- |
+| XXH32, XXH64, XXH3-64, XXH3-128               | `xxhash-rust`  | WASM SIMD path for XXH3                 |
+| rapidhash v3 (64 bits)                        | `rapidhash`    | Successor of wyhash                     |
+| wyhash (final 4)                              | `wyhash`       | For reading data that already uses it   |
+| MurmurHash3 x86-32, x86-128, x64-128          | `murmur3`      |                                         |
+| MetroHash64, MetroHash128                     | `metrohash`    |                                         |
+| CityHash64                                    | `cityhasher`   |                                         |
+| SeaHash                                       | `seahash`      |                                         |
+| FNV-1, FNV-1a (32 and 64 bits)                | `fnv`          |                                         |
+
+`portable` has FNV-1a 32 only (already in the package). The rest are WASM only.
+
+## checksum
+
+| Algorithm                                         | Crate        | native        | portable                  |
+| ------------------------------------------------- | ------------ | ------------- | ------------------------- |
+| Every CRC in the RevEng catalogue (CRC-3 … CRC-82) | `crc`        | CRC-32 (zlib) | CRC-32, CRC-32C           |
+| CRC-32 (IEEE), fast path                          | `crc32fast`  | zlib          | yes                       |
+| Adler-32                                          | `adler2`     | no            | no                        |
+| Fletcher-16, -32, -64                             | `fletcher`   | no            | no                        |
+
+The CRC entry point takes a catalogue name, such as `'CRC-16/ARC'` or `'CRC-64/NVME'`. Names match the
+[RevEng catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm) exactly.
+
+## Not included, and why
+
+| Algorithm or group                                   | Reason                                                       |
+| ---------------------------------------------------- | ------------------------------------------------------------ |
+| MD6, HAVAL, Snefru, HAS-160, RadioGatún, LSH, ECOH, SWIFFT, Hamsi, Luffa, SHAvite-3, Fugue, ECHO, SIMD | No maintained pure Rust `no_std` crate. MD6's crate wraps C. |
+| GxHash, aHash, foldhash                              | Output depends on CPU features or crate version. Not portable across hosts. |
+| FarmHash                                             | The crate has had no release since 2016.                     |
+| t1ha                                                 | The crate is at 0.1 with few users. Reconsider if a protocol needs it. |
+| komihash                                             | Crate is new (2026) and has very few users. Reconsider later. |
+| CMAC, PMAC                                           | These are MACs over a block cipher. They belong in a cipher package. |
+| Luhn, Verhoeff, Damm                                 | Check digits for decimal strings, not hashes of bytes.       |
+| BSD sum, SYSV sum, sum8/24/32, xor8, Internet checksum, Pearson | No maintained crate. Each is a few lines; open an issue if you need one. |
+| Rabin fingerprint, Buzhash, Zobrist, tabulation      | Families that need a caller-chosen table or polynomial, or rolling-window APIs. A content-defined chunking package is a better home. |
+
+If you need one of these, open an issue with the protocol or file format that requires it.

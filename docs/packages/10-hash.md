@@ -59,3 +59,8 @@ Encode text with `TextEncoder`, copy the intended byte range, and pass it to `cr
 returned byte to two hexadecimal characters. For a compact ID, serialize the ordered parts as a JSON array before
 hashing. Joining with a separator can make different tuples indistinguishable. The utility centralizes these encoding
 decisions; the application owns whether an ID may be persisted and how collisions are detected.
+
+## Planned algorithms and backends
+
+The [hash design](../hash/README.md) lists the algorithm families, WebAssembly backends and entry points planned for
+the next version, with the measurements behind each choice.
