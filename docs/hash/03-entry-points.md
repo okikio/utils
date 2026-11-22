@@ -40,7 +40,7 @@ Add a backend after the family to force it. The default is the automatic choice.
 | ------------ | ------------------------------------ | ---------------------------------------------------------- |
 | (none)       | `@okikio/hash/sha3`               | Automatic choice ([rules](01-backends.md#how-the-default-chooses)) |
 | `/packed`    | `@okikio/hash/sha3/packed`        | Embedded WASM only                                          |
-| `/wasm`      | `@okikio/hash/sha3/wasm`          | Separate `.wasm` file only; `ready({ url })` can override the file location |
+| `/wasm`      | `@okikio/hash/sha3/wasm`          | Separate `.wasm` file only; you pass the module, or `ready()` fetches it ([below](#load-the-wasm-yourself)) |
 | `/native`    | `@okikio/hash/sha2/native`        | `node:crypto` only; throws `UnsupportedError` without it    |
 | `/web`       | `@okikio/hash/sha2/web`           | Web Crypto only; asynchronous functions only               |
 | `/portable`  | `@okikio/hash/sha3/portable`      | Pure JavaScript only; exports only what `@noble/hashes` has |
@@ -50,6 +50,37 @@ A forced backend never falls back. That is the point of forcing it: a test or an
 
 `/native`, `/web` and `/portable` exist only for families that have an implementation in that backend. The
 [algorithm tables](02-algorithms.md) show which.
+
+## Load the WASM yourself
+
+The `/wasm` entry point never loads anything until you call `ready()`. You can give it the module in any form you
+already have, and then it does no fetch and no file read:
+
+| You pass                                        | Where it comes from                                         |
+| ----------------------------------------------- | ----------------------------------------------------------- |
+| The exports object                              | `import * as sha3 from '@okikio/hash/wasm/sha3.wasm'` (WASM ESM integration) |
+| A `WebAssembly.Module`                          | `import source sha3 from '@okikio/hash/wasm/sha3.wasm'` (source phase import), or your own `compileStreaming` |
+| A `WebAssembly.Instance`                        | Your own `instantiate` call                                  |
+| A `Response` or a promise of one                | Your own `fetch`, for example from a CDN with integrity metadata |
+| `Uint8Array` or `ArrayBuffer`                   | A file read, a cache or a bundler's binary loader            |
+| A `URL` or string                               | Fetched with `WebAssembly.instantiateStreaming`             |
+| Nothing                                         | Fetched from the file beside the module, found with `import.meta.url` |
+
+```ts
+import * as module from '@okikio/hash/wasm/sha3.wasm';
+import { ready, sha3_256 } from '@okikio/hash/sha3/wasm';
+
+await ready(module);
+console.log(await sha3_256('hello'));
+```
+
+This works because every module has no imports and exports its own memory. A host that supports WASM ESM integration
+can instantiate it with no glue code. The package exports each raw file under `@okikio/hash/wasm/<family>.wasm`.
+
+Host support checked locally: Deno 2.9 runs both the instance import and `import source`. Node.js 22 runs the instance
+import behind `--experimental-wasm-modules` and does not parse `import source`. Bun 1.4 runs neither. Browsers need a
+bundler for both forms today. Because support differs, the automatic default keeps packed WASM, and the forms above are
+choices you make.
 
 ## Encoding entry points
 
@@ -115,4 +146,4 @@ Other families do not benefit, so they ship one module.
 | memory64                 | Inputs are streamed through a 64 KiB window. 64-bit addresses only add bounds-check cost. |
 | Multiple memories        | One memory is enough. Rust does not target multiple memories.                    |
 | JS string builtins       | Would let WASM read a JS string without `TextEncoder`. Stable Rust cannot import `externref` builtins without `wasm-bindgen`, and `encodeInto` already runs at memory speed. |
-| Source phase imports (`import source m from './x.wasm'`) | The best way to load `/wasm` in future. Today Node.js needs a flag and Firefox does not support it. The `/wasm` loader will adopt it when all target hosts ship it. |
+| Source phase imports as the default | `ready()` accepts the result of `import source` ([above](#load-the-wasm-yourself)). The default does not use it until every target host supports it. |
