@@ -270,10 +270,8 @@ jobs:
         continue-on-error: true
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: |
-            ~/.cache/ms-playwright
-            ~/.cache/ms-playwright-apt
-          key: utils-playwright-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.os }}-${{ steps.playwright.outputs.version }}-chromium
+          path: ~/.cache/ms-playwright
+          key: utils-playwright-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.os }}-${{ steps.playwright.outputs.version }}-chromium
       - run: mise run ci:run -- --lane browser
         if: steps.passed.outputs.hit != 'true'
       # Cache downloads after fresh checks; PR writes remain in their merge-ref scope.
@@ -283,9 +281,7 @@ jobs:
         continue-on-error: true
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: |
-            ~/.cache/ms-playwright
-            ~/.cache/ms-playwright-apt
+          path: ~/.cache/ms-playwright
           key: ${{ steps.playwright-cache.outputs.cache-primary-key }}
       - name: Retain test reports
         if: steps.passed.outputs.hit != 'true' && (always())
@@ -362,10 +358,8 @@ jobs:
         continue-on-error: true
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: |
-            ~/.cache/ms-playwright
-            ~/.cache/ms-playwright-apt
-          key: utils-playwright-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.os }}-${{ steps.playwright.outputs.version }}-all
+          path: ~/.cache/ms-playwright
+          key: utils-playwright-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.os }}-${{ steps.playwright.outputs.version }}-all
       - run: mise run fixture:browser --with-deps
         if: steps.passed.outputs.hit != 'true'
       - run: mise run ci:run -- --lane packages
@@ -377,9 +371,7 @@ jobs:
         continue-on-error: true
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: |
-            ~/.cache/ms-playwright
-            ~/.cache/ms-playwright-apt
+          path: ~/.cache/ms-playwright
           key: ${{ steps.playwright-cache.outputs.cache-primary-key }}
       - name: Retain test reports
         if: steps.passed.outputs.hit != 'true' && (always())
@@ -578,10 +570,8 @@ jobs:
         continue-on-error: true
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: |
-            ~/.cache/ms-playwright
-            ~/.cache/ms-playwright-apt
-          key: utils-playwright-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.os }}-${{ steps.playwright.outputs.version }}-all
+          path: ~/.cache/ms-playwright
+          key: utils-playwright-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.os }}-${{ steps.playwright.outputs.version }}-all
       - run: mise run ci:run -- --lane containers --shard "$SHARD/3"
         if: steps.passed.outputs.hit != 'true'
         env:
@@ -594,9 +584,7 @@ jobs:
         continue-on-error: true
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: |
-            ~/.cache/ms-playwright
-            ~/.cache/ms-playwright-apt
+          path: ~/.cache/ms-playwright
           key: ${{ steps.playwright-cache.outputs.cache-primary-key }}
       - name: Retain test reports
         if: steps.passed.outputs.hit != 'true' && (always())
