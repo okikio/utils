@@ -38,7 +38,8 @@ export function assert<Value>(
 		throw new TypeError(`${name} must be a plain object or null-prototype record.`);
 	}
 	if (Object.getOwnPropertySymbols(value).length > 0) throw new TypeError(`${name} must use string keys only.`);
-	for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(value))) {
+	for (const key of Object.getOwnPropertyNames(value)) {
+		const descriptor = Object.getOwnPropertyDescriptor(value, key)!;
 		if (!descriptor.enumerable || !('value' in descriptor)) {
 			throw new TypeError(`${name} property ${JSON.stringify(key)} must be an enumerable data property.`);
 		}
@@ -115,10 +116,9 @@ export function omit<
 ): Readonly<Omit<Value, Keys[number]>> {
 	assert(value, name);
 	const excluded = new Set<string>(keys);
-	return fromEntries(Object.entries(value).filter(([key]) => !excluded.has(key)), {
-		maximumItems: Object.keys(value).length,
-		duplicates: 'reject',
-	}) as Readonly<Omit<Value, Keys[number]>>;
+	const output: Record<string, unknown> = Object.create(null);
+	for (const [key, entry] of Object.entries(value)) if (!excluded.has(key)) output[key] = entry;
+	return Object.freeze(output) as Readonly<Omit<Value, Keys[number]>>;
 }
 
 /** Transform own data values in enumeration order. Hidden structural keys make callback values unknown. Defects propagate. */
@@ -126,11 +126,14 @@ export function map<Next>(
 	value: Readonly<Record<string, unknown>>,
 	transform: (value: unknown, key: string) => Next,
 ): Readonly<Record<string, Next>> {
-	const inspected = entries(value);
-	return fromEntries(inspected.map(([key, entry]) => [key, transform(entry, key)] as const), {
-		maximumItems: inspected.length,
-		duplicates: 'reject',
-	});
+	// The record is validated before any transform runs. Own keys are unique, so the pairs need no
+	// duplicate or shape checks; writing them directly avoids an entry array and a descriptor per pair,
+	// which made this about ten times slower than Object.fromEntries.
+	assert(value);
+	const inspected = Object.entries(value);
+	const output: Record<string, Next> = Object.create(null);
+	for (const [key, entry] of inspected) output[key] = transform(entry, key);
+	return Object.freeze(output);
 }
 
 /** Retain matching own entries in enumeration order; no predicate is called until the entire record is safe. */
@@ -138,11 +141,11 @@ export function filter<Value extends Readonly<Record<string, unknown>>>(
 	value: Value,
 	predicate: (value: unknown, key: string) => boolean,
 ): Readonly<Partial<Value>> {
-	const inspected = entries(value);
-	return fromEntries(inspected.filter(([key, entry]) => predicate(entry, key)), {
-		maximumItems: inspected.length,
-		duplicates: 'reject',
-	}) as Readonly<Partial<Value>>;
+	assert(value);
+	const inspected = Object.entries(value);
+	const output: Record<string, unknown> = Object.create(null);
+	for (const [key, entry] of inspected) if (predicate(entry, key)) output[key] = entry;
+	return Object.freeze(output) as Readonly<Partial<Value>>;
 }
 
 /** Explicit admission and collision policy for a possibly lazy source of record entries. */

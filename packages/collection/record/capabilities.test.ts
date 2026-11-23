@@ -69,6 +69,28 @@ describe('deterministic finite JSON and reversible changes', () => {
 		expect(() => json.stringify('é', { maximumBytes: 3 })).toThrow(RangeError);
 		expect(() => json.stringify({ a: undefined }, { maximumBytes: 100 })).toThrow(TypeError);
 	});
+	it('copies only dense arrays of data elements and records of data properties', () => {
+		const source = [1, [2, { a: 'b' }], { c: null }];
+		const copied = json.copy(source);
+		expect(copied).toEqual(source);
+		expect(copied).not.toBe(source);
+		expect((copied as unknown[])[1]).not.toBe(source[1]);
+		// deno-lint-ignore no-sparse-arrays
+		expect(() => json.copy([1, , 3])).toThrow('must be dense');
+		const extra = Object.assign([1, 2], { note: 'x' });
+		expect(() => json.copy(extra)).toThrow('must be dense');
+		const getter = [1];
+		Object.defineProperty(getter, 0, { get: () => 1, enumerable: true });
+		expect(() => json.copy(getter)).toThrow('own data elements');
+		const hidden = [1];
+		Object.defineProperty(hidden, 0, { value: 1, enumerable: false });
+		expect(() => json.copy(hidden)).toThrow('own data elements');
+		const accessor = Object.defineProperty({}, 'a', { get: () => 1, enumerable: true });
+		expect(() => json.copy(accessor)).toThrow('enumerable data properties');
+		const quiet = Object.defineProperty({}, 'a', { value: 1, enumerable: false });
+		expect(() => json.copy(quiet)).toThrow('enumerable data properties');
+		expect(Object.keys(json.copy({ b: 1, 2: 0, a: 1 }) as object)).toEqual(['2', 'b', 'a']);
+	});
 	it('inverts and composes generated JSON edits against their exact base', () => {
 		fc.assert(
 			fc.property(fc.jsonValue(), fc.jsonValue(), fc.jsonValue(), (base, middle, end) => {

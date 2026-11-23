@@ -158,6 +158,15 @@ class Runtime {
 	readonly #clock: context.Clock;
 	readonly #id: () => string;
 	readonly #items = new Map<string, ItemState>();
+	/** Ids of live claims, so a new claim id is checked for collisions without scanning every item. */
+	readonly #claimIds = new Set<string>();
+	/** Items that are not terminal. Items are never removed, so this saves a scan on every admission. */
+	#unfinished = 0;
+	/**
+	 * No live claim expires before this instant, so expiry can skip its item scan until then. It is a lower bound: a
+	 * claim that ends or is renewed leaves it early, which costs one extra scan, and each scan sets it exactly again.
+	 */
+	#expiry: Temporal.Instant | undefined;
 	/** Admission keys retain the original item ID so retries resolve to the same logical work. */
 	readonly #keys = new Map<string, string>();
 	/** Live and draining registrations remain addressable by their exact lease ID. */
@@ -220,7 +229,7 @@ class Runtime {
 		assert.id(options.key, 'activity item key');
 		const existing = this.#keys.get(options.key);
 		if (existing !== undefined) return Object.freeze({ id: existing } satisfies ActivityRefType);
-		if (this.#activeItems() >= this.#capacity) throw new DispatchCapacityError(this.#capacity);
+		if (this.#unfinished >= this.#capacity) throw new DispatchCapacityError(this.#capacity);
 		const id = unique(this.#id, this.#items);
 		const snapshot = durable.snapshot({
 			...value,
@@ -236,6 +245,7 @@ class Runtime {
 			availableAt: this.#clock.now(),
 		};
 		this.#items.set(id, item);
+		this.#unfinished += 1;
 		this.#keys.set(options.key, id);
 		this.#wake(this.#claimWaiters);
 		return Object.freeze({ id } satisfies ActivityRefType);
@@ -269,7 +279,8 @@ class Runtime {
 		if (terminal(item)) return;
 		this.#release(item);
 		item.state = 'cancelled';
-		item.claim = undefined;
+		this.#unfinished -= 1;
+		this.#unclaim(item);
 		item.result = Object.freeze(
 			{
 				type: 'cancelled',
@@ -431,6 +442,7 @@ class Runtime {
 			} satisfies ActivityClaimType,
 		);
 		item.claim = renewed;
+		this.#bound(renewed.expiresAt);
 		return renewed;
 	}
 
@@ -455,7 +467,8 @@ class Runtime {
 		const snapshot = durable.snapshot(result, 'activity result') as unknown as ActivityJobResultType;
 		this.#release(item);
 		item.state = snapshot.type === 'cancelled' ? 'cancelled' : 'completed';
-		item.claim = undefined;
+		this.#unfinished -= 1;
+		this.#unclaim(item);
 		item.result = snapshot;
 		this.#settle(item);
 	}
@@ -466,7 +479,7 @@ class Runtime {
 		const item = this.#claimed(claim);
 		this.#release(item);
 		item.state = 'queued';
-		item.claim = undefined;
+		this.#unclaim(item);
 		item.availableAt = this.#clock.now().add(nonNegativeDuration(options.delay ?? 'PT0S', 'activity retry delay'));
 		this.#wake(this.#claimWaiters);
 	}
@@ -553,7 +566,7 @@ class Runtime {
 		const claimedAt = this.#clock.now();
 		const claim = Object.freeze(
 			{
-				id: uniqueClaim(this.#id, this.#items),
+				id: uniqueClaim(this.#id, this.#claimIds),
 				itemId: item.id,
 				executorId: executor.lease.id,
 				attempt: item.attempt + 1,
@@ -565,6 +578,8 @@ class Runtime {
 		item.state = 'claimed';
 		item.attempt = claim.attempt;
 		item.claim = claim;
+		this.#claimIds.add(claim.id);
+		this.#bound(claim.expiresAt);
 		executor.active += 1;
 		return claim;
 	}
@@ -611,7 +626,7 @@ class Runtime {
 			if (item.state !== 'claimed' || item.claim?.executorId !== executor.lease.id) continue;
 			this.#release(item);
 			item.state = 'queued';
-			item.claim = undefined;
+			this.#unclaim(item);
 			item.availableAt = this.#clock.now();
 		}
 		// Release claims while their executor is still addressable. Drain retains
@@ -633,12 +648,17 @@ class Runtime {
 				this.#revoke(executor);
 			}
 		}
+		if (this.#expiry === undefined || temporal.Instant.compare(now, this.#expiry) < 0) return;
+		this.#expiry = undefined;
 		for (const item of this.#items.values()) {
 			if (item.state !== 'claimed' || item.claim === undefined) continue;
-			if (temporal.Instant.compare(now, item.claim.expiresAt) < 0) continue;
+			if (temporal.Instant.compare(now, item.claim.expiresAt) < 0) {
+				this.#bound(item.claim.expiresAt);
+				continue;
+			}
 			this.#release(item);
 			item.state = 'queued';
-			item.claim = undefined;
+			this.#unclaim(item);
 			item.availableAt = now;
 		}
 	}
@@ -700,11 +720,15 @@ class Runtime {
 		return item;
 	}
 
-	/** Count only unfinished logical items against admission; retained results do not consume this limit. */
-	#activeItems(): number {
-		let active = 0;
-		for (const item of this.#items.values()) if (!terminal(item)) active += 1;
-		return active;
+	/** Lower the expiry bound to `instant` when it is earlier. */
+	#bound(instant: Temporal.Instant): void {
+		if (this.#expiry === undefined || temporal.Instant.compare(instant, this.#expiry) < 0) this.#expiry = instant;
+	}
+
+	/** End an item's claim, if it has one, and forget its id. */
+	#unclaim(item: ItemState): void {
+		if (item.claim !== undefined) this.#claimIds.delete(item.claim.id);
+		item.claim = undefined;
 	}
 
 	/** Reject new admission and waits after dispatch closure, preserving the owner's close reason. */
@@ -743,8 +767,7 @@ function unique<Value>(create: () => string, values: ReadonlyMap<string, Value>)
 }
 
 /** Create one collision-free claim identity across live activity attempts. */
-function uniqueClaim(create: () => string, items: ReadonlyMap<string, ItemState>): string {
-	const active = new Set([...items.values()].flatMap((item) => item.claim === undefined ? [] : [item.claim.id]));
+function uniqueClaim(create: () => string, active: ReadonlySet<string>): string {
 	for (let attempt = 0; attempt < 100; attempt += 1) {
 		const id = create();
 		assert.id(id, 'activity claim');
