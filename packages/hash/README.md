@@ -169,7 +169,7 @@ to test one implementation, to audit what runs, or to keep a bundle small.
 | `/wasm`     | WASM, from a module you pass or the `.wasm` file shipped beside the module.                 | Loads and compiles the module.       |
 | `/packed`   | WASM, from a copy embedded in the JavaScript as compressed Base64. No file fetch.           | Decodes and compiles the copy.       |
 | `/static`   | WASM, from a compiled module you import. No dynamic import, no fetch, no runtime compile.   | Attaches the module you pass.        |
-| `/native`   | `node:crypto` only. Throws `UnsupportedError` in a browser or for an algorithm it lacks.    | Resolves at once.                    |
+| `/native`   | `node:crypto` only (`zlib.crc32` for checksums). Throws `UnsupportedError` in a browser or for an algorithm it lacks. | Resolves at once.                    |
 | `/portable` | Pure JavaScript only. Runs where WASM is refused, as under a strict Content Security Policy. | Resolves at once.                    |
 | `/web`      | Web Crypto only. Asynchronous, with no incremental state.                                   | Not needed.                          |
 | `/shared`   | A pool of workers, each with the family's WASM module, for many inputs at once.             | Each worker loads its own module.    |
@@ -214,7 +214,7 @@ The pinned paths are:
 - `/wasm`: `@okikio/hash/sha2/wasm`, `@okikio/hash/sha3/wasm`, `@okikio/hash/blake/wasm`, `@okikio/hash/legacy/wasm`, `@okikio/hash/national/wasm`, `@okikio/hash/contest/wasm`, `@okikio/hash/fsb/wasm`, `@okikio/hash/mac/wasm`, `@okikio/hash/fast/wasm`, `@okikio/hash/checksum/wasm`
 - `/packed`: `@okikio/hash/sha2/packed`, `@okikio/hash/sha3/packed`, `@okikio/hash/blake/packed`, `@okikio/hash/legacy/packed`, `@okikio/hash/national/packed`, `@okikio/hash/contest/packed`, `@okikio/hash/fsb/packed`, `@okikio/hash/mac/packed`, `@okikio/hash/fast/packed`, `@okikio/hash/checksum/packed`
 - `/static`: `@okikio/hash/sha2/static`, `@okikio/hash/sha3/static`, `@okikio/hash/blake/static`, `@okikio/hash/legacy/static`, `@okikio/hash/national/static`, `@okikio/hash/contest/static`, `@okikio/hash/fsb/static`, `@okikio/hash/mac/static`, `@okikio/hash/fast/static`, `@okikio/hash/checksum/static`
-- `/native`: `@okikio/hash/sha2/native`, `@okikio/hash/sha3/native`, `@okikio/hash/blake/native`, `@okikio/hash/legacy/native`, `@okikio/hash/national/native`
+- `/native`: `@okikio/hash/sha2/native`, `@okikio/hash/sha3/native`, `@okikio/hash/blake/native`, `@okikio/hash/legacy/native`, `@okikio/hash/national/native`, `@okikio/hash/checksum/native` (CRC-32/ISO-HDLC)
 - `/portable`: `@okikio/hash/sha2/portable`, `@okikio/hash/sha3/portable`, `@okikio/hash/blake/portable`, `@okikio/hash/legacy/portable`, `@okikio/hash/checksum/portable`
 - `/web`: `@okikio/hash/sha2/web`, `@okikio/hash/legacy/web`
 - `/shared`: `@okikio/hash/sha2/shared`, `@okikio/hash/sha3/shared`, `@okikio/hash/blake/shared`, `@okikio/hash/legacy/shared`, `@okikio/hash/national/shared`, `@okikio/hash/contest/shared`, `@okikio/hash/fsb/shared`, `@okikio/hash/mac/shared`, `@okikio/hash/fast/shared`, `@okikio/hash/checksum/shared`
