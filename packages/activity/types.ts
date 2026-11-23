@@ -2,11 +2,7 @@ import type { ExecutionContext } from '@okikio/capability/execution';
 import type { Contract, ContractOutput } from '@okikio/schema/codec';
 import type { DefinitionEntry } from '@okikio/collection/catalog';
 
-import type {
-	Catalog,
-	CatalogSelection,
-	DefinitionInput as CatalogDefinitionInput,
-} from '@okikio/collection/catalog';
+import type { Catalog, CatalogSelection, DefinitionInput as CatalogDefinitionInput } from '@okikio/collection/catalog';
 import type { Context as BaseContext } from '@okikio/context';
 import type { EffectDefinitions, EffectEmitter } from '@okikio/capability/effect';
 import type { Definition as FailureDefinition, Occurrences as FailureOccurrences } from '@okikio/result/failure';
