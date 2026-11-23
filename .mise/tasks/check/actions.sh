@@ -2,9 +2,9 @@
 #MISE description="Validate the GitHub Actions workflows and local actions"
 #MISE hide=true
 #MISE depends=[]
-# actionlint checks workflow syntax, expressions, job dependencies and the
-# shell in each run step. Mise installs the pinned release on first use, so
-# contributors who never touch workflows do not install it.
+# jactionlint (jdx's actionlint fork) checks workflow syntax, expressions, job
+# dependencies, token permissions and script injection, and runs shellcheck on
+# each run step. Mise installs both pinned releases on first use, so
+# contributors who never touch workflows do not install them.
 set -euo pipefail
-# actionlint 1.7.12 predates the documented `concurrency.queue` key, so only that message is ignored.
-exec mise exec aqua:rhysd/actionlint@1.7.12 -- actionlint -ignore 'unexpected key "queue" for "concurrency" section' "$@"
+exec mise exec aqua:jdx/jactionlint@2.6.0 aqua:koalaman/shellcheck@0.11.0 -- jactionlint "$@"

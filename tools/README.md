@@ -61,7 +61,7 @@ consumers use isolated directories so this checkout's workspace dependencies can
 These locations are internal test details, not application layout recommendations.
 
 CI installs pinned tools with the official Mise action and caches pnpm downloads and Deno modules. `mise run check:actions`
-runs the same workflow validation as CI (actionlint). `mise run actions .github/workflows/ci.yml --event workflow_dispatch`
+runs the same workflow validation as CI (jactionlint with shellcheck). `mise run actions .github/workflows/ci.yml --event workflow_dispatch`
 runs one workflow locally with act, which needs Docker. Each job shows its setup directly. Restoring downloads does not skip tests, reuse an unverified build or imply a passing check. The release
 workflow reuses exact tested artifacts at the same revision.
 

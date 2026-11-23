@@ -1,0 +1,127 @@
+{
+	"$schema": "https://docs.renovatebot.com/renovate-schema.json",
+	"extends": [
+		"config:best-practices"
+	],
+	"dependencyDashboard": {
+		"enabled": true
+	},
+	"minimumReleaseAge": "3 days",
+	"internalChecksFilter": "strict",
+	"rangeStrategy": "bump",
+	"prConcurrentLimit": 5,
+	"schedule": [
+		"before 6am on monday"
+	],
+	"lockFileMaintenance": {
+		"enabled": true,
+		"schedule": [
+			"before 6am on monday"
+		]
+	},
+	"vulnerabilityAlerts": {
+		"enabled": true,
+		"labels": [
+			"security"
+		],
+		"minimumReleaseAge": null,
+		"schedule": [
+			"at any time"
+		]
+	},
+	"osvVulnerabilityAlerts": true,
+	"packageRules": [
+		{
+			"description": "One PR a week for every minor and patch update.",
+			"matchUpdateTypes": [
+				"minor",
+				"patch",
+				"digest",
+				"pin",
+				"pinDigest"
+			],
+			"groupName": "non-major updates"
+		},
+		{
+			"description": "Runtimes and tools in mise.toml and packageManager move together.",
+			"matchDepNames": [
+				"deno",
+				"node",
+				"bun",
+				"pnpm",
+				"jdx/mise"
+			],
+			"groupName": "runtimes"
+		},
+		{
+			"description": "The tools read the TypeScript 6 compiler API. TypeScript 7.0 has no API; `typescript-native` carries 7.x for tsc.",
+			"matchDepNames": [
+				"typescript"
+			],
+			"allowedVersions": "<7"
+		},
+		{
+			"description": "OpenTelemetry packages share one release train.",
+			"matchPackageNames": [
+				"@opentelemetry/**"
+			],
+			"groupName": "opentelemetry"
+		},
+		{
+			"description": "LogTape packages release together.",
+			"matchPackageNames": [
+				"@logtape/**"
+			],
+			"groupName": "logtape"
+		},
+		{
+			"description": "Elysia is a comparison challenger. 1.4.32 changed path parameter decoding (an encoded slash stays %2F), which breaks the recorded parity corpus. Update tests/elysia-parity and the HTTP challenger benchmark before allowing a newer release.",
+			"matchPackageNames": [
+				"elysia"
+			],
+			"allowedVersions": "<=1.4.30"
+		}
+	],
+	"customManagers": [
+		{
+			"customType": "regex",
+			"description": "Tools that mise tasks install on first use (jactionlint, shellcheck, act), pinned as aqua:<owner>/<repo>@<version>.",
+			"managerFilePatterns": [
+				"/^\\.mise/tasks/.+\\.sh$/"
+			],
+			"matchStrings": [
+				"aqua:(?<depName>[\\w.-]+/[\\w.-]+)@(?<currentValue>\\d+\\.\\d+\\.\\d+)"
+			],
+			"datasourceTemplate": "github-releases",
+			"extractVersionTemplate": "^v?(?<version>.+)$"
+		},
+		{
+			"customType": "regex",
+			"description": "mise version bootstrapped by jdx/mise-action and required by mise.toml.",
+			"managerFilePatterns": [
+				"/^\\.github/workflows/.+\\.ya?ml$/",
+				"/^mise\\.toml$/"
+			],
+			"matchStrings": [
+				"uses: jdx/mise-action@\\S+.*\\n\\s+with:\\n\\s+version: (?<currentValue>\\d+\\.\\d+\\.\\d+)",
+				"min_version = \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+			],
+			"depNameTemplate": "jdx/mise",
+			"datasourceTemplate": "github-releases",
+			"extractVersionTemplate": "^v(?<version>.+)$"
+		},
+		{
+			"customType": "regex",
+			"description": "Rust toolchain that builds the hash WebAssembly modules. A bump needs `tools/packages/wasm.ts --write`.",
+			"managerFilePatterns": [
+				"/(^|/)rust-toolchain\\.toml$/"
+			],
+			"matchStrings": [
+				"channel = \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+			],
+			"depNameTemplate": "rust",
+			"packageNameTemplate": "rust-lang/rust",
+			"datasourceTemplate": "github-releases"
+		}
+	]
+}

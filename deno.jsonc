@@ -26,7 +26,7 @@
 		"#bench/": "./bench/",
 		"elysia/": "npm:elysia@1.4.30/",
 		"@okikio/observables": "jsr:@okikio/observables@^1.4.0",
-		"@std/async": "jsr:@std/async@^1.5.0",
+		"@std/async": "jsr:@std/async@^1.5.1",
 		"@std/encoding": "jsr:@std/encoding@^1.0.11",
 		"@std/xml": "jsr:@std/xml@^0.2.0"
 	},

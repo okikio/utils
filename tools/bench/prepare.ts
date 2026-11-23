@@ -15,7 +15,7 @@ if (manifest.name !== 'vixeny' || manifest.version !== '0.1.53' || manifest.main
 }
 const compiler = JSON.parse(await readFile(resolve(root, 'node_modules/tsdown/package.json'), 'utf8'));
 if (compiler.version !== '0.23.7') throw new Error('Benchmark preparation requires tsdown 0.23.7.');
-if (ts.version !== '6.0.3') throw new Error('Benchmark preparation requires TypeScript6.0.3 type erasure.');
+if (ts.version !== '6.0.3') throw new Error('Benchmark preparation requires TypeScript 6.0.3 type erasure.');
 const output = resolve(root, '.tmp/artifacts/challengers');
 await mkdir(output, { recursive: true });
 const hashes: Record<string, string> = {};

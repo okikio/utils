@@ -20,7 +20,7 @@
 		"./polyfill": "./polyfill.ts"
 	},
 	"imports": {
-		"temporal-polyfill/full/implementation": "npm:temporal-polyfill@1.0.5/full/implementation"
+		"temporal-polyfill/full/implementation": "npm:temporal-polyfill@1.0.8/full/implementation"
 	},
 	"license": "MIT",
 	"tasks": {

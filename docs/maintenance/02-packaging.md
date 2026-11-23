@@ -133,10 +133,11 @@ mise run prepare:node
 mise run test -- --suite packages
 ```
 
-CI bootstraps the tested mise 2026.10.3 manager. The runtime versions remain declared once in `mise.toml`; the action
+CI bootstraps mise at the version the workflows pin, which matches `min_version` in `mise.toml`. The runtime versions remain declared once in `mise.toml`; the action
 manager pin controls that bootstrap, not a second runtime configuration.
 
-The task uses the pinned stable tsdown release and its supported TypeScript 6.0.3 declaration API. Source and
+The task uses the pinned stable tsdown release and its supported TypeScript 6.0.3 declaration API. TypeScript 7.0 ships no
+compiler API, so `typescript` stays on 6.x for tools that parse source; Renovate holds it below 7. Source and
 installed-consumer type gates invoke the separate TypeScript 7.0.2 CLI alias explicitly. The pinned declaration plugin
 marks its TypeScript 7 integration experimental; fail-on-warning remains enabled. Each member builds in a fresh serial
 process so declaration graphs are released between packages. Each supported public subpath has an ESM JavaScript entry and matching declarations. Workspace dependencies remain external and become

@@ -12,18 +12,18 @@
 		"./testing": "./testing.ts"
 	},
 	"dependencies": {
-		"@std/async": "npm:@jsr/std__async@^1.5.0",
-		"@okikio/duration": "workspace:^0.1.0",
 		"@okikio/collection": "workspace:^1.0.0",
-		"@okikio/observables": "^1.4.0",
-		"@okikio/telemetry": "workspace:^0.1.0",
 		"@okikio/dispose": "workspace:^0.1.0",
-		"@okikio/schema": "workspace:^1.0.0"
+		"@okikio/duration": "workspace:^0.1.0",
+		"@okikio/schema": "workspace:^1.0.0",
+		"@okikio/telemetry": "workspace:^0.1.0",
+		"@okikio/observables": "^1.4.0",
+		"@std/async": "npm:@jsr/std__async@^1.5.1"
 	},
 	"devDependencies": {
+		"@okikio/storage": "workspace:^1.0.0",
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
-		"mitata": "^1.0.34",
-		"@okikio/storage": "workspace:^1.0.0"
+		"mitata": "^1.0.34"
 	},
 	"publishConfig": {
 		"access": "public",

@@ -13,17 +13,17 @@
 		"./resolve": "./resolve.ts"
 	},
 	"dependencies": {
-		"@standard-schema/spec": "^1.1.0",
-		"@okikio/collection": "workspace:^1.0.0"
+		"@okikio/collection": "workspace:^1.0.0",
+		"@standard-schema/spec": "^1.1.0"
 	},
 	"devDependencies": {
-		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
-		"fast-check": "^4.9.0",
-		"valibot": "^1.4.2",
-		"zod": "^4.6.7",
 		"@okikio/result": "workspace:^1.0.0",
+		"@okikio/schema": "workspace:^1.0.0",
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
+		"fast-check": "^4.11.0",
 		"mitata": "^1.0.34",
-		"@okikio/schema": "workspace:^1.0.0"
+		"valibot": "^1.5.0",
+		"zod": "^4.6.7"
 	},
 	"peerDependencies": {
 		"valibot": "^1.4.2",

@@ -3,6 +3,43 @@ import { fileURLToPath } from 'node:url';
 import { stripVTControlCharacters } from 'node:util';
 
 /** One authored module and, when supplied, its expected standard output. */
+/**
+ * Environment variables that Postgres.js 4 reads for its option defaults when it constructs a client, even
+ * when the example passes an explicit URL. The driver names each one `PG` plus the option name in upper case,
+ * and a few by hand. Connection and credential variables (host, user, password, passfile, database) are
+ * deliberately absent: an example names its own connection. `examples.test.ts` fails when an installed
+ * driver reads a default that is missing here.
+ */
+export const postgresDefaults: readonly string[] = [
+	'PGPORT',
+	'PGMIN',
+	'PGQUEUE_TIMEOUT',
+	'PGSCHEDULER',
+	'PGINFER',
+	'PGSLOT',
+	'PGCHANNEL_BINDING',
+	'PGCHANNELBINDING',
+	'PGMAX',
+	'PGSSL',
+	'PGSSLMODE',
+	'PGSSLNEGOTIATION',
+	'PGIDLE_TIMEOUT',
+	'PGCONNECT_TIMEOUT',
+	'PGMAX_LIFETIME',
+	'PGMAX_PIPELINE',
+	'PGBACKOFF',
+	'PGKEEP_ALIVE',
+	'PGPREPARE',
+	'PGDEBUG',
+	'PGFETCH_TYPES',
+	'PGPUBLICATIONS',
+	'PGTARGET_SESSION_ATTRS',
+	'PGAPPNAME',
+	'PGTARGETSESSIONATTRS',
+	'PGQUERY_TIMEOUT',
+	'PGCANCEL_TIMEOUT',
+];
+
 export interface ExampleType {
 	/** Local basename shared by support imports, never an arbitrary filesystem path. */
 	readonly filename: string;
@@ -111,8 +148,7 @@ export async function checkExamples(paths?: readonly URL[]): Promise<number> {
 					: (path.pathname.endsWith('/storage/workflow/postgres/README.md') ||
 							path.pathname.endsWith('/storage/README.md'))
 					? [
-						// Postgres.js 4 reads these defaults at construction, even with an explicit URL.
-						'--allow-env=PGPORT,PGMIN,PGQUEUE_TIMEOUT,PGSCHEDULER,PGINFER,PGSLOT,PGCHANNEL_BINDING,PGCHANNELBINDING,PGMAX,PGSSL,PGSSLNEGOTIATION,PGIDLE_TIMEOUT,PGCONNECT_TIMEOUT,PGMAX_LIFETIME,PGMAX_PIPELINE,PGBACKOFF,PGKEEP_ALIVE,PGPREPARE,PGDEBUG,PGFETCH_TYPES,PGPUBLICATIONS,PGTARGET_SESSION_ATTRS,PGAPPNAME,PGTARGETSESSIONATTRS',
+						`--allow-env=${postgresDefaults.join(',')}`,
 					]
 					: [];
 				// Terminal colors describe presentation, not the example's returned values.
