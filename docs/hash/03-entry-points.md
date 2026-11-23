@@ -167,7 +167,8 @@ The WASM [wide-arithmetic](https://github.com/WebAssembly/wide-arithmetic) featu
 128-bit add instructions. xxHash and rapidhash use 128-bit multiplies. [Measurements](04-measurements.md#wide-arithmetic)
 show rapidhash 5–7 times faster on large inputs and XXH3 up to 2.6 times faster on 64-byte inputs.
 
-Firefox 155 and Bun ship the feature. V8 (Chrome, Node.js, Deno) has it behind a flag. Safari does not have it. So the
+Firefox 155 and Bun ship the feature. V8 (Chrome, Node.js, Deno) has it behind a flag. Playwright's WebKit 27.2
+accepts it; shipping Safari did not when this was written. So the
 `fast` family ships two modules, `fast.wasm` and `fast-wide.wasm`. `ready()` calls `WebAssembly.validate` on a 34-byte
 probe module once (`_wasm/wide.ts`) and loads the wide module only when the host accepts it. `@okikio/hash/fast`,
 `/fast/packed` and `/fast/wasm` all choose this way; the packed text of the other build is never loaded. Both modules

@@ -3,7 +3,7 @@
  *
  * The probe is the smallest module that uses it: one function that returns `i64.mul_wide_u` of its two
  * parameters (34 bytes). `WebAssembly.validate` compiles nothing and runs nothing. Bun and Firefox 155 accept
- * it; V8 (Chrome, Node.js, Deno) accepts it only behind `--experimental-wasm-wide-arithmetic`; Safari does not.
+ * it, and so does WebKit 27.2; V8 (Chrome, Node.js, Deno) accepts it only behind `--experimental-wasm-wide-arithmetic`.
  *
  * @module
  */
