@@ -7,7 +7,7 @@ on:
         type: boolean
         default: false
       fresh:
-        description: Bypass native Deno compiler state without changing selected checks
+        description: Run lanes whose inputs already passed, and bypass native Deno compiler state, without changing selected checks
         type: boolean
         default: false
 
@@ -78,32 +78,57 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      # Skip the rest of this job when a trusted run already passed the same inputs.
+      - name: Skip when these inputs already passed
+        id: passed
+        uses: ./.github/actions/result-cache
+        with:
+          mode: check
+          lane: source
+          selection: ''
+          bypass: ${{ inputs.fresh }}
       - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        if: steps.passed.outputs.hit != 'true'
         with:
           version: 2026.11.5
           cache: true
       - uses: ./.github/actions/dependency-cache
+        if: steps.passed.outputs.hit != 'true'
         with:
           stores: pnpm deno
       - run: mise run prepare:node
+        if: steps.passed.outputs.hit != 'true'
       - name: Restore native Deno compiler state
+        if: steps.passed.outputs.hit != 'true'
         uses: ./.github/actions/deno-cache
         with:
           mode: restore
           cohort: utils-source
           bypass: ${{ inputs.fresh }}
       - run: mise run ci:run -- --lane source
+        if: steps.passed.outputs.hit != 'true'
       - name: Save native Deno compiler state
+        if: steps.passed.outputs.hit != 'true'
         uses: ./.github/actions/deno-cache
         with:
           mode: save
           cohort: utils-source
           bypass: ${{ inputs.fresh }}
       - name: Save dependency downloads after successful checks
+        if: steps.passed.outputs.hit != 'true'
         uses: ./.github/actions/dependency-cache
         with:
           mode: save
           stores: pnpm deno
+
+      - name: Record this pass for identical inputs
+        if: steps.passed.outputs.hit != 'true'
+        uses: ./.github/actions/result-cache
+        with:
+          mode: record
+          lane: source
+          selection: ''
+          bypass: ${{ inputs.fresh }}
 
   runtimes:
     needs: plan
@@ -123,23 +148,37 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      # Skip the rest of this job when a trusted run already passed the same inputs.
+      - name: Skip when these inputs already passed
+        id: passed
+        uses: ./.github/actions/result-cache
+        with:
+          mode: check
+          lane: runtimes-${{ matrix.runtime }}
+          selection: ${{ needs.plan.outputs.projects }}
+          bypass: ${{ inputs.fresh }}
       - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        if: steps.passed.outputs.hit != 'true'
         with:
           version: 2026.11.5
           cache: true
       - uses: ./.github/actions/dependency-cache
+        if: steps.passed.outputs.hit != 'true'
         with:
           stores: pnpm deno
       - run: mise run prepare:node
+        if: steps.passed.outputs.hit != 'true'
       - name: Restore native Deno compiler state
+        if: steps.passed.outputs.hit != 'true'
         uses: ./.github/actions/deno-cache
         with:
           mode: restore
           cohort: utils-runtime-${{ matrix.runtime }}
           bypass: ${{ inputs.fresh }}
       - run: mise run ci:run -- --lane runtimes --runtime "$TEST_RUNTIME" --projects-json "$CI_PROJECTS"
+        if: steps.passed.outputs.hit != 'true'
       - name: Retain test reports
-        if: always()
+        if: steps.passed.outputs.hit != 'true' && (always())
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: runtime-${{ matrix.runtime }}-reports
@@ -152,16 +191,27 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
       - name: Save native Deno compiler state
+        if: steps.passed.outputs.hit != 'true'
         uses: ./.github/actions/deno-cache
         with:
           mode: save
           cohort: utils-runtime-${{ matrix.runtime }}
           bypass: ${{ inputs.fresh }}
       - name: Save dependency downloads after successful checks
+        if: steps.passed.outputs.hit != 'true'
         uses: ./.github/actions/dependency-cache
         with:
           mode: save
           stores: pnpm deno
+
+      - name: Record this pass for identical inputs
+        if: steps.passed.outputs.hit != 'true'
+        uses: ./.github/actions/result-cache
+        with:
+          mode: record
+          lane: runtimes-${{ matrix.runtime }}
+          selection: ${{ needs.plan.outputs.projects }}
+          bypass: ${{ inputs.fresh }}
 
   browser:
     needs: plan
@@ -174,16 +224,29 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      # Skip the rest of this job when a trusted run already passed the same inputs.
+      - name: Skip when these inputs already passed
+        id: passed
+        uses: ./.github/actions/result-cache
+        with:
+          mode: check
+          lane: browser
+          selection: ''
+          bypass: ${{ inputs.fresh }}
       - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        if: steps.passed.outputs.hit != 'true'
         with:
           version: 2026.11.5
           cache: true
       - uses: ./.github/actions/dependency-cache
+        if: steps.passed.outputs.hit != 'true'
         with:
           stores: pnpm deno
       - run: mise run prepare:node
+        if: steps.passed.outputs.hit != 'true'
       # Browser revisions follow the installed Playwright version, not unrelated lockfile changes.
       - name: Identify native Playwright downloads
+        if: steps.passed.outputs.hit != 'true'
         id: playwright
         continue-on-error: true
         run: |
@@ -192,32 +255,25 @@ jobs:
           node --input-type=module -e 'import playwright from "playwright/package.json" with { type: "json" }; console.log("version=" + playwright.version)' >> "$GITHUB_OUTPUT"
       - name: Restore native Playwright downloads
         id: playwright-cache
-        if: steps.playwright.outputs.version != '' && steps.playwright.outputs.os != ''
+        if: steps.passed.outputs.hit != 'true' && (steps.playwright.outputs.version != '' && steps.playwright.outputs.os != '')
         continue-on-error: true
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: utils-playwright-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.os }}-${{ steps.playwright.outputs.version }}-chromium
       - run: mise run ci:run -- --lane browser
+        if: steps.passed.outputs.hit != 'true'
       # Cache downloads after fresh checks; PR writes remain in their merge-ref scope.
       - name: Save native Playwright downloads
         if: >-
-          success() && steps.playwright-cache.outputs.cache-hit != 'true' &&
-          steps.playwright-cache.outputs.cache-primary-key != '' &&
-          github.event.repository.fork == false &&
-          (
-            (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref_protected == true)) ||
-            (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') && endsWith(github.ref, '/merge') &&
-             github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.repo.fork == false) ||
-            (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/'))
-          )
+          steps.passed.outputs.hit != 'true' && (success() && steps.playwright-cache.outputs.cache-hit != 'true' && steps.playwright-cache.outputs.cache-primary-key != '' && github.event.repository.fork == false && ( (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref_protected == true)) || (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') && endsWith(github.ref, '/merge') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.repo.fork == false) || (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/')) ))
         continue-on-error: true
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: ${{ steps.playwright-cache.outputs.cache-primary-key }}
       - name: Retain test reports
-        if: always()
+        if: steps.passed.outputs.hit != 'true' && (always())
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: browser-reports
@@ -230,10 +286,20 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
       - name: Save dependency downloads after successful checks
+        if: steps.passed.outputs.hit != 'true'
         uses: ./.github/actions/dependency-cache
         with:
           mode: save
           stores: pnpm deno
+
+      - name: Record this pass for identical inputs
+        if: steps.passed.outputs.hit != 'true'
+        uses: ./.github/actions/result-cache
+        with:
+          mode: record
+          lane: browser
+          selection: ''
+          bypass: ${{ inputs.fresh }}
 
   packages:
     needs: plan
@@ -246,16 +312,29 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      # Skip the rest of this job when a trusted run already passed the same inputs.
+      - name: Skip when these inputs already passed
+        id: passed
+        uses: ./.github/actions/result-cache
+        with:
+          mode: check
+          lane: packages
+          selection: ''
+          bypass: ${{ inputs.fresh || inputs.full }}
       - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        if: steps.passed.outputs.hit != 'true'
         with:
           version: 2026.11.5
           cache: true
       - uses: ./.github/actions/dependency-cache
+        if: steps.passed.outputs.hit != 'true'
         with:
           stores: pnpm deno
       - run: mise run prepare:node
+        if: steps.passed.outputs.hit != 'true'
       # Browser revisions follow the installed Playwright version, not unrelated lockfile changes.
       - name: Identify native Playwright downloads
+        if: steps.passed.outputs.hit != 'true'
         id: playwright
         continue-on-error: true
         run: |
@@ -264,33 +343,27 @@ jobs:
           node --input-type=module -e 'import playwright from "playwright/package.json" with { type: "json" }; console.log("version=" + playwright.version)' >> "$GITHUB_OUTPUT"
       - name: Restore native Playwright downloads
         id: playwright-cache
-        if: steps.playwright.outputs.version != '' && steps.playwright.outputs.os != ''
+        if: steps.passed.outputs.hit != 'true' && (steps.playwright.outputs.version != '' && steps.playwright.outputs.os != '')
         continue-on-error: true
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: utils-playwright-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.os }}-${{ steps.playwright.outputs.version }}-all
       - run: mise run fixture:browser --with-deps
+        if: steps.passed.outputs.hit != 'true'
       - run: mise run ci:run -- --lane packages
+        if: steps.passed.outputs.hit != 'true'
       # Cache downloads after fresh checks; PR writes remain in their merge-ref scope.
       - name: Save native Playwright downloads
         if: >-
-          success() && steps.playwright-cache.outputs.cache-hit != 'true' &&
-          steps.playwright-cache.outputs.cache-primary-key != '' &&
-          github.event.repository.fork == false &&
-          (
-            (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref_protected == true)) ||
-            (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') && endsWith(github.ref, '/merge') &&
-             github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.repo.fork == false) ||
-            (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/'))
-          )
+          steps.passed.outputs.hit != 'true' && (success() && steps.playwright-cache.outputs.cache-hit != 'true' && steps.playwright-cache.outputs.cache-primary-key != '' && github.event.repository.fork == false && ( (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref_protected == true)) || (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') && endsWith(github.ref, '/merge') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.repo.fork == false) || (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/')) ))
         continue-on-error: true
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: ${{ steps.playwright-cache.outputs.cache-primary-key }}
       - name: Retain test reports
-        if: always()
+        if: steps.passed.outputs.hit != 'true' && (always())
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: package-reports
@@ -303,7 +376,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
       - name: Retain tested npm publication candidates
-        if: success() && inputs.full
+        if: steps.passed.outputs.hit != 'true' && (success() && inputs.full)
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: npm-candidates
@@ -312,10 +385,20 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Save dependency downloads after successful checks
+        if: steps.passed.outputs.hit != 'true'
         uses: ./.github/actions/dependency-cache
         with:
           mode: save
           stores: pnpm deno
+
+      - name: Record this pass for identical inputs
+        if: steps.passed.outputs.hit != 'true'
+        uses: ./.github/actions/result-cache
+        with:
+          mode: record
+          lane: packages
+          selection: ''
+          bypass: ${{ inputs.fresh || inputs.full }}
 
   postgres:
     needs: plan
@@ -344,17 +427,30 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      # Skip the rest of this job when a trusted run already passed the same inputs.
+      - name: Skip when these inputs already passed
+        id: passed
+        uses: ./.github/actions/result-cache
+        with:
+          mode: check
+          lane: postgres
+          selection: ''
+          bypass: ${{ inputs.fresh }}
       - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        if: steps.passed.outputs.hit != 'true'
         with:
           version: 2026.11.5
           cache: true
       - uses: ./.github/actions/dependency-cache
+        if: steps.passed.outputs.hit != 'true'
         with:
           stores: pnpm deno
       - run: mise run prepare:node
+        if: steps.passed.outputs.hit != 'true'
       - run: mise run ci:run -- --lane postgres
+        if: steps.passed.outputs.hit != 'true'
       - name: Retain test reports
-        if: always()
+        if: steps.passed.outputs.hit != 'true' && (always())
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: postgres-reports
@@ -367,10 +463,20 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
       - name: Save dependency downloads after successful checks
+        if: steps.passed.outputs.hit != 'true'
         uses: ./.github/actions/dependency-cache
         with:
           mode: save
           stores: pnpm deno
+
+      - name: Record this pass for identical inputs
+        if: steps.passed.outputs.hit != 'true'
+        uses: ./.github/actions/result-cache
+        with:
+          mode: record
+          lane: postgres
+          selection: ''
+          bypass: ${{ inputs.fresh }}
 
   containers:
     needs: plan
@@ -383,16 +489,29 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      # Skip the rest of this job when a trusted run already passed the same inputs.
+      - name: Skip when these inputs already passed
+        id: passed
+        uses: ./.github/actions/result-cache
+        with:
+          mode: check
+          lane: containers
+          selection: ''
+          bypass: ${{ inputs.fresh }}
       - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        if: steps.passed.outputs.hit != 'true'
         with:
           version: 2026.11.5
           cache: true
       - uses: ./.github/actions/dependency-cache
+        if: steps.passed.outputs.hit != 'true'
         with:
           stores: pnpm deno
       - run: mise run prepare:node
+        if: steps.passed.outputs.hit != 'true'
       # Browser revisions follow the installed Playwright version, not unrelated lockfile changes.
       - name: Identify native Playwright downloads
+        if: steps.passed.outputs.hit != 'true'
         id: playwright
         continue-on-error: true
         run: |
@@ -401,32 +520,25 @@ jobs:
           node --input-type=module -e 'import playwright from "playwright/package.json" with { type: "json" }; console.log("version=" + playwright.version)' >> "$GITHUB_OUTPUT"
       - name: Restore native Playwright downloads
         id: playwright-cache
-        if: steps.playwright.outputs.version != '' && steps.playwright.outputs.os != ''
+        if: steps.passed.outputs.hit != 'true' && (steps.playwright.outputs.version != '' && steps.playwright.outputs.os != '')
         continue-on-error: true
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: utils-playwright-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.os }}-${{ steps.playwright.outputs.version }}-all
       - run: mise run ci:run -- --lane containers
+        if: steps.passed.outputs.hit != 'true'
       # Cache downloads after fresh checks; PR writes remain in their merge-ref scope.
       - name: Save native Playwright downloads
         if: >-
-          success() && steps.playwright-cache.outputs.cache-hit != 'true' &&
-          steps.playwright-cache.outputs.cache-primary-key != '' &&
-          github.event.repository.fork == false &&
-          (
-            (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref_protected == true)) ||
-            (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') && endsWith(github.ref, '/merge') &&
-             github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.repo.fork == false) ||
-            (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/'))
-          )
+          steps.passed.outputs.hit != 'true' && (success() && steps.playwright-cache.outputs.cache-hit != 'true' && steps.playwright-cache.outputs.cache-primary-key != '' && github.event.repository.fork == false && ( (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref_protected == true)) || (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') && endsWith(github.ref, '/merge') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.repo.fork == false) || (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/')) ))
         continue-on-error: true
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: ${{ steps.playwright-cache.outputs.cache-primary-key }}
       - name: Retain test reports
-        if: always()
+        if: steps.passed.outputs.hit != 'true' && (always())
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: container-reports
@@ -442,10 +554,20 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
       - name: Save dependency downloads after successful checks
+        if: steps.passed.outputs.hit != 'true'
         uses: ./.github/actions/dependency-cache
         with:
           mode: save
           stores: pnpm deno
+
+      - name: Record this pass for identical inputs
+        if: steps.passed.outputs.hit != 'true'
+        uses: ./.github/actions/result-cache
+        with:
+          mode: record
+          lane: containers
+          selection: ''
+          bypass: ${{ inputs.fresh }}
 
   benchmark:
     needs: plan
@@ -459,33 +581,55 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      # Skip the rest of this job when a trusted run already passed the same inputs.
+      - name: Skip when these inputs already passed
+        id: passed
+        uses: ./.github/actions/result-cache
+        with:
+          mode: check
+          lane: benchmark
+          selection: benchmark=${{ needs.plan.outputs.benchmark }} examples=${{ needs.plan.outputs.examples }}
+          bypass: ${{ inputs.fresh }}
       - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        if: steps.passed.outputs.hit != 'true'
         with:
           version: 2026.11.5
           cache: true
       - uses: ./.github/actions/dependency-cache
+        if: steps.passed.outputs.hit != 'true'
         with:
           stores: pnpm deno
       - id: prepare
+        if: steps.passed.outputs.hit != 'true'
         run: mise run prepare:node
       - name: Verify benchmark correctness
-        if: needs.plan.outputs.benchmark == 'true'
+        if: steps.passed.outputs.hit != 'true' && (needs.plan.outputs.benchmark == 'true')
         run: mise run ci:run -- --lane benchmark --check
       # A failing task does not hide the other runtimes; any failure still fails this job.
       - name: Test copyable examples on Deno
-        if: ${{ !cancelled() && needs.plan.outputs.examples == 'true' && steps.prepare.outcome == 'success' }}
+        if: steps.passed.outputs.hit != 'true' && (!cancelled() && needs.plan.outputs.examples == 'true' && steps.prepare.outcome == 'success')
         run: mise run test -- --suite examples --runtime deno
       - name: Test copyable examples on Node
-        if: ${{ !cancelled() && needs.plan.outputs.examples == 'true' && steps.prepare.outcome == 'success' }}
+        if: steps.passed.outputs.hit != 'true' && (!cancelled() && needs.plan.outputs.examples == 'true' && steps.prepare.outcome == 'success')
         run: mise run test -- --suite examples --runtime node
       - name: Test copyable examples on Bun
-        if: ${{ !cancelled() && needs.plan.outputs.examples == 'true' && steps.prepare.outcome == 'success' }}
+        if: steps.passed.outputs.hit != 'true' && (!cancelled() && needs.plan.outputs.examples == 'true' && steps.prepare.outcome == 'success')
         run: mise run test -- --suite examples --runtime bun
       - name: Save dependency downloads after successful checks
+        if: steps.passed.outputs.hit != 'true'
         uses: ./.github/actions/dependency-cache
         with:
           mode: save
           stores: pnpm deno
+
+      - name: Record this pass for identical inputs
+        if: steps.passed.outputs.hit != 'true'
+        uses: ./.github/actions/result-cache
+        with:
+          mode: record
+          lane: benchmark
+          selection: benchmark=${{ needs.plan.outputs.benchmark }} examples=${{ needs.plan.outputs.examples }}
+          bypass: ${{ inputs.fresh }}
 
   advisory:
     name: Formatting and lint feedback
@@ -527,32 +671,57 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # Skip the rest of this job when a trusted run already passed the same inputs.
+      - name: Skip when these inputs already passed
+        id: passed
+        uses: ./.github/actions/result-cache
+        with:
+          mode: check
+          lane: docs
+          selection: ''
+          bypass: ${{ inputs.fresh }}
       - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        if: steps.passed.outputs.hit != 'true'
         with:
           version: 2026.11.5
           cache: true
       - uses: ./.github/actions/dependency-cache
+        if: steps.passed.outputs.hit != 'true'
         with:
           stores: pnpm deno
       - run: mise run prepare:node
+        if: steps.passed.outputs.hit != 'true'
       - name: Restore native Deno compiler state
+        if: steps.passed.outputs.hit != 'true'
         uses: ./.github/actions/deno-cache
         with:
           mode: restore
           cohort: utils-docs
           bypass: ${{ inputs.fresh }}
       - run: mise run ci:run -- --lane docs
+        if: steps.passed.outputs.hit != 'true'
       - name: Save native Deno compiler state
+        if: steps.passed.outputs.hit != 'true'
         uses: ./.github/actions/deno-cache
         with:
           mode: save
           cohort: utils-docs
           bypass: ${{ inputs.fresh }}
       - name: Save dependency downloads after successful checks
+        if: steps.passed.outputs.hit != 'true'
         uses: ./.github/actions/dependency-cache
         with:
           mode: save
           stores: pnpm deno
+
+      - name: Record this pass for identical inputs
+        if: steps.passed.outputs.hit != 'true'
+        uses: ./.github/actions/result-cache
+        with:
+          mode: record
+          lane: docs
+          selection: ''
+          bypass: ${{ inputs.fresh }}
 
   result:
     name: Required checks

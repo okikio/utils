@@ -12,7 +12,7 @@ on:
         options: [validate, prepare, publish]
         default: validate
       fresh:
-        description: Rebuild Deno compiler state during complete validation
+        description: Run every selected lane even if the same inputs passed, and rebuild Deno compiler state
         type: boolean
         default: false
 
