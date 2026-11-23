@@ -2,6 +2,13 @@
 import type { Sql, TransactionSql } from 'postgres';
 import * as schema from '@okikio/schema';
 import * as json from '@okikio/collection/record/json';
+import * as retire from './retire.ts';
+import { OutboxError } from './error.ts';
+
+export { OutboxError } from './error.ts';
+export { type PolicyType, resize } from './policy.ts';
+
+export type { CompletedOptions, RetiredType } from './retire.ts';
 
 /** Bound namespace, definition and occurrence keys before a database transaction acquires locks. */
 const NameSchema: schema.JsonReader<string, string> = schema.string({ minLength: 1, maxLength: 512 });
@@ -130,16 +137,6 @@ export interface Options {
 	/** Exhausted expired/retried claims become failed and are never silently redriven. @default 8 */
 	readonly maximumAttempts?: number;
 }
-/** Stable contract violations; SQL connection/commit failures remain native and can have uncertain outcomes. */
-export class OutboxError extends Error {
-	/** Stable failure classification; do not parse the diagnostic message. */
-	readonly code: 'conflict' | 'capacity' | 'policy' | 'stale';
-	constructor(code: OutboxError['code']) {
-		super(`Transactional outbox ${code}.`);
-		this.name = 'OutboxError';
-		this.code = code;
-	}
-}
 /** Install only this adapter's revision. Applications own running migrations and transaction pools. */
 export async function migrate({ database }: { readonly database: Sql }): Promise<void> {
 	await database.begin(async (tx) => {
@@ -216,6 +213,14 @@ export function open(
 		): Promise<readonly RepairType[]>;
 		/** Remove a bounded terminal batch; removal ends deduplication for those message keys. */
 		prune(before: number, limit?: number): Promise<number>;
+		/** List completed messages, oldest first, without locks; failed ones are never listed. See `retire.ts`. */
+		completed(options: retire.CompletedOptions): Promise<readonly retire.RetiredType[]>;
+		/** Delete one completed message inside the caller's transaction; `false` when it no longer qualifies. */
+		remove(
+			tx: TransactionSql,
+			message: { readonly id: string; readonly key: string },
+			before: number,
+		): Promise<boolean>;
 	}
 > {
 	const namespace = NameSchema.parse(options.namespace);
@@ -420,6 +425,20 @@ export function open(
 			const rows = await options
 				.database`delete from utils_outbox.messages where (namespace,id,key) in (select namespace,id,key from utils_outbox.messages where namespace=${namespace} and state in ('complete','failed') and updated<${before} order by updated limit ${limit}) returning id`;
 			return rows.length;
+		},
+		/** Candidates only: the caller locks and rechecks its own records before calling remove(). */
+		completed(query: retire.CompletedOptions): Promise<readonly retire.RetiredType[]> {
+			return retire.completed(query.database ?? options.database, namespace, query);
+		},
+		/** Joins the caller's transaction and rechecks state and time before deleting. */
+		remove(
+			tx: TransactionSql,
+			message: { readonly id: string; readonly key: string },
+			before: number,
+		): Promise<boolean> {
+			NameSchema.parse(message.id);
+			NameSchema.parse(message.key);
+			return retire.remove(tx, namespace, message, before);
 		},
 	});
 }

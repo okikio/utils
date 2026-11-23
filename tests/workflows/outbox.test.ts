@@ -396,3 +396,97 @@ describe('outbox dispatcher process loss', () => {
 		);
 	}
 });
+
+describe('outbox retirement', () => {
+	/** One completed, one failed and one pending message in a fresh namespace. */
+	async function seed(namespace: string) {
+		const box = outbox.open({ database, namespace, maximumAttempts: 1 });
+		for (const key of ['done', 'broken', 'waiting']) {
+			await database.begin((tx) => box.append(tx, { id: 'job', key, value: key }));
+		}
+		for (const claim of await box.claim({ limit: 2 })) {
+			if (claim.key === 'done') await box.complete(claim);
+			else await box.retry(claim, 0);
+		}
+		return box;
+	}
+
+	it('lists only completed messages before the cutoff, filtered before the limit', async () => {
+		await using owned = partition();
+		const box = await seed(owned.namespace);
+		expect(await box.inspect('job', 'broken')).toBe('failed');
+		expect(await box.inspect('job', 'waiting')).toBe('pending');
+		const later = Date.now() + 10000;
+		expect((await box.completed({ before: later })).map((item) => item.key)).toEqual(['done']);
+		expect(await box.completed({ before: 0 })).toEqual([]);
+		expect(await box.completed({ before: later, where: database`utils_outbox.messages.key <> 'done'` })).toEqual([]);
+		expect((await box.completed({ before: later, limit: 1, where: database`utils_outbox.messages.key = 'done'` }))
+			.map((item) => item.key)).toEqual(['done']);
+		// The same read inside a transaction the caller holds, with a condition built from it.
+		expect(
+			(await database.begin((tx) =>
+				box.completed({ database: tx, before: later, where: tx`utils_outbox.messages.key = ${'done'}` })
+			)).map((item) => item.key),
+		).toEqual(['done']);
+		await expect(box.completed({ before: later, limit: 1001 })).rejects.toThrow(RangeError);
+		await expect(box.completed({ before: -1 })).rejects.toThrow(RangeError);
+	});
+
+	it('removes one completed message inside the caller transaction and keeps failed ones', async () => {
+		await using owned = partition();
+		const box = await seed(owned.namespace);
+		const later = Date.now() + 10000;
+		// Rolled back with the caller's own write: the message is still there afterwards.
+		await expect(database.begin(async (tx) => {
+			expect(await box.remove(tx, { id: 'job', key: 'done' }, later)).toBe(true);
+			throw new Error('application check failed');
+		})).rejects.toThrow('application check failed');
+		expect(await box.inspect('job', 'done')).toBe('complete');
+		// Not before the cutoff, failed, pending or unknown: nothing is deleted.
+		for (const [key, before] of [['done', 0], ['broken', later], ['waiting', later], ['missing', later]] as const) {
+			expect(await database.begin((tx) => box.remove(tx, { id: 'job', key }, before))).toBe(false);
+		}
+		expect(await database.begin((tx) => box.remove(tx, { id: 'job', key: 'done' }, later))).toBe(true);
+		expect(await database.begin((tx) => box.remove(tx, { id: 'job', key: 'done' }, later))).toBe(false);
+		expect(await box.inspect('job', 'done')).toBeUndefined();
+		expect(await box.inspect('job', 'broken')).toBe('failed');
+		// Removal ends deduplication, so the key is accepted again.
+		await database.begin((tx) => box.append(tx, { id: 'job', key: 'done', value: 'again' }));
+		expect(await box.inspect('job', 'done')).toBe('pending');
+	});
+});
+
+describe('outbox policy resize', () => {
+	it('raises maximum once, replays the same change and refuses a stale expectation', async () => {
+		await using owned = partition();
+		const namespace = owned.namespace;
+		const small = outbox.open({ database, namespace, maximum: 1 });
+		await database.begin((tx) => small.append(tx, { id: 'job', key: 'one', value: 1 }));
+		await expect(database.begin((tx) => small.append(tx, { id: 'job', key: 'two', value: 2 })))
+			.rejects.toMatchObject({ code: 'capacity' });
+		const from = { maximum: 1, bytes: 1048576, attempts: 8 };
+		const to = { maximum: 2, bytes: 1048576, attempts: 8 };
+		expect(await database.begin((tx) => outbox.resize(tx, { namespace, from, to }))).toBe('resized');
+		expect(await database.begin((tx) => outbox.resize(tx, { namespace, from, to }))).toBe('replayed');
+		// A writer still on the old maximum fails its policy check; one on the new maximum has room.
+		await expect(database.begin((tx) => small.append(tx, { id: 'job', key: 'two', value: 2 })))
+			.rejects.toMatchObject({ code: 'policy' });
+		const large = outbox.open({ database, namespace, maximum: 2 });
+		await database.begin((tx) => large.append(tx, { id: 'job', key: 'two', value: 2 }));
+		await expect(database.begin((tx) => outbox.resize(tx, { namespace, from, to: { ...to, maximum: 3 } }))).rejects
+			.toMatchObject({ code: 'policy' });
+		await expect(database.begin((tx) => outbox.resize(tx, { namespace: crypto.randomUUID(), from, to }))).rejects
+			.toMatchObject({ code: 'policy' });
+	});
+
+	it('changes only maximum, and only upward', async () => {
+		const policy = { maximum: 10, bytes: 1048576, attempts: 8 };
+		for (const to of [{ ...policy, maximum: 9 }, { ...policy, bytes: 1 }, { ...policy, attempts: 9 }]) {
+			await expect(database.begin((tx) => outbox.resize(tx, { namespace: 'x', from: policy, to })))
+				.rejects.toThrow(RangeError);
+		}
+		await expect(
+			database.begin((tx) => outbox.resize(tx, { namespace: 'x', from: policy, to: { ...policy, maximum: 1000001 } })),
+		).rejects.toThrow(RangeError);
+	});
+});
