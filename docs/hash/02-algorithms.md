@@ -52,6 +52,11 @@ protocol.
 | MD5                                       | `md-5`         | yes           | no    | yes      |
 | SHA-1                                     | `sha1`         | yes           | yes   | yes      |
 | SHA-1 with collision detection            | `sha1-checked` | no            | no    | no       |
+
+HMAC is built for MD5, SHA-1 and RIPEMD-160 only, which are the legacy HMACs that protocols still use. HMAC for the
+others would double the module for no published use. `sha1-checked` runs the SHA-1 collision detector from Marc
+Stevens and Dan Shumow. On a published attack such as SHA-mbles it returns an error instead of a digest. The crate is
+at a release candidate (0.11.0-rc.0).
 | RIPEMD-128, -160, -256, -320              | `ripemd`       | RIPEMD-160    | no    | RIPEMD-160 |
 | Tiger, Tiger2                             | `tiger`        | no            | no    | no       |
 
@@ -69,7 +74,10 @@ Standards from national bodies. Some regulated systems require them.
 | bash-hash                                     | STB 34.101.77-2020    | `bash-hash` |
 | Ascon-Hash256, Ascon-XOF128                   | NIST SP 800-232       | `ascon-hash`|
 
-`node:crypto` has SM3 when OpenSSL is built with it. No other column applies.
+`node:crypto` has SM3 when OpenSSL is built with it (Node.js and Deno, not Bun). No other column applies. HMAC is built
+where the standard defines it: Streebog (RFC 7836), GOST R 34.11-94 (RFC 4357), SM3 and BelT. Kupyna-224 and the UA
+and 2015 parameter sets of GOST R 34.11-94 have no published vector in their crates. The tests check them only for
+agreement between one-shot and incremental use.
 
 ## contest
 
@@ -81,11 +89,18 @@ Finalists and candidates of the SHA-3 competition, and other published designs.
 | JH-224 … JH-512                               | `jh`        |
 | Skein-256, Skein-512, Skein-1024              | `skein`     |
 | Shabal-192 … Shabal-512                       | `shabal`    |
-| CubeHash                                      | `cubehash`  |
 | Whirlpool                                     | `whirlpool` |
-| FSB-160 … FSB-512                             | `fsb`       |
 
-These have no native, web or portable implementation.
+These have no native, web, portable or HMAC implementation.
+
+## fsb
+
+| Algorithm                                     | Crate       |
+| --------------------------------------------- | ----------- |
+| FSB-160, -224, -256, -384, -512               | `fsb`       |
+
+FSB is a SHA-3 candidate whose security reduces to a decoding problem. Its constant table is 272 KB of digits of π,
+which does not compress, so it has its own module (388 KB packed) instead of tripling the `contest` module.
 
 ## mac
 
@@ -98,7 +113,7 @@ These have no native, web or portable implementation.
 | HighwayHash (64, 128, 256 bits) | `highway`         | no      | no      | no       |
 
 HMAC for a family lives in that family's module, so `import '@okikio/hash/sha3'` gives HMAC-SHA3 without loading
-`mac`.
+`mac`. The families build HMAC where a standard or protocol uses it, as each section says.
 
 ## fast
 
@@ -134,6 +149,7 @@ The CRC entry point takes a catalogue name, such as `'CRC-16/ARC'` or `'CRC-64/N
 | Algorithm or group                                   | Reason                                                       |
 | ---------------------------------------------------- | ------------------------------------------------------------ |
 | MD6, HAVAL, Snefru, HAS-160, RadioGatún, LSH, ECOH, SWIFFT, Hamsi, Luffa, SHAvite-3, Fugue, ECHO, SIMD | No maintained pure Rust `no_std` crate. MD6's crate wraps C. |
+| CubeHash                                             | The `cubehash` crate returns a heap `Vec` and needs an allocator. |
 | GxHash, aHash, foldhash                              | Output depends on CPU features or crate version. Not portable across hosts. |
 | FarmHash                                             | The crate has had no release since 2016.                     |
 | t1ha                                                 | The crate is at 0.1 with few users. Reconsider if a protocol needs it. |

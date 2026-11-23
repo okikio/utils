@@ -23,7 +23,8 @@ Each family path exports the family's algorithms, their HMAC forms and `ready()`
 | `@okikio/hash/blake`      | BLAKE2, BLAKE3                                |
 | `@okikio/hash/legacy`     | MD2, MD4, MD5, SHA-1, SHA-1 checked, RIPEMD, Tiger |
 | `@okikio/hash/national`   | Streebog, GOST94, SM3, Kupyna, BelT, bash, Ascon |
-| `@okikio/hash/contest`    | Grøstl, JH, Skein, Shabal, CubeHash, Whirlpool, FSB |
+| `@okikio/hash/contest`    | Grøstl, JH, Skein, Shabal, Whirlpool          |
+| `@okikio/hash/fsb`        | FSB                                           |
 | `@okikio/hash/mac`        | Poly1305, POLYVAL, GHASH, SipHash, HighwayHash |
 | `@okikio/hash/fast`       | xxHash, rapidhash, wyhash, MurmurHash3, MetroHash, CityHash, SeaHash, FNV |
 | `@okikio/hash/checksum`   | CRC catalogue, Adler-32, Fletcher             |
