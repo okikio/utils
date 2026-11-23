@@ -142,6 +142,13 @@ the installed-package lane, because publication uses the npm candidates that lan
 and a PR records only in its own merge-ref scope. **fresh** bypasses this cache as well, for example to retry a
 suspected flaky test.
 
+A push to `main` selects work changed since the last commit whose CI passed, not since the previous push.
+`tools/workspace/evidence.ts baseline` reads the passing main-push runs and takes the newest one whose commit is an
+ancestor of the pushed commit. So when one push fails, the next push still selects the failed changes, until a run
+passes. When there is no such commit, or GitHub cannot be read, the plan selects all work. This baseline and the
+result cache answer two different questions. The baseline decides what a push must check. The result cache skips a
+selected lane whose exact inputs already passed.
+
 Automatic CI runs replace an older run for the same PR or branch. Ordinary manual CI uses the exact source SHA
 as its concurrency identity, so an automatic PR update cannot interrupt a complete manual check. The single
 pending slot coalesces ordinary requests with the same inputs; it does not skip a request already running or

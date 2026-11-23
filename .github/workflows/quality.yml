@@ -19,6 +19,8 @@ jobs:
   plan:
     name: Select affected work
     permissions:
+      # Main pushes read earlier CI runs to find the last commit that passed.
+      actions: read
       contents: read
       pull-requests: read
     runs-on: ubuntu-latest
@@ -48,13 +50,23 @@ jobs:
       - name: Select the combined native stack candidate
         id: stack
         uses: $/.github/actions/stack
+      # A main push selects work changed since the last commit whose CI passed, not since the
+      # previous push, so a failed push stays selected until it passes. No baseline selects all work.
+      - name: Find the last main commit whose CI passed
+        id: baseline
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+        run: node tools/workspace/evidence.ts baseline --head "$HEAD_SHA" --run-id "$RUN_ID"
       - uses: $/.github/actions/dependency-cache
         with:
           stores: pnpm deno
       - run: mise run prepare:node
       - id: plan
         env:
-          BASE_SHA: ${{ steps.stack.outputs.base-sha || github.event.pull_request.base.sha || github.event.before }}
+          BASE_SHA: ${{ steps.stack.outputs.base-sha || github.event.pull_request.base.sha || steps.baseline.outputs.base }}
           HEAD_SHA: ${{ github.sha }}
           FULL: ${{ inputs.full || github.event_name == 'workflow_dispatch' }}
           AUTOMATIC_PR: ${{ github.event_name == 'pull_request' }}
