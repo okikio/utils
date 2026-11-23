@@ -297,10 +297,11 @@ switch (family) {
 			]);
 		} else if (action === 'plan' || (action === 'version' && values.check)) {
 			await versions(root);
-			// Both read-only entry points preview the PR base; writes use Sampo's normal branch check.
+			// Read-only previews use main, the only release branch. A stacked PR's base is the branch below
+			// it, which Sampo would refuse, and every stack lands on main. Writes keep Sampo's own branch check.
 			command('pnpm', ['exec', 'sampo', 'release', '--dry-run'], {
 				...process.env,
-				SAMPO_RELEASE_BRANCH: process.env.GITHUB_BASE_REF || 'main',
+				SAMPO_RELEASE_BRANCH: 'main',
 			});
 		} else if (action === 'version') {
 			command('pnpm', ['exec', 'sampo', 'release']);
