@@ -5,7 +5,17 @@
 		"exclude": [
 			"**/*.test.ts",
 			"**/*.bench.ts",
-			"**/fixtures/**"
+			"**/fixtures/**",
+			// The Rust source builds the modules; the derived modules in _wasm/ ship.
+			"wasm/abi/**",
+			"wasm/sha2/**",
+			"wasm/sha3/**",
+			"wasm/blake/**",
+			"wasm/.cargo/**",
+			"wasm/Cargo.toml",
+			"wasm/Cargo.lock",
+			"wasm/*.toml",
+			"wasm/.gitignore"
 		]
 	},
 	"exports": {

@@ -1,0 +1,2 @@
+# Algorithm names that are not code.
+doc-valid-idents = ["TurboSHAKE", "KangarooTwelve", "BLAKE2b", "BLAKE2s", "BLAKE3", "cSHAKE", "SHA3", ".."]

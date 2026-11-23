@@ -1,0 +1,10 @@
+[build]
+target = "wasm32-unknown-unknown"
+# Build output is temporary work; the repository keeps it under .tmp/.
+target-dir = "../../../.tmp/cargo/hash"
+
+[target.wasm32-unknown-unknown]
+# SIMD128 ships in every host that the package supports (Safari 16.4+, Chrome 91+, Firefox 89+,
+# Node.js 16.4+, Deno, Bun). The modules export memory and import nothing.
+# Per-family flags, such as the SHA-3 unroll threshold, live in tools/packages/wasm.ts.
+rustflags = ["-C", "target-feature=+simd128,+bulk-memory,+nontrapping-fptoint,+sign-ext,+mutable-globals"]

@@ -59,8 +59,9 @@ if (values.help) {
   --output <path>    Fresh report directory
 
 Preparation kinds: deps, bench, browser, freeze
-Check kinds: actions, format, lint, types, portable, exports, packages, hono, tests, versions, jsr
-Build targets: npm, exports. Export generation is explicit with --write.
+Check kinds: actions, format, lint, types, portable, exports, packages, hono, tests, versions, wasm, jsr
+Build targets: npm, exports, wasm. Export and WASM generation are explicit with --write; --check rebuilds WASM
+with Rust and compares it with the committed modules.
 Additional operation inputs are validated by their owning program.`);
 	process.exit(0);
 }
@@ -213,7 +214,9 @@ async function ci(): Promise<void> {
 	} else {
 		switch (values.lane) {
 			case 'source':
-				for (const kind of ['types', 'portable', 'exports', 'packages', 'hono', 'tests', 'versions']) check(kind);
+				for (const kind of ['types', 'portable', 'exports', 'packages', 'hono', 'tests', 'versions', 'wasm']) {
+					check(kind);
+				}
 				check('actions');
 				break;
 			case 'advisory':
@@ -294,7 +297,9 @@ switch (family) {
 	case 'build':
 		if (values.target === 'exports') operation(values.write ? 'build:exports' : 'check:exports');
 		else if (values.target === 'npm') command('node', ['tools/packages/npm.ts', 'build', ...projects]);
-		else throw new TypeError('Unknown build target.');
+		else if (values.target === 'wasm') {
+			command('node', ['tools/packages/wasm.ts', ...(values.write ? ['--write'] : values.check ? ['--verify'] : [])]);
+		} else throw new TypeError('Unknown build target.');
 		break;
 	case 'verify':
 		check();

@@ -2781,6 +2781,7 @@
           "dependencies": [
             "npm:@jsr/std__expect@^1.0.20",
             "npm:@jsr/std__jsonc@1.0.2",
+            "npm:binaryen@132.0.0",
             "npm:mitata@1.0.34",
             "npm:oxc-parser@0.145.0",
             "npm:playwright@1.65.0",

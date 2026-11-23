@@ -1,0 +1,19 @@
+[package]
+name = "hash-blake"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[lints]
+workspace = true
+
+[dependencies]
+abi.workspace = true
+digest.workspace = true
+blake2.workspace = true
+blake3.workspace = true
