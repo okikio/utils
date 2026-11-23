@@ -2,6 +2,9 @@
 import type { Sql, TransactionSql } from 'postgres';
 import * as schema from '@okikio/schema';
 import * as json from '@okikio/collection/record/json';
+import * as retire from './retire.ts';
+
+export type { CompletedOptions, RetiredType } from './retire.ts';
 
 /** Bound namespace, definition and occurrence keys before a database transaction acquires locks. */
 const NameSchema: schema.JsonReader<string, string> = schema.string({ minLength: 1, maxLength: 512 });
@@ -216,6 +219,14 @@ export function open(
 		): Promise<readonly RepairType[]>;
 		/** Remove a bounded terminal batch; removal ends deduplication for those message keys. */
 		prune(before: number, limit?: number): Promise<number>;
+		/** List completed messages, oldest first, without locks; failed ones are never listed. See `retire.ts`. */
+		completed(options: retire.CompletedOptions): Promise<readonly retire.RetiredType[]>;
+		/** Delete one completed message inside the caller's transaction; `false` when it no longer qualifies. */
+		remove(
+			tx: TransactionSql,
+			message: { readonly id: string; readonly key: string },
+			before: number,
+		): Promise<boolean>;
 	}
 > {
 	const namespace = NameSchema.parse(options.namespace);
@@ -420,6 +431,20 @@ export function open(
 			const rows = await options
 				.database`delete from utils_outbox.messages where (namespace,id,key) in (select namespace,id,key from utils_outbox.messages where namespace=${namespace} and state in ('complete','failed') and updated<${before} order by updated limit ${limit}) returning id`;
 			return rows.length;
+		},
+		/** Candidates only: the caller locks and rechecks its own records before calling remove(). */
+		completed(query: retire.CompletedOptions): Promise<readonly retire.RetiredType[]> {
+			return retire.completed(options.database, namespace, query);
+		},
+		/** Joins the caller's transaction and rechecks state and time before deleting. */
+		remove(
+			tx: TransactionSql,
+			message: { readonly id: string; readonly key: string },
+			before: number,
+		): Promise<boolean> {
+			NameSchema.parse(message.id);
+			NameSchema.parse(message.key);
+			return retire.remove(tx, namespace, message, before);
 		},
 	});
 }

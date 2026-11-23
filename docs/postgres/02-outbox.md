@@ -152,6 +152,33 @@ an epoch-millisecond cutoff. Pruning ends the outbox's deduplication window and
 permits reuse of those identities. Retain sink receipts for at least the whole
 possible redelivery window as well.
 
+### Retire completed messages after your own checks
+
+`prune()` removes failed rows too, in a transaction of its own. Use `completed()` and `remove()` when a message
+may go only after your own records say it is finished, and failed messages must stay for an operator:
+
+```ts ignore
+const before = Date.now() - 48 * 3600_000;
+const found = await box.completed({
+  before,
+  // Applied before the limit, so rows you must keep cannot crowd out rows you may retire.
+  where: database`exists (select 1 from app.jobs j where j.id::text = utils_outbox.messages.key and j.done)`,
+});
+for (const message of found) {
+  await database.begin(async (tx) => {
+    // Lock and recheck your own record here, then:
+    await box.remove(tx, message, before);
+  });
+}
+```
+
+- `completed()` lists at most 1,000 completed messages (100 by default), oldest first, and takes no locks.
+  A listed message is a candidate, not permission.
+- `remove()` joins your transaction and takes the namespace lock that `append()`, `claim()` and `redrive()` take.
+  It deletes the message only if it is still complete and completed before `before`; otherwise it returns `false`.
+  The message's repair history goes with it, and so does deduplication for that key.
+- Failed and pending messages are never listed or removed.
+
 The outbox uses the pool and transactions you pass to it. It does not commit your transactions, close the pool,
 or start a background process. Opening a view does not issue SQL.
 
