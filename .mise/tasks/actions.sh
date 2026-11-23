@@ -4,7 +4,7 @@
 # Example: mise run actions .github/workflows/ci.yml --event workflow_dispatch
 # The first argument is the workflow file. `--event <name>` selects the event
 # (act's default is push); every other argument goes to act unchanged.
-# act needs a running Docker daemon. Mise installs the pinned act release on first use.
+# act needs a running Docker daemon. act is a lazy tool in mise.toml, installed on first use.
 set -euo pipefail
 workflow=${1:?Name a workflow file, for example .github/workflows/ci.yml}
 shift
@@ -17,4 +17,4 @@ while (($#)); do
     *) args+=("$1"); shift ;;
   esac
 done
-exec mise exec aqua:nektos/act@0.2.98 -- act "$event" --workflows "$workflow" "${args[@]}"
+exec act "$event" --workflows "$workflow" "${args[@]}"

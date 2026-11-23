@@ -47,8 +47,8 @@ jobs:
           cache: true
       - name: Select the combined native stack candidate
         id: stack
-        uses: ./.github/actions/stack
-      - uses: ./.github/actions/dependency-cache
+        uses: $/.github/actions/stack
+      - uses: $/.github/actions/dependency-cache
         with:
           stores: pnpm deno
       - run: mise run prepare:node
@@ -81,7 +81,7 @@ jobs:
       # Skip the rest of this job when a trusted run already passed the same inputs.
       - name: Skip when these inputs already passed
         id: passed
-        uses: ./.github/actions/result-cache
+        uses: $/.github/actions/result-cache
         with:
           mode: check
           lane: source
@@ -92,7 +92,7 @@ jobs:
         with:
           version: 2026.11.12
           cache: true
-      - uses: ./.github/actions/dependency-cache
+      - uses: $/.github/actions/dependency-cache
         if: steps.passed.outputs.hit != 'true'
         with:
           stores: pnpm deno
@@ -100,30 +100,33 @@ jobs:
         if: steps.passed.outputs.hit != 'true'
       - name: Restore native Deno compiler state
         if: steps.passed.outputs.hit != 'true'
-        uses: ./.github/actions/deno-cache
+        uses: $/.github/actions/deno-cache
         with:
           mode: restore
           cohort: utils-source
           bypass: ${{ inputs.fresh }}
       - run: mise run ci:run -- --lane source
         if: steps.passed.outputs.hit != 'true'
+        env:
+          # zizmor and pinact use the job token for their online audits; it only reads public data.
+          GH_TOKEN: ${{ github.token }}
       - name: Save native Deno compiler state
         if: steps.passed.outputs.hit != 'true'
-        uses: ./.github/actions/deno-cache
+        uses: $/.github/actions/deno-cache
         with:
           mode: save
           cohort: utils-source
           bypass: ${{ inputs.fresh }}
       - name: Save dependency downloads after successful checks
         if: steps.passed.outputs.hit != 'true'
-        uses: ./.github/actions/dependency-cache
+        uses: $/.github/actions/dependency-cache
         with:
           mode: save
           stores: pnpm deno
 
       - name: Record this pass for identical inputs
         if: steps.passed.outputs.hit != 'true'
-        uses: ./.github/actions/result-cache
+        uses: $/.github/actions/result-cache
         with:
           mode: record
           lane: source
@@ -151,7 +154,7 @@ jobs:
       # Skip the rest of this job when a trusted run already passed the same inputs.
       - name: Skip when these inputs already passed
         id: passed
-        uses: ./.github/actions/result-cache
+        uses: $/.github/actions/result-cache
         with:
           mode: check
           lane: runtimes-${{ matrix.runtime }}
@@ -162,7 +165,7 @@ jobs:
         with:
           version: 2026.11.12
           cache: true
-      - uses: ./.github/actions/dependency-cache
+      - uses: $/.github/actions/dependency-cache
         if: steps.passed.outputs.hit != 'true'
         with:
           stores: pnpm deno
@@ -170,7 +173,7 @@ jobs:
         if: steps.passed.outputs.hit != 'true'
       - name: Restore native Deno compiler state
         if: steps.passed.outputs.hit != 'true'
-        uses: ./.github/actions/deno-cache
+        uses: $/.github/actions/deno-cache
         with:
           mode: restore
           cohort: utils-runtime-${{ matrix.runtime }}
@@ -192,21 +195,21 @@ jobs:
           retention-days: 14
       - name: Save native Deno compiler state
         if: steps.passed.outputs.hit != 'true'
-        uses: ./.github/actions/deno-cache
+        uses: $/.github/actions/deno-cache
         with:
           mode: save
           cohort: utils-runtime-${{ matrix.runtime }}
           bypass: ${{ inputs.fresh }}
       - name: Save dependency downloads after successful checks
         if: steps.passed.outputs.hit != 'true'
-        uses: ./.github/actions/dependency-cache
+        uses: $/.github/actions/dependency-cache
         with:
           mode: save
           stores: pnpm deno
 
       - name: Record this pass for identical inputs
         if: steps.passed.outputs.hit != 'true'
-        uses: ./.github/actions/result-cache
+        uses: $/.github/actions/result-cache
         with:
           mode: record
           lane: runtimes-${{ matrix.runtime }}
@@ -227,7 +230,7 @@ jobs:
       # Skip the rest of this job when a trusted run already passed the same inputs.
       - name: Skip when these inputs already passed
         id: passed
-        uses: ./.github/actions/result-cache
+        uses: $/.github/actions/result-cache
         with:
           mode: check
           lane: browser
@@ -238,7 +241,7 @@ jobs:
         with:
           version: 2026.11.12
           cache: true
-      - uses: ./.github/actions/dependency-cache
+      - uses: $/.github/actions/dependency-cache
         if: steps.passed.outputs.hit != 'true'
         with:
           stores: pnpm deno
@@ -287,14 +290,14 @@ jobs:
           retention-days: 14
       - name: Save dependency downloads after successful checks
         if: steps.passed.outputs.hit != 'true'
-        uses: ./.github/actions/dependency-cache
+        uses: $/.github/actions/dependency-cache
         with:
           mode: save
           stores: pnpm deno
 
       - name: Record this pass for identical inputs
         if: steps.passed.outputs.hit != 'true'
-        uses: ./.github/actions/result-cache
+        uses: $/.github/actions/result-cache
         with:
           mode: record
           lane: browser
@@ -315,7 +318,7 @@ jobs:
       # Skip the rest of this job when a trusted run already passed the same inputs.
       - name: Skip when these inputs already passed
         id: passed
-        uses: ./.github/actions/result-cache
+        uses: $/.github/actions/result-cache
         with:
           mode: check
           lane: packages
@@ -326,7 +329,7 @@ jobs:
         with:
           version: 2026.11.12
           cache: true
-      - uses: ./.github/actions/dependency-cache
+      - uses: $/.github/actions/dependency-cache
         if: steps.passed.outputs.hit != 'true'
         with:
           stores: pnpm deno
@@ -386,14 +389,14 @@ jobs:
           retention-days: 14
       - name: Save dependency downloads after successful checks
         if: steps.passed.outputs.hit != 'true'
-        uses: ./.github/actions/dependency-cache
+        uses: $/.github/actions/dependency-cache
         with:
           mode: save
           stores: pnpm deno
 
       - name: Record this pass for identical inputs
         if: steps.passed.outputs.hit != 'true'
-        uses: ./.github/actions/result-cache
+        uses: $/.github/actions/result-cache
         with:
           mode: record
           lane: packages
@@ -430,7 +433,7 @@ jobs:
       # Skip the rest of this job when a trusted run already passed the same inputs.
       - name: Skip when these inputs already passed
         id: passed
-        uses: ./.github/actions/result-cache
+        uses: $/.github/actions/result-cache
         with:
           mode: check
           lane: postgres
@@ -441,7 +444,7 @@ jobs:
         with:
           version: 2026.11.12
           cache: true
-      - uses: ./.github/actions/dependency-cache
+      - uses: $/.github/actions/dependency-cache
         if: steps.passed.outputs.hit != 'true'
         with:
           stores: pnpm deno
@@ -464,14 +467,14 @@ jobs:
           retention-days: 14
       - name: Save dependency downloads after successful checks
         if: steps.passed.outputs.hit != 'true'
-        uses: ./.github/actions/dependency-cache
+        uses: $/.github/actions/dependency-cache
         with:
           mode: save
           stores: pnpm deno
 
       - name: Record this pass for identical inputs
         if: steps.passed.outputs.hit != 'true'
-        uses: ./.github/actions/result-cache
+        uses: $/.github/actions/result-cache
         with:
           mode: record
           lane: postgres
@@ -492,7 +495,7 @@ jobs:
       # Skip the rest of this job when a trusted run already passed the same inputs.
       - name: Skip when these inputs already passed
         id: passed
-        uses: ./.github/actions/result-cache
+        uses: $/.github/actions/result-cache
         with:
           mode: check
           lane: containers
@@ -503,7 +506,7 @@ jobs:
         with:
           version: 2026.11.12
           cache: true
-      - uses: ./.github/actions/dependency-cache
+      - uses: $/.github/actions/dependency-cache
         if: steps.passed.outputs.hit != 'true'
         with:
           stores: pnpm deno
@@ -555,14 +558,14 @@ jobs:
           retention-days: 14
       - name: Save dependency downloads after successful checks
         if: steps.passed.outputs.hit != 'true'
-        uses: ./.github/actions/dependency-cache
+        uses: $/.github/actions/dependency-cache
         with:
           mode: save
           stores: pnpm deno
 
       - name: Record this pass for identical inputs
         if: steps.passed.outputs.hit != 'true'
-        uses: ./.github/actions/result-cache
+        uses: $/.github/actions/result-cache
         with:
           mode: record
           lane: containers
@@ -584,7 +587,7 @@ jobs:
       # Skip the rest of this job when a trusted run already passed the same inputs.
       - name: Skip when these inputs already passed
         id: passed
-        uses: ./.github/actions/result-cache
+        uses: $/.github/actions/result-cache
         with:
           mode: check
           lane: benchmark
@@ -595,7 +598,7 @@ jobs:
         with:
           version: 2026.11.12
           cache: true
-      - uses: ./.github/actions/dependency-cache
+      - uses: $/.github/actions/dependency-cache
         if: steps.passed.outputs.hit != 'true'
         with:
           stores: pnpm deno
@@ -617,14 +620,14 @@ jobs:
         run: mise run test -- --suite examples --runtime bun
       - name: Save dependency downloads after successful checks
         if: steps.passed.outputs.hit != 'true'
-        uses: ./.github/actions/dependency-cache
+        uses: $/.github/actions/dependency-cache
         with:
           mode: save
           stores: pnpm deno
 
       - name: Record this pass for identical inputs
         if: steps.passed.outputs.hit != 'true'
-        uses: ./.github/actions/result-cache
+        uses: $/.github/actions/result-cache
         with:
           mode: record
           lane: benchmark
@@ -639,7 +642,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        kind: [format, lint]
+        kind: [format, lint, security]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -650,13 +653,13 @@ jobs:
         with:
           version: 2026.11.12
           cache: true
-      - uses: ./.github/actions/dependency-cache
+      - uses: $/.github/actions/dependency-cache
         with:
           stores: pnpm deno
       - run: mise run prepare:node
       - run: mise run check -- --kind "${{ matrix.kind }}"
       - name: Save dependency downloads after successful checks
-        uses: ./.github/actions/dependency-cache
+        uses: $/.github/actions/dependency-cache
         with:
           mode: save
           stores: pnpm deno
@@ -674,7 +677,7 @@ jobs:
       # Skip the rest of this job when a trusted run already passed the same inputs.
       - name: Skip when these inputs already passed
         id: passed
-        uses: ./.github/actions/result-cache
+        uses: $/.github/actions/result-cache
         with:
           mode: check
           lane: docs
@@ -685,7 +688,7 @@ jobs:
         with:
           version: 2026.11.12
           cache: true
-      - uses: ./.github/actions/dependency-cache
+      - uses: $/.github/actions/dependency-cache
         if: steps.passed.outputs.hit != 'true'
         with:
           stores: pnpm deno
@@ -693,7 +696,7 @@ jobs:
         if: steps.passed.outputs.hit != 'true'
       - name: Restore native Deno compiler state
         if: steps.passed.outputs.hit != 'true'
-        uses: ./.github/actions/deno-cache
+        uses: $/.github/actions/deno-cache
         with:
           mode: restore
           cohort: utils-docs
@@ -702,21 +705,21 @@ jobs:
         if: steps.passed.outputs.hit != 'true'
       - name: Save native Deno compiler state
         if: steps.passed.outputs.hit != 'true'
-        uses: ./.github/actions/deno-cache
+        uses: $/.github/actions/deno-cache
         with:
           mode: save
           cohort: utils-docs
           bypass: ${{ inputs.fresh }}
       - name: Save dependency downloads after successful checks
         if: steps.passed.outputs.hit != 'true'
-        uses: ./.github/actions/dependency-cache
+        uses: $/.github/actions/dependency-cache
         with:
           mode: save
           stores: pnpm deno
 
       - name: Record this pass for identical inputs
         if: steps.passed.outputs.hit != 'true'
-        uses: ./.github/actions/result-cache
+        uses: $/.github/actions/result-cache
         with:
           mode: record
           lane: docs

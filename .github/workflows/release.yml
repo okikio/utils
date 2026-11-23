@@ -64,7 +64,7 @@ jobs:
         with:
           version: 2026.11.12
           cache: true
-      - uses: ./.github/actions/dependency-cache
+      - uses: $/.github/actions/dependency-cache
         with:
           stores: pnpm deno
       - run: mise run prepare:node
@@ -125,7 +125,7 @@ jobs:
         with:
           version: 2026.11.12
           cache: true
-      - uses: ./.github/actions/dependency-cache
+      - uses: $/.github/actions/dependency-cache
         with:
           stores: pnpm deno
       - run: mise run prepare:node
@@ -167,7 +167,7 @@ jobs:
         with:
           version: 2026.11.12
           cache: true
-      - uses: ./.github/actions/dependency-cache
+      - uses: $/.github/actions/dependency-cache
         with:
           stores: pnpm deno
       - run: mise run prepare:node
@@ -190,7 +190,7 @@ jobs:
         with:
           version: 2026.11.12
           cache: true
-      - uses: ./.github/actions/dependency-cache
+      - uses: $/.github/actions/dependency-cache
         with:
           stores: pnpm deno
       - run: mise run prepare:node

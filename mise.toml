@@ -12,6 +12,17 @@ deno = "2.9.8"
 node = "26.13.1"
 pnpm = "12.21.0"
 
+# Check tools. Mise installs each lazy tool the first time a task runs its command,
+# so a contributor who never runs that check never downloads it.
+act = { version = "0.2.98", lazy = true }
+yq = { version = "4.54.3", lazy = true }
+gitleaks = { version = "8.30.1", lazy = true }
+jactionlint = { version = "2.6.0", lazy = true }
+osv-scanner = { version = "2.7.1", lazy = true }
+pinact = { version = "5.0.2", lazy = true }
+shellcheck = { version = "0.11.0", lazy = true }
+zizmor = { version = "1.32.0", lazy = true }
+
 [tasks."prepare"]
 description = "Prepare dependencies or select a benchmark or browser fixture"
 raw_args = true

@@ -21,6 +21,14 @@ inputs:
 runs:
   using: composite
   steps:
+    # dependency-cache sets DENO_DIR for the job. This step reads no input and keeps that value, or
+    # sets the same default when dependency-cache did not run.
+    - name: Use the job's Deno cache directory
+      if: inputs.bypass != 'true'
+      shell: bash
+      # The value is the runner's own temp path; no input or event text reaches it.
+      run: echo "DENO_DIR=${DENO_DIR:-$RUNNER_TEMP/deno-cache}" >> "$GITHUB_ENV" # zizmor: ignore[github-env]
+
     - name: Locate compiler state
       if: inputs.bypass != 'true'
       id: locate
@@ -29,16 +37,19 @@ runs:
         COHORT: ${{ inputs.cohort }}
       run: |
         set -euo pipefail
-        # dependency-cache sets DENO_DIR for the job; keep the same default if it did not run.
-        deno_dir="${DENO_DIR:-$RUNNER_TEMP/deno-cache}"
-        echo "DENO_DIR=$deno_dir" >> "$GITHUB_ENV"
+        # The cohort becomes part of a cache key, so accept only a plain name.
+        [[ "$COHORT" =~ ^[a-z0-9][a-z0-9-]*$ ]] || {
+          echo "::error::Cohort must be lowercase letters, digits and hyphens." >&2
+          exit 1
+        }
         version=$(mise exec -- deno --version | head -n 1 | cut -d ' ' -f 2)
+        delimiter="paths-$(openssl rand -hex 16)"
         {
-          echo 'paths<<EOF'
-          echo "$deno_dir/gen"
+          echo "paths<<$delimiter"
+          echo "$DENO_DIR/gen"
           # Deno's SQLite caches: check, fast check, module, Node and V8 code analysis.
-          echo "$deno_dir/*_cache_v2*"
-          echo 'EOF'
+          echo "$DENO_DIR/*_cache_v2*"
+          echo "$delimiter"
           # Compiler output depends on the Deno release and the lockfile, not on unrelated tools.
           echo "prefix=deno-state-v1-${RUNNER_OS}-${RUNNER_ARCH}-${version}-${COHORT}-"
         } >> "$GITHUB_OUTPUT"
