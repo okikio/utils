@@ -41,9 +41,9 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
         with:
-          version: 2026.11.5
+          version: 2026.11.12
           cache: true
       - name: Select the combined native stack candidate
         id: stack
@@ -87,10 +87,10 @@ jobs:
           lane: source
           selection: ''
           bypass: ${{ inputs.fresh }}
-      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
         if: steps.passed.outputs.hit != 'true'
         with:
-          version: 2026.11.5
+          version: 2026.11.12
           cache: true
       - uses: ./.github/actions/dependency-cache
         if: steps.passed.outputs.hit != 'true'
@@ -157,10 +157,10 @@ jobs:
           lane: runtimes-${{ matrix.runtime }}
           selection: ${{ needs.plan.outputs.projects }}
           bypass: ${{ inputs.fresh }}
-      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
         if: steps.passed.outputs.hit != 'true'
         with:
-          version: 2026.11.5
+          version: 2026.11.12
           cache: true
       - uses: ./.github/actions/dependency-cache
         if: steps.passed.outputs.hit != 'true'
@@ -233,10 +233,10 @@ jobs:
           lane: browser
           selection: ''
           bypass: ${{ inputs.fresh }}
-      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
         if: steps.passed.outputs.hit != 'true'
         with:
-          version: 2026.11.5
+          version: 2026.11.12
           cache: true
       - uses: ./.github/actions/dependency-cache
         if: steps.passed.outputs.hit != 'true'
@@ -321,10 +321,10 @@ jobs:
           lane: packages
           selection: ''
           bypass: ${{ inputs.fresh || inputs.full }}
-      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
         if: steps.passed.outputs.hit != 'true'
         with:
-          version: 2026.11.5
+          version: 2026.11.12
           cache: true
       - uses: ./.github/actions/dependency-cache
         if: steps.passed.outputs.hit != 'true'
@@ -436,10 +436,10 @@ jobs:
           lane: postgres
           selection: ''
           bypass: ${{ inputs.fresh }}
-      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
         if: steps.passed.outputs.hit != 'true'
         with:
-          version: 2026.11.5
+          version: 2026.11.12
           cache: true
       - uses: ./.github/actions/dependency-cache
         if: steps.passed.outputs.hit != 'true'
@@ -498,10 +498,10 @@ jobs:
           lane: containers
           selection: ''
           bypass: ${{ inputs.fresh }}
-      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
         if: steps.passed.outputs.hit != 'true'
         with:
-          version: 2026.11.5
+          version: 2026.11.12
           cache: true
       - uses: ./.github/actions/dependency-cache
         if: steps.passed.outputs.hit != 'true'
@@ -590,10 +590,10 @@ jobs:
           lane: benchmark
           selection: benchmark=${{ needs.plan.outputs.benchmark }} examples=${{ needs.plan.outputs.examples }}
           bypass: ${{ inputs.fresh }}
-      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
         if: steps.passed.outputs.hit != 'true'
         with:
-          version: 2026.11.5
+          version: 2026.11.12
           cache: true
       - uses: ./.github/actions/dependency-cache
         if: steps.passed.outputs.hit != 'true'
@@ -646,9 +646,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
         with:
-          version: 2026.11.5
+          version: 2026.11.12
           cache: true
       - uses: ./.github/actions/dependency-cache
         with:
@@ -680,10 +680,10 @@ jobs:
           lane: docs
           selection: ''
           bypass: ${{ inputs.fresh }}
-      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
         if: steps.passed.outputs.hit != 'true'
         with:
-          version: 2026.11.5
+          version: 2026.11.12
           cache: true
       - uses: ./.github/actions/dependency-cache
         if: steps.passed.outputs.hit != 'true'
@@ -734,9 +734,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
         with:
-          version: 2026.11.5
+          version: 2026.11.12
           install_args: node
           cache: true
       - name: Report selected checks

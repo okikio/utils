@@ -78,18 +78,15 @@
 	"customManagers": [
 		{
 			"customType": "regex",
-			"description": "Kaiju-Ind/GitHub tooling commit used by mise profile and task includes.",
+			"description": "Tools that mise tasks install on first use (actionlint, act), pinned as aqua:<owner>/<repo>@<version>.",
 			"managerFilePatterns": [
-				"/^mise\\.toml$/"
+				"/^\\.mise/tasks/.+\\.sh$/"
 			],
 			"matchStrings": [
-				"GitHub\\.git//profiles/standard\\.toml\\?ref=(?<currentDigest>[0-9a-f]{40})",
-				"kaiju_tooling_ref = \"(?<currentDigest>[0-9a-f]{40})\""
+				"aqua:(?<depName>[\\w.-]+/[\\w.-]+)@(?<currentValue>\\d+\\.\\d+\\.\\d+)"
 			],
-			"depNameTemplate": "Kaiju-Ind/GitHub",
-			"packageNameTemplate": "https://github.com/Kaiju-Ind/GitHub",
-			"currentValueTemplate": "main",
-			"datasourceTemplate": "git-refs"
+			"datasourceTemplate": "github-releases",
+			"extractVersionTemplate": "^v?(?<version>.+)$"
 		},
 		{
 			"customType": "regex",
