@@ -42,8 +42,11 @@ runs:
         # The tree hash names every tracked file's content; commit metadata and the base commit do not matter.
         tree=$(git rev-parse 'HEAD^{tree}')
         selection=$(printf '%s' "$SELECTION" | sha256sum | cut -c1-16)
-        # GitHub-hosted runners set ImageOS and ImageVersion; a new runner image is a new environment.
-        image="${ImageOS:-unknown}-${ImageVersion:-unknown}"
+        # GitHub-hosted runners set ImageOS and ImageVersion, for example 20261116.88.1. Runners in one image
+        # release can carry different builds (.88.1, .202.1), so the key uses the release date only.
+        # A new weekly image release starts new keys.
+        version="${ImageVersion:-unknown}"
+        image="${ImageOS:-unknown}-${version%%.*}"
         marker="$RUNNER_TEMP/lane-pass/${LANE//[^A-Za-z0-9._-]/_}.txt"
         {
           echo "key=lane-pass-v1-${RUNNER_OS}-${image}-${LANE}-${selection}-${tree}"

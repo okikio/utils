@@ -123,7 +123,7 @@ receipt nor a release artifact.
 
 The lane result cache (`.github/actions/result-cache`) is the one test-success receipt. After every step of a lane
 passes in a trusted run, the lane records a pass under a key built from the commit's tree hash, the lane and runtime,
-its selected projects and the runner image. A later run with the same key skips that lane's remaining steps and
+its selected projects and the runner image release (its date, not its build number). A later run with the same key skips that lane's remaining steps and
 prints a notice that links the run which passed. The tree hash covers every tracked file, including tests,
 lockfiles, `mise.toml` and the workflows, and container images are pinned by digest, so a key changes whenever an
 input can change. The commit message and the base commit are not inputs, so a rerun, a merge that leaves the tree
