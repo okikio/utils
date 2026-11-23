@@ -111,32 +111,55 @@ paths enforce the same strict rules as today: canonical padding, no whitespace, 
 
 ## Shared memory and workers
 
-`/shared` builds the family with WASM threads: the module imports a `WebAssembly.Memory` created with `shared: true`,
-whose buffer is a `SharedArrayBuffer`. Each worker instantiates the same module on the same memory and owns one input
-slot and one state slot.
+`/shared` runs a family on a pool of workers. Each worker loads the family entry point, so it runs the same WASM module
+and, for SHA-1 and SHA-2, the same `node:crypto` choice as the calling thread.
 
 ```ts
-import { pool } from '@okikio/hash/blake/shared';
+import * as context from '@okikio/context';
+import { open } from '@okikio/hash/blake/shared';
 
-await using hashes = await pool({ workers: 4 });
-const digests = await hashes.many('blake3', files); // one digest per input, in order
+await using ctx = context.create({ id: 'hashes' });
+await using pool = open(ctx, { workers: 4 });
+const digests = await pool.many(ctx, 'blake3', files); // one digest per input, in order
 ```
 
-What it speeds up:
+The pool is built on `@okikio/worker/thread`: the request and response are schema-checked, `ctx` owns the workers
+and each call's `ctx` can cancel that call. `many()` splits the inputs into one contiguous batch per worker, balanced by
+bytes. A batch crosses the boundary as one buffer and an array of offsets, and its digests come back end to end in one
+transferred buffer. Thousands of small inputs cost two messages, not thousands. When every input is a view of one
+`SharedArrayBuffer`, that buffer is sent as it is and nothing is copied. Otherwise the inputs are copied once into new
+shared memory, or into an `ArrayBuffer` that is transferred where the host has no `SharedArrayBuffer`.
 
-- **Many independent inputs.** `many()` spreads inputs across workers. Throughput grows with the number of cores until
-  memory bandwidth is the limit.
-- **One large BLAKE3 or KangarooTwelve input.** Both are tree hashes. Workers hash separate subtrees with the official
-  `blake3::hazmat` API and the `k12` crate, and one worker merges the results. The digest is the same as the
-  sequential one.
-- **Inputs already in a `SharedArrayBuffer`.** A view on WASM shared memory is hashed without a copy.
+What it speeds up: many independent inputs, and a few large ones. What it does not: one input of a sequential hash.
+Each block of SHA-2, SHA-3 or MD5 depends on the one before it.
 
-What it does not speed up: one input of a sequential hash (SHA-2, SHA-3 without trees, MD5). Each block depends on the
-one before it. `many()` still helps when you have several.
+### Why not WebAssembly threads
 
-Requirements: browsers expose `SharedArrayBuffer` only to pages that are cross-origin isolated (`Cross-Origin-Opener-Policy:
-same-origin` and `Cross-Origin-Embedder-Policy: require-corp`). `pool()` checks `crossOriginIsolated` and throws
-`UnsupportedError` with that explanation when it is false. Node.js, Deno and Bun always allow it.
+The design first planned one module on one shared `WebAssembly.Memory`, with every worker instantiating it. That does
+not build on stable Rust. `wasm32-unknown-unknown` ships `core` without the atomics feature, and the linker refuses
+`--shared-memory`:
+
+```text
+rust-lld: error: --shared-memory is disallowed by core-….rcgu.o because it was not compiled with 'atomics' or
+'bulk-memory' features.
+```
+
+The `wasm32-wasip1-threads` target ships `core` with atomics and does link a module that imports shared memory. But
+the module's input window, state table and stack would then be one region that every worker writes. Separating them
+needs per-thread storage, which is unstable in Rust (`#[thread_local]`), or an ABI that passes a lane to every call
+and a stack pointer set per instance. Both add `unsafe` code and a second build of every family. They would also save
+little: a worker still copies input into its module memory, which is what a pool with its own memory per worker does.
+
+### One large BLAKE3 input
+
+BLAKE3 is a binary tree of 1024-byte chunks, so `pool.hash()` splits an input of 1 MiB or more into one subtree per
+worker. The split follows `left_subtree_len` from `blake3::hazmat`, so each subtree starts at a multiple of its own
+size. Workers return chaining values, and the calling thread merges them up the tree. The `blake` module has three
+internal ids for this (18 subtree, 19 merge, 20 root merge), built on `blake3::hazmat` in `wasm/blake/src/tree.rs`.
+Plain, keyed and derive-key modes and any output length give the same digest as one pass, which `shared.test.ts`
+checks.
+
+KangarooTwelve is also a tree hash, but the `k12` crate has no subtree API, so it is not split.
 
 ## Wide-arithmetic builds
 

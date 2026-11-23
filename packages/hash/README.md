@@ -171,10 +171,17 @@ to test one implementation, to audit what runs, or to keep a bundle small.
 | `/native`   | `node:crypto` only. Throws `UnsupportedError` in a browser or for an algorithm it lacks.    | Resolves at once.                    |
 | `/portable` | Pure JavaScript only. Runs where WASM is refused, as under a strict Content Security Policy. | Resolves at once.                    |
 | `/web`      | Web Crypto only. Asynchronous, with no incremental state.                                   | Not needed.                          |
+| `/shared`   | A pool of workers, each with the family's WASM module, for many inputs at once.             | Each worker loads its own module.    |
 
 Before `ready()` resolves, the `/wasm` and `/packed` paths throw `NotReadyError`. Pass `/wasm` the module in the form you
 already have: the exports of a WASM ESM import, a `WebAssembly.Module` from `import source`, an instance, a `Response`,
 bytes or a URL.
+
+A pool helps when one thread cannot keep up with many inputs. `open(ctx, { workers })` starts the workers, and
+`many(ctx, name, inputs, options)` resolves to one digest per input, in order. Inputs that are all views of one
+`SharedArrayBuffer` reach the workers without a copy; other inputs are copied once per call. One input of a sequential
+hash, such as SHA-256, still runs on one core. Deno, Bun and browsers have a global `Worker`. Node.js needs
+`create` from `@okikio/runtime/node/worker`.
 
 The pinned paths are:
 
@@ -183,6 +190,7 @@ The pinned paths are:
 - `/native`: `@okikio/hash/sha2/native`, `@okikio/hash/sha3/native`, `@okikio/hash/blake/native`, `@okikio/hash/legacy/native`, `@okikio/hash/national/native`
 - `/portable`: `@okikio/hash/sha2/portable`, `@okikio/hash/sha3/portable`, `@okikio/hash/blake/portable`, `@okikio/hash/legacy/portable`, `@okikio/hash/checksum/portable`
 - `/web`: `@okikio/hash/sha2/web`, `@okikio/hash/legacy/web`
+- `/shared`: `@okikio/hash/sha2/shared`, `@okikio/hash/sha3/shared`, `@okikio/hash/blake/shared`, `@okikio/hash/legacy/shared`, `@okikio/hash/national/shared`, `@okikio/hash/contest/shared`, `@okikio/hash/fsb/shared`, `@okikio/hash/mac/shared`, `@okikio/hash/fast/shared`, `@okikio/hash/checksum/shared`
 - raw modules: `@okikio/hash/wasm/sha2.wasm`, `@okikio/hash/wasm/sha3.wasm`, `@okikio/hash/wasm/blake.wasm`, `@okikio/hash/wasm/legacy.wasm`, `@okikio/hash/wasm/national.wasm`, `@okikio/hash/wasm/contest.wasm`, `@okikio/hash/wasm/fsb.wasm`, `@okikio/hash/wasm/mac.wasm`, `@okikio/hash/wasm/fast.wasm`, `@okikio/hash/wasm/fast-wide.wasm`, `@okikio/hash/wasm/checksum.wasm`
 
 Import a raw module as a WASM module where the host supports it, or fetch it, and pass the result to the matching

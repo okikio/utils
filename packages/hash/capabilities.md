@@ -61,6 +61,7 @@ not enforce a protocol or store keys. A plain digest alone cannot authenticate a
 | `<family>/native` paths     | `hash`, `create`, `ready`                                          | `node:crypto` only; `UnsupportedError` where it is missing.                     |
 | `<family>/portable` paths   | `hash`, `create`, `ready`                                          | Pure JavaScript only.                                                           |
 | `<family>/web` paths        | `hash`                                                             | Web Crypto only; async; HMAC with `key`.                                        |
+| `<family>/shared` paths     | `open(ctx, options)`, then `many`, `hash`, `close`                 | A worker pool; `hash` splits one large BLAKE3 input across workers.             |
 | `wasm/<family>.wasm`        | a raw module                                                       | Pass it to the matching `/wasm` path's `ready()`.                               |
 
 Every focused module path also has an equivalent `@okikio/utils/hash/...` forwarding module; raw `.wasm` files do
