@@ -19,6 +19,7 @@ import { type HashOptionsType, runtime } from '../../_family.ts';
 import type { HasherType } from '../../_hasher.ts';
 import type { SourceType } from '../../_wasm/load.ts';
 import type { NameType } from '../../_wasm/registry.ts';
+import { wide } from '../../_wasm/wide.ts';
 
 export { CollisionError, NotReadyError, UnsupportedError } from '../../_family.ts';
 export type { HashOptionsType } from '../../_family.ts';
@@ -29,10 +30,18 @@ export type { SourceType } from '../../_wasm/load.ts';
 /** Algorithm names of this family. */
 export type AlgorithmType = NameType<'fast'>;
 
-const family = runtime({ family: 'fast', mode: 'wasm', raw: new URL('../../_wasm/raw/fast.wasm', import.meta.url) });
+const family = runtime({
+	family: 'fast',
+	mode: 'wasm',
+	raw: () =>
+		wide()
+			? new URL('../../_wasm/raw/fast-wide.wasm', import.meta.url)
+			: new URL('../../_wasm/raw/fast.wasm', import.meta.url),
+});
 
 /**
- * Load the module. Without `source`, read or fetch `fast.wasm` beside this module. With `source`, use it
+ * Load the module. Without `source`, read or fetch `fast-wide.wasm` where the host has wide arithmetic, else
+ * `fast.wasm`, beside this module. With `source`, use it
  * as it is: the exports of a WASM ESM import, a `WebAssembly.Module`, an `Instance`, a `Response`, bytes
  * or a URL.
  */

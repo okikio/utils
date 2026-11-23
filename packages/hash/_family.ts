@@ -140,10 +140,13 @@ export type ModeType = 'auto' | 'wasm' | 'native' | 'portable';
 export interface RuntimeOptionsType<F extends FamilyType> {
 	readonly family: F;
 	readonly mode: ModeType;
-	/** Packed module text, for `auto` and the packed `wasm` entry. */
-	readonly packed?: string;
-	/** Location of the raw module, used by `ready()` without a source. */
-	readonly raw?: URL;
+	/**
+	 * Packed module text, for `auto` and the packed `wasm` entry. A function loads it on demand, which lets a
+	 * family choose between builds (the `fast` family picks its wide-arithmetic build where the host has it).
+	 */
+	readonly packed?: string | (() => Promise<string>);
+	/** Location of the raw module, used by `ready()` without a source; a function chooses it on demand. */
+	readonly raw?: URL | (() => URL);
 	/** Fallbacks by algorithm name, for `auto`, `native` and `portable`. */
 	readonly fallbacks?: Partial<Record<NameType<F>, FallbackType>>;
 }
@@ -177,7 +180,12 @@ export function runtime<F extends FamilyType>(config: RuntimeOptionsType<F>): Ru
 		}
 		loading ??= (async () => {
 			try {
-				engine = await load(config.packed === undefined ? config.raw! : await unpack(config.packed));
+				const { packed, raw } = config;
+				engine = await load(
+					packed === undefined
+						? typeof raw === 'function' ? raw() : raw!
+						: await unpack(typeof packed === 'function' ? await packed() : packed),
+				);
 			} catch (error) {
 				// A Content Security Policy without 'wasm-unsafe-eval', or a host without WebAssembly. Recorded
 				// once so later calls move straight to the fallbacks instead of retrying a refused compile.

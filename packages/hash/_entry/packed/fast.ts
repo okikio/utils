@@ -18,7 +18,7 @@ import { type HashOptionsType, runtime } from '../../_family.ts';
 import type { HasherType } from '../../_hasher.ts';
 import type { SourceType } from '../../_wasm/load.ts';
 import type { NameType } from '../../_wasm/registry.ts';
-import { text } from '../../_wasm/packed/fast.ts';
+import { wide } from '../../_wasm/wide.ts';
 export { CollisionError, NotReadyError, UnsupportedError } from '../../_family.ts';
 export type { HashOptionsType } from '../../_family.ts';
 export type { HasherType } from '../../_hasher.ts';
@@ -31,7 +31,8 @@ export type AlgorithmType = NameType<'fast'>;
 const family = runtime({
 	family: 'fast',
 	mode: 'wasm',
-	packed: text,
+	packed: async () =>
+		(wide() ? await import('../../_wasm/packed/fast-wide.ts') : await import('../../_wasm/packed/fast.ts')).text,
 });
 
 /** Decode and compile the embedded module, or use `source` instead. Before it resolves, calls throw `NotReadyError`. */

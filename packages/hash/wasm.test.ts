@@ -26,6 +26,8 @@ import { text as contestText } from './_wasm/packed/contest.ts';
 import { text as fsbText } from './_wasm/packed/fsb.ts';
 import { text as macText } from './_wasm/packed/mac.ts';
 import { text as fastText } from './_wasm/packed/fast.ts';
+import { text as fastWideText } from './_wasm/packed/fast-wide.ts';
+import { wide } from './_wasm/wide.ts';
 import { text as checksumText } from './_wasm/packed/checksum.ts';
 import { crcs } from './_wasm/crc.ts';
 import fixture from './fixtures/vectors.json' with { type: 'json' };
@@ -244,6 +246,30 @@ describe('hash WebAssembly families', () => {
 					.toBe(zlib.crc32(data).toString(16).padStart(8, '0'));
 			}
 		}
+	});
+
+	it('gives the same fast hashes from the wide-arithmetic build', { skip: !wide() }, async () => {
+		const plain = await engine('fast');
+		const wideEngine = await load(await unpack(fastWideText));
+		const seeds: Record<string, Uint8Array | undefined> = { xxh32: input(4), xxh64: input(8), seahash: input(32) };
+		for (const [name, algorithm] of Object.entries(families.fast as Record<string, AlgorithmType>)) {
+			for (const length of lengths) {
+				const data = input(length);
+				const key = seeds[name] ?? (name.startsWith('xxh3') ? input(8) : undefined);
+				for (const options of key ? [{}, { key }] : [{}]) {
+					expect([name, length, hex(wideEngine.hash(algorithm, data, options))]).toEqual([
+						name,
+						length,
+						hex(plain.hash(algorithm, data, options)),
+					]);
+				}
+			}
+		}
+	});
+
+	it('validates the wide build exactly where the host validates the probe', async () => {
+		// The wide build uses i64.mul_wide_u, so a host that refuses the probe refuses the module too.
+		expect(WebAssembly.validate(await unpack(fastWideText))).toBe(wide());
 	});
 
 	it('matches published empty-input values of the fast hashes', async () => {
