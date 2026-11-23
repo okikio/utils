@@ -65,8 +65,17 @@ Registry bindings are separate settings. A package dry run checks contents witho
 ## Publish the revision that passed the checks
 
 Run the **Release** workflow on `main`, selecting **publish**, after the version PR has merged. Pending changesets and an uncommitted source tree block
-publication. The workflow checks out the triggering revision, calls the full shared quality workflow, and publishes only
-when those jobs succeed. It does not infer readiness from a different CI run or a moving branch tip.
+publication. Two conditions must both hold before either registry job starts:
+
+- **Recorded evidence.** The latest CI run for a push to `main` on this exact commit must have succeeded. An older
+  pass does not count when a newer run on the same commit failed or is still running. A commit that never reached
+  `main` by a push has no evidence, so it cannot be published. `tools/workspace/evidence.ts release` reads this from
+  GitHub; **validate** runs the same check, so it reports early when the main push has not passed yet.
+- **This run's checks.** The workflow checks out the triggering revision and calls the full shared quality workflow.
+  Lanes whose inputs already passed skip their steps through the result cache, so this costs little after the main
+  push passed.
+
+It does not infer readiness from a moving branch tip.
 
 The installed-package job builds and tests the npm candidates, then uploads those exact staged directories. The npm job
 downloads them; it does not rebuild. Each source package's `publishConfig.directory` points pnpm at its staged package.
