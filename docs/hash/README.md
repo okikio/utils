@@ -23,5 +23,6 @@ Each step is one pull request that passes the package checks on Deno, Node.js an
 5. The forced `/packed`, `/native`, `/web` and `/portable` suffixes, raw `.wasm` package exports, and KMAC. Done.
 6. The wide-arithmetic `fast` module. Done.
 7. `/shared`: a worker pool, and one BLAKE3 input split across workers. Done.
-8. Benchmarks of every family on Deno, Node.js and Bun, recorded in [measurements](04-measurements.md).
+8. Benchmarks of every family on Deno, Node.js, Bun and three browser engines, recorded in
+   [measurements](04-measurements.md), and the fixes they found. Done.
 9. The same change in `okikio/utils`, with its package names.

@@ -22,6 +22,7 @@
  * @module
  */
 import { type InputType, view } from './_bytes.ts';
+import { output } from './_wasm/slab.ts';
 import { type HasherType, type StateType, wrap } from './_hasher.ts';
 import type { Engine, State } from './_wasm/engine.ts';
 import { load, type SourceType, unpack } from './_wasm/load.ts';
@@ -92,7 +93,7 @@ function nodeState(hash: NodeHashType): StateType {
 			hash.update(input);
 			return this;
 		},
-		digest: () => Uint8Array.from(hash.digest()),
+		digest: () => output(hash.digest()),
 		clone() {
 			if (!hash.copy) throw new UnsupportedError('node:crypto cannot copy an HMAC state.');
 			return nodeState(hash.copy());
@@ -212,7 +213,9 @@ export function runtime<F extends FamilyType>(config: RuntimeOptionsType<F>): Ru
 
 	const pick = (name: string, length: number | undefined, options: HashOptionsType) => {
 		const spec = algorithm(name);
-		const key = options.key === undefined ? undefined : Uint8Array.from(view(options.key));
+		// Every backend copies the key before it returns (into the module window, or into the host or Noble state),
+		// so a view is enough; a copy here cost about 800 ns per call in Deno (see `_wasm/slab.ts`).
+		const key = options.key === undefined ? undefined : view(options.key);
 		const size = options.length ?? spec.size;
 		// Id 0 marks an algorithm that no module implements (KMAC); only a fallback can run it.
 		const module = spec.id === 0 ? undefined : engine;
@@ -252,11 +255,11 @@ export function runtime<F extends FamilyType>(config: RuntimeOptionsType<F>): Ru
 			const choice = pick(name, bytes.length, options);
 			switch (choice.kind) {
 				case 'native':
-					return Uint8Array.from(choice.host.update(bytes).digest());
+					return output(choice.host.update(bytes).digest());
 				case 'portable':
 					return choice.portable.update(bytes).digest();
 				case 'wasm':
-					return checked(engine!.hash(choice.spec, typeof input === 'string' ? input : bytes, wasmOptions(choice)));
+					return checked(engine!.hash(choice.spec, bytes, wasmOptions(choice)));
 			}
 		},
 		create(name, options = {}) {

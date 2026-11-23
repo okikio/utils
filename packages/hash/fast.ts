@@ -4,7 +4,8 @@
  * attacker chooses the input; use `@okikio/hash/mac` instead.
  *
  * There is no fallback outside WebAssembly, so await `ready()` before synchronous calls. Where the host has the
- * WebAssembly wide-arithmetic feature (Bun, Firefox 155), `ready()` loads a build that uses it; results are the same.
+ * WebAssembly wide-arithmetic feature (Bun, Firefox 155, recent WebKit), `ready()` loads a build that uses it; results
+ * are the same.
  *
  * ```ts ignore
  * import { hash, ready } from '@okikio/hash/fast';

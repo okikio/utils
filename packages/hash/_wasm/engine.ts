@@ -14,6 +14,7 @@
  * @module
  */
 import { type AlgorithmType, HMAC } from './registry.ts';
+import { output } from './slab.ts';
 
 /** The functions every family module exports. */
 export interface ExportsType {
@@ -54,6 +55,9 @@ export interface OptionsType {
 	/** Output length in bytes for an extendable output. */
 	readonly length?: number;
 }
+
+/** Shared empty key: allocating a typed array costs about 800 ns in Deno (see `slab.ts`). */
+const EMPTY = new Uint8Array(0);
 
 /** Resolve the id and length parameter that the module expects. */
 function select(algorithm: AlgorithmType, options: OptionsType): { id: number; param: number; length: number } {
@@ -153,7 +157,7 @@ export class Engine {
 	/** Hash `data` in one call. Strings are UTF-8. */
 	hash(algorithm: AlgorithmType, data: Uint8Array | string, options: OptionsType = {}): Uint8Array {
 		const { id, param, length } = select(algorithm, options);
-		const key = options.key ?? new Uint8Array(0);
+		const key = options.key ?? EMPTY;
 		const window = this.#window();
 		if (key.length < WINDOW && length <= WINDOW) {
 			window.set(key);
@@ -169,7 +173,7 @@ export class Engine {
 			}
 			if (len >= 0) {
 				const written = check(this.exports.oneshot(id, param, key.length, len));
-				return window.slice(0, written);
+				return output(window.subarray(0, written));
 			}
 		}
 		const state = this.create(algorithm, options);
@@ -180,7 +184,7 @@ export class Engine {
 	/** Start an incremental state. */
 	create(algorithm: AlgorithmType, options: OptionsType = {}): State {
 		const { id, param, length } = select(algorithm, options);
-		const key = options.key ?? new Uint8Array(0);
+		const key = options.key ?? EMPTY;
 		if (key.length > WINDOW) throw new RangeError('key is longer than the module window');
 		this.#window().set(key);
 		const slot = check(this.exports.init(id, param, key.length));
@@ -203,7 +207,7 @@ export class Engine {
 		const first = check(this.exports.finish(slot));
 		// Only an extendable output longer than one window leaves a reader behind; any shorter result
 		// is complete, including the empty result of sha1-checked on an attack.
-		if (first >= length || first < WINDOW) return window.slice(0, first);
+		if (first >= length || first < WINDOW) return output(window.subarray(0, first));
 		const out = new Uint8Array(length);
 		out.set(window.subarray(0, first));
 		try {

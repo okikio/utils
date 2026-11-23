@@ -60,9 +60,10 @@ worker.serve<BatchType, DigestsType>({
 	protocol,
 	async run(batch) {
 		if (batch.subtree !== undefined) {
+			// A short output is a view into a shared slab (see `slab.ts`); copy it so the transfer moves only it.
 			const value = (await engine()).hash(subtree, batch.data.subarray(batch.offsets[0], batch.offsets[1]), {
 				key: batch.subtree,
-			});
+			}).slice();
 			return worker.reply({ digests: value }, [value.buffer as ArrayBuffer]);
 		}
 		const module = await family(batch.family);
