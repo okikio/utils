@@ -97,7 +97,7 @@ jobs:
 
   tested:
     if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && (inputs.operation == 'validate' || inputs.operation == 'publish')
-    uses: ./.github/workflows/quality.yml
+    uses: $/.github/workflows/quality.yml
     permissions:
       contents: read
       pull-requests: read

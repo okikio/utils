@@ -28,7 +28,7 @@ concurrency:
 jobs:
   quality:
     name: Quality
-    uses: ./.github/workflows/quality.yml
+    uses: $/.github/workflows/quality.yml
     with:
       fresh: ${{ inputs.fresh || false }}
 
