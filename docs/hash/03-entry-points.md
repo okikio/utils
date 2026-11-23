@@ -44,13 +44,22 @@ Add a backend after the family to force it. The default is the automatic choice.
 | `/wasm`      | `@okikio/hash/sha3/wasm`          | Separate `.wasm` file only; you pass the module, or `ready()` fetches it ([below](#load-the-wasm-yourself)) |
 | `/native`    | `@okikio/hash/sha2/native`        | `node:crypto` only; throws `UnsupportedError` without it    |
 | `/web`       | `@okikio/hash/sha2/web`           | Web Crypto only; asynchronous functions only               |
-| `/portable`  | `@okikio/hash/sha3/portable`      | Pure JavaScript only; exports only what `@noble/hashes` has |
+| `/portable`  | `@okikio/hash/sha3/portable`      | Pure JavaScript only: `@noble/hashes`, and the package's own CRC-32 |
 | `/shared`    | `@okikio/hash/blake/shared`       | WASM with shared memory and a worker pool; see below       |
 
 A forced backend never falls back. That is the point of forcing it: a test or an audit can prove which code ran.
 
-`/native`, `/web` and `/portable` exist only for families that have an implementation in that backend. The
-[algorithm tables](02-algorithms.md) show which.
+`/native`, `/web` and `/portable` exist only for families that have an implementation in that backend, and each takes
+only the algorithm names that backend runs, as its `AlgorithmType`. The [algorithm tables](02-algorithms.md) show
+which. They are:
+
+| Suffix      | Families                                                    |
+| ----------- | ----------------------------------------------------------- |
+| `/native`   | `sha2`, `sha3`, `blake`, `legacy`, `national` (SM3)          |
+| `/web`      | `sha2` (SHA-256, SHA-384, SHA-512), `legacy` (SHA-1)        |
+| `/portable` | `sha2`, `sha3`, `blake`, `legacy`, `checksum` (CRC-32, CRC-32C) |
+
+`/wasm` and `/packed` exist for all ten families. `/web` has no `create`, because Web Crypto has no incremental state.
 
 ## Load the WASM yourself
 
@@ -76,10 +85,9 @@ console.log(await sha3_256('hello'));
 ```
 
 This works because every module has no imports and exports its own memory. A host that supports WASM ESM integration
-can instantiate it with no glue code. The raw files ship at `_wasm/raw/<family>.wasm` in both the JSR source and the npm
-`dist/`, beside the modules that load them. Exporting them as `@okikio/hash/wasm/<family>.wasm` needs the umbrella
-export projection to skip non-module targets first; until then, copy the file into your project or let `ready()`
-load it.
+can instantiate it with no glue code. The raw files are package exports, `@okikio/hash/wasm/<family>.wasm`, on JSR and npm. The
+`@okikio/utils` umbrella does not re-export them, because a `.wasm` file is not a module it can forward; import them
+from `@okikio/hash`.
 
 Host support checked locally: Deno 2.9 runs both the instance import and `import source`. Node.js 22 runs the instance
 import behind `--experimental-wasm-modules` and does not parse `import source`. Bun 1.4 runs neither. Browsers need a

@@ -50,6 +50,8 @@ export function project(packages: readonly PackageType[]): ProjectionType {
 			if (typeof target !== 'string' || !target.startsWith('./')) {
 				throw new TypeError('Focused source exports must name local modules.');
 			}
+			// A raw WebAssembly file is not a module that `export *` can re-export; import it from the focused package.
+			if (target.endsWith('.wasm')) continue;
 			const suffix = key === '.' ? '' : key.slice(1);
 			const source = `${manifest.name}${suffix}`;
 			const relative = `${short}${suffix}.ts`;

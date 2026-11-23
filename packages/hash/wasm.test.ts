@@ -2,7 +2,16 @@ import { describe, it } from 'node:test';
 import { createHash, createHmac, getHashes } from 'node:crypto';
 import { expect } from '@std/expect';
 import { keccak_224, keccak_256, keccak_384, keccak_512 } from '@noble/hashes/sha3.js';
-import { cshake128, cshake256, kt128, kt256, turboshake128, turboshake256 } from '@noble/hashes/sha3-addons.js';
+import {
+	cshake128,
+	cshake256,
+	kmac128,
+	kmac256,
+	kt128,
+	kt256,
+	turboshake128,
+	turboshake256,
+} from '@noble/hashes/sha3-addons.js';
 import { blake2b, blake2s } from '@noble/hashes/blake2.js';
 import { blake3 } from '@noble/hashes/blake3.js';
 import { type Engine, SLOTS, WINDOW } from './_wasm/engine.ts';
@@ -60,7 +69,7 @@ type CrossType = 'sha2' | 'sha3' | 'blake';
 
 /** Independent implementations: OpenSSL through node:crypto, and @noble/hashes where OpenSSL lacks one. */
 const references: {
-	[F in CrossType]: Record<keyof (typeof families)[F], { plain: ReferenceType; keyed?: ReferenceType }>;
+	[F in CrossType]: Record<keyof (typeof families)[F], { plain?: ReferenceType; keyed?: ReferenceType }>;
 } = {
 	sha2: {
 		sha224: { plain: node('sha224'), keyed: hmac('sha224') },
@@ -93,6 +102,8 @@ const references: {
 		turboshake256: { plain: (data) => turboshake256(data) },
 		kt128: { plain: (data) => kt128(data) },
 		kt256: { plain: (data) => kt256(data) },
+		kmac128: { keyed: (data) => kmac128(key, data, { dkLen: 32 }) },
+		kmac256: { keyed: (data) => kmac256(key, data, { dkLen: 64 }) },
 	},
 	blake: {
 		'blake2b-128': { plain: (d) => blake2b(d, { dkLen: 16 }), keyed: (d) => blake2b(d, { dkLen: 16, key }) },
@@ -285,7 +296,11 @@ describe('hash WebAssembly families', () => {
 			const wasm = await engine(family);
 			for (const [name, algorithm] of Object.entries(families[family] as Record<string, AlgorithmType>)) {
 				const data = input(3 * WINDOW + 7);
-				const key = family === 'mac' ? keys.mac!.subarray(0, name.startsWith('siphash') ? 16 : 32) : undefined;
+				const key = family === 'mac'
+					? keys.mac!.subarray(0, name.startsWith('siphash') ? 16 : 32)
+					: algorithm.key === 'required'
+					? keys.mac
+					: undefined;
 				const options = key ? { key } : {};
 				const state = wasm.create(algorithm, options);
 				for (let offset = 0; offset < data.length; offset += 1000) state.update(data.subarray(offset, offset + 1000));
@@ -299,12 +314,14 @@ describe('hash WebAssembly families', () => {
 		describe(family, () => {
 			for (const [name, algorithm] of Object.entries(families[family] as Record<string, AlgorithmType>)) {
 				const reference =
-					(references[family] as Record<string, { plain: ReferenceType; keyed?: ReferenceType }>)[name]!;
+					(references[family] as Record<string, { plain?: ReferenceType; keyed?: ReferenceType }>)[name]!;
 				it(`${name} matches an independent implementation at block and window boundaries`, async () => {
 					const wasm = await engine(family);
 					for (const length of lengths) {
 						const data = input(length);
-						expect([length, hex(wasm.hash(algorithm, data))]).toEqual([length, hex(reference.plain(data))]);
+						if (reference.plain) {
+							expect([length, hex(wasm.hash(algorithm, data))]).toEqual([length, hex(reference.plain(data))]);
+						}
 						if (reference.keyed) {
 							const options = { key: keyFor(family, name) };
 							expect([length, hex(wasm.hash(algorithm, data, options))]).toEqual([length, hex(reference.keyed(data))]);

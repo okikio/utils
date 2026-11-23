@@ -504,11 +504,12 @@ macro_rules! plain_digests {
 /// Implement [`Family`] for extendable-output functions from the `digest` crate.
 ///
 /// `id => Variant: Type, Reader, |key| init` maps an id to an XOF and its reader. `init` builds the
-/// state from the key bytes; return `None` to reject a key. The output length (`param`) must be at
+/// state from the key bytes; return `None` to reject a key. Write `|key, len|` when the state needs
+/// the output length in bytes at the start, as KMAC does. The output length (`param`) must be at
 /// least 1. The family crate must depend on the `digest` crate.
 #[macro_export]
 macro_rules! xofs {
-	($family:ident, { $($id:literal => $name:ident : $ty:ty, $reader:ty, |$key:ident| $init:expr),+ $(,)? }) => {
+	($family:ident, { $($id:literal => $name:ident : $ty:ty, $reader:ty, |$key:ident $(, $len:ident)?| $init:expr),+ $(,)? }) => {
 		/// The family marker type.
 		pub struct $family;
 
@@ -538,6 +539,7 @@ macro_rules! xofs {
 				let hash = match id {
 					$($id => {
 						let $key = key;
+						$(let $len = param;)?
 						let state: Option<$ty> = $init;
 						Hash::$name(state.ok_or($crate::Error::Invalid)?)
 					})+

@@ -105,6 +105,11 @@ if (mode === 'member') {
 		for (const [key, target] of Object.entries(source.exports)) {
 			if (excluded(name, key)) continue;
 			if (typeof target !== 'string') throw new Error(`Canonical source export ${name}${key} must be a path.`);
+			// A raw WebAssembly file is copied into dist below, at the same relative path, and exported as itself.
+			if (target.endsWith('.wasm')) {
+				exports[key] = `./dist/${target.replace(/^\.\//, '')}`;
+				continue;
+			}
 			const stem = target.replace(/^\.\//, '').replace(/\.ts$/, '');
 			entries[stem] = resolve(stage, 'src', target);
 			exports[key] = {

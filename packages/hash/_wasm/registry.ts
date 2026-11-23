@@ -35,7 +35,7 @@ export interface AlgorithmType {
 	readonly key: KeyType;
 }
 
-import { crcs } from './crc.ts';
+import { type CrcNameType, crcs } from './crc.ts';
 
 /** Bit that selects the HMAC form of a fixed-length digest. */
 export const HMAC = 0x8000;
@@ -50,122 +50,136 @@ const seeded = (id: number, size: number): AlgorithmType => ({ id, size, xof: fa
 /** Every CRC in the catalogue, output in the fewest whole bytes that hold its width. */
 const catalogue = Object.fromEntries(
 	Object.entries(crcs).map(([name, crc]) => [name, plain(crc.id, Math.ceil(crc.width / 8))]),
-) as { readonly [K in keyof typeof crcs]: AlgorithmType };
+) as Record<CrcNameType, AlgorithmType>;
 
-/**
- * Algorithm names of each family, written out so JSR can document the public API without running the
- * helper calls below. TypeScript rejects {@link families} if a name is missing from either side.
- */
-interface NamesType {
-	/** Names in the sha2 module. */
-	readonly sha2: 'sha224' | 'sha256' | 'sha384' | 'sha512' | 'sha512-224' | 'sha512-256';
-	/** Names in the sha3 module. */
-	readonly sha3:
-		| 'sha3-224'
-		| 'sha3-256'
-		| 'sha3-384'
-		| 'sha3-512'
-		| 'keccak224'
-		| 'keccak256'
-		| 'keccak384'
-		| 'keccak512'
-		| 'shake128'
-		| 'shake256'
-		| 'cshake128'
-		| 'cshake256'
-		| 'turboshake128'
-		| 'turboshake256'
-		| 'kt128'
-		| 'kt256';
-	/** Names in the blake module. */
-	readonly blake:
-		| 'blake2b-128'
-		| 'blake2b-160'
-		| 'blake2b-224'
-		| 'blake2b-256'
-		| 'blake2b-384'
-		| 'blake2b-512'
-		| 'blake2s-128'
-		| 'blake2s-160'
-		| 'blake2s-224'
-		| 'blake2s-256'
-		| 'blake3'
-		| 'blake3-derive';
-	/** Names in the legacy module. */
-	readonly legacy:
-		| 'md2'
-		| 'md4'
-		| 'md5'
-		| 'sha1'
-		| 'ripemd128'
-		| 'ripemd160'
-		| 'ripemd256'
-		| 'ripemd320'
-		| 'tiger'
-		| 'tiger2'
-		| 'sha1-checked';
-	/** Names in the national module. */
-	readonly national:
-		| 'streebog256'
-		| 'streebog512'
-		| 'gost94-cryptopro'
-		| 'gost94-test'
-		| 'gost94-ua'
-		| 'gost94-s2015'
-		| 'sm3'
-		| 'kupyna224'
-		| 'kupyna256'
-		| 'kupyna384'
-		| 'kupyna512'
-		| 'belt'
-		| 'bash256'
-		| 'bash384'
-		| 'bash512'
-		| 'ascon-hash256'
-		| 'ascon-xof128';
-	/** Names in the contest module. */
-	readonly contest:
-		| 'groestl224'
-		| 'groestl256'
-		| 'groestl384'
-		| 'groestl512'
-		| 'jh224'
-		| 'jh256'
-		| 'jh384'
-		| 'jh512'
-		| 'skein256-256'
-		| 'skein256-512'
-		| 'skein512-256'
-		| 'skein512-512'
-		| 'skein1024-256'
-		| 'skein1024-512'
-		| 'skein1024-1024'
-		| 'shabal192'
-		| 'shabal224'
-		| 'shabal256'
-		| 'shabal384'
-		| 'shabal512'
-		| 'whirlpool';
-	/** Names in the fsb module. */
-	readonly fsb: 'fsb160' | 'fsb224' | 'fsb256' | 'fsb384' | 'fsb512';
-	/** Names in the mac module. */
-	readonly mac:
-		| 'siphash-2-4'
-		| 'siphash-2-4-128'
-		| 'siphash-1-3'
-		| 'siphash-1-3-128'
-		| 'highway-64'
-		| 'highway-128'
-		| 'highway-256';
-	/** Names in the fast module. */
-	readonly fast: 'xxh32' | 'xxh64' | 'xxh3-64' | 'xxh3-128' | 'rapidhash' | 'seahash' | 'fnv1a-64';
-	/** Names in the checksum module. */
-	readonly checksum: keyof typeof crcs | 'adler32' | 'fletcher16';
+/** Algorithm names of the `sha2` family. */
+export type Sha2NameType = 'sha224' | 'sha256' | 'sha384' | 'sha512' | 'sha512-224' | 'sha512-256';
+
+/** Algorithm names of the `sha3` family. */
+export type Sha3NameType =
+	| 'sha3-224'
+	| 'sha3-256'
+	| 'sha3-384'
+	| 'sha3-512'
+	| 'keccak224'
+	| 'keccak256'
+	| 'keccak384'
+	| 'keccak512'
+	| 'shake128'
+	| 'shake256'
+	| 'cshake128'
+	| 'cshake256'
+	| 'turboshake128'
+	| 'turboshake256'
+	| 'kt128'
+	| 'kt256'
+	| 'kmac128'
+	| 'kmac256';
+
+/** Algorithm names of the `blake` family. */
+export type BlakeNameType =
+	| 'blake2b-128'
+	| 'blake2b-160'
+	| 'blake2b-224'
+	| 'blake2b-256'
+	| 'blake2b-384'
+	| 'blake2b-512'
+	| 'blake2s-128'
+	| 'blake2s-160'
+	| 'blake2s-224'
+	| 'blake2s-256'
+	| 'blake3'
+	| 'blake3-derive';
+
+/** Algorithm names of the `legacy` family. */
+export type LegacyNameType =
+	| 'md2'
+	| 'md4'
+	| 'md5'
+	| 'sha1'
+	| 'ripemd128'
+	| 'ripemd160'
+	| 'ripemd256'
+	| 'ripemd320'
+	| 'tiger'
+	| 'tiger2'
+	| 'sha1-checked';
+
+/** Algorithm names of the `national` family. */
+export type NationalNameType =
+	| 'streebog256'
+	| 'streebog512'
+	| 'gost94-cryptopro'
+	| 'gost94-test'
+	| 'gost94-ua'
+	| 'gost94-s2015'
+	| 'sm3'
+	| 'kupyna224'
+	| 'kupyna256'
+	| 'kupyna384'
+	| 'kupyna512'
+	| 'belt'
+	| 'bash256'
+	| 'bash384'
+	| 'bash512'
+	| 'ascon-hash256'
+	| 'ascon-xof128';
+
+/** Algorithm names of the `contest` family. */
+export type ContestNameType =
+	| 'groestl224'
+	| 'groestl256'
+	| 'groestl384'
+	| 'groestl512'
+	| 'jh224'
+	| 'jh256'
+	| 'jh384'
+	| 'jh512'
+	| 'skein256-256'
+	| 'skein256-512'
+	| 'skein512-256'
+	| 'skein512-512'
+	| 'skein1024-256'
+	| 'skein1024-512'
+	| 'skein1024-1024'
+	| 'shabal192'
+	| 'shabal224'
+	| 'shabal256'
+	| 'shabal384'
+	| 'shabal512'
+	| 'whirlpool';
+
+/** Algorithm names of the `fsb` family. */
+export type FsbNameType = 'fsb160' | 'fsb224' | 'fsb256' | 'fsb384' | 'fsb512';
+
+/** Algorithm names of the `mac` family. */
+export type MacNameType =
+	| 'siphash-2-4'
+	| 'siphash-2-4-128'
+	| 'siphash-1-3'
+	| 'siphash-1-3-128'
+	| 'highway-64'
+	| 'highway-128'
+	| 'highway-256';
+
+/** Algorithm names of the `fast` family. */
+export type FastNameType = 'xxh32' | 'xxh64' | 'xxh3-64' | 'xxh3-128' | 'rapidhash' | 'seahash' | 'fnv1a-64';
+
+/** Every family and its algorithms, by the name the public API accepts. */
+export interface FamiliesType {
+	readonly sha2: Readonly<Record<Sha2NameType, AlgorithmType>>;
+	readonly sha3: Readonly<Record<Sha3NameType, AlgorithmType>>;
+	readonly blake: Readonly<Record<BlakeNameType, AlgorithmType>>;
+	readonly legacy: Readonly<Record<LegacyNameType, AlgorithmType>>;
+	readonly national: Readonly<Record<NationalNameType, AlgorithmType>>;
+	readonly contest: Readonly<Record<ContestNameType, AlgorithmType>>;
+	readonly fsb: Readonly<Record<FsbNameType, AlgorithmType>>;
+	readonly mac: Readonly<Record<MacNameType, AlgorithmType>>;
+	readonly fast: Readonly<Record<FastNameType, AlgorithmType>>;
+	readonly checksum: Readonly<Record<CrcNameType | 'adler32' | 'fletcher16', AlgorithmType>>;
 }
 
-/** The shape of {@link families}: every name maps to its algorithm. */
-type FamiliesType = { readonly [F in keyof NamesType]: { readonly [N in NamesType[F]]: AlgorithmType } };
-/** Every family and its algorithms, by the name the public API accepts. */
+/** Every family and its algorithms. */
 export const families: FamiliesType = {
 	sha2: {
 		sha224: fixed(1, 28),
@@ -192,6 +206,9 @@ export const families: FamiliesType = {
 		turboshake256: xof(21, 64),
 		kt128: xof(22, 32),
 		kt256: xof(23, 64),
+		// No maintained Rust crate implements KMAC, so id 0 marks it as fallback-only (@noble/hashes).
+		kmac128: { id: 24, size: 32, xof: true, key: 'required' },
+		kmac256: { id: 25, size: 64, xof: true, key: 'required' },
 	},
 	blake: {
 		'blake2b-128': keyed(1, 16),
@@ -295,7 +312,7 @@ export const families: FamiliesType = {
 };
 
 /** Name of a family. */
-export type FamilyType = keyof typeof families;
+export type FamilyType = keyof FamiliesType;
 
 /** Name of an algorithm in family `F`. */
-export type NameType<F extends FamilyType> = keyof (typeof families)[F] & string;
+export type NameType<F extends FamilyType> = keyof FamiliesType[F] & string;

@@ -109,8 +109,9 @@ describe('package documentation', () => {
 		// A removed package must disappear from deep exports as well as the inventory.
 		const subpaths = new Set(['.', './all']);
 		for (const definition of manifests.filter((value) => value.name !== '@okikio/utils')) {
-			for (const key of Object.keys(definition.exports ?? {})) {
-				if (key === './package.json') continue;
+			for (const [key, target] of Object.entries(definition.exports ?? {})) {
+				// Raw WebAssembly files are not modules the umbrella can re-export; consumers import them directly.
+				if (key === './package.json' || String(target).endsWith('.wasm')) continue;
 				subpaths.add(focusedSubpath(definition.name) + (key === '.' ? '' : key.slice(1)));
 			}
 		}

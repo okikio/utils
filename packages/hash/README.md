@@ -106,11 +106,8 @@ JavaScript where one of them has the algorithm, and throws `NotReadyError` other
 bytes. In Deno, Node and Bun, SHA-1 and SHA-2 inputs of 512 bytes or more always run on `node:crypto`, which uses the
 CPU's SHA instructions.
 
-Each family also has a `/wasm` entry point, such as `@okikio/hash/sha3/wasm`, that loads nothing until you call
-`ready()` and never falls back. Pass it the module in the form you already have: the exports of a WASM ESM import, a
-`WebAssembly.Module` from `import source`, an instance, a `Response`, bytes or a URL. Without an argument it loads the
-`.wasm` file shipped beside the module. The [hash design](../../docs/hash/README.md) explains the backends, the full
-algorithm list and the measurements.
+Append a suffix such as `/wasm` or `/portable` to pin one backend; see [Pin one backend](#pin-one-backend). The
+[hash design](../../docs/hash/README.md) explains the backends, the full algorithm list and the measurements.
 
 Use `hex()` when bytes already exist and only representation is needed. It does not hash or authenticate them. Use
 `id()` for compact correlation from an ordered tuple, and retain the full `sha256()` digest when checking content
@@ -150,7 +147,7 @@ options and types.
 | `@okikio/hash/id`        | Create secure random IDs or derive stable IDs from an ordered tuple.                 | [Contract](./id.ts)        |
 | `@okikio/hash/uuid`      | Create UUIDv4 or UUIDv7 and validate, parse, format, or inspect UUID values.         | [Contract](./uuid.ts)      |
 | `@okikio/hash/sha2`      | Use every SHA-2 variant, plain or HMAC, on WASM or `node:crypto`.                    | [Contract](./sha2.ts)      |
-| `@okikio/hash/sha3`      | Use SHA-3, Keccak, SHAKE, cSHAKE, TurboSHAKE and KangarooTwelve, with HMAC.          | [Contract](./sha3.ts)      |
+| `@okikio/hash/sha3`      | Use SHA-3, Keccak, SHAKE, cSHAKE, TurboSHAKE, KangarooTwelve and KMAC, with HMAC.    | [Contract](./sha3.ts)      |
 | `@okikio/hash/blake`     | Use BLAKE2b, BLAKE2s and BLAKE3, keyed or with any BLAKE3 output length.             | [Contract](./blake.ts)     |
 | `@okikio/hash/legacy`    | Read old data with MD2–MD5, SHA-1 (also collision-checked), RIPEMD or Tiger.         | [Contract](./legacy.ts)    |
 | `@okikio/hash/national`  | Use Streebog, GOST R 34.11-94, SM3, Kupyna, BelT, bash-hash or Ascon.                | [Contract](./national.ts)  |
@@ -159,14 +156,37 @@ options and types.
 | `@okikio/hash/mac`       | Key hash-table and short-input hashes with SipHash or HighwayHash.                   | [Contract](./mac.ts)       |
 | `@okikio/hash/fast`      | Hash trusted data quickly with xxHash, rapidhash, SeaHash or FNV-1a.                 | [Contract](./fast.ts)      |
 | `@okikio/hash/checksum`  | Detect accidental corruption with any RevEng CRC, Adler-32 or Fletcher-16.           | [Contract](./checksum.ts)  |
-| `@okikio/hash/sha3/wasm` and the other `/wasm` paths | Use one family on WASM only, from a module you load or the shipped file. | [Contract](./_wasm/entry/sha3.ts) |
-
-The WASM-only paths are `@okikio/hash/sha2/wasm`, `@okikio/hash/sha3/wasm`, `@okikio/hash/blake/wasm`,
-`@okikio/hash/legacy/wasm`, `@okikio/hash/national/wasm`, `@okikio/hash/contest/wasm`,
-`@okikio/hash/fsb/wasm`, `@okikio/hash/mac/wasm`, `@okikio/hash/fast/wasm` and
-`@okikio/hash/checksum/wasm`.
 | `@okikio/hash/hmac`      | Sign and verify complete message tags using native HMAC-SHA-2 and owned keys.        | [Contract](./hmac/mod.ts)  |
 | `@okikio/hash/hmac/sync` | Use synchronous HMAC-SHA-2; destroy reusable copied keys when finished.              | [Contract](./hmac/sync.ts) |
+
+## Pin one backend
+
+The family paths above choose a backend for each call. A suffix pins one backend instead, and nothing falls back. Use it
+to test one implementation, to audit what runs, or to keep a bundle small.
+
+| Suffix      | Runs on                                                                                     | `ready()`                            |
+| ----------- | ------------------------------------------------------------------------------------------- | ------------------------------------ |
+| `/wasm`     | WASM, from a module you pass or the `.wasm` file shipped beside the module.                 | Loads and compiles the module.       |
+| `/packed`   | WASM, from a copy embedded in the JavaScript as compressed Base64. No file fetch.           | Decodes and compiles the copy.       |
+| `/native`   | `node:crypto` only. Throws `UnsupportedError` in a browser or for an algorithm it lacks.    | Resolves at once.                    |
+| `/portable` | Pure JavaScript only. Runs where WASM is refused, as under a strict Content Security Policy. | Resolves at once.                    |
+| `/web`      | Web Crypto only. Asynchronous, with no incremental state.                                   | Not needed.                          |
+
+Before `ready()` resolves, the `/wasm` and `/packed` paths throw `NotReadyError`. Pass `/wasm` the module in the form you
+already have: the exports of a WASM ESM import, a `WebAssembly.Module` from `import source`, an instance, a `Response`,
+bytes or a URL.
+
+The pinned paths are:
+
+- `/wasm`: `@okikio/hash/sha2/wasm`, `@okikio/hash/sha3/wasm`, `@okikio/hash/blake/wasm`, `@okikio/hash/legacy/wasm`, `@okikio/hash/national/wasm`, `@okikio/hash/contest/wasm`, `@okikio/hash/fsb/wasm`, `@okikio/hash/mac/wasm`, `@okikio/hash/fast/wasm`, `@okikio/hash/checksum/wasm`
+- `/packed`: `@okikio/hash/sha2/packed`, `@okikio/hash/sha3/packed`, `@okikio/hash/blake/packed`, `@okikio/hash/legacy/packed`, `@okikio/hash/national/packed`, `@okikio/hash/contest/packed`, `@okikio/hash/fsb/packed`, `@okikio/hash/mac/packed`, `@okikio/hash/fast/packed`, `@okikio/hash/checksum/packed`
+- `/native`: `@okikio/hash/sha2/native`, `@okikio/hash/sha3/native`, `@okikio/hash/blake/native`, `@okikio/hash/legacy/native`, `@okikio/hash/national/native`
+- `/portable`: `@okikio/hash/sha2/portable`, `@okikio/hash/sha3/portable`, `@okikio/hash/blake/portable`, `@okikio/hash/legacy/portable`, `@okikio/hash/checksum/portable`
+- `/web`: `@okikio/hash/sha2/web`, `@okikio/hash/legacy/web`
+- raw modules: `@okikio/hash/wasm/sha2.wasm`, `@okikio/hash/wasm/sha3.wasm`, `@okikio/hash/wasm/blake.wasm`, `@okikio/hash/wasm/legacy.wasm`, `@okikio/hash/wasm/national.wasm`, `@okikio/hash/wasm/contest.wasm`, `@okikio/hash/wasm/fsb.wasm`, `@okikio/hash/wasm/mac.wasm`, `@okikio/hash/wasm/fast.wasm`, `@okikio/hash/wasm/checksum.wasm`
+
+Import a raw module as a WASM module where the host supports it, or fetch it, and pass the result to the matching
+`/wasm` path.
 
 ## Measure copying, hashing and streaming
 

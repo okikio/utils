@@ -1,15 +1,15 @@
 /**
- * WebAssembly-only SHA-2: SHA-224, SHA-256, SHA-384, SHA-512, SHA-512/224 and SHA-512/256, plain and HMAC.
+ * WebAssembly-only non-cryptographic hashes: xxHash, rapidhash, SeaHash and FNV-1a. Never use them where an attacker chooses the input.
  *
  * Nothing loads until you call `ready()`, and nothing falls back to another backend. Pass the module in
  * the form you already have, or call `ready()` with no argument to load the file beside this module:
  *
  * ```ts ignore
- * import * as module from './vendor/sha2.wasm'; // a copy of _wasm/raw/sha2.wasm from this package
- * import { hash, ready } from '@okikio/hash/sha2/wasm';
+ * import * as module from './vendor/fast.wasm'; // a copy of _wasm/raw/fast.wasm from this package
+ * import { hash, ready } from '@okikio/hash/fast/wasm';
  *
  * await ready(module);
- * hash('sha256', 'hello');
+ * hash('xxh3-64', 'hello');
  * ```
  *
  * @module
@@ -17,22 +17,22 @@
 import type { InputType } from '../../_bytes.ts';
 import { type HashOptionsType, runtime } from '../../_family.ts';
 import type { HasherType } from '../../_hasher.ts';
-import type { SourceType } from '../load.ts';
-import type { NameType } from '../registry.ts';
+import type { SourceType } from '../../_wasm/load.ts';
+import type { NameType } from '../../_wasm/registry.ts';
 
 export { CollisionError, NotReadyError, UnsupportedError } from '../../_family.ts';
 export type { HashOptionsType } from '../../_family.ts';
 export type { HasherType } from '../../_hasher.ts';
 export type { InputType } from '../../_bytes.ts';
-export type { SourceType } from '../load.ts';
+export type { SourceType } from '../../_wasm/load.ts';
 
 /** Algorithm names of this family. */
-export type AlgorithmType = NameType<'sha2'>;
+export type AlgorithmType = NameType<'fast'>;
 
-const family = runtime({ family: 'sha2', raw: new URL('../raw/sha2.wasm', import.meta.url) });
+const family = runtime({ family: 'fast', mode: 'wasm', raw: new URL('../../_wasm/raw/fast.wasm', import.meta.url) });
 
 /**
- * Load the module. Without `source`, read or fetch `sha2.wasm` beside this module. With `source`, use it
+ * Load the module. Without `source`, read or fetch `fast.wasm` beside this module. With `source`, use it
  * as it is: the exports of a WASM ESM import, a `WebAssembly.Module`, an `Instance`, a `Response`, bytes
  * or a URL.
  */

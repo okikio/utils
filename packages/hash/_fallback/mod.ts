@@ -8,8 +8,8 @@
  * @module
  */
 import { hmac } from '@noble/hashes/hmac.js';
-import type { StateType } from './_hasher.ts';
-import type { FallbackType } from './_family.ts';
+import type { StateType } from '../_hasher.ts';
+import type { FallbackType } from '../_family.ts';
 
 /** A Noble hash function: callable, with a `create` that takes options. */
 interface NobleType {

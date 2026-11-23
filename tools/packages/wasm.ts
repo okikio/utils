@@ -195,12 +195,16 @@ function catalog(): void {
 		'\treadonly check: bigint;',
 		'}',
 		'',
+		'/** A catalogue name. */',
+		'export type CrcNameType =',
+		...entries.map((entry, index) => `\t| '${entry.name}'${index === entries.length - 1 ? ';' : ''}`),
+		'',
 		'/** The catalogue. */',
-		'export const crcs = {',
+		'export const crcs: Readonly<Record<CrcNameType, CrcType>> = {',
 		...entries.map((entry) =>
 			`\t'${entry.name}': { id: ${entry.id}, width: ${entry.width}, check: 0x${entry.check.toString(16)}n },`
 		),
-		'} as const satisfies Record<string, CrcType>;',
+		'};',
 		'',
 	].join('\n');
 	writeFileSync(join(root, 'packages/hash/_wasm/crc.ts'), ts);

@@ -1,5 +1,5 @@
 {
-	"source": "2b33ea44025be1f82ae5e06ff682e0eaa60f0a05649acd7b74b2fa0eb000f26a",
+	"source": "034829fe32f8afa585bd2cfe5e958351fe1ef2ae5afcda7a2b3f5c8fb03e7ee3",
 	"rust": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
 	"binaryen": "132.0.0",
 	"families": {
@@ -9,49 +9,49 @@
 			"packed": 10236
 		},
 		"sha3": {
-			"sha256": "b6d37e6b5d7cb55881b33b8b40238ce49d9fe64af9299cb26a3b9769e750601e",
-			"bytes": 39365,
-			"packed": 12392
+			"sha256": "20732c75ae00d6bc2a745ced85320be99406decca9fd2212ec86f7edfd8be842",
+			"bytes": 42635,
+			"packed": 13396
 		},
 		"blake": {
 			"sha256": "624b556e42becedb8c7c4bd2b840a33224591688bcbaa0215c7e7052e7532539",
 			"bytes": 65882,
-			"packed": 25732
+			"packed": 25600
 		},
 		"legacy": {
 			"sha256": "e21301ca90d3d5bf498286cdae298e9e72675e043b14781dab0b4432a6886e1e",
 			"bytes": 113704,
-			"packed": 48712
+			"packed": 48040
 		},
 		"national": {
 			"sha256": "9a84edc7ab8ba1231142aa20a4274ef8f8cf19409b004eabd78620597445c0e2",
 			"bytes": 132784,
-			"packed": 64456
+			"packed": 64696
 		},
 		"contest": {
 			"sha256": "1e0077d583b009c36350f286b2366e7267daab937dd730a2028af016fbf842f9",
 			"bytes": 105750,
-			"packed": 48328
+			"packed": 48500
 		},
 		"fsb": {
 			"sha256": "681b82b1b1496fb495e9a3341da0932958801e600df8a218992ae3429a33b311",
 			"bytes": 321882,
-			"packed": 388348
+			"packed": 388248
 		},
 		"mac": {
 			"sha256": "f902fd2e2c924a974e46c60465733f7587ff5fcd8c2706f90529f8de07c16293",
 			"bytes": 14801,
-			"packed": 5084
+			"packed": 5068
 		},
 		"fast": {
 			"sha256": "56bf62967d4ce205cd6788a81b584887059fc10042f6c6efcb8b3b37e03575d7",
 			"bytes": 32630,
-			"packed": 16252
+			"packed": 16136
 		},
 		"checksum": {
 			"sha256": "e7c7d9a5f29c5081a44a3bcca9b64c31ef493f50efb30f9c33457a58282ed8b8",
 			"bytes": 48480,
-			"packed": 46052
+			"packed": 45860
 		}
 	}
 }

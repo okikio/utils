@@ -1,5 +1,5 @@
 import { describe, it } from 'node:test';
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { expect } from '@std/expect';
 import * as sha2 from './sha2.ts';
 import * as sha3 from './sha3.ts';
@@ -7,8 +7,8 @@ import * as blake from './blake.ts';
 import * as legacy from './legacy.ts';
 import * as mac from './mac.ts';
 import * as checksum from './checksum.ts';
-import * as sha3Wasm from './_wasm/entry/sha3.ts';
-import * as fastWasm from './_wasm/entry/fast.ts';
+import * as sha3Wasm from './_entry/wasm/sha3.ts';
+import * as fastWasm from './_entry/wasm/fast.ts';
 import { NotReadyError } from './_family.ts';
 import { unpack } from './_wasm/load.ts';
 import { text as fastText } from './_wasm/packed/fast.ts';
@@ -39,13 +39,7 @@ describe('family entry points', () => {
 		expect(after).toEqual(before);
 		for (const length of [0, 100, 600, 70_000]) {
 			const data = input(length);
-			expect(hex(sha2.hash('sha256', data, { key }))).toBe(
-				hex(createHash('sha256').update(data).digest()).length
-					? hex(
-						(await import('node:crypto')).createHmac('sha256', key).update(data).digest(),
-					)
-					: '',
-			);
+			expect(hex(sha2.hash('sha256', data, { key }))).toBe(createHmac('sha256', key).update(data).digest('hex'));
 			expect(hex(blake.hash('blake3', data, { key: input(32), length: 99 }))).toBe(
 				hex(blake.create('blake3', { key: input(32), length: 99 }).update(data).digest()),
 			);

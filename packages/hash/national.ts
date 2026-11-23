@@ -14,6 +14,7 @@
  */
 import type { InputType } from './_bytes.ts';
 import { type HashOptionsType, runtime } from './_family.ts';
+import { fallbacks } from './_fallback/national.ts';
 import type { HasherType } from './_hasher.ts';
 import type { SourceType } from './_wasm/load.ts';
 import { text } from './_wasm/packed/national.ts';
@@ -30,11 +31,10 @@ export type AlgorithmType = NameType<'national'>;
 
 const family = runtime({
 	family: 'national',
+	mode: 'auto',
 	packed: text,
 	raw: new URL('./_wasm/raw/national.wasm', import.meta.url),
-	fallbacks: {
-		sm3: { native: 'sm3', hmac: true },
-	},
+	fallbacks,
 });
 
 /**
