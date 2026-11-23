@@ -3,6 +3,10 @@ import type { Sql, TransactionSql } from 'postgres';
 import * as schema from '@okikio/schema';
 import * as json from '@okikio/collection/record/json';
 import * as retire from './retire.ts';
+import { OutboxError } from './error.ts';
+
+export { OutboxError } from './error.ts';
+export { type PolicyType, resize } from './policy.ts';
 
 export type { CompletedOptions, RetiredType } from './retire.ts';
 
@@ -132,16 +136,6 @@ export interface Options {
 	readonly maximumBytes?: number;
 	/** Exhausted expired/retried claims become failed and are never silently redriven. @default 8 */
 	readonly maximumAttempts?: number;
-}
-/** Stable contract violations; SQL connection/commit failures remain native and can have uncertain outcomes. */
-export class OutboxError extends Error {
-	/** Stable failure classification; do not parse the diagnostic message. */
-	readonly code: 'conflict' | 'capacity' | 'policy' | 'stale';
-	constructor(code: OutboxError['code']) {
-		super(`Transactional outbox ${code}.`);
-		this.name = 'OutboxError';
-		this.code = code;
-	}
 }
 /** Install only this adapter's revision. Applications own running migrations and transaction pools. */
 export async function migrate({ database }: { readonly database: Sql }): Promise<void> {

@@ -449,3 +449,38 @@ describe('outbox retirement', () => {
 		expect(await box.inspect('job', 'done')).toBe('pending');
 	});
 });
+
+describe('outbox policy resize', () => {
+	it('raises maximum once, replays the same change and refuses a stale expectation', async () => {
+		await using owned = partition();
+		const namespace = owned.namespace;
+		const small = outbox.open({ database, namespace, maximum: 1 });
+		await database.begin((tx) => small.append(tx, { id: 'job', key: 'one', value: 1 }));
+		await expect(database.begin((tx) => small.append(tx, { id: 'job', key: 'two', value: 2 })))
+			.rejects.toMatchObject({ code: 'capacity' });
+		const from = { maximum: 1, bytes: 1048576, attempts: 8 };
+		const to = { maximum: 2, bytes: 1048576, attempts: 8 };
+		expect(await database.begin((tx) => outbox.resize(tx, { namespace, from, to }))).toBe('resized');
+		expect(await database.begin((tx) => outbox.resize(tx, { namespace, from, to }))).toBe('replayed');
+		// A writer still on the old maximum fails its policy check; one on the new maximum has room.
+		await expect(database.begin((tx) => small.append(tx, { id: 'job', key: 'two', value: 2 })))
+			.rejects.toMatchObject({ code: 'policy' });
+		const large = outbox.open({ database, namespace, maximum: 2 });
+		await database.begin((tx) => large.append(tx, { id: 'job', key: 'two', value: 2 }));
+		await expect(database.begin((tx) => outbox.resize(tx, { namespace, from, to: { ...to, maximum: 3 } }))).rejects
+			.toMatchObject({ code: 'policy' });
+		await expect(database.begin((tx) => outbox.resize(tx, { namespace: crypto.randomUUID(), from, to }))).rejects
+			.toMatchObject({ code: 'policy' });
+	});
+
+	it('changes only maximum, and only upward', async () => {
+		const policy = { maximum: 10, bytes: 1048576, attempts: 8 };
+		for (const to of [{ ...policy, maximum: 9 }, { ...policy, bytes: 1 }, { ...policy, attempts: 9 }]) {
+			await expect(database.begin((tx) => outbox.resize(tx, { namespace: 'x', from: policy, to })))
+				.rejects.toThrow(RangeError);
+		}
+		await expect(
+			database.begin((tx) => outbox.resize(tx, { namespace: 'x', from: policy, to: { ...policy, maximum: 1000001 } })),
+		).rejects.toThrow(RangeError);
+	});
+});

@@ -179,6 +179,26 @@ for (const message of found) {
   The message's repair history goes with it, and so does deduplication for that key.
 - Failed and pending messages are never listed or removed.
 
+### Raise a namespace's capacity
+
+Every view of a namespace must open with the same `maximum`, `maximumBytes` and `maximumAttempts`, so changing
+`maximum` in one deployment's config only makes its writes fail the policy check. Raise it with `resize()` instead,
+in a transaction of your own, then deploy every writer with the new `maximum`:
+
+```ts ignore
+await database.begin((tx) =>
+  outbox.resize(tx, {
+    namespace: 'orders',
+    from: { maximum: 10000, bytes: 1048576, attempts: 8 },
+    to: { maximum: 20000, bytes: 1048576, attempts: 8 },
+  })
+);
+```
+
+`resize()` takes the namespace lock that `append()` takes. Only `maximum` may change, and only upward. It returns
+`'replayed'` when the stored policy already equals `to`, so a retried migration is safe, and throws `OutboxError`
+with code `policy` when the stored policy differs from `from`.
+
 The outbox uses the pool and transactions you pass to it. It does not commit your transactions, close the pool,
 or start a background process. Opening a view does not issue SQL.
 
