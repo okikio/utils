@@ -85,8 +85,8 @@ Browser, installed-package and container jobs also restore native Playwright dow
 Playwright version, operating system release, architecture and selected browser set. Chromium has its own cache;
 the existing package and container preparation share an all-browser cache. Each native installer still runs with
 `--with-deps`, then each selected test runs against the current source. The cache also keeps the Ubuntu packages
-that `--with-deps` downloads, so a slow Ubuntu mirror cannot stall the job. The next run installs those files with
-`apt-get --no-download`, which never downgrades an installed package; if that fails, the normal path runs and
+that `--with-deps` downloads, so a slow Ubuntu mirror cannot stall the job. The next run installs those files without
+refreshing apt's index and never downgrades an installed package; if that fails, the normal path runs and
 refreshes them. Only trusted refs save this cache. It does not contain browser profiles or test results. Successful trusted runs can save downloads under GitHub's ordinary ref scope;
 PR cache writes cannot populate main or release caches. Cache failures fall back to normal installation.
 
