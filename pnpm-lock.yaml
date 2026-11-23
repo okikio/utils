@@ -185,6 +185,9 @@ importers:
       '@arethetypeswrong/cli':
         specifier: 0.18.5
         version: 0.18.5
+      '@logtape/logtape':
+        specifier: 2.4.2
+        version: 2.4.2
       '@okikio/activity':
         specifier: workspace:*
         version: link:packages/activity
@@ -224,6 +227,9 @@ importers:
       '@okikio/input':
         specifier: workspace:*
         version: link:packages/input
+      '@okikio/observables':
+        specifier: ^1.4.0
+        version: 1.4.0
       '@okikio/pool':
         specifier: workspace:*
         version: link:packages/pool
@@ -266,12 +272,6 @@ importers:
       '@okikio/workflow':
         specifier: workspace:*
         version: link:packages/workflow
-      '@logtape/logtape':
-        specifier: 2.4.2
-        version: 2.4.2
-      '@okikio/observables':
-        specifier: ^1.4.0
-        version: 1.4.0
       '@sinclair/typebox':
         specifier: 0.34.52
         version: 0.34.52
@@ -309,8 +309,8 @@ importers:
         specifier: 7.0.3
         version: 7.0.3
       elysia:
-        specifier: 1.4.32
-        version: 1.4.32(@sinclair/typebox@0.34.52)(exact-mirror@0.2.9(@sinclair/typebox@0.34.52))(file-type@22.3.0(supports-color@7.2.0))(openapi-types@12.1.3)(typescript@6.0.3)
+        specifier: 1.4.30
+        version: 1.4.30(@sinclair/typebox@0.34.52)(exact-mirror@0.2.9(@sinclair/typebox@0.34.52))(file-type@22.3.0(supports-color@7.2.0))(openapi-types@12.1.3)(typescript@6.0.3)
       fast-check:
         specifier: 4.11.0
         version: 4.11.0
@@ -368,18 +368,18 @@ importers:
 
   examples/mcp:
     dependencies:
-      '@okikio/schema':
-        specifier: workspace:*
-        version: link:../../packages/schema
-      '@okikio/server':
-        specifier: workspace:*
-        version: link:../../packages/server
       '@modelcontextprotocol/client':
         specifier: 2.4.0
         version: 2.4.0
       '@modelcontextprotocol/server':
         specifier: 2.4.0
         version: 2.4.0
+      '@okikio/schema':
+        specifier: workspace:*
+        version: link:../../packages/schema
+      '@okikio/server':
+        specifier: workspace:*
+        version: link:../../packages/server
 
   examples/sessions:
     dependencies:
@@ -498,6 +498,9 @@ importers:
       '@okikio/env':
         specifier: workspace:^1.0.0
         version: link:../env
+      '@okikio/observables':
+        specifier: ^1.4.0
+        version: 1.4.0
       '@okikio/scheduler':
         specifier: workspace:^1.0.0
         version: link:../scheduler
@@ -507,9 +510,6 @@ importers:
       '@okikio/telemetry':
         specifier: workspace:^0.1.0
         version: link:../telemetry
-      '@okikio/observables':
-        specifier: ^1.4.0
-        version: 1.4.0
       '@std/encoding':
         specifier: npm:@jsr/std__encoding@^1.0.11
         version: '@jsr/std__encoding@1.0.11'
@@ -560,15 +560,15 @@ importers:
       '@okikio/duration':
         specifier: workspace:^0.1.0
         version: link:../duration
+      '@okikio/observables':
+        specifier: ^1.4.0
+        version: 1.4.0
       '@okikio/schema':
         specifier: workspace:^1.0.0
         version: link:../schema
       '@okikio/telemetry':
         specifier: workspace:^0.1.0
         version: link:../telemetry
-      '@okikio/observables':
-        specifier: ^1.4.0
-        version: 1.4.0
       '@std/async':
         specifier: npm:@jsr/std__async@^1.5.1
         version: '@jsr/std__async@1.5.1'
@@ -682,6 +682,9 @@ importers:
 
   packages/hash:
     dependencies:
+      '@noble/hashes':
+        specifier: ^2.4.0
+        version: 2.4.0
       '@okikio/context':
         specifier: workspace:^1.0.0
         version: link:../context
@@ -694,9 +697,6 @@ importers:
       '@okikio/worker':
         specifier: workspace:^1.0.0
         version: link:../worker
-      '@noble/hashes':
-        specifier: ^2.4.0
-        version: 2.4.0
       '@std/encoding':
         specifier: npm:@jsr/std__encoding@^1.0.11
         version: '@jsr/std__encoding@1.0.11'
@@ -793,12 +793,12 @@ importers:
       '@okikio/duration':
         specifier: workspace:^0.1.0
         version: link:../duration
-      '@okikio/schema':
-        specifier: workspace:^1.0.0
-        version: link:../schema
       '@okikio/observables':
         specifier: ^1.4.0
         version: 1.4.0
+      '@okikio/schema':
+        specifier: workspace:^1.0.0
+        version: link:../schema
     devDependencies:
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
@@ -820,12 +820,12 @@ importers:
       '@okikio/duration':
         specifier: workspace:^0.1.0
         version: link:../duration
-      '@okikio/telemetry':
-        specifier: workspace:^0.1.0
-        version: link:../telemetry
       '@okikio/observables':
         specifier: ^1.4.0
         version: 1.4.0
+      '@okikio/telemetry':
+        specifier: workspace:^0.1.0
+        version: link:../telemetry
     devDependencies:
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
@@ -931,6 +931,9 @@ importers:
       '@okikio/duration':
         specifier: workspace:^0.1.0
         version: link:../duration
+      '@okikio/observables':
+        specifier: ^1.4.0
+        version: 1.4.0
       '@okikio/result':
         specifier: workspace:^1.0.0
         version: link:../result
@@ -940,9 +943,6 @@ importers:
       '@okikio/telemetry':
         specifier: workspace:^0.1.0
         version: link:../telemetry
-      '@okikio/observables':
-        specifier: ^1.4.0
-        version: 1.4.0
       '@standard-schema/spec':
         specifier: ^1.1.0
         version: 1.1.0
@@ -1084,6 +1084,9 @@ importers:
       '@okikio/duration':
         specifier: workspace:^0.1.0
         version: link:../duration
+      '@okikio/observables':
+        specifier: ^1.4.0
+        version: 1.4.0
       '@okikio/result':
         specifier: workspace:^1.0.0
         version: link:../result
@@ -1099,9 +1102,6 @@ importers:
       '@okikio/workflow':
         specifier: workspace:^1.0.0
         version: link:../workflow
-      '@okikio/observables':
-        specifier: ^1.4.0
-        version: 1.4.0
       postgres:
         specifier: 4.1.1
         version: 4.1.1
@@ -1123,12 +1123,12 @@ importers:
       '@okikio/dispose':
         specifier: workspace:^0.1.0
         version: link:../dispose
-      '@okikio/schema':
-        specifier: workspace:^1.0.0
-        version: link:../schema
       '@okikio/observables':
         specifier: ^1.4.0
         version: 1.4.0
+      '@okikio/schema':
+        specifier: workspace:^1.0.0
+        version: link:../schema
     devDependencies:
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
@@ -1153,15 +1153,15 @@ importers:
       '@okikio/dispose':
         specifier: workspace:^0.1.0
         version: link:../dispose
+      '@okikio/observables':
+        specifier: ^1.4.0
+        version: 1.4.0
       '@okikio/scheduler':
         specifier: workspace:^1.0.0
         version: link:../scheduler
       '@okikio/schema':
         specifier: workspace:^1.0.0
         version: link:../schema
-      '@okikio/observables':
-        specifier: ^1.4.0
-        version: 1.4.0
     devDependencies:
       '@okikio/duration':
         specifier: workspace:^0.1.0
@@ -1180,15 +1180,15 @@ importers:
       '@okikio/collection':
         specifier: workspace:^1.0.0
         version: link:../collection
+      '@okikio/observables':
+        specifier: ^1.4.0
+        version: 1.4.0
       '@okikio/result':
         specifier: workspace:^1.0.0
         version: link:../result
       '@okikio/schema':
         specifier: workspace:^1.0.0
         version: link:../schema
-      '@okikio/observables':
-        specifier: ^1.4.0
-        version: 1.4.0
     devDependencies:
       '@okikio/pool':
         specifier: workspace:^0.1.0
@@ -1343,6 +1343,9 @@ importers:
       '@okikio/dispose':
         specifier: workspace:^0.1.0
         version: link:../dispose
+      '@okikio/observables':
+        specifier: ^1.4.0
+        version: 1.4.0
       '@okikio/result':
         specifier: workspace:^1.0.0
         version: link:../result
@@ -1352,9 +1355,6 @@ importers:
       '@okikio/telemetry':
         specifier: workspace:^0.1.0
         version: link:../telemetry
-      '@okikio/observables':
-        specifier: ^1.4.0
-        version: 1.4.0
     devDependencies:
       '@okikio/runtime':
         specifier: workspace:^1.0.0
@@ -1388,6 +1388,9 @@ importers:
       '@okikio/duration':
         specifier: workspace:^0.1.0
         version: link:../duration
+      '@okikio/observables':
+        specifier: ^1.4.0
+        version: 1.4.0
       '@okikio/result':
         specifier: workspace:^1.0.0
         version: link:../result
@@ -1400,9 +1403,6 @@ importers:
       '@okikio/telemetry':
         specifier: workspace:^0.1.0
         version: link:../telemetry
-      '@okikio/observables':
-        specifier: ^1.4.0
-        version: 1.4.0
       '@std/encoding':
         specifier: npm:@jsr/std__encoding@^1.0.11
         version: '@jsr/std__encoding@1.0.11'
@@ -2541,12 +2541,12 @@ packages:
       oxc-resolver:
         optional: true
 
-  elysia@1.4.32:
-    resolution: {integrity: sha512-pSWBPKJe0t24r6oQydL8xmFnbOOVs0bXN1ShIwSPxXJbE/z9NRRXs8FigQRhXyjdbi3YSuJgEKe22BVx4cU99w==}
+  elysia@1.4.30:
+    resolution: {integrity: sha512-S2qqV0CbM4faB1hQQ5IYoeYnAUinjHlzRduxaBc4OoNqh0GjOc8k6tt3hv5ozWcG6Svr6hugw6JL4zNke4jwfA==}
     peerDependencies:
       '@sinclair/typebox': '>= 0.34.0 < 1'
       '@types/bun': '>= 1.2.0'
-      exact-mirror: '>= 0.2.9 < 1'
+      exact-mirror: '>= 0.0.9'
       file-type: '>= 20.0.0'
       openapi-types: '>= 12.0.0'
       typescript: '>= 5.0.0'
@@ -4188,7 +4188,7 @@ snapshots:
 
   dts-resolver@3.0.0: {}
 
-  elysia@1.4.32(@sinclair/typebox@0.34.52)(exact-mirror@0.2.9(@sinclair/typebox@0.34.52))(file-type@22.3.0(supports-color@7.2.0))(openapi-types@12.1.3)(typescript@6.0.3):
+  elysia@1.4.30(@sinclair/typebox@0.34.52)(exact-mirror@0.2.9(@sinclair/typebox@0.34.52))(file-type@22.3.0(supports-color@7.2.0))(openapi-types@12.1.3)(typescript@6.0.3):
     dependencies:
       '@sinclair/typebox': 0.34.52
       cookie: 1.1.1
