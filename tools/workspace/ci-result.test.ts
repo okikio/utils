@@ -67,7 +67,10 @@ it('keeps deliberate PR deferrals distinct from successful or failed selected wo
 it('requires the shared benchmark/examples job for either or both selected lanes', () => {
 	for (const [benchmark, examples] of [[true, false], [false, true], [true, true]]) {
 		const jobs = documentation();
-		const plan = { ...jobs.plan, outputs: { ...jobs.plan.outputs, benchmark: String(benchmark), examples: String(examples) } };
+		const plan = {
+			...jobs.plan,
+			outputs: { ...jobs.plan.outputs, benchmark: String(benchmark), examples: String(examples) },
+		};
 		const shared = { ...jobs, plan, benchmark: { result: 'success' } };
 		expect(() => requireSelectedResults(shared)).not.toThrow();
 		for (const result of ['failure', 'cancelled', 'skipped', '']) {
