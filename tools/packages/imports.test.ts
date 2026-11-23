@@ -173,8 +173,11 @@ describe('workspace import ownership', () => {
 			for await (const file of modules(resolve(packages, owner), true)) {
 				for (const specifier of specifiers(file, await readFile(file, 'utf8'), true)) {
 					let target: string | undefined;
-					if (specifier.startsWith('@okikio/')) target = specifier.split('/')[1];
-					else if (specifier.startsWith('.')) {
+					// @okikio/observables shares the scope but is a separate JSR library, not a workspace package.
+					if (specifier.startsWith('@okikio/')) {
+						const name = specifier.split('/')[1]!;
+						if (owners.includes(name)) target = name;
+					} else if (specifier.startsWith('.')) {
 						const address = fileURLToPath(new URL(specifier, pathToFileURL(file)));
 						const local = relative(packages, address);
 						if (!local.startsWith('../')) target = local.split('/')[0];
