@@ -1,4 +1,4 @@
-min_version = "2026.10.3"
+min_version = "2026.10.25"
 
 # Task families are the common local/CI interface. Helpers live under tools/;
 # package source and tests keep their own runtime and resource contracts.
@@ -13,12 +13,12 @@ node = "26.10.0"
 pnpm = "11.17.0"
 
 [tasks."prepare"]
-description = "Prepare explicitly selected dependency and host fixtures"
+description = "Prepare dependencies or select a benchmark or browser fixture"
 raw_args = true
 run = "node tools/workspace/run.ts prepare"
 
 [tasks."check"]
-description = "Check source or package contracts; select kind and project"
+description = "Run all repository checks, or select one check by kind"
 raw_args = true
 run = "node tools/workspace/run.ts check"
 

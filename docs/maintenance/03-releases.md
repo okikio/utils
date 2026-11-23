@@ -70,9 +70,9 @@ when those jobs succeed. It does not infer readiness from a different CI run or 
 
 The installed-package job builds and tests the npm candidates, then uploads those exact staged directories. The npm job
 downloads them; it does not rebuild. Each source package's `publishConfig.directory` points pnpm at its staged package.
-Sampo discovers the source workspace and invokes native pnpm publication. This repository maps `@okikio` to
-`https://registry.npmjs.org/` even when a maintainer uses GitHub Packages for the same scope elsewhere. Each staged
-manifest names the public registry and source repository and exports ESM JavaScript and declarations. The JSR job
+Sampo discovers the source workspace and invokes native pnpm publication. This repository maps `@okikio` to the
+public registry, `https://registry.npmjs.org/`, so a scope mapping in a maintainer's own npm settings cannot redirect a
+release. Each staged manifest names the public registry and source repository and exports ESM JavaScript and declarations. The JSR job
 publishes source at the same revision with Deno's frozen lockfile. Tsdown is not needed to publish JSR subpaths.
 
 For local inspection, these commands perform no upload:
@@ -95,7 +95,7 @@ Before the first hosted release, the repository owner must configure these exter
 | --- | --- |
 | `BUMPY_APP_ID` and `BUMPY_APP_PRIVATE_KEY` | A GitHub App installed on this repository with contents and pull-request write access creates the version PR. Its push can trigger ordinary PR checks. |
 | `publish` environment | Allow only `main` to reach either registry job. |
-| npm trusted publishing | Register owner `Kaiju-Ind`, repository `Utils`, workflow `release.yml`, environment `publish`, and allow direct publication for each npm package. The job requests an OIDC token instead of storing a long-lived registry token. |
+| npm trusted publishing | Register owner `okikio`, repository `utils`, workflow `release.yml`, environment `publish`, and allow direct publication for each npm package. The job requests an OIDC token instead of storing a long-lived registry token. |
 | JSR scope, packages and GitHub repository association | Permit Deno's GitHub Actions OIDC publication for the package names in the manifests. |
 | Branch protection | Require the relevant source, runtime and installed-consumer checks on version PRs. Formatting and linting remain separate advisory jobs. |
 
@@ -109,13 +109,13 @@ Check existing bindings first rather than replacing another release identity.
 
 ```sh
 npm trust list @okikio/streams
-npm trust github @okikio/streams --repo Kaiju-Ind/Utils --file release.yml --env publish --allow-publish
+npm trust github @okikio/streams --repo okikio/utils --file release.yml --env publish --allow-publish
 ```
 
 npm requires the package to exist before a trusted publisher can be added. A new name therefore needs an explicitly
 authorized first publication before this setup can be completed. Do not treat a missing package as a failed OIDC binding,
 or perform a first publication as part of a settings check. For JSR, create the intended package in the scope and link it
-to `Kaiju-Ind/Utils` in its settings. Check all workspace packages, including newly added ones; one configured package does
+to `okikio/utils` in its settings. Check all workspace packages, including newly added ones; one configured package does
 not authorize the rest. See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/),
 [the npm trust CLI](https://docs.npmjs.com/cli/v11/commands/npm-trust/), and
 [JSR publication settings](https://jsr.io/docs/publishing-packages).
@@ -123,19 +123,6 @@ not authorize the rest. See [npm trusted publishing](https://docs.npmjs.com/trus
 The pinned CLI is `sampo@0.24.0`. It supports npm workspace releases, not a native JSR adapter. The JSR job is an explicit
 Deno step, not a claim of upstream JSR support. Registry configuration and real hosted publication need to be checked by
 the repository owner; local dry runs cannot prove those credentials or permissions.
-
-### Hand off a version to Core or Billing
-
-For the signing subpath, qualify HTTP and its local dependency closure together. The version plan may include other
-packages; inspect the exact versions in the staged HTTP manifest rather than assuming they all use the same version.
-An installed consumer must resolve `@okikio/http/signature` to emitted JavaScript and verify a known signature
-through that entrypoint. A workspace import or a test against `0.0.0` cannot establish that a release can be installed.
-
-After the reviewed release is available, Core and Billing can pin the npm version and update their own lockfiles.
-Their tests must still prove that each sender and receiver accepts the other's signed request during rollout. Utils
-owns byte authentication; the callers continue to check the audience, expiry, authorization, and replay policy.
-Remove the old helpers only after their remaining consumers have moved. If qualification fails, keep the current
-consumer pins and fix the Utils candidate before retrying the handoff.
 
 ## Recover from a partial release
 
