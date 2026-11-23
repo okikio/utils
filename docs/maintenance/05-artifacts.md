@@ -28,7 +28,7 @@ Generated source can belong in Git when a real consumer requires committed bytes
 drift. That is a specific contract, not permission to retain every JSON dump or benchmark run alongside source.
 
 Repository-owned programs use TypeScript. The npm JavaScript consumer fixture deliberately exercises emitted exports
-without a TypeScript loader, and the small `.mise/tasks/ops/` shell entrypoints let Mise own native command dependencies.
+without a TypeScript loader, and the small `.mise/tasks/` shell entrypoints let Mise own native command dependencies.
 Neither exception creates a second implementation of the utilities. Browser source bundles stay in repository
 `.tmp/tests/browser/`. Installed-consumer bundles and copied scenarios use that consumer's `.tmp/`, outside the checkout,
 so workspace dependency resolution cannot conceal an incomplete package archive.
@@ -39,7 +39,7 @@ Install the declared tools and frozen dependencies, then prepare the treatment m
 
 ```sh
 mise install
-mise run prepare -- --kind deps
+mise run prepare:node
 mise run prepare -- --kind freeze
 mise run bench -- --operation freeze --check
 ```

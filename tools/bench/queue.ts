@@ -49,8 +49,8 @@ const harnessFiles = [
 	'tools/bench/queue.ts',
 	'tools/bench/output.ts',
 	'tools/workspace/run.ts',
-	'.mise/tasks/ops/bench/queue.sh',
-	'.mise/tasks/ops/prepare/deps.sh',
+	'.mise/tasks/bench/queue.sh',
+	'.mise/tasks/prepare/deps.sh',
 	'node_modules/postgres/package.json',
 ];
 const metadata = {

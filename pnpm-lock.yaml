@@ -14,9 +14,6 @@ importers:
       '@arethetypeswrong/cli':
         specifier: 0.18.5
         version: 0.18.5
-      '@logtape/logtape':
-        specifier: 2.4.2
-        version: 2.4.2
       '@okikio/activity':
         specifier: workspace:*
         version: link:packages/activity
@@ -56,9 +53,6 @@ importers:
       '@okikio/input':
         specifier: workspace:*
         version: link:packages/input
-      '@okikio/observables':
-        specifier: ^1.4.0
-        version: 1.4.0
       '@okikio/pool':
         specifier: workspace:*
         version: link:packages/pool
@@ -101,6 +95,12 @@ importers:
       '@okikio/workflow':
         specifier: workspace:*
         version: link:packages/workflow
+      '@logtape/logtape':
+        specifier: 2.4.2
+        version: 2.4.2
+      '@okikio/observables':
+        specifier: ^1.4.0
+        version: 1.4.0
       '@sinclair/typebox':
         specifier: 0.34.52
         version: 0.34.52
@@ -197,18 +197,18 @@ importers:
 
   examples/mcp:
     dependencies:
-      '@modelcontextprotocol/client':
-        specifier: 2.4.0
-        version: 2.4.0
-      '@modelcontextprotocol/server':
-        specifier: 2.4.0
-        version: 2.4.0
       '@okikio/schema':
         specifier: workspace:*
         version: link:../../packages/schema
       '@okikio/server':
         specifier: workspace:*
         version: link:../../packages/server
+      '@modelcontextprotocol/client':
+        specifier: 2.4.0
+        version: 2.4.0
+      '@modelcontextprotocol/server':
+        specifier: 2.4.0
+        version: 2.4.0
 
   examples/sessions:
     dependencies:
@@ -322,9 +322,6 @@ importers:
       '@okikio/env':
         specifier: workspace:^1.0.0
         version: link:../env
-      '@okikio/observables':
-        specifier: ^1.4.0
-        version: 1.4.0
       '@okikio/scheduler':
         specifier: workspace:^1.0.0
         version: link:../scheduler
@@ -334,6 +331,9 @@ importers:
       '@okikio/telemetry':
         specifier: workspace:^0.1.0
         version: link:../telemetry
+      '@okikio/observables':
+        specifier: ^1.4.0
+        version: 1.4.0
       '@std/encoding':
         specifier: npm:@jsr/std__encoding@^1.0.11
         version: '@jsr/std__encoding@1.0.11'
@@ -376,15 +376,15 @@ importers:
       '@okikio/duration':
         specifier: workspace:^0.1.0
         version: link:../duration
-      '@okikio/observables':
-        specifier: ^1.4.0
-        version: 1.4.0
       '@okikio/schema':
         specifier: workspace:^1.0.0
         version: link:../schema
       '@okikio/telemetry':
         specifier: workspace:^0.1.0
         version: link:../telemetry
+      '@okikio/observables':
+        specifier: ^1.4.0
+        version: 1.4.0
       '@std/async':
         specifier: npm:@jsr/std__async@^1.5.0
         version: '@jsr/std__async@1.5.0'
@@ -487,12 +487,12 @@ importers:
 
   packages/hash:
     dependencies:
-      '@noble/hashes':
-        specifier: ^2.4.0
-        version: 2.4.0
       '@okikio/streams':
         specifier: workspace:^0.1.0
         version: link:../streams
+      '@noble/hashes':
+        specifier: ^2.4.0
+        version: 2.4.0
       '@std/encoding':
         specifier: npm:@jsr/std__encoding@^1.0.11
         version: '@jsr/std__encoding@1.0.11'
@@ -586,12 +586,12 @@ importers:
       '@okikio/duration':
         specifier: workspace:^0.1.0
         version: link:../duration
-      '@okikio/observables':
-        specifier: ^1.4.0
-        version: 1.4.0
       '@okikio/schema':
         specifier: workspace:^1.0.0
         version: link:../schema
+      '@okikio/observables':
+        specifier: ^1.4.0
+        version: 1.4.0
     devDependencies:
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
@@ -612,12 +612,12 @@ importers:
       '@okikio/duration':
         specifier: workspace:^0.1.0
         version: link:../duration
-      '@okikio/observables':
-        specifier: ^1.4.0
-        version: 1.4.0
       '@okikio/telemetry':
         specifier: workspace:^0.1.0
         version: link:../telemetry
+      '@okikio/observables':
+        specifier: ^1.4.0
+        version: 1.4.0
     devDependencies:
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
@@ -716,9 +716,6 @@ importers:
       '@okikio/duration':
         specifier: workspace:^0.1.0
         version: link:../duration
-      '@okikio/observables':
-        specifier: ^1.4.0
-        version: 1.4.0
       '@okikio/result':
         specifier: workspace:^1.0.0
         version: link:../result
@@ -728,6 +725,9 @@ importers:
       '@okikio/telemetry':
         specifier: workspace:^0.1.0
         version: link:../telemetry
+      '@okikio/observables':
+        specifier: ^1.4.0
+        version: 1.4.0
       '@standard-schema/spec':
         specifier: ^1.1.0
         version: 1.1.0
@@ -851,9 +851,6 @@ importers:
       '@okikio/duration':
         specifier: workspace:^0.1.0
         version: link:../duration
-      '@okikio/observables':
-        specifier: ^1.4.0
-        version: 1.4.0
       '@okikio/result':
         specifier: workspace:^1.0.0
         version: link:../result
@@ -869,6 +866,9 @@ importers:
       '@okikio/workflow':
         specifier: workspace:^1.0.0
         version: link:../workflow
+      '@okikio/observables':
+        specifier: ^1.4.0
+        version: 1.4.0
       postgres:
         specifier: 4.0.0
         version: 4.0.0
@@ -889,12 +889,12 @@ importers:
       '@okikio/dispose':
         specifier: workspace:^0.1.0
         version: link:../dispose
-      '@okikio/observables':
-        specifier: ^1.4.0
-        version: 1.4.0
       '@okikio/schema':
         specifier: workspace:^1.0.0
         version: link:../schema
+      '@okikio/observables':
+        specifier: ^1.4.0
+        version: 1.4.0
     devDependencies:
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
@@ -918,15 +918,15 @@ importers:
       '@okikio/dispose':
         specifier: workspace:^0.1.0
         version: link:../dispose
-      '@okikio/observables':
-        specifier: ^1.4.0
-        version: 1.4.0
       '@okikio/scheduler':
         specifier: workspace:^1.0.0
         version: link:../scheduler
       '@okikio/schema':
         specifier: workspace:^1.0.0
         version: link:../schema
+      '@okikio/observables':
+        specifier: ^1.4.0
+        version: 1.4.0
     devDependencies:
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
@@ -941,15 +941,15 @@ importers:
       '@okikio/collection':
         specifier: workspace:^1.0.0
         version: link:../collection
-      '@okikio/observables':
-        specifier: ^1.4.0
-        version: 1.4.0
       '@okikio/result':
         specifier: workspace:^1.0.0
         version: link:../result
       '@okikio/schema':
         specifier: workspace:^1.0.0
         version: link:../schema
+      '@okikio/observables':
+        specifier: ^1.4.0
+        version: 1.4.0
     devDependencies:
       '@okikio/pool':
         specifier: workspace:^0.1.0
@@ -1105,9 +1105,6 @@ importers:
       '@okikio/dispose':
         specifier: workspace:^0.1.0
         version: link:../dispose
-      '@okikio/observables':
-        specifier: ^1.4.0
-        version: 1.4.0
       '@okikio/result':
         specifier: workspace:^1.0.0
         version: link:../result
@@ -1117,6 +1114,9 @@ importers:
       '@okikio/telemetry':
         specifier: workspace:^0.1.0
         version: link:../telemetry
+      '@okikio/observables':
+        specifier: ^1.4.0
+        version: 1.4.0
     devDependencies:
       '@standard-schema/spec':
         specifier: ^1.1.0
@@ -1146,9 +1146,6 @@ importers:
       '@okikio/duration':
         specifier: workspace:^0.1.0
         version: link:../duration
-      '@okikio/observables':
-        specifier: ^1.4.0
-        version: 1.4.0
       '@okikio/result':
         specifier: workspace:^1.0.0
         version: link:../result
@@ -1161,6 +1158,9 @@ importers:
       '@okikio/telemetry':
         specifier: workspace:^0.1.0
         version: link:../telemetry
+      '@okikio/observables':
+        specifier: ^1.4.0
+        version: 1.4.0
       '@std/encoding':
         specifier: npm:@jsr/std__encoding@^1.0.11
         version: '@jsr/std__encoding@1.0.11'

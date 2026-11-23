@@ -8,6 +8,7 @@ workspace first; use the export write operation when you intend to update the de
 
 ```sh
 mise run check
+mise run check -- --kind lint --project streams
 mise run test -- --project streams --runtime node
 mise run test -- --project tools --runtime bun
 mise run bench -- --check --project streams --runtime deno
@@ -32,7 +33,7 @@ tools/
 └── bench/              fixture checks, measurements, comparisons and profiling
 ```
 
-`workspace/run.ts` checks options such as `--project`, then calls the matching task under `.mise/tasks/ops/`.
+`workspace/run.ts` checks options such as `--project`, then calls the matching task under `.mise/tasks/`.
 Those shell tasks select the runtime, set its environment, and pass permissions. The TypeScript programs run the
 steps. Mise chooses the pinned runtime versions and runs prerequisites first. Package scripts and Deno tasks
 call the same task families.
@@ -54,8 +55,9 @@ Repository-owned generated artifacts and execution evidence live in `.tmp/`. Exi
 consumers use isolated directories so this checkout's workspace dependencies cannot conceal a missing dependency.
 These locations are internal test details, not application layout recommendations.
 
-CI installs pinned tools with the official Mise action and caches pnpm downloads and Deno modules. Each job shows its
-setup directly. Restoring downloads does not skip tests, reuse an unverified build or imply a passing check. The release
+CI installs pinned tools with the official Mise action and caches pnpm downloads and Deno modules. `mise run check:actions`
+runs the same workflow validation as CI (actionlint). `mise run actions .github/workflows/ci.yml --event workflow_dispatch`
+runs one workflow locally with act, which needs Docker. Each job shows its setup directly. Restoring downloads does not skip tests, reuse an unverified build or imply a passing check. The release
 workflow reuses exact tested artifacts at the same revision.
 
 Read [testing](../docs/maintenance/01-testing.md), [packaging](../docs/maintenance/02-packaging.md),

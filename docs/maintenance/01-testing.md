@@ -19,7 +19,7 @@ programs live in `tools/packages/` and `tools/bench/`.
 
 `tools/testing/discover.ts` walks authored package, composition and tool tests in stable order. New ordinary tests run
 on all three runtimes automatically. Only named host capabilities and resources have separate classifications. Run
-`mise run test -- --suite list` to see each file's owner and reason. `mise run check -- --kind tests` inspects
+`mise run test -- --suite list` to see each file's owner and reason. `mise run check:tests` inspects
 TypeScript syntax without executing tests: a behavior test must register with its runner, and a compile-time fixture
 must not be counted as a runtime pass. Misspelled selectors and empty selections fail.
 
@@ -112,7 +112,7 @@ Install the tools from `mise.toml`, then install the exact workspace dependencie
 
 ```sh
 mise install
-mise run prepare -- --kind deps
+mise run prepare:node
 mise run check
 mise run test -- --runtime node -- packages/duration
 mise run test -- --runtime deno -- packages/context
@@ -181,16 +181,16 @@ Review branch-protection names when changing workflows; the release-metadata job
 Install the browser before its source or package checks:
 
 ```sh
-mise run prepare -- --kind browser
+mise run fixture:browser
 mise run test -- --suite browser
 mise run test -- --suite packages
 ```
 
-On a fresh Linux CI machine, `mise run prepare -- --kind browser --with-deps` also installs Chromium's system
+On a fresh Linux CI machine, `mise run fixture:browser --with-deps` also installs Chromium's system
 dependencies. To run the browser/container matrix locally, select all three engines before running its tests:
 
 ```sh
-mise run prepare -- --kind browser chromium firefox webkit --with-deps
+mise run fixture:browser chromium firefox webkit --with-deps
 mise run test -- --suite containers tests/workflows/duplex-browser.test.ts
 ```
 
@@ -236,8 +236,8 @@ memory plateau or production capacity. See [recovery tests](./07-recovery.md) fo
 
 ## Public types are an independent contract
 
-`mise run check -- --kind types` compiles the complete source with the pinned TypeScript compiler.
-`mise run check -- --kind portable` checks separate browser, Web Worker and Node consumer environments without ambient
+`mise run check:types` compiles the complete source with the pinned TypeScript compiler.
+`mise run check:portable` checks separate browser, Web Worker and Node consumer environments without ambient
 types from an unrelated host. Real browser overloads and small structural mocks must both infer correctly. Type fixtures
 include accepted programs and `@ts-expect-error` calls that must fail for the intended reason. Files named
 `types.test.ts` or `*.types.test.ts` are compiler fixtures, not empty runtime tests.

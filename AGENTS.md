@@ -13,7 +13,7 @@ knowledge. Document important private invariants and examples as carefully as pu
   JSR imports and runtime settings. `tools/packages/exports.ts` checks or projects the shared export decisions.
 - Mise owns pinned tools and task families. Use `mise run test -- --project <name> --runtime <deno|node|bun>` and
   `mise run bench -- --check --project <name>`. Do not add one task or CI job per package.
-- `tools/` is a private workspace package. Its substantive programs are TypeScript; `.mise/tasks/ops/` selects native tools.
+- `tools/` is a private workspace package. Its substantive programs are TypeScript; `.mise/tasks/` selects native tools.
 - Sampo owns changesets, semantic versions and changelogs. Read `docs/maintenance/03-releases.md` before changing releases.
 - npm ships ESM JavaScript and declarations. JSR ships TypeScript source. Preserve public inference and check actual
   installed consumers with `mise run test -- --suite packages` when changing packaging.

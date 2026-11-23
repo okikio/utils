@@ -41,7 +41,7 @@ To inspect the same preparation locally, use a clean checkout of `main`:
 mise run release -- --operation version --check
 # The following command writes versions and consumes changesets. Review its diff.
 mise run release -- --operation version
-mise run check -- --kind versions
+mise run check:versions
 ```
 
 Read `package.json` for the package name, version, source exports, and npm dependency ranges. Sampo chooses
@@ -70,9 +70,10 @@ when those jobs succeed. It does not infer readiness from a different CI run or 
 
 The installed-package job builds and tests the npm candidates, then uploads those exact staged directories. The npm job
 downloads them; it does not rebuild. Each source package's `publishConfig.directory` points pnpm at its staged package.
-Sampo discovers the source workspace and invokes native pnpm publication. The staged manifest contains ESM JavaScript
-and declaration exports, rather than source-only TypeScript exports. The JSR job publishes source at the same revision
-with Deno's frozen lockfile. Tsdown is not needed to publish JSR subpaths.
+Sampo discovers the source workspace and invokes native pnpm publication. This repository maps `@okikio` to the
+public registry, `https://registry.npmjs.org/`, so a scope mapping in a maintainer's own npm settings cannot redirect a
+release. Each staged manifest names the public registry and source repository and exports ESM JavaScript and declarations. The JSR job
+publishes source at the same revision with Deno's frozen lockfile. Tsdown is not needed to publish JSR subpaths.
 
 For local inspection, these commands perform no upload:
 

@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto';
 import { build } from 'tsdown';
 import { parseSync } from 'oxc-parser';
 import { projection } from '../../tsdown.config.ts';
+import { npmRegistry } from '../releases/candidates.ts';
 
 /** Source-owned npm metadata; the projection replaces only distribution-specific fields. */
 interface Manifest {
@@ -118,7 +119,13 @@ if (mode === 'member') {
 		};
 		delete manifest.devDependencies;
 		// The staged package is the publication root, not another redirect to source staging.
-		manifest.publishConfig = { access: 'public' };
+		manifest.publishConfig = { access: 'public', registry: npmRegistry };
+		// Trusted publishing binds the package to the repository that owns this workflow.
+		manifest.repository = {
+			type: 'git',
+			url: 'git+https://github.com/okikio/utils.git',
+			directory: `packages/${name}`,
+		};
 		delete manifest.scripts;
 		// Source-local test aliases do not address any emitted artifact; external runtime aliases remain explicit.
 		if (manifest.imports) {

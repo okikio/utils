@@ -84,7 +84,10 @@ export function workflowContext(
 }
 
 /** Build the checkpoint inherited from a live Task without making Task ownership mandatory for durable workflows. */
-function inheritedCheckpoint(parent: import('@okikio/context').Context, owned: contextCore.Owned): () => Promise<void> {
+function inheritedCheckpoint(
+	parent: import('@okikio/context').Context,
+	owned: contextCore.Owned,
+): () => Promise<void> {
 	const candidate = (parent as import('@okikio/context').Context & { readonly checkpoint?: unknown }).checkpoint;
 	if (typeof candidate !== 'function') return async () => contextCore.check(owned);
 	return async () => {

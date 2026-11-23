@@ -11,7 +11,7 @@ it does not certify every package as stress-tested.
 
 ## Run the local contract before collecting timings
 
-From the checkout, review `mise.toml`, run `mise trust`, `mise install`, and `mise run prepare -- --kind deps`. For the HTTP
+From the checkout, review `mise.toml`, run `mise trust`, `mise install`, and `mise run prepare:node`. For the HTTP
 workflows, the local checks are:
 
 ```sh
