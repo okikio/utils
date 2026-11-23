@@ -57,8 +57,14 @@ not enforce a protocol or store keys. A plain digest alone cannot authenticate a
 | `@okikio/hash/checksum`  | `hash`, `create`, `ready`, `backend`, `crc32`, `crc32c`            | CRC bytes by catalogue name; `crc32` and `crc32c` return unsigned numbers.      |
 | other family paths          | `hash`, `create`, `ready`, `backend`                               | `sha2`, `legacy`, `national`, `contest`, `fsb`, `mac`, `fast`; results are bytes. |
 | `<family>/wasm` paths       | `hash`, `create`, `ready`                                          | WASM only, nothing loads before `ready()`, no fallback.                         |
+| `<family>/packed` paths     | `hash`, `create`, `ready`                                          | Embedded WASM only; `ready()` decodes it; no fallback.                          |
+| `<family>/native` paths     | `hash`, `create`, `ready`                                          | `node:crypto` only; `UnsupportedError` where it is missing.                     |
+| `<family>/portable` paths   | `hash`, `create`, `ready`                                          | Pure JavaScript only.                                                           |
+| `<family>/web` paths        | `hash`                                                             | Web Crypto only; async; HMAC with `key`.                                        |
+| `wasm/<family>.wasm`        | a raw module                                                       | Pass it to the matching `/wasm` path's `ready()`.                               |
 
-Every focused path also has an equivalent `@okikio/utils/hash/...` forwarding module. SHA-2 algorithm names are
+Every focused module path also has an equivalent `@okikio/utils/hash/...` forwarding module; raw `.wasm` files do
+not. SHA-2 algorithm names are
 `sha256`, `sha384` and `sha512`. Generic digest output is `bytes`, `hex` or `base64url`; named SHA-2 functions always
 return hex. Both sync and async one-shot functions accept UTF-8 text, buffers, and exact byte views. They read the
 input before they return, so a later change to the caller's buffer cannot change the digest. Text is not Unicode-normalized. Incremental updates consume `Uint8Array` chunks synchronously without retaining

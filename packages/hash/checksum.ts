@@ -16,8 +16,8 @@
  * @module
  */
 import type { InputType } from './_bytes.ts';
-import { crc, polynomials } from './_crc32.ts';
 import { type HashOptionsType, runtime } from './_family.ts';
+import { fallbacks } from './_fallback/checksum.ts';
 import type { HasherType } from './_hasher.ts';
 import type { SourceType } from './_wasm/load.ts';
 import { text } from './_wasm/packed/checksum.ts';
@@ -34,12 +34,10 @@ export type AlgorithmType = NameType<'checksum'>;
 
 const family = runtime({
 	family: 'checksum',
+	mode: 'auto',
 	packed: text,
 	raw: new URL('./_wasm/raw/checksum.wasm', import.meta.url),
-	fallbacks: {
-		'CRC-32/ISO-HDLC': { portable: () => crc(polynomials.ieee) },
-		'CRC-32/ISCSI': { portable: () => crc(polynomials.castagnoli) },
-	},
+	fallbacks,
 });
 
 /** Load the WebAssembly module now instead of on first use. Pass `source` to use your own copy. */

@@ -16,12 +16,11 @@
  */
 import type { InputType } from './_bytes.ts';
 import { type HashOptionsType, runtime } from './_family.ts';
+import { fallbacks } from './_fallback/legacy.ts';
 import type { HasherType } from './_hasher.ts';
 import type { SourceType } from './_wasm/load.ts';
 import { text } from './_wasm/packed/legacy.ts';
 import type { NameType } from './_wasm/registry.ts';
-import { md5, ripemd160, sha1 } from '@noble/hashes/legacy.js';
-import { fixed } from './_fallback.ts';
 
 export { CollisionError, NotReadyError, UnsupportedError } from './_family.ts';
 export type { HashOptionsType } from './_family.ts';
@@ -34,14 +33,10 @@ export type AlgorithmType = NameType<'legacy'>;
 
 const family = runtime({
 	family: 'legacy',
+	mode: 'auto',
 	packed: text,
 	raw: new URL('./_wasm/raw/legacy.wasm', import.meta.url),
-	fallbacks: {
-		md4: { native: 'md4' },
-		md5: fixed(md5, 'md5'),
-		sha1: fixed(sha1, 'sha1'),
-		ripemd160: fixed(ripemd160, 'ripemd160'),
-	},
+	fallbacks,
 });
 
 /**

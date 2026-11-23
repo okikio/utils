@@ -16,12 +16,11 @@
  */
 import type { InputType } from './_bytes.ts';
 import { type HashOptionsType, runtime } from './_family.ts';
+import { fallbacks } from './_fallback/sha2.ts';
 import type { HasherType } from './_hasher.ts';
 import type { SourceType } from './_wasm/load.ts';
 import { text } from './_wasm/packed/sha2.ts';
 import type { NameType } from './_wasm/registry.ts';
-import { sha224, sha256, sha384, sha512, sha512_224, sha512_256 } from '@noble/hashes/sha2.js';
-import { fixed } from './_fallback.ts';
 
 export { CollisionError, NotReadyError, UnsupportedError } from './_family.ts';
 export type { HashOptionsType } from './_family.ts';
@@ -34,16 +33,10 @@ export type AlgorithmType = NameType<'sha2'>;
 
 const family = runtime({
 	family: 'sha2',
+	mode: 'auto',
 	packed: text,
 	raw: new URL('./_wasm/raw/sha2.wasm', import.meta.url),
-	fallbacks: {
-		sha224: fixed(sha224, 'sha224'),
-		sha256: fixed(sha256, 'sha256'),
-		sha384: fixed(sha384, 'sha384'),
-		sha512: fixed(sha512, 'sha512'),
-		'sha512-224': fixed(sha512_224, 'sha512-224'),
-		'sha512-256': fixed(sha512_256, 'sha512-256'),
-	},
+	fallbacks,
 });
 
 /**

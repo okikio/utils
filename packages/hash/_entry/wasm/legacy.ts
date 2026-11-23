@@ -1,15 +1,15 @@
 /**
- * WebAssembly-only national standards: Streebog, GOST R 34.11-94, SM3, Kupyna, BelT, bash-hash and Ascon.
+ * WebAssembly-only legacy digests: MD2, MD4, MD5, SHA-1, SHA-1 with collision detection, RIPEMD and Tiger. They are broken or weak for collision resistance; use them only to read old data or speak old protocols.
  *
  * Nothing loads until you call `ready()`, and nothing falls back to another backend. Pass the module in
  * the form you already have, or call `ready()` with no argument to load the file beside this module:
  *
  * ```ts ignore
- * import * as module from './vendor/national.wasm'; // a copy of _wasm/raw/national.wasm from this package
- * import { hash, ready } from '@okikio/hash/national/wasm';
+ * import * as module from './vendor/legacy.wasm'; // a copy of _wasm/raw/legacy.wasm from this package
+ * import { hash, ready } from '@okikio/hash/legacy/wasm';
  *
  * await ready(module);
- * hash('streebog256', 'hello');
+ * hash('sha1-checked', 'hello');
  * ```
  *
  * @module
@@ -17,22 +17,26 @@
 import type { InputType } from '../../_bytes.ts';
 import { type HashOptionsType, runtime } from '../../_family.ts';
 import type { HasherType } from '../../_hasher.ts';
-import type { SourceType } from '../load.ts';
-import type { NameType } from '../registry.ts';
+import type { SourceType } from '../../_wasm/load.ts';
+import type { NameType } from '../../_wasm/registry.ts';
 
 export { CollisionError, NotReadyError, UnsupportedError } from '../../_family.ts';
 export type { HashOptionsType } from '../../_family.ts';
 export type { HasherType } from '../../_hasher.ts';
 export type { InputType } from '../../_bytes.ts';
-export type { SourceType } from '../load.ts';
+export type { SourceType } from '../../_wasm/load.ts';
 
 /** Algorithm names of this family. */
-export type AlgorithmType = NameType<'national'>;
+export type AlgorithmType = NameType<'legacy'>;
 
-const family = runtime({ family: 'national', raw: new URL('../raw/national.wasm', import.meta.url) });
+const family = runtime({
+	family: 'legacy',
+	mode: 'wasm',
+	raw: new URL('../../_wasm/raw/legacy.wasm', import.meta.url),
+});
 
 /**
- * Load the module. Without `source`, read or fetch `national.wasm` beside this module. With `source`, use it
+ * Load the module. Without `source`, read or fetch `legacy.wasm` beside this module. With `source`, use it
  * as it is: the exports of a WASM ESM import, a `WebAssembly.Module`, an `Instance`, a `Response`, bytes
  * or a URL.
  */

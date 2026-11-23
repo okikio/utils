@@ -125,14 +125,26 @@ function wasmState(state: State): StateType {
 	};
 }
 
+/**
+ * Which backends an entry point may use.
+ *
+ * - `auto`: the rules at the top of this file.
+ * - `wasm`: the module only; `ready()` loads the packed text if given, else the raw file.
+ * - `native`: `node:crypto` only. - `portable`: pure JavaScript only.
+ *
+ * A forced mode never falls back, so a test or an audit can prove which code ran.
+ */
+export type ModeType = 'auto' | 'wasm' | 'native' | 'portable';
+
 /** Where a family's runtime gets its module, and whether it may fall back. */
 export interface RuntimeOptionsType<F extends FamilyType> {
 	readonly family: F;
-	/** Packed module text, for the automatic entry; absent for the WASM entry. */
+	readonly mode: ModeType;
+	/** Packed module text, for `auto` and the packed `wasm` entry. */
 	readonly packed?: string;
 	/** Location of the raw module, used by `ready()` without a source. */
-	readonly raw: URL;
-	/** Fallbacks by algorithm name, for the automatic entry. */
+	readonly raw?: URL;
+	/** Fallbacks by algorithm name, for `auto`, `native` and `portable`. */
 	readonly fallbacks?: Partial<Record<NameType<F>, FallbackType>>;
 }
 
@@ -156,6 +168,7 @@ export function runtime<F extends FamilyType>(config: RuntimeOptionsType<F>): Ru
 	let failure: unknown;
 
 	const ready = (source?: SourceType): Promise<void> => {
+		if (config.mode === 'native' || config.mode === 'portable') return Promise.resolve();
 		if (source !== undefined) {
 			return load(source).then((loaded) => {
 				engine = loaded;
@@ -164,7 +177,7 @@ export function runtime<F extends FamilyType>(config: RuntimeOptionsType<F>): Ru
 		}
 		loading ??= (async () => {
 			try {
-				engine = await load(config.packed === undefined ? config.raw : await unpack(config.packed));
+				engine = await load(config.packed === undefined ? config.raw! : await unpack(config.packed));
 			} catch (error) {
 				// A Content Security Policy without 'wasm-unsafe-eval', or a host without WebAssembly. Recorded
 				// once so later calls move straight to the fallbacks instead of retrying a refused compile.
@@ -193,16 +206,30 @@ export function runtime<F extends FamilyType>(config: RuntimeOptionsType<F>): Ru
 		const spec = algorithm(name);
 		const key = options.key === undefined ? undefined : Uint8Array.from(view(options.key));
 		const size = options.length ?? spec.size;
-		if (config.fallbacks === undefined) {
-			if (engine) return { kind: 'wasm' as const, spec, key, size };
-			throw new NotReadyError(`Call and await ready() before hashing with ${name}.`);
+		// Id 0 marks an algorithm that no module implements (KMAC); only a fallback can run it.
+		const module = spec.id === 0 ? undefined : engine;
+		const fallback = config.fallbacks?.[name as NameType<F>];
+		switch (config.mode) {
+			case 'wasm':
+				if (module) return { kind: 'wasm' as const, spec, key, size };
+				throw new NotReadyError(`Call and await ready() before hashing with ${name}.`);
+			case 'native': {
+				const host = native(name, key, size);
+				if (host) return { kind: 'native' as const, host };
+				throw new UnsupportedError(`node:crypto on this host has no ${name} for these options.`);
+			}
+			case 'portable': {
+				const portable = fallback?.portable?.(key, size);
+				if (portable) return { kind: 'portable' as const, portable };
+				throw new UnsupportedError(`No pure JavaScript ${name} for these options.`);
+			}
 		}
 		if (!engine && !loading && failure === undefined) ready().catch(() => {});
 		const prefer = accelerated.has(name) && (length === undefined || length >= threshold);
-		const host = prefer || !engine ? native(name, key, size) : undefined;
+		const host = prefer || !module ? native(name, key, size) : undefined;
 		if (host) return { kind: 'native' as const, host };
-		if (engine) return { kind: 'wasm' as const, spec, key, size };
-		const portable = config.fallbacks[name as NameType<F>]?.portable?.(key, size);
+		if (module) return { kind: 'wasm' as const, spec, key, size };
+		const portable = fallback?.portable?.(key, size);
 		if (portable) return { kind: 'portable' as const, portable };
 		if (failure !== undefined) {
 			throw new UnsupportedError(`${name} needs WebAssembly, which this host refused: ${String(failure)}`);

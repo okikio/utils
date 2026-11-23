@@ -32,6 +32,7 @@ export type AlgorithmType = NameType<'fast'>;
 
 const family = runtime({
 	family: 'fast',
+	mode: 'auto',
 	packed: text,
 	raw: new URL('./_wasm/raw/fast.wasm', import.meta.url),
 	fallbacks: {},

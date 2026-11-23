@@ -28,9 +28,11 @@ JavaScript. Every algorithm in this page is available through **packed** and **w
 | cSHAKE128, cSHAKE256                                 | `sha3` | no                | no  | yes      |
 | TurboSHAKE128, TurboSHAKE256                         | `sha3` | no                | no  | yes      |
 | KangarooTwelve (KT128)                               | `k12`  | no                | no  | yes      |
-| KMAC128, KMAC256                                     | none   | no                | no  | yes      |
+| KMAC128, KMAC256 (key required)                      | `cshake` | no              | no  | yes      |
 
-KMAC has no maintained Rust crate, so it is portable only. The package will not write its own KMAC in Rust.
+No maintained Rust crate implements KMAC. NIST SP 800-185 defines it as cSHAKE with the function name `KMAC` and two
+encoded fields, so the `sha3` module builds it on RustCrypto's `cshake` in 60 lines (`wasm/sha3/src/kmac.rs`). It
+matches the NIST sample vectors and `@noble/hashes`. The customization string is empty.
 
 ## blake
 

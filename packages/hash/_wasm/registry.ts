@@ -72,7 +72,9 @@ export type Sha3NameType =
 	| 'turboshake128'
 	| 'turboshake256'
 	| 'kt128'
-	| 'kt256';
+	| 'kt256'
+	| 'kmac128'
+	| 'kmac256';
 
 /** Algorithm names of the `blake` family. */
 export type BlakeNameType =
@@ -204,6 +206,9 @@ export const families: FamiliesType = {
 		turboshake256: xof(21, 64),
 		kt128: xof(22, 32),
 		kt256: xof(23, 64),
+		// No maintained Rust crate implements KMAC, so id 0 marks it as fallback-only (@noble/hashes).
+		kmac128: { id: 24, size: 32, xof: true, key: 'required' },
+		kmac256: { id: 25, size: 64, xof: true, key: 'required' },
 	},
 	blake: {
 		'blake2b-128': keyed(1, 16),

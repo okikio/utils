@@ -1,12 +1,14 @@
 //! SHA-3 family: SHA3-224 … SHA3-512 and Keccak-224 … Keccak-512 (plain and HMAC), SHAKE, cSHAKE,
-//! TurboSHAKE and KangarooTwelve.
+//! TurboSHAKE, KangarooTwelve and KMAC.
 //!
 //! Ids below 16 are fixed-length digests; add `abi::HMAC` for HMAC. Ids from 16 are extendable-output
 //! functions; `param` is the output length in bytes. For cSHAKE the key bytes are the customization
 //! string and the function name is empty. TurboSHAKE uses the default domain byte 0x1F, and
 //! KangarooTwelve uses an empty customization string, because the crates fix those at compile time
-//! or need an allocator.
+//! or need an allocator. KMAC needs a key and uses an empty customization string.
 #![no_std]
+
+mod kmac;
 
 /// Fixed-length digests.
 pub mod fixed {
@@ -37,6 +39,10 @@ pub mod xof {
 			|key| key.is_empty().then(Default::default),
 		22 => Kt128: k12::Kt128, k12::Kt128Reader, |key| key.is_empty().then(Default::default),
 		23 => Kt256: k12::Kt256, k12::Kt256Reader, |key| key.is_empty().then(Default::default),
+		24 => Kmac128: crate::kmac::Kmac<cshake::CShake128>, cshake::CShake128Reader,
+			|key, len| Some(crate::kmac::Kmac::new(cshake::CShake128::new_with_function_name(b"KMAC", &[]), 168, key, len)),
+		25 => Kmac256: crate::kmac::Kmac<cshake::CShake256>, cshake::CShake256Reader,
+			|key, len| Some(crate::kmac::Kmac::new(cshake::CShake256::new_with_function_name(b"KMAC", &[]), 136, key, len)),
 	});
 }
 
