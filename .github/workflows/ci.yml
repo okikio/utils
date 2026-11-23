@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       fresh:
-        description: Rebuild Deno compiler state while running the complete checks
+        description: Run every selected lane even if the same inputs passed, and rebuild Deno compiler state
         type: boolean
         default: false
 

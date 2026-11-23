@@ -121,6 +121,17 @@ current source and executes each selected command. Full CI and release checks re
 Selecting all checks and rebuilding compiler state are separate choices. This cache is neither a test-success
 receipt nor a release artifact.
 
+The lane result cache (`.github/actions/result-cache`) is the one test-success receipt. After every step of a lane
+passes in a trusted run, the lane records a pass under a key built from the commit's tree hash, the lane and runtime,
+its selected projects and the runner image release (its date, not its build number). A later run with the same key skips that lane's remaining steps and
+prints a notice that links the run which passed. The tree hash covers every tracked file, including tests,
+lockfiles, `mise.toml` and the workflows, and container images are pinned by digest, so a key changes whenever an
+input can change. The commit message and the base commit are not inputs, so a rerun, a merge that leaves the tree
+unchanged, or Release checking a commit that its main push already tested, runs nothing twice. Release still runs
+the installed-package lane, because publication uses the npm candidates that lane builds. Only trusted refs record,
+and a PR records only in its own merge-ref scope. **fresh** bypasses this cache as well, for example to retry a
+suspected flaky test.
+
 Automatic CI runs replace an older run for the same PR or branch. Ordinary manual CI uses the exact source SHA
 as its concurrency identity, so an automatic PR update cannot interrupt a complete manual check. The single
 pending slot coalesces ordinary requests with the same inputs; it does not skip a request already running or
