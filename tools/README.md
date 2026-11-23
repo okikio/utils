@@ -100,8 +100,9 @@ Three changes keep the long lanes inside the limit:
   and dealt in turn, so each file runs in exactly one shard. Only the container shard that runs a browser test
   installs the Playwright engines.
 - **Images.** `tests/fixtures/images.ts` pins every image the tests start, including the testcontainers Ryuk
-  sidecar. The container jobs load them from one Actions cache entry keyed by that file, and pull only what the
-  archive did not restore (`.github/actions/image-cache`).
+  sidecar. The container and PostgreSQL jobs load them from one Actions cache entry keyed by that file, and pull
+  only what the archive did not restore (`.github/actions/image-cache`). The PostgreSQL job starts its database
+  from that image after the result cache check, so a job whose inputs already passed pulls and starts nothing.
 - **Documentation.** The README example check runs one document per CPU core. Each document keeps its own
   temporary directory and runs its examples in order.
 

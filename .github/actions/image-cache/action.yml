@@ -10,6 +10,9 @@ outputs:
       The pinned Ryuk image. Pass it to the test step as RYUK_CONTAINER_IMAGE so testcontainers starts
       the cached image instead of its own default tag.
     value: ${{ steps.list.outputs.ryuk }}
+  postgres:
+    description: The pinned PostgreSQL image, for a job that starts its own database.
+    value: ${{ steps.list.outputs.postgres }}
 runs:
   using: composite
   steps:
@@ -27,6 +30,7 @@ runs:
         fi
         {
           echo "ryuk=$(grep -m1 '^testcontainers/ryuk:' "$list")"
+          echo "postgres=$(grep -m1 '^postgres:' "$list")"
           echo "archive=$RUNNER_TEMP/images.tar"
         } >> "$GITHUB_OUTPUT"
     - name: Restore the image archive
