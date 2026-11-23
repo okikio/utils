@@ -62,7 +62,12 @@ export async function load(source: SourceType): Promise<Engine> {
 	return await attach(source as CompiledType);
 }
 
-/** Decode packed text: Base64 of deflate-raw compressed WASM bytes. */
+/**
+ * Decode packed text: Base64 of deflate-raw compressed WASM bytes.
+ *
+ * Base64, not Ascii85 (Z85): after HTTP compression both are the same size, and the host's native Base64 decoder is
+ * about 25 times faster than a JavaScript Z85 decoder. See `docs/hash/04-measurements.md`.
+ */
 export async function unpack(text: string): Promise<Uint8Array<ArrayBuffer>> {
 	const from = (Uint8Array as { fromBase64?(text: string): Uint8Array<ArrayBuffer> }).fromBase64;
 	let packed: Uint8Array<ArrayBuffer>;
