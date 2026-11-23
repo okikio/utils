@@ -156,8 +156,8 @@ describe('explicit Node collection', { concurrency: false }, () => {
 	});
 
 	it('preserves an existing provider when startup conflicts', async () => {
-		const { NodeTracerProvider } = await import('@opentelemetry/sdk-trace-node');
-		const provider = new NodeTracerProvider();
+		const { TracerProvider } = await import('@opentelemetry/sdk-trace');
+		const provider = new TracerProvider();
 		expect(trace.setGlobalTracerProvider(provider)).toBe(true);
 		try {
 			await expect(open({ service: 'conflict', endpoint: 'http://127.0.0.1:1' })).rejects.toThrow('already registered');

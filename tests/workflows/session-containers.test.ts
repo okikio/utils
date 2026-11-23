@@ -25,7 +25,7 @@ let database: Sql;
 before(async () => {
 	await mkdir(new URL('../../.tmp/', import.meta.url), { recursive: true });
 	output = await mkdtemp(fileURLToPath(new URL('../../.tmp/session-', import.meta.url)));
-	const results = await build({
+	const results = (await build({
 		config: false,
 		cwd: fileURLToPath(new URL('../../', import.meta.url)),
 		entry: ['session-coordinator', 'session-thread', 'session-process'].map((name) => `tests/fixtures/${name}.ts`),
@@ -38,7 +38,7 @@ before(async () => {
 		inputOptions: { resolve: { mainFields: ['module', 'main'] } },
 		publint: false,
 		attw: false,
-	});
+	})).bundles;
 	for (const result of results) {
 		for (const chunk of result.chunks) {
 			if (chunk.type === 'chunk' && chunk.isEntry) files.set(chunk.name, chunk.fileName);

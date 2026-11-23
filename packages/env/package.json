@@ -20,7 +20,7 @@
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
 		"fast-check": "^4.9.0",
 		"valibot": "^1.4.2",
-		"zod": "^4.5.4",
+		"zod": "^4.6.7",
 		"@okikio/result": "workspace:^1.0.0",
 		"mitata": "^1.0.34",
 		"@okikio/schema": "workspace:^1.0.0"

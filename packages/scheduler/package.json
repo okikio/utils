@@ -30,7 +30,7 @@
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
-		"zod": "^4.5.4",
+		"zod": "^4.6.7",
 		"mitata": "^1.0.34"
 	},
 	"publishConfig": {

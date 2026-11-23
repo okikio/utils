@@ -122,7 +122,7 @@ describe('HTTP service and background worker containers', { timeout: 240_000, co
 	before(async () => {
 		output = await scratch('utils-workers-');
 		// Bundle the real same-source consumers. Testcontainers and the test runner stay outside the application image.
-		const results = await build({
+		const results = (await build({
 			config: false,
 			cwd: root,
 			entry: ['host', 'provider', 'service', 'collector', 'placement'].map((name) =>
@@ -137,7 +137,7 @@ describe('HTTP service and background worker containers', { timeout: 240_000, co
 			deps: { alwaysBundle: [/.*/] },
 			publint: false,
 			attw: false,
-		});
+		})).bundles;
 		for (const chunk of results.flatMap((result) => result.chunks)) {
 			if (chunk.type === 'chunk' && chunk.isEntry) {
 				files.set(chunk.name, chunk.fileName);
