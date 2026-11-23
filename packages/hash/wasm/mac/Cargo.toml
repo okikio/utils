@@ -1,0 +1,22 @@
+[package]
+name = "hash-mac"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[lints]
+workspace = true
+
+[dependencies]
+abi.workspace = true
+poly1305.workspace = true
+polyval.workspace = true
+ghash.workspace = true
+universal-hash.workspace = true
+siphasher.workspace = true
+highway.workspace = true

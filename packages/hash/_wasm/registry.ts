@@ -17,7 +17,11 @@ export type KeyType =
 	/** The algorithm's own keyed mode; an empty key means unkeyed. */
 	| 'native'
 	/** Bytes that customize the output (cSHAKE customization, BLAKE3 derive-key context). */
-	| 'custom';
+	| 'custom'
+	/** A key the algorithm cannot run without (SipHash, HighwayHash). */
+	| 'required'
+	/** An optional little-endian seed for a non-cryptographic hash. */
+	| 'seed';
 
 /** One algorithm in a family module. */
 export interface AlgorithmType {
@@ -31,6 +35,8 @@ export interface AlgorithmType {
 	readonly key: KeyType;
 }
 
+import { crcs } from './crc.ts';
+
 /** Bit that selects the HMAC form of a fixed-length digest. */
 export const HMAC = 0x8000;
 
@@ -38,6 +44,13 @@ const fixed = (id: number, size: number): AlgorithmType => ({ id, size, xof: fal
 const xof = (id: number, size: number, key: KeyType = 'none'): AlgorithmType => ({ id, size, xof: true, key });
 const keyed = (id: number, size: number): AlgorithmType => ({ id, size, xof: false, key: 'native' });
 const plain = (id: number, size: number): AlgorithmType => ({ id, size, xof: false, key: 'none' });
+const required = (id: number, size: number): AlgorithmType => ({ id, size, xof: false, key: 'required' });
+const seeded = (id: number, size: number): AlgorithmType => ({ id, size, xof: false, key: 'seed' });
+
+/** Every CRC in the catalogue, output in the fewest whole bytes that hold its width. */
+const catalogue = Object.fromEntries(
+	Object.entries(crcs).map(([name, crc]) => [name, plain(crc.id, Math.ceil(crc.width / 8))]),
+) as { readonly [K in keyof typeof crcs]: AlgorithmType };
 
 /** Every family and its algorithms, by the name the public API accepts. */
 export const families = {
@@ -142,6 +155,29 @@ export const families = {
 		fsb256: plain(3, 32),
 		fsb384: plain(4, 48),
 		fsb512: plain(5, 64),
+	},
+	mac: {
+		'siphash-2-4': required(1, 8),
+		'siphash-2-4-128': required(2, 16),
+		'siphash-1-3': required(3, 8),
+		'siphash-1-3-128': required(4, 16),
+		'highway-64': required(5, 8),
+		'highway-128': required(6, 16),
+		'highway-256': required(7, 32),
+	},
+	fast: {
+		xxh32: seeded(1, 4),
+		xxh64: seeded(2, 8),
+		'xxh3-64': seeded(3, 8),
+		'xxh3-128': seeded(4, 16),
+		rapidhash: plain(5, 8),
+		seahash: seeded(6, 8),
+		'fnv1a-64': plain(7, 8),
+	},
+	checksum: {
+		...catalogue,
+		adler32: plain(200, 4),
+		fletcher16: plain(201, 2),
 	},
 } as const satisfies Record<string, Record<string, AlgorithmType>>;
 

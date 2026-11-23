@@ -104,45 +104,52 @@ which does not compress, so it has its own module (388 KB packed) instead of tri
 
 ## mac
 
-| Algorithm                       | Crate             | native  | web     | portable |
-| ------------------------------- | ----------------- | ------- | ------- | -------- |
-| HMAC over any family above      | `hmac`            | SHA-1/2/3, MD5 | SHA-1/2 | where the hash is portable |
-| Poly1305 (one-time key)         | `poly1305`        | no      | no      | no       |
-| POLYVAL, GHASH                  | `polyval`, `ghash`| no      | no      | no       |
-| SipHash-2-4, SipHash-1-3 (64 and 128 bits) | `siphasher` | no | no | no |
-| HighwayHash (64, 128, 256 bits) | `highway`         | no      | no      | no       |
+Keyed hashes for hash tables and short-input authentication, where an attacker must not be able to choose collisions.
+The key is required: 16 bytes for SipHash, 32 bytes for HighwayHash. Outputs are the little-endian bytes of the result
+words, the byte order of the reference test vectors.
 
-HMAC for a family lives in that family's module, so `import '@okikio/hash/sha3'` gives HMAC-SHA3 without loading
-`mac`. The families build HMAC where a standard or protocol uses it, as each section says.
+| Algorithm                                   | Crate       |
+| ------------------------------------------- | ----------- |
+| SipHash-2-4, SipHash-1-3 (64 and 128 bits)  | `siphasher` |
+| HighwayHash (64, 128 and 256 bits)          | `highway`   |
+
+HighwayHash uses the crate's WASM SIMD path. HMAC for a hash lives in that hash's own family, so
+`import '@okikio/hash/sha3'` gives HMAC-SHA3 without loading `mac`. Families build HMAC where a standard or
+protocol uses it, as each section says. Native HMAC (`node:crypto`) covers SHA-1, SHA-2, SHA-3 and MD5; Web Crypto
+covers SHA-1 and SHA-2.
 
 ## fast
 
-Non-cryptographic hashes for hash tables, deduplication and sharding. Do not use them where an attacker picks the input.
+Non-cryptographic hashes for hash tables, deduplication and sharding. Do not use them where an attacker picks the
+input. The key is an optional little-endian seed: 4 bytes for XXH32, 8 for XXH64 and XXH3, 32 (four 64-bit words) for
+SeaHash. Outputs are big-endian, the canonical byte form of xxHash and the way these numbers are usually printed.
 
-| Algorithm                                     | Crate          | Notes                                   |
-| --------------------------------------------- | -------------- | --------------------------------------- |
-| XXH32, XXH64, XXH3-64, XXH3-128               | `xxhash-rust`  | WASM SIMD path for XXH3                 |
-| rapidhash v3 (64 bits)                        | `rapidhash`    | Successor of wyhash                     |
-| wyhash (final 4)                              | `wyhash`       | For reading data that already uses it   |
-| MurmurHash3 x86-32, x86-128, x64-128          | `murmur3`      |                                         |
-| MetroHash64, MetroHash128                     | `metrohash`    |                                         |
-| CityHash64                                    | `cityhasher`   |                                         |
-| SeaHash                                       | `seahash`      |                                         |
-| FNV-1, FNV-1a (32 and 64 bits)                | `fnv`          |                                         |
+| Algorithm                                     | Crate         | Notes                                                |
+| --------------------------------------------- | ------------- | ---------------------------------------------------- |
+| XXH32, XXH64, XXH3-64, XXH3-128               | `xxhash-rust` | Seeded                                               |
+| rapidhash v3 (64 bits)                        | `rapidhash`   | Default secrets; a state cannot be forked            |
+| SeaHash                                       | `seahash`     | Seeded with four words                               |
+| FNV-1a (64 bits)                              | `fnv`         | The `fnv` crate has only FNV-1a 64                   |
 
-`portable` has FNV-1a 32 only (already in the package). The rest are WASM only.
+rapidhash is the current version 3 of the reference algorithm. Bun's `Bun.hash.rapidhash` is version 1 with seed 0, so
+the two give different values for the same input. `portable` has FNV-1a 32 only (already in the package). The rest
+are WASM only.
 
 ## checksum
 
-| Algorithm                                         | Crate        | native        | portable                  |
-| ------------------------------------------------- | ------------ | ------------- | ------------------------- |
-| Every CRC in the RevEng catalogue (CRC-3 … CRC-82) | `crc`        | CRC-32 (zlib) | CRC-32, CRC-32C           |
-| CRC-32 (IEEE), fast path                          | `crc32fast`  | zlib          | yes                       |
-| Adler-32                                          | `adler2`     | no            | no                        |
-| Fletcher-16, -32, -64                             | `fletcher`   | no            | no                        |
+| Algorithm                                          | Crate       | native        | portable        |
+| -------------------------------------------------- | ----------- | ------------- | --------------- |
+| Every CRC in the RevEng catalogue (113, CRC-3 … CRC-82) | `crc`  | CRC-32 (zlib) | CRC-32, CRC-32C |
+| CRC-32/ISO-HDLC (zlib, PNG, Ethernet) fast path    | `crc32fast` | zlib          | yes             |
+| Adler-32                                           | `adler2`    | no            | no              |
+| Fletcher-16                                        | `fletcher`  | no            | no              |
 
-The CRC entry point takes a catalogue name, such as `'CRC-16/ARC'` or `'CRC-64/NVME'`. Names match the
-[RevEng catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm) exactly.
+The checksum entry point takes a catalogue name, such as `'CRC-16/ARC'` or `'CRC-64/NVME'`. Names match the
+[RevEng catalogue](https://reveng.sourceforge.io/crc-catalogue/all.htm) exactly. The build generates the list from the
+`crc-catalog` crate. Thirteen widely used CRCs (CRC-8/SMBUS, the common CRC-16s, CRC-32/ISCSI, BZIP2, CKSUM, MPEG-2,
+and CRC-64/ECMA-182, NVME and XZ) use a 256-entry table. The others compute bit by bit, which is slower but keeps the
+module at 48 KB. Outputs are big-endian, in the fewest whole bytes that hold the width, so the hex matches the
+catalogue's check values.
 
 ## Not included, and why
 
@@ -155,6 +162,12 @@ The CRC entry point takes a catalogue name, such as `'CRC-16/ARC'` or `'CRC-64/N
 | t1ha                                                 | The crate is at 0.1 with few users. Reconsider if a protocol needs it. |
 | komihash                                             | Crate is new (2026) and has very few users. Reconsider later. |
 | CMAC, PMAC                                           | These are MACs over a block cipher. They belong in a cipher package. |
+| Poly1305, POLYVAL, GHASH                             | One-time-key universal hashes that are safe only inside an AEAD construction. They belong in a cipher package. |
+| wyhash                                               | The crate's streaming hasher restarts at every `write`, so incremental results differ from one-shot ones. rapidhash is its successor. |
+| MurmurHash3, MetroHash                               | Their crates need the Rust standard library (`std::io`, `std::hash`), not `no_std`. |
+| CityHash                                             | The `cityhasher` crate hashes in one call only, which a 64 KiB window cannot stream. FarmHash replaced it upstream. |
+| Fletcher-32, Fletcher-64                             | Defined over 16- and 32-bit words, so the byte order and odd-length padding depend on the protocol. |
+| FNV-1, FNV-1a 32 in WASM                             | The `fnv` crate has only FNV-1a 64. |
 | Luhn, Verhoeff, Damm                                 | Check digits for decimal strings, not hashes of bytes.       |
 | BSD sum, SYSV sum, sum8/24/32, xor8, Internet checksum, Pearson | No maintained crate. Each is a few lines; open an issue if you need one. |
 | Rabin fingerprint, Buzhash, Zobrist, tabulation      | Families that need a caller-chosen table or polynomial, or rolling-window APIs. A content-defined chunking package is a better home. |

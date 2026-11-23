@@ -15,6 +15,10 @@ import { text as legacyText } from './_wasm/packed/legacy.ts';
 import { text as nationalText } from './_wasm/packed/national.ts';
 import { text as contestText } from './_wasm/packed/contest.ts';
 import { text as fsbText } from './_wasm/packed/fsb.ts';
+import { text as macText } from './_wasm/packed/mac.ts';
+import { text as fastText } from './_wasm/packed/fast.ts';
+import { text as checksumText } from './_wasm/packed/checksum.ts';
+import { crcs } from './_wasm/crc.ts';
 import fixture from './fixtures/vectors.json' with { type: 'json' };
 
 const packed: Record<FamilyType, string> = {
@@ -25,6 +29,9 @@ const packed: Record<FamilyType, string> = {
 	national: nationalText,
 	contest: contestText,
 	fsb: fsbText,
+	mac: macText,
+	fast: fastText,
+	checksum: checksumText,
 };
 /** Upstream known answers: `family/algorithm` to pairs of input hex and digest hex. */
 const vectors = fixture as unknown as Record<string, string[][]>;
@@ -157,8 +164,11 @@ describe('hash WebAssembly families', () => {
 			if (!algorithm) continue;
 			it(`${path} matches the crate's upstream vectors`, async () => {
 				const wasm = await engine(family);
-				for (const [data = '', digest = ''] of cases) {
-					const options = algorithm.xof ? { length: digest.length / 2 } : {};
+				for (const [data = '', digest = '', secret] of cases) {
+					const options = {
+						...(algorithm.xof ? { length: digest.length / 2 } : {}),
+						...(secret ? { key: unhex(secret) } : {}),
+					};
 					expect(hex(wasm.hash(algorithm, unhex(data), options))).toBe(digest);
 				}
 			});
@@ -203,15 +213,84 @@ describe('hash WebAssembly families', () => {
 		expect(hex(legacy.hash(families.legacy.sha1, attack))).toBe('8ac60ba76f1999a1ab70223f225aefdc78d4ddc0');
 	});
 
-	it('gives every algorithm without an upstream vector the same result one-shot and in pieces', async () => {
+	it('matches every CRC catalogue check value, Adler-32 and Fletcher-16', async () => {
+		const wasm = await engine('checksum');
+		const digits = new TextEncoder().encode('123456789');
+		for (const [name, crc] of Object.entries(crcs)) {
+			const width = Math.ceil(crc.width / 8) * 2;
+			expect([name, hex(wasm.hash(families.checksum[name as keyof typeof crcs], digits))])
+				.toEqual([name, crc.check.toString(16).padStart(width, '0')]);
+		}
+		// Wikipedia's examples for Adler-32 and Fletcher-16.
+		expect(hex(wasm.hash(families.checksum.adler32, 'Wikipedia'))).toBe('11e60398');
+		expect(hex(wasm.hash(families.checksum.fletcher16, 'abcde'))).toBe('c8f0');
+		expect(hex(wasm.hash(families.checksum.fletcher16, 'abcdefgh'))).toBe('0627');
+		const zlib = await import('node:zlib') as { crc32?(data: Uint8Array): number };
+		for (const length of lengths) {
+			const data = input(length);
+			if (zlib.crc32) {
+				expect(hex(wasm.hash(families.checksum['CRC-32/ISO-HDLC'], data)))
+					.toBe(zlib.crc32(data).toString(16).padStart(8, '0'));
+			}
+		}
+	});
+
+	it('matches published empty-input values of the fast hashes', async () => {
+		const wasm = await engine('fast');
+		const empty = new Uint8Array(0);
+		expect(hex(wasm.hash(families.fast.xxh32, empty))).toBe('02cc5d05');
+		expect(hex(wasm.hash(families.fast.xxh64, empty))).toBe('ef46db3751d8e999');
+		expect(hex(wasm.hash(families.fast['xxh3-64'], empty))).toBe('2d06800538d394c2');
+		expect(hex(wasm.hash(families.fast['xxh3-128'], empty))).toBe('99aa06d3014798d86001c324468d497f');
+		expect(hex(wasm.hash(families.fast['fnv1a-64'], empty))).toBe('cbf29ce484222325');
+		expect(hex(wasm.hash(families.fast['fnv1a-64'], 'a'))).toBe('af63dc4c8601ec8c');
+	});
+
+	// Bun ships its own (Zig) xxHash, CRC-32 and Adler-32, an independent implementation. Its rapidhash
+	// is version 1 with seed 0, while the module implements the current version 3, so it is not compared.
+	const bun =
+		(globalThis as { Bun?: { hash: Record<string, (data: Uint8Array, seed?: number | bigint) => number | bigint> } })
+			.Bun?.hash;
+	it('agrees with Bun.hash at block and window boundaries', { skip: !bun }, async () => {
+		const fast = await engine('fast');
+		const checksum = await engine('checksum');
+		const word = (value: number | bigint, bytes: number) => BigInt(value).toString(16).padStart(bytes * 2, '0');
+		const seed = new Uint8Array([0x78, 0x56, 0x34, 0x12, 0, 0, 0, 0]);
+		for (const length of lengths) {
+			const data = input(length);
+			expect(hex(fast.hash(families.fast.xxh32, data))).toBe(word(bun!.xxHash32!(data), 4));
+			expect(hex(fast.hash(families.fast.xxh64, data))).toBe(word(bun!.xxHash64!(data), 8));
+			expect(hex(fast.hash(families.fast.xxh64, data, { key: seed }))).toBe(word(bun!.xxHash64!(data, 0x12345678n), 8));
+			expect(hex(fast.hash(families.fast['xxh3-64'], data))).toBe(word(bun!.xxHash3!(data), 8));
+			expect(hex(checksum.hash(families.checksum['CRC-32/ISO-HDLC'], data))).toBe(word(bun!.crc32!(data), 4));
+			expect(hex(checksum.hash(families.checksum.adler32, data))).toBe(word(bun!.adler32!(data), 4));
+		}
+	});
+
+	it('requires keys for SipHash and HighwayHash and refuses forks it cannot make', async () => {
+		const mac = await engine('mac');
+		expect(() => mac.hash(families.mac['siphash-2-4'], 'x')).toThrow(TypeError);
+		expect(() => mac.hash(families.mac['siphash-2-4'], 'x', { key: new Uint8Array(15) })).toThrow(RangeError);
+		expect(() => mac.hash(families.mac['highway-64'], 'x', { key: new Uint8Array(16) })).toThrow(RangeError);
+		const fast = await engine('fast');
+		expect(() => fast.hash(families.fast.xxh32, 'x', { key: new Uint8Array(8) })).toThrow(RangeError);
+		const rapid = fast.create(families.fast.rapidhash);
+		expect(() => rapid.fork()).toThrow(RangeError);
+		rapid[Symbol.dispose]();
+	});
+
+	it('gives every algorithm the same result one-shot and in pieces', async () => {
+		const keys: Record<string, Uint8Array> = { mac: input(32) };
 		for (const family of Object.keys(families) as FamilyType[]) {
 			const wasm = await engine(family);
 			for (const [name, algorithm] of Object.entries(families[family] as Record<string, AlgorithmType>)) {
 				const data = input(3 * WINDOW + 7);
-				const state = wasm.create(algorithm);
+				const key = family === 'mac' ? keys.mac!.subarray(0, name.startsWith('siphash') ? 16 : 32) : undefined;
+				const options = key ? { key } : {};
+				const state = wasm.create(algorithm, options);
 				for (let offset = 0; offset < data.length; offset += 1000) state.update(data.subarray(offset, offset + 1000));
-				expect([name, hex(state.digest())]).toEqual([name, hex(wasm.hash(algorithm, data))]);
-				expect(wasm.hash(algorithm, data).length).toBe(algorithm.size);
+				expect([name, hex(state.digest())]).toEqual([name, hex(wasm.hash(algorithm, data, options))]);
+				expect([name, wasm.hash(algorithm, data, options).length]).toEqual([name, algorithm.size]);
 			}
 		}
 	});

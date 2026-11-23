@@ -131,6 +131,9 @@ microseconds on Node.js 22, through the package's own engine (window copy includ
 | national | 133.3 KB | 64.2 KB   |             |      |       |
 | contest | 105.7 KB | 48.3 KB    |             |      |       |
 | fsb    | 321.9 KB | 388.3 KB    |             |      |       |
+| mac    | 14.8 KB  | 5.1 KB      |             |      |       |
+| fast   | 32.6 KB  | 16.3 KB     |             |      |       |
+| checksum | 48.5 KB | 46.1 KB    |             |      |       |
 
 HMAC doubles a module: `contest` was 183 KB with HMAC for every algorithm and is 112 KB without. So families build
 HMAC only where a standard or protocol uses it. FSB's packed text is larger than its module, because its 272 KB π table

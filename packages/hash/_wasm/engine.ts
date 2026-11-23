@@ -66,6 +66,7 @@ function select(algorithm: AlgorithmType, options: OptionsType): { id: number; p
 		throw new RangeError('output length must be a positive 32-bit integer');
 	}
 	if (key && algorithm.key === 'none') throw new TypeError('this algorithm takes no key');
+	if (!key && algorithm.key === 'required') throw new TypeError('this algorithm needs a key');
 	const id = key && algorithm.key === 'hmac' ? algorithm.id | HMAC : algorithm.id;
 	return { id, param: algorithm.xof ? length : 0, length };
 }
