@@ -13,7 +13,9 @@ void [bytes, hex, raw, encoded];
 const wrong: Uint8Array = sync('sha256', 'abc', 'hex');
 void wrong;
 const source = new ReadableStream<Uint8Array>();
-void read(() => create(), source, { maximumBytes: 10 });
+void read(() => create('blake3'), source, { maximumBytes: 10 });
+// @ts-expect-error Family algorithm names are checked: SHA-3 names do not belong to BLAKE.
+void create('sha3-256');
 // @ts-expect-error Every streaming operation needs an explicit byte bound.
 void read('sha256', source, {});
 // @ts-expect-error Legacy digest names are not part of the portable SHA-2 contract.

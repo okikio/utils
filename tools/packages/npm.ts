@@ -174,6 +174,14 @@ if (mode === 'member') {
 		);
 		const bundles = await build(projection(stage, entries, root));
 		for (const bundle of bundles) await bundle[Symbol.asyncDispose]();
+		// WebAssembly modules are loaded with `new URL('./x.wasm', import.meta.url)`. Emitted modules keep the
+		// source layout, so each module is copied to the same relative path under dist.
+		for await (const file of files(resolve(stage, 'src'))) {
+			if (!file.endsWith('.wasm')) continue;
+			const target = resolve(stage, 'dist', relative(resolve(stage, 'src'), file));
+			await mkdir(dirname(target), { recursive: true });
+			await cp(file, target);
+		}
 		// Source copies exist only for the build. Published contents come from files plus actual pack inspection.
 		await rm(resolve(stage, 'src'), { recursive: true });
 		await rm(resolve(stage, 'node_modules'));

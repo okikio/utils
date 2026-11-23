@@ -1,8 +1,8 @@
 # Hash backends and how the default chooses one
 
-Status: proposed. This page records the design for the next version of `@okikio/hash`. The current package
-implements SHA-2 through the host's built-in hash, Web Crypto and `@noble/hashes`. The rest of this page is not
-implemented yet.
+Status: the automatic entry points, the `/wasm` entry points and the `packed`, `wasm`, `native` and `portable`
+backends are implemented. The `/packed`, `/native`, `/web`, `/portable` and `/shared` suffixes and the wide-arithmetic
+module are not implemented yet.
 
 ## The problem
 

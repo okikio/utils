@@ -201,7 +201,9 @@ export class Engine {
 	drain(slot: number, length: number): Uint8Array {
 		const window = this.#window();
 		const first = check(this.exports.finish(slot));
-		if (first >= length) return window.slice(0, first);
+		// Only an extendable output longer than one window leaves a reader behind; any shorter result
+		// is complete, including the empty result of sha1-checked on an attack.
+		if (first >= length || first < WINDOW) return window.slice(0, first);
 		const out = new Uint8Array(length);
 		out.set(window.subarray(0, first));
 		try {

@@ -1,70 +1,82 @@
-/** Incremental CRC checksums for accidental corruption, never authentication. @module */
-/** Supported reflected CRC-32 polynomials. */
-export type AlgorithmType = 'crc32' | 'crc32c';
-/** A mutable checksum with the same terminal and fork rules as digest states. */
-export interface ChecksumType {
-	/** Consume bytes immediately. */
-	update(input: Uint8Array): this;
-	/** Finalize once into an unsigned 32-bit number. */
-	digest(): number;
-	/** Fork the unfinished checksum. */
-	clone(): ChecksumType;
-	/** End use without producing a checksum. */
-	destroy(): void;
-}
 /**
- * Allocate reflected CRC state. CRC-32 uses the IEEE polynomial; CRC-32C uses
- * Castagnoli. Both start and finish with XOR 0xffffffff. The bitwise recurrence
- * avoids mutable global tables and module initialization work.
+ * Checksums for accidental corruption, never authentication: every CRC in the RevEng catalogue (113,
+ * CRC-3 … CRC-82, by catalogue name), Adler-32 and Fletcher-16.
+ *
+ * Results are big-endian bytes, in the fewest whole bytes that hold the CRC width, so their hex matches
+ * the catalogue's check values. `crc32` and `crc32c` return the value as an unsigned number. CRC-32 and
+ * CRC-32C also run in pure JavaScript before or without WebAssembly; the others need the module.
+ *
+ * ```ts
+ * import { crc32, hash } from '@okikio/hash/checksum';
+ *
+ * crc32(new TextEncoder().encode('123456789')); // 0xcbf43926
+ * hash('CRC-16/ARC', '123456789');
+ * ```
+ *
+ * @module
  */
-export function create(name: AlgorithmType = 'crc32'): ChecksumType {
-	const polynomial = name === 'crc32' ? 0xedb88320 : name === 'crc32c' ? 0x82f63b78 : undefined;
-	if (polynomial === undefined) throw new TypeError('Unsupported CRC algorithm.');
-	/** Build a fork from its pre-finalized register, owned by this instance alone. */
-	function state(initial: number): ChecksumType {
-		/** Running reflected register before final XOR. */
-		let register = initial;
-		/** Finalization and disposal prevent accidental reuse. */
-		let closed = false;
-		/** Guard register access after termination. */
-		const assert = (): void => {
-			if (closed) throw new Error('Checksum is finalized or destroyed.');
-		};
-		return {
-			update(input) {
-				assert();
-				// Reflected CRC consumes the low bit first. Keep the unfinished register
-				// separate from the final XOR so clone() can resume the same prefix.
-				for (const byte of input) {
-					register ^= byte;
-					for (let bit = 0; bit < 8; bit++) register = (register >>> 1) ^ ((register & 1) ? polynomial! : 0);
-				}
-				return this;
-			},
-			digest() {
-				assert();
-				closed = true;
-				const result = (register ^ 0xffffffff) >>> 0;
-				register = 0;
-				return result;
-			},
-			clone() {
-				assert();
-				return state(register);
-			},
-			destroy() {
-				closed = true;
-				register = 0;
-			},
-		};
-	}
-	return state(0xffffffff);
+import type { InputType } from './_bytes.ts';
+import { crc, polynomials } from './_crc32.ts';
+import { type HashOptionsType, runtime } from './_family.ts';
+import type { HasherType } from './_hasher.ts';
+import type { SourceType } from './_wasm/load.ts';
+import { text } from './_wasm/packed/checksum.ts';
+import type { NameType } from './_wasm/registry.ts';
+
+export { CollisionError, NotReadyError, UnsupportedError } from './_family.ts';
+export type { HashOptionsType } from './_family.ts';
+export type { HasherType } from './_hasher.ts';
+export type { InputType } from './_bytes.ts';
+export type { SourceType } from './_wasm/load.ts';
+
+/** Algorithm names of this family: RevEng catalogue names, `adler32` and `fletcher16`. */
+export type AlgorithmType = NameType<'checksum'>;
+
+const family = runtime({
+	family: 'checksum',
+	packed: text,
+	raw: new URL('./_wasm/raw/checksum.wasm', import.meta.url),
+	fallbacks: {
+		'CRC-32/ISO-HDLC': { portable: () => crc(polynomials.ieee) },
+		'CRC-32/ISCSI': { portable: () => crc(polynomials.castagnoli) },
+	},
+});
+
+/** Load the WebAssembly module now instead of on first use. Pass `source` to use your own copy. */
+export function ready(source?: SourceType): Promise<void> {
+	return family.ready(source);
 }
-/** Return the unsigned IEEE CRC-32 of bytes. */
+
+/** Checksum complete input. Text is UTF-8. */
+export function hash(name: AlgorithmType, input: InputType, options?: HashOptionsType): Uint8Array {
+	return family.hash(name, input, options);
+}
+
+/**
+ * The backend the next `hash` call for `name` would use (`native`, `wasm`, `portable`, or `none` when it
+ * would throw). `length` is the input size in bytes; omit it for `create`. For diagnostics and tests.
+ */
+export function backend(
+	name: AlgorithmType,
+	length?: number,
+	options?: HashOptionsType,
+): 'native' | 'wasm' | 'portable' | 'none' {
+	return family.backend(name, length, options);
+}
+
+/** Start an incremental checksum; finalize it with `digest()` or release it with `destroy()`. */
+export function create(name: AlgorithmType, options?: HashOptionsType): HasherType {
+	return family.create(name, options);
+}
+
+const number = (bytes: Uint8Array): number => new DataView(bytes.buffer, bytes.byteOffset, 4).getUint32(0);
+
+/** Return the unsigned IEEE CRC-32 (CRC-32/ISO-HDLC: zlib, PNG, Ethernet) of bytes. */
 export function crc32(input: Uint8Array): number {
-	return create('crc32').update(input).digest();
+	return number(hash('CRC-32/ISO-HDLC', input));
 }
-/** Return the unsigned Castagnoli CRC-32C of bytes. */
+
+/** Return the unsigned Castagnoli CRC-32C (CRC-32/ISCSI) of bytes. */
 export function crc32c(input: Uint8Array): number {
-	return create('crc32c').update(input).digest();
+	return number(hash('CRC-32/ISCSI', input));
 }
