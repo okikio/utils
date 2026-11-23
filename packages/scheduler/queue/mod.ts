@@ -270,6 +270,13 @@ class Runtime<Input, Output> {
 	readonly #duration: Temporal.Duration;
 	/** Lifecycle event source disposed when the queue closes. */
 	readonly #events = new EventBus<QueueEventType>();
+	/** Ids of live claims, so a new claim id is checked for collisions without scanning every item. */
+	readonly #claims = new Set<string>();
+	/**
+	 * No live claim expires before this instant, so expiry can skip its scan until then. It is a lower bound: a claim
+	 * that ends or is renewed leaves it early, which costs one extra scan, and each scan sets it exactly again.
+	 */
+	#expiry: Temporal.Instant | undefined;
 	/** Authoritative record for every admitted logical item, including terminals. */
 	readonly #items = new Map<string, Item<Input, Output>>();
 	/** Stable idempotency key to logical item identity. Terminal mappings remain reusable. */
@@ -433,11 +440,8 @@ class Runtime<Input, Output> {
 			this.#open();
 			this.#expire();
 			const now = this.#clock.now();
-			const candidates = options.ref === undefined ? [...this.#items.values()] : [this.#item(options.ref.id)];
-			const available = candidates
-				.filter((item) => item.state === 'queued' && temporal.Instant.compare(item.availableAt, now) <= 0)
-				.sort(compareItems)
-				.slice(0, limit);
+			const candidates = options.ref === undefined ? this.#items.values() : [this.#item(options.ref.id)];
+			const available = first(candidates, now, limit);
 			if (available.length > 0) return Object.freeze(available.map((item) => this.#take(item, owner, duration)));
 			if (options.ref !== undefined) {
 				const item = this.#item(options.ref.id);
@@ -478,7 +482,7 @@ class Runtime<Input, Output> {
 		const item = this.#claimed(claim);
 		item.state = 'completed';
 		item.output = output;
-		item.claim = undefined;
+		this.#release(item);
 		this.#emit(Object.freeze({ type: 'completed', itemId: item.id, claimId: claim.id }));
 		this.#settle(item);
 		this.#wake();
@@ -490,7 +494,7 @@ class Runtime<Input, Output> {
 		const item = this.#claimed(claim);
 		item.state = 'failed';
 		item.failure = Object.freeze({ ...failure });
-		item.claim = undefined;
+		this.#release(item);
 		this.#emit(Object.freeze({ type: 'failed', itemId: item.id, claimId: claim.id, failureId: failure.id }));
 		this.#settle(item);
 		this.#wake();
@@ -508,7 +512,7 @@ class Runtime<Input, Output> {
 		const availableAt = options.availableAt ?? now.add(delay);
 		const priority = options.priority === undefined ? item.priority : integer(options.priority, 'queue priority');
 		item.state = 'queued';
-		item.claim = undefined;
+		this.#release(item);
 		item.availableAt = availableAt;
 		item.priority = priority;
 		this.#emit(
@@ -523,7 +527,7 @@ class Runtime<Input, Output> {
 		const item = 'itemId' in owner ? this.#claimed(owner) : this.#item(owner.id);
 		if (item.state === 'cancelled' || item.state === 'completed' || item.state === 'failed') return;
 		item.state = 'cancelled';
-		item.claim = undefined;
+		this.#release(item);
 		item.cancellation = reason;
 		this.#emit(Object.freeze({ type: 'cancelled', itemId: item.id }));
 		this.#settle(item);
@@ -566,6 +570,7 @@ class Runtime<Input, Output> {
 			expiresAt: this.#clock.now().add(positiveDuration(duration, 'claim renewal duration')),
 		});
 		item.claim = renewed;
+		this.#bound(renewed.expiresAt);
 		this.#emit(
 			Object.freeze({ type: 'renewed', itemId: item.id, claimId: claim.id, expiresAt: renewed.expiresAt.toString() }),
 		);
@@ -655,7 +660,7 @@ class Runtime<Input, Output> {
 	#take(item: Item<Input, Output>, owner: string, duration: Temporal.Duration): QueueClaim<Input> {
 		const claimedAt = this.#clock.now();
 		const claim = Object.freeze({
-			id: uniqueClaimId(this.#id, this.#items),
+			id: uniqueClaimId(this.#id, this.#claims),
 			itemId: item.id,
 			owner,
 			value: item.input,
@@ -666,21 +671,39 @@ class Runtime<Input, Output> {
 		item.state = 'claimed';
 		item.attempt = claim.attempt;
 		item.claim = claim;
+		this.#claims.add(claim.id);
+		this.#bound(claim.expiresAt);
 		this.#emit(
 			Object.freeze({ type: 'claimed', itemId: item.id, claimId: claim.id, owner, attempt: claim.attempt }),
 		);
 		return claim;
 	}
 
+	/** Lower the expiry bound to `instant` when it is earlier. */
+	#bound(instant: Temporal.Instant): void {
+		if (this.#expiry === undefined || temporal.Instant.compare(instant, this.#expiry) < 0) this.#expiry = instant;
+	}
+
+	/** End an item's claim, if it has one, and forget its id. */
+	#release(item: Item<Input, Output>): void {
+		if (item.claim !== undefined) this.#claims.delete(item.claim.id);
+		item.claim = undefined;
+	}
+
 	/** Return every expired live claim to queued state before ownership is observed. */
 	#expire(): void {
 		const now = this.#clock.now();
+		if (this.#expiry === undefined || temporal.Instant.compare(this.#expiry, now) > 0) return;
+		this.#expiry = undefined;
 		for (const item of this.#items.values()) {
 			if (item.state !== 'claimed' || item.claim === undefined) continue;
-			if (temporal.Instant.compare(item.claim.expiresAt, now) > 0) continue;
+			if (temporal.Instant.compare(item.claim.expiresAt, now) > 0) {
+				this.#bound(item.claim.expiresAt);
+				continue;
+			}
 			const expired = item.claim;
 			item.state = 'queued';
-			item.claim = undefined;
+			this.#release(item);
 			item.availableAt = now;
 			this.#emit(Object.freeze({ type: 'claim-expired', itemId: item.id, claimId: expired.id }));
 		}
@@ -828,6 +851,27 @@ function rejectWaiters(waiters: Set<Waiter>, reason: unknown): void {
  *
  * @internal
  */
+/**
+ * The `limit` claimable items that come first in priority/FIFO order. A claim of one item, the usual case, is a
+ * single pass with no array; larger claims filter and sort.
+ *
+ * @internal
+ */
+function first<Input, Output>(
+	items: Iterable<Item<Input, Output>>,
+	now: Temporal.Instant,
+	limit: number,
+): Item<Input, Output>[] {
+	const ready = (item: Item<Input, Output>) =>
+		item.state === 'queued' && temporal.Instant.compare(item.availableAt, now) <= 0;
+	if (limit === 1) {
+		let best: Item<Input, Output> | undefined;
+		for (const item of items) if (ready(item) && (best === undefined || compareItems(item, best) < 0)) best = item;
+		return best === undefined ? [] : [best];
+	}
+	return [...items].filter(ready).sort(compareItems).slice(0, limit);
+}
+
 function compareItems<Input, Output>(left: Item<Input, Output>, right: Item<Input, Output>): number {
 	return right.priority - left.priority || left.order - right.order;
 }
@@ -863,8 +907,7 @@ function uniqueId<Input, Output>(createId: () => string, items: ReadonlyMap<stri
  *
  * @internal
  */
-function uniqueClaimId<Input, Output>(createId: () => string, items: ReadonlyMap<string, Item<Input, Output>>): string {
-	const active = new Set([...items.values()].flatMap((item) => item.claim === undefined ? [] : [item.claim.id]));
+function uniqueClaimId(createId: () => string, active: ReadonlySet<string>): string {
 	for (let attempt = 0; attempt < 100; attempt += 1) {
 		const id = createId();
 		assertKey(id);
