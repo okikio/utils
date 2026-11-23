@@ -41,7 +41,7 @@ not enforce a protocol or store keys. A plain digest alone cannot authenticate a
 | Import                   | Operations                                                         | Result                                                                          |
 | ------------------------ | ------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
 | `@okikio/hash`           | `sha256`, `sha384`, `sha512`, `hex`, `id`                          | Named hashes return lower-case hex; `id` preserves the original tuple contract. |
-| `@okikio/hash/digest`    | `digest(algorithm, input, encoding?)`, named SHA-2 functions       | Async Web Crypto; generic digest defaults to bytes.                             |
+| `@okikio/hash/digest`    | `digest(algorithm, input, encoding?)`, named SHA-2 functions       | Async; built-in or Web Crypto SHA-2; generic digest defaults to bytes.          |
 | `@okikio/hash/sync`      | `digest`, named SHA-2 functions, `create`                          | Synchronous SHA-2 and mutable incremental states.                               |
 | `@okikio/hash/stream`    | `read(algorithmOrFactory, source, options)`                        | Async incremental bytes with a required inclusive byte limit.                   |
 | `@okikio/hash/encoding`  | `hex`, `unhex`, `base64`, `unbase64`, `base64url`, `unbase64url`   | Strict canonical encodings, not hashes.                                         |
@@ -56,8 +56,8 @@ not enforce a protocol or store keys. A plain digest alone cannot authenticate a
 
 Every focused path also has an equivalent `@okikio/utils/hash/...` forwarding module. SHA-2 algorithm names are
 `sha256`, `sha384` and `sha512`. Generic digest output is `bytes`, `hex` or `base64url`; named SHA-2 functions always
-return hex. Both sync and async one-shot functions accept UTF-8 text, buffers, and exact byte views. They snapshot
-input. Text is not Unicode-normalized. Incremental updates consume `Uint8Array` chunks synchronously without retaining
+return hex. Both sync and async one-shot functions accept UTF-8 text, buffers, and exact byte views. They read the
+input before they return, so a later change to the caller's buffer cannot change the digest. Text is not Unicode-normalized. Incremental updates consume `Uint8Array` chunks synchronously without retaining
 their storage. Concurrent writes to a shared buffer cannot provide an atomic snapshot; callers must synchronize such
 writes themselves.
 
@@ -201,8 +201,9 @@ its unrelated digest-backed UUID versions.
 and iterable input. Its public interface does not expose the push-style incremental state and cloning used here; its
 DigestContext is internal. We do not deep-import it or buffer input to imitate incremental hashing.
 [Noble Hashes](https://github.com/paulmillr/noble-hashes) provides public incremental state, cloning and destruction
-without a WASM loader. Its algorithm implementations remain in optional focused graphs. Root and native HMAC use Web
-Crypto; the root does not load Noble, UUID or stream code.
+without a WASM loader. Its algorithm implementations remain in optional focused graphs. SHA-2 uses the host's built-in
+`node:crypto` where `process.getBuiltinModule()` provides it; otherwise the root uses Web Crypto and `sync` uses Noble.
+Native HMAC uses Web Crypto. The root does not load Noble, UUID or stream code.
 
 When adding an algorithm, check it against published input and output pairs. Test when the API accepts or refuses work,
 which errors it returns as work starts or stops, and whether the same exports are available where documented. Sampling

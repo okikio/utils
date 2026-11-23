@@ -45,8 +45,8 @@ hash nor an HMAC hides the original content as encryption would.
 ## Hash the selected bytes, not the whole backing buffer
 
 An uploaded file can be a view into a larger buffer. Hashing its backing buffer would accidentally include bytes outside
-the selected input. The utility copies the visible view before asynchronous hashing, so a caller can reuse its buffer
-after admission.
+the selected input. The utility reads only the visible view, and it reads it before `sha256()` returns, so a caller can
+reuse its buffer right away.
 
 Save this complete variation as `hash-view.ts` and run `mise exec -- deno run hash-view.ts` after the same checkout setup.
 
@@ -67,9 +67,15 @@ false
 ```
 
 The first comparison confirms that the admitted bytes were A and B. The second compares a different four-byte input.
-This copy costs memory proportional to the visible input; it is not an incremental hashing API. With Web Crypto
-directly, you must choose and snapshot the same byte range, call `crypto.subtle.digest`, and format its returned bytes
-yourself.
+It is not an incremental hashing API; use `@okikio/hash/sync` or `@okikio/hash/stream` for that.
+
+## Which implementation runs
+
+Deno, Node and Bun have a built-in SHA-2 in `node:crypto`. The package finds it at run time through
+`process.getBuiltinModule()` and uses it for the root, `digest` and `sync` paths, so these cost about the same as calling
+`node:crypto` yourself. It never imports `node:crypto`, so a browser bundle does not pull in a Node polyfill. Where the
+host has no built-in hash, such as a browser, the async paths use Web Crypto and the sync paths use Noble's JavaScript.
+All paths return the same bytes, as plain `Uint8Array` values.
 
 Use `hex()` when bytes already exist and only representation is needed. It does not hash or authenticate them. Use
 `id()` for compact correlation from an ordered tuple, and retain the full `sha256()` digest when checking content
@@ -114,9 +120,14 @@ options and types.
 
 ## Measure copying, hashing and streaming
 
-The focused benchmarks measure SHA-256 at 1 KiB, 16 KiB, 256 KiB and 4 MiB. Streaming trials vary chunks independently
-at 1 KiB, 16 KiB and 64 KiB. Native digest and Web Crypto comparisons both include the defensive input copy; portable
-synchronous SHA-256 has its own named trial. Stream trials include source construction, reading and finalization.
+The focused benchmarks measure SHA-256 at 64 bytes, 1 KiB, 16 KiB, 256 KiB and 4 MiB. Streaming trials vary chunks
+independently at 1 KiB, 16 KiB and 64 KiB. The public async and sync digests run against `node:crypto` called directly,
+and the Web Crypto and Noble fallbacks have their own named trials. Stream trials include source construction, reading
+and finalization.
+
+On Deno 2.9 (x86-64), the public paths ran within 1.4 times the `node:crypto` reference at 64 bytes and matched it
+from 16 KiB up. The Web Crypto fallback took about 36 µs for a 64-byte input, against 2.3 µs for the reference. Noble
+took about 20 ms for 4 MiB, against 2.3 ms. These are one machine's results, not a guarantee.
 Untimed checks compare every full digest and verify byte-limit rejection and released locks for every size/chunk pair.
 These results do not compare different hash algorithms or establish a memory ceiling.
 
