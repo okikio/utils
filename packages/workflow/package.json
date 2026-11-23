@@ -32,7 +32,8 @@
 		"@standard-schema/spec": "^1.1.0",
 		"@okikio/dispose": "workspace:^0.1.0",
 		"@okikio/scheduler": "workspace:^1.0.0",
-		"mitata": "^1.0.34"
+		"mitata": "^1.0.34",
+		"@okikio/activity": "workspace:^1.0.0"
 	},
 	"publishConfig": {
 		"access": "public",

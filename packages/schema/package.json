@@ -24,7 +24,11 @@
 		"ajv-formats": "3.0.1",
 		"typebox": "1.4.3",
 		"@sinclair/typebox": "0.34.52",
-		"mitata": "^1.0.34"
+		"mitata": "^1.0.34",
+		"@okikio/hono": "workspace:^0.1.0",
+		"@okikio/http": "workspace:^1.0.0",
+		"@okikio/query": "workspace:^1.0.0",
+		"@okikio/server": "workspace:^1.0.0"
 	},
 	"peerDependencies": {
 		"zod": "^4.4.3"

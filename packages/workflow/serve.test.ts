@@ -2,6 +2,7 @@
 import '@okikio/duration/polyfill';
 import '@okikio/dispose/polyfill';
 import { describe, it } from 'node:test';
+import { setImmediate } from 'node:timers/promises';
 import { expect } from '@std/expect';
 import * as activity from '@okikio/activity';
 import * as engine from '@okikio/activity/engine';
@@ -397,7 +398,7 @@ describe('durable worker shutdown', () => {
 		expect((error as AggregateError).errors).toEqual([setupFailure, releaseFailure]);
 	});
 
-	it('closes itself after the scan retry budget is exhausted and exposes the terminal fault', async () => {
+	it('closes itself after the scan retry budget is exhausted and exposes the terminal fault', async (test) => {
 		await using ctx = context.create({ id: 'scan-failure' });
 		await using resources = resource.create(resource.implementations(), { ctx, host: {} });
 		const failure = new Error('Storage remains unavailable.');
@@ -411,27 +412,46 @@ describe('durable worker shutdown', () => {
 		store.leave = async () => {
 			leaves++;
 		};
-		const worker = await workflow.serve({
-			store,
-			workflows: [],
-			activities: [],
-			resources,
-			policies: [],
-			hostId: 'host',
-			shutdown: shutdown.signal,
-			capacity: { activations: 1, activities: 1, control: 1, finalizers: 1 },
-		});
+		// Keep a real watchdog while native virtual timers drive the retry policy.
 		const timeout = setTimeout(() => shutdown.abort(new Error('Test timeout.')), 12_000);
+		let worker: Awaited<ReturnType<typeof workflow.serve>> | undefined;
+		test.mock.timers.enable({ apis: ['setTimeout'] });
 		try {
+			worker = await workflow.serve({
+				store,
+				workflows: [],
+				activities: [],
+				resources,
+				policies: [],
+				hostId: 'host',
+				shutdown: shutdown.signal,
+				capacity: { activations: 1, activities: 1, control: 1, finalizers: 1 },
+			});
+			// Observe rejection during timer advancement, then assert its exact reason below.
+			void worker.closed.catch(() => {});
+			await setImmediate();
+			for (let attempt = 1; attempt < 12; attempt++) {
+				expect(scans).toBe(attempt);
+				const delay = Math.min(1000, 20 * 2 ** attempt);
+				test.mock.timers.tick(delay - 1);
+				await setImmediate();
+				expect(scans).toBe(attempt);
+				test.mock.timers.tick(1);
+				await setImmediate();
+			}
 			await expect(worker.closed).rejects.toBe(failure);
 			expect(scans).toBe(12);
 			expect(leaves).toBe(1);
 			expect(worker.state()).toMatchObject({ phase: 'closed', active: 0, fault: failure });
 			expect(shutdown.signal.aborted).toBe(false);
 		} finally {
-			clearTimeout(timeout);
+			test.mock.timers.reset();
 			shutdown.abort();
-			await worker.closed.catch(() => {});
+			try {
+				await worker?.closed.catch(() => {});
+			} finally {
+				clearTimeout(timeout);
+			}
 		}
 	});
 });

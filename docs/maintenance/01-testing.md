@@ -163,9 +163,19 @@ timeout or a passing Chromium run cannot establish that Firefox starts and compl
 
 [`.github/workflows/quality.yml`](../../.github/workflows/quality.yml) selects jobs for source contracts, the
 Deno/Node/Bun matrix, native Chromium, installed packages, PostgreSQL recovery, container recovery, benchmark
-correctness, documentation and native examples. Formatting and linting run as separate advisory checks. Every job checks
+correctness, documentation and native examples. Formatting and linting run as separate advisory checks on main or manual requests. Every job checks
 out the caller's commit and receives a read-only repository token. The runtime matrix, resource fixtures, pinned actions
 and report retention are defined once in that workflow.
+
+Automatic PRs run source contracts on each layer. The top of a native stack runs the combined candidate's selected
+Chromium, benchmark and example checks. Runtime, package-consumer, PostgreSQL, container and documentation jobs are
+reported as manual deferrals after their measured job durations exceeded the 120-second automatic budget. Main
+keeps every affected lane. Dispatch **CI** on the exact top branch for all lanes before landing a stack; dispatch
+the selected lower branch first if only a prefix will land. Lower layers skip the `Required checks` aggregate.
+GitHub [accepts a skipped job for required-check admission](https://docs.github.com/en/pull-requests/reference/status-checks),
+so that skip does not prove that the prefix passed its expensive tests or prevent someone from merging it separately.
+Validate each intended landing candidate before merging it. A selected top fails its aggregate when any selected job
+is missing, skipped, cancelled or failed. The [workflow guide](../../tools/README.md) explains cache identity and owner selection.
 
 Ordinary CI calls it through the `quality` job. Its separate `changesets` job checks the Sampo plan with a read-only
 repository token. The Release workflow calls the full quality workflow before either registry job can publish. The npm
@@ -181,12 +191,12 @@ Review branch-protection names when changing workflows; the release-metadata job
 Install the browser before its source or package checks:
 
 ```sh
-mise run fixture:browser
+mise run fixture:browser chromium
 mise run test -- --suite browser
 mise run test -- --suite packages
 ```
 
-On a fresh Linux CI machine, `mise run fixture:browser --with-deps` also installs Chromium's system
+On a fresh Linux CI machine, `mise run fixture:browser chromium --with-deps` also installs Chromium's system
 dependencies. To run the browser/container matrix locally, select all three engines before running its tests:
 
 ```sh
@@ -194,9 +204,12 @@ mise run fixture:browser chromium firefox webkit --with-deps
 mise run test -- --suite containers tests/workflows/duplex-browser.test.ts
 ```
 
-The container CI lane performs this preparation itself. Ordinary browser preparation still defaults to Chromium.
-Playwright is an exact development dependency. The browser tool records the actual browser version and
-exercised checks; browser-selected code executed by Node is labeled separately.
+The container CI lane performs this preparation itself. `mise run prepare -- --kind browser` selects Chromium by
+default; the lower-level `fixture:browser` command forwards its browser selection directly to Playwright.
+CI caches browser downloads by the installed Playwright version, operating system release, architecture and
+browser set. A restored download never skips system dependency installation or current tests. Playwright is an
+exact development dependency. The browser tool records the actual browser version and exercised checks;
+browser-selected code executed by Node is labeled separately.
 
 ## Keep resource admission explicit
 

@@ -1,3 +1,170 @@
+---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {}
+    packageManagerDependencies:
+      pnpm:
+        specifier: 12.19.0
+        version: 12.19.0
+
+packages:
+
+  '@pnpm/exe.android-arm64@12.19.0':
+    resolution: {integrity: sha512-NpPhCmjTAQUmG6PK5CYQBWrPE8D/IQCOcmVQQ1MMfVjcBIWh8KAxk1jBsKjy9Dpz7JH9k3QAQdwCekpi/9Q3LQ==}
+    cpu: [arm64]
+    os: [android]
+
+  '@pnpm/exe.android-x64@12.19.0':
+    resolution: {integrity: sha512-Ko6d6NHauv1fV9WjuEoFTM/V4Q6wVuv+A59atp37YB4UMYs9h6OHcpN7W4Q6l//do8LJhN2fjt4F7K4+/SRWSw==}
+    cpu: [x64]
+    os: [android]
+
+  '@pnpm/exe.darwin-arm64@12.19.0':
+    resolution: {integrity: sha512-2u5ifdaBi/3pA0MMmEZ9ZvXBY2DJvk0NrvxgZ3L87B3MlbZdTb9oq6tTYMJAsMLhEg0NiGovtq1cTHVc75OnKw==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@pnpm/exe.darwin-x64@12.19.0':
+    resolution: {integrity: sha512-VZOyG983At+Y9iqOtxSfRSMDci4dLqmfYL7xFDKeLvsw8u101T1vellHFYdWnxM59gNi4jufuhBcyx5WwjeF+A==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@pnpm/exe.freebsd-x64@12.19.0':
+    resolution: {integrity: sha512-VctpMq4CSn8fh20XX0dsQz1cmakaRxSMq5AT7u66dQxkpMhf/ugm6bbwyj0rJpb04SYHtUBJKb7BB433KWHy8A==}
+    cpu: [x64]
+    os: [freebsd]
+
+  '@pnpm/exe.linux-arm64-musl@12.19.0':
+    resolution: {integrity: sha512-qWBJJrY084dmXordzdjL8C4drTHEU6dhbJ4ZupTChg9DKbWSKhVxJwTZXzUwFNmbo/TTAIQ8pFic8YCr0fIczg==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@pnpm/exe.linux-arm64@12.19.0':
+    resolution: {integrity: sha512-Rcivut7V1fcWSz4c11GYcZwRrUO1+wXWLUUBV13uRGuQ0QcixOoVn9+2ypfSmp6arDXl2Y+vKhs9522V8kCZHw==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@pnpm/exe.linux-ppc64@12.19.0':
+    resolution: {integrity: sha512-KhBS0NJK+wY0PbwdjFQ7gR00Pv+1be83nXqPrRcK+h0xmUmRSAEiLGyPajSNa7xUFoCXVVwJGeoCYMepz2VNmg==}
+    cpu: [ppc64]
+    os: [linux]
+    libc: [glibc]
+
+  '@pnpm/exe.linux-riscv64@12.19.0':
+    resolution: {integrity: sha512-fbwKjV+2AsrFTToCseD9IccE+VQXbzeKMiho6U1he4N904gQ9p06/MwtxqKBGSD+PaEVAn8IolzSQRpBq84XZg==}
+    cpu: [riscv64]
+    os: [linux]
+    libc: [glibc]
+
+  '@pnpm/exe.linux-s390x@12.19.0':
+    resolution: {integrity: sha512-Bntrz3smF+pHpH3z82JFY3ldFthmrpGXB6xT32qhDB0qwo096OUSQvzO3xZ6+Mt1bnStM72q7w0Ht1jyEMdS3A==}
+    cpu: [s390x]
+    os: [linux]
+    libc: [glibc]
+
+  '@pnpm/exe.linux-x64-musl@12.19.0':
+    resolution: {integrity: sha512-2IJD+LBqnrwAInPSlhm5Z4l8qXUEG3L/zPmAy1amx8Mw/d+SYOoeI4X61eML1m4UD9mjrePF76M6Z+DEbLv/mg==}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@pnpm/exe.linux-x64@12.19.0':
+    resolution: {integrity: sha512-oTji4PzIwSG+AbcHnouo/hW1Oz+1yDP30KJqBmmQnxiOSqTAi8HylytTrONUT08DIjuZ9t8gGZWjv/tqnQdb2w==}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@pnpm/exe.netbsd-x64@12.19.0':
+    resolution: {integrity: sha512-0Sh1mIsOEvuQQsI6wAK3iRYBTqIaa3uAP81Gd+P27/yIpwfLnrHRdtWw+ojfhz0KeQmOH3SJYIY6504wYYuDNA==}
+    cpu: [x64]
+    os: [netbsd]
+
+  '@pnpm/exe.win32-arm64@12.19.0':
+    resolution: {integrity: sha512-vHJKl9Z4KDm48dAMlf2RXJroQiFTrxcN0DWc7m6fi+czyTHwtR8kVn2W0CQA0wbWAsdFg2kZ1A8KCuzbAo5Vsg==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@pnpm/exe.win32-x64@12.19.0':
+    resolution: {integrity: sha512-Jr3tdhL7PG20T2mz3XWVa/CIod5dIC3vv+IUWNictKTky8vNwQQ00OCK8fd9rNihVhCC61oMjBROm8ABZEDLWQ==}
+    cpu: [x64]
+    os: [win32]
+
+  pnpm@12.19.0:
+    resolution: {integrity: sha512-hzJ7ZhmFMgWDTkvlm6OiMeMD2fXkNZEu3jMSt1Obea+JCUL2UTsFpGkHRWZoiARcCbM/xCDCzS072VwBuiHb6w==}
+    engines: {node: '>=18'}
+    hasBin: true
+
+snapshots:
+
+  '@pnpm/exe.android-arm64@12.19.0':
+    optional: true
+
+  '@pnpm/exe.android-x64@12.19.0':
+    optional: true
+
+  '@pnpm/exe.darwin-arm64@12.19.0':
+    optional: true
+
+  '@pnpm/exe.darwin-x64@12.19.0':
+    optional: true
+
+  '@pnpm/exe.freebsd-x64@12.19.0':
+    optional: true
+
+  '@pnpm/exe.linux-arm64-musl@12.19.0':
+    optional: true
+
+  '@pnpm/exe.linux-arm64@12.19.0':
+    optional: true
+
+  '@pnpm/exe.linux-ppc64@12.19.0':
+    optional: true
+
+  '@pnpm/exe.linux-riscv64@12.19.0':
+    optional: true
+
+  '@pnpm/exe.linux-s390x@12.19.0':
+    optional: true
+
+  '@pnpm/exe.linux-x64-musl@12.19.0':
+    optional: true
+
+  '@pnpm/exe.linux-x64@12.19.0':
+    optional: true
+
+  '@pnpm/exe.netbsd-x64@12.19.0':
+    optional: true
+
+  '@pnpm/exe.win32-arm64@12.19.0':
+    optional: true
+
+  '@pnpm/exe.win32-x64@12.19.0':
+    optional: true
+
+  pnpm@12.19.0:
+    optionalDependencies:
+      '@pnpm/exe.android-arm64': 12.19.0
+      '@pnpm/exe.android-x64': 12.19.0
+      '@pnpm/exe.darwin-arm64': 12.19.0
+      '@pnpm/exe.darwin-x64': 12.19.0
+      '@pnpm/exe.freebsd-x64': 12.19.0
+      '@pnpm/exe.linux-arm64': 12.19.0
+      '@pnpm/exe.linux-arm64-musl': 12.19.0
+      '@pnpm/exe.linux-ppc64': 12.19.0
+      '@pnpm/exe.linux-riscv64': 12.19.0
+      '@pnpm/exe.linux-s390x': 12.19.0
+      '@pnpm/exe.linux-x64': 12.19.0
+      '@pnpm/exe.linux-x64-musl': 12.19.0
+      '@pnpm/exe.netbsd-x64': 12.19.0
+      '@pnpm/exe.win32-arm64': 12.19.0
+      '@pnpm/exe.win32-x64': 12.19.0
+
+---
 lockfileVersion: '9.0'
 
 settings:
@@ -271,12 +438,16 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
     devDependencies:
+      '@okikio/dispose':
+        specifier: workspace:^0.1.0
+        version: link:../dispose
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
         version: '@jsr/std__expect@1.0.20'
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/activity
 
   packages/authz:
@@ -303,6 +474,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/authz
 
   packages/capability:
@@ -341,6 +513,9 @@ importers:
       '@okikio/authz':
         specifier: workspace:^0.1.0
         version: link:../authz
+      '@okikio/workflow':
+        specifier: workspace:^1.0.0
+        version: link:../workflow
       '@standard-schema/spec':
         specifier: ^1.1.0
         version: 1.1.0
@@ -350,10 +525,14 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/capability
 
   packages/collection:
     devDependencies:
+      '@okikio/schema':
+        specifier: workspace:^1.0.0
+        version: link:../schema
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
         version: '@jsr/std__expect@1.0.20'
@@ -363,6 +542,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/collection
 
   packages/context:
@@ -389,12 +569,16 @@ importers:
         specifier: npm:@jsr/std__async@^1.5.0
         version: '@jsr/std__async@1.5.0'
     devDependencies:
+      '@okikio/storage':
+        specifier: workspace:^1.0.0
+        version: link:../storage
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
         version: '@jsr/std__expect@1.0.20'
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/context
 
   packages/dispose:
@@ -405,6 +589,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/dispose
 
   packages/duration:
@@ -419,6 +604,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/duration
 
   packages/env:
@@ -433,6 +619,9 @@ importers:
       '@okikio/result':
         specifier: workspace:^1.0.0
         version: link:../result
+      '@okikio/schema':
+        specifier: workspace:^1.0.0
+        version: link:../schema
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
         version: '@jsr/std__expect@1.0.20'
@@ -448,6 +637,7 @@ importers:
       zod:
         specifier: ^4.5.4
         version: 4.5.4
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/env
 
   packages/format:
@@ -483,6 +673,7 @@ importers:
       saxes:
         specifier: ^6.0.0
         version: 6.0.0
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/format
 
   packages/hash:
@@ -506,6 +697,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/hash
 
   packages/hono:
@@ -529,6 +721,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/hono
 
   packages/http:
@@ -570,6 +763,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/http
 
   packages/input:
@@ -599,6 +793,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/input
 
   packages/pool:
@@ -625,6 +820,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/pool
 
   packages/query:
@@ -651,6 +847,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/query
 
   packages/result:
@@ -674,6 +871,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/result
 
   packages/runtime:
@@ -694,6 +892,9 @@ importers:
         specifier: npm:@jsr/std__path@^1.1.6
         version: '@jsr/std__path@1.1.6'
     devDependencies:
+      '@okikio/duration':
+        specifier: workspace:^0.1.0
+        version: link:../duration
       '@okikio/schema':
         specifier: workspace:^1.0.0
         version: link:../schema
@@ -703,6 +904,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/runtime
 
   packages/scheduler:
@@ -744,6 +946,7 @@ importers:
       zod:
         specifier: ^4.5.4
         version: 4.5.4
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/scheduler
 
   packages/schema:
@@ -758,6 +961,18 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
     devDependencies:
+      '@okikio/hono':
+        specifier: workspace:^0.1.0
+        version: link:../hono
+      '@okikio/http':
+        specifier: workspace:^1.0.0
+        version: link:../http
+      '@okikio/query':
+        specifier: workspace:^1.0.0
+        version: link:../query
+      '@okikio/server':
+        specifier: workspace:^1.0.0
+        version: link:../server
       '@sinclair/typebox':
         specifier: 0.34.52
         version: 0.34.52
@@ -779,6 +994,7 @@ importers:
       zod:
         specifier: ^4.5.4
         version: 4.5.4
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/schema
 
   packages/server:
@@ -826,12 +1042,16 @@ importers:
       '@okikio/authz':
         specifier: workspace:^0.1.0
         version: link:../authz
+      '@okikio/dispose':
+        specifier: workspace:^0.1.0
+        version: link:../dispose
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
         version: '@jsr/std__expect@1.0.20'
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/server
 
   packages/storage:
@@ -882,6 +1102,7 @@ importers:
       zod:
         specifier: ^4.5.4
         version: 4.5.4
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/storage
 
   packages/streams:
@@ -902,6 +1123,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/streams
 
   packages/task:
@@ -928,12 +1150,16 @@ importers:
         specifier: ^1.4.0
         version: 1.4.0
     devDependencies:
+      '@okikio/duration':
+        specifier: workspace:^0.1.0
+        version: link:../duration
       '@std/expect':
         specifier: npm:@jsr/std__expect@^1.0.20
         version: '@jsr/std__expect@1.0.20'
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/task
 
   packages/telemetry:
@@ -969,6 +1195,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    linkDirectory: false
     optionalDependencies:
       '@logtape/logtape':
         specifier: 2.4.2
@@ -1095,6 +1322,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/utils
 
   packages/worker:
@@ -1118,6 +1346,9 @@ importers:
         specifier: ^1.4.0
         version: 1.4.0
     devDependencies:
+      '@okikio/runtime':
+        specifier: workspace:^1.0.0
+        version: link:../runtime
       '@standard-schema/spec':
         specifier: ^1.1.0
         version: 1.1.0
@@ -1127,6 +1358,7 @@ importers:
       mitata:
         specifier: ^1.0.34
         version: 1.0.34
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/worker
 
   packages/workflow:
@@ -1165,6 +1397,9 @@ importers:
         specifier: npm:@jsr/std__encoding@^1.0.11
         version: '@jsr/std__encoding@1.0.11'
     devDependencies:
+      '@okikio/activity':
+        specifier: workspace:^1.0.0
+        version: link:../activity
       '@okikio/dispose':
         specifier: workspace:^0.1.0
         version: link:../dispose
@@ -1183,6 +1418,7 @@ importers:
       zod:
         specifier: ^4.5.4
         version: 4.5.4
+    linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/workflow
 
   tools:

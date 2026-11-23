@@ -16,6 +16,7 @@ const { values, positionals } = parseArgs({
 	options: {
 		kind: { type: 'string' },
 		project: { type: 'string', multiple: true },
+		'projects-json': { type: 'string' },
 		runtime: { type: 'string', default: 'deno' },
 		suite: { type: 'string' },
 		target: { type: 'string', default: 'npm' },
@@ -25,6 +26,7 @@ const { values, positionals } = parseArgs({
 		check: { type: 'boolean' },
 		write: { type: 'boolean' },
 		full: { type: 'boolean' },
+		'pull-request': { type: 'boolean' },
 		help: { type: 'boolean' },
 		base: { type: 'string' },
 		head: { type: 'string' },
@@ -45,6 +47,7 @@ const { values, positionals } = parseArgs({
 if (values.help) {
 	console.log(`Usage: mise run ${family} [options] [file-or-directory ...]
   --project <name>    Select a utility; repeat to select several
+  --projects-json    CI runtime owner list from the validated affected-work plan
   --runtime <host>    deno (default), node, or bun
   --kind <operation> Select a check or preparation operation
   --suite <suite>    source, comparisons, docs, examples, packages, bundles,
@@ -52,6 +55,7 @@ if (values.help) {
   --check            Benchmark correctness or release/publish dry runs
   --operation <name> bench: measure, compare, profile; release: add, plan, version, publish
   --full             Select all CI lanes (default planning uses --base and --head)
+  --pull-request     Report costly automatic PR lanes as deferred to manual checks
   --output <path>    Fresh report directory
 
 Preparation kinds: deps, bench, browser, freeze
@@ -162,14 +166,17 @@ function bench(): void {
 /** CI receives a revision-based plan and runs the same operations available to a maintainer. */
 async function ci(): Promise<void> {
 	if (family === 'ci:plan') {
-		const { plan } = await import('./ci.ts');
+		const { plan, projectFromManifest } = await import('./ci.ts');
 		const paths: string[] = [];
 		if (!values.full) {
 			if (!values.base || !values.head) throw new TypeError('Affected planning requires --base and --head, or --full.');
 			for (const revision of [values.base, values.head]) {
 				if (!/^[a-f0-9]{40}$/iu.test(revision)) throw new TypeError('CI revisions must be full commit hashes.');
 			}
-			const result = spawnSync('git', ['diff', '--name-only', '-z', values.base, values.head], { encoding: 'utf8' });
+			// Report a rename as deletion plus addition so both package owners remain selected.
+			const result = spawnSync('git', ['diff', '--no-renames', '--name-only', '-z', values.base, values.head], {
+				encoding: 'utf8',
+			});
 			if (result.status !== 0) throw new Error(result.stderr);
 			paths.push(...result.stdout.split('\0').filter(Boolean));
 		}
@@ -177,22 +184,31 @@ async function ci(): Promise<void> {
 			paths,
 			members.map((name) => {
 				const manifest = JSON.parse(readFileSync(`packages/${name}/package.json`, 'utf8'));
-				return {
-					name,
-					dependencies: Object.keys({
-						...manifest.dependencies,
-						...manifest.peerDependencies,
-						...manifest.optionalDependencies,
-					}).filter((name) => name.startsWith('@okikio/')).map((name) => name.slice(8)),
-				};
+				return projectFromManifest(name, manifest);
 			}),
 			values.full,
+			values['pull-request'],
 		);
 		console.log(JSON.stringify(result, null, 2));
 		if (process.env.GITHUB_OUTPUT) {
+			appendFileSync(process.env.GITHUB_OUTPUT, `projects=${JSON.stringify(result.projects)}\n`);
+			appendFileSync(process.env.GITHUB_OUTPUT, `deferred=${JSON.stringify(result.deferred)}\n`);
 			for (const [name, selected] of Object.entries(result.lanes)) {
 				appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${selected}\n`);
 			}
+		}
+		if (process.env.GITHUB_STEP_SUMMARY) {
+			appendFileSync(
+				process.env.GITHUB_STEP_SUMMARY,
+				[
+					'### Selected CI work',
+					'',
+					`Package owners: ${result.projects.join(', ') || 'all'}.`,
+					`Deferred automatic PR lanes: ${result.deferred.join(', ') || 'none'}.`,
+					'Dispatch CI on the exact stack top branch to run the complete checks. Main and release checks keep every selected lane.',
+					'',
+				].join('\n'),
+			);
 		}
 	} else {
 		switch (values.lane) {
@@ -204,10 +220,23 @@ async function ci(): Promise<void> {
 				check('format');
 				check('lint');
 				break;
-			case 'runtimes':
-				test('source');
+			case 'runtimes': {
+				if (values['projects-json'] === undefined) test('source');
+				else {
+					const selection: unknown = JSON.parse(values['projects-json']);
+					if (
+						!Array.isArray(selection) || selection.some((name) => typeof name !== 'string' || !members.includes(name))
+					) {
+						throw new TypeError('CI runtime projects must be an array of known package directories.');
+					}
+					const { discover, runtimeProjects } = await import('../testing/discover.ts');
+					const files = runtimeProjects(await discover(root), selection, values.runtime as 'deno' | 'node' | 'bun');
+					operation(`test:${values.runtime}`, files.map((file) => file.path));
+				}
+				// Comparisons and composed repository tests retain their cross-package coverage.
 				test('comparisons');
 				break;
+			}
 			case 'packages':
 				test('packages');
 				operation('bench:npm', ['--check']);
