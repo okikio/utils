@@ -1,5 +1,5 @@
 import { describe, it } from 'node:test';
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { expect } from '@std/expect';
 import * as sha2 from './sha2.ts';
 import * as sha3 from './sha3.ts';
