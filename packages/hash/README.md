@@ -77,6 +77,9 @@ Deno, Node and Bun have a built-in SHA-2 in `node:crypto`. The package finds it 
 host has no built-in hash, such as a browser, the async paths use Web Crypto and the sync paths use Noble's JavaScript.
 All paths return the same bytes, as plain `Uint8Array` values.
 
+The [hash design](../../docs/hash/README.md) describes the next step: WebAssembly builds of every algorithm that a
+maintained Rust crate implements, and entry points that pick the fastest backend for the host.
+
 Use `hex()` when bytes already exist and only representation is needed. It does not hash or authenticate them. Use
 `id()` for compact correlation from an ordered tuple, and retain the full `sha256()` digest when checking content
 integrity.
