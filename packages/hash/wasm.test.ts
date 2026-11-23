@@ -1,5 +1,5 @@
 import { describe, it } from 'node:test';
-import { createHash, createHmac } from 'node:crypto';
+import { createHash, createHmac, getHashes } from 'node:crypto';
 import { expect } from '@std/expect';
 import { keccak_224, keccak_256, keccak_384, keccak_512 } from '@noble/hashes/sha3.js';
 import { cshake128, cshake256, kt128, kt256, turboshake128, turboshake256 } from '@noble/hashes/sha3-addons.js';
@@ -7,12 +7,28 @@ import { blake2b, blake2s } from '@noble/hashes/blake2.js';
 import { blake3 } from '@noble/hashes/blake3.js';
 import { type Engine, SLOTS, WINDOW } from './_wasm/engine.ts';
 import { load, unpack } from './_wasm/load.ts';
-import { families, type FamilyType } from './_wasm/registry.ts';
+import { type AlgorithmType, families, type FamilyType } from './_wasm/registry.ts';
 import { text as sha2Text } from './_wasm/packed/sha2.ts';
 import { text as sha3Text } from './_wasm/packed/sha3.ts';
 import { text as blakeText } from './_wasm/packed/blake.ts';
+import { text as legacyText } from './_wasm/packed/legacy.ts';
+import { text as nationalText } from './_wasm/packed/national.ts';
+import { text as contestText } from './_wasm/packed/contest.ts';
+import { text as fsbText } from './_wasm/packed/fsb.ts';
+import fixture from './fixtures/vectors.json' with { type: 'json' };
 
-const packed: Record<FamilyType, string> = { sha2: sha2Text, sha3: sha3Text, blake: blakeText };
+const packed: Record<FamilyType, string> = {
+	sha2: sha2Text,
+	sha3: sha3Text,
+	blake: blakeText,
+	legacy: legacyText,
+	national: nationalText,
+	contest: contestText,
+	fsb: fsbText,
+};
+/** Upstream known answers: `family/algorithm` to pairs of input hex and digest hex. */
+const vectors = fixture as unknown as Record<string, string[][]>;
+const unhex = (text: string) => Uint8Array.from(text.match(/../gu) ?? [], (pair) => Number.parseInt(pair, 16));
 const file = (family: FamilyType) => new URL(`./_wasm/raw/${family}.wasm`, import.meta.url);
 const hex = (bytes: Uint8Array) => Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
 
@@ -32,9 +48,12 @@ type ReferenceType = (data: Uint8Array) => Uint8Array;
 const node = (name: string): ReferenceType => (data) => createHash(name).update(data).digest();
 const hmac = (name: string): ReferenceType => (data) => createHmac(name, key).update(data).digest();
 
+/** Families checked against independent implementations at every boundary length. */
+type CrossType = 'sha2' | 'sha3' | 'blake';
+
 /** Independent implementations: OpenSSL through node:crypto, and @noble/hashes where OpenSSL lacks one. */
 const references: {
-	[F in FamilyType]: Record<keyof (typeof families)[F], { plain: ReferenceType; keyed?: ReferenceType }>;
+	[F in CrossType]: Record<keyof (typeof families)[F], { plain: ReferenceType; keyed?: ReferenceType }>;
 } = {
 	sha2: {
 		sha224: { plain: node('sha224'), keyed: hmac('sha224') },
@@ -107,10 +126,99 @@ async function engine(family: FamilyType): Promise<Engine> {
 	return value;
 }
 
+/** HMAC block sizes, for an HMAC built in the test from the module's own verified plain hash. */
+const blocks: Record<string, number> = {
+	md5: 64,
+	sha1: 64,
+	ripemd160: 64,
+	streebog256: 64,
+	streebog512: 64,
+	'gost94-cryptopro': 32,
+	'gost94-test': 32,
+	'gost94-ua': 32,
+	'gost94-s2015': 32,
+	sm3: 64,
+	belt: 32,
+};
+
+/** RFC 2104 HMAC over a hash function, written out so it shares no code with the Rust `hmac` crate. */
+function rfc2104(hash: (data: Uint8Array) => Uint8Array, block: number, secret: Uint8Array, data: Uint8Array) {
+	const padded = new Uint8Array(block);
+	padded.set(secret.length > block ? hash(secret) : secret);
+	const inner = hash(new Uint8Array([...padded.map((byte) => byte ^ 0x36), ...data]));
+	return hash(new Uint8Array([...padded.map((byte) => byte ^ 0x5c), ...inner]));
+}
+
 describe('hash WebAssembly families', () => {
-	for (const family of Object.keys(families) as FamilyType[]) {
+	describe('published known-answer tests', () => {
+		for (const [path, cases] of Object.entries(vectors)) {
+			const [family, name] = path.split('/') as [FamilyType, string];
+			const algorithm = (families[family] as Record<string, AlgorithmType>)[name];
+			if (!algorithm) continue;
+			it(`${path} matches the crate's upstream vectors`, async () => {
+				const wasm = await engine(family);
+				for (const [data = '', digest = ''] of cases) {
+					const options = algorithm.xof ? { length: digest.length / 2 } : {};
+					expect(hex(wasm.hash(algorithm, unhex(data), options))).toBe(digest);
+				}
+			});
+		}
+	});
+
+	it('cross-checks legacy and national digests that OpenSSL also has', async () => {
+		const legacy = await engine('legacy');
+		const national = await engine('national');
+		for (const length of lengths) {
+			const data = input(length);
+			for (const [name, openssl] of [['md5', 'md5'], ['sha1', 'sha1'], ['ripemd160', 'ripemd160']] as const) {
+				expect(hex(legacy.hash(families.legacy[name], data))).toBe(hex(node(openssl)(data)));
+				expect(hex(legacy.hash(families.legacy[name], data, { key }))).toBe(hex(hmac(openssl)(data)));
+			}
+			// Bun's BoringSSL has no SM3; its upstream vectors still run above.
+			if (getHashes().includes('sm3')) {
+				expect(hex(national.hash(families.national.sm3, data))).toBe(hex(node('sm3')(data)));
+			}
+		}
+	});
+
+	it('builds HMAC for every keyed legacy and national digest', async () => {
+		for (const [name, block] of Object.entries(blocks)) {
+			const family = name in families.legacy ? 'legacy' : 'national';
+			const wasm = await engine(family);
+			const algorithm = (families[family] as Record<string, AlgorithmType>)[name]!;
+			for (const secret of [key, input(200)]) {
+				for (const length of [0, 100, WINDOW + 3]) {
+					const data = input(length);
+					const expected = rfc2104((bytes) => wasm.hash(algorithm, bytes), block, secret, data);
+					expect([name, hex(wasm.hash(algorithm, data, { key: secret }))]).toEqual([name, hex(expected)]);
+				}
+			}
+		}
+	});
+
+	it('refuses a published SHA-1 collision and still hashes it with plain SHA-1', async () => {
+		const legacy = await engine('legacy');
+		const attack = unhex(vectors['legacy/sha1-checked-collision']![0]![0]!);
+		expect(legacy.hash(families.legacy['sha1-checked'], attack).length).toBe(0);
+		expect(hex(legacy.hash(families.legacy.sha1, attack))).toBe('8ac60ba76f1999a1ab70223f225aefdc78d4ddc0');
+	});
+
+	it('gives every algorithm without an upstream vector the same result one-shot and in pieces', async () => {
+		for (const family of Object.keys(families) as FamilyType[]) {
+			const wasm = await engine(family);
+			for (const [name, algorithm] of Object.entries(families[family] as Record<string, AlgorithmType>)) {
+				const data = input(3 * WINDOW + 7);
+				const state = wasm.create(algorithm);
+				for (let offset = 0; offset < data.length; offset += 1000) state.update(data.subarray(offset, offset + 1000));
+				expect([name, hex(state.digest())]).toEqual([name, hex(wasm.hash(algorithm, data))]);
+				expect(wasm.hash(algorithm, data).length).toBe(algorithm.size);
+			}
+		}
+	});
+
+	for (const family of Object.keys(references) as CrossType[]) {
 		describe(family, () => {
-			for (const [name, algorithm] of Object.entries(families[family])) {
+			for (const [name, algorithm] of Object.entries(families[family] as Record<string, AlgorithmType>)) {
 				const reference =
 					(references[family] as Record<string, { plain: ReferenceType; keyed?: ReferenceType }>)[name]!;
 				it(`${name} matches an independent implementation at block and window boundaries`, async () => {

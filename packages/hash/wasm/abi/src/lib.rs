@@ -444,6 +444,53 @@ macro_rules! digests {
 	};
 }
 
+/// Implement [`Family`] for fixed-length digests without HMAC forms.
+///
+/// Same as [`digests!`] for algorithms where HMAC has no published use; leaving it out keeps the
+/// module smaller. The family crate must depend on the `digest` crate.
+#[macro_export]
+macro_rules! plain_digests {
+	($family:ident, { $($id:literal => $name:ident : $ty:ty),+ $(,)? }) => {
+		/// The family marker type.
+		pub struct $family;
+
+		/// A hash state.
+		#[derive(Clone)]
+		pub enum State { $(#[doc = stringify!($ty)] $name($ty)),+ }
+
+		impl $crate::Family for $family {
+			type State = State;
+			type Reader = core::convert::Infallible;
+
+			fn init(id: u32, param: u32, key: &[u8]) -> Result<State, $crate::Error> {
+				if param != 0 || !key.is_empty() {
+					return Err($crate::Error::Invalid);
+				}
+				match id {
+					$($id => Ok(State::$name(<$ty as ::digest::Digest>::new())),)+
+					_ => Err($crate::Error::Unknown),
+				}
+			}
+
+			fn update(state: &mut State, data: &[u8]) {
+				match state {
+					$(State::$name(hash) => ::digest::Digest::update(hash, data),)+
+				}
+			}
+
+			fn finish(state: State, out: &mut [u8; $crate::WINDOW]) -> $crate::Output<Self::Reader> {
+				$crate::Output::Done(match state {
+					$(State::$name(hash) => $crate::put(out, &::digest::Digest::finalize(hash)),)+
+				})
+			}
+
+			fn read(reader: &mut Self::Reader, _out: &mut [u8]) {
+				match *reader {}
+			}
+		}
+	};
+}
+
 /// Implement [`Family`] for extendable-output functions from the `digest` crate.
 ///
 /// `id => Variant: Type, Reader, |key| init` maps an id to an XOF and its reader. `init` builds the

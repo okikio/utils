@@ -1,0 +1,25 @@
+[package]
+name = "hash-national"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[lints]
+workspace = true
+
+[dependencies]
+abi.workspace = true
+digest.workspace = true
+hmac.workspace = true
+streebog.workspace = true
+gost94.workspace = true
+sm3.workspace = true
+kupyna.workspace = true
+belt-hash.workspace = true
+bash-hash.workspace = true
+ascon-hash.workspace = true

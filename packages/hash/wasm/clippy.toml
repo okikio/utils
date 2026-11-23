@@ -1,2 +1,2 @@
 # Algorithm names that are not code.
-doc-valid-idents = ["TurboSHAKE", "KangarooTwelve", "BLAKE2b", "BLAKE2s", "BLAKE3", "cSHAKE", "SHA3", ".."]
+doc-valid-idents = ["BelT", "GOST94", "Ascon-Hash256", "Ascon-XOF128", "TurboSHAKE", "KangarooTwelve", "BLAKE2b", "BLAKE2s", "BLAKE3", "cSHAKE", "SHA3", ".."]

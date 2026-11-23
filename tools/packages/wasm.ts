@@ -18,6 +18,9 @@
  *   when a derived file does not match the manifest. CI runs this on every change.
  * - `--verify` builds into `.tmp/` and fails when the result differs from the committed files. CI runs this
  *   only when the Rust source changed, because it needs the Rust toolchain.
+ * - `--vectors` copies a sample of each crate's published known-answer tests into
+ *   `packages/hash/fixtures/vectors.json`, so the package tests compare WASM output with the upstream
+ *   vectors without reading Cargo's download directory.
  *
  * @module
  */
@@ -48,6 +51,10 @@ const families = {
 	sha2: { optimize: 3, shrink: 0, rustflags: [] },
 	sha3: { optimize: 2, shrink: 2, rustflags: ['-C', 'llvm-args=-unroll-threshold=2000'] },
 	blake: { optimize: 2, shrink: 2, rustflags: [] },
+	legacy: { optimize: 2, shrink: 2, rustflags: [] },
+	national: { optimize: 2, shrink: 2, rustflags: [] },
+	contest: { optimize: 2, shrink: 2, rustflags: [] },
+	fsb: { optimize: 2, shrink: 2, rustflags: [] },
 } as const;
 
 type FamilyType = keyof typeof families;
@@ -203,5 +210,144 @@ async function verify(): Promise<void> {
 	console.log('a fresh build reproduces every committed module');
 }
 
-const { values } = parseArgs({ options: { write: { type: 'boolean' }, verify: { type: 'boolean' } } });
-await (values.write ? write() : values.verify ? verify() : Promise.resolve(check()));
+/**
+ * Known-answer test files shipped inside each crate, by crate name: file stem to `family/algorithm`.
+ * Files are RustCrypto `blobby` pairs of input and digest, or NIST-style `Msg =` / `MD =` text.
+ */
+const kats: Record<string, Record<string, string>> = {
+	md2: { md2_kat: 'legacy/md2' },
+	md4: { md4_kat: 'legacy/md4' },
+	'md-5': { md5_kat: 'legacy/md5' },
+	sha1: { sha1_kat: 'legacy/sha1' },
+	'sha1-checked': { sha1_checked_kat: 'legacy/sha1-checked' },
+	ripemd: {
+		ripemd128_kat: 'legacy/ripemd128',
+		ripemd160_kat: 'legacy/ripemd160',
+		ripemd256_kat: 'legacy/ripemd256',
+		ripemd320_kat: 'legacy/ripemd320',
+	},
+	tiger: { tiger_kat: 'legacy/tiger', tiger2_kat: 'legacy/tiger2' },
+	streebog: { streebog256_kat: 'national/streebog256', streebog512_kat: 'national/streebog512' },
+	gost94: { gost94_cryptopro_kat: 'national/gost94-cryptopro', gost94_test_kat: 'national/gost94-test' },
+	sm3: { sm3_kat: 'national/sm3' },
+	kupyna: {
+		kupyna256_kat: 'national/kupyna256',
+		kupyna384_kat: 'national/kupyna384',
+		kupyna512_kat: 'national/kupyna512',
+	},
+	'belt-hash': { belt_hash_kat: 'national/belt' },
+	'bash-hash': { bash256: 'national/bash256', bash384: 'national/bash384', bash512: 'national/bash512' },
+	'ascon-hash': { asconhash: 'national/ascon-hash256', asconxof: 'national/ascon-xof128' },
+	groestl: {
+		groestl224_kat: 'contest/groestl224',
+		groestl256_kat: 'contest/groestl256',
+		groestl384_kat: 'contest/groestl384',
+		groestl512_kat: 'contest/groestl512',
+	},
+	jh: {
+		jh224_short_kat: 'contest/jh224',
+		jh256_short_kat: 'contest/jh256',
+		jh384_short_kat: 'contest/jh384',
+		jh512_short_kat: 'contest/jh512',
+	},
+	skein: {
+		skein256_256_kat: 'contest/skein256-256',
+		skein256_512_kat: 'contest/skein256-512',
+		skein512_256_kat: 'contest/skein512-256',
+		skein512_512_kat: 'contest/skein512-512',
+		skein1024_256_kat: 'contest/skein1024-256',
+		skein1024_512_kat: 'contest/skein1024-512',
+		skein1024_1024_kat: 'contest/skein1024-1024',
+	},
+	shabal: {
+		shabal192_kat: 'contest/shabal192',
+		shabal224_kat: 'contest/shabal224',
+		shabal256_kat: 'contest/shabal256',
+		shabal384_kat: 'contest/shabal384',
+		shabal512_kat: 'contest/shabal512',
+	},
+	whirlpool: { whirlpool_kat: 'contest/whirlpool' },
+	fsb: {
+		fsb160_kat: 'fsb/fsb160',
+		fsb224_kat: 'fsb/fsb224',
+		fsb256_kat: 'fsb/fsb256',
+		fsb384_kat: 'fsb/fsb384',
+		fsb512_kat: 'fsb/fsb512',
+	},
+};
+
+/** Decode a RustCrypto `blobby` file into its blobs. */
+function blobby(data: Uint8Array): Uint8Array[] {
+	let offset = 0;
+	const vlq = () => {
+		let byte = data[offset++]!;
+		let value = byte & 0x7f;
+		while (byte & 0x80) {
+			byte = data[offset++]!;
+			value = ((value + 1) << 7) + (byte & 0x7f);
+		}
+		return value;
+	};
+	const items = vlq();
+	const dedup = Array.from({ length: vlq() }, () => {
+		const length = vlq();
+		return data.subarray(offset, offset += length);
+	});
+	return Array.from({ length: items }, () => {
+		const value = vlq();
+		return value & 1 ? dedup[value >> 1]! : data.subarray(offset, offset += value >> 1);
+	});
+}
+
+/** Pairs of input and expected output from one known-answer file. */
+function pairs(path: string): [Uint8Array, Uint8Array][] {
+	if (path.endsWith('.txt')) {
+		const text = readFileSync(path, 'utf8');
+		return [...text.matchAll(/Msg = ([0-9A-Fa-f]*)\s+MD = ([0-9A-Fa-f]+)/gu)].map((match) => [
+			Buffer.from(match[1]!, 'hex'),
+			Buffer.from(match[2]!, 'hex'),
+		]);
+	}
+	const blobs = blobby(readFileSync(path));
+	return Array.from({ length: blobs.length / 2 }, (_, index) => [blobs[2 * index]!, blobs[2 * index + 1]!]);
+}
+
+/** Keep every vector up to 2 blocks of the widest state, at most 12 per algorithm, spread across the file. */
+function sample(all: [Uint8Array, Uint8Array][]): [Uint8Array, Uint8Array][] {
+	const small = all.filter(([input]) => input.length <= 256);
+	const step = Math.max(1, Math.ceil(small.length / 12));
+	return small.filter((_, index) => index % step === 0).slice(0, 12);
+}
+
+function vectors(): void {
+	const metadata = JSON.parse(run('cargo', ['metadata', '--format-version', '1', '--locked'])) as {
+		packages: { name: string; manifest_path: string }[];
+	};
+	const out: Record<string, [string, string][]> = {};
+	for (const [crate, files] of Object.entries(kats)) {
+		const pkg = metadata.packages.find((entry) => entry.name === crate);
+		if (!pkg) throw new Error(`crate ${crate} is not in the workspace`);
+		const data = join(pkg.manifest_path, '../tests/data');
+		for (const [stem, name] of Object.entries(files)) {
+			const file = readdirSync(data).find((entry) => entry === `${stem}.blb` || entry === `${stem}.txt`);
+			if (!file) throw new Error(`${crate} has no tests/data/${stem}`);
+			out[name] = sample(pairs(join(data, file))).map(([input, output]) => [
+				Buffer.from(input).toString('hex'),
+				Buffer.from(output).toString('hex'),
+			]);
+		}
+	}
+	// A published chosen-prefix SHA-1 collision (SHA-mbles); sha1-checked must refuse it.
+	const checked = metadata.packages.find((entry) => entry.name === 'sha1-checked')!;
+	const attack = readFileSync(join(checked.manifest_path, '../tests/data/sha-mbles-1.bin'));
+	out['legacy/sha1-checked-collision'] = [[attack.toString('hex'), '']];
+	const path = join(root, 'packages/hash/fixtures/vectors.json');
+	writeFileSync(path, `${JSON.stringify(out, null, '\t')}\n`);
+	console.log(`wrote ${Object.keys(out).length} algorithms to ${relative(root, path)}`);
+}
+
+const { values } = parseArgs({
+	options: { write: { type: 'boolean' }, verify: { type: 'boolean' }, vectors: { type: 'boolean' } },
+});
+if (values.vectors) vectors();
+else await (values.write ? write() : values.verify ? verify() : Promise.resolve(check()));

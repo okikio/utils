@@ -2,7 +2,7 @@
 # each family crate only maps algorithm ids to maintained hash crates.
 [workspace]
 resolver = "3"
-members = ["abi", "sha2", "sha3", "blake"]
+members = ["abi", "sha2", "sha3", "blake", "legacy", "national", "contest", "fsb"]
 
 [workspace.package]
 edition = "2024"
@@ -22,6 +22,26 @@ k12 = { version = "0.5", default-features = false, features = ["zeroize"] }
 shake = { version = "0.1", default-features = false, features = ["zeroize"] }
 cshake = { version = "0.2", default-features = false, features = ["zeroize"] }
 turboshake = { version = "0.7", default-features = false, features = ["zeroize"] }
+md2 = { version = "0.11", default-features = false, features = ["zeroize"] }
+md4 = { version = "0.11", default-features = false, features = ["zeroize"] }
+md-5 = { version = "0.11", default-features = false, features = ["zeroize"] }
+sha1 = { version = "0.11", default-features = false, features = ["zeroize"] }
+sha1-checked = { version = "0.11.0-rc.0", default-features = false, features = ["zeroize"] }
+ripemd = { version = "0.2", default-features = false, features = ["zeroize"] }
+tiger = { version = "0.3", default-features = false, features = ["zeroize"] }
+streebog = { version = "0.11", default-features = false, features = ["zeroize"] }
+gost94 = { version = "0.11", default-features = false, features = ["zeroize"] }
+sm3 = { version = "0.5", default-features = false, features = ["zeroize"] }
+kupyna = { version = "0.1", default-features = false, features = ["zeroize"] }
+belt-hash = { version = "0.2", default-features = false, features = ["zeroize"] }
+bash-hash = { version = "0.1", default-features = false, features = ["zeroize"] }
+ascon-hash = { version = "0.4", default-features = false, features = ["zeroize"] }
+groestl = { version = "0.11", default-features = false, features = ["zeroize"] }
+jh = { version = "0.2", default-features = false, features = ["zeroize"] }
+skein = { version = "0.2", default-features = false, features = ["zeroize"] }
+shabal = { version = "0.5", default-features = false, features = ["zeroize"] }
+whirlpool = { version = "0.11", default-features = false, features = ["zeroize"] }
+fsb = { version = "0.2", default-features = false, features = ["zeroize"] }
 
 [workspace.lints.rust]
 unsafe_code = "deny"

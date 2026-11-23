@@ -127,6 +127,14 @@ microseconds on Node.js 22, through the package's own engine (window copy includ
 | blake  | 65.8 KB  | 25.7 KB     | BLAKE2b-512 | 0.45 | 995   |
 |        |          |             | BLAKE2s-256 | 0.46 | 1585  |
 |        |          |             | BLAKE3      | 0.33 | 571   |
+| legacy | 113.2 KB | 48.7 KB     |             |      |       |
+| national | 133.3 KB | 64.2 KB   |             |      |       |
+| contest | 105.7 KB | 48.3 KB    |             |      |       |
+| fsb    | 321.9 KB | 388.3 KB    |             |      |       |
+
+HMAC doubles a module: `contest` was 183 KB with HMAC for every algorithm and is 112 KB without. So families build
+HMAC only where a standard or protocol uses it. FSB's packed text is larger than its module, because its 272 KB π table
+does not compress and Base64 adds a third.
 
 Two build findings:
 
