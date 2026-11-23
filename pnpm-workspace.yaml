@@ -12,4 +12,13 @@ allowBuilds:
 
 # Keep LogTape and the selected SDK family on the API version their peer ranges support.
 overrides:
-  '@opentelemetry/api': '1.9.0'
+  '@opentelemetry/api': '1.9.1'
+  # @logtape/otel 2.4.2 needs the 0.208 logs packages (0.223 drops NOOP_LOGGER), and they pin
+  # @opentelemetry/core 2.2.0 (GHSA-8988-4f7v-96qf). Core and resources are stable 2.x packages,
+  # so only those two move to the release the telemetry package selects.
+  '@opentelemetry/core@2.2.0': '2.12.1'
+  '@opentelemetry/resources@2.2.0': '2.12.1'
+  # testcontainers 12.2 still uses archiver 7, whose glob and minimatch have advisories
+  # (GHSA-3g3m-2fjr-6pw4, GHSA-g3hv-75wg-m249). Both newer majors keep the CommonJS API it calls.
+  'archiver-utils>glob': '^14.0.6'
+  'glob>minimatch': '^11.0.9'

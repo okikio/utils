@@ -177,7 +177,7 @@ if (mode === 'member') {
 				compilerOptions: { rootDir: 'src' },
 			}),
 		);
-		const bundles = await build(projection(stage, entries, root));
+		const bundles = (await build(projection(stage, entries, root))).bundles;
 		for (const bundle of bundles) await bundle[Symbol.asyncDispose]();
 		// WebAssembly modules are loaded with `new URL('./x.wasm', import.meta.url)`. Emitted modules keep the
 		// source layout, so each module is copied to the same relative path under dist.
@@ -513,7 +513,7 @@ async function bundles(directory: string): Promise<void> {
 				JSON.stringify(item.specifier)
 			}; if (unwrap(ok(42)) !== 42) throw new Error('result bundle changed behavior'); console.log('result bundle passed');`,
 		);
-		const results = await build({
+		const results = (await build({
 			config: false,
 			cwd: directory,
 			entry: [entry],
@@ -527,7 +527,7 @@ async function bundles(directory: string): Promise<void> {
 			publint: false,
 			attw: false,
 			deps: { alwaysBundle: [/^@okikio\//] },
-		});
+		})).bundles;
 		const modules = results.flatMap((result) =>
 			result.chunks.flatMap((chunk) => 'modules' in chunk ? Object.keys(chunk.modules) : [])
 		);
@@ -574,7 +574,7 @@ async function scenarios(directory: string): Promise<void> {
 		await cp(source, target);
 		entry[`scenario-${name}.test`] = target;
 	}
-	const results = await build({
+	const results = (await build({
 		config: false,
 		cwd: directory,
 		entry,
@@ -587,7 +587,7 @@ async function scenarios(directory: string): Promise<void> {
 		publint: false,
 		attw: false,
 		deps: { neverBundle: [/^@okikio\//, /^node:/] },
-	});
+	})).bundles;
 	for (const format of ['mjs']) {
 		command('node', [
 			'--import',

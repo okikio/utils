@@ -24,7 +24,7 @@ let network: StartedNetwork;
 let database: Sql;
 before(async () => {
 	output = await scratch('utils-nested-');
-	const results = await build({
+	const results = (await build({
 		config: false,
 		cwd: fileURLToPath(new URL('../../', import.meta.url)),
 		entry: ['nested-coordinator', 'nested-thread', 'nested-process'].map((name) => `tests/fixtures/${name}.ts`),
@@ -37,7 +37,7 @@ before(async () => {
 		inputOptions: { resolve: { mainFields: ['module', 'main'] } },
 		publint: false,
 		attw: false,
-	});
+	})).bundles;
 	for (const result of results) {
 		for (const chunk of result.chunks) {
 			if (chunk.type === 'chunk' && chunk.isEntry) files.set(chunk.name, chunk.fileName);

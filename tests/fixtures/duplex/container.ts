@@ -63,7 +63,7 @@ export async function start(options: {
 	let container: StartedTestContainer | undefined;
 	let log = '';
 	try {
-		const results = await build({
+		const results = (await build({
 			config: false,
 			cwd: root,
 			entry: ['tests/fixtures/duplex/host.ts'],
@@ -77,7 +77,7 @@ export async function start(options: {
 			publint: false,
 			attw: false,
 			sourcemap: false,
-		});
+		})).bundles;
 		let entry: string | undefined;
 		for (const result of results) {
 			for (const chunk of result.chunks) if (chunk.type === 'chunk' && chunk.isEntry) entry = chunk.fileName;

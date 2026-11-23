@@ -95,11 +95,10 @@ export async function open(options: Options): Promise<Collection> {
 	};
 	const url = (signal: string): string => `${endpoint.href.replace(/\/$/, '')}/v1/${signal}`;
 	try {
-		const [resources, spans, node, meters, logs, traceExport, metricExport, logExport, logtape, hooks, core] =
-			await Promise.all([
+		const [resources, spans, meters, logs, traceExport, metricExport, logExport, logtape, hooks, core] = await Promise
+			.all([
 				import('@opentelemetry/resources'),
-				import('@opentelemetry/sdk-trace-base'),
-				import('@opentelemetry/sdk-trace-node'),
+				import('@opentelemetry/sdk-trace'),
 				import('@opentelemetry/sdk-metrics'),
 				import('@opentelemetry/sdk-logs'),
 				import('@opentelemetry/exporter-trace-otlp-http'),
@@ -124,10 +123,10 @@ export async function open(options: Options): Promise<Collection> {
 				new traceExport.OTLPTraceExporter({ url: url('traces'), headers, timeoutMillis: shutdown }),
 				report,
 			);
-			const provider = new node.NodeTracerProvider({
+			const provider = new spans.TracerProvider({
 				resource,
 				sampler: new spans.ParentBasedSampler({ root: new spans.TraceIdRatioBasedSampler(sample) }),
-				spanProcessors: [new spans.BatchSpanProcessor(exporter, batch)],
+				spanProcessors: [new spans.BatchSpanProcessor({ exporter, ...batch })],
 				spanLimits: { attributeCountLimit: 32, attributeValueLengthLimit: 512 },
 			});
 			closers.push(() => provider.shutdown());
@@ -175,7 +174,7 @@ export async function open(options: Options): Promise<Collection> {
 		);
 		const provider = new logs.LoggerProvider({
 			resource,
-			processors: [new logs.BatchLogRecordProcessor(exporter, batch)],
+			processors: [new logs.BatchLogRecordProcessor({ exporter, ...batch })],
 			logRecordLimits: { attributeCountLimit: 32, attributeValueLengthLimit: 512 },
 		});
 		closers.push(() => provider.shutdown());

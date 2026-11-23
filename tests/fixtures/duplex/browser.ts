@@ -34,7 +34,7 @@ export async function open() {
 		const scratch = join(root, '.tmp/tests/duplex/browser');
 		await mkdir(scratch, { recursive: true });
 		const output = await mkdtemp(join(scratch, 'bundle-'));
-		const results = await build({
+		const results = (await build({
 			config: false,
 			cwd: root,
 			entry: { duplex: join(root, 'tests/browser/duplex.ts') },
@@ -44,7 +44,7 @@ export async function open() {
 			format: ['esm'],
 			dts: false,
 			deps: { alwaysBundle: [/.*/] },
-		});
+		})).bundles;
 		let entry: string | undefined;
 		for (const result of results) {
 			for (const chunk of result.chunks) if (chunk.type === 'chunk' && chunk.isEntry) entry = chunk.fileName;

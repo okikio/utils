@@ -241,7 +241,7 @@ async function bundle(
 		const entry = `${temp}/entry.ts`;
 		const outDir = `${temp}/dist`;
 		await Deno.writeTextFile(entry, template.replace('SOURCE', JSON.stringify(`${rootPath}${entrypoint}`)));
-		const results = await build({
+		const results = (await build({
 			config: false,
 			cwd: rootPath,
 			entry: [entry],
@@ -256,7 +256,7 @@ async function bundle(
 			deps: { alwaysBundle: [/.*/] },
 			publint: false,
 			attw: false,
-		});
+		})).bundles;
 		try {
 			const chunks = results.flatMap((result) => result.chunks.filter((chunk) => chunk.type === 'chunk'));
 			const entries = chunks.filter((chunk) => chunk.isEntry);
