@@ -428,7 +428,7 @@ export function open(
 		},
 		/** Candidates only: the caller locks and rechecks its own records before calling remove(). */
 		completed(query: retire.CompletedOptions): Promise<readonly retire.RetiredType[]> {
-			return retire.completed(options.database, namespace, query);
+			return retire.completed(query.database ?? options.database, namespace, query);
 		},
 		/** Joins the caller's transaction and rechecks state and time before deleting. */
 		remove(

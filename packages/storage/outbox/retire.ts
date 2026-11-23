@@ -51,6 +51,11 @@ export interface CompletedOptions {
 	 * `key` and `updated`. Build it with the same Postgres.js instance, so values stay parameters.
 	 */
 	readonly where?: Fragment;
+	/**
+	 * Read through this connection or transaction instead of the view's pool, for example to discover candidates
+	 * in a transaction the caller already holds. Build `where` with the same one.
+	 */
+	readonly database?: Sql | TransactionSql;
 }
 
 /** Validate an epoch cutoff before it reaches SQL. */
