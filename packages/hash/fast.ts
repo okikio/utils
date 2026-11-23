@@ -3,7 +3,8 @@
  * rapidhash v3, SeaHash (optional 32-byte seed) and FNV-1a 64. Outputs are big-endian. Never use these where an
  * attacker chooses the input; use `@okikio/hash/mac` instead.
  *
- * There is no fallback outside WebAssembly, so await `ready()` before synchronous calls.
+ * There is no fallback outside WebAssembly, so await `ready()` before synchronous calls. Where the host has the
+ * WebAssembly wide-arithmetic feature (Bun, Firefox 155), `ready()` loads a build that uses it; results are the same.
  *
  * ```ts ignore
  * import { hash, ready } from '@okikio/hash/fast';
@@ -18,7 +19,7 @@ import type { InputType } from './_bytes.ts';
 import { type HashOptionsType, runtime } from './_family.ts';
 import type { HasherType } from './_hasher.ts';
 import type { SourceType } from './_wasm/load.ts';
-import { text } from './_wasm/packed/fast.ts';
+import { wide } from './_wasm/wide.ts';
 import type { NameType } from './_wasm/registry.ts';
 
 export { CollisionError, NotReadyError, UnsupportedError } from './_family.ts';
@@ -33,8 +34,11 @@ export type AlgorithmType = NameType<'fast'>;
 const family = runtime({
 	family: 'fast',
 	mode: 'auto',
-	packed: text,
-	raw: new URL('./_wasm/raw/fast.wasm', import.meta.url),
+	// The wide-arithmetic build runs rapidhash 5 to 7 times faster; hosts without the feature get the plain one.
+	packed: async () =>
+		(wide() ? await import('./_wasm/packed/fast-wide.ts') : await import('./_wasm/packed/fast.ts')).text,
+	raw: () =>
+		wide() ? new URL('./_wasm/raw/fast-wide.wasm', import.meta.url) : new URL('./_wasm/raw/fast.wasm', import.meta.url),
 	fallbacks: {},
 });
 

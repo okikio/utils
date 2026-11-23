@@ -96,7 +96,8 @@ identical between builds.
 
 Without the feature, WASM has no 64×64→128 multiply, so each 128-bit product becomes four 32-bit multiplies and
 carries. rapidhash does one such product per 8 bytes, so it gains most. XXH3's long-input loop is SIMD and does not use
-the wide multiply, so it gains only on short inputs. The wide module is also 15% smaller (10.3 KB against 12.1 KB).
+the wide multiply, so it gains only on short inputs. In that experiment (rapidhash and XXH3 alone) the wide module was 15% smaller. The
+shipped `fast` modules hold every fast hash: 31,238 bytes wide against 32,630 plain.
 
 ## Host feature probes
 

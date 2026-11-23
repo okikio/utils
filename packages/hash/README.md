@@ -183,7 +183,7 @@ The pinned paths are:
 - `/native`: `@okikio/hash/sha2/native`, `@okikio/hash/sha3/native`, `@okikio/hash/blake/native`, `@okikio/hash/legacy/native`, `@okikio/hash/national/native`
 - `/portable`: `@okikio/hash/sha2/portable`, `@okikio/hash/sha3/portable`, `@okikio/hash/blake/portable`, `@okikio/hash/legacy/portable`, `@okikio/hash/checksum/portable`
 - `/web`: `@okikio/hash/sha2/web`, `@okikio/hash/legacy/web`
-- raw modules: `@okikio/hash/wasm/sha2.wasm`, `@okikio/hash/wasm/sha3.wasm`, `@okikio/hash/wasm/blake.wasm`, `@okikio/hash/wasm/legacy.wasm`, `@okikio/hash/wasm/national.wasm`, `@okikio/hash/wasm/contest.wasm`, `@okikio/hash/wasm/fsb.wasm`, `@okikio/hash/wasm/mac.wasm`, `@okikio/hash/wasm/fast.wasm`, `@okikio/hash/wasm/checksum.wasm`
+- raw modules: `@okikio/hash/wasm/sha2.wasm`, `@okikio/hash/wasm/sha3.wasm`, `@okikio/hash/wasm/blake.wasm`, `@okikio/hash/wasm/legacy.wasm`, `@okikio/hash/wasm/national.wasm`, `@okikio/hash/wasm/contest.wasm`, `@okikio/hash/wasm/fsb.wasm`, `@okikio/hash/wasm/mac.wasm`, `@okikio/hash/wasm/fast.wasm`, `@okikio/hash/wasm/fast-wide.wasm`, `@okikio/hash/wasm/checksum.wasm`
 
 Import a raw module as a WASM module where the host supports it, or fetch it, and pass the result to the matching
 `/wasm` path.

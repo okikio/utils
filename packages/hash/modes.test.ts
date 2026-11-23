@@ -75,3 +75,16 @@ describe('forced backend entry points', () => {
 		await expect(web.hash('sha256', 'abc', { key: new Uint8Array(0) })).rejects.toThrow(RangeError);
 	});
 });
+
+describe('fast family build choice', () => {
+	it('loads the wide-arithmetic build only where the host has it, with the same results', async () => {
+		const fast = await import('./fast.ts');
+		const pinned = await import('./_entry/wasm/fast.ts');
+		const { wide } = await import('./_wasm/wide.ts');
+		await fast.ready();
+		await pinned.ready();
+		const data = input(5000);
+		expect(hex(fast.hash('rapidhash', data))).toBe(hex(pinned.hash('rapidhash', data)));
+		expect(typeof wide()).toBe('boolean');
+	});
+});

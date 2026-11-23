@@ -211,6 +211,12 @@ async function inspect(): Promise<void> {
 		const manifest = JSON.parse(await readFile(resolve(stage, 'package.json'), 'utf8'));
 		for (const [key, value] of Object.entries(manifest.exports)) {
 			if (excluded(name, key)) throw new Error(`${name} retained excluded export ${key}.`);
+			// A raw WebAssembly export is a file path, not import conditions; it must exist in the stage.
+			if (typeof value === 'string') {
+				await readFile(resolve(stage, value));
+				subpaths++;
+				continue;
+			}
 			for (const branch of Object.values(value as Record<string, Record<string, string>>)) {
 				for (const target of Object.values(branch)) await readFile(resolve(stage, target));
 			}
@@ -272,9 +278,20 @@ async function pack(): Promise<void> {
 			[resolve(root, 'node_modules/publint/src/cli.js'), resolve(extracted, 'package'), '--strict'],
 			root,
 		);
+		// Raw WebAssembly files have no types to resolve; inspect() checked that each one is in the stage.
+		const manifest = JSON.parse(await readFile(resolve(stage, 'package.json'), 'utf8')) as Manifest;
+		const files = Object.entries(manifest.exports ?? {}).filter(([, target]) => typeof target === 'string')
+			.map(([key]) => key);
 		command(
 			'node',
-			[resolve(root, 'node_modules/@arethetypeswrong/cli/dist/index.js'), '--profile', 'esm-only', archive],
+			[
+				resolve(root, 'node_modules/@arethetypeswrong/cli/dist/index.js'),
+				// The archive comes first: --exclude-entrypoints takes every argument after it.
+				archive,
+				'--profile',
+				'esm-only',
+				...(files.length ? ['--exclude-entrypoints', ...files] : []),
+			],
 			root,
 		);
 	}
@@ -334,7 +351,9 @@ async function consumer(): Promise<void> {
 	);
 	const paths = [];
 	for (const [name, source] of portable) {
-		for (const key of Object.keys(source.exports)) {
+		for (const [key, target] of Object.entries(source.exports)) {
+			// Raw WebAssembly files are not ESM entry points; inspect() already proved they are packed.
+			if (String(target).endsWith('.wasm')) continue;
 			if (!excluded(name, key)) paths.push(source.name + (key === '.' ? '' : key.slice(1)));
 		}
 	}

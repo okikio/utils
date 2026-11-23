@@ -48,6 +48,11 @@
 			"bytes": 32630,
 			"packed": 16136
 		},
+		"fast-wide": {
+			"sha256": "8c11b1ffc843a68f382144e2ff5c0b398117fc454b5f3f6a40d6bb050fe179c1",
+			"bytes": 31238,
+			"packed": 14964
+		},
 		"checksum": {
 			"sha256": "e7c7d9a5f29c5081a44a3bcca9b64c31ef493f50efb30f9c33457a58282ed8b8",
 			"bytes": 48480,

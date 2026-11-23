@@ -88,6 +88,7 @@
 		"./wasm/fsb.wasm": "./_wasm/raw/fsb.wasm",
 		"./wasm/mac.wasm": "./_wasm/raw/mac.wasm",
 		"./wasm/fast.wasm": "./_wasm/raw/fast.wasm",
+		"./wasm/fast-wide.wasm": "./_wasm/raw/fast-wide.wasm",
 		"./wasm/checksum.wasm": "./_wasm/raw/checksum.wasm"
 	},
 	"imports": {
