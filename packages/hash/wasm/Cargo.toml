@@ -1,0 +1,51 @@
+# One WebAssembly module per hash family. `abi` owns the exported functions and memory;
+# each family crate only maps algorithm ids to maintained hash crates.
+[workspace]
+resolver = "3"
+members = ["abi", "sha2", "sha3", "blake"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+abi = { path = "abi" }
+digest = { version = "0.11", default-features = false }
+sha2 = { version = "0.11", default-features = false, features = ["zeroize"] }
+sha3 = { version = "0.12", default-features = false, features = ["zeroize"] }
+hmac = { version = "0.13", default-features = false, features = ["zeroize"] }
+blake2 = { version = "0.11", default-features = false, features = ["zeroize"] }
+blake3 = { version = "1.8", default-features = false, features = ["wasm32_simd", "zeroize"] }
+k12 = { version = "0.5", default-features = false, features = ["zeroize"] }
+shake = { version = "0.1", default-features = false, features = ["zeroize"] }
+cshake = { version = "0.2", default-features = false, features = ["zeroize"] }
+turboshake = { version = "0.7", default-features = false, features = ["zeroize"] }
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+unsafe_op_in_unsafe_fn = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+indexing_slicing = "warn"
+
+# SHA-1 and SHA-2 lose 2-3x when built for size (docs/hash/04-measurements.md), so speed is the default.
+# Families that measured the same speed at both levels build for size below.
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+debug = false
+
+
+[profile.release.package.hash-blake]
+opt-level = "s"
+[profile.release.package.blake2]
+opt-level = "s"
+[profile.release.package.blake3]
+opt-level = "s"

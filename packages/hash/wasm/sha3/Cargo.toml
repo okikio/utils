@@ -1,0 +1,23 @@
+[package]
+name = "hash-sha3"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[lints]
+workspace = true
+
+[dependencies]
+abi.workspace = true
+digest.workspace = true
+hmac.workspace = true
+sha3.workspace = true
+k12.workspace = true
+shake.workspace = true
+cshake.workspace = true
+turboshake.workspace = true

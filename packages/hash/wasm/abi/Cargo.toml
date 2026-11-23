@@ -1,0 +1,11 @@
+[package]
+name = "abi"
+version = "0.1.0"
+description = "Exported functions, window and slot table shared by every hash family module"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true

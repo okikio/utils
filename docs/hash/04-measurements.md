@@ -112,9 +112,35 @@ Each probe is `WebAssembly.validate` on a minimal module, or a check for the fun
 
 Browser rows other than Chrome 153 come from caniuse and the browser vendors' release notes, not from a local run.
 
+## The committed modules
+
+Built by `mise run build -- --target wasm --write` from the crates in `packages/hash/wasm/`. Time per call in
+microseconds on Node.js 22, through the package's own engine (window copy included).
+
+| Family | Module   | Packed text | Algorithm   | 64 B | 1 MiB |
+| ------ | -------- | ----------- | ----------- | ---- | ----- |
+| sha2   | 39.4 KB  | 10.2 KB     | SHA-256     | 0.50 | 2359  |
+|        |          |             | SHA-512     | 0.45 | 1760  |
+| sha3   | 39.7 KB  | 12.5 KB     | SHA3-256    | 0.66 | 2567  |
+|        |          |             | SHAKE128    | 0.61 | 2141  |
+|        |          |             | KT128       | 0.49 | 1169  |
+| blake  | 65.8 KB  | 25.7 KB     | BLAKE2b-512 | 0.45 | 995   |
+|        |          |             | BLAKE2s-256 | 0.46 | 1585  |
+|        |          |             | BLAKE3      | 0.33 | 571   |
+
+Two build findings:
+
+- **SHA-3 needs a higher LLVM unroll threshold.** `keccak` 0.2 keeps its 24 rounds in a loop on stable Rust. With the
+  default threshold SHA3-256 took 5.4 ms per MiB; with `-C llvm-args=-unroll-threshold=2000` it takes 2.6 ms, at the
+  same size. The build applies the flag to the `sha3` family only, because it grows SHA-2 by 6 KB for no gain.
+- **BLAKE3's WASM SIMD path halves its time**: 571 µs per MiB, against 1196 µs for the scalar prototype build.
+
+Binaryen `-O3` and `-Oz` gave the same speed for every family once the unroll flag was scoped. SHA-2 keeps `-O3`;
+SHA-3 and BLAKE use `-Oz`.
+
 ## Still to measure
 
-1. BLAKE3 with `wasm32_simd` against the scalar build.
+1. Every committed module on Deno, Bun and Chrome, beside `node:crypto` and `@noble/hashes`.
 2. `/shared` `many()` with 1, 2, 4 and 8 workers on 10 000 inputs of 1 KiB.
 3. BLAKE3 subtree hashing across workers on one 64 MiB input.
 4. First-load time of every family, packed and raw, in Chrome, Firefox and Safari.
