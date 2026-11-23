@@ -85,18 +85,6 @@
 	"customManagers": [
 		{
 			"customType": "regex",
-			"description": "Tools that mise tasks install on first use (jactionlint, shellcheck, act), pinned as aqua:<owner>/<repo>@<version>.",
-			"managerFilePatterns": [
-				"/^\\.mise/tasks/.+\\.sh$/"
-			],
-			"matchStrings": [
-				"aqua:(?<depName>[\\w.-]+/[\\w.-]+)@(?<currentValue>\\d+\\.\\d+\\.\\d+)"
-			],
-			"datasourceTemplate": "github-releases",
-			"extractVersionTemplate": "^v?(?<version>.+)$"
-		},
-		{
-			"customType": "regex",
 			"description": "mise version bootstrapped by jdx/mise-action and required by mise.toml.",
 			"managerFilePatterns": [
 				"/^\\.github/workflows/.+\\.ya?ml$/",

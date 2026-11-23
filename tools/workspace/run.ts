@@ -59,7 +59,8 @@ if (values.help) {
   --output <path>    Fresh report directory
 
 Preparation kinds: deps, bench, browser, freeze
-Check kinds: actions, format, lint, types, portable, exports, packages, hono, tests, versions, wasm, jsr
+Check kinds: actions, shell, tasks, secrets, security, format, lint, types, portable, exports, packages, hono, tests,
+  versions, wasm, jsr
 Build targets: npm, exports, wasm. Export and WASM generation are explicit with --write; --check rebuilds WASM
 with Rust and compares it with the committed modules.
 Additional operation inputs are validated by their owning program.`);
@@ -217,11 +218,12 @@ async function ci(): Promise<void> {
 				for (const kind of ['types', 'portable', 'exports', 'packages', 'hono', 'tests', 'versions', 'wasm']) {
 					check(kind);
 				}
-				check('actions');
+				for (const kind of ['actions', 'shell', 'tasks', 'secrets']) check(kind);
 				break;
 			case 'advisory':
-				check('format');
-				check('lint');
+				// Security reads advisory databases that change without a commit, so it stays out of the
+				// result-cached source lane and runs fresh each time.
+				for (const kind of ['format', 'lint', 'security']) check(kind);
 				break;
 			case 'runtimes': {
 				if (values['projects-json'] === undefined) test('source');

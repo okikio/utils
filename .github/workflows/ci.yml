@@ -47,7 +47,7 @@ jobs:
         with:
           version: 2026.11.12
           cache: true
-      - uses: ./.github/actions/dependency-cache
+      - uses: $/.github/actions/dependency-cache
         with:
           stores: pnpm deno
       - run: mise run prepare:node
@@ -55,7 +55,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Save dependency downloads after successful changeset checks
-        uses: ./.github/actions/dependency-cache
+        uses: $/.github/actions/dependency-cache
         with:
           mode: save
           stores: pnpm deno

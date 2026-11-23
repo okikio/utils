@@ -60,8 +60,18 @@ Repository-owned generated artifacts and execution evidence live in `.tmp/`. Exi
 consumers use isolated directories so this checkout's workspace dependencies cannot conceal a missing dependency.
 These locations are internal test details, not application layout recommendations.
 
-CI installs pinned tools with the official Mise action and caches pnpm downloads and Deno modules. `mise run check:actions`
-runs the same workflow validation as CI (jactionlint with shellcheck). `mise run actions .github/workflows/ci.yml --event workflow_dispatch`
+CI installs pinned tools with the official Mise action and caches pnpm downloads and Deno modules. Check tools are lazy
+in `mise.toml`, so each one downloads the first time its task runs. The source lane runs these repository checks:
+
+- `check:actions` runs jactionlint, zizmor and pinact on the workflows and local actions. zizmor and pinact use their
+  online audits only in GitHub Actions; local runs stay offline.
+- `check:shell` runs shellcheck on every shell script, and `check:tasks` validates the Mise task graph.
+- `check:secrets` runs gitleaks on the Git history. Each exception in `.gitleaksignore` is one exact fingerprint with a
+  comment that says why it is not a secret. Never allow a whole file or a whole rule.
+
+`check:security` runs `deno audit` and osv-scanner in the advisory lane. Advisory databases change without a commit,
+so this check never reuses an earlier pass. An exception goes in `osv-scanner.toml` with a reason and an `ignoreUntil`
+date, and the check fails when an exception has expired. `mise run actions .github/workflows/ci.yml --event workflow_dispatch`
 runs one workflow locally with act, which needs Docker. Each job shows its setup directly. Restoring downloads does not skip tests, reuse an unverified build or imply a passing check. The release
 workflow reuses exact tested artifacts at the same revision.
 

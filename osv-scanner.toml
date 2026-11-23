@@ -1,0 +1,14 @@
+# Dependency advisory exceptions for the lockfiles in this directory (pnpm-lock.yaml and deno.lock).
+# osv-scanner reads [[IgnoredVulns]] natively. tools/security/check.ts reads the same entries for deno audit,
+# so one reviewed list covers both scanners. Every entry needs a reason and an ignoreUntil date; an expired
+# entry fails check:security, so each exception is reviewed again instead of renewed silently.
+
+[[IgnoredVulns]]
+id = "GHSA-3g3m-2fjr-6pw4"
+ignoreUntil = 2027-02-21
+reason = """glob 10.5.0 appears only in deno.lock, through testcontainers > archiver > archiver-utils, a test-only dependency. Deno resolves its own npm graph and ignores the pnpm overrides; Deno 2.9 has no override mechanism. pnpm-lock.yaml, which installs node_modules (and Deno uses node_modules: nodeModulesDir manual), pins glob 14.0.6."""
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2027-02-21
+reason = """minimatch 9.0.9 appears only in deno.lock, through glob 10.5.0 above. pnpm-lock.yaml pins minimatch 11.0.9 through the same pnpm override."""

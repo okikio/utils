@@ -1,5 +1,5 @@
 {
-	"source": "d702e6b5c262230cc32d400f844ce44020baf0da6938bd975491667c941a3315",
+	"source": "8c252b4d24f8ad9b1dd06a5f1fe3781ec42a8580d6ea365e9aee85a7b6186ef1",
 	"rust": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
 	"binaryen": "132.0.0",
 	"families": {
@@ -19,9 +19,9 @@
 			"packed": 28048
 		},
 		"legacy": {
-			"sha256": "654a7f687a4c793e9a07333fff4fcc788542fc613a44c1abda382154d82e66cd",
+			"sha256": "befdaa309a459aa5442ee268fa1bc08226ddf0376d57ecef315154110d6d5abe",
 			"bytes": 113692,
-			"packed": 48036
+			"packed": 48028
 		},
 		"national": {
 			"sha256": "803108f732400bd167fa0c4b9ecc3d02ac573eeaa4e964bcd436211696a2d3d8",

@@ -16,6 +16,14 @@ inputs:
 runs:
   using: composite
   steps:
+    # Deno keeps downloads and compiler state under DENO_DIR. This step reads no input, so the
+    # job environment receives only a path built from the runner's own temp directory.
+    - name: Use the job's Deno cache directory
+      if: inputs.mode == 'restore'
+      shell: bash
+      # The value is the runner's own temp path; no input or event text reaches it.
+      run: echo "DENO_DIR=$RUNNER_TEMP/deno-cache" >> "$GITHUB_ENV" # zizmor: ignore[github-env]
+
     # Restore finds the stores and their key, then records them in the job environment for save.
     - name: Locate dependency stores
       id: locate
@@ -26,7 +34,6 @@ runs:
       run: |
         set -euo pipefail
         deno_dir="$RUNNER_TEMP/deno-cache"
-        echo "DENO_DIR=$deno_dir" >> "$GITHUB_ENV"
         # Only the fixed names below reach the key; any other word in the input stops the job.
         names=()
         paths=()
