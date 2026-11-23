@@ -1,0 +1,81 @@
+name: Dependency downloads
+description: >-
+  Restore or save the pnpm store and Deno's download cache. A job calls this twice: once with
+  mode restore before `mise run prepare:node`, and once with mode save as its last step, so only
+  a job whose checks passed can write the cache. Restoring downloads never skips a check: the
+  frozen install still verifies every package against the lockfile.
+
+inputs:
+  mode:
+    description: restore (before installation) or save (after successful checks)
+    default: restore
+  stores:
+    description: Space-separated stores to cache. Supported values are pnpm and deno.
+    default: pnpm deno
+
+runs:
+  using: composite
+  steps:
+    # Restore records the key and paths in the job environment; save reads them back.
+    - name: Locate dependency stores
+      if: inputs.mode == 'restore'
+      shell: bash
+      env:
+        STORES: ${{ inputs.stores }}
+      run: |
+        set -euo pipefail
+        deno_dir="$RUNNER_TEMP/deno-cache"
+        echo "DENO_DIR=$deno_dir" >> "$GITHUB_ENV"
+        paths=()
+        for store in $STORES; do
+          case "$store" in
+            pnpm) paths+=("$(mise exec -- pnpm store path --silent)") ;;
+            # Downloads only. Compiler state has its own cache (../deno-cache).
+            deno) paths+=("$deno_dir/remote" "$deno_dir/npm") ;;
+            *) echo "::error::Unknown dependency store '$store'. Use pnpm or deno." >&2; exit 1 ;;
+          esac
+        done
+        {
+          echo 'DEPENDENCY_CACHE_PATHS<<EOF'
+          printf '%s\n' "${paths[@]}"
+          echo 'EOF'
+          # Tool pins live in mise.toml, so its hash changes the key when a runtime changes.
+          echo "DEPENDENCY_CACHE_PREFIX=deps-v1-${RUNNER_OS}-${RUNNER_ARCH}-${STORES// /-}-"
+        } >> "$GITHUB_ENV"
+
+    - name: Restore dependency downloads
+      id: restore
+      if: inputs.mode == 'restore'
+      continue-on-error: true
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ env.DEPENDENCY_CACHE_PATHS }}
+        key: ${{ env.DEPENDENCY_CACHE_PREFIX }}${{ hashFiles('mise.toml', 'pnpm-lock.yaml', 'deno.lock') }}
+        restore-keys: ${{ env.DEPENDENCY_CACHE_PREFIX }}
+
+    - name: Record the restored key
+      if: inputs.mode == 'restore'
+      shell: bash
+      env:
+        PRIMARY: ${{ steps.restore.outputs.cache-primary-key }}
+        HIT: ${{ steps.restore.outputs.cache-hit }}
+      run: |
+        echo "DEPENDENCY_CACHE_KEY=$PRIMARY" >> "$GITHUB_ENV"
+        echo "DEPENDENCY_CACHE_HIT=${HIT:-false}" >> "$GITHUB_ENV"
+
+    # Only trusted refs write. A PR write stays in its merge-ref scope and cannot reach main.
+    - name: Save dependency downloads
+      if: >-
+        inputs.mode == 'save' && env.DEPENDENCY_CACHE_HIT != 'true' && env.DEPENDENCY_CACHE_KEY != '' &&
+        github.event.repository.fork == false &&
+        (
+          (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref_protected == true)) ||
+          (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') && endsWith(github.ref, '/merge') &&
+           github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.repo.fork == false) ||
+          (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/'))
+        )
+      continue-on-error: true
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ env.DEPENDENCY_CACHE_PATHS }}
+        key: ${{ env.DEPENDENCY_CACHE_KEY }}

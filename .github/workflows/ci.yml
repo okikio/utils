@@ -2,21 +2,35 @@ name: CI
 
 on:
   pull_request:
+    # Only documented activity types. A PR that joins a native stack later is reselected on its next push.
+    types: [opened, synchronize, reopened]
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      fresh:
+        description: Rebuild Deno compiler state while running the complete checks
+        type: boolean
+        default: false
 
 permissions:
   contents: read
+  # The Quality plan job reads native stack membership.
+  pull-requests: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Ordinary manual checks share their exact source; fresh attempts stay
+  # independent. PR revisions cannot interrupt either manual request.
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'workflow_dispatch' && format('{0}-{1}', github.sha, inputs.fresh && format('{0}-{1}', github.run_id, github.run_attempt) || 'reuse') || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+  queue: single
 
 jobs:
   quality:
     name: Quality
     uses: ./.github/workflows/quality.yml
+    with:
+      fresh: ${{ inputs.fresh || false }}
 
   changesets:
     if: github.event_name == 'pull_request'
@@ -31,9 +45,17 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
         with:
-          version: 2026.10.25
+          version: 2026.11.5
           cache: true
+      - uses: ./.github/actions/dependency-cache
+        with:
+          stores: pnpm deno
       - run: mise run prepare:node
       - run: mise run release -- --operation plan
         env:
           GH_TOKEN: ${{ github.token }}
+      - name: Save dependency downloads after successful changeset checks
+        uses: ./.github/actions/dependency-cache
+        with:
+          mode: save
+          stores: pnpm deno

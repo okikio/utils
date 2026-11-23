@@ -67,13 +67,9 @@ workflow reuses exact tested artifacts at the same revision.
 
 Successful work now writes the download cache explicitly. A read-only planner does not save a partially warmed
 store before the test jobs can populate it. Cache identity includes the operating system, CPU architecture, actual
-tool versions and native lockfiles; frozen installation still verifies dependencies after a restore. Most quality
-jobs use Ubicloud's 2-CPU x86 runner, preserving the previous private GitHub runner's architecture and 8 GB memory
-shape. Chromium keeps the original GitHub Ubuntu runner: its complete job took
-[53 seconds](https://github.com/Kaiju-Ind/Utils/actions/runs/42533807113/job/128893804351), compared with
-[184 seconds](https://github.com/Kaiju-Ind/Utils/actions/runs/42551564846/job/128948369203) on Ubicloud. Ubuntu package
-downloads accounted for 124 seconds of the latter run. This observation motivates the runner choice; the corrected
-job's complete duration still needs measurement against the 120-second automatic PR budget.
+tool versions and native lockfiles; frozen installation still verifies dependencies after a restore. Every job runs on
+GitHub's hosted `ubuntu-latest` runner. The local actions under `.github/actions/` own the dependency download cache,
+the Deno compiler cache and native stack selection, so each workflow step names what it restores or saves.
 
 Browser, installed-package and container jobs also restore native Playwright downloads. Keys include the installed
 Playwright version, operating system release, architecture and selected browser set. Chromium has its own cache;
@@ -84,7 +80,7 @@ PR cache writes cannot populate main or release caches. Cache failures fall back
 
 Automatic PR checks keep source contracts on every layer. Chromium, benchmark correctness and example checks run
 on ordinary PRs and the top of a native GitHub stack. The top compares its combined candidate with the ultimate
-stack base. The `stacked` event repeats selection when an existing PR joins a native stack. The planner reports
+stack base. A PR that joins a native stack after its last push is reselected on its next push or a rerun. The planner reports
 runtime, installed-package, PostgreSQL, container and documentation jobs as deferred
 because their measured complete jobs exceeded the 120-second automatic budget. Formatting and lint feedback run
 on main or manual requests. Main pushes retain all affected lanes, and dispatching CI runs all lanes on the selected
@@ -97,11 +93,9 @@ The latter steps continue after a preceding failed check unless the job is cance
 fails the shared job. `Required checks` verifies the selected benchmark and example lanes against that one result;
 it never considers a skipped or failed combined job successful.
 
-The successful reference run [#42675516922](https://github.com/Kaiju-Ind/Utils/actions/runs/42675516922)
-spent approximately 23 seconds in benchmark checks and 2.3 seconds in example tests, but the separate jobs required
-45 and 28 seconds of runner execution. Sharing setup may reduce billed seconds; it does not guarantee lower wall-clock
-time. Measure the new successful hosted run and check the repository's protected required check names before merging,
-because the individual `Benchmark correctness` and `Copyable examples` job names become one combined status.
+Sharing setup may reduce billed seconds; it does not guarantee lower wall-clock time. Measure a successful hosted run
+and check the repository's protected required check names before merging, because the individual
+`Benchmark correctness` and `Copyable examples` job names become one combined status.
 
 For complete checks before landing a stack, dispatch **CI** on its exact top branch. A lower layer reports its
 expensive checks as deferred and skips the required aggregate. It does not certify a passing top. The selected top's
@@ -120,7 +114,7 @@ and literal dynamic imports. Computed module addresses require a complete runtim
 both the old and new paths so moving a file cannot hide its previous package's consumers. These development edges
 do not change the runtime dependency graph used to build or publish npm candidates.
 
-The source, runtime and documentation cohorts also use the shared native Deno compiler cache. It stores only Deno's
+The source, runtime and documentation cohorts also use the native Deno compiler cache (`.github/actions/deno-cache`). It stores only Deno's
 module analysis, compiler databases and generated code, separately from dependency downloads. Deno still checks
 current source and executes each selected command. Full CI and release checks reuse this state by default. Select
 **fresh** when dispatching CI or Release to bypass compiler-state restore and save during a diagnostic run.
