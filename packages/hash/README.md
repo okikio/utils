@@ -178,6 +178,14 @@ Before `ready()` resolves, the `/wasm` and `/packed` paths throw `NotReadyError`
 already have: the exports of a WASM ESM import, a `WebAssembly.Module` from `import source`, an instance, a `Response`,
 bytes or a URL.
 
+The `/packed` copy is deflate-compressed and stored as Base64 text, which `DecompressionStream` turns back into the
+module. Base64 rather than Ascii85 (Z85) is deliberate. Z85 text is 6% shorter, but only when the server sends the
+JavaScript uncompressed: after gzip or Brotli both encodings are the same size. Every runtime also decodes Base64 with
+its own native code (`Uint8Array.fromBase64` or `atob`), while Z85 needs a decoder written in JavaScript, about 25 times
+slower on the first load (0.02 ms against 0.53 ms for a 145 KB module). When size matters most, serve the raw `.wasm`
+file with Brotli through `/wasm` or `/static`: it is 20% smaller than either packed form. The measurements are in
+[docs/hash/04-measurements.md](../../docs/hash/04-measurements.md#packed-versus-raw-wasm).
+
 `/static` is for hosts that allow only statically analyzable imports and refuse to compile WebAssembly at runtime,
 such as Cloudflare Workers. It is never the default; you choose it. Import the raw `.wasm` file with your bundler and
 pass it to `ready()`. Wrangler and the Cloudflare Vite plugin turn a default `.wasm` import into a `WebAssembly.Module`:

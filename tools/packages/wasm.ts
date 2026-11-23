@@ -11,6 +11,10 @@
  *   packages/hash/_wasm/manifest.json  ← source digest, byte digests, sizes, tool versions
  * ```
  *
+ * The packed text is Base64 rather than Ascii85 (Z85) on purpose: Z85 is shorter only when the JavaScript is
+ * served uncompressed, and hosts decode Base64 natively while Z85 needs a JavaScript decoder. The measurements
+ * are in `docs/hash/04-measurements.md`.
+ *
  * Modes:
  *
  * - `--write` builds and replaces the derived files. It needs `cargo` (rustup reads `rust-toolchain.toml`).
