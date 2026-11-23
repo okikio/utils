@@ -68,6 +68,10 @@ pub mod checked {
 		fn read(reader: &mut Self::Reader, _out: &mut [u8]) {
 			match *reader {}
 		}
+
+		fn fork(state: &Sha1) -> Option<Sha1> {
+			Some(state.clone())
+		}
 	}
 }
 

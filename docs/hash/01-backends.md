@@ -95,7 +95,7 @@ cannot go out of bounds.
 - MD2, MD4, MD5, SHA-1, RIPEMD-128, GOST R 34.11-94 and Tiger are broken or weak for collision resistance. They live in
   the `legacy` family, and their names carry no warning-free alias. `sha1-checked` detects the known SHA-1 collision
   attack and is the better choice when SHA-1 is required.
-- Non-cryptographic hashes (xxHash, rapidhash, MurmurHash3, CRC and others) are for indexes, deduplication and
+- Non-cryptographic hashes (xxHash, rapidhash, SeaHash, FNV, CRC and others) are for indexes, deduplication and
   corruption checks. Do not use them where an attacker chooses the input and a collision has a cost. Use a keyed hash
   such as SipHash, HighwayHash or BLAKE3 keyed mode in that case.
 - Keys passed to keyed hashes are copied into WASM memory and zeroed when the state is disposed. JavaScript strings

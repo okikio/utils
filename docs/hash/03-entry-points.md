@@ -25,9 +25,9 @@ Each family path exports the family's algorithms, their HMAC forms and `ready()`
 | `@okikio/hash/national`   | Streebog, GOST94, SM3, Kupyna, BelT, bash, Ascon |
 | `@okikio/hash/contest`    | Grøstl, JH, Skein, Shabal, Whirlpool          |
 | `@okikio/hash/fsb`        | FSB                                           |
-| `@okikio/hash/mac`        | Poly1305, POLYVAL, GHASH, SipHash, HighwayHash |
-| `@okikio/hash/fast`       | xxHash, rapidhash, wyhash, MurmurHash3, MetroHash, CityHash, SeaHash, FNV |
-| `@okikio/hash/checksum`   | CRC catalogue, Adler-32, Fletcher             |
+| `@okikio/hash/mac`        | SipHash, HighwayHash                          |
+| `@okikio/hash/fast`       | xxHash, rapidhash, SeaHash, FNV-1a            |
+| `@okikio/hash/checksum`   | CRC catalogue, Adler-32, Fletcher-16          |
 | `@okikio/hash/digest`     | `digest(name, input)` for any family; loads the family on first use |
 
 `digest` with a name string must be able to reach every family, so it loads families with dynamic `import()`. A
@@ -130,7 +130,7 @@ same-origin` and `Cross-Origin-Embedder-Policy: require-corp`). `pool()` checks 
 ## Wide-arithmetic builds
 
 The WASM [wide-arithmetic](https://github.com/WebAssembly/wide-arithmetic) feature adds 64×64→128-bit multiply and
-128-bit add instructions. xxHash, rapidhash, wyhash and MurmurHash3 use 128-bit multiplies. [Measurements](04-measurements.md#wide-arithmetic)
+128-bit add instructions. xxHash and rapidhash use 128-bit multiplies. [Measurements](04-measurements.md#wide-arithmetic)
 show rapidhash 5–7 times faster on large inputs and XXH3 up to 2.6 times faster on 64-byte inputs.
 
 Firefox 155 and Bun ship the feature. V8 (Chrome, Node.js, Deno) has it behind a flag. Safari does not have it. So the

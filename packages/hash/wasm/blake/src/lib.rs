@@ -128,6 +128,10 @@ impl Family for Blake {
 	fn read(reader: &mut Self::Reader, out: &mut [u8]) {
 		reader.fill(out);
 	}
+
+	fn fork(state: &State) -> Option<State> {
+		Some(state.clone())
+	}
 }
 
 abi::export!(Blake);

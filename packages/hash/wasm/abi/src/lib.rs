@@ -68,8 +68,8 @@ pub enum Output<R> {
 ///
 /// Implementations contain no `unsafe` code. They receive plain slices and return plain values.
 pub trait Family: 'static {
-	/// A live hash state. `Clone` lets JavaScript fork a state after a shared prefix.
-	type State: Clone;
+	/// A live hash state.
+	type State;
 	/// The reader of an extendable-output function after it is finalized.
 	type Reader: Clone;
 
@@ -92,6 +92,12 @@ pub trait Family: 'static {
 
 	/// Write the next `out.len()` bytes of an extendable output.
 	fn read(reader: &mut Self::Reader, out: &mut [u8]);
+
+	/// Copy `state`, so that JavaScript can continue two inputs from a shared prefix.
+	///
+	/// Returns `None` for a hash crate whose state cannot be copied; `fork` then reports
+	/// [`Error::Slot`]. Every macro in this crate implements it with `Clone`.
+	fn fork(state: &Self::State) -> Option<Self::State>;
 }
 
 /// The state of one slot.
@@ -101,13 +107,13 @@ enum Slot<F: Family> {
 	Reading(F::Reader),
 }
 
-// A derive would require `F: Clone`; only the state and reader need to be cloneable.
-impl<F: Family> Clone for Slot<F> {
-	fn clone(&self) -> Self {
+impl<F: Family> Slot<F> {
+	/// Copy a live slot. A free slot, or a state that cannot be copied, gives `None`.
+	fn fork(&self) -> Option<Self> {
 		match self {
-			Self::Free => Self::Free,
-			Self::Hashing(state) => Self::Hashing(state.clone()),
-			Self::Reading(reader) => Self::Reading(reader.clone()),
+			Self::Free => None,
+			Self::Hashing(state) => F::fork(state).map(Self::Hashing),
+			Self::Reading(reader) => Some(Self::Reading(reader.clone())),
 		}
 	}
 }
@@ -221,11 +227,7 @@ impl<F: Family> Runtime<F> {
 	/// Copy slot `slot` into a free slot and return the new index.
 	pub fn fork(&self, slot: u32) -> i32 {
 		let slots = self.slots.borrow();
-		let Some(source) = slots.get(slot as usize) else { return Error::Slot as i32 };
-		if matches!(source, Slot::Free) {
-			return Error::Slot as i32;
-		}
-		let copy = source.clone();
+		let Some(copy) = slots.get(slot as usize).and_then(Slot::fork) else { return Error::Slot as i32 };
 		let Some(index) = slots.iter().position(|slot| matches!(slot, Slot::Free)) else {
 			return Error::Full as i32;
 		};
@@ -440,6 +442,10 @@ macro_rules! digests {
 			fn read(reader: &mut Self::Reader, _out: &mut [u8]) {
 				match *reader {}
 			}
+
+			fn fork(state: &State) -> Option<State> {
+				Some(state.clone())
+			}
 		}
 	};
 }
@@ -486,6 +492,10 @@ macro_rules! plain_digests {
 
 			fn read(reader: &mut Self::Reader, _out: &mut [u8]) {
 				match *reader {}
+			}
+
+			fn fork(state: &State) -> Option<State> {
+				Some(state.clone())
 			}
 		}
 	};
@@ -559,6 +569,10 @@ macro_rules! xofs {
 					$(Reader::$name(reader) => ::digest::XofReader::read(reader, out),)+
 				}
 			}
+
+			fn fork(state: &State) -> Option<State> {
+				Some(state.clone())
+			}
 		}
 	};
 }
@@ -573,7 +587,6 @@ macro_rules! join {
 		pub struct $family;
 
 		/// A state of either part.
-		#[derive(Clone)]
 		pub enum State {
 			/// From the first part.
 			Left(<$left as $crate::Family>::State),
@@ -627,6 +640,13 @@ macro_rules! join {
 				match reader {
 					Reader::Left(reader) => <$left as $crate::Family>::read(reader, out),
 					Reader::Right(reader) => <$right as $crate::Family>::read(reader, out),
+				}
+			}
+
+			fn fork(state: &State) -> Option<State> {
+				match state {
+					State::Left(state) => <$left as $crate::Family>::fork(state).map(State::Left),
+					State::Right(state) => <$right as $crate::Family>::fork(state).map(State::Right),
 				}
 			}
 		}
