@@ -63,9 +63,21 @@ Decisions taken from this table:
 
 ## Packed versus raw WASM
 
-Packing (deflate-raw, then Z85 text) makes modules 20–25% smaller before HTTP compression. The first load costs 25–177
-ms more, because the host must decode Z85 and run `DecompressionStream` before it compiles. After the first load, both
+Packing (deflate-raw, then text) makes modules 20–25% smaller before HTTP compression. The first load costs 25–177 ms
+more, because the host must decode the text and run `DecompressionStream` before it compiles. After the first load, both
 forms run the same code at the same speed. Item 4 of the list below repeats this per family and per browser.
+
+Which text encoding to use. Measured on a 145 KB BLAKE module (30.3 KB after deflate), Deno 2.9:
+
+| Form                        | Size     | After gzip -9 | After Brotli | Decode time           |
+| --------------------------- | -------- | ------------- | ------------ | --------------------- |
+| Raw `.wasm`                 | 144.8 KB | 30.3 KB       | **24.3 KB**  | none                  |
+| Deflate + Z85               | 37.9 KB  | 31.0 KB       | 30.6 KB      | 1.97 ms (`@std/encoding`), 0.53 ms (table decoder) |
+| Deflate + Base64            | 40.4 KB  | 30.9 KB       | 30.2 KB      | **0.02 ms** (`Uint8Array.fromBase64` or `atob`) |
+
+Z85 saves 6% only when the server sends the JavaScript uncompressed. With HTTP compression it saves nothing, and its
+decoder runs in JavaScript. So packed modules use Base64. A raw `.wasm` file served with Brotli is 20% smaller than any
+packed form, which is the case for the `/wasm` entry point.
 
 ## Wide arithmetic
 

@@ -18,7 +18,7 @@ So no single backend is best. The package offers five, and the default entry poi
 
 | Backend  | What it is                                                                 | Works on                                         | Sync |
 | -------- | -------------------------------------------------------------------------- | ------------------------------------------------ | ---- |
-| packed   | WASM bytes compressed with deflate, stored as a Z85 string inside the JS   | Every host with `WebAssembly` and `DecompressionStream` | yes, after `ready()` |
+| packed   | WASM bytes compressed with deflate, stored as a Base64 string inside the JS | Every host with `WebAssembly` and `DecompressionStream` | yes, after `ready()` |
 | wasm     | The same WASM as a separate `.wasm` file, loaded with `fetch` or a file read | Every host with `WebAssembly` and file or URL access | yes, after `ready()` |
 | native   | `node:crypto` through `process.getBuiltinModule`                           | Node.js 22.3+, Deno, Bun                         | yes  |
 | web      | `crypto.subtle.digest`                                                     | Browsers, Deno, Bun, Node.js, workers            | no   |
@@ -34,9 +34,12 @@ Packed WASM needs no separate file. A bundler, JSR, a CDN and a service worker a
 needs a URL, a loader plugin or a `fetch` permission. The JS module's own integrity check (Subresource Integrity, a
 lockfile hash or a JSR checksum) also covers the WASM, because the WASM is part of the module text.
 
-The cost is time on the first call. The host must decode Z85 and decompress the bytes before it can compile them.
-[Measurements](04-measurements.md) puts this at 25–177 ms on the first load and the same as raw WASM after that. Packing
-makes the bytes 20–25% smaller before HTTP compression.
+The cost is time on the first call. The host must decode the text and decompress the bytes before it can compile them.
+[Measurements](04-measurements.md) puts this at 25–177 ms on the first load and the same as raw WASM after that.
+
+The text is Base64, not Ascii85 (Z85). Z85 is 6% shorter before HTTP compression, but after gzip or Brotli both are the
+same size, and the host's own Base64 decoder is 25–100 times faster than a JavaScript Z85 decoder
+([measured](04-measurements.md#packed-versus-raw-wasm)).
 
 Use the `wasm` entry point instead when you serve files yourself and can set `Content-Type: application/wasm`. The host
 can then compile while it downloads (`WebAssembly.compileStreaming`), and the browser cache stores the compiled code.
