@@ -42,6 +42,7 @@ Add a backend after the family to force it. The default is the automatic choice.
 | (none)       | `@okikio/hash/sha3`               | Automatic choice ([rules](01-backends.md#how-the-default-chooses)) |
 | `/packed`    | `@okikio/hash/sha3/packed`        | Embedded WASM only                                          |
 | `/wasm`      | `@okikio/hash/sha3/wasm`          | Separate `.wasm` file only; you pass the module, or `ready()` fetches it ([below](#load-the-wasm-yourself)) |
+| `/static`    | `@okikio/hash/sha3/static`        | A compiled module you import; nothing resolved, fetched or compiled at runtime ([below](#static-imports)) |
 | `/native`    | `@okikio/hash/sha2/native`        | `node:crypto` only; throws `UnsupportedError` without it    |
 | `/web`       | `@okikio/hash/sha2/web`           | Web Crypto only; asynchronous functions only               |
 | `/portable`  | `@okikio/hash/sha3/portable`      | Pure JavaScript only: `@noble/hashes`, and the package's own CRC-32 |
@@ -59,7 +60,7 @@ which. They are:
 | `/web`      | `sha2` (SHA-256, SHA-384, SHA-512), `legacy` (SHA-1)        |
 | `/portable` | `sha2`, `sha3`, `blake`, `legacy`, `checksum` (CRC-32, CRC-32C) |
 
-`/wasm` and `/packed` exist for all ten families. `/web` has no `create`, because Web Crypto has no incremental state.
+`/wasm`, `/packed` and `/static` exist for all ten families. `/web` has no `create`, because Web Crypto has no incremental state.
 
 ## Load the WASM yourself
 
@@ -93,6 +94,45 @@ Host support checked locally: Deno 2.9 runs both the instance import and `import
 import behind `--experimental-wasm-modules` and does not parse `import source`. Bun 1.4 runs neither. Browsers need a
 bundler for both forms today. Because support differs, the automatic default keeps packed WASM, and the forms above are
 choices you make.
+
+## Static imports
+
+Status: built.
+
+Some hosts accept only imports a bundler can see, and refuse to compile WebAssembly at runtime. Cloudflare Workers
+is the main one: `WebAssembly.compile`, `instantiate` with bytes and the streaming forms all throw there, and only
+`instantiate` with an already compiled module works. The module must come from a `.wasm` import, which Wrangler and
+the Cloudflare Vite plugin turn into a `WebAssembly.Module`.
+
+The default stays dynamic. `/static` is an opt-in entry point for each family:
+
+```ts ignore
+import wasm from '@okikio/hash/wasm/sha3.wasm';
+import { hash, ready } from '@okikio/hash/sha3/static';
+
+await ready(wasm);
+hash('sha3-256', 'hello');
+```
+
+What `/static` guarantees, checked by `static.test.ts` over each entry's import graph:
+
+- no `import()`, no `import.meta`, no `fetch` and no `WebAssembly.compile` or `instantiateStreaming`;
+- no embedded module (`_wasm/packed/`), no full loader (`_wasm/load.ts`) and no `node:crypto` lookup.
+
+It uses `_runtime.ts` with the compiled-only loader `_wasm/attach.ts`; every other entry uses `_family.ts`, which
+adds the full loader. `ready()` takes a `WebAssembly.Module`, an instance, a WASM ESM import's exports or a namespace
+whose `default` is one of these, and refuses bytes and URLs. Nothing falls back.
+
+There is no single `.wasm` import syntax for every host, so the application writes the import, not the package. A
+default import gives a `Module` under Wrangler and Vite. `import source` gives one in Deno and in Node.js 24 or later
+behind `--experimental-wasm-modules`, but esbuild cannot bundle that form. Pick the form your toolchain uses.
+
+For `fast`, import `fast.wasm` (any host) or `fast-wide.wasm` (hosts with wide arithmetic); both give the same
+digests. `digest` loads families by name with `import()`, which bundlers handle when the specifier is a literal; on a
+static host, import the family's `/static` path instead. `/shared` needs `Worker`, which Workers do not have.
+
+The default paths still run on Workers: the packed compile fails once, the failure is recorded, and calls move to
+`node:crypto` (with `nodejs_compat`) or pure JavaScript. Algorithms with neither, such as Streebog, need `/static`.
 
 ## Encoding entry points
 

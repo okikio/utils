@@ -33,7 +33,7 @@ const family = runtime({
 	family: 'national',
 	mode: 'auto',
 	packed: text,
-	raw: new URL('./_wasm/raw/national.wasm', import.meta.url),
+	raw: () => new URL('./_wasm/raw/national.wasm', import.meta.url),
 	fallbacks,
 });
 

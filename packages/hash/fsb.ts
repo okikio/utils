@@ -32,7 +32,7 @@ const family = runtime({
 	family: 'fsb',
 	mode: 'auto',
 	packed: text,
-	raw: new URL('./_wasm/raw/fsb.wasm', import.meta.url),
+	raw: () => new URL('./_wasm/raw/fsb.wasm', import.meta.url),
 	fallbacks: {},
 });
 

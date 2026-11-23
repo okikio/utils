@@ -32,7 +32,7 @@ export type AlgorithmType = NameType<'legacy'>;
 const family = runtime({
 	family: 'legacy',
 	mode: 'wasm',
-	raw: new URL('../../_wasm/raw/legacy.wasm', import.meta.url),
+	raw: () => new URL('../../_wasm/raw/legacy.wasm', import.meta.url),
 });
 
 /**

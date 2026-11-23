@@ -29,7 +29,11 @@ export type { SourceType } from '../../_wasm/load.ts';
 /** Algorithm names of this family. */
 export type AlgorithmType = NameType<'blake'>;
 
-const family = runtime({ family: 'blake', mode: 'wasm', raw: new URL('../../_wasm/raw/blake.wasm', import.meta.url) });
+const family = runtime({
+	family: 'blake',
+	mode: 'wasm',
+	raw: () => new URL('../../_wasm/raw/blake.wasm', import.meta.url),
+});
 
 /**
  * Load the module. Without `source`, read or fetch `blake.wasm` beside this module. With `source`, use it

@@ -35,7 +35,7 @@ const family = runtime({
 	family: 'sha2',
 	mode: 'auto',
 	packed: text,
-	raw: new URL('./_wasm/raw/sha2.wasm', import.meta.url),
+	raw: () => new URL('./_wasm/raw/sha2.wasm', import.meta.url),
 	fallbacks,
 });
 

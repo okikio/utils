@@ -36,7 +36,7 @@ const family = runtime({
 	family: 'checksum',
 	mode: 'auto',
 	packed: text,
-	raw: new URL('./_wasm/raw/checksum.wasm', import.meta.url),
+	raw: () => new URL('./_wasm/raw/checksum.wasm', import.meta.url),
 	fallbacks,
 });
 

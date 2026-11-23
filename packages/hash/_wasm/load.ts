@@ -8,35 +8,17 @@
  *
  * @module
  */
+import { attach, type CompiledType, exportsOf, instance } from './attach.ts';
 import { Engine, type ExportsType } from './engine.ts';
 
 /** Every form that {@link load} accepts. */
 export type SourceType =
-	| ExportsType
-	| WebAssembly.Module
-	| WebAssembly.Instance
+	| CompiledType
 	| Response
 	| PromiseLike<Response>
 	| ArrayBuffer
 	| ArrayBufferView
 	| URL;
-
-const names = ['memory', 'window', 'init', 'update', 'finish', 'read', 'fork', 'dispose', 'oneshot'] as const;
-
-function exportsOf(value: unknown): ExportsType {
-	const record = value as Record<string, unknown>;
-	for (const name of names) {
-		const item = record[name];
-		if (name === 'memory' ? !(item instanceof WebAssembly.Memory) : typeof item !== 'function') {
-			throw new TypeError(`not a hash family module: missing export ${name}`);
-		}
-	}
-	return value as ExportsType;
-}
-
-async function instance(module: WebAssembly.Module): Promise<ExportsType> {
-	return exportsOf((await WebAssembly.instantiate(module, {})).exports);
-}
 
 /** Read a `file:` URL without `fetch`, which Node.js does not support for files. */
 async function file(url: URL): Promise<Uint8Array<ArrayBuffer>> {
@@ -59,8 +41,7 @@ async function stream(response: Response): Promise<ExportsType> {
 
 /** Instantiate `source` and wrap it. Exports objects and instances are used as they are. */
 export async function load(source: SourceType): Promise<Engine> {
-	if (source instanceof WebAssembly.Instance) return new Engine(exportsOf(source.exports));
-	if (source instanceof WebAssembly.Module) return new Engine(await instance(source));
+	if (source instanceof WebAssembly.Instance || source instanceof WebAssembly.Module) return await attach(source);
 	if (source instanceof URL) {
 		return new Engine(
 			source.protocol === 'file:'
@@ -78,7 +59,7 @@ export async function load(source: SourceType): Promise<Engine> {
 	if (typeof (source as PromiseLike<Response>).then === 'function') {
 		return await load(await (source as PromiseLike<Response>));
 	}
-	return new Engine(exportsOf(source));
+	return await attach(source as CompiledType);
 }
 
 /** Decode packed text: Base64 of deflate-raw compressed WASM bytes. */
