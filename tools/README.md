@@ -84,8 +84,9 @@ the Deno compiler cache and native stack selection, so each workflow step names 
 Browser, installed-package and container jobs also restore native Playwright downloads. Keys include the installed
 Playwright version, operating system release, architecture and selected browser set. Chromium has its own cache;
 the existing package and container preparation share an all-browser cache. Each native installer still runs with
-`--with-deps`, then each selected test runs against the current source. The cache does not contain Ubuntu packages,
-browser profiles or test results. Successful trusted runs can save downloads under GitHub's ordinary ref scope;
+`--with-deps`, then each selected test runs against the current source. The cache also keeps the Ubuntu packages
+that `--with-deps` downloads, so a slow Ubuntu mirror cannot stall the job; apt still checks each one against the
+signed package index. It does not contain browser profiles or test results. Successful trusted runs can save downloads under GitHub's ordinary ref scope;
 PR cache writes cannot populate main or release caches. Cache failures fall back to normal installation.
 
 Every job has a 10-minute limit. Ordinary PRs and the top of a native GitHub stack run every affected lane; the top
