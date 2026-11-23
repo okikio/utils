@@ -5,6 +5,10 @@ import * as packed from './_entry/packed/sha3.ts';
 import * as packedMac from './_entry/packed/mac.ts';
 import * as native from './_entry/native/sha2.ts';
 import * as nativeNational from './_entry/native/national.ts';
+import * as nativeChecksum from './_entry/native/checksum.ts';
+import * as packedChecksum from './_entry/packed/checksum.ts';
+import * as checksum from './checksum.ts';
+import { crc32 } from 'node:zlib';
 import * as portable from './_entry/portable/blake.ts';
 import * as portableChecksum from './_entry/portable/checksum.ts';
 import * as portableSha3 from './_entry/portable/sha3.ts';
@@ -49,6 +53,24 @@ describe('forced backend entry points', () => {
 		expect(hex(native.create('sha384').update(data).digest())).toBe(createHash('sha384').update(data).digest('hex'));
 		if (getHashes().includes('sm3')) expect(nativeNational.hash('sm3', 'abc').length).toBe(32);
 		else expect(() => nativeNational.hash('sm3', 'abc')).toThrow(UnsupportedError);
+	});
+
+	it('native: runs CRC-32 on zlib.crc32, in one call or in pieces, as the module does', async () => {
+		await packedChecksum.ready();
+		const data = Uint8Array.from({ length: 70000 }, (_, index) => (index * 131) & 0xff);
+		expect(hex(nativeChecksum.hash('CRC-32/ISO-HDLC', '123456789'))).toBe('cbf43926');
+		expect(hex(nativeChecksum.hash('CRC-32/ISO-HDLC', ''))).toBe('00000000');
+		const whole = hex(packedChecksum.hash('CRC-32/ISO-HDLC', data));
+		expect(hex(nativeChecksum.hash('CRC-32/ISO-HDLC', data))).toBe(whole);
+		expect(whole).toBe((crc32(data) >>> 0).toString(16).padStart(8, '0'));
+		const state = nativeChecksum.create('CRC-32/ISO-HDLC');
+		for (let at = 0; at < data.length; at += 4093) state.update(data.subarray(at, at + 4093));
+		expect(hex(state.digest())).toBe(whole);
+		// Auto picks zlib only where it beats the module: from 4 KiB on Deno and Node, from 512 B on Bun.
+		await checksum.ready();
+		expect(checksum.backend('CRC-32/ISO-HDLC', 16)).toBe('wasm');
+		expect(checksum.backend('CRC-32/ISO-HDLC', 1 << 20)).toBe('native');
+		expect(hex(checksum.hash('CRC-32/ISO-HDLC', data))).toBe(whole);
 	});
 
 	it('portable: runs pure JavaScript only, and agrees with the auto entry', async () => {

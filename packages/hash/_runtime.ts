@@ -4,9 +4,10 @@
  *
  * ```text
  *   hash(name, input)            automatic entry (`@okikio/hash/sha3`)
- *     ├─ node:crypto has it, and it is SHA-1/SHA-2 with input ≥ 512 B (any size on Bun) ─► native
+ *     ├─ the host has it natively, and it is SHA-1/SHA-2 ≥ 512 B or CRC-32 ≥ 4 KiB ───────► native
+ *     │   (on Bun: any SHA size, CRC-32 ≥ 512 B)
  *     ├─ the module is loaded ────────────────────────────────────────────────────────► WASM
- *     ├─ node:crypto has it ───────────────────────────────────────────────────────────► native
+ *     ├─ the host has it natively ─────────────────────────────────────────────────────► native
  *     ├─ @noble/hashes has it ─────────────────────────────────────────────────────────► portable
  *     └─ otherwise ─► NotReadyError (module still loading) or UnsupportedError (it cannot load)
  *
@@ -55,6 +56,11 @@ export interface HashOptionsType {
 export interface FallbackType {
 	/** The `node:crypto` name, if OpenSSL has the algorithm. */
 	readonly native?: string;
+	/**
+	 * A native state from another built-in module, for an algorithm OpenSSL lacks: CRC-32 through `node:zlib`.
+	 * Returns `undefined` where the host has no such module. Keys are never passed to it.
+	 */
+	readonly host?: () => HostStateType | undefined;
 	/** True when OpenSSL takes `outputLength` for it (SHAKE). */
 	readonly xof?: boolean;
 	/** True when `node:crypto` HMAC over it matches the module's HMAC. */
@@ -68,6 +74,14 @@ interface CryptoType {
 	createHash(name: string, options?: { outputLength?: number }): NodeHashType;
 	createHmac(name: string, key: Uint8Array): NodeHashType;
 	getHashes(): string[];
+}
+
+/** A native incremental state: a `node:crypto` Hash, or a `host` state with the same methods. */
+export interface HostStateType {
+	update(data: Uint8Array): HostStateType;
+	digest(): Uint8Array;
+	/** An independent copy of the state so far. Without it, `clone()` throws `UnsupportedError`. */
+	copy?(): HostStateType;
 }
 
 interface NodeHashType {
@@ -92,9 +106,17 @@ function nodeCrypto(): { crypto: CryptoType | undefined; hashes: Set<string> } {
 	return host = { crypto, hashes: new Set(crypto?.getHashes() ?? []) };
 }
 
-/** SHA-1 and SHA-2 use the CPU's SHA instructions in OpenSSL; WASM wins only below this size (docs/hash/04). */
-const accelerated = new Set(['sha1', 'sha224', 'sha256', 'sha384', 'sha512', 'sha512-224', 'sha512-256']);
-const threshold = typeof (globalThis as { Bun?: unknown }).Bun === 'undefined' ? 512 : 0;
+const bun = typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined';
+/** SHA-1 and SHA-2 use the CPU's SHA instructions in OpenSSL; WASM wins only below 512 bytes (docs/hash/04). */
+const sha = bun ? 0 : 512;
+/**
+ * Algorithms whose native backend beats WASM from a size up, and that size. `zlib.crc32` uses the carry-less multiply
+ * (5 to 99 GB/s) but costs about 1 µs per call in Deno and Node, so WASM stays faster below 4 KiB there (docs/hash/04).
+ */
+const accelerated = new Map<string, number>([
+	...['sha1', 'sha224', 'sha256', 'sha384', 'sha512', 'sha512-224', 'sha512-256'].map((name) => [name, sha] as const),
+	['CRC-32/ISO-HDLC', bun ? 512 : 4096],
+]);
 
 /** A `node:crypto` Hash as a package state. Buffers become plain `Uint8Array` copies. */
 function nodeState(hash: NodeHashType): StateType {
@@ -105,7 +127,7 @@ function nodeState(hash: NodeHashType): StateType {
 		},
 		digest: () => output(hash.digest()),
 		clone() {
-			if (!hash.copy) throw new UnsupportedError('node:crypto cannot copy an HMAC state.');
+			if (!hash.copy) throw new UnsupportedError('This native state cannot be copied (node:crypto HMAC).');
 			return nodeState(hash.copy());
 		},
 		destroy() {},
@@ -231,6 +253,7 @@ export function runtime<F extends FamilyType, S>(
 
 	const native = (name: string, key: Uint8Array | undefined, length: number) => {
 		const fallback = config.fallbacks?.[name as NameType<F>];
+		if (fallback?.host) return key ? undefined : fallback.host();
 		if (!fallback?.native) return undefined;
 		const { crypto, hashes } = nodeCrypto();
 		if (!crypto || !hashes.has(fallback.native)) return undefined;
@@ -254,7 +277,7 @@ export function runtime<F extends FamilyType, S>(
 			case 'native': {
 				const host = native(name, key, size);
 				if (host) return { kind: 'native' as const, host };
-				throw new UnsupportedError(`node:crypto on this host has no ${name} for these options.`);
+				throw new UnsupportedError(`This host has no native ${name} for these options.`);
 			}
 			case 'portable': {
 				const portable = fallback?.portable?.(key, size);
@@ -263,7 +286,8 @@ export function runtime<F extends FamilyType, S>(
 			}
 		}
 		if (!engine && !loading && failure === undefined) ready().catch(() => {});
-		const prefer = accelerated.has(name) && (length === undefined || length >= threshold);
+		const from = accelerated.get(name);
+		const prefer = from !== undefined && (length === undefined || length >= from);
 		const host = prefer || !module ? native(name, key, size) : undefined;
 		if (host) return { kind: 'native' as const, host };
 		if (module) return { kind: 'wasm' as const, spec, key, size };

@@ -102,6 +102,7 @@
 		"./hash/blake/static": "./hash/blake/static.ts",
 		"./hash/blake/wasm": "./hash/blake/wasm.ts",
 		"./hash/checksum": "./hash/checksum.ts",
+		"./hash/checksum/native": "./hash/checksum/native.ts",
 		"./hash/checksum/packed": "./hash/checksum/packed.ts",
 		"./hash/checksum/portable": "./hash/checksum/portable.ts",
 		"./hash/checksum/shared": "./hash/checksum/shared.ts",

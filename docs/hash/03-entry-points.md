@@ -56,7 +56,7 @@ which. They are:
 
 | Suffix      | Families                                                    |
 | ----------- | ----------------------------------------------------------- |
-| `/native`   | `sha2`, `sha3`, `blake`, `legacy`, `national` (SM3)          |
+| `/native`   | `sha2`, `sha3`, `blake`, `legacy`, `national` (SM3), `checksum` (CRC-32 through `zlib.crc32`) |
 | `/web`      | `sha2` (SHA-256, SHA-384, SHA-512), `legacy` (SHA-1)        |
 | `/portable` | `sha2`, `sha3`, `blake`, `legacy`, `checksum` (CRC-32, CRC-32C) |
 

@@ -169,6 +169,24 @@ What the table shows:
    transferring its buffer.
 2. **The portable CRC-32 was bitwise** (0.02 GB/s). It is now slicing-by-8 with tables built on first use: 1.0–1.6 GB/s
    at 1 MiB.
+3. **CRC-32/ISO-HDLC uses `zlib.crc32` natively.** The built-in uses the carry-less multiply, which WebAssembly lacks.
+   Per call, through the entry points (Deno 2.9.8 / Node.js 26.13.1 / Bun 1.4.4):
+
+   | Input  | `zlib.crc32` (`/native`)    | WebAssembly (`/packed`)     |
+   | ------ | --------------------------- | --------------------------- |
+   | 64 B   | 960 / 1,137 / 439 ns        | 313 / 277 / 413 ns          |
+   | 512 B  | 1,087 / 921 / 442 ns        | 550 / 427 / 646 ns          |
+   | 4 KiB  | 3.67 / 2.67 / 8.13 GB/s     | 1.72 / 1.93 / 1.95 GB/s     |
+   | 1 MiB  | 97.5 / 5.44 / 99.2 GB/s     | 1.86 / 2.14 / 2.25 GB/s     |
+
+   A `zlib.crc32` call costs about 1 µs in Deno and Node, so the automatic entry uses it from 4 KiB there and from
+   512 B on Bun, and keeps WebAssembly below that. Node.js 26 runs its `zlib.crc32` without the carry-less multiply,
+   so it gains least. Incremental states (`create()`) always use it where it exists.
+
+The same measurement for compiled Rust (single thread, AVX-512) showed where a native addon would help: BLAKE3 at
+6.9 GB/s (WASM 1.7), XXH3 at 17.6 GB/s (WASM 13.3) and CRC-32 at 49 GB/s, while SHA-256 (already native through
+`node:crypto`), SHA-3 and BLAKE2b gained 10% or less. That gain did not justify per-platform binaries, so the package
+ships no Node-API addon; `zlib.crc32` gives CRC-32 most of it with no binary.
 
 ## Worker pool
 

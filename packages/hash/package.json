@@ -77,6 +77,7 @@
 		"./checksum/wasm": "./_entry/wasm/checksum.ts",
 		"./checksum/static": "./_entry/static/checksum.ts",
 		"./checksum/packed": "./_entry/packed/checksum.ts",
+		"./checksum/native": "./_entry/native/checksum.ts",
 		"./checksum/portable": "./_entry/portable/checksum.ts",
 		"./checksum/shared": "./_entry/shared/checksum.ts",
 		"./wasm/sha2.wasm": "./_wasm/raw/sha2.wasm",
