@@ -22,9 +22,9 @@
 		".": "./mod.ts"
 	},
 	"imports": {
-		"@okikio/observables": "jsr:@okikio/observables@1.4.0",
+		"@okikio/observables": "jsr:@okikio/observables@^1.4.0",
 		"#/": "./",
-		"@std/async": "jsr:@std/async@^1.5.0"
+		"@std/async": "jsr:@std/async@^1.5.1"
 	},
 	"license": "MIT",
 	"tasks": {

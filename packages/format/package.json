@@ -21,17 +21,17 @@
 	},
 	"dependencies": {
 		"@okikio/collection": "workspace:^1.0.0",
-		"@std/csv": "npm:@jsr/std__csv@^1.0.6",
 		"@okikio/schema": "workspace:^1.0.0",
 		"@okikio/streams": "workspace:^0.1.0",
+		"@std/csv": "npm:@jsr/std__csv@^1.0.6",
 		"@std/xml": "npm:@jsr/std__xml@^0.2.0"
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
-		"fast-check": "^4.9.0",
-		"saxes": "^6.0.0",
+		"csv-parse": "7.0.3",
+		"fast-check": "^4.11.0",
 		"mitata": "^1.0.34",
-		"csv-parse": "7.0.3"
+		"saxes": "^6.0.0"
 	},
 	"publishConfig": {
 		"access": "public",

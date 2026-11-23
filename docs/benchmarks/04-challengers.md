@@ -69,7 +69,7 @@ The pinned npm archive exposes `main.ts` and has no JavaScript compiler entry. D
 TypeScript under `node_modules`. Its source also has type errors under this repository's strict compiler, and its
 published TypeScript peer range is `^5.0.0`.
 
-`tools/bench/prepare.ts` uses the existing TypeScript 6.0.3 emitter and tsdown 0.22.14 to erase types and emit one
+`tools/bench/prepare.ts` uses the existing TypeScript 6.0.3 emitter and tsdown 0.23.7 to erase types and emit one
 unminified ESM artifact. Tree shaking is disabled and native built-ins remain external. Type erasure precedes bundler
 parsing because the archive contains an empty type-only generic parameter list. The source files stay intact. Function
 text matters to parts of Vixeny's compiler, so minification would change more than packaging.

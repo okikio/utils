@@ -13,7 +13,7 @@
 		"./types": "./types.ts"
 	},
 	"imports": {
-		"@okikio/observables": "jsr:@okikio/observables@1.4.0"
+		"@okikio/observables": "jsr:@okikio/observables@^1.4.0"
 	},
 	"license": "MIT",
 	"tasks": {

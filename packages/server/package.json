@@ -30,26 +30,26 @@
 		"./client": "./client.ts"
 	},
 	"dependencies": {
-		"@standard-schema/spec": "^1.1.0",
-		"@std/async": "npm:@jsr/std__async@^1.5.0",
+		"@okikio/capability": "workspace:^1.0.0",
 		"@okikio/collection": "workspace:^1.0.0",
 		"@okikio/context": "workspace:^1.0.0",
 		"@okikio/duration": "workspace:^0.1.0",
-		"@okikio/capability": "workspace:^1.0.0",
 		"@okikio/env": "workspace:^1.0.0",
 		"@okikio/http": "workspace:^1.0.0",
 		"@okikio/query": "workspace:^1.0.0",
-		"@okikio/workflow": "workspace:^1.0.0",
 		"@okikio/result": "workspace:^1.0.0",
+		"@okikio/schema": "workspace:^1.0.0",
 		"@okikio/telemetry": "workspace:^0.1.0",
-		"@okikio/schema": "workspace:^1.0.0"
+		"@okikio/workflow": "workspace:^1.0.0",
+		"@standard-schema/spec": "^1.1.0",
+		"@std/async": "npm:@jsr/std__async@^1.5.1"
 	},
 	"devDependencies": {
-		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
-		"@okikio/result": "workspace:^1.0.0",
 		"@okikio/authz": "workspace:^0.1.0",
-		"mitata": "^1.0.34",
-		"@okikio/dispose": "workspace:^0.1.0"
+		"@okikio/dispose": "workspace:^0.1.0",
+		"@okikio/result": "workspace:^1.0.0",
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20",
+		"mitata": "^1.0.34"
 	},
 	"publishConfig": {
 		"access": "public",
