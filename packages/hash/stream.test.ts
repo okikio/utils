@@ -24,7 +24,7 @@ describe('stream digest resource ownership', () => {
 				controller.close();
 			},
 		});
-		expect(await read(() => blake.create(), other, { maximumBytes: 3 })).toEqual(blake.blake3('abc'));
+		expect(await read(() => blake.create('blake3'), other, { maximumBytes: 3 })).toEqual(blake.blake3('abc'));
 	});
 	it('rejects over-limit data and releases locks without awaiting a hanging cancel', async () => {
 		let cancelled = false;

@@ -77,8 +77,40 @@ Deno, Node and Bun have a built-in SHA-2 in `node:crypto`. The package finds it 
 host has no built-in hash, such as a browser, the async paths use Web Crypto and the sync paths use Noble's JavaScript.
 All paths return the same bytes, as plain `Uint8Array` values.
 
-The [hash design](../../docs/hash/README.md) describes the next step: WebAssembly builds of every algorithm that a
-maintained Rust crate implements, and entry points that pick the fastest backend for the host.
+## Hash with other algorithms
+
+Each algorithm family has its own entry point and its own WebAssembly (WASM) module, built from maintained Rust crates:
+SHA-2, SHA-3, BLAKE, legacy, national standards, SHA-3 contest designs, FSB, keyed MACs, fast non-cryptographic hashes
+and checksums. An import loads only that family. Calls are synchronous; the module loads on first use, or when you
+await `ready()`.
+
+Save this as `families.ts` and run `mise exec -- deno run families.ts`.
+
+```ts runnable=families.ts
+import { hash, ready } from '@okikio/hash/sha3';
+import { hex } from '@okikio/hash/hex';
+
+await ready();
+console.log(hex(hash('shake128', 'abc', { length: 8 })));
+console.log(hex(hash('sha3-256', 'abc', { key: new TextEncoder().encode('key') })).length);
+```
+
+```text output
+5881092dd818bf5c
+64
+```
+
+The first line is the first 8 bytes of SHAKE128 of `abc`; `length` sets the output size of extendable outputs. The
+second is an HMAC-SHA3-256 tag, selected by `key`. Before `ready()` resolves, a call runs on `node:crypto` or pure
+JavaScript where one of them has the algorithm, and throws `NotReadyError` otherwise. Every backend returns the same
+bytes. In Deno, Node and Bun, SHA-1 and SHA-2 inputs of 512 bytes or more always run on `node:crypto`, which uses the
+CPU's SHA instructions.
+
+Each family also has a `/wasm` entry point, such as `@okikio/hash/sha3/wasm`, that loads nothing until you call
+`ready()` and never falls back. Pass it the module in the form you already have: the exports of a WASM ESM import, a
+`WebAssembly.Module` from `import source`, an instance, a `Response`, bytes or a URL. Without an argument it loads the
+`.wasm` file shipped beside the module. The [hash design](../../docs/hash/README.md) explains the backends, the full
+algorithm list and the measurements.
 
 Use `hex()` when bytes already exist and only representation is needed. It does not hash or authenticate them. Use
 `id()` for compact correlation from an ordered tuple, and retain the full `sha256()` digest when checking content
@@ -112,12 +144,27 @@ options and types.
 | `@okikio/hash/sync`      | Hash with synchronous or incremental SHA-2; finalize or destroy each state.          | [Contract](./sync.ts)      |
 | `@okikio/hash/stream`    | Hash a byte stream with explicit cancellation, byte limits, and hasher ownership.    | [Contract](./stream.ts)    |
 | `@okikio/hash/encoding`  | Encode digest bytes or decode strict canonical hex, Base64, and Base64url.           | [Contract](./encoding.ts)  |
+| `@okikio/hash/base64`    | Encode or decode strict Base64 and Base64url only, with the host's native codec.     | [Contract](./base64.ts)    |
+| `@okikio/hash/hex`       | Encode or decode strict lower-case hexadecimal only, with the host's native codec.   | [Contract](./hex.ts)       |
 | `@okikio/hash/random`    | Allocate secure random bytes or choose unbiased integers.                            | [Contract](./random.ts)    |
 | `@okikio/hash/id`        | Create secure random IDs or derive stable IDs from an ordered tuple.                 | [Contract](./id.ts)        |
 | `@okikio/hash/uuid`      | Create UUIDv4 or UUIDv7 and validate, parse, format, or inspect UUID values.         | [Contract](./uuid.ts)      |
-| `@okikio/hash/sha3`      | Use optional SHA3-256 or SHA3-512 with independent incremental state.                | [Contract](./sha3.ts)      |
-| `@okikio/hash/blake`     | Use optional BLAKE2b, BLAKE2s, or BLAKE3 with fixed digest sizes.                    | [Contract](./blake.ts)     |
-| `@okikio/hash/checksum`  | Detect accidental corruption with CRC-32 or CRC-32C; these do not authenticate data. | [Contract](./checksum.ts)  |
+| `@okikio/hash/sha2`      | Use every SHA-2 variant, plain or HMAC, on WASM or `node:crypto`.                    | [Contract](./sha2.ts)      |
+| `@okikio/hash/sha3`      | Use SHA-3, Keccak, SHAKE, cSHAKE, TurboSHAKE and KangarooTwelve, with HMAC.          | [Contract](./sha3.ts)      |
+| `@okikio/hash/blake`     | Use BLAKE2b, BLAKE2s and BLAKE3, keyed or with any BLAKE3 output length.             | [Contract](./blake.ts)     |
+| `@okikio/hash/legacy`    | Read old data with MD2–MD5, SHA-1 (also collision-checked), RIPEMD or Tiger.         | [Contract](./legacy.ts)    |
+| `@okikio/hash/national`  | Use Streebog, GOST R 34.11-94, SM3, Kupyna, BelT, bash-hash or Ascon.                | [Contract](./national.ts)  |
+| `@okikio/hash/contest`   | Use Grøstl, JH, Skein, Shabal or Whirlpool.                                          | [Contract](./contest.ts)   |
+| `@okikio/hash/fsb`       | Use FSB; its module is 322 KB.                                                       | [Contract](./fsb.ts)       |
+| `@okikio/hash/mac`       | Key hash-table and short-input hashes with SipHash or HighwayHash.                   | [Contract](./mac.ts)       |
+| `@okikio/hash/fast`      | Hash trusted data quickly with xxHash, rapidhash, SeaHash or FNV-1a.                 | [Contract](./fast.ts)      |
+| `@okikio/hash/checksum`  | Detect accidental corruption with any RevEng CRC, Adler-32 or Fletcher-16.           | [Contract](./checksum.ts)  |
+| `@okikio/hash/sha3/wasm` and the other `/wasm` paths | Use one family on WASM only, from a module you load or the shipped file. | [Contract](./_wasm/entry/sha3.ts) |
+
+The WASM-only paths are `@okikio/hash/sha2/wasm`, `@okikio/hash/sha3/wasm`, `@okikio/hash/blake/wasm`,
+`@okikio/hash/legacy/wasm`, `@okikio/hash/national/wasm`, `@okikio/hash/contest/wasm`,
+`@okikio/hash/fsb/wasm`, `@okikio/hash/mac/wasm`, `@okikio/hash/fast/wasm` and
+`@okikio/hash/checksum/wasm`.
 | `@okikio/hash/hmac`      | Sign and verify complete message tags using native HMAC-SHA-2 and owned keys.        | [Contract](./hmac/mod.ts)  |
 | `@okikio/hash/hmac/sync` | Use synchronous HMAC-SHA-2; destroy reusable copied keys when finished.              | [Contract](./hmac/sync.ts) |
 
@@ -135,7 +182,8 @@ Untimed checks compare every full digest and verify byte-limit rejection and rel
 These results do not compare different hash algorithms or establish a memory ceiling.
 
 Tests are organized beside the submodule they protect: [encoding](./encoding.test.ts), [random](./random.test.ts), [IDs](./id.test.ts),
-[UUID](./uuid.test.ts), [HMAC](./hmac.test.ts), [optional families and checksums](./families.test.ts), and
+[UUID](./uuid.test.ts), [HMAC](./hmac.test.ts), [optional families and checksums](./families.test.ts),
+[WASM families against upstream vectors](./wasm.test.ts), [entry points and backend choice](./entries.test.ts), and
 [stream ownership](./stream.test.ts). [SHA-2 admission](./capabilities.test.ts) names each algorithm and padding-boundary
 length separately, so one failed vector does not hide the remaining cases.
 

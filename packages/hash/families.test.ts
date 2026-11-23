@@ -42,7 +42,7 @@ describe('optional digest families and checksums', () => {
 			it(`matches the ${length}-byte vector in one-shot and incremental forms`, () => {
 				const bytes = Uint8Array.from({ length }, (_, index) => index % 251);
 				expect(encoding.hex(blake.blake3(bytes))).toBe(expected);
-				const state = blake.create();
+				const state = blake.create('blake3');
 				for (let offset = 0; offset < bytes.length; offset += 37) state.update(bytes.subarray(offset, offset + 37));
 				expect(encoding.hex(state.digest())).toBe(expected);
 			});
@@ -51,11 +51,11 @@ describe('optional digest families and checksums', () => {
 	it('forks optional family states', () => {
 		for (
 			const factory of [
-				() => sha3.create(),
+				() => sha3.create('sha3-256'),
 				() => sha3.create('sha3-512'),
-				() => blake.create(),
-				() => blake.create('blake2b'),
-				() => blake.create('blake2s'),
+				() => blake.create('blake3'),
+				() => blake.create('blake2b-512'),
+				() => blake.create('blake2s-256'),
 			]
 		) {
 			const state = factory().update(text('abc'));
@@ -67,11 +67,12 @@ describe('optional digest families and checksums', () => {
 	it('matches CRC check values and fork behavior', () => {
 		expect(checksum.crc32(text('123456789'))).toBe(0xcbf43926);
 		expect(checksum.crc32c(text('123456789'))).toBe(0xe3069283);
-		for (const name of ['crc32', 'crc32c'] as const) {
-			const state = checksum.create(name).update(text('1234'));
+		const number = (bytes: Uint8Array) => new DataView(bytes.buffer, bytes.byteOffset).getUint32(0);
+		for (const [name, catalogue] of [['crc32', 'CRC-32/ISO-HDLC'], ['crc32c', 'CRC-32/ISCSI']] as const) {
+			const state = checksum.create(catalogue).update(text('1234'));
 			const fork = state.clone();
-			expect(state.update(text('56789')).digest()).toBe(checksum[name](text('123456789')));
-			expect(fork.digest()).toBe(checksum[name](text('1234')));
+			expect(number(state.update(text('56789')).digest())).toBe(checksum[name](text('123456789')));
+			expect(number(fork.digest())).toBe(checksum[name](text('1234')));
 			expect(() => state.digest()).toThrow();
 		}
 		expect(checksum.crc32(new Uint8Array())).toBe(0);

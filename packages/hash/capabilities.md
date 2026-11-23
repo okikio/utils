@@ -50,9 +50,13 @@ not enforce a protocol or store keys. A plain digest alone cannot authenticate a
 | `@okikio/hash/uuid`      | `v4`, `v7`, `is`, `version`, `parse`, `format`, `timestamp`, `NIL` | UUID creation, conversion and inspection.                                       |
 | `@okikio/hash/hmac`      | `sign`, `verify`, `create`                                         | Async complete HMAC tags and reusable native keys.                              |
 | `@okikio/hash/hmac/sync` | `sign`, `verify`, `create`                                         | Sync complete HMAC tags and disposable copied keys.                             |
-| `@okikio/hash/sha3`      | `sha3_256`, `sha3_512`, `create`                                   | Optional SHA-3; one-shot results are bytes.                                     |
-| `@okikio/hash/blake`     | `blake2b`, `blake2s`, `blake3`, `create`                           | Optional BLAKE; one-shot results are bytes.                                     |
-| `@okikio/hash/checksum`  | `crc32`, `crc32c`, `create`                                        | Unsigned 32-bit CRC values for accidental corruption.                           |
+| `@okikio/hash/base64`    | `base64`, `unbase64`, `base64url`, `unbase64url`                   | Strict canonical Base64 with the host's native codec where it has one.          |
+| `@okikio/hash/hex`       | `hex`, `unhex`                                                     | Strict lower-case hexadecimal with the host's native codec where it has one.    |
+| `@okikio/hash/sha3`      | `hash`, `create`, `ready`, `backend`, `sha3_256`, `sha3_512`       | SHA-3 family; results are bytes.                                                |
+| `@okikio/hash/blake`     | `hash`, `create`, `ready`, `backend`, `blake2b`, `blake2s`, `blake3` | BLAKE family; results are bytes.                                              |
+| `@okikio/hash/checksum`  | `hash`, `create`, `ready`, `backend`, `crc32`, `crc32c`            | CRC bytes by catalogue name; `crc32` and `crc32c` return unsigned numbers.      |
+| other family paths          | `hash`, `create`, `ready`, `backend`                               | `sha2`, `legacy`, `national`, `contest`, `fsb`, `mac`, `fast`; results are bytes. |
+| `<family>/wasm` paths       | `hash`, `create`, `ready`                                          | WASM only, nothing loads before `ready()`, no fallback.                         |
 
 Every focused path also has an equivalent `@okikio/utils/hash/...` forwarding module. SHA-2 algorithm names are
 `sha256`, `sha384` and `sha512`. Generic digest output is `bytes`, `hex` or `base64url`; named SHA-2 functions always
@@ -106,11 +110,13 @@ idempotent and ends unfinished work. Use `finally` when a caller can throw befor
 reset or concurrent update support. Sync operations block the calling thread; an async stream read does not move hashing
 to a worker.
 
-SHA-3 names are `sha3-256` and `sha3-512`, distinct from Keccak. BLAKE names are `blake2b` (64 bytes), `blake2s` (32
-bytes) and `blake3` (32 bytes). Keyed BLAKE, variable output, legacy algorithms, encryption and password derivation are
-outside this API. CRC-32 uses the IEEE reflected polynomial; CRC-32C uses Castagnoli. Both use initial and final XOR
-`0xffffffff`, and return zero for empty input. CRC is implemented with an eight-step recurrence per byte; it is intended
-for portable correctness, without a claim of hardware-level throughput.
+Family algorithm names are listed in [the algorithm guide](../../docs/hash/02-algorithms.md). SHA-3 names such as
+`sha3-256` are distinct from Keccak (`keccak256`). BLAKE names carry the output size (`blake2b-512`, `blake2s-256`);
+`blake3` takes any `length`. `key` selects HMAC for fixed-length digests, the algorithm's own keyed mode for BLAKE,
+SipHash and HighwayHash, a seed for fast hashes, and the customization string for cSHAKE and `blake3-derive`. CRC names
+are RevEng catalogue names, such as `CRC-32/ISO-HDLC` (zlib, PNG) and `CRC-32/ISCSI` (CRC-32C); CRC results are
+big-endian bytes, and `crc32`/`crc32c` return the unsigned number. `sha1-checked` throws `CollisionError` for input that
+carries a known SHA-1 collision attack. Encryption and password derivation are outside this API.
 
 ## Bound and cancel a stream
 

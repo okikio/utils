@@ -59,8 +59,8 @@ already have, and then it does no fetch and no file read:
 
 | You pass                                        | Where it comes from                                         |
 | ----------------------------------------------- | ----------------------------------------------------------- |
-| The exports object                              | `import * as sha3 from '@okikio/hash/wasm/sha3.wasm'` (WASM ESM integration) |
-| A `WebAssembly.Module`                          | `import source sha3 from '@okikio/hash/wasm/sha3.wasm'` (source phase import), or your own `compileStreaming` |
+| The exports object                              | `import * as sha3 from './vendor/sha3.wasm'` (WASM ESM integration, a copy of the shipped file) |
+| A `WebAssembly.Module`                          | `import source sha3 from './vendor/sha3.wasm'` (source phase import), or your own `compileStreaming` |
 | A `WebAssembly.Instance`                        | Your own `instantiate` call                                  |
 | A `Response` or a promise of one                | Your own `fetch`, for example from a CDN with integrity metadata |
 | `Uint8Array` or `ArrayBuffer`                   | A file read, a cache or a bundler's binary loader            |
@@ -68,7 +68,7 @@ already have, and then it does no fetch and no file read:
 | Nothing                                         | Fetched from the file beside the module, found with `import.meta.url` |
 
 ```ts
-import * as module from '@okikio/hash/wasm/sha3.wasm';
+import * as module from './vendor/sha3.wasm';
 import { ready, sha3_256 } from '@okikio/hash/sha3/wasm';
 
 await ready(module);
@@ -76,7 +76,10 @@ console.log(await sha3_256('hello'));
 ```
 
 This works because every module has no imports and exports its own memory. A host that supports WASM ESM integration
-can instantiate it with no glue code. The package exports each raw file under `@okikio/hash/wasm/<family>.wasm`.
+can instantiate it with no glue code. The raw files ship at `_wasm/raw/<family>.wasm` in both the JSR source and the npm
+`dist/`, beside the modules that load them. Exporting them as `@okikio/hash/wasm/<family>.wasm` needs the umbrella
+export projection to skip non-module targets first; until then, copy the file into your project or let `ready()`
+load it.
 
 Host support checked locally: Deno 2.9 runs both the instance import and `import source`. Node.js 22 runs the instance
 import behind `--experimental-wasm-modules` and does not parse `import source`. Bun 1.4 runs neither. Browsers need a

@@ -15,10 +15,11 @@ the [package README](../../packages/hash/README.md) and the [capability guide](.
 
 Each step is one pull request that passes the package checks on Deno, Node.js and Bun.
 
-1. This design.
+1. This design. Done.
 2. The Rust workspace, the build and pack tool, and the `sha2`, `sha3` and `blake` families with tests against
-   published vectors.
-3. `legacy`, `national`, `contest`, `mac`, `fast` and `checksum`.
-4. Backend suffixes, the Base64 and hex entry points, and the automatic choice.
-5. `/shared` and the wide-arithmetic `fast` module.
+   published vectors. Done.
+3. `legacy`, `national`, `contest`, `fsb`, `mac`, `fast` and `checksum`. Done.
+4. Family and `/wasm` entry points, the automatic choice, and the Base64 and hex entry points. Done.
+5. The forced `/packed`, `/native`, `/web` and `/portable` suffixes, raw `.wasm` package exports, `/shared` and the
+   wide-arithmetic `fast` module.
 6. The same change in `okikio/utils`, with its package names.

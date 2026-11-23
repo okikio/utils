@@ -1,0 +1,7 @@
+---
+npm/@okikio/hash: minor
+---
+
+Add WebAssembly hash families built from maintained Rust crates, each with its own entry point: `sha2`, `sha3`, `blake`, `legacy`, `national`, `contest`, `fsb`, `mac`, `fast` and `checksum`. Together they cover every SHA-2 and SHA-3 variant, SHAKE, cSHAKE, TurboSHAKE, KangarooTwelve, BLAKE2 and BLAKE3 with keys and any BLAKE3 output length, MD2 to MD5, SHA-1 with collision detection, RIPEMD, Tiger, Streebog, GOST R 34.11-94, SM3, Kupyna, BelT, bash-hash, Ascon, Grøstl, JH, Skein, Shabal, Whirlpool, FSB, SipHash, HighwayHash, xxHash, rapidhash, SeaHash, FNV-1a, all 113 RevEng CRCs, Adler-32 and Fletcher-16. Each family exports `hash`, `create`, `ready` and `backend`. Calls are synchronous: they use `node:crypto` or `@noble/hashes` until the packed module has loaded, and `node:crypto` for SHA-1 and SHA-2 inputs of 512 bytes or more. Each family also has a `/wasm` entry point that loads nothing until `ready()`, accepts a module you loaded yourself and never falls back. `@okikio/hash/base64` and `@okikio/hash/hex` provide the strict encodings on their own, using the host's native codec where it has one.
+
+Breaking: `sha3.create`, `blake.create` and `checksum.create` now need an algorithm name. BLAKE names now carry the output size (`blake2b-512`, `blake2s-256`). `checksum.create` takes RevEng names (`CRC-32/ISO-HDLC`, `CRC-32/ISCSI`) and returns a byte hasher; `crc32` and `crc32c` still return numbers.
