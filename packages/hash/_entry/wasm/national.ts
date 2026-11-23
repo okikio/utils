@@ -32,7 +32,7 @@ export type AlgorithmType = NameType<'national'>;
 const family = runtime({
 	family: 'national',
 	mode: 'wasm',
-	raw: new URL('../../_wasm/raw/national.wasm', import.meta.url),
+	raw: () => new URL('../../_wasm/raw/national.wasm', import.meta.url),
 });
 
 /**

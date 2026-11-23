@@ -32,7 +32,7 @@ export type AlgorithmType = NameType<'contest'>;
 const family = runtime({
 	family: 'contest',
 	mode: 'wasm',
-	raw: new URL('../../_wasm/raw/contest.wasm', import.meta.url),
+	raw: () => new URL('../../_wasm/raw/contest.wasm', import.meta.url),
 });
 
 /**

@@ -32,7 +32,7 @@ export type AlgorithmType = NameType<'checksum'>;
 const family = runtime({
 	family: 'checksum',
 	mode: 'wasm',
-	raw: new URL('../../_wasm/raw/checksum.wasm', import.meta.url),
+	raw: () => new URL('../../_wasm/raw/checksum.wasm', import.meta.url),
 });
 
 /**

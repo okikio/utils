@@ -168,6 +168,7 @@ to test one implementation, to audit what runs, or to keep a bundle small.
 | ----------- | ------------------------------------------------------------------------------------------- | ------------------------------------ |
 | `/wasm`     | WASM, from a module you pass or the `.wasm` file shipped beside the module.                 | Loads and compiles the module.       |
 | `/packed`   | WASM, from a copy embedded in the JavaScript as compressed Base64. No file fetch.           | Decodes and compiles the copy.       |
+| `/static`   | WASM, from a compiled module you import. No dynamic import, no fetch, no runtime compile.   | Attaches the module you pass.        |
 | `/native`   | `node:crypto` only. Throws `UnsupportedError` in a browser or for an algorithm it lacks.    | Resolves at once.                    |
 | `/portable` | Pure JavaScript only. Runs where WASM is refused, as under a strict Content Security Policy. | Resolves at once.                    |
 | `/web`      | Web Crypto only. Asynchronous, with no incremental state.                                   | Not needed.                          |
@@ -176,6 +177,23 @@ to test one implementation, to audit what runs, or to keep a bundle small.
 Before `ready()` resolves, the `/wasm` and `/packed` paths throw `NotReadyError`. Pass `/wasm` the module in the form you
 already have: the exports of a WASM ESM import, a `WebAssembly.Module` from `import source`, an instance, a `Response`,
 bytes or a URL.
+
+`/static` is for hosts that allow only statically analyzable imports and refuse to compile WebAssembly at runtime,
+such as Cloudflare Workers. It is never the default; you choose it. Import the raw `.wasm` file with your bundler and
+pass it to `ready()`. Wrangler and the Cloudflare Vite plugin turn a default `.wasm` import into a `WebAssembly.Module`:
+
+```ts ignore
+import wasm from '@okikio/hash/wasm/sha2.wasm';
+import { hash, ready } from '@okikio/hash/sha2/static';
+
+await ready(wasm);
+hash('sha256', 'hello');
+```
+
+`/static` takes a `WebAssembly.Module`, an instance, a WASM ESM import's exports, or a namespace whose `default` is
+one of these. It refuses bytes and URLs, because turning those into a module is the compile such hosts forbid. The
+default family paths still work on Workers: their WASM compile fails once, and later calls run on `node:crypto`
+(with `nodejs_compat`) or pure JavaScript.
 
 A pool helps when one thread cannot keep up with many inputs. `open(ctx, { workers })` starts the workers, and
 `many(ctx, name, inputs, options)` resolves to one digest per input, in order. Inputs that are all views of one
@@ -187,6 +205,7 @@ The pinned paths are:
 
 - `/wasm`: `@okikio/hash/sha2/wasm`, `@okikio/hash/sha3/wasm`, `@okikio/hash/blake/wasm`, `@okikio/hash/legacy/wasm`, `@okikio/hash/national/wasm`, `@okikio/hash/contest/wasm`, `@okikio/hash/fsb/wasm`, `@okikio/hash/mac/wasm`, `@okikio/hash/fast/wasm`, `@okikio/hash/checksum/wasm`
 - `/packed`: `@okikio/hash/sha2/packed`, `@okikio/hash/sha3/packed`, `@okikio/hash/blake/packed`, `@okikio/hash/legacy/packed`, `@okikio/hash/national/packed`, `@okikio/hash/contest/packed`, `@okikio/hash/fsb/packed`, `@okikio/hash/mac/packed`, `@okikio/hash/fast/packed`, `@okikio/hash/checksum/packed`
+- `/static`: `@okikio/hash/sha2/static`, `@okikio/hash/sha3/static`, `@okikio/hash/blake/static`, `@okikio/hash/legacy/static`, `@okikio/hash/national/static`, `@okikio/hash/contest/static`, `@okikio/hash/fsb/static`, `@okikio/hash/mac/static`, `@okikio/hash/fast/static`, `@okikio/hash/checksum/static`
 - `/native`: `@okikio/hash/sha2/native`, `@okikio/hash/sha3/native`, `@okikio/hash/blake/native`, `@okikio/hash/legacy/native`, `@okikio/hash/national/native`
 - `/portable`: `@okikio/hash/sha2/portable`, `@okikio/hash/sha3/portable`, `@okikio/hash/blake/portable`, `@okikio/hash/legacy/portable`, `@okikio/hash/checksum/portable`
 - `/web`: `@okikio/hash/sha2/web`, `@okikio/hash/legacy/web`
@@ -194,7 +213,7 @@ The pinned paths are:
 - raw modules: `@okikio/hash/wasm/sha2.wasm`, `@okikio/hash/wasm/sha3.wasm`, `@okikio/hash/wasm/blake.wasm`, `@okikio/hash/wasm/legacy.wasm`, `@okikio/hash/wasm/national.wasm`, `@okikio/hash/wasm/contest.wasm`, `@okikio/hash/wasm/fsb.wasm`, `@okikio/hash/wasm/mac.wasm`, `@okikio/hash/wasm/fast.wasm`, `@okikio/hash/wasm/fast-wide.wasm`, `@okikio/hash/wasm/checksum.wasm`
 
 Import a raw module as a WASM module where the host supports it, or fetch it, and pass the result to the matching
-`/wasm` path.
+`/wasm` path, or to `/static` where the host refuses runtime compiles.
 
 ## Measure copying, hashing and streaming
 

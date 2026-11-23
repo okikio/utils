@@ -33,7 +33,7 @@ const family = runtime({
 	family: 'mac',
 	mode: 'auto',
 	packed: text,
-	raw: new URL('./_wasm/raw/mac.wasm', import.meta.url),
+	raw: () => new URL('./_wasm/raw/mac.wasm', import.meta.url),
 	fallbacks: {},
 });
 

@@ -32,7 +32,7 @@ const family = runtime({
 	family: 'contest',
 	mode: 'auto',
 	packed: text,
-	raw: new URL('./_wasm/raw/contest.wasm', import.meta.url),
+	raw: () => new URL('./_wasm/raw/contest.wasm', import.meta.url),
 	fallbacks: {},
 });
 

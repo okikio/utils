@@ -29,7 +29,11 @@ export type { SourceType } from '../../_wasm/load.ts';
 /** Algorithm names of this family. */
 export type AlgorithmType = NameType<'sha2'>;
 
-const family = runtime({ family: 'sha2', mode: 'wasm', raw: new URL('../../_wasm/raw/sha2.wasm', import.meta.url) });
+const family = runtime({
+	family: 'sha2',
+	mode: 'wasm',
+	raw: () => new URL('../../_wasm/raw/sha2.wasm', import.meta.url),
+});
 
 /**
  * Load the module. Without `source`, read or fetch `sha2.wasm` beside this module. With `source`, use it
