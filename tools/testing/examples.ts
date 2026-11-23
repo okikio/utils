@@ -1,4 +1,5 @@
 /** Compile and run explicitly marked, complete README examples through public package exports. */
+import { availableParallelism } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { stripVTControlCharacters } from 'node:util';
 
@@ -118,61 +119,85 @@ export async function readmes(): Promise<readonly URL[]> {
  * examples may read the named driver defaults, but open no connection. All other
  * examples run without those extra permissions, network, or environment access.
  * The 60-second timeout diagnoses a stuck example, not acceptable performance.
+ *
+ * Documents are checked in parallel, one per CPU core. Each document has its own
+ * temporary directory and runs its own examples in order, and failures are reported
+ * in document order, so the result does not depend on which document finishes first.
  */
-export async function checkExamples(paths?: readonly URL[]): Promise<number> {
-	let count = 0;
-	const failures: unknown[] = [];
+export async function checkExamples(
+	paths?: readonly URL[],
+	concurrency = availableParallelism(),
+): Promise<number> {
 	const temporary = new URL('../../.tmp/examples/', import.meta.url);
 	await Deno.mkdir(temporary, { recursive: true });
-	for (const path of paths ?? await readmes()) {
-		if (import.meta.main) console.log(`Checking ${path.pathname}`);
-		const values = examples(await Deno.readTextFile(path));
-		if (!values.some((value) => value.runnable)) throw new Error(`${path.pathname} has no complete runnable example.`);
-		const directory = await Deno.makeTempDir({ dir: fileURLToPath(temporary), prefix: 'example-' });
-		const config = configuration(path);
-		try {
-			const filenames = new Set<string>();
-			for (const value of values) {
-				if (filenames.has(value.filename)) throw new Error(`${path.pathname} repeats ${value.filename}.`);
-				filenames.add(value.filename);
-				await Deno.writeTextFile(`${directory}/${value.filename}`, `${value.source}\n`);
+	const documents = paths ?? await readmes();
+	const results: ({ count: number } | { error: unknown })[] = new Array(documents.length);
+	let next = 0;
+	// Each worker takes the next unchecked document until none remain.
+	const worker = async () => {
+		while (next < documents.length) {
+			const index = next++;
+			try {
+				results[index] = { count: await checkDocument(documents[index]!, temporary) };
+			} catch (error) {
+				results[index] = { error };
 			}
-			await command(['check', '--config', config, ...values.map((value) => `${directory}/${value.filename}`)], path);
-			for (const value of values.filter((value) => value.runnable)) {
-				const permissions = (path.pathname.endsWith('/process/README.md') || path.pathname.endsWith('/docs/process.md'))
-					? ['--allow-run']
-					: (path.pathname.endsWith('/worker/thread/README.md') ||
-							path.pathname.endsWith('/packages/worker/README.md') ||
-							path.pathname.endsWith('/docs/worker.md'))
-					? ['--allow-read']
-					: (path.pathname.endsWith('/storage/workflow/postgres/README.md') ||
-							path.pathname.endsWith('/storage/README.md'))
-					? [
-						`--allow-env=${postgresDefaults.join(',')}`,
-					]
-					: [];
-				// Terminal colors describe presentation, not the example's returned values.
-				// A caller's FORCE_COLOR must not turn a correct numeric result into a failure.
-				const output = stripVTControlCharacters(
-					await command(['run', '--config', config, ...permissions, `${directory}/${value.filename}`], path),
-				);
-				if (value.output !== undefined && output.trim() !== value.output.trim()) {
-					throw new Error(
-						`${path.pathname} ${value.filename}: expected output ${JSON.stringify(value.output)}, received ${
-							JSON.stringify(output.trim())
-						}.`,
-					);
-				}
-				count += 1;
-			}
-		} catch (error) {
-			failures.push(error);
 		}
+	};
+	await Promise.all(Array.from({ length: Math.max(1, Math.min(concurrency, documents.length)) }, worker));
+	const failures = results.flatMap((result) => 'error' in result ? [result.error] : []);
+	if (failures.length > 0) throw new AggregateError(failures, `${failures.length} README examples failed.`);
+	return results.reduce((total, result) => total + ('count' in result ? result.count : 0), 0);
+}
+
+/** Type-check one document's examples together, then run each runnable example in order. */
+async function checkDocument(path: URL, temporary: URL): Promise<number> {
+	if (import.meta.main) console.log(`Checking ${path.pathname}`);
+	const values = examples(await Deno.readTextFile(path));
+	if (!values.some((value) => value.runnable)) throw new Error(`${path.pathname} has no complete runnable example.`);
+	const directory = await Deno.makeTempDir({ dir: fileURLToPath(temporary), prefix: 'example-' });
+	const config = configuration(path);
+	let count = 0;
+	try {
+		const filenames = new Set<string>();
+		for (const value of values) {
+			if (filenames.has(value.filename)) throw new Error(`${path.pathname} repeats ${value.filename}.`);
+			filenames.add(value.filename);
+			await Deno.writeTextFile(`${directory}/${value.filename}`, `${value.source}\n`);
+		}
+		await command(['check', '--config', config, ...values.map((value) => `${directory}/${value.filename}`)], path);
+		for (const value of values.filter((value) => value.runnable)) {
+			const permissions = (path.pathname.endsWith('/process/README.md') || path.pathname.endsWith('/docs/process.md'))
+				? ['--allow-run']
+				: (path.pathname.endsWith('/worker/thread/README.md') ||
+						path.pathname.endsWith('/packages/worker/README.md') ||
+						path.pathname.endsWith('/docs/worker.md'))
+				? ['--allow-read']
+				: (path.pathname.endsWith('/storage/workflow/postgres/README.md') ||
+						path.pathname.endsWith('/storage/README.md'))
+				? [
+					`--allow-env=${postgresDefaults.join(',')}`,
+				]
+				: [];
+			// Terminal colors describe presentation, not the example's returned values.
+			// A caller's FORCE_COLOR must not turn a correct numeric result into a failure.
+			const output = stripVTControlCharacters(
+				await command(['run', '--config', config, ...permissions, `${directory}/${value.filename}`], path),
+			);
+			if (value.output !== undefined && output.trim() !== value.output.trim()) {
+				throw new Error(
+					`${path.pathname} ${value.filename}: expected output ${JSON.stringify(value.output)}, received ${
+						JSON.stringify(output.trim())
+					}.`,
+				);
+			}
+			count += 1;
+		}
+	} finally {
 		// Keep generated files after success and failure so a reader can reproduce
 		// the exact checked snippet without reconstructing it from console output.
 		await Deno.writeTextFile(`${directory}/source.json`, JSON.stringify({ document: path.href }, null, 2) + '\n');
 	}
-	if (failures.length > 0) throw new AggregateError(failures, `${failures.length} README examples failed.`);
 	return count;
 }
 

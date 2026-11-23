@@ -38,6 +38,9 @@ const DenoFiles = new Set([
 /** Module Workers are native in Deno and Bun; Node uses the explicit worker_threads adapter. */
 const WebWorkerFiles = new Set(['packages/runtime/web.test.ts', 'tests/restartable-worker.test.ts']);
 
+/** Container tests that also drive Playwright browsers. Only a CI shard that runs one installs the engines. */
+export const BrowserFiles: ReadonlySet<string> = new Set(['tests/workflows/duplex-browser.test.ts']);
+
 /** Classify a test by its owned capability. Every new ordinary test defaults to every portable runtime. */
 export function classify(path: string): TestFile {
 	if (/(?:^|\.)types\.test\.ts$/u.test(path) || /\/types\.test\.ts$/u.test(path)) {
@@ -46,7 +49,7 @@ export function classify(path: string): TestFile {
 	if (path === 'tests/workflows/postgres-soak.test.ts') {
 		return { path, family: 'soak', reason: 'Opt-in multi-hour PostgreSQL load with owned Docker fixtures.' };
 	}
-	if (path === 'tests/workflows/duplex-browser.test.ts') {
+	if (BrowserFiles.has(path)) {
 		return {
 			path,
 			family: 'containers',
@@ -150,6 +153,23 @@ export function runtimeProjects(
 		supports(file, runtime) &&
 		(projects.length === 0 || !file.path.startsWith('packages/') || projects.includes(file.path.split('/')[1]!))
 	);
+}
+
+/**
+ * Return the files for CI shard `index` of `total`, counting from 1. Files are sorted by path and
+ * dealt in turn, so each shard's list is stable across runs and every file runs in exactly one shard.
+ *
+ * @example Three shards of the container tests
+ * ```ts
+ * const mine = shard(files.filter((file) => file.family === 'containers'), 2, 3);
+ * ```
+ */
+export function shard(files: readonly TestFile[], index: number, total: number): readonly TestFile[] {
+	if (!Number.isSafeInteger(total) || total < 1 || !Number.isSafeInteger(index) || index < 1 || index > total) {
+		throw new RangeError(`A shard is <index>/<total> with 1 <= index <= total; received ${index}/${total}.`);
+	}
+	return files.toSorted((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0)
+		.filter((_, position) => position % total === index - 1);
 }
 
 /** Select exact files or directory prefixes, rejecting typos instead of silently running an empty suite. */

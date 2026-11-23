@@ -167,11 +167,9 @@ correctness, documentation and native examples. Formatting and linting run as se
 out the caller's commit and receives a read-only repository token. The runtime matrix, resource fixtures, pinned actions
 and report retention are defined once in that workflow.
 
-Automatic PRs run source contracts on each layer. The top of a native stack runs the combined candidate's selected
-Chromium, benchmark and example checks. Runtime, package-consumer, PostgreSQL, container and documentation jobs are
-reported as manual deferrals after their measured job durations exceeded the 120-second automatic budget. Main
-keeps every affected lane. Dispatch **CI** on the exact top branch for all lanes before landing a stack; dispatch
-the selected lower branch first if only a prefix will land. Lower layers skip the `Required checks` aggregate.
+Automatic PRs run source contracts on each layer. Ordinary PRs and the top of a native stack run every affected
+lane of the combined candidate, each job within a 10-minute limit. Dispatch **CI** on the exact top branch for all
+lanes before landing a stack; dispatch the selected lower branch first if only a prefix will land. Lower layers skip the `Required checks` aggregate.
 GitHub [accepts a skipped job for required-check admission](https://docs.github.com/en/pull-requests/reference/status-checks),
 so that skip does not prove that the prefix passed its expensive tests or prevent someone from merging it separately.
 Validate each intended landing candidate before merging it. A selected top fails its aggregate when any selected job

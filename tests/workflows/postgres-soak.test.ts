@@ -6,9 +6,10 @@ import { appendFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { expect } from '@std/expect';
-import { cluster, PostgresImage, watch } from './fixtures/postgres.ts';
+import { cluster, watch } from './fixtures/postgres.ts';
 import { evidence } from './fixtures/evidence.ts';
 import { admit, transient, write } from './fixtures/postgres-work.ts';
+import * as images from '../fixtures/images.ts';
 
 /** Short runs exercise the harness; only at least 7,200 elapsed seconds count as multi-hour evidence. */
 function seconds(): number {
@@ -49,7 +50,7 @@ it('keeps exact SQL receipts and live leases throughout a PostgreSQL soak with m
 	const failures: unknown[] = [];
 	let closing: Promise<void> | undefined;
 	await run.save('config.json', {
-		image: PostgresImage,
+		image: images.Postgres,
 		containers: { primary: database.primary.getId(), standby: database.replica.getId() },
 		durationMs,
 		producers,

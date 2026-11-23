@@ -4,7 +4,7 @@ import { expect } from '@std/expect';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { classify, discover, runtimeProjects, select, supports } from '#tools/testing/discover.ts';
+import { classify, discover, runtimeProjects, select, shard, supports } from '#tools/testing/discover.ts';
 
 describe('test discovery', () => {
 	it('automatically admits a new package test without executing fixtures or following dependency links', async () => {
@@ -99,5 +99,18 @@ describe('test discovery', () => {
 			'bench/selection.test.ts',
 		]);
 		expect(runtimeProjects(files, [], 'deno')).toEqual(files.filter((file) => supports(file, 'deno')));
+	});
+
+	it('deals sorted files across shards so each file runs exactly once', () => {
+		const files = ['d', 'a', 'e', 'c', 'b'].map((name) => classify(`tests/workflows/${name}.test.ts`));
+		const parts = [1, 2, 3].map((index) => shard(files, index, 3).map((file) => file.path.slice(16, 17)));
+		expect(parts).toEqual([['a', 'd'], ['b', 'e'], ['c']]);
+		expect(shard(files, 1, 1).map((file) => file.path)).toEqual(files.map((file) => file.path).toSorted());
+	});
+
+	it('rejects a shard outside 1..total', () => {
+		for (const [index, total] of [[0, 3], [4, 3], [1, 0], [1.5, 3]]) {
+			expect(() => shard([], index!, total!)).toThrow(RangeError);
+		}
 	});
 });

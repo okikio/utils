@@ -23,8 +23,8 @@ import * as engine from '@okikio/activity/engine';
 import * as resource from '@okikio/capability/resource';
 import * as workflows from '@okikio/storage/workflow/postgres';
 import { evidence, until } from './fixtures/evidence.ts';
+import * as images from '../fixtures/images.ts';
 
-const PostgresImage = 'postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db';
 const command = promisify(execFile);
 const Local = engine.define({ id: 'failover.local' });
 const Store = resource.define<workflows.StoreType>()({
@@ -131,7 +131,7 @@ describe('PostgreSQL physical failover checks', { timeout: 180000, concurrency: 
 			});
 		}
 		try {
-			const primary = await new PostgreSqlContainer(PostgresImage)
+			const primary = await new PostgreSqlContainer(images.Postgres)
 				.withNetwork(network).withNetworkAliases('primary').withDatabase('test')
 				.withUsername('fixture').withPassword('fixture')
 				.withCommand(['postgres', '-c', 'wal_level=replica', '-c', 'max_wal_senders=5'])
@@ -146,7 +146,7 @@ describe('PostgreSQL physical failover checks', { timeout: 180000, concurrency: 
 			const direct = postgresjs(primary.getConnectionUri(), { max: 2, onnotice() {} });
 			pools.push(direct);
 			await direct`select pg_reload_conf()`;
-			const replica = await new GenericContainer(PostgresImage).withNetwork(network)
+			const replica = await new GenericContainer(images.Postgres).withNetwork(network)
 				.withNetworkAliases('standby').withUser('postgres').withEnvironment({ PGPASSWORD: 'fixture' })
 				.withCommand([
 					'sh',
@@ -311,7 +311,7 @@ describe('PostgreSQL physical failover checks', { timeout: 180000, concurrency: 
 			expect(await database`select * from failover_notes order by id`).toEqual([firstInput, pendingInput]);
 			expect((await database`select count(*)::integer as count from utils_workflow.receipts`)[0]!.count).toBe(2);
 			await receipt.save('result.json', {
-				image: PostgresImage,
+				image: images.Postgres,
 				replication,
 				recoveryMs: performance.now() - started,
 				interruption,

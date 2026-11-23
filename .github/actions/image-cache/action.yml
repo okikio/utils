@@ -1,0 +1,79 @@
+name: Container images
+description: >-
+  Load the container images that the Docker tests start, pinned by digest in tests/fixtures/images.ts.
+  The first run pulls them in parallel and saves them as one Actions cache entry; later runs load that
+  entry instead of pulling from the registry. The key is the hash of that file, so changing an image
+  starts a new entry. Images are downloads: a restored image never skips a test.
+outputs:
+  ryuk:
+    description: >-
+      The pinned Ryuk image. Pass it to the test step as RYUK_CONTAINER_IMAGE so testcontainers starts
+      the cached image instead of its own default tag.
+    value: ${{ steps.list.outputs.ryuk }}
+runs:
+  using: composite
+  steps:
+    - name: List the pinned images
+      id: list
+      shell: bash
+      run: |
+        set -euo pipefail
+        list="$RUNNER_TEMP/images.txt"
+        node tests/fixtures/images.ts > "$list"
+        # A digest pins the bytes, so a cached image can never differ from the one a test names.
+        if grep -vqE '^[a-z0-9./-]+:[A-Za-z0-9._-]+@sha256:[0-9a-f]{64}$' "$list"; then
+          echo '::error::Every image in tests/fixtures/images.ts needs a name, a tag and a sha256 digest.' >&2
+          exit 1
+        fi
+        {
+          echo "ryuk=$(grep -m1 '^testcontainers/ryuk:' "$list")"
+          echo "archive=$RUNNER_TEMP/images.tar"
+        } >> "$GITHUB_OUTPUT"
+    - name: Restore the image archive
+      id: restore
+      continue-on-error: true
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.list.outputs.archive }}
+        key: docker-images-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tests/fixtures/images.ts') }}
+    - name: Load or pull the images
+      shell: bash
+      env:
+        ARCHIVE: ${{ steps.list.outputs.archive }}
+        HIT: ${{ steps.restore.outputs.cache-hit }}
+      run: |
+        set -euo pipefail
+        list="$RUNNER_TEMP/images.txt"
+        if [[ "$HIT" == true ]]; then
+          docker load --quiet --input "$ARCHIVE"
+        fi
+        # Pull only what is still missing: everything on a miss, and on a hit any image whose digest
+        # reference the loaded archive did not restore.
+        missing=()
+        while IFS= read -r image; do
+          docker image inspect "$image" >/dev/null 2>&1 || missing+=("$image")
+        done < "$list"
+        if ((${#missing[@]})); then
+          echo "Pulling ${#missing[@]} image(s)."
+          printf '%s\0' "${missing[@]}" | xargs -0 -n1 -P4 docker pull --quiet
+        fi
+        if [[ "$HIT" != true ]]; then
+          mapfile -t images < "$list"
+          docker save --output "$ARCHIVE" "${images[@]}"
+        fi
+    # Only trusted refs write. A PR write stays in its merge-ref scope and cannot reach main.
+    - name: Save the image archive
+      if: >-
+        steps.restore.outputs.cache-hit != 'true' && steps.restore.outputs.cache-primary-key != '' &&
+        github.event.repository.fork == false &&
+        (
+          (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref_protected == true)) ||
+          (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') && endsWith(github.ref, '/merge') &&
+           github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.repo.fork == false) ||
+          (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/'))
+        )
+      continue-on-error: true
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.list.outputs.archive }}
+        key: ${{ steps.restore.outputs.cache-primary-key }}

@@ -7,9 +7,9 @@ import { GenericContainer, Network, Wait } from 'testcontainers';
 import postgres from 'postgres';
 import type { Sql } from 'postgres';
 import { until } from './evidence.ts';
+import * as images from '../../fixtures/images.ts';
 
 /** Keep both servers on the same image used to test acknowledged-commit replication. */
-export const PostgresImage = 'postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db';
 const command = promisify(execFile);
 
 /**
@@ -59,7 +59,7 @@ export async function cluster(save: (name: string, value: unknown) => Promise<vo
 		cleanup.defer(async () => {
 			await network.stop();
 		});
-		const primary = await new PostgreSqlContainer(PostgresImage).withNetwork(network).withNetworkAliases('primary')
+		const primary = await new PostgreSqlContainer(images.Postgres).withNetwork(network).withNetworkAliases('primary')
 			.withDatabase('test').withUsername('fixture').withPassword('fixture')
 			.withCommand(['postgres', '-c', 'wal_level=replica', '-c', 'max_wal_senders=5']).start();
 		cleanup.defer(async () => {
@@ -79,7 +79,7 @@ export async function cluster(save: (name: string, value: unknown) => Promise<vo
 		pools.push(direct);
 		await direct`select pg_reload_conf()`;
 		// Copy the primary once, then follow its WAL stream over the private container network.
-		const replica = await new GenericContainer(PostgresImage).withNetwork(network).withUser('postgres')
+		const replica = await new GenericContainer(images.Postgres).withNetwork(network).withUser('postgres')
 			.withEnvironment({ PGPASSWORD: 'fixture' }).withCommand([
 				'sh',
 				'-c',

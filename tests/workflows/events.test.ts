@@ -18,6 +18,7 @@ import * as context from '@okikio/context';
 import * as resource from '@okikio/capability/resource';
 import { identity } from '@okikio/workflow/execution';
 import { Approved, Engine, Policy, Progress, Report, ReportLive, Wait } from './scenarios/events.ts';
+import * as images from '../fixtures/images.ts';
 
 let container: StartedPostgreSqlContainer | undefined;
 let databaseUrl: string;
@@ -77,7 +78,7 @@ describe('saved events and progress across worker replacement', () => {
 		const supplied = process.env.UTILS_WORKFLOW_TEST_DATABASE_URL;
 		if (supplied === undefined) {
 			container = await new PostgreSqlContainer(
-				'postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db',
+				images.Postgres,
 			).withDatabase('events').start();
 			databaseUrl = container.getConnectionUri();
 		} else {

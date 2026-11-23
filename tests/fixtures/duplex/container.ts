@@ -8,10 +8,10 @@ import { build } from 'tsdown';
 import { GenericContainer, Wait } from 'testcontainers';
 import type { StartedTestContainer } from 'testcontainers';
 import * as schema from '@okikio/schema';
+import * as images from '../images.ts';
 
 /** Pinned official Node image; an explicit local override may select a cached runtime for verification. */
-export const Image =
-	'node:26.10.0-bookworm-slim@sha256:3ffc19ea878019d9e9ae8971732ad4a03cda44f167107173174b60ed7c65bed3';
+export const Image = images.Node;
 /** Metrics come from the application inside the container, not a host-side simulation. */
 export const MetricsSchema = schema.object({
 	pid: schema.number({ integer: true, minimum: 1 }),
