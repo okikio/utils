@@ -105,6 +105,19 @@
 			"depNameTemplate": "jdx/mise",
 			"datasourceTemplate": "github-releases",
 			"extractVersionTemplate": "^v(?<version>.+)$"
+		},
+		{
+			"customType": "regex",
+			"description": "Rust toolchain that builds the hash WebAssembly modules. A bump needs `tools/packages/wasm.ts --write`.",
+			"managerFilePatterns": [
+				"/(^|/)rust-toolchain\\.toml$/"
+			],
+			"matchStrings": [
+				"channel = \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+			],
+			"depNameTemplate": "rust",
+			"packageNameTemplate": "rust-lang/rust",
+			"datasourceTemplate": "github-releases"
 		}
 	]
 }
