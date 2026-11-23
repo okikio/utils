@@ -39,13 +39,7 @@ describe('family entry points', () => {
 		expect(after).toEqual(before);
 		for (const length of [0, 100, 600, 70_000]) {
 			const data = input(length);
-			expect(hex(sha2.hash('sha256', data, { key }))).toBe(
-				hex(createHash('sha256').update(data).digest()).length
-					? hex(
-						(await import('node:crypto')).createHmac('sha256', key).update(data).digest(),
-					)
-					: '',
-			);
+			expect(hex(sha2.hash('sha256', data, { key }))).toBe(createHmac('sha256', key).update(data).digest('hex'));
 			expect(hex(blake.hash('blake3', data, { key: input(32), length: 99 }))).toBe(
 				hex(blake.create('blake3', { key: input(32), length: 99 }).update(data).digest()),
 			);
