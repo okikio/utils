@@ -48,6 +48,9 @@
 		// Markdown keeps authored wrapping and code-block layout; review its meaning and examples separately.
 		// Generated evidence and archived research retain exact source provenance.
 		"exclude": [
+			// Entire manages its settings and the Codex hooks it installs.
+			".codex/hooks.json",
+			".entire/settings.json",
 			"pnpm-lock.yaml",
 			"**/*.md",
 			".sampo/changesets/*.md",

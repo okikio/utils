@@ -285,6 +285,8 @@ switch (family) {
 		const { versions } = await import('../releases/versions.ts');
 		const { candidates, clean } = await import('../releases/candidates.ts');
 		const action = values.operation ?? 'plan';
+		const hasChangesets = () =>
+			existsSync('.sampo/changesets') && readdirSync('.sampo/changesets').some((name) => name.endsWith('.md'));
 		if (action === 'add') {
 			command('pnpm', [
 				'exec',
@@ -295,21 +297,27 @@ switch (family) {
 				...(values.message ? ['--message', values.message] : []),
 				...forwarded,
 			]);
-		} else if (action === 'plan' || (action === 'version' && values.check)) {
-			await versions(root);
-			// Read-only previews use main, the only release branch. A stacked PR's base is the branch below
-			// it, which Sampo would refuse, and every stack lands on main. Writes keep Sampo's own branch check.
-			command('pnpm', ['exec', 'sampo', 'release', '--dry-run'], {
-				...process.env,
-				SAMPO_RELEASE_BRANCH: 'main',
-			});
-		} else if (action === 'version') {
-			command('pnpm', ['exec', 'sampo', 'release']);
-			await versions(root, true);
+		} else if (action === 'plan' || action === 'version') {
+			const pending = hasChangesets();
+			const write = action === 'version' && !values.check;
+			if (!write || !pending) await versions(root);
+			if (!pending) {
+				console.log('No pending changesets. Package versions are in sync.');
+			} else if (write) {
+				command('pnpm', ['exec', 'sampo', 'release']);
+				await versions(root, true);
+			} else {
+				// Read-only previews use main, the only release branch. A stacked PR's base is the branch below
+				// it, which Sampo would refuse, and every stack lands on main. Writes keep Sampo's own branch check.
+				command('pnpm', ['exec', 'sampo', 'release', '--dry-run'], {
+					...process.env,
+					SAMPO_RELEASE_BRANCH: 'main',
+				});
+			}
 		} else if (action === 'publish') {
 			if (!values.check) clean(root);
 			await versions(root);
-			if (existsSync('.sampo/changesets') && readdirSync('.sampo/changesets').some((name) => name.endsWith('.md'))) {
+			if (hasChangesets()) {
 				throw new Error('Prepare and merge the release versions before publishing pending changesets.');
 			}
 			// Publication selects a registry explicitly. A failed target can be retried at the same revision.
