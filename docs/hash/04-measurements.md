@@ -99,6 +99,21 @@ carries. rapidhash does one such product per 8 bytes, so it gains most. XXH3's l
 the wide multiply, so it gains only on short inputs. In that experiment (rapidhash and XXH3 alone) the wide module was 15% smaller. The
 shipped `fast` modules hold every fast hash: 31,238 bytes wide against 32,630 plain.
 
+## Worker pool
+
+Bun 1.4 on a 2-core sandbox. Throughput in GiB/s for the whole call; `thread` hashes on the calling thread.
+
+| Input              | Algorithm | thread | 1 worker | 2 workers |
+| ------------------ | --------- | ------ | -------- | --------- |
+| 64 × 1 MiB         | BLAKE3    | 0.57   | 0.42     | 0.66      |
+| 64 × 1 MiB         | SHA-256   | 1.16   | 0.73     | 1.10      |
+| 1 × 64 MiB, split  | BLAKE3    | 0.59   |          | 0.73      |
+
+One worker costs a copy into shared memory and the round trip, so it is slower than the calling thread. Two workers on
+two cores, with the calling thread also copying, are at most 1.3 times faster here. The pool's value is on hosts with
+more cores, and in keeping the calling thread free. Before batches became one buffer plus offsets, 20,000 inputs of
+256 bytes took 97 ms on one worker against 71 ms on the calling thread; most of that was cloning 20,000 views.
+
 ## Host feature probes
 
 Each probe is `WebAssembly.validate` on a minimal module, or a check for the function.

@@ -6,7 +6,12 @@
 //! need HMAC. For BLAKE3 id 16, an empty key hashes and a 32-byte key selects keyed mode; for id 17
 //! the key bytes are the UTF-8 context string of derive-key mode. BLAKE3's `param` is the output length
 //! in bytes, and 0 means the default 32.
+//!
+//! Ids 18 to 20 split one BLAKE3 input across workers: 18 hashes a subtree to its chaining value, 19 merges two
+//! chaining values below the root, and 20 merges them at the root with `param` bytes of output. See [`tree`].
 #![no_std]
+
+mod tree;
 
 use abi::{Error, Family, Output, WINDOW, put};
 use blake2::digest::consts::{U16, U20, U28, U32, U48, U64};
@@ -78,6 +83,10 @@ pub enum State {
 	Two(Two),
 	/// BLAKE3 and the output length.
 	Three(blake3::Hasher, usize),
+	/// A BLAKE3 subtree; it finishes to a chaining value.
+	Subtree(blake3::Hasher),
+	/// A merge of two BLAKE3 chaining values, with the root output length, or `None` below the root.
+	Merge(tree::Merge, Option<usize>),
 }
 
 impl Family for Blake {
@@ -97,6 +106,12 @@ impl Family for Blake {
 				};
 				Ok(State::Three(hasher, len))
 			}
+			18 if param == 0 => tree::subtree(key).map(State::Subtree),
+			19 if param == 0 => tree::Merge::new(key).map(|merge| State::Merge(merge, None)),
+			20 => {
+				let len = if param == 0 { blake3::OUT_LEN } else { param as usize };
+				tree::Merge::new(key).map(|merge| State::Merge(merge, Some(len)))
+			}
 			_ if param != 0 => Err(Error::Invalid),
 			_ => Two::new(id, key).map(State::Two),
 		}
@@ -105,9 +120,10 @@ impl Family for Blake {
 	fn update(state: &mut State, data: &[u8]) {
 		match state {
 			State::Two(two) => two.update(data),
-			State::Three(hasher, _) => {
+			State::Three(hasher, _) | State::Subtree(hasher) => {
 				hasher.update(data);
 			}
+			State::Merge(merge, _) => merge.update(data),
 		}
 	}
 
@@ -122,6 +138,19 @@ impl Family for Blake {
 				}
 				if total > first { Output::Reader(reader, first) } else { Output::Done(first) }
 			}
+			State::Subtree(hasher) => Output::Done(put(out, &tree::chaining(&hasher))),
+			// A merge without exactly 64 input bytes finishes with no output; the caller checks the length.
+			State::Merge(merge, None) => Output::Done(merge.non_root().map_or(0, |value| put(out, &value))),
+			State::Merge(merge, Some(total)) => match merge.root() {
+				None => Output::Done(0),
+				Some(mut reader) => {
+					let first = total.min(WINDOW);
+					if let Some(target) = out.get_mut(..first) {
+						reader.fill(target);
+					}
+					if total > first { Output::Reader(reader, first) } else { Output::Done(first) }
+				}
+			},
 		}
 	}
 

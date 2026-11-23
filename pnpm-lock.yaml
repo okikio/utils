@@ -678,9 +678,18 @@ importers:
 
   packages/hash:
     dependencies:
+      '@okikio/context':
+        specifier: workspace:^1.0.0
+        version: link:../context
+      '@okikio/schema':
+        specifier: workspace:^1.0.0
+        version: link:../schema
       '@okikio/streams':
         specifier: workspace:^0.1.0
         version: link:../streams
+      '@okikio/worker':
+        specifier: workspace:^1.0.0
+        version: link:../worker
       '@noble/hashes':
         specifier: ^2.4.0
         version: 2.4.0
@@ -3319,12 +3328,15 @@ packages:
 
   yuku-ast@0.8.7:
     resolution: {integrity: sha512-h6+4bDfyootiMB9vckk5uKo5r5j0GHrkr17FQTDNfEsFT3DWlN9uu1HJwQwc64pgmLCI945fWM3lbTIqxjT3GQ==}
+    deprecated: 'Yuku is now one package with one core. Use "yuku" instead: https://yuku.fyi/javascript/. Existing installs keep working but get no more fixes.'
 
   yuku-codegen@0.8.7:
     resolution: {integrity: sha512-adwDZSh8oVDzhE6Du9PwVWxcOxeV0e2EVhUuMKWfhSY4wkrDq9eqixlxFF3l/XGUV1E7UFzhpz9393MUumkyNw==}
+    deprecated: 'Yuku is now one package with one core. Use "yuku" instead: https://yuku.fyi/javascript/. Existing installs keep working but get no more fixes.'
 
   yuku-parser@0.8.7:
     resolution: {integrity: sha512-vRD9nwt4L3aYpxNqeSC4WqLv58xrXef0Ong1Mc45CTXTIpvLafx7JO05sczmQZwdLEZvywrLOGdNC5+Rp5N1BQ==}
+    deprecated: 'Yuku is now one package with one core. Use "yuku" instead: https://yuku.fyi/javascript/. Existing installs keep working but get no more fixes.'
 
   zip-stream@6.0.1:
     resolution: {integrity: sha512-zK7YHHz4ZXpW89AHXUPbQVGKI7uvkd3hzusTdotCg1UxyaVtg0zFJSTfW/Dq5f7OBBVnq6cZIaC8Ti4hb6dtCA==}
