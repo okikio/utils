@@ -14,7 +14,7 @@ if (manifest.name !== 'vixeny' || manifest.version !== '0.1.53' || manifest.main
 	throw new Error('Benchmark preparation requires the pinned Vixeny0.1.53 TypeScript package.');
 }
 const compiler = JSON.parse(await readFile(resolve(root, 'node_modules/tsdown/package.json'), 'utf8'));
-if (compiler.version !== '0.22.14') throw new Error('Benchmark preparation requires tsdown0.22.14.');
+if (compiler.version !== '0.23.7') throw new Error('Benchmark preparation requires tsdown 0.23.7.');
 if (ts.version !== '6.0.3') throw new Error('Benchmark preparation requires TypeScript6.0.3 type erasure.');
 const output = resolve(root, '.tmp/artifacts/challengers');
 await mkdir(output, { recursive: true });

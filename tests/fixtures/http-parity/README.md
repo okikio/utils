@@ -40,8 +40,8 @@ feature or determines which stack an application should choose.
 
 ## Upstream provenance
 
-Small input cases adapt Hono's tests at version **4.13.5**, the repository lockfile version. The annotated release tag
-resolves to immutable commit **06880c4a2b04de9dd74217f26dd831209b9c01f1**.
+Small input cases adapt Hono's tests at version **4.13.5**. The annotated release tag resolves to immutable commit
+**06880c4a2b04de9dd74217f26dd831209b9c01f1**. The installed Hono is newer; the adapted cases still pass against it.
 
 - [hono.test.ts](https://github.com/honojs/hono/blob/06880c4a2b04de9dd74217f26dd831209b9c01f1/src/hono.test.ts): strict
   slash cases, encoded Unicode/slash parameters, middleware response modification, context variables, GET/HEAD.
