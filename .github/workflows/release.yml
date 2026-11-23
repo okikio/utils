@@ -50,7 +50,7 @@ jobs:
   prepare:
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.operation == 'prepare')
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     permissions:
       contents: write
       pull-requests: write
@@ -134,7 +134,7 @@ jobs:
     if: inputs.operation == 'publish'
     needs: [evidence, tested]
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     environment: publish
     permissions:
       contents: write
@@ -176,7 +176,7 @@ jobs:
     if: inputs.operation == 'publish'
     needs: [evidence, tested]
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     environment: publish
     permissions:
       contents: read

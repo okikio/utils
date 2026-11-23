@@ -88,13 +88,23 @@ the existing package and container preparation share an all-browser cache. Each 
 browser profiles or test results. Successful trusted runs can save downloads under GitHub's ordinary ref scope;
 PR cache writes cannot populate main or release caches. Cache failures fall back to normal installation.
 
-Automatic PR checks keep source contracts on every layer. Chromium, benchmark correctness and example checks run
-on ordinary PRs and the top of a native GitHub stack. The top compares its combined candidate with the ultimate
-stack base. A PR that joins a native stack after its last push is reselected on its next push or a rerun. The planner reports
-runtime, installed-package, PostgreSQL, container and documentation jobs as deferred
-because their measured complete jobs exceeded the 120-second automatic budget. Formatting and lint feedback run
-on main or manual requests. Main pushes retain all affected lanes, and dispatching CI runs all lanes on the selected
-branch. This changes how often costly work runs; it does not establish that those tests became faster.
+Every job has a 10-minute limit. Ordinary PRs and the top of a native GitHub stack run every affected lane; the top
+compares its combined candidate with the ultimate stack base. Lower stack layers run only the source checks. A PR
+that joins a native stack after its last push is reselected on its next push or a rerun. Formatting and lint
+feedback run on main or manual requests. Dispatching CI runs all lanes on the selected branch.
+
+Three changes keep the long lanes inside the limit:
+
+- **Shards.** The PostgreSQL and container suites run one test file at a time, so CI splits their files across
+  parallel jobs: two for PostgreSQL and three for containers (`--shard <index>/<total>`). Files are sorted by path
+  and dealt in turn, so each file runs in exactly one shard. Only the container shard that runs a browser test
+  installs the Playwright engines.
+- **Images.** `tests/fixtures/images.ts` pins every image the tests start, including the testcontainers Ryuk
+  sidecar. The container and PostgreSQL jobs load them from one Actions cache entry keyed by that file, and pull
+  only what the archive did not restore (`.github/actions/image-cache`). The PostgreSQL job starts its database
+  from that image after the result cache check, so a job whose inputs already passed pulls and starts nothing.
+- **Documentation.** The README example check runs one document per CPU core. Each document keeps its own
+  temporary directory and runs its examples in order.
 
 Benchmark correctness and copyable examples now share one hosted runner because neither needs PostgreSQL,
 Chromium or a separate service. Mise installs the native toolchain and prepares the frozen package graph once.

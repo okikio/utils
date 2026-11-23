@@ -27,8 +27,9 @@ import { fingerprint, identity } from '@okikio/workflow/execution';
 import { CoreEngine, CorePolicy, Parse, Resolution, ResolutionLive, Resolve, Verify } from './scenarios/core.ts';
 import { Acquire, Expire, IntelligencePolicy } from './scenarios/intelligence.ts';
 import { BatchResultSchema, digest, IdentitySchema } from './scenarios/contracts.ts';
+import * as images from '../fixtures/images.ts';
 
-const image = 'postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db';
+const image = images.Postgres;
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const processes = new Set<ChildProcess>();
 const exits = new Set<Promise<unknown>>();

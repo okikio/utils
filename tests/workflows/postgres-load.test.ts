@@ -13,8 +13,9 @@ import * as workflow from '@okikio/workflow';
 import { identity } from '@okikio/workflow/execution';
 import * as storage from '@okikio/storage/workflow/postgres';
 import { evidence, until } from './fixtures/evidence.ts';
-import { cluster, PostgresImage } from './fixtures/postgres.ts';
+import { cluster } from './fixtures/postgres.ts';
 import { proxy } from './fixtures/commit.ts';
+import * as images from '../fixtures/images.ts';
 
 const Local = engine.define({ id: 'test.sql' });
 const Write = activity.define({
@@ -181,7 +182,7 @@ describe('PostgreSQL load and ambiguous commit checks', { concurrency: false, ti
 				clearInterval(sample);
 				latencies.sort((left, right) => left - right);
 				await run.save('result.json', {
-					image: PostgresImage,
+					image: images.Postgres,
 					durationMs: performance.now() - started,
 					producers,
 					connections: 2,
@@ -268,7 +269,7 @@ describe('PostgreSQL load and ambiguous commit checks', { concurrency: false, ti
 			).toBe(trials.length);
 		} finally {
 			await run.save('result.json', {
-				image: PostgresImage,
+				image: images.Postgres,
 				trials,
 				attempts,
 				faults: fault.events,

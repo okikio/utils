@@ -14,9 +14,8 @@ import * as postgres from '@okikio/storage/workflow/postgres';
 import * as workflow from '@okikio/workflow';
 import { Parent, Policy, ReceiptSchema } from '../fixtures/nested-contract.ts';
 import { scratch } from './fixtures/evidence.ts';
+import * as images from '../fixtures/images.ts';
 
-const NodeImage = 'node:26.10.0-bookworm-slim@sha256:3ffc19ea878019d9e9ae8971732ad4a03cda44f167107173174b60ed7c65bed3';
-const PostgresImage = 'postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db';
 const owned = new Set<StartedTestContainer>();
 const files = new Map<string, string>();
 let output: string;
@@ -46,7 +45,7 @@ before(async () => {
 	}
 	expect(files.size).toBe(3);
 	network = await new Network().start();
-	const sql = await new PostgreSqlContainer(PostgresImage).withNetwork(network).withNetworkAliases('database')
+	const sql = await new PostgreSqlContainer(images.Postgres).withNetwork(network).withNetworkAliases('database')
 		.withDatabase('nested').withUsername('fixture').withPassword('fixture').start();
 	owned.add(sql);
 	database = postgresjs(sql.getConnectionUri(), { max: 12, onnotice() {} });
@@ -61,7 +60,7 @@ after(async () => {
 /** A prestarted executor owns its native provider; deployment, not workflow, creates the container. */
 async function start(namespace: string, owner: string, kind: string) {
 	let diagnostic = '';
-	const container = await new GenericContainer(NodeImage).withNetwork(network).withWorkingDir('/app')
+	const container = await new GenericContainer(images.Node).withNetwork(network).withWorkingDir('/app')
 		.withCopyDirectoriesToContainer([{ source: output, target: '/app' }])
 		.withEnvironment({
 			DATABASE_URL: 'postgres://fixture:fixture@database:5432/nested',

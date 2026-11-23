@@ -67,15 +67,8 @@ describe('affected CI work', () => {
 		expect(plan(['examples/mcp/server.ts'], projects).lanes.examples).toBe(true);
 		expect(() => PlanSchema.parse({ ...plan([], projects), typo: true })).toThrow();
 	});
-	it('defers measured costly PR jobs while retaining main and explicit full coverage', () => {
-		const automatic = plan(['pnpm-lock.yaml'], projects, false, true);
-		expect(automatic.deferred).toEqual(['runtimes', 'packages', 'postgres', 'containers', 'docs']);
-		for (const lane of automatic.deferred) expect(automatic.lanes[lane]).toBe(false);
-		for (const lane of ['source', 'browser', 'benchmark', 'examples'] as const) {
-			expect(automatic.lanes[lane]).toBe(true);
-		}
-		for (const complete of [plan(['pnpm-lock.yaml'], projects), plan([], projects, true, true)]) {
-			expect(complete.deferred).toEqual([]);
+	it('selects every affected lane, including the Docker and documentation lanes', () => {
+		for (const complete of [plan(['pnpm-lock.yaml'], projects), plan([], projects, true)]) {
 			expect(Object.values(complete.lanes).every(Boolean)).toBe(true);
 		}
 	});

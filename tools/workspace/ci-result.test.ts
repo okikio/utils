@@ -1,4 +1,4 @@
-/** Deferred lower layers and failed combined candidates must never become passing required checks. */
+/** Lower stack layers and failed combined candidates must never become passing required checks. */
 import { it } from 'node:test';
 import { expect } from '@std/expect';
 import { requireSelectedResults } from './ci-result.ts';
@@ -44,23 +44,6 @@ it('cannot turn a lower layer or an unsuccessful plan into top-candidate success
 	).toThrow();
 	expect(() => requireSelectedResults({ ...jobs, plan: { ...jobs.plan, result: 'failure' } })).toThrow();
 	expect(() => requireSelectedResults({ ...jobs, plan: { result: 'success' } })).toThrow();
-});
-
-it('keeps deliberate PR deferrals distinct from successful or failed selected work', () => {
-	const jobs = documentation();
-	const deferred = {
-		...jobs,
-		plan: { ...jobs.plan, outputs: { ...jobs.plan.outputs, docs: 'false', deferred: '["docs"]' } },
-		docs: { result: 'skipped' },
-	};
-	expect(() => requireSelectedResults(deferred)).not.toThrow();
-	expect(() => requireSelectedResults({ ...deferred, docs: { result: 'failure' } })).toThrow();
-	expect(() =>
-		requireSelectedResults({
-			...deferred,
-			plan: { ...deferred.plan, outputs: { ...deferred.plan.outputs, docs: 'true' } },
-		})
-	).toThrow();
 });
 
 /** The two inexpensive pure selections must both be represented by one observed job. */

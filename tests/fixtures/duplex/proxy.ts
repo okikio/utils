@@ -7,9 +7,10 @@ import { resolve } from 'node:path';
 import { GenericContainer, Wait } from 'testcontainers';
 import type { StartedTestContainer } from 'testcontainers';
 import { start } from './container.ts';
+import * as images from '../images.ts';
 
 /** Reuse the exact nginx owner already selected for the repository's streaming integration tests. */
-export const Image = 'nginx:1.28-alpine@sha256:a8b39bd9cf0f83869a2162827a0caf6137ddf759d50a171451b335cecc87d236';
+export const Image = images.Nginx;
 /** Fixture commands have explicit deadlines and operate only on their per-run resources. */
 const command = promisify(execFile);
 

@@ -17,6 +17,7 @@ import { encode, identity } from '@okikio/workflow/execution';
 import { Approved, Engine } from './scenarios/events.ts';
 import { Work } from './scenarios/execution.ts';
 import { count, Policy, Program } from './scenarios/pressure.ts';
+import * as images from '../fixtures/images.ts';
 
 let container: StartedPostgreSqlContainer | undefined;
 let databaseUrl: string, sql: Sql;
@@ -83,7 +84,7 @@ describe('durable queue pressure', () => {
 		if (supplied !== undefined) databaseUrl = supplied;
 		else {
 			container = await new PostgreSqlContainer(
-				'postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db',
+				images.Postgres,
 			).start();
 			databaseUrl = container.getConnectionUri();
 		}

@@ -15,6 +15,7 @@ import * as postgres from '@okikio/storage/workflow/postgres';
 import * as workflow from '@okikio/workflow';
 import { encode, identity } from '@okikio/workflow/execution';
 import { Engine, Policy as Base, Progress } from './scenarios/events.ts';
+import * as images from '../fixtures/images.ts';
 
 /** A private input and result make accidental payload disclosure observable in public responses. */
 const Work = activity.define({
@@ -79,7 +80,7 @@ describe('read-only durable execution inspection', () => {
 		if (supplied !== undefined) databaseUrl = supplied;
 		else {
 			container = await new PostgreSqlContainer(
-				'postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db',
+				images.Postgres,
 			).start();
 			databaseUrl = container.getConnectionUri();
 		}

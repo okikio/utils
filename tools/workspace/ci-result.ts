@@ -20,17 +20,9 @@ export function requireSelectedResults(jobs: Readonly<Record<string, JobResult>>
 	if (jobs.plan?.result !== 'success' || jobs.plan.outputs?.selected !== 'true') {
 		throw new Error('A successful selected plan is required.');
 	}
-	const deferred: unknown = JSON.parse(jobs.plan.outputs.deferred ?? '[]');
-	if (
-		!Array.isArray(deferred) ||
-		deferred.some((lane) => !['runtimes', 'packages', 'postgres', 'containers', 'docs'].includes(lane))
-	) {
-		throw new Error('Invalid automatic PR deferrals.');
-	}
 	for (const lane of Lanes) {
 		const selected = jobs.plan.outputs[lane];
 		if (selected !== 'true' && selected !== 'false') throw new Error(`Missing ${lane} selection.`);
-		if (deferred.includes(lane) && selected !== 'false') throw new Error(`${lane} cannot be selected and deferred.`);
 		// The benchmark job executes both pure lanes. One failed step fails the shared job.
 		const job = lane === 'examples' ? 'benchmark' : lane;
 		const result = jobs[job]?.result;
@@ -39,9 +31,6 @@ export function requireSelectedResults(jobs: Readonly<Record<string, JobResult>>
 				`${lane}: expected ${selected === 'true' ? 'success' : 'success or skipped'}, received ${result}.`,
 			);
 		}
-	}
-	if (deferred.length) {
-		console.log(`Not executed on this automatic PR: ${deferred.join(', ')}. Dispatch CI for complete checks.`);
 	}
 }
 

@@ -24,6 +24,7 @@ import {
 	Program,
 	Write,
 } from './scenarios/continuation.ts';
+import * as images from '../fixtures/images.ts';
 
 const cleanup = new AsyncDisposableStack();
 let container: StartedPostgreSqlContainer | undefined;
@@ -124,7 +125,7 @@ describe('bounded durable root continuation', () => {
 		if (supplied !== undefined) databaseUrl = supplied;
 		else {
 			container = await new PostgreSqlContainer(
-				'postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db',
+				images.Postgres,
 			).start();
 			cleanup.defer(async () => {
 				await container!.stop();

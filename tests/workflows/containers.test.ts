@@ -16,9 +16,8 @@ import { SnapshotSchema } from '@okikio/workflow/execution';
 import * as postgres from '@okikio/storage/workflow/postgres';
 import { Parent as PlacementParent, Policy as PlacementPolicy } from './scenarios/placement.ts';
 import { scratch } from './fixtures/evidence.ts';
+import * as images from '../fixtures/images.ts';
 
-const PostgresImage = 'postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db';
-const NodeImage = 'node:26.10.0-bookworm-slim@sha256:3ffc19ea878019d9e9ae8971732ad4a03cda44f167107173174b60ed7c65bed3';
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const containers = new Set<StartedTestContainer>();
 const files = new Map<string, string>();
@@ -52,7 +51,7 @@ async function start(
 	environment: Record<string, string> = {},
 ) {
 	let log = '';
-	const container = await new GenericContainer(NodeImage)
+	const container = await new GenericContainer(images.Node)
 		.withNetwork(network)
 		.withNetworkAliases(['provider', 'collector'].includes(file) ? file : `worker-${crypto.randomUUID()}`)
 		.withWorkingDir('/app')
@@ -146,7 +145,7 @@ describe('HTTP service and background worker containers', { timeout: 240_000, co
 		for (const result of results) await result[Symbol.asyncDispose]();
 		expect([...files.keys()].sort()).toEqual(['collector', 'host', 'placement', 'provider', 'service']);
 		network = await new Network().start();
-		const database = await new PostgreSqlContainer(PostgresImage)
+		const database = await new PostgreSqlContainer(images.Postgres)
 			.withNetwork(network).withNetworkAliases('database')
 			.withDatabase('workflows').withUsername('fixture').withPassword('fixture').start();
 		containers.add(database);

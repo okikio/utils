@@ -5,7 +5,7 @@
  * below it. Checking every layer with the costly jobs would test the same code several times, so
  * only the top layer runs them. The top compares the whole stack with the base of the bottom layer
  * (the "ultimate base"), which is the same change set that lands when the stack merges.
- * A lower layer still runs the source checks; the planner reports its costly jobs as deferred.
+ * A lower layer still runs the source checks and skips the rest.
  *
  * The program writes two step outputs for `.github/actions/stack`:
  *

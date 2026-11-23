@@ -7,8 +7,8 @@ import { expect } from '@std/expect';
 import { GenericContainer, Wait } from 'testcontainers';
 import * as events from '@okikio/http/events';
 import { evidence, host, until } from './fixtures/evidence.ts';
+import * as images from '../fixtures/images.ts';
 
-const NginxImage = 'nginx:1.28-alpine@sha256:a8b39bd9cf0f83869a2162827a0caf6137ddf759d50a171451b335cecc87d236';
 const Limits = {
 	maximumBytes: 8 * 1024 * 1024,
 	maximumChunkBytes: 256 * 1024,
@@ -120,7 +120,7 @@ location /load/ { proxy_pass http://host.docker.internal:${server.port}/edge/; p
 location /stream/ { proxy_pass http://host.docker.internal:${server.port}/edge/; proxy_buffering off; proxy_read_timeout 1s; }
 }}`;
 		await receipt.save('nginx.conf', configuration);
-		const proxy = await new GenericContainer(NginxImage)
+		const proxy = await new GenericContainer(images.Nginx)
 			.withExtraHosts([{ host: 'host.docker.internal', ipAddress: 'host-gateway' }])
 			.withCopyContentToContainer([{ content: configuration, target: '/etc/nginx/nginx.conf' }])
 			.withExposedPorts(8080).withWaitStrategy(Wait.forHttp('/ready', 8080)).start();
@@ -136,7 +136,7 @@ location /stream/ { proxy_pass http://host.docker.internal:${server.port}/edge/;
 			expect(response.status).toBe(204);
 		};
 		try {
-			await receipt.save('proxy.json', { image: NginxImage, origin, version: await proxy.exec(['nginx', '-v']) });
+			await receipt.save('proxy.json', { image: images.Nginx, origin, version: await proxy.exec(['nginx', '-v']) });
 			const pressureStarted = performance.now();
 			await Promise.all(
 				Array.from(

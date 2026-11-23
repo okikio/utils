@@ -5,7 +5,6 @@ import { z } from 'zod';
 export const PlanSchema = z.strictObject({
 	version: z.literal(1),
 	projects: z.array(z.string()),
-	deferred: z.array(z.enum(['runtimes', 'packages', 'postgres', 'containers', 'docs'])),
 	lanes: z.strictObject({
 		source: z.boolean(),
 		runtimes: z.boolean(),
@@ -59,7 +58,6 @@ export function plan(
 	paths: readonly string[],
 	projects: readonly Project[],
 	full = false,
-	pullRequest = false,
 ): PlanType {
 	const lanes = {
 		source: false,
@@ -115,15 +113,5 @@ export function plan(
 				selected.has(name)
 			);
 	}
-	// These measured jobs exceeded 120 seconds including setup. Keep every main
-	// and explicit full check; PRs report their manual deferral without claiming
-	// a test passed. Re-enable a lane only after its complete job is measured.
-	const deferred: PlanType['deferred'] = [];
-	if (pullRequest && !full) {
-		for (const lane of ['runtimes', 'packages', 'postgres', 'containers', 'docs'] as const) {
-			if (lanes[lane]) deferred.push(lane);
-			lanes[lane] = false;
-		}
-	}
-	return { version: 1, projects: broad ? [] : [...selected].sort(), deferred, lanes };
+	return { version: 1, projects: broad ? [] : [...selected].sort(), lanes };
 }

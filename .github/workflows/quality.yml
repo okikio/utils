@@ -28,7 +28,6 @@ jobs:
     outputs:
       selected: ${{ steps.stack.outputs.selected }}
       projects: ${{ steps.plan.outputs.projects }}
-      deferred: ${{ steps.plan.outputs.deferred }}
       source: ${{ steps.plan.outputs.source }}
       runtimes: ${{ steps.plan.outputs.runtimes }}
       browser: ${{ steps.plan.outputs.browser }}
@@ -69,14 +68,11 @@ jobs:
           BASE_SHA: ${{ steps.stack.outputs.base-sha || github.event.pull_request.base.sha || steps.baseline.outputs.base }}
           HEAD_SHA: ${{ github.sha }}
           FULL: ${{ inputs.full || github.event_name == 'workflow_dispatch' }}
-          AUTOMATIC_PR: ${{ github.event_name == 'pull_request' }}
         run: |
-          args=()
-          if [[ "$AUTOMATIC_PR" == true ]]; then args+=(--pull-request); fi
           if [[ "$FULL" == true || -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
-            mise run ci:plan -- --full "${args[@]}"
+            mise run ci:plan -- --full
           else
-            mise run ci:plan -- --base "$BASE_SHA" --head "$HEAD_SHA" "${args[@]}"
+            mise run ci:plan -- --base "$BASE_SHA" --head "$HEAD_SHA"
           fi
 
   source:
@@ -84,7 +80,7 @@ jobs:
     if: needs.plan.outputs.source == 'true'
     name: Source and public contracts
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -154,7 +150,7 @@ jobs:
       matrix:
         runtime: [deno, node, bun]
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     env:
       TEST_RUNTIME: ${{ matrix.runtime }}
       CI_PROJECTS: ${{ needs.plan.outputs.projects }}
@@ -233,7 +229,7 @@ jobs:
     if: needs.plan.outputs.selected == 'true' && needs.plan.outputs.browser == 'true'
     name: Native Chromium contracts
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -321,7 +317,7 @@ jobs:
     if: needs.plan.outputs.selected == 'true' && needs.plan.outputs.packages == 'true'
     name: Installed package consumers
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -418,23 +414,16 @@ jobs:
   postgres:
     needs: plan
     if: needs.plan.outputs.selected == 'true' && needs.plan.outputs.postgres == 'true'
-    name: PostgreSQL queue and durable recovery
+    name: PostgreSQL queue and durable recovery (${{ matrix.shard }}/2)
+    # The suite runs one file at a time against one database, so two jobs split its files.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    services:
-      postgres:
-        image: postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db
-        env:
-          POSTGRES_USER: fixture
-          POSTGRES_PASSWORD: fixture
-          POSTGRES_DB: utils_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U fixture -d utils_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 12
+    timeout-minutes: 10
+    # The job starts PostgreSQL itself instead of using a service container. A service is pulled
+    # and started before any step, even when the result cache then skips the job.
     env:
       UTILS_TEST_DATABASE_URL: postgres://fixture:fixture@127.0.0.1:5432/utils_test
     steps:
@@ -449,7 +438,7 @@ jobs:
         with:
           mode: check
           lane: postgres
-          selection: ''
+          selection: shard=${{ matrix.shard }}/2
           bypass: ${{ inputs.fresh }}
       - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
         if: steps.passed.outputs.hit != 'true'
@@ -462,13 +451,36 @@ jobs:
           stores: pnpm deno
       - run: mise run prepare:node
         if: steps.passed.outputs.hit != 'true'
-      - run: mise run ci:run -- --lane postgres
+      - name: Load the pinned container images
+        id: images
         if: steps.passed.outputs.hit != 'true'
+        uses: $/.github/actions/image-cache
+      - name: Start PostgreSQL
+        if: steps.passed.outputs.hit != 'true'
+        env:
+          IMAGE: ${{ steps.images.outputs.postgres }}
+        run: |
+          set -euo pipefail
+          docker run --detach --name postgres --publish 127.0.0.1:5432:5432 \
+            --env POSTGRES_USER=fixture --env POSTGRES_PASSWORD=fixture --env POSTGRES_DB=utils_test \
+            --health-cmd 'pg_isready -U fixture -d utils_test' --health-interval 1s --health-retries 60 \
+            "$IMAGE"
+          for _ in $(seq 60); do
+            [[ "$(docker inspect --format '{{.State.Health.Status}}' postgres)" == healthy ]] && exit 0
+            sleep 1
+          done
+          docker logs postgres
+          echo '::error::PostgreSQL did not become ready within 60 seconds.' >&2
+          exit 1
+      - run: mise run ci:run -- --lane postgres --shard "$SHARD/2"
+        if: steps.passed.outputs.hit != 'true'
+        env:
+          SHARD: ${{ matrix.shard }}
       - name: Retain test reports
         if: steps.passed.outputs.hit != 'true' && (always())
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: postgres-reports
+          name: postgres-reports-${{ matrix.shard }}
           path: |
             .tmp/artifacts/tests/**/*.json
             .tmp/artifacts/tests/**/*.log
@@ -490,15 +502,20 @@ jobs:
         with:
           mode: record
           lane: postgres
-          selection: ''
+          selection: shard=${{ matrix.shard }}/2
           bypass: ${{ inputs.fresh }}
 
   containers:
     needs: plan
     if: needs.plan.outputs.selected == 'true' && needs.plan.outputs.containers == 'true'
-    name: Container recovery
+    name: Container recovery (${{ matrix.shard }}/3)
+    # The suite runs one file at a time against Docker, so three jobs split its files.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -511,7 +528,7 @@ jobs:
         with:
           mode: check
           lane: containers
-          selection: ''
+          selection: shard=${{ matrix.shard }}/3
           bypass: ${{ inputs.fresh }}
       - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
         if: steps.passed.outputs.hit != 'true'
@@ -524,29 +541,46 @@ jobs:
           stores: pnpm deno
       - run: mise run prepare:node
         if: steps.passed.outputs.hit != 'true'
+      - name: Load the pinned container images
+        id: images
+        if: steps.passed.outputs.hit != 'true'
+        uses: $/.github/actions/image-cache
       # Browser revisions follow the installed Playwright version, not unrelated lockfile changes.
+      # Only the shard that runs a browser test restores or installs the engines.
       - name: Identify native Playwright downloads
         if: steps.passed.outputs.hit != 'true'
         id: playwright
         continue-on-error: true
+        env:
+          SHARD: ${{ matrix.shard }}
         run: |
           . /etc/os-release
-          printf 'os=%s-%s\n' "$ID" "$VERSION_ID" >> "$GITHUB_OUTPUT"
-          node --input-type=module -e 'import playwright from "playwright/package.json" with { type: "json" }; console.log("version=" + playwright.version)' >> "$GITHUB_OUTPUT"
+          {
+            printf 'os=%s-%s\n' "$ID" "$VERSION_ID"
+            node --input-type=module -e 'import playwright from "playwright/package.json" with { type: "json" }; console.log("version=" + playwright.version)'
+            node --input-type=module -e '
+              import { BrowserFiles, discover, shard } from "./tools/testing/discover.ts";
+              const files = shard((await discover(process.cwd())).filter((file) => file.family === "containers"), Number(process.env.SHARD), 3);
+              console.log("needed=" + files.some((file) => BrowserFiles.has(file.path)));
+            '
+          } >> "$GITHUB_OUTPUT"
       - name: Restore native Playwright downloads
         id: playwright-cache
-        if: steps.passed.outputs.hit != 'true' && (steps.playwright.outputs.version != '' && steps.playwright.outputs.os != '')
+        if: steps.passed.outputs.hit != 'true' && steps.playwright.outputs.needed == 'true' && (steps.playwright.outputs.version != '' && steps.playwright.outputs.os != '')
         continue-on-error: true
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: utils-playwright-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.os }}-${{ steps.playwright.outputs.version }}-all
-      - run: mise run ci:run -- --lane containers
+      - run: mise run ci:run -- --lane containers --shard "$SHARD/3"
         if: steps.passed.outputs.hit != 'true'
+        env:
+          SHARD: ${{ matrix.shard }}
+          RYUK_CONTAINER_IMAGE: ${{ steps.images.outputs.ryuk }}
       # Cache downloads after fresh checks; PR writes remain in their merge-ref scope.
       - name: Save native Playwright downloads
         if: >-
-          steps.passed.outputs.hit != 'true' && (success() && steps.playwright-cache.outputs.cache-hit != 'true' && steps.playwright-cache.outputs.cache-primary-key != '' && github.event.repository.fork == false && ( (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref_protected == true)) || (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') && endsWith(github.ref, '/merge') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.repo.fork == false) || (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/')) ))
+          steps.passed.outputs.hit != 'true' && steps.playwright.outputs.needed == 'true' && (success() && steps.playwright-cache.outputs.cache-hit != 'true' && steps.playwright-cache.outputs.cache-primary-key != '' && github.event.repository.fork == false && ( (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref_protected == true)) || (github.event_name == 'pull_request' && startsWith(github.ref, 'refs/pull/') && endsWith(github.ref, '/merge') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.repo.fork == false) || (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/')) ))
         continue-on-error: true
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -556,7 +590,7 @@ jobs:
         if: steps.passed.outputs.hit != 'true' && (always())
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: container-reports
+          name: container-reports-${{ matrix.shard }}
           path: |
             .tmp/artifacts/tests/**/*.json
             .tmp/artifacts/tests/**/*.log
@@ -581,7 +615,7 @@ jobs:
         with:
           mode: record
           lane: containers
-          selection: ''
+          selection: shard=${{ matrix.shard }}/3
           bypass: ${{ inputs.fresh }}
 
   benchmark:
@@ -590,7 +624,7 @@ jobs:
     if: needs.plan.outputs.selected == 'true' && (needs.plan.outputs.benchmark == 'true' || needs.plan.outputs.examples == 'true')
     name: Benchmark correctness and copyable examples
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -656,7 +690,7 @@ jobs:
       matrix:
         kind: [format, lint, security]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -681,7 +715,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.selected == 'true' && needs.plan.outputs.docs == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -740,7 +774,7 @@ jobs:
 
   result:
     name: Required checks
-    # Lower layers are deferred; the selected top must prove its own combined checks.
+    # Lower stack layers skip this aggregate; the selected top must prove its own combined checks.
     if: always() && (needs.plan.result != 'success' || needs.plan.outputs.selected != 'false')
     needs: [plan, source, runtimes, browser, packages, postgres, containers, benchmark, docs]
     runs-on: ubuntu-latest

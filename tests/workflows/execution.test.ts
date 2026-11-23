@@ -19,6 +19,7 @@ import * as resource from '@okikio/capability/resource';
 import { encode, fingerprint, identity } from '@okikio/workflow/execution';
 import { Approved, Engine } from './scenarios/events.ts';
 import { Policy, Program, ProgramLive, Work, WorkLive } from './scenarios/execution.ts';
+import * as images from '../fixtures/images.ts';
 
 let container: StartedPostgreSqlContainer | undefined;
 /** Explicit local checks can borrow an isolated PostgreSQL instance; ordinary runs own a container. */
@@ -143,7 +144,7 @@ describe('consistent execution and saved wake-ups', () => {
 		if (supplied !== undefined) databaseUrl = supplied;
 		else {
 			container = await new PostgreSqlContainer(
-				'postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db',
+				images.Postgres,
 			).start();
 			databaseUrl = container.getConnectionUri();
 		}

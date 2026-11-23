@@ -3,6 +3,7 @@ import { parseArgs } from 'node:util';
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import type { TestFile } from '../testing/discover.ts';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 process.chdir(root);
@@ -17,6 +18,7 @@ const { values, positionals } = parseArgs({
 		kind: { type: 'string' },
 		project: { type: 'string', multiple: true },
 		'projects-json': { type: 'string' },
+		shard: { type: 'string' },
 		runtime: { type: 'string', default: 'deno' },
 		suite: { type: 'string' },
 		target: { type: 'string', default: 'npm' },
@@ -26,7 +28,6 @@ const { values, positionals } = parseArgs({
 		check: { type: 'boolean' },
 		write: { type: 'boolean' },
 		full: { type: 'boolean' },
-		'pull-request': { type: 'boolean' },
 		help: { type: 'boolean' },
 		base: { type: 'string' },
 		head: { type: 'string' },
@@ -48,6 +49,7 @@ if (values.help) {
 	console.log(`Usage: mise run ${family} [options] [file-or-directory ...]
   --project <name>    Select a utility; repeat to select several
   --projects-json    CI runtime owner list from the validated affected-work plan
+  --shard <i/n>      Run shard i of n of the postgres or containers CI lane
   --runtime <host>    deno (default), node, or bun
   --kind <operation> Select a check or preparation operation
   --suite <suite>    source, comparisons, docs, examples, packages, bundles,
@@ -55,7 +57,6 @@ if (values.help) {
   --check            Benchmark correctness or release/publish dry runs
   --operation <name> bench: measure, compare, profile; release: add, plan, version, publish
   --full             Select all CI lanes (default planning uses --base and --head)
-  --pull-request     Report costly automatic PR lanes as deferred to manual checks
   --output <path>    Fresh report directory
 
 Preparation kinds: deps, bench, browser, freeze
@@ -189,12 +190,10 @@ async function ci(): Promise<void> {
 				return projectFromManifest(name, manifest);
 			}),
 			values.full,
-			values['pull-request'],
 		);
 		console.log(JSON.stringify(result, null, 2));
 		if (process.env.GITHUB_OUTPUT) {
 			appendFileSync(process.env.GITHUB_OUTPUT, `projects=${JSON.stringify(result.projects)}\n`);
-			appendFileSync(process.env.GITHUB_OUTPUT, `deferred=${JSON.stringify(result.deferred)}\n`);
 			for (const [name, selected] of Object.entries(result.lanes)) {
 				appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${selected}\n`);
 			}
@@ -206,8 +205,6 @@ async function ci(): Promise<void> {
 					'### Selected CI work',
 					'',
 					`Package owners: ${result.projects.join(', ') || 'all'}.`,
-					`Deferred automatic PR lanes: ${result.deferred.join(', ') || 'none'}.`,
-					'Dispatch CI on the exact stack top branch to run the complete checks. Main and release checks keep every selected lane.',
 					'',
 				].join('\n'),
 			);
@@ -265,13 +262,28 @@ async function ci(): Promise<void> {
 				test('examples');
 				break;
 			case 'postgres':
-				test('postgres');
+			case 'containers': {
+				// These suites run one file at a time against Docker or a shared database, so CI splits
+				// their files across parallel jobs instead.
+				const { BrowserFiles, discover, shard } = await import('../testing/discover.ts');
+				let files: readonly TestFile[] = (await discover(root)).filter((file) => file.family === values.lane);
+				if (values.shard !== undefined) {
+					const match = /^(\d+)\/(\d+)$/u.exec(values.shard);
+					if (!match) throw new TypeError('Pass --shard as <index>/<total>, for example 2/3.');
+					files = shard(files, Number(match[1]), Number(match[2]));
+				}
+				if (files.length === 0) {
+					console.log(`No ${values.lane} test files fall in shard ${values.shard}.`);
+					break;
+				}
+				// One container test also drives real browsers through its reverse proxy. Only the shard
+				// that runs it installs the engines.
+				if (files.some((file) => BrowserFiles.has(file.path))) {
+					operation('fixture:browser', ['chromium', 'firefox', 'webkit', '--with-deps']);
+				}
+				operation(`test:${values.lane}`, files.map((file) => file.path));
 				break;
-			case 'containers':
-				// The container suite also drives real browsers through its reverse proxies.
-				operation('fixture:browser', ['chromium', 'firefox', 'webkit', '--with-deps']);
-				test('containers');
-				break;
+			}
 			default:
 				throw new TypeError('Select a known --lane.');
 		}
