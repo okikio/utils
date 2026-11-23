@@ -6,7 +6,6 @@
 			"**/*.test.ts",
 			"**/*.bench.ts",
 			"**/fixtures/**",
-			// The Rust source builds the modules; the derived modules in _wasm/ ship.
 			"wasm/abi/**",
 			"wasm/sha2/**",
 			"wasm/sha3/**",
