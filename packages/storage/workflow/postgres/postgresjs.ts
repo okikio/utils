@@ -1,6 +1,6 @@
 /**
- * Save jobs and progress through a borrowed Postgres.js pool. The application creates and closes the
- * pool. @module
+ * Save jobs and progress through a borrowed Postgres.js pool or `@okikio/sql` database. The application creates
+ * and closes the pool. @module
  */
 import type { EffectEncoded } from '@okikio/capability/effect';
 import * as telemetry from '@okikio/telemetry/instrument';
@@ -44,16 +44,19 @@ import type {
 	SnapshotType,
 } from '@okikio/workflow';
 import * as sql from '@okikio/sql/postgres';
-import { executor } from '@okikio/sql/postgres/postgresjs';
+import { executor, isClient, toDatabase } from '@okikio/sql/postgres/postgresjs';
 import { temporal } from '@okikio/duration/temporal';
 import type { Temporal } from '@okikio/duration/temporal';
 import * as tables from './schema/mod.ts';
-import type { Executor, Statement } from '@okikio/sql/postgres';
+import type { Database, Executor, Statement } from '@okikio/sql/postgres';
+import { readOnly, type Source } from './connection.ts';
 import { cleanups, history, hosts, jobs, maintenance, runs, shared } from './statements/mod.ts';
 import * as continuation from './continuation.ts';
 
 /** Native Postgres.js transaction. It remains usable by domain SQL, not just the adapter. */
 export type Transaction = TransactionSql;
+/** The transaction a store hands domain SQL: native for a Postgres.js pool, an `Executor` for any other database. */
+type Tx = Transaction | Executor;
 /**
  * Identify one business write and describe how to read its result.
  * Reuse the same key, input, and contract on retry so a committed receipt can be recognized.
@@ -108,8 +111,11 @@ export interface PruneResult {
 	/** Another eligible family or a partly pruned family remains; concurrent maintenance can change this hint. */
 	readonly more: boolean;
 }
-/** Borrowed store with native transactional domain writes. No pool is opened or migrated by construction. */
-export interface StoreType extends ExecutionStore {
+/**
+ * Borrowed store with transactional domain writes. No pool is opened or migrated by construction. `T` is the
+ * transaction domain SQL receives: the native Postgres.js transaction, or an `Executor` on another database.
+ */
+export interface StoreType<T = Transaction> extends ExecutionStore {
 	/** Explicitly delete expired, wholly terminal families using a total row budget of 1..1000. */
 	prune(options: { readonly limit: number }): Promise<PruneResult>;
 	/**
@@ -120,7 +126,7 @@ export interface StoreType extends ExecutionStore {
 	transaction<Input, Value>(
 		claim: Claim | undefined,
 		options: WriteOptions<Input, Value>,
-		callback: (tx: Transaction, receipt: Receipt<Value>) => Promise<ReceiptType<Value>>,
+		callback: (tx: T, receipt: Receipt<Value>) => Promise<ReceiptType<Value>>,
 	): Promise<ReceiptType<Value>>;
 	/**
 	 * Read an existing write receipt while this attempt has permission, before reopening source bytes or
@@ -134,25 +140,26 @@ export interface StoreType extends ExecutionStore {
 /** One executor per native pool or transaction, so statements run on exactly that connection. */
 const executors = new WeakMap<object, Executor>();
 
-/** The `@okikio/sql` executor of a native Postgres.js pool or transaction. */
-function on(native: Sql | TransactionSql): Executor {
+/** The `@okikio/sql` executor of a native Postgres.js pool or transaction; an executor stays as it is. */
+function on(native: Native): Executor {
+	if (!isClient(native)) return native as Executor;
 	let found = executors.get(native);
 	if (found === undefined) executors.set(native, found = executor(native));
 	return found;
 }
 
 /** Run a statement and decode its rows. */
-function rows<Row>(native: Sql | TransactionSql, statement: Statement<Row>): Promise<Row[]> {
+function rows<Row>(native: Native, statement: Statement<Row>): Promise<Row[]> {
 	return sql.rows(on(native), statement);
 }
 
 /** Run a statement and return its one row, if any. */
-function one<Row>(native: Sql | TransactionSql, statement: Statement<Row>): Promise<Row | undefined> {
+function one<Row>(native: Native, statement: Statement<Row>): Promise<Row | undefined> {
 	return sql.one(on(native), statement);
 }
 
 /** Run a statement and ignore its rows. */
-function exec(native: Sql | TransactionSql, statement: Statement<unknown>): Promise<void> {
+function exec(native: Native, statement: Statement<unknown>): Promise<void> {
 	return sql.execute(on(native), statement);
 }
 
@@ -161,24 +168,28 @@ function iso(instant: Temporal.Instant): string {
 	return instant.toString({ fractionalSecondDigits: 3, roundingMode: 'trunc' });
 }
 
-/** Tracks only native transactions admitted through begin; query-shaped foreign objects cannot join. */
-const transactions = new WeakMap<object, { database: Sql; active: boolean }>();
+/** Tracks only transactions admitted through begin; query-shaped foreign objects cannot join. */
+const transactions = new WeakMap<object, { database: Source; active: boolean }>();
 
 /**
- * Open a Postgres.js transaction that `client.in(tx)` can join.
- * Register its pool and callback lifetime so job acceptance can share the business commit.
- * A transaction from another pool, or one used after this callback exits, is rejected.
+ * Open a transaction that `client.in(tx)` can join.
+ * Register its database and callback lifetime so job acceptance can share the business commit.
+ * A transaction from another database, or one used after this callback exits, is rejected.
+ * On a Postgres.js pool `tx` is the native transaction; on any other database it is an `Executor`.
  */
-export async function begin<Value>(database: Sql, callback: (tx: Transaction) => Promise<Value>): Promise<Value> {
-	return await database.begin(async (tx) => {
+export function begin<Value>(database: Sql, callback: (tx: Transaction) => Promise<Value>): Promise<Value>;
+export function begin<Value>(database: Database, callback: (tx: Executor) => Promise<Value>): Promise<Value>;
+export async function begin<Value>(database: Source, callback: (tx: never) => Promise<Value>): Promise<Value> {
+	const work = async (tx: Tx) => {
 		const lifetime = { database, active: true };
 		transactions.set(tx, lifetime);
 		try {
-			return await callback(tx);
+			return await callback(tx as never);
 		} finally {
 			lifetime.active = false;
 		}
-	}) as Value;
+	};
+	return isClient(database) ? await database.begin(work) as Value : await database.begin(work);
 }
 
 /** Read-only migration evidence. It can become stale before migrate() obtains its lock. */
@@ -197,9 +208,8 @@ export interface MigrationStatusType {
  * advisory lock and applies no DDL. Concurrent schema changes can invalidate this observation; migrate()
  * always repeats its checks after obtaining the authoritative migration lock.
  */
-export async function migrationStatus(options: { readonly database: Sql }): Promise<MigrationStatusType> {
-	return await options.database.begin('isolation level repeatable read read only', async (native) => {
-		const tx = executor(native);
+export async function migrationStatus(options: { readonly database: Source }): Promise<MigrationStatusType> {
+	return await readOnly(options.database, async (tx) => {
 		const present = (await sql.one(tx, tables.present))!;
 		let current: number | undefined;
 		if (present.version) {
@@ -238,7 +248,7 @@ export interface MigrationPlanType {
 	readonly steps: readonly Readonly<{ from: number | undefined; to: number; action: 'install' | 'upgrade' }>[];
 }
 /** Inspect installation/upgrade requirements without changing schema or draining hosts. */
-export async function planMigrations(options: { readonly database: Sql }): Promise<MigrationPlanType> {
+export async function planMigrations(options: { readonly database: Source }): Promise<MigrationPlanType> {
 	const status = await migrationStatus(options);
 	const steps = status.state === 'uninstalled' || status.state === 'upgrade'
 		? [
@@ -257,9 +267,8 @@ export async function planMigrations(options: { readonly database: Sql }): Promi
 }
 
 /** Explicit maintenance. Current revisions run no DDL; an upgrade requires drained workers. */
-export async function migrate(options: { readonly database: Sql }): Promise<void> {
-	await options.database.begin(async (native) => {
-		const tx = executor(native);
+export async function migrate(options: { readonly database: Source }): Promise<void> {
+	await toDatabase(options.database).begin(async (tx) => {
 		await sql.execute(tx, tables.migrationLock);
 		const present = (await sql.one(tx, tables.present))!;
 		if (present.version) {
@@ -326,7 +335,7 @@ const RunSchema = schema.define((input) => {
 	};
 });
 type RunType = schema.Output<typeof RunSchema>;
-type Native = Transaction | Sql;
+type Native = Tx | Sql;
 /** One saved job, decoded with the column types. */
 type JobRow = sql.RowOf<typeof tables.jobs.columns>;
 /** Required order: registration share lock, run update lock, job update lock, then application domain locks. */
@@ -340,22 +349,35 @@ const terminal = ['completed', 'failed', 'cancelled', 'continued'];
  * starting workers.
 
  */
-export function open(
-	options: {
-		readonly database: Sql;
-		readonly namespace: string;
-		readonly notifications?: boolean;
-		readonly instrument?: telemetry.Instrument;
-	},
-): StoreType {
+export function open(options: OpenOptions<Sql>): StoreType;
+/**
+ * Create a store view on any `@okikio/sql` database, such as a `pg` pool bound by `@okikio/sql/postgres/pg`.
+ * Domain SQL receives an `Executor`, and workers poll: `notifications` must stay off, since the port has no `LISTEN`.
+ */
+export function open(options: OpenOptions<Database>): StoreType<Executor>;
+export function open(options: OpenOptions<Source>): StoreType<Tx> {
 	if (!options.namespace.trim() || options.namespace.length > 128) {
 		throw new TypeError('Namespace must contain 1..128 characters.');
 	}
-	return new Store(options.database, options.namespace, options.notifications ?? true, telemetry.get(options));
+	const pool = isClient(options.database);
+	if (options.notifications && !pool) {
+		throw new TypeError('Notifications need a Postgres.js pool; other databases poll.');
+	}
+	return new Store(options.database, options.namespace, options.notifications ?? pool, telemetry.get(options));
+}
+
+/** Options for {@link open}. */
+export interface OpenOptions<D extends Source> {
+	/** The borrowed pool or database. The store never closes it. */
+	readonly database: D;
+	readonly namespace: string;
+	/** Wake workers through `LISTEN`. Defaults to on for a Postgres.js pool, and must be off otherwise. */
+	readonly notifications?: boolean;
+	readonly instrument?: telemetry.Instrument;
 }
 
 /** Save queue and progress changes. Closing this adapter view never closes the borrowed SQL pool. */
-class Store implements StoreType {
+class Store implements StoreType<Tx> {
 	readonly namespace: string;
 	readonly capabilities = Object.freeze([
 		'postgres.transactions',
@@ -370,8 +392,8 @@ class Store implements StoreType {
 		'workflow.continue',
 		'effects.progress',
 	]);
-	/** Borrowed query pool. Disposal closes this view and its listeners, never this pool. */
-	#database: Sql;
+	/** Borrowed query pool or database. Disposal closes this view and its listeners, never this pool. */
+	#database: Source;
 	/** Reject new work on this view after disposal starts; the caller still owns the pool. */
 	#closed = false;
 	/** When disabled, subscriptions do not acquire a LISTEN connection and callers can poll. */
@@ -384,7 +406,7 @@ class Store implements StoreType {
 	 * insufficient.
 	 */
 	#claims = new WeakSet<Claim>();
-	constructor(database: Sql, namespace: string, notifications: boolean, instrument: telemetry.Instrument) {
+	constructor(database: Source, namespace: string, notifications: boolean, instrument: telemetry.Instrument) {
 		this.#instrument = instrument;
 		this.#database = database;
 		this.#notifications = notifications;
@@ -398,13 +420,12 @@ class Store implements StoreType {
 	/** Own one notification connection for this subscription. Closing it also releases any reconnected session. */
 	async subscribe(notify: () => void): Promise<() => Promise<void>> {
 		this.#assert();
-		if (!this.#notifications) return async () => {};
+		if (!this.#notifications || !isClient(this.#database)) return async () => {};
 		let active = true;
 		// Postgres.js itself clones these parsed options for LISTEN. Its public constructor
 		// type omits parsed host/port arrays, so keep this adaptation at the driver boundary.
-		const listener = postgresjs(
-			{ ...this.#database.options, max: 1, onclose() {} } as unknown as Options<Record<string, never>>,
-		);
+		const options = (this.#database as Sql).options;
+		const listener = postgresjs({ ...options, max: 1, onclose() {} } as unknown as Options<Record<string, never>>);
 		/** Release this subscription once, including after LISTEN reconnects. */
 		const close = async () => {
 			if (!active) return;
@@ -452,22 +473,22 @@ class Store implements StoreType {
 	 * They start after connection admission and require a responsive server. The
 	 * application owns pool queue limits and transport failure detection.
 	 */
-	#transaction<Value>(callback: (tx: Transaction) => Promise<Value>): Promise<Value> {
+	#transaction<Value>(callback: (tx: Tx) => Promise<Value>): Promise<Value> {
 		this.#assert();
-		return begin(this.#database, async (tx) => {
+		return begin(this.#database as Database, async (tx: Tx) => {
 			// Locks and transactions are bounded even if a caller waits inside its callback.
 			for (const statement of shared.limits()) await exec(tx, statement);
 			return await callback(tx);
 		});
 	}
 	/** Accept only a live transaction opened by begin() on this exact borrowed pool. */
-	#native(input: unknown): Transaction {
+	#native(input: unknown): Tx {
 		if ((typeof input !== 'function' && typeof input !== 'object') || input === null) {
 			throw new ExecutionError('transaction_binding');
 		}
 		const entry = transactions.get(input);
 		if (!entry?.active || entry.database !== this.#database) throw new ExecutionError('transaction_binding');
-		return input as Transaction;
+		return input as Tx;
 	}
 	/** Build a public reference from saved identity, without exposing the mutable run row. */
 	#ref(run: Pick<RunType, 'id' | 'scope' | 'kind' | 'definition' | 'version'>): ReferenceType {
@@ -507,7 +528,7 @@ class Store implements StoreType {
 		signal?.throwIfAborted();
 		// Refuse a partially installed or incompatible schema before accepting worker readiness: the revision must match
 		// and every column this revision defines must exist with its type.
-		const tx = executor(this.#database);
+		const tx = on(this.#database);
 		const stored = await sql.one(tx, tables.stored, { signal }).catch((error) => {
 			signal?.throwIfAborted();
 			if ((error as { code?: unknown }).code === '42P01') return undefined;
@@ -524,7 +545,7 @@ class Store implements StoreType {
 	/** Admit a root request or a guarded successor, optionally in the caller's own transaction. */
 	async accept(input: AdmissionType, native?: unknown): Promise<ReferenceType> {
 		this.#assert();
-		const work = async (tx: Transaction) => {
+		const work = async (tx: Tx) => {
 			const parent = input.claim === undefined ? undefined : (await this.#guard(tx, input.claim)).run;
 			if (
 				parent && (parent.scope !== input.scope || await fingerprint(parent.policy) !== await fingerprint(input.policy))
@@ -538,7 +559,7 @@ class Store implements StoreType {
 	 * this lock.
 	 */
 	async #accept(
-		tx: Transaction,
+		tx: Tx,
 		input: AdmissionType,
 		parent?: RunType,
 		relation?: 'child' | 'successor',
@@ -748,7 +769,7 @@ class Store implements StoreType {
 		});
 	}
 	/** All retained event and report data shares the run's explicit history budget. */
-	async #budget(tx: Transaction, run: RunType, additional: number): Promise<void> {
+	async #budget(tx: Tx, run: RunType, additional: number): Promise<void> {
 		const used = (await one(tx, shared.history(this.namespace, run.id)))!.bytes;
 		if (used + additional > run.policy.limits.historyBytes) throw new ExecutionError('history_limit');
 	}
@@ -829,11 +850,11 @@ class Store implements StoreType {
 		if ((await rows(tx, hosts.guard(this.namespace, host, mode))).length !== 1) throw new ExecutionError('stale_claim');
 	}
 	/** Serialize shared ancestor admission and topology replacement in this namespace. */
-	async #placementLock(tx: Transaction): Promise<void> {
+	async #placementLock(tx: Tx): Promise<void> {
 		await exec(tx, shared.named(this.namespace, shared.keys.placement));
 	}
 	/** Check this worker's free slots one at a time. Release the slot-check lock before running activity code. */
-	async #capacity(tx: Transaction, host: HostType): Promise<void> {
+	async #capacity(tx: Tx, host: HostType): Promise<void> {
 		await exec(tx, shared.named(JSON.stringify([this.namespace, host.id]), shared.keys.capacity));
 	}
 	/**
@@ -983,7 +1004,7 @@ class Store implements StoreType {
 	 * A permitted write may finish while holding them even if its lease time passes before commit.
 	 * A later write with the old permission is rejected. Keep application row locks after this check.
 	 */
-	async #guard(tx: Transaction, claim: Claim | undefined, activation = false): Promise<GuardType> {
+	async #guard(tx: Tx, claim: Claim | undefined, activation = false): Promise<GuardType> {
 		// Object identity proves that this view issued the claim; copied fields do not grant permission.
 		if (!claim || !this.#claims.has(claim)) throw new ExecutionError('claim_binding');
 		await this.#host(tx, { id: claim.hostId, generation: claim.hostGeneration });
@@ -1034,7 +1055,7 @@ class Store implements StoreType {
 	}
 	/** Save the next runnable activity before its requesting transaction commits. No activity code runs here. */
 	async #job(
-		tx: Transaction,
+		tx: Tx,
 		run: RunType,
 		path: string,
 		definition: IdentityType,
@@ -1276,7 +1297,7 @@ class Store implements StoreType {
 	 * Freeze the intended outcome, revoke ordinary sibling attempts, then admit durable cleanup and
 	 * finalization.
 	 */
-	async #exit(tx: Transaction, run: RunType, outcome: OutcomeType): Promise<void> {
+	async #exit(tx: Tx, run: RunType, outcome: OutcomeType): Promise<void> {
 		await exec(tx, runs.settle(this.namespace, run.id, outcome));
 		// A terminal parent no longer permits ordinary siblings to write. Retain their attempts as cancellation evidence.
 		const cancelled: OutcomeType = { type: 'cancelled', reason: 'The parent workflow finished.' };
@@ -1286,7 +1307,7 @@ class Store implements StoreType {
 		await this.#settle(tx, { ...run, outcome });
 	}
 	/** Run saved cleanup first, then the configured exit activity. Keep the original outcome unchanged. */
-	async #settle(tx: Transaction, run: RunType): Promise<void> {
+	async #settle(tx: Tx, run: RunType): Promise<void> {
 		if (!await this.#cleanupNext(tx, run)) return;
 		if (run.continuation !== null) {
 			await continuation.rollover(on(tx), { namespace: this.namespace, run });
@@ -1326,7 +1347,7 @@ class Store implements StoreType {
 		});
 	}
 	/** Start one cleanup at a time in reverse registration order within the selected scope. */
-	async #cleanupNext(tx: Transaction, run: RunType, scope?: string): Promise<boolean> {
+	async #cleanupNext(tx: Tx, run: RunType, scope?: string): Promise<boolean> {
 		const rows_ = await rows(tx, cleanups.queue(this.namespace, run.id, scope));
 		if (!rows_.length) return true;
 		// An already-running cleanup keeps its position even if another branch registered later.
@@ -1372,7 +1393,7 @@ class Store implements StoreType {
 	}
 	/** Cleanup failure blocks inspection without replacing the intended business outcome. */
 	async #cleanupDone(
-		tx: Transaction,
+		tx: Tx,
 		run: RunType,
 		path: string,
 		scope: string | null,
@@ -1414,7 +1435,7 @@ class Store implements StoreType {
 	 * The run lock serializes history accounting. Accepted job evidence survives even when replay history
 	 * has no room.
 	 */
-	async #record(tx: Transaction, run: RunType, path: string, outcome: OutcomeType): Promise<boolean> {
+	async #record(tx: Tx, run: RunType, path: string, outcome: OutcomeType): Promise<boolean> {
 		const bytes = new TextEncoder().encode(JSON.stringify(outcome)).byteLength;
 		const used = (await one(tx, shared.history(this.namespace, run.id)))!.bytes;
 		if (used + bytes > run.policy.limits.historyBytes) {
@@ -1429,7 +1450,7 @@ class Store implements StoreType {
 	 * accepted wake.
 	 */
 	async #outcome(
-		tx: Transaction,
+		tx: Tx,
 		run: RunType,
 		job: JobRow,
 		outcome: OutcomeType,
@@ -1701,7 +1722,7 @@ class Store implements StoreType {
 	 * Reject a conflict before returning a value through the application decoder.
 	 */
 	async #receipt<Input, Value>(
-		tx: Transaction,
+		tx: Tx,
 		claim: Claim,
 		options: WriteOptions<Input, Value>,
 		expected?: ReturnType<typeof encode>,
@@ -1728,7 +1749,7 @@ class Store implements StoreType {
 	async transaction<Input, Value>(
 		claim: Claim | undefined,
 		options: WriteOptions<Input, Value>,
-		callback: (tx: Transaction, receipt: Receipt<Value>) => Promise<ReceiptType<Value>>,
+		callback: (tx: Tx, receipt: Receipt<Value>) => Promise<ReceiptType<Value>>,
 	): Promise<ReceiptType<Value>> {
 		codec.output(options.result);
 		return await this.#instrument.span(
@@ -1747,7 +1768,7 @@ class Store implements StoreType {
 	async #write<Input, Value>(
 		claim: Claim | undefined,
 		options: WriteOptions<Input, Value>,
-		callback: (tx: Transaction, receipt: Receipt<Value>) => Promise<ReceiptType<Value>>,
+		callback: (tx: Tx, receipt: Receipt<Value>) => Promise<ReceiptType<Value>>,
 	): Promise<ReceiptType<Value>> {
 		return await this.#transaction(async (tx) => {
 			const { run } = await this.#guard(tx, claim);
