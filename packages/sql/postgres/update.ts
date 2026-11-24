@@ -28,6 +28,7 @@ import {
 	type UpdateRow,
 	values,
 	where,
+	withUpdateValues,
 	Write,
 	type WriteState,
 } from './write.ts';
@@ -105,5 +106,5 @@ export function update<C extends Columns, K extends string, const V extends Upda
 	values: V,
 ): Update<C, K, Record<never, never>, never, OwnersOfRow<V>> {
 	same(dialect, table.dialect);
-	return new Update({ table, values, from: [], with: [], where: [] });
+	return new Update({ table, values: withUpdateValues(table, values), from: [], with: [], where: [] });
 }

@@ -61,6 +61,7 @@ export {
 	column,
 	type ColumnBuilder,
 	type ColumnDef,
+	columnName,
 	type Columns,
 	type Constraints,
 	excluded,
@@ -70,6 +71,7 @@ export {
 	type Refs,
 	type RowOf,
 	schema,
+	type SchemaOptions,
 	type SchemaType,
 	type Table,
 } from './table.ts';

@@ -39,8 +39,18 @@ export interface ColumnDef<T, Optional extends boolean = boolean> {
 	readonly allowsNull: boolean;
 	/** A default value or expression; inserts may omit the column. */
 	readonly fallback?: Input<T>;
-	/** `generated always as identity`; inserts must omit the column. */
+	/** The database writes the column, as an identity or a generated column; inserts and updates must omit it. */
 	readonly generated: boolean;
+	/** `generated always as identity`. */
+	readonly isIdentity?: boolean;
+	/** The column's name in the database, when it differs from its key in the definition. */
+	readonly column?: string;
+	/** The value the application writes when an insert omits the column. */
+	readonly insertValue?: () => Input<T>;
+	/** The value the application writes on every update that does not set the column. */
+	readonly updateValue?: () => Input<T>;
+	/** The database fills the column when an insert omits it; see `ColumnBuilder.filled`. */
+	readonly databaseFills?: boolean;
 	/** `bigserial`: a sequence fills the column when an insert omits it. */
 	readonly sequenced?: boolean;
 	/** Phantom flag: an insert may omit this column. */
@@ -56,13 +66,34 @@ export interface ColumnBuilder<T, Optional extends boolean> extends ColumnDef<T,
 	/** Make a 64-bit integer column `generated always as identity`. */
 	identity(): ColumnBuilder<T, true>;
 	/**
+	 * The database computes this column, such as a `generated always as (…) stored` column of a schema made elsewhere.
+	 * Inserts and updates refuse it, and `createTable` cannot create it.
+	 */
+	computed(): ColumnBuilder<T, true>;
+	/**
+	 * The column's name in the database, when the key in the definition differs, such as `seenAt` for `"seen_at"`.
+	 * Statements use the key for values and results and the name in SQL.
+	 */
+	named(column: string): ColumnBuilder<T, Optional>;
+	/**
+	 * Let inserts omit the column because the application writes `value()` then, as Sequelize's `createdAt` or Prisma's
+	 * `@default(now())` do outside the database. `value` may return an expression that reads no table, such as
+	 * `sql.fn.now()`; it runs once for each statement built.
+	 */
+	onInsert(value: () => T | Expr<T, never>): ColumnBuilder<T, true>;
+	/**
+	 * Write `value()` on every update that does not set the column itself, as Prisma's `@updatedAt` does. Upserts
+	 * count as updates.
+	 */
+	onUpdate(value: () => T | Expr<T, never>): ColumnBuilder<T, Optional>;
+	/**
 	 * Make a 64-bit integer column fill from a sequence when an insert omits it. Prefer
 	 * {@link ColumnBuilder.identity} for a new table; this keeps an existing sequence column as it is.
 	 */
 	serial(): ColumnBuilder<T, true>;
 	/**
-	 * Let inserts omit the column because a `before insert` trigger fills it. The column keeps `not null`, which the
-	 * database checks after the trigger runs.
+	 * Let inserts omit the column because the database fills it: a `before insert` trigger, or a default or sequence of
+	 * a schema made elsewhere. The column keeps `not null`, which the database checks after filling it.
 	 */
 	filled(): ColumnBuilder<T, true>;
 }
@@ -82,8 +113,15 @@ function build<T, Optional extends boolean>(definition: ColumnDef<T, boolean>): 
 			}
 			return build<T, true>({ ...definition, fallback: value });
 		},
-		identity: () => build<T, true>({ ...definition, generated: true }),
-		filled: () => build<T, true>(definition),
+		identity: () => build<T, true>({ ...definition, generated: true, isIdentity: true }),
+		computed: () => build<T, true>({ ...definition, generated: true }),
+		named: (column: string) => {
+			identifier(column);
+			return build<T, Optional>({ ...definition, column });
+		},
+		onInsert: (value: () => Input<T>) => build<T, true>({ ...definition, insertValue: value }),
+		onUpdate: (value: () => Input<T>) => build<T, Optional>({ ...definition, updateValue: value }),
+		filled: () => build<T, true>({ ...definition, databaseFills: true }),
 		serial: () => build<T, true>({ ...definition, sequenced: true }),
 	}) as unknown as ColumnBuilder<T, Optional>;
 }
@@ -138,6 +176,11 @@ export interface Table<C extends Columns, K extends string = string> {
 	/** Column expressions, qualified by the table. */
 	readonly c: Refs<C, K>;
 	readonly constraints: Constraints<K>;
+	/**
+	 * Whether this package creates and changes the table. A table of a schema made elsewhere, by an ORM, a migration
+	 * tool or plain SQL, is not owned: queries work the same, and schema statements refuse to change it.
+	 */
+	readonly owned: boolean;
 	/** The same table under an alias, for a second reference in one statement. */
 	as<const A extends string>(alias: A): Aliased<C, A>;
 }
@@ -152,8 +195,27 @@ export interface Aliased<C extends Columns, A extends string = string> {
 
 function refs<C extends Columns, K extends string>(owner: readonly string[], columns: C): Refs<C, K> {
 	return Object.freeze(
-		Object.fromEntries(Object.entries(columns).map(([name, def]) => [name, new Column(owner, name, def.type)])),
+		Object.fromEntries(
+			Object.entries(columns).map(([name, def]) => [name, new Column(owner, def.column ?? name, def.type)]),
+		),
 	) as Refs<C, K>;
+}
+
+/** The database name of a column, by its key in the definition. */
+export function columnName(table: Table<Columns>, key: string): string {
+	return table.columns[key]?.column ?? key;
+}
+
+/**
+ * A value the application writes for a column: `insertValue` or `updateValue`. It may not read a table, because the
+ * statement it lands in may not have that table in scope.
+ */
+export function applied<T>(make: () => Input<T>, name: string): Input<T> {
+	const value = make();
+	if (typeof value === 'object' && value !== null && 'owners' in value && (value as Expr<T>).owners.size) {
+		throw new TypeError(`The value the application writes for ${name} may not read a table.`);
+	}
+	return value;
 }
 
 /** Fail when a constraint reads a column of another table. */
@@ -169,6 +231,8 @@ function owned(table: string, what: string, items: readonly { readonly owners: R
 export interface SchemaType<S extends string = string> {
 	readonly dialect: Dialect;
 	readonly name: S;
+	/** Whether this package creates and changes the schema's tables; see {@link Table.owned}. */
+	readonly owned: boolean;
 	/** Define a table in this schema. */
 	table<const N extends string, const C extends Columns>(
 		name: N,
@@ -177,12 +241,23 @@ export interface SchemaType<S extends string = string> {
 	): Table<C, `${S}.${N}`>;
 }
 
+/** Options for a schema. */
+export interface SchemaOptions {
+	/**
+	 * `false` for a schema made elsewhere, such as by Prisma, Drizzle or plain SQL. Its tables can be queried, and
+	 * schema statements refuse to change them. Defaults to `true`.
+	 */
+	readonly owned?: boolean;
+}
+
 /** Start a schema definition in a dialect. A dialect's entry point wraps this, such as `postgres.schema`. */
-export function schema<const S extends string>(dialect: Dialect, name: S): SchemaType<S> {
+export function schema<const S extends string>(dialect: Dialect, name: S, options: SchemaOptions = {}): SchemaType<S> {
 	identifier(name);
+	const isOwned = options.owned ?? true;
 	return Object.freeze({
 		dialect,
 		name,
+		owned: isOwned,
 		table<const N extends string, const C extends Columns>(
 			table: N,
 			columns: C,
@@ -213,6 +288,7 @@ export function schema<const S extends string>(dialect: Dialect, name: S): Schem
 				columns,
 				c,
 				constraints: defined,
+				owned: isOwned,
 				as: <const A extends string>(alias: A) => {
 					identifier(alias);
 					return Object.freeze({ table: result, alias, key: alias, c: refs<C, A>([alias], columns) });

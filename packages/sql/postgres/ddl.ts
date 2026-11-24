@@ -12,7 +12,7 @@ import { Column, type Expr, isExpr } from '../expr.ts';
 import { type Fragment, group, identifier, join, keyword, qualified } from '../fragment.ts';
 import type { IsolationType } from '../run.ts';
 import { type Ddl, ddl as wrap, isDdl, toDdlQuery } from '../statement.ts';
-import { type ColumnDef, type Columns, fallback, type IndexType, type Table } from '../table.ts';
+import { type ColumnDef, columnName, type Columns, fallback, type IndexType, type Table } from '../table.ts';
 import { dialect } from './dialect.ts';
 
 /** A PostgreSQL schema statement. */
@@ -27,13 +27,23 @@ export function createSchema(name: string): Ddl {
 	return ddl(join([keyword('create schema if not exists '), identifier(name)]));
 }
 
+/** Fail for a table this package does not own: a schema made elsewhere keeps its own migrations. */
+function own(table: Table<Columns>, what: string): void {
+	if (!table.owned) {
+		throw new TypeError(`${table.schema}.${table.name} is owned elsewhere, so ${what} refuses to change it.`);
+	}
+}
+
 /** One column's definition: name, type, NULL rule, default or identity. */
 function columnSql(name: string, def: ColumnDef<unknown>): Fragment {
-	if ((def.generated || def.sequenced) && def.type.name !== 'bigint') {
+	if ((def.isIdentity || def.sequenced) && def.type.name !== 'bigint') {
 		throw new TypeError(`Column ${name} must be a bigint to be an identity or bigserial.`);
 	}
+	if (def.generated && !def.isIdentity) {
+		throw new TypeError(`Column ${name} is computed by a database made elsewhere, so createTable cannot create it.`);
+	}
 	const parts: Fragment[] = [identifier(name), keyword(` ${def.sequenced ? 'bigserial' : def.type.name}`)];
-	if (def.generated) parts.push(keyword(' generated always as identity'));
+	if (def.isIdentity) parts.push(keyword(' generated always as identity'));
 	if (!def.allowsNull) parts.push(keyword(' not null'));
 	const value = fallback(def);
 	if (value) parts.push(keyword(' default '), value.operand);
@@ -46,7 +56,8 @@ function names(columns: readonly Column<unknown>[]): Fragment {
 
 /** `create table if not exists` with every column and table constraint. */
 export function createTable(table: Table<Columns>): Ddl {
-	const items: Fragment[] = Object.entries(table.columns).map(([name, def]) => columnSql(name, def));
+	own(table, 'createTable');
+	const items: Fragment[] = Object.entries(table.columns).map(([key, def]) => columnSql(def.column ?? key, def));
 	const constraints = table.constraints;
 	if (constraints.primaryKey?.length) items.push(join([keyword('primary key '), names(constraints.primaryKey)]));
 	for (const unique of constraints.unique ?? []) items.push(join([keyword('unique '), names(unique)]));
@@ -74,6 +85,7 @@ export function createTable(table: Table<Columns>): Ddl {
 
 /** One `create index if not exists`. */
 export function createIndex(table: Table<Columns>, index: IndexType): Ddl {
+	own(table, 'createIndex');
 	const items = index.on.map((item) => {
 		if (item instanceof Column) return identifier(item.name);
 		if (isExpr(item)) return group((item as Expr<unknown>).fragment);
@@ -102,24 +114,26 @@ export interface AddColumnOptions {
 
 /** Add a column to an existing table, for an upgrade from an older revision. */
 export function addColumn(table: Table<Columns>, name: string, options: AddColumnOptions = {}): Ddl {
+	own(table, 'addColumn');
 	const def = table.columns[name];
 	if (!def) throw new TypeError(`Unknown column ${name} of ${table.schema}.${table.name}.`);
 	return ddl(join([
 		keyword('alter table '),
 		qualified(table.schema, table.name),
 		keyword(' add column if not exists '),
-		columnSql(name, options.backfill ? { ...def, allowsNull: true } : def),
+		columnSql(columnName(table, name), options.backfill ? { ...def, allowsNull: true } : def),
 	]));
 }
 
 /** Require a value in a column that an older revision allowed to be NULL. Backfill the column first. */
 export function setNotNull(table: Table<Columns>, name: string): Ddl {
+	own(table, 'setNotNull');
 	if (!table.columns[name]) throw new TypeError(`Unknown column ${name} of ${table.schema}.${table.name}.`);
 	return ddl(join([
 		keyword('alter table '),
 		qualified(table.schema, table.name),
 		keyword(' alter column '),
-		identifier(name),
+		identifier(columnName(table, name)),
 		keyword(' set not null'),
 	]));
 }
@@ -133,6 +147,7 @@ export function replaceCheck<K extends string>(
 	name: string,
 	check: Expr<boolean, NoInfer<K>>,
 ): readonly Ddl[] {
+	own(table, 'replaceCheck');
 	for (const item of check.owners) {
 		if (item !== table.key) throw new TypeError(`Check ${name} of ${table.key} reads ${item}, which is another table.`);
 	}

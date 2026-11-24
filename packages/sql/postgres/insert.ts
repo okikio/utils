@@ -7,7 +7,7 @@ import { same } from '../dialect.ts';
 import { type FreeOf, type Input, lift, reads } from '../expr.ts';
 import { type Fragment, group, identifier, join, keyword, qualified } from '../fragment.ts';
 import { brand, type CteType, free, type OwnersOfShape, prefix, type Shape } from '../statement.ts';
-import type { Columns, Table } from '../table.ts';
+import { columnName, type Columns, type Table } from '../table.ts';
 import { dialect } from './dialect.ts';
 import {
 	assignments,
@@ -20,6 +20,8 @@ import {
 	type UpdateRow,
 	values,
 	where,
+	withInsertValues,
+	withUpdateValues,
 	writable,
 	Write,
 	type WriteState,
@@ -50,7 +52,10 @@ export class Insert<
 	}
 	/** What to do when a row with the same key exists. */
 	onConflict<const X extends ConflictType<C>>(conflict: X): Insert<C, K, S, Used | OwnersOfConflict<X>> {
-		return new Insert({ ...this.#state, conflict });
+		const filled = conflict.action === 'update'
+			? { ...conflict, set: withUpdateValues(this.#state.table, conflict.set) }
+			: conflict;
+		return new Insert({ ...this.#state, conflict: filled });
 	}
 	/** Return values from the inserted rows. */
 	returning<const R extends Shape>(shape: R): Insert<C, K, R, Used | OwnersOfShape<R>> {
@@ -88,7 +93,12 @@ export class Insert<
 		same(dialect, rows.dialect);
 		const names = Object.keys(rows.shape);
 		for (const name of names) writable(this.#state.table, name);
-		return join([group(join(names.map(identifier), ', ')), keyword(' '), rows.fragment]);
+		const table = this.#state.table;
+		return join([
+			group(join(names.map((name) => identifier(columnName(table, name))), ', ')),
+			keyword(' '),
+			rows.fragment,
+		]);
 	}
 
 	#values(rows: readonly InsertRow<C>[]): Fragment {
@@ -105,7 +115,11 @@ export class Insert<
 				', ',
 			))
 		);
-		return join([group(join(names.map(identifier), ', ')), keyword(' values '), join(lists, ', ')]);
+		return join([
+			group(join(names.map((name) => identifier(columnName(table, name))), ', ')),
+			keyword(' values '),
+			join(lists, ', '),
+		]);
 	}
 
 	#conflict(): Fragment {
@@ -144,9 +158,9 @@ export function insert<C extends Columns>(
 ): Insert<C> {
 	same(dialect, table.dialect);
 	const list = Array.isArray(rows)
-		? rows
+		? rows.map((row) => withInsertValues(table, row))
 		: brand in (rows as object)
 		? rows as InsertSelect<C>
-		: [rows as InsertRow<C>];
+		: [withInsertValues(table, rows as InsertRow<C>)];
 	return new Insert({ table, rows: list, with: [], where: [] });
 }
