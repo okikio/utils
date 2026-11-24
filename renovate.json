@@ -73,13 +73,6 @@
 				"@logtape/**"
 			],
 			"groupName": "logtape"
-		},
-		{
-			"description": "Elysia is a comparison challenger. 1.4.32 changed path parameter decoding (an encoded slash stays %2F), which breaks the recorded parity corpus. Update tests/elysia-parity and the HTTP challenger benchmark before allowing a newer release.",
-			"matchPackageNames": [
-				"elysia"
-			],
-			"allowedVersions": "<=1.4.30"
 		}
 	],
 	"customManagers": [
