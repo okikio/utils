@@ -17,7 +17,7 @@ export const revision = 2;
 /** Revisions that `migrate()` can bring to {@link revision}. Any other stored revision stops the migration. */
 export const supported: readonly number[] = [1, 2];
 
-const space = sql.schema('utils_outbox');
+const space: sql.SchemaType = sql.schema('utils_outbox');
 
 /** Delivery states. */
 export const states = ['pending', 'leased', 'complete', 'failed'] as const;
@@ -36,8 +36,24 @@ export const policies = space.table('policies', {
 	attempts: sql.column(types.integer),
 }, (c) => ({ primaryKey: [c.namespace] }));
 
+/** The columns of {@link messages}. Spelled out because JSR needs an explicit type for every public value. */
+export type MessageColumnsType = {
+	readonly namespace: sql.ColumnBuilder<string, false>;
+	readonly id: sql.ColumnBuilder<string, false>;
+	readonly key: sql.ColumnBuilder<string, false>;
+	readonly value: sql.ColumnBuilder<unknown, false>;
+	readonly state: sql.ColumnBuilder<(typeof states)[number], false>;
+	readonly attempt: sql.ColumnBuilder<number, true>;
+	readonly token: sql.ColumnBuilder<string | null, true>;
+	readonly expires: sql.ColumnBuilder<number | null, true>;
+	readonly due: sql.ColumnBuilder<number, false>;
+	readonly updated: sql.ColumnBuilder<number, false>;
+	readonly budget: sql.ColumnBuilder<number, true>;
+	readonly failure: sql.ColumnBuilder<string | null, true>;
+};
+
 /** Messages and their delivery state. Times are database epoch milliseconds. */
-export const messages = space.table('messages', {
+export const messages: sql.Table<MessageColumnsType> = space.table('messages', {
 	namespace: sql.column(types.text()),
 	id: sql.column(types.text()),
 	key: sql.column(types.text()),
