@@ -1,0 +1,31 @@
+{
+	"name": "@okikio/interop-tests",
+	"private": true,
+	"type": "module",
+	"description": "Run @okikio/sql through every PostgreSQL client, ORM, pooler and compatible server it claims to support.",
+	"devDependencies": {
+		"@electric-sql/pglite": "0.6.0",
+		"@okikio/duration": "workspace:*",
+		"@okikio/sql": "workspace:*",
+		"@mikro-orm/core": "7.2.11",
+		"@mikro-orm/postgresql": "7.2.11",
+		"@neondatabase/serverless": "1.2.1",
+		"@prisma/adapter-neon": "7.10.1",
+		"@prisma/adapter-pg": "7.10.1",
+		"@prisma/client": "7.10.1",
+		"@types/ws": "8.18.2",
+		"drizzle-orm": "0.45.4",
+		"knex": "3.3.0",
+		"kysely": "0.29.9",
+		"pg": "8.23.1",
+		"pg-promise": "12.8.0",
+		"postgres": "4.1.1",
+		"prisma": "7.10.1",
+		"reflect-metadata": "0.2.2",
+		"sequelize": "6.37.8",
+		"slonik": "47.3.2",
+		"testcontainers": "12.2.2",
+		"typeorm": "1.1.3",
+		"ws": "8.23.0"
+	}
+}

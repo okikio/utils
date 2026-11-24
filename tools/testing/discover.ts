@@ -13,6 +13,7 @@ export type Family =
 	| 'web-worker'
 	| 'postgres'
 	| 'containers'
+	| 'interop'
 	| 'soak'
 	| 'docs'
 	| 'types';
@@ -45,6 +46,14 @@ export const BrowserFiles: ReadonlySet<string> = new Set(['tests/workflows/duple
 export function classify(path: string): TestFile {
 	if (/(?:^|\.)types\.test\.ts$/u.test(path) || /\/types\.test\.ts$/u.test(path)) {
 		return { path, family: 'types', reason: 'Compile-time consumer fixture; checked by the type task.' };
+	}
+	if (path.startsWith('tests/interop/')) {
+		return {
+			path,
+			family: 'interop',
+			reason:
+				'Starts PostgreSQL, poolers, proxies and compatible servers in Docker and runs every client through them.',
+		};
 	}
 	if (path === 'tests/workflows/postgres-soak.test.ts') {
 		return { path, family: 'soak', reason: 'Opt-in multi-hour PostgreSQL load with owned Docker fixtures.' };

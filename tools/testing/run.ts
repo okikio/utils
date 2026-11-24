@@ -10,12 +10,12 @@ import type { Runtime, TestFile } from '#tools/testing/discover.ts';
 
 const Root = fileURLToPath(new URL('../../', import.meta.url));
 /** Browser installation and PostgreSQL are explicit tasks; ordinary source tests never provision either. */
-const Help = `Usage: run.ts <deno|node|bun|postgres|containers|soak|docs|list|check> [file-or-directory ...]
+const Help = `Usage: run.ts <deno|node|bun|postgres|containers|interop|soak|docs|list|check> [file-or-directory ...]
        run.ts comparisons <deno|node|bun> [file-or-directory ...]
 
 Source tests use one discovered file set with declared host/resource requirements.
 Postgres requires UTILS_TEST_DATABASE_URL for a disposable database.
-Containers owns Docker fixtures. Soak owns opt-in multi-hour Docker runs. Docs compiles runnable examples with Deno.
+Containers owns Docker fixtures. Interop starts every compatible server in Docker. Soak owns opt-in multi-hour Docker runs. Docs compiles runnable examples with Deno.
 Comparisons uses prepared competitor fixtures on the selected native runtime.
 List prints ownership without executing tests. Check validates test registration and ownership.
 Selectors are repository-relative files or directories; unmatched selectors fail.
@@ -159,7 +159,7 @@ if (import.meta.main) {
 			let selected: readonly TestFile[];
 			if (runtime(command)) selected = files.filter((file) => supports(file, command));
 			else if (command === 'comparisons') selected = files.filter((file) => file.family === 'comparison');
-			else if (['postgres', 'containers', 'soak', 'docs'].includes(command)) {
+			else if (['postgres', 'containers', 'interop', 'soak', 'docs'].includes(command)) {
 				selected = files.filter((file) => file.family === command);
 			} else throw new TypeError(`Unknown test command ${command}.\n${Help}`);
 			selected = select(selected, filters);
@@ -205,7 +205,7 @@ if (import.meta.main) {
 						'--import',
 						'./packages/dispose/polyfill.ts',
 						'--test',
-						command === 'soak' ? '--test-timeout=90000000' : '--test-timeout=300000',
+						command === 'soak' || command === 'interop' ? '--test-timeout=90000000' : '--test-timeout=300000',
 						`--test-concurrency=${host === 'node' ? 4 : 1}`,
 						...selected.map((file) => file.path),
 					],

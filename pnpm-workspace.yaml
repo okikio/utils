@@ -2,6 +2,7 @@ packages:
   - 'packages/*'
   - 'examples/*'
   - 'tools'
+  - 'tests/interop'
 
 allowBuilds:
   # Docker's SSH transport can use its JavaScript fallback; no native compiler is needed.
@@ -9,8 +10,22 @@ allowBuilds:
   ssh2: false
   # This install script only prints dependency-version advice; distributed code is already built.
   protobufjs: false
+  # The interop suite only generates a Prisma client for raw SQL; it needs no downloaded engine.
+  '@prisma/engines': false
+  prisma: false
 
 # Keep LogTape and the selected SDK family on the API version their peer ranges support.
+minimumReleaseAgeExclude:
+  - '@electric-sql/pglite@0.6.0'
+  - '@electric-sql/pglite-age@0.1.0'
+  - '@electric-sql/pglite-pg_hashids@0.1.0'
+  - '@electric-sql/pglite-pg_ivm@0.1.0'
+  - '@electric-sql/pglite-pg_textsearch@0.1.0'
+  - '@electric-sql/pglite-pg_uuidv7@0.1.0'
+  - '@electric-sql/pglite-pgtap@0.1.0'
+  - '@electric-sql/pglite-pgvector@0.1.0'
+  - '@electric-sql/pglite-socket@0.3.0'
+
 overrides:
   '@opentelemetry/api': '1.10.0'
   # @logtape/otel 2.4.2 needs the 0.208 logs packages (0.223 drops NOOP_LOGGER), and they pin
