@@ -74,8 +74,10 @@ export function min<X extends AnyExpr>(input: X): Expr<ValueOf<X> | null, Owners
 	return call('min', [input], nullable(input.type)) as never;
 }
 
-/** The sum of the values, or NULL for no rows, cast back to the input's type. */
-export function sum<X extends Expr<number, string>>(input: X): Expr<number | null, OwnersOf<X>> {
+/** The sum of the values, ignoring NULL, or NULL when there are none, cast back to the input's type. */
+export function sum<X extends Expr<number | bigint | null, string>>(
+	input: X,
+): Expr<NonNullable<ValueOf<X>> | null, OwnersOf<X>> {
 	const total: Fragment = join([keyword('cast(sum('), input.fragment, keyword(`) as ${input.type.name})`)]);
 	return new Expr(total, nullable(input.type), true, input.owners) as never;
 }
