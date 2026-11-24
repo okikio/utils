@@ -33,6 +33,13 @@ function sessions(
 			return async (): Promise<ReservedSql> => {
 				const connection = await target.reserve();
 				return new Proxy(connection, {
+					// The adapter sends each statement through the client's tag: template pieces, then values.
+					async apply(target, thisArgument, arguments_: unknown[]) {
+						const result: unknown = await Reflect.apply(target, thisArgument, arguments_);
+						const strings = arguments_[0] as readonly string[];
+						await visit(strings.reduce((text, piece, index) => index === 0 ? piece : `${text}$${index}${piece}`, ''));
+						return result;
+					},
 					get(target, key, receiver) {
 						if (key === 'unsafe') {
 							return async (...arguments_: unknown[]) => {
@@ -230,7 +237,7 @@ describe('PostgreSQL state slots', { skip: url === undefined, concurrency: false
 		const controller = new AbortController();
 		let armed = false, releases = 0;
 		const observed = sessions(database, (statement) => {
-			if (armed && statement.startsWith('update utils_state.snapshots')) controller.abort('stop before commit');
+			if (armed && statement.startsWith('update "utils_state"."snapshots"')) controller.abort('stop before commit');
 		}, () => {
 			releases++;
 		});

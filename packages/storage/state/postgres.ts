@@ -1,22 +1,35 @@
 /**
- * Keep one version-checked Context snapshot in PostgreSQL through a borrowed Postgres.js pool.
+ * Keep one version-checked Context snapshot in PostgreSQL through a borrowed pool.
  * Construction is inert; migrate() explicitly installs the schema before first use.
+ *
+ * The tables are defined in `schema.ts` and every statement is built in `statements.ts` with `@okikio/sql`, without
+ * SQL strings. Pass a Postgres.js pool, or any `@okikio/sql` database for another client.
  * @module
  */
-import type { ReservedSql, Sql } from 'postgres';
+import type { ReservedSql } from 'postgres';
 import { AsyncDisposableStack } from '@okikio/dispose';
 import { SnapshotSchema } from '@okikio/context/state';
 import type { OperationOptions, SaveOptions, SnapshotType, Store } from '@okikio/context/state';
 import * as schema from '@okikio/schema';
-import { ddl, revision } from './schema.ts';
+import * as sql from '@okikio/sql';
+import type { Database, Executor } from '@okikio/sql';
+import * as postgres from '@okikio/sql/postgres';
+import type { Pool } from '@okikio/sql/postgres';
+import * as tables from './schema.ts';
+import * as statements from './statements.ts';
 
-/** PostgreSQL values remain unknown until the shared Context envelope validates them. */
-type Row = Record<string, unknown>;
+/** A Postgres.js pool that can reserve one connection, so cancellation can roll back on that connection. */
+interface Reserving extends Pool {
+	reserve(): Promise<ReservedSql>;
+}
 
 /** Select the persistent identity while leaving connection ownership with the application. */
 export interface Options {
-	/** Borrowed Postgres.js pool. The adapter never calls end() or cancels unrelated pooled queries. */
-	readonly database: Sql;
+	/**
+	 * Borrowed Postgres.js pool, or any `@okikio/sql` database. The adapter never calls end() or cancels unrelated
+	 * pooled queries.
+	 */
+	readonly database: Pool | Database;
 	/**
 	 * Nonblank application-owned partition, from 1 through 128 Unicode code points; it grants no
 	 * authorization.
@@ -43,20 +56,22 @@ export interface Options {
  * changes schema. This check is not a structural audit of manually altered
  * columns or constraints. No existing snapshot is rewritten or removed.
  */
-export async function migrate(options: { readonly database: Sql; readonly signal?: AbortSignal }): Promise<void> {
-	await transaction(options.database, options.signal, 5000, async (connection) => {
-		await query(connection, 'select pg_advisory_xact_lock(776161005)');
-		const present = await query(connection, "select to_regclass('utils_state.version') as version");
-		if (present[0]?.version !== null) {
-			const current = await query(connection, 'select revision from utils_state.version where id');
-			if (current[0]?.revision !== revision) throw new TypeError('Unsupported persistent state schema revision.');
-			const tables = await query(connection, "select to_regclass('utils_state.snapshots') as snapshots");
-			if (tables[0]?.snapshots === null) throw new TypeError('Persistent state snapshots table is missing.');
+export async function migrate(
+	options: { readonly database: Pool | Database; readonly signal?: AbortSignal },
+): Promise<void> {
+	await transaction(options.database, options.signal, 5000, async (tx) => {
+		await sql.execute(tx, tables.migrationLock);
+		if ((await sql.one(tx, tables.installed))!.present) {
+			const current = await sql.one(tx, tables.stored);
+			if (current?.revision !== tables.revision) throw new TypeError('Unsupported persistent state schema revision.');
+			if (!(await sql.one(tx, tables.complete))!.present) {
+				throw new TypeError('Persistent state snapshots table is missing.');
+			}
 			return;
 		}
 		// The advisory lock belongs to this transaction, so concurrent startup cannot
 		// interleave a second install between schema creation and revision publication.
-		for (const statement of ddl) await query(connection, statement);
+		for (const statement of tables.install) await sql.execute(tx, statement);
 	});
 }
 
@@ -100,13 +115,8 @@ export function open(options: Options): Store {
 		{
 			concurrency: 'atomic',
 			load(options: OperationOptions = {}): Promise<SnapshotType | undefined> {
-				return transaction(database, options.signal, timeout, async (connection) => {
-					const rows = await query(
-						connection,
-						'select snapshot from utils_state.snapshots where namespace=$1 and key=$2',
-						[namespace, key],
-					);
-					return rows.length === 0 ? undefined : SnapshotSchema.parse(rows[0]!.snapshot);
+				return transaction(database, options.signal, timeout, async (tx) => {
+					return (await sql.one(tx, statements.load(namespace, key)))?.snapshot;
 				});
 			},
 			/**
@@ -122,21 +132,10 @@ export function open(options: Options): Store {
 						'A state replacement requires a fresh version.',
 					);
 				}
-				// The selected driver serializes jsonb parameters itself. Passing already
-				// stringified text would persist a JSON string instead of the envelope object.
-				const encoded = database.json(snapshot);
-				return await transaction(database, signal, timeout, async (connection) => {
+				return await transaction(database, signal, timeout, async (tx) => {
 					const rows = expectedVersion === undefined
-						? await query(
-							connection,
-							'insert into utils_state.snapshots(namespace,key,snapshot) values($1,$2,$3::jsonb) on conflict(namespace,key) do nothing returning key',
-							[namespace, key, encoded],
-						)
-						: await query(
-							connection,
-							"update utils_state.snapshots set snapshot=$3::jsonb where namespace=$1 and key=$2 and snapshot->>'version'=$4 returning key",
-							[namespace, key, encoded, expectedVersion],
-						);
+						? await sql.rows(tx, statements.create(namespace, key, snapshot))
+						: await sql.rows(tx, statements.replace(namespace, key, snapshot, expectedVersion));
 					return rows.length === 1;
 				});
 			},
@@ -145,48 +144,47 @@ export function open(options: Options): Store {
 }
 
 /**
- * Reserve one session through COMMIT or awaited rollback, then release it once.
+ * Run `work` in one READ COMMITTED transaction with a transaction-local statement timeout.
  *
- * A reserved session keeps all statements on the same physical connection and
- * avoids a transaction callback outliving a rejected outer driver transaction.
- * The stack attempts rollback before release even after a query or cancellation
- * failure. Language-level disposal retains both the operation error and any
- * rollback/release error through SuppressedError.
+ * With a Postgres.js pool, the transaction runs on one reserved connection through COMMIT or awaited rollback, then
+ * releases it once. A reserved session keeps every statement on the same physical connection and avoids a transaction
+ * callback outliving a rejected outer driver transaction. The stack attempts rollback before release even after a
+ * statement or cancellation failure; language-level disposal keeps both the operation error and any rollback or
+ * release error through SuppressedError. Another client's database runs `work` through its own `begin`.
  */
 async function transaction<Value>(
-	database: Sql,
+	database: Pool | Database,
 	signal: AbortSignal | undefined,
 	timeout: number,
-	work: (connection: ReservedSql) => Promise<Value>,
+	work: (tx: Executor) => Promise<Value>,
 ): Promise<Value> {
 	signal?.throwIfAborted();
+	if (!postgres.isClient(database) || typeof (database as Partial<Reserving>).reserve !== 'function') {
+		return await postgres.toDatabase(database).begin(async (tx) => {
+			await sql.one(tx, statements.timeout(timeout));
+			signal?.throwIfAborted();
+			const value = await work(tx);
+			signal?.throwIfAborted();
+			return value;
+		});
+	}
 	await using resources = new AsyncDisposableStack();
-	const connection = await database.reserve();
+	const connection = await (database as Reserving).reserve();
 	resources.defer(() => connection.release());
 	signal?.throwIfAborted();
+	const tx = postgres.executor(connection);
 	let committed = false;
 	resources.defer(async () => {
-		if (!committed) await query(connection, 'rollback');
+		if (!committed) await sql.execute(tx, statements.rollback);
 	});
-	await query(connection, 'begin isolation level read committed');
-	await query(connection, "select set_config('statement_timeout',$1,true)", [String(timeout)]);
+	await sql.execute(tx, statements.begin);
+	await sql.one(tx, statements.timeout(timeout));
 	signal?.throwIfAborted();
-	const value = await work(connection);
+	const value = await work(tx);
 	signal?.throwIfAborted();
-	await query(connection, 'commit');
+	await sql.execute(tx, statements.commit);
 	committed = true;
 	return value;
-}
-
-/**
-
- * Parameters stay separate from fixed SQL text; awaiting the driver includes its ReadyForQuery
-
- * acknowledgement.
-
- */
-async function query(connection: ReservedSql, statement: string, parameters: readonly unknown[] = []): Promise<Row[]> {
-	return await connection.unsafe(statement, parameters as NonNullable<Parameters<Sql['unsafe']>[1]>) as Row[];
 }
 
 /** Validate application partition/key policy before the adapter can reserve a database connection. */
