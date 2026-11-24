@@ -121,8 +121,20 @@ client can change a value:
 | `timestamptz`           | `Temporal.Instant`  | ISO 8601 text in UTC, any year          | exact epoch seconds              |
 | `timestamp`             | `Temporal.Instant`  | UTC wall-clock text                     | exact epoch seconds              |
 | `enumerated(name, all)` | one of `all`        | text, cast to the enum type             | text                             |
+| `smallint`, `real`      | `number`            | text, range-checked                     | `integer`, exact text            |
+| `date`                  | `Temporal.PlainDate`| ISO 8601 text, any year                 | days since 1970-01-01            |
+| `time`                  | `Temporal.PlainTime`| ISO 8601 text                           | exact seconds since midnight     |
+| `interval`              | `IntervalType`      | `months days seconds` text              | months, days, microseconds       |
+| `bytea`                 | `Uint8Array`        | `\x` hex text                           | hex text                         |
+| `array(element)`        | `readonly T[]`      | JSON list of element text forms         | JSON list of element read forms  |
+| `composite(name, f)`    | object of fields    | JSON object of field text forms         | JSON object of field read forms  |
 
 - A row with a missing, extra or mistyped column is an error, not `undefined`.
+- `interval` is a plain `{ months, days, microseconds }`: PostgreSQL keeps the three parts apart, each with its own
+  sign, and a `Temporal.Duration` cannot hold `1 month -1 day`.
+- An array element or composite field uses its type's text form, so arrays of timestamps are as exact as one
+  timestamp. In an array of `jsonb`, `null` is the JSON value; use `array(nullable(t))` for SQL NULL elements. Arrays
+  are one-dimensional.
 - Text and JSON strings may not hold NUL or a lone UTF-16 surrogate. PostgreSQL rejects NUL, and every client would
   silently replace a lone surrogate with U+FFFD, so sending either is a `TypeError`.
 - Use `timestamp`, not `timestamptz`, for a `timestamp without time zone` column, such as the ones Prisma and TypeORM

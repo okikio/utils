@@ -27,7 +27,7 @@ import {
 import { identifier, join, keyword } from '../fragment.ts';
 import { call, coalesce, max, min, sum } from '../functions.ts';
 import { nullable } from '../type.ts';
-import * as types from './types.ts';
+import * as types from './types/mod.ts';
 
 /** `(value)::integer`, which PostgreSQL needs for a count, because `count` returns `bigint`. */
 function counted(fragment: ReturnType<typeof join>, owners: ReadonlySet<string>): Expr<number, string> {

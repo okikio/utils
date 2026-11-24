@@ -7,7 +7,7 @@ import { type AnyExpr, Column, Expr, type Input, lift, type OwnersOf, type Owner
 import { type Fragment, group, identifier, join, keyword } from '../fragment.ts';
 import type { CallSourceType } from '../statement.ts';
 import { dialect } from './dialect.ts';
-import * as types from './types.ts';
+import * as types from './types/mod.ts';
 
 function binary(left: AnyExpr, operator: string, right: AnyExpr, type: types.SqlType<unknown>): never {
 	return new Expr(join([left.operand, keyword(operator), right.operand]), type, false, union(left, right)) as never;
