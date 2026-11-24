@@ -24,12 +24,13 @@ const position = sql.declare(
 const backend = sql.declare('pg_backend_pid', [], types.integer);
 
 /** Wait until no other connection runs `pg_sleep`, or fail after two seconds. */
-async function stopped(db: sql.Database): Promise<void> {
+async function stopped(db: sql.Database, label: string): Promise<void> {
 	const a = activity.c;
 	const sleeping = sql.select({ n: sql.fn.count() }).from(activity).where(
 		a.state.eq('active'),
 		a.pid.ne(backend()),
-		position(sql.coalesce(a.query, ''), 'pg_sleep').gt(0),
+		// Other clients may run their own sleep at the same time; each one names its result column after its schema.
+		position(sql.coalesce(a.query, ''), `"${label}"`).gt(0),
 	);
 	const deadline = Date.now() + 2000;
 	while ((await sql.one(db, sleeping))?.n) {
@@ -209,7 +210,7 @@ export const edges: readonly CaseType[] = [
 	},
 	{
 		name: 'an abort signal cancels a running statement',
-		run: async ({ db }) => {
+		run: async ({ db, name }) => {
 			const sleep = sql.declare('pg_sleep', [types.double], types.empty);
 			const controller = new AbortController();
 			const reason = new Error('stopped');
@@ -217,7 +218,7 @@ export const edges: readonly CaseType[] = [
 			setTimeout(() => controller.abort(reason), 200);
 			let caught: unknown;
 			try {
-				await sql.execute(db, sql.select({ s: sleep(5) }), {
+				await sql.execute(db, sql.select({ [name]: sleep(5) }), {
 					signal: controller.signal,
 				});
 			} catch (error) {
@@ -239,7 +240,7 @@ export const edges: readonly CaseType[] = [
 					`rejected with ${String((caught as Error).message)}, not the signal's reason`,
 				);
 			}
-			await stopped(db);
+			await stopped(db, name);
 			same(
 				await sql.one(db, text('after')),
 				{ v: 'after' },

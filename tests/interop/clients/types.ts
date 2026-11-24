@@ -1,6 +1,6 @@
 /** What a client adapter is: a library turned into the package's `Database` port. @module */
 import type { CompiledType, Database, Executor, RunOptions } from '@okikio/sql/postgres';
-import type { StartedType } from '../targets/mod.ts';
+import type { StartedType } from '../targets/types.ts';
 
 /** An open client. `close` ends its pool. */
 export interface OpenedType {

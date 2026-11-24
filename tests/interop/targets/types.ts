@@ -34,6 +34,8 @@ export interface TargetType {
 		| 'embedded';
 	/** The types module it needs, when not PostgreSQL's. */
 	readonly flavor?: 'cockroach';
+	/** The images it starts, from `images.ts`, so CI can store them and key results on their digests. */
+	readonly images: readonly string[];
 	/** How clients reach it once started. Defaults to a wire-protocol URL. */
 	readonly reach?: 'url' | 'neon' | 'embedded';
 	start(): Promise<StartedType>;

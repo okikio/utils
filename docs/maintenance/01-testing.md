@@ -185,8 +185,9 @@ Check names include the caller prefix. Ordinary CI reports `Quality / Source and
 `Quality / Source on deno`, `Quality / Source on node`, `Quality / Source on bun`,
 `Quality / Native Chromium contracts`, `Quality / Installed package consumers`,
 `Quality / PostgreSQL queue and durable recovery`, `Quality / Container recovery`,
-`Quality / PostgreSQL interoperability (<group>)` for the `postgres`, `poolers`, `distributions` and `distributed`
-groups, and `Quality / Benchmark correctness`.
+`Quality / Plan PostgreSQL interoperability`, `Quality / PostgreSQL interoperability (<target>)` for each target with
+a cell no earlier run passed, and `Quality / Benchmark correctness`. `Quality / Keep PostgreSQL interoperability
+results` uploads the ledger of passed cells and is not required.
 Review branch-protection names when changing workflows; the release-metadata job is now `changesets`.
 
 Install the browser before its source or package checks:
@@ -230,7 +231,8 @@ mise run test -- --suite containers
 
 The container and interoperability tasks need Docker. The interoperability suite starts its own servers; select
 some with `INTEROP_TARGETS` and `INTEROP_CLIENTS`, and set `INTEROP_MIRROR=mirror.gcr.io` when Docker Hub limits
-anonymous pulls. [Its guide](../../tests/interop/README.md) lists the targets, the clients and the known limits.
+anonymous pulls. [Its guide](../../tests/interop/README.md) lists the targets, the clients and the known limits, and
+explains how CI keys each target × client cell so that an unchanged cell never runs again.
 PostgreSQL tests use the supplied database and real Node/Deno children; they do not
 need to provision their own database container. Deno source tasks declare fixture filesystem, child-process, system and
 environment capabilities, and restrict network access to loopback. A source test that needs a new capability must state

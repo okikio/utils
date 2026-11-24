@@ -64,3 +64,15 @@ it('requires the shared benchmark/examples job for either or both selected lanes
 		expect(() => requireSelectedResults(missing)).toThrow();
 	}
 });
+
+it('accepts a skipped interoperability shard only when its plan found every cell passed', () => {
+	const jobs = documentation();
+	const selected = { ...jobs, plan: { ...jobs.plan, outputs: { ...jobs.plan.outputs, interop: 'true' } } };
+	const planned = (run: string, result = 'success') => ({ ...selected, 'interop-plan': { result, outputs: { run } } });
+	expect(() => requireSelectedResults({ ...planned('false'), interop: { result: 'skipped' } })).not.toThrow();
+	expect(() => requireSelectedResults({ ...planned('true'), interop: { result: 'success' } })).not.toThrow();
+	expect(() => requireSelectedResults({ ...planned('true'), interop: { result: 'skipped' } })).toThrow();
+	expect(() => requireSelectedResults({ ...planned('true'), interop: { result: 'failure' } })).toThrow();
+	expect(() => requireSelectedResults({ ...planned('false', 'failure'), interop: { result: 'skipped' } })).toThrow();
+	expect(() => requireSelectedResults({ ...selected, interop: { result: 'skipped' } })).toThrow();
+});

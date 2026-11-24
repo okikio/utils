@@ -38,10 +38,17 @@ export function mirrored(reference: string, mirror: string | undefined): string 
 	return `${mirror}/${reference.includes('/') ? '' : 'library/'}${reference}`;
 }
 
+/** The digest an image reference names, so a result does not depend on which registry or mirror served it. */
+export function digest(reference: string): string {
+	const found = /@sha256:([0-9a-f]{64})/u.exec(reference);
+	if (!found) throw new TypeError(`Image ${reference} is not pinned by digest.`);
+	return `sha256:${found[1]}`;
+}
+
 const mirror = process.env.INTEROP_MIRROR?.replace(/\/+$/u, '') || undefined;
 
 export const images: { readonly [K in keyof typeof pins]: string } = Object.freeze(
-	Object.fromEntries(Object.entries(pins).map(([key, reference]) => [key, mirrored(reference, mirror)])) as {
-		[K in keyof typeof pins]: string;
-	},
+	Object.fromEntries(
+		Object.entries(pins).map(([key, reference]) => [key, mirrored(reference, mirror)]),
+	) as { [K in keyof typeof pins]: string },
 );

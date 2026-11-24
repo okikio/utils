@@ -56,7 +56,8 @@ export const limits: readonly LimitType[] = [
 		clients: ['kysely', 'kysely-compiled-query', 'mikroorm'],
 		cases: ['an abort signal cancels a running statement'],
 		reason: 'Kysely and MikroORM cancel with `pg_cancel_backend(pid)`, and a pooler hands out its own pid, not the ' +
-			"server's. The package's `pg` binding sends a cancel request, which the pooler routes; use it on the same pool.",
+			"server's, so the cancel misses, or stops another client's statement whose server has that pid. The " +
+			"package's `pg` binding sends a cancel request, which the pooler routes; use it on the same pool.",
 	},
 	{
 		targets: ['supavisor-transaction'],

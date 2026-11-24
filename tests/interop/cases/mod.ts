@@ -7,7 +7,6 @@
  * @module
  */
 import type { Database } from '@okikio/sql/postgres';
-import { types as cockroach } from '@okikio/sql/postgres/cockroach';
 import { types as postgres } from '@okikio/sql/postgres';
 import { raw } from './check.ts';
 import { adopt } from './adopt.ts';
@@ -27,7 +26,14 @@ export const cases: readonly CaseType[] = [
 ];
 
 /** The types modules a target may need. */
-const flavors = { postgres, cockroach } as const;
+/**
+ * The types module each flavor of server reads with. A server's own module loads only for that server, so a change to
+ * the CockroachDB types reruns only CockroachDB results.
+ */
+const flavors = {
+	postgres: () => Promise.resolve(postgres),
+	cockroach: async () => (await import('@okikio/sql/postgres/cockroach')).types,
+} as const;
 export type FlavorType = keyof typeof flavors;
 
 /** One case's result. */
@@ -55,7 +61,7 @@ export async function runCases(
 		readonly flavor?: FlavorType;
 	} = {},
 ): Promise<OutcomeType[]> {
-	const types = flavors[options.flavor ?? 'postgres'];
+	const types = await flavors[options.flavor ?? 'postgres']();
 	const t = tables(name, types);
 	const passed = new Set<string>();
 	const outcomes: OutcomeType[] = [];

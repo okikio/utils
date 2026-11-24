@@ -1,54 +1,18 @@
-/** Connection poolers in front of PostgreSQL: PgBouncer, and Supavisor as Supabase runs it. @module */
+/** Supavisor in front of Supabase's PostgreSQL, set up as Supabase's self-hosting stack does. @module */
 import { readFile } from 'node:fs/promises';
 import { GenericContainer, Network, Wait } from 'testcontainers';
 import { images } from './images.ts';
-import { password, server } from './postgres.ts';
+import { password, server } from './server.ts';
 import { ready, type StartedType, type TargetType } from './types.ts';
 
 /**
- * PgBouncer 1.26 in front of PostgreSQL 18. Transaction mode tracks up to 200 protocol-level prepared statements, as
- * PgBouncer 1.21 and later can; session mode keeps one server connection per client.
+ * One client at a time: clients share the pooler's pool and its process ids, so side by side a 50-statement burst
+ * exhausts the pool, and `pg_cancel_backend` with a pooler's pid can stop another client's statement.
  */
-function pgbouncer(mode: 'session' | 'transaction'): TargetType {
-	return {
-		name: `pgbouncer-${mode}`,
-		about: `PgBouncer 1.26 in ${mode} mode in front of PostgreSQL 18` +
-			(mode === 'transaction' ? ', tracking 200 prepared statements.' : '.'),
-		kind: 'pooler',
-		async start(): Promise<StartedType> {
-			const network = await new Network().start();
-			const database = await server(images.postgres18, { network });
-			const bouncer = await new GenericContainer(images.pgbouncer)
-				.withNetwork(network)
-				.withEnvironment({
-					DATABASE_URL: `postgres://postgres:${password}@db:5432/postgres`,
-					POOL_MODE: mode,
-					AUTH_TYPE: 'scram-sha-256',
-					MAX_PREPARED_STATEMENTS: '200',
-					DEFAULT_POOL_SIZE: '10',
-					MAX_CLIENT_CONN: '400',
-					// Clients send these startup settings, and PgBouncer refuses a connection that sends one it does not
-					// track: pg-promise and others send `extra_float_digits`; Slonik sends `statement_timeout` and
-					// `idle_in_transaction_session_timeout`.
-					IGNORE_STARTUP_PARAMETERS: 'extra_float_digits,options,statement_timeout,idle_in_transaction_session_timeout',
-				})
-				.withExposedPorts(5432)
-				.withWaitStrategy(Wait.forListeningPorts())
-				.start();
-			const url = `postgres://postgres:${password}@${bouncer.getHost()}:${bouncer.getMappedPort(5432)}/postgres`;
-			const version = await ready(url);
-			return {
-				url,
-				version: `PgBouncer (${mode}) → ${version}`,
-				stop: async () => {
-					await bouncer.stop();
-					await database.container.stop();
-					await network.stop();
-				},
-			};
-		},
-	};
-}
+export const concurrency = 1;
+
+/** Files read at run time that imports alone do not show: Supabase's set-up files. */
+export const inputs: readonly string[] = ['./supabase/'];
 
 /** Read one of Supabase's set-up files. */
 const supabaseFile = (name: string) => readFile(new URL(`./supabase/${name}`, import.meta.url), 'utf8');
@@ -62,6 +26,7 @@ function supavisor(mode: 'session' | 'transaction'): TargetType {
 		name: `supavisor-${mode}`,
 		about: `Supavisor 2.10 in ${mode} mode in front of Supabase's PostgreSQL 17, as Supabase hosts it.`,
 		kind: 'pooler',
+		images: [images.supabase, images.supavisor],
 		async start(): Promise<StartedType> {
 			const network = await new Network().start();
 			const database = await server(images.supabase, {
@@ -148,9 +113,4 @@ function supavisor(mode: 'session' | 'transaction'): TargetType {
 	};
 }
 
-export const poolers: readonly TargetType[] = [
-	pgbouncer('session'),
-	pgbouncer('transaction'),
-	supavisor('session'),
-	supavisor('transaction'),
-];
+export const targets: readonly TargetType[] = [supavisor('session'), supavisor('transaction')];
