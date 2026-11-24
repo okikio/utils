@@ -2612,6 +2612,13 @@
           ]
         }
       },
+      "packages/sql": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@jsr/std__expect@^1.0.20"
+          ]
+        }
+      },
       "packages/storage": {
         "packageJson": {
           "dependencies": [
