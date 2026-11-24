@@ -3,6 +3,9 @@ import { expect } from '@std/expect';
 import { temporal } from '@okikio/duration/temporal';
 import * as sql from './mod.ts';
 import { trigger, types } from './mod.ts';
+import { types as cockroach } from './cockroach.ts';
+import { compile, keyword } from '../fragment.ts';
+import { dialect } from './dialect.ts';
 
 const app = sql.schema('app');
 const wide = app.table('wide', { a: sql.column(types.integer), b: sql.column(types.integer) });
@@ -32,6 +35,14 @@ describe('values every client can send unchanged', () => {
 		) {
 			expect(Object.is(types.double.decode(raw), value)).toBe(true);
 		}
+		expect(types.real.decode('3f000000')).toBe(0.5);
+		// CockroachDB has no `float8send`; its `decimal` text is exact at any `extra_float_digits`.
+		expect(compile(cockroach.double.read(keyword('x')), dialect).text).toBe('((x)::decimal)::text');
+		expect(Object.is(cockroach.double.decode('-0'), -0)).toBe(true);
+		expect(cockroach.double.decode('1.7976931348623157E+308')).toBe(Number.MAX_VALUE);
+		expect(cockroach.double.decode('0.30000000000000004')).toBe(0.1 + 0.2);
+		expect(cockroach.real.decode('0.1')).toBe(Math.fround(0.1));
+		expect(cockroach.integer).toBe(types.integer);
 		expect(() => types.double.decode(0.5)).toThrow(TypeError);
 		expect(() => types.double.decode('0.5')).toThrow(TypeError);
 	});

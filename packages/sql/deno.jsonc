@@ -12,6 +12,7 @@
 		".": "./mod.ts",
 		"./postgres": "./postgres/mod.ts",
 		"./postgres/adopt": "./postgres/adopt.ts",
+		"./postgres/cockroach": "./postgres/cockroach.ts",
 		"./postgres/drizzle": "./postgres/drizzle/mod.ts",
 		"./postgres/kysely": "./postgres/kysely.ts",
 		"./postgres/pg": "./postgres/pg.ts",

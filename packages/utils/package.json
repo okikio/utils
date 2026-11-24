@@ -280,6 +280,7 @@
 		"./sql": "./sql.ts",
 		"./sql/postgres": "./sql/postgres.ts",
 		"./sql/postgres/adopt": "./sql/postgres/adopt.ts",
+		"./sql/postgres/cockroach": "./sql/postgres/cockroach.ts",
 		"./sql/postgres/drizzle": "./sql/postgres/drizzle.ts",
 		"./sql/postgres/kysely": "./sql/postgres/kysely.ts",
 		"./sql/postgres/pg": "./sql/postgres/pg.ts",
