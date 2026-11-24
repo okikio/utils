@@ -4,6 +4,9 @@ import { images } from './images.ts';
 import { password, server } from './server.ts';
 import type { StartedType, TargetType } from './types.ts';
 
+/** One client at a time: each HTTP statement opens its own server connection, so clients side by side exceed `max_connections`. */
+export const concurrency = 1;
+
 /**
  * Neon's own proxy, built from Neon's source, in front of PostgreSQL 18. It serves the HTTP endpoint and the
  * WebSocket tunnel that `@neondatabase/serverless` uses, so the serverless driver runs exactly as it does against

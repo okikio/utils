@@ -35,6 +35,11 @@ function pick<T extends { readonly name: string }>(
 }
 
 const selectedTargets = pick(targets, process.env.INTEROP_TARGETS);
+/**
+ * How many clients run against one target at once. Each client has its own schema; timing cases such as cancellation
+ * measure their own statement, so running clients side by side changes no outcome, only how busy the server is.
+ */
+const concurrency = Math.max(1, Number(process.env.INTEROP_CONCURRENCY ?? 1));
 const selectedClients = pick(clients, process.env.INTEROP_CLIENTS);
 
 /** Every result, for the report. */
@@ -121,7 +126,7 @@ async function outcomes(
 for (const target of selectedTargets) {
 	const users = selectedClients.filter((client) => reaches(client, target));
 	if (users.length === 0) continue;
-	describe(target.name, { concurrency: false, timeout: 3_600_000 }, () => {
+	describe(target.name, { concurrency, timeout: 3_600_000 }, () => {
 		let started: Promise<StartedType> | undefined;
 		const start = () => started ??= target.start();
 		after(async () => {

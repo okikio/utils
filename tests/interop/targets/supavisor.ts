@@ -5,6 +5,12 @@ import { images } from './images.ts';
 import { password, server } from './server.ts';
 import { ready, type StartedType, type TargetType } from './types.ts';
 
+/**
+ * One client at a time: clients share the pooler's pool and its process ids, so side by side a 50-statement burst
+ * exhausts the pool, and `pg_cancel_backend` with a pooler's pid can stop another client's statement.
+ */
+export const concurrency = 1;
+
 /** Files read at run time that imports alone do not show: Supabase's set-up files. */
 export const inputs: readonly string[] = ['./supabase/'];
 

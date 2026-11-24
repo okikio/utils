@@ -5,6 +5,12 @@ import { password, server } from './server.ts';
 import { ready, type StartedType, type TargetType } from './types.ts';
 
 /**
+ * One client at a time: clients share the pooler's pool and its process ids, so side by side a 50-statement burst
+ * exhausts the pool, and `pg_cancel_backend` with a pooler's pid can stop another client's statement.
+ */
+export const concurrency = 1;
+
+/**
  * PgBouncer 1.26 in front of PostgreSQL 18. Transaction mode tracks up to 200 protocol-level prepared statements, as
  * PgBouncer 1.21 and later can; session mode keeps one server connection per client.
  */

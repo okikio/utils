@@ -3,6 +3,12 @@ import { GenericContainer, Wait } from 'testcontainers';
 import { images } from './images.ts';
 import { ready, type StartedType, type TargetType } from './types.ts';
 
+/**
+ * One client at a time. With four clients side by side on a CI runner, most clients failed within seconds and four hung
+ * until their 15-minute timeout; one at a time, every case passes.
+ */
+export const concurrency = 1;
+
 /** YugabyteDB, single node. Its SQL layer reuses PostgreSQL's query layer on a distributed store. */
 export const target: TargetType = {
 	name: 'yugabytedb',
