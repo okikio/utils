@@ -37,9 +37,20 @@ export function coalesce<X extends AnyExpr, const R extends readonly Input<NonNu
 	return call('coalesce', items, type) as never;
 }
 
+/**
+ * `cast(left op right as <left's type>)`. The cast keeps the result in the left operand's type, as the TypeScript type
+ * says; CockroachDB, for one, widens `int4 + int4` to `int8`, which a recursive query then rejects.
+ */
 function arithmetic(operator: string, left: Expr<number, string>, right: Input<number>): Expr<number, string> {
 	const other = lift(right, left.type);
-	return new Expr(join([left.operand, keyword(operator), other.operand]), left.type, false, union(left, other));
+	const fragment = join([
+		keyword('cast('),
+		left.operand,
+		keyword(operator),
+		other.operand,
+		keyword(` as ${left.type.name})`),
+	]);
+	return new Expr(fragment, left.type, true, union(left, other));
 }
 
 /** Number addition. */
@@ -74,8 +85,10 @@ export function min<X extends AnyExpr>(input: X): Expr<ValueOf<X> | null, Owners
 	return call('min', [input], nullable(input.type)) as never;
 }
 
-/** The sum of the values, or NULL for no rows, cast back to the input's type. */
-export function sum<X extends Expr<number, string>>(input: X): Expr<number | null, OwnersOf<X>> {
+/** The sum of the values, ignoring NULL, or NULL when there are none, cast back to the input's type. */
+export function sum<X extends Expr<number | bigint | null, string>>(
+	input: X,
+): Expr<NonNullable<ValueOf<X>> | null, OwnersOf<X>> {
 	const total: Fragment = join([keyword('cast(sum('), input.fragment, keyword(`) as ${input.type.name})`)]);
 	return new Expr(total, nullable(input.type), true, input.owners) as never;
 }

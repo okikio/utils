@@ -80,6 +80,24 @@ export function group(inner: Fragment): Fragment {
 	return join([keyword('('), inner, keyword(')')]);
 }
 
+/**
+ * Build an expression that names `inner` more than once, evaluating `inner` once. A column reference is repeated as
+ * it is. Anything else, such as a parameter, a function call or an aggregate, is computed once in a scalar subquery
+ * and named there, so a value is not sent twice and a volatile call does not run twice.
+ */
+export function once(inner: Fragment, build: (value: Fragment) => Fragment): Fragment {
+	const only = inner.length === 1 ? inner[0]! : undefined;
+	// A column, or a fixed reference such as `"_okikio_item".v`, costs nothing to repeat.
+	if (only?.kind === 'column' || (only?.kind === 'text' && /^[\w".]+$/u.test(only.text))) return build(inner);
+	return join([
+		keyword('(select '),
+		build(keyword('"_okikio_once"."v"')),
+		keyword(' from (select '),
+		inner,
+		keyword(' as "v") as "_okikio_once")'),
+	]);
+}
+
 const encoder = new TextEncoder();
 
 /**

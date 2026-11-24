@@ -43,9 +43,9 @@ describe('composed statements', () => {
 		);
 		expect(query.text).toBe(
 			'with "ranked" as (select "app"."jobs"."id" as "id", (row_number() over (order by "app"."jobs"."finished" desc))' +
-				'::integer as "position" from "app"."jobs" where "app"."jobs"."finished" is not null)' +
+				'::int4 as "position" from "app"."jobs" where "app"."jobs"."finished" is not null)' +
 				' delete from "app"."jobs" using "ranked" where ("app"."jobs"."id" = "ranked"."id")' +
-				' and ("ranked"."position" > ($1::text)::integer)',
+				' and ("ranked"."position" > ($1::text)::int4)',
 		);
 	});
 
@@ -74,7 +74,7 @@ describe('composed statements', () => {
 	it('counts filtered rows and reads a 64-bit count as a safe number', () => {
 		const query = sql.toQuery(sql.select({ queued: sql.fn.count(j.state.eq('queued')) }).from(jobs));
 		expect(query.text).toBe(
-			'select ((count(*) filter (where "app"."jobs"."state" = $1::text))::integer)::integer as "queued"' +
+			'select ((count(*) filter (where "app"."jobs"."state" = $1::text))::int4)::int4 as "queued"' +
 				' from "app"."jobs"',
 		);
 		expect(types.long.decode('42')).toBe(42);

@@ -37,6 +37,11 @@ const aliases: Readonly<Record<string, string>> = {
 	timestamptz: 'timestamp with time zone',
 	timestamp: 'timestamp without time zone',
 	time: 'time without time zone',
+	int2: 'smallint',
+	int4: 'integer',
+	int8: 'bigint',
+	float4: 'real',
+	float8: 'double precision',
 };
 
 /** Pairs that work for most values: declared type → database types. */

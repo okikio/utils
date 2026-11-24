@@ -54,7 +54,8 @@ describe('scope', () => {
 		const outer = sql.select({ id: n.id }).from(notes).where(
 			sql.exists(sql.select({}).from(ids).where(json.text(ids.c.value, 'id').eq(n.title))),
 		);
-		expect(() => sql.toQuery(outer)).not.toThrow();
+		// The column is named, because CockroachDB names a lone column after the alias.
+		expect(sql.toQuery(outer).text).toContain(') as "i"("value")');
 		const alone = sql.select({ value: ids.c.value }).from(ids);
 		expect(() => sql.toQuery(alone as never)).toThrow('reads app.notes');
 	});

@@ -7,7 +7,7 @@
  *
  * @module
  */
-import { compile, group, join, keyword, param, qualified } from '../../fragment.ts';
+import { compile, group, join, keyword, once, param, qualified } from '../../fragment.ts';
 import { allowsNull, expect, type SqlType } from '../../type.ts';
 import { dialect } from '../dialect.ts';
 import { checkJson, isString, textual } from './shared.ts';
@@ -48,18 +48,19 @@ export function array<T>(element: SqlType<T>): SqlType<readonly T[]> {
 			const list = JSON.parse(expect(raw, isString, name)) as unknown[];
 			return Object.freeze(list.map((value) => element.decode(value)));
 		},
-		(expression) => {
-			const x = group(expression);
-			return join([
-				keyword('case when '),
-				x,
-				keyword(` is null then null else (select coalesce(json_agg(`),
-				element.read(keyword(`${item}.v`)),
-				keyword(` order by ${item}.i), '[]') from unnest(`),
-				x,
-				keyword(`) with ordinality as ${item}(v, i))::text end`),
-			]);
-		},
+		(expression) =>
+			once(expression, (value) => {
+				const x = group(value);
+				return join([
+					keyword('case when '),
+					x,
+					keyword(` is null then null else (select coalesce(json_agg(`),
+					element.read(keyword(`${item}.v`)),
+					keyword(` order by ${item}.i), '[]') from unnest(`),
+					x,
+					keyword(`) with ordinality as ${item}(v, i))::text end`),
+				]);
+			}),
 	);
 	return Object.freeze({
 		...base,
@@ -121,28 +122,35 @@ export function composite<const F extends FieldsType>(
 				Object.fromEntries(Object.entries(fields).map(([key, type]) => [key, type.decode(record[key] ?? null)])),
 			) as FieldValuesType<F>;
 		},
-		(expression) => {
-			const x = group(expression);
-			const members = Object.entries(fields).map(([key, type]) =>
-				join([
-					keyword(`'${key.replaceAll("'", "''")}', `),
-					type.read(join([keyword('('), x, keyword(').'), keyword(compile(qualified(key), dialect).text)])),
-				])
-			);
-			// A composite whose fields are all NULL is `is null` row-wise; its text form is NULL only when it is NULL.
-			return join([
-				keyword('case when ('),
-				x,
-				keyword(')::text is null then null else jsonb_build_object('),
-				join(members, ', '),
-				keyword(')::text end'),
-			]);
-		},
+		(expression) =>
+			once(expression, (value) => {
+				const x = group(value);
+				const members = Object.entries(fields).map(([key, type]) =>
+					join([
+						keyword(`'${key.replaceAll("'", "''")}', `),
+						type.read(join([keyword('('), x, keyword(').'), keyword(compile(qualified(key), dialect).text)])),
+					])
+				);
+				// A composite whose fields are all NULL is `is null` row-wise; its text form is NULL only when it is NULL.
+				return join([
+					keyword('case when ('),
+					x,
+					keyword(')::text is null then null else jsonb_build_object('),
+					join(members, ', '),
+					keyword(')::text end'),
+				]);
+			}),
 	);
 	return Object.freeze({
 		...base,
+		// A scalar subquery, not a bare call: CockroachDB treats `jsonb_populate_record` as a set-returning function, which
+		// a `values` list cannot hold.
 		send: (value: FieldValuesType<F>) =>
-			join([keyword(`jsonb_populate_record(null::${label}, (`), param(send(value), 'text'), keyword(')::jsonb)')]),
+			join([
+				keyword(`(select "_okikio_row" from jsonb_populate_record(null::${label}, (`),
+				param(send(value), 'text'),
+				keyword(')::jsonb) as "_okikio_row")'),
+			]),
 		encode: undefined,
 	}) as SqlType<FieldValuesType<F>>;
 }

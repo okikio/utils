@@ -153,7 +153,12 @@ export const installed: sql.Statement<{ table: string; column: string; type: str
 }).from(columns).where(columns.c.table_schema.eq(name));
 
 /** `information_schema` names for the SQL types the tables use. */
-const reported: Readonly<Record<string, string>> = { timestamptz: 'timestamp with time zone', bigserial: 'bigint' };
+const reported: Readonly<Record<string, string>> = {
+	timestamptz: 'timestamp with time zone',
+	bigserial: 'bigint',
+	int4: 'integer',
+	int2: 'smallint',
+};
 
 /** Every column this revision defines, as `table.column type`, which {@link installed} must contain. */
 export const expected: ReadonlySet<string> = new Set(

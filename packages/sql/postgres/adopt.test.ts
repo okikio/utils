@@ -21,10 +21,14 @@ describe('tables made elsewhere', () => {
 		);
 		expect(sql.toQuery(sql.update(users, { seenAt: null }).where(u.id.eq(1))).text).toBe(
 			'update "app"."User" set "seen_at" = cast(null as timestamptz), "updatedAt" = now()' +
-				' where "app"."User"."id" = ($1::text)::integer',
+				' where "app"."User"."id" = ($1::text)::int4',
 		);
 		expect(sql.toQuery(sql.select({ seenAt: u.seenAt }).from(users)).text).toBe(
-			'select (extract(epoch from "app"."User"."seen_at"))::text as "seenAt" from "app"."User"',
+			'select (((("app"."User"."seen_at") at time zone \'UTC\'))::date - date \'1970-01-01\')::text || \' \' || ' +
+				'((extract(hour from (("app"."User"."seen_at") at time zone \'UTC\')) * 3600000000 + ' +
+				'extract(minute from (("app"."User"."seen_at") at time zone \'UTC\')) * 60000000 + ' +
+				'extract(microseconds from (("app"."User"."seen_at") at time zone \'UTC\')))::int8)::text as "seenAt" ' +
+				'from "app"."User"',
 		);
 	});
 
