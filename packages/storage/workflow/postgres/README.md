@@ -7,6 +7,11 @@ can continue from committed steps and use saved write receipts. The adapter supp
 The application owns its Postgres.js pool, business SQL, authorization, and remote-write safety. The adapter borrows
 that pool and owns the tables in `utils_workflow`. Importing it starts no worker, opens no pool, and runs no migration.
 
+The adapter sends no SQL strings. Its tables, trigger functions and triggers are typed definitions in `schema/`, and
+every statement is a named function in `statements/`, built with [`@okikio/sql`](../../../sql/README.md).
+`statements.sql` holds their compiled SQL. The statement tests compare it and ask PostgreSQL to describe each one, so a
+change to the SQL shows in review and a wrong column fails before it runs.
+
 The adapter uses PostgreSQL `transaction_timeout` for its owned transactions. Run the complete repository tests with
 PostgreSQL 18.3, which matches CI; a server without that setting rejects this workflow path. The separate state and
 queue adapters have their own contracts and do not imply compatibility for this one.

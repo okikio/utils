@@ -3,6 +3,11 @@
  * migrate work. @module
  */
 import type { Sql, TransactionSql } from 'postgres';
+import * as sql from '@okikio/sql';
+import type { Executor } from '@okikio/sql';
+import { executor } from '@okikio/sql/postgres';
+import type { Temporal } from '@okikio/duration/temporal';
+import { inspect as statements } from './statements/mod.ts';
 import * as record from '@okikio/collection/record';
 import * as schema from '@okikio/schema';
 import { temporal } from '@okikio/duration/temporal';
@@ -89,10 +94,14 @@ function timestamp(input: unknown): string {
 	}
 	return result;
 }
-/** Convert driver dates after SQL reads; public schemas accept serialized strings. */
-function date(input: unknown): string | null {
+/** Show a saved time at millisecond precision, as the public schemas publish it. */
+function date(input: Temporal.Instant | null): string | null {
 	if (input === null) return null;
-	return timestamp(input instanceof Date ? input.toISOString() : input);
+	return timestamp(input.toString({ fractionalSecondDigits: 3, roundingMode: 'trunc' }));
+}
+/** A queue cursor keeps PostgreSQL's microseconds, so equal milliseconds still order exactly. */
+function exact(input: Temporal.Instant): string {
+	return timestamp(input.toString({ fractionalSecondDigits: 6, roundingMode: 'trunc' }));
 }
 /** PostgreSQL bigint sequences remain decimal strings; Number would lose cursor precision. */
 function sequence(input: unknown): string {
@@ -778,15 +787,10 @@ function reference(namespace: string, input: ReferenceType): { ref: ReferenceTyp
 		]),
 	};
 }
-/** Select only declared metadata columns; arbitrary saved JSON never enters an operator response. */
-function projection(tx: TransactionSql) {
-	return tx`id,namespace,scope,kind,definition,version,state,paused,control_revision,epoch,generation,family,parent,
- chain_root,chain_index,continued_to,created,updated_at,finished_at,expires,host,host_generation,
- outcome->>'type' as outcome_type,reason is not null as has_reason,policy->>'id' as policy_id,policy->>'version' as policy_version,
- to_char(created at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as created_cursor`;
-}
 /** SQL rows are untrusted driver data; the published schema validates their serialized projection. */
-function run(row: Record<string, unknown>): InspectedRun {
+function run(
+	row: sql.RowOfShape<ReturnType<typeof statements.owner> extends sql.Select<infer S> ? S : never>,
+): InspectedRun {
 	return InspectedRunSchema.parse({
 		ref: {
 			id: row.id,
@@ -813,23 +817,21 @@ function run(row: Record<string, unknown>): InspectedRun {
 	});
 }
 /** Verify the entire saved identity in the same transaction as every run-specific read. */
-async function owner(tx: TransactionSql, ref: ReferenceType): Promise<InspectedRun> {
-	const rows = await tx`select ${
-		projection(tx)
-	} from utils_workflow.runs where namespace=${ref.namespace} and id=${ref.id}
- and scope=${ref.scope} and kind=${ref.definition.kind} and definition=${ref.definition.id} and version=${ref.definition.version}`;
+async function owner(tx: Executor, ref: ReferenceType): Promise<InspectedRun> {
+	const rows = await sql.rows(tx, statements.owner(ref.namespace, ref));
 	if (rows.length !== 1) throw new ExecutionError('inspection_reference');
 	return run(rows[0]!);
 }
 /** Use database time for ages and one MVCC snapshot for all counts and rows returned by a method. */
 async function snapshot<Value>(
 	database: Sql,
-	read: (tx: TransactionSql, observedAt: string) => Promise<Value>,
+	read: (tx: Executor, observedAt: string, at: Temporal.Instant) => Promise<Value>,
 ): Promise<Value> {
-	return await database.begin('isolation level repeatable read read only', async (tx) => {
-		await tx`set local statement_timeout='5s'`;
-		const rows = await tx`select transaction_timestamp() as observed_at`;
-		return await read(tx, timestamp(date(rows[0]!.observed_at)));
+	return await database.begin('isolation level repeatable read read only', async (native: TransactionSql) => {
+		const tx = executor(native);
+		await sql.execute(tx, statements.timeout);
+		const at = (await sql.one(tx, statements.observed))!.at;
+		return await read(tx, date(at)!, at);
 	}) as Value;
 }
 
@@ -860,22 +862,8 @@ export function inspector(options: { readonly database: Sql; readonly namespace:
 			const after = position === undefined ? null : uuid(position[0]);
 			return await snapshot(database, async (tx, observedAt) => {
 				const current = await owner(tx, ref);
-				const rows =
-					await tx`select id,path,definition,state,finalizer,generation,sequence,budget,available,deadline,expires,host,host_generation,outcome->>'type' as outcome_type
- from utils_workflow.jobs where namespace=${namespace} and run=${ref.id} and (${after}::uuid is null or id>${after}::uuid) order by id limit ${
-						page.limit + 1
-					}`;
-				const totals = (await tx`select
- (select count(*) from utils_workflow.jobs where namespace=${namespace} and run=${ref.id}) as jobs,
- (select count(*) from utils_workflow.jobs where namespace=${namespace} and run=${ref.id} and state='ready') as ready,
- (select count(*) from utils_workflow.jobs where namespace=${namespace} and run=${ref.id} and state='claimed') as claimed,
- (select count(*) from utils_workflow.instructions where namespace=${namespace} and run=${ref.id} and type in ('sleep','sleep-until','wait-event','child-workflow') and outcome is null) as waiting,
- (select count(*) from utils_workflow.attempts a join utils_workflow.jobs j on j.namespace=a.namespace and j.id=a.job where j.namespace=${namespace} and j.run=${ref.id}) as attempts,
- (select count(*) from utils_workflow.progress where namespace=${namespace} and run=${ref.id}) as progress,
- (select count(*) from utils_workflow.run_events where namespace=${namespace} and run=${ref.id}) as history_events,
- (select coalesce(sum(pg_column_size(e)),0) from utils_workflow.run_events e where namespace=${namespace} and run=${ref.id}) as history_bytes`)[
-					0
-				]!;
+				const rows = await sql.rows(tx, statements.jobPage(namespace, ref.id, after, page.limit + 1));
+				const totals = (await sql.one(tx, statements.totals(namespace, ref.id)))!;
 				return InspectionSchema.parse({
 					observedAt,
 					run: current,
@@ -924,21 +912,20 @@ export function inspector(options: { readonly database: Sql; readonly namespace:
 			const position = cursor('attempts', binding, page.after, 2);
 			const afterJob = position === undefined ? null : uuid(position[0]),
 				afterGeneration = position === undefined ? 0 : integer(Number(position[1]));
-			return await snapshot(database, async (tx, observedAt) => {
+			return await snapshot(database, async (tx, observedAt, at) => {
 				await owner(tx, ref);
 				if (
 					job !== null &&
-					(await tx`select id from utils_workflow.jobs where namespace=${namespace} and run=${ref.id} and id=${job}`)
-							.length !== 1
+					(await sql.rows(tx, statements.job(namespace, ref.id, job))).length !== 1
 				) throw new ExecutionError('inspection_reference');
-				const rows =
-					await tx`select a.job,j.path,a.generation,a.sequence,a.state,a.started,a.ended,a.outcome->>'type' as outcome_type,
- greatest(0,floor(extract(epoch from (coalesce(a.ended,transaction_timestamp())-a.started))*1000))::bigint as elapsed
- from utils_workflow.attempts a join utils_workflow.jobs j on j.namespace=a.namespace and j.id=a.job
- where j.namespace=${namespace} and j.run=${ref.id} and (${job}::uuid is null or a.job=${job}::uuid)
- and (${afterJob}::uuid is null or (a.job,a.generation)>(${afterJob}::uuid,${afterGeneration})) order by a.job,a.generation limit ${
-						page.limit + 1
-					}`;
+				const rows = await sql.rows(
+					tx,
+					statements.attemptPage(namespace, ref.id, {
+						job,
+						after: afterJob === null ? null : { job: afterJob, generation: afterGeneration },
+						limit: page.limit + 1,
+					}),
+				);
 				return AttemptsSchema.parse({
 					observedAt,
 					items: rows.slice(0, page.limit).map((row) => ({
@@ -949,7 +936,11 @@ export function inspector(options: { readonly database: Sql; readonly namespace:
 						state: row.state,
 						startedAt: date(row.started),
 						endedAt: date(row.ended),
-						elapsedMs: count(row.elapsed),
+						// Time from the attempt's start to its end, or to the snapshot while it still runs.
+						elapsedMs: Math.max(
+							0,
+							Math.floor(Number((row.ended ?? at).epochNanoseconds - row.started.epochNanoseconds) / 1_000_000),
+						),
 						outcomeType: row.outcome_type,
 					})),
 					next: rows.length > page.limit
@@ -967,10 +958,7 @@ export function inspector(options: { readonly database: Sql; readonly namespace:
 			const position = cursor('waits', binding, page.after, 1), after = position?.[0] ?? null;
 			return await snapshot(database, async (tx, observedAt) => {
 				await owner(tx, ref);
-				const rows =
-					await tx`select path,type,due,child,event,outcome is not null as resolved,outcome->>'type' as outcome_type
- from utils_workflow.instructions where namespace=${namespace} and run=${ref.id} and type in ('sleep','sleep-until','wait-event','child-workflow')
- and (${after}::text is null or path>${after}) order by path limit ${page.limit + 1}`;
+				const rows = await sql.rows(tx, statements.waitPage(namespace, ref.id, after, page.limit + 1));
 				return WaitsSchema.parse({
 					observedAt,
 					items: rows.slice(0, page.limit).map((row) => ({
@@ -997,12 +985,15 @@ export function inspector(options: { readonly database: Sql; readonly namespace:
 				afterEffect = position?.[1] ?? '';
 			return await snapshot(database, async (tx, observedAt) => {
 				await owner(tx, ref);
-				const rows =
-					await tx`select p.job,j.path,p.effect,p.generation,p.attempt,p.sequence,p.revision,p.reported_at,p.bytes
- from utils_workflow.progress p join utils_workflow.jobs j on j.namespace=p.namespace and j.id=p.job
- where p.namespace=${namespace} and p.run=${ref.id} and (${afterJob}::uuid is null or (p.job,p.effect)>(${afterJob}::uuid,${afterEffect})) order by p.job,p.effect limit ${
-						page.limit + 1
-					}`;
+				const rows = await sql.rows(
+					tx,
+					statements.progressPage(
+						namespace,
+						ref.id,
+						afterJob === null ? null : { job: afterJob, effect: afterEffect },
+						page.limit + 1,
+					),
+				);
 				return ProgressSchema.parse({
 					observedAt,
 					items: rows.slice(0, page.limit).map((row) => ({
@@ -1032,22 +1023,22 @@ export function inspector(options: { readonly database: Sql; readonly namespace:
 				after = position === undefined ? null : sequence(position[0]);
 			return await snapshot(database, async (tx, observedAt) => {
 				await owner(tx, ref);
-				const totals =
-					(await tx`select min(sequence)::text as first,max(sequence)::text as last,count(*) as count,coalesce(sum(pg_column_size(e)),0) as bytes
- from utils_workflow.run_events e where namespace=${namespace} and run=${ref.id}`)[0]!;
+				const range = (await sql.one(tx, statements.historyRange(namespace, ref.id)))!;
+				const totals = {
+					first: range.first === null ? null : String(range.first),
+					last: range.last === null ? null : String(range.last),
+					count: range.count,
+					bytes: range.bytes,
+				};
 				if (after !== null && (totals.first === null || BigInt(after) < BigInt(totals.first) - 1n)) {
 					throw new ExecutionError('inspection_history_gap');
 				}
-				if (after !== null && BigInt(after) > BigInt(totals.last)) throw new ExecutionError('inspection_cursor');
-				const first =
-					(await tx`select kind from utils_workflow.run_events where namespace=${namespace} and run=${ref.id} order by sequence limit 1`)[
-						0
-					];
-				const rows =
-					await tx`select sequence::text,recorded_at,kind,job_id,prior_state,state,paused,control_revision,epoch,action,actor,reason is not null as has_reason
- from utils_workflow.run_events where namespace=${namespace} and run=${ref.id} and (${after}::bigint is null or sequence>${after}::bigint) order by sequence limit ${
-						page.limit + 1
-					}`;
+				if (after !== null && BigInt(after) > BigInt(totals.last!)) throw new ExecutionError('inspection_cursor');
+				const first = range.kind === null ? undefined : { kind: range.kind };
+				const rows = (await sql.rows(
+					tx,
+					statements.historyPage(namespace, ref.id, after === null ? null : Number(after), page.limit + 1),
+				)).map((row) => ({ ...row, sequence: String(row.sequence) }));
 				// A cursor must not silently skip deleted lifecycle evidence. Validate
 				// the lookahead row too before advertising a resumable next page.
 				let expected = after === null ? (totals.first === null ? 1n : BigInt(totals.first)) : BigInt(after) + 1n;
@@ -1072,7 +1063,7 @@ export function inspector(options: { readonly database: Sql; readonly namespace:
 					bytes: count(totals.bytes),
 					hasGaps: totals.first === null
 						? false
-						: BigInt(totals.count) !== BigInt(totals.last) - BigInt(totals.first) + 1n,
+						: BigInt(totals.count) !== BigInt(totals.last!) - BigInt(totals.first) + 1n,
 					hasMore: rows.length > page.limit,
 					items: rows.slice(0, page.limit).map((row) => ({
 						sequence: row.sequence,
@@ -1101,21 +1092,18 @@ export function inspector(options: { readonly database: Sql; readonly namespace:
 				afterTime = position === undefined ? null : timestamp(position[0]),
 				afterId = position === undefined ? null : uuid(position[1]);
 			return await snapshot(database, async (tx, observedAt) => {
-				// Bind as text first: Postgres.js otherwise serializes inferred timestamptz parameters through Date and drops microseconds.
-				const rows = await tx`select ${projection(tx)} from utils_workflow.runs
- where namespace=${namespace} and scope=${page.scope} and state=any(${page.states}::text[])
- and (${afterTime}::text::timestamptz is null or (created,id)>(${afterTime}::text::timestamptz,${afterId}::uuid)) order by created,id limit ${
-					page.limit + 1
-				}`;
-				const totals = (await tx`select count(*) as runs,count(*) filter(where paused) as paused,min(created) as oldest
- from utils_workflow.runs where namespace=${namespace} and scope=${page.scope} and state=any(${page.states}::text[])`)[
-					0
-				]!;
-				const due = (await tx`select count(*) as jobs,min(j.available) as oldest from utils_workflow.jobs j
- join utils_workflow.runs r on r.namespace=j.namespace and r.id=j.run
- where r.namespace=${namespace} and r.scope=${page.scope} and r.state=any(${page.states}::text[]) and j.state='ready' and j.available<=transaction_timestamp()`)[
-					0
-				]!;
+				const rows = await sql.rows(
+					tx,
+					statements.queuePage(
+						namespace,
+						page.scope,
+						page.states,
+						afterTime === null ? null : { created: temporal.Instant.from(afterTime), id: afterId! },
+						page.limit + 1,
+					),
+				);
+				const totals = (await sql.one(tx, statements.queueTotals(namespace, page.scope, page.states)))!;
+				const due = (await sql.one(tx, statements.queueDue(namespace, page.scope, page.states)))!;
 				return QueueSchema.parse({
 					observedAt,
 					scope: page.scope,
@@ -1128,7 +1116,7 @@ export function inspector(options: { readonly database: Sql; readonly namespace:
 					},
 					items: rows.slice(0, page.limit).map(run),
 					next: rows.length > page.limit
-						? next('queue', binding, [rows[page.limit - 1]!.created_cursor, rows[page.limit - 1]!.id])
+						? next('queue', binding, [exact(rows[page.limit - 1]!.created), rows[page.limit - 1]!.id])
 						: null,
 				});
 			});
@@ -1142,15 +1130,7 @@ export function inspector(options: { readonly database: Sql; readonly namespace:
 				position = cursor('hosts', namespace, page.after, 1),
 				after = position?.[0] ?? null;
 			return await snapshot(database, async (tx, observedAt) => {
-				const rows =
-					await tx`select h.id,h.generation,h.engine,jsonb_array_length(h.definitions) as definitions,h.draining,h.expires,h.expires>transaction_timestamp() as live,h.activations,h.activities,
- (select count(*) from utils_workflow.runs r where r.namespace=h.namespace and r.host=h.id and r.host_generation=h.generation and r.state='advancing' and r.expires>transaction_timestamp()) as active_runs,
- (select count(*) from utils_workflow.runs r where r.namespace=h.namespace and r.host=h.id and r.host_generation=h.generation and r.state='advancing' and r.expires<=transaction_timestamp()) as expired_runs,
- (select count(*) from utils_workflow.jobs j where j.namespace=h.namespace and j.host=h.id and j.host_generation=h.generation and j.state='claimed' and j.expires>transaction_timestamp()) as active_jobs,
- (select count(*) from utils_workflow.jobs j where j.namespace=h.namespace and j.host=h.id and j.host_generation=h.generation and j.state='claimed' and j.expires<=transaction_timestamp()) as expired_jobs
- from utils_workflow.hosts h where h.namespace=${namespace} and (${after}::text is null or h.id>${after}) order by h.id limit ${
-						page.limit + 1
-					}`;
+				const rows = await sql.rows(tx, statements.hostPage(namespace, after, page.limit + 1));
 				return HostsSchema.parse({
 					observedAt,
 					items: rows.slice(0, page.limit).map((row) => ({

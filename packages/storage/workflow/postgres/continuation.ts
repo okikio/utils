@@ -1,7 +1,9 @@
 /** Bounded root-chain rollover. Every function that writes requires the adapter's guarded transaction. @module */
-import type { TransactionSql } from 'postgres';
+import * as sql from '@okikio/sql';
+import type { Executor } from '@okikio/sql';
 import * as execution from '@okikio/workflow/execution';
 import type { ContinuationType, IdentityType, PolicyType } from '@okikio/workflow/execution';
+import { chain, cleanups, history, shared } from './statements/mod.ts';
 
 /** Structural view of the locked owner; the adapter retains authority and row validation. */
 interface Run {
@@ -72,13 +74,9 @@ function rules(run: Run): void {
 }
 
 /** A continued segment cannot abandon ordinary attempts or unfinished child/successor obligations. */
-async function quiescent(tx: TransactionSql, namespace: string, run: Run): Promise<void> {
-	const pending = await tx`select
- exists(select 1 from utils_workflow.jobs where namespace=${namespace} and run=${run.id}
- and not finalizer and state in ('ready','claimed','blocked')) as jobs,
- exists(select 1 from utils_workflow.runs where namespace=${namespace} and family=${run.family}
- and id!=${run.id} and state not in ('completed','failed','cancelled','continued')) as relatives`;
-	if (pending[0]!.jobs || pending[0]!.relatives) {
+async function quiescent(tx: Executor, namespace: string, run: Run): Promise<void> {
+	const pending = (await sql.one(tx, chain.busy(namespace, run)))!;
+	if (pending.jobs || pending.relatives) {
 		throw new execution.ExecutionError('continuation_pending', 'Join unfinished family work before continuing.');
 	}
 }
@@ -88,7 +86,7 @@ async function quiescent(tx: TransactionSql, namespace: string, run: Run): Promi
  * No successor is visible yet when registered cleanup must still run. No business outcome is fabricated.
  */
 export async function request(
-	tx: TransactionSql,
+	tx: Executor,
 	options: {
 		readonly namespace: string;
 		readonly run: Run;
@@ -113,23 +111,27 @@ export async function request(
 	if (!Number.isSafeInteger(instructions) || instructions < 1 || instructions > rule.maxInstructions) {
 		throw new execution.ExecutionError('instruction_limit');
 	}
-	const counts = await tx`select count(*)::integer as roots,
- (select count(*)::integer from utils_workflow.instructions where namespace=${namespace} and run=${run.id}) as total
- from utils_workflow.instructions where namespace=${namespace} and run=${run.id} and parent is null`;
-	if (counts[0]!.roots !== instructions - 1) throw new execution.ExecutionError('replay_conflict');
-	if (counts[0]!.total >= rule.maxInstructions) throw new execution.ExecutionError('instruction_limit');
+	const roots = (await sql.one(tx, history.count(namespace, run.id, null)))!.count;
+	const total = (await sql.one(tx, history.count(namespace, run.id)))!.count;
+	if (roots !== instructions - 1) throw new execution.ExecutionError('replay_conflict');
+	if (total >= rule.maxInstructions) throw new execution.ExecutionError('instruction_limit');
 	await quiescent(tx, namespace, run);
 	const bytes = new TextEncoder().encode(JSON.stringify({ ...intent, type: 'continue' })).byteLength;
-	const history = await tx`select (
- (select coalesce(sum(bytes),0) from utils_workflow.instructions where namespace=${namespace} and run=${run.id}) +
- (select coalesce(sum(bytes),0) from utils_workflow.events where namespace=${namespace} and run=${run.id}) +
- (select coalesce(sum(bytes),0) from utils_workflow.progress where namespace=${namespace} and run=${run.id})
- )::integer as bytes`;
-	if (history[0]!.bytes + bytes > run.policy.limits.historyBytes) throw new execution.ExecutionError('history_limit');
-	await tx`insert into utils_workflow.instructions(namespace,run,path,fingerprint,type,bytes,parent)
- values (${namespace},${run.id},${intent.path},${intent.fingerprint},'continue',${bytes},null)`;
-	await tx`update utils_workflow.runs set state='settling',continuation=${tx.json(intent)},expires=null,reason=null
- where namespace=${namespace} and id=${run.id}`;
+	const used = (await sql.one(tx, shared.history(namespace, run.id)))!.bytes;
+	if (used + bytes > run.policy.limits.historyBytes) throw new execution.ExecutionError('history_limit');
+	await sql.execute(
+		tx,
+		history.add({
+			namespace,
+			run: run.id,
+			path: intent.path,
+			fingerprint: intent.fingerprint,
+			type: 'continue',
+			bytes,
+			parent: null,
+		}),
+	);
+	await sql.execute(tx, chain.request(namespace, run.id, intent));
 }
 
 /**
@@ -137,7 +139,7 @@ export async function request(
  * The owner row, not an unrelated submit/dedupe lookup, serializes this transition.
  */
 export async function rollover(
-	tx: TransactionSql,
+	tx: Executor,
 	options: { readonly namespace: string; readonly run: Run },
 ): Promise<void> {
 	const { namespace, run } = options;
@@ -146,18 +148,12 @@ export async function rollover(
 		throw new execution.ExecutionError('continuation_state');
 	}
 	const request = execution.ContinuationSchema.parse(run.continuation);
-	const pending = await tx`select path from utils_workflow.cleanups where namespace=${namespace} and run=${run.id}
- and state!='completed' limit 1`;
-	if (pending.length) throw new execution.ExecutionError('continuation_cleanup');
+	if (await sql.one(tx, cleanups.unfinished(namespace, run.id))) {
+		throw new execution.ExecutionError('continuation_cleanup');
+	}
 	await quiescent(tx, namespace, run);
 	const id = crypto.randomUUID();
 	const digest = await execution.fingerprint(execution.decode(request.input));
-	await tx`insert into utils_workflow.runs
- (namespace,id,scope,key,kind,definition,version,input,fingerprint,policy,policyhash,state,family,parent,cancellation,
- reservation,trace,paused,control_revision,chain_root,chain_index,location)
- select namespace,${id},scope,${`continue:${id}`},kind,definition,version,${tx.json(request.input)},${digest},
- policy,policyhash,'ready',family,id,'independent',reservation,trace,paused,control_revision,chain_root,chain_index+1,location
- from utils_workflow.runs where namespace=${namespace} and id=${run.id}`;
-	await tx`update utils_workflow.runs set state='continued',continued_to=${id},continuation=null,expires=null,reason=null
- where namespace=${namespace} and id=${run.id}`;
+	await sql.execute(tx, chain.next(namespace, run.id, { id, input: request.input, fingerprint: digest }));
+	await sql.execute(tx, chain.link(namespace, run.id, id));
 }

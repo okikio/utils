@@ -43,7 +43,13 @@ import type {
 	ReferenceType,
 	SnapshotType,
 } from '@okikio/workflow';
-import { migration, version } from './schema.ts';
+import * as sql from '@okikio/sql';
+import { executor } from '@okikio/sql/postgres';
+import { temporal } from '@okikio/duration/temporal';
+import type { Temporal } from '@okikio/duration/temporal';
+import * as tables from './schema/mod.ts';
+import type { Executor, Statement } from '@okikio/sql';
+import { cleanups, history, hosts, jobs, maintenance, runs, shared } from './statements/mod.ts';
 import * as continuation from './continuation.ts';
 
 /** Native Postgres.js transaction. It remains usable by domain SQL, not just the adapter. */
@@ -125,6 +131,36 @@ export interface StoreType extends ExecutionStore {
 		options: WriteOptions<Input, Value>,
 	): Promise<ReceiptType<Value> | undefined>;
 }
+/** One executor per native pool or transaction, so statements run on exactly that connection. */
+const executors = new WeakMap<object, Executor>();
+
+/** The `@okikio/sql` executor of a native Postgres.js pool or transaction. */
+function on(native: Sql | TransactionSql): Executor {
+	let found = executors.get(native);
+	if (found === undefined) executors.set(native, found = executor(native));
+	return found;
+}
+
+/** Run a statement and decode its rows. */
+function rows<Row>(native: Sql | TransactionSql, statement: Statement<Row>): Promise<Row[]> {
+	return sql.rows(on(native), statement);
+}
+
+/** Run a statement and return its one row, if any. */
+function one<Row>(native: Sql | TransactionSql, statement: Statement<Row>): Promise<Row | undefined> {
+	return sql.one(on(native), statement);
+}
+
+/** Run a statement and ignore its rows. */
+function exec(native: Sql | TransactionSql, statement: Statement<unknown>): Promise<void> {
+	return sql.execute(on(native), statement);
+}
+
+/** A saved time in the ISO form `Date.toISOString` writes, which replayed workflow code already received. */
+function iso(instant: Temporal.Instant): string {
+	return instant.toString({ fractionalSecondDigits: 3, roundingMode: 'trunc' });
+}
+
 /** Tracks only native transactions admitted through begin; query-shaped foreign objects cannot join. */
 const transactions = new WeakMap<object, { database: Sql; active: boolean }>();
 
@@ -162,28 +198,30 @@ export interface MigrationStatusType {
  * always repeats its checks after obtaining the authoritative migration lock.
  */
 export async function migrationStatus(options: { readonly database: Sql }): Promise<MigrationStatusType> {
-	return await options.database.begin('isolation level repeatable read read only', async (tx) => {
-		const present =
-			await tx`select to_regclass('utils_workflow.version') as version, to_regclass('utils_workflow.hosts') as hosts`;
+	return await options.database.begin('isolation level repeatable read read only', async (native) => {
+		const tx = executor(native);
+		const present = (await sql.one(tx, tables.present))!;
 		let current: number | undefined;
-		if (present[0]!.version !== null) {
-			const rows = await tx`select version from utils_workflow.version where id`;
-			current = rows[0]?.version;
-			if (!Number.isSafeInteger(current) || current === undefined || current < 1) {
-				return Object.freeze({ current, target: version, state: 'incompatible' as const, activeWorkers: false });
+		if (present.version) {
+			current = (await sql.one(tx, tables.stored))?.version;
+			if (current === undefined || current < 1) {
+				return Object.freeze({
+					current,
+					target: tables.revision,
+					state: 'incompatible' as const,
+					activeWorkers: false,
+				});
 			}
 		}
-		const active = present[0]!.hosts === null
-			? []
-			: await tx`select id from utils_workflow.hosts where not draining and expires>clock_timestamp() limit 1`;
+		const active = present.hosts ? await sql.rows(tx, tables.activeHost) : [];
 		return Object.freeze({
 			current,
-			target: version,
+			target: tables.revision,
 			state: current === undefined
 				? 'uninstalled' as const
-				: current === version
+				: current === tables.revision
 				? 'current' as const
-				: current < version
+				: current < tables.revision
 				? 'upgrade' as const
 				: 'incompatible' as const,
 			activeWorkers: active.length > 0,
@@ -220,29 +258,22 @@ export async function planMigrations(options: { readonly database: Sql }): Promi
 
 /** Explicit maintenance. Current revisions run no DDL; an upgrade requires drained workers. */
 export async function migrate(options: { readonly database: Sql }): Promise<void> {
-	await options.database.begin(async (tx) => {
-		await tx`select pg_advisory_xact_lock(776161003)`;
-		const present =
-			await tx`select to_regclass('utils_workflow.version') as version, to_regclass('utils_workflow.hosts') as hosts`;
-		if (present[0]!.version !== null) {
-			const current = await tx`select version from utils_workflow.version where id`;
-			if (!Number.isSafeInteger(current[0]?.version) || current[0]!.version < 1 || current[0]!.version > version) {
-				throw new ExecutionError('schema_version');
-			}
-			if (current[0]!.version === version) return;
+	await options.database.begin(async (native) => {
+		const tx = executor(native);
+		await sql.execute(tx, tables.migrationLock);
+		const present = (await sql.one(tx, tables.present))!;
+		if (present.version) {
+			const current = (await sql.one(tx, tables.stored))?.version;
+			if (current === undefined || current < 1 || current > tables.revision) throw new ExecutionError('schema_version');
+			if (current === tables.revision) return;
 		}
-		if (present[0]!.hosts !== null) {
-			const active =
-				await tx`select id from utils_workflow.hosts where not draining and expires>clock_timestamp() limit 1`;
-			if (active.length) {
-				throw new ExecutionError('migration_workers_active', 'Drain workers before upgrading the execution schema.');
-			}
+		if (present.hosts && (await sql.rows(tx, tables.activeHost)).length) {
+			throw new ExecutionError('migration_workers_active', 'Drain workers before upgrading the execution schema.');
 		}
 		// Registration shares the migration lock. Old workers and unrelated database readers still need operational draining.
-		await tx`set local lock_timeout = '5000ms'`;
-		await tx.unsafe(migration);
-		const rows = await tx`select version from utils_workflow.version where id`;
-		if (rows[0]?.version !== version) throw new ExecutionError('schema_version');
+		await sql.execute(tx, tables.lockTimeout);
+		for (const statement of [...tables.prepare, ...tables.install]) await sql.execute(tx, statement);
+		if ((await sql.one(tx, tables.stored))?.version !== tables.revision) throw new ExecutionError('schema_version');
 	});
 }
 
@@ -296,8 +327,10 @@ const RunSchema = schema.define((input) => {
 });
 type RunType = schema.Output<typeof RunSchema>;
 type Native = Transaction | Sql;
+/** One saved job, decoded with the column types. */
+type JobRow = sql.RowOf<typeof tables.jobs.columns>;
 /** Required order: registration share lock, run update lock, job update lock, then application domain locks. */
-type GuardType = { run: RunType; job: Record<string, unknown> };
+type GuardType = { run: RunType; job: JobRow | undefined };
 const terminal = ['completed', 'failed', 'cancelled', 'continued'];
 
 /**
@@ -401,29 +434,11 @@ class Store implements StoreType {
 		readonly finalizers: readonly IdentityType[];
 	}): Promise<number | undefined> {
 		this.#assert();
-		const rows = await this
-			.#database`select case when min(due) is null then null else greatest(0,ceil(extract(epoch from (min(due)-clock_timestamp()))*1000))::float8 end as delay from (
-			(select clock_timestamp() as due from utils_workflow.runs r where r.namespace=${this.namespace} and r.kind='workflow' and r.state='ready' and not r.paused and ${
-			options === undefined || (options.workflows?.length ?? 0) > 0
-		}
-			and (${options === undefined} or exists(select 1 from jsonb_array_elements(${
-			this.#database.json([...(options?.workflows ?? [])])
-		}) d where d->>'id'=r.definition and d->>'version'=r.version)) limit 1)
-			union all (select expires as due from utils_workflow.runs where namespace=${this.namespace} and state='advancing' order by expires limit 1)
-			union all (select j.expires from utils_workflow.jobs j join utils_workflow.runs r on r.namespace=j.namespace and r.id=j.run where j.namespace=${this.namespace} and j.state='claimed' and r.state in ('ready','waiting','advancing','settling') order by j.expires limit 1)
-			union all (select j.available from utils_workflow.jobs j join utils_workflow.runs r on r.namespace=j.namespace and r.id=j.run where j.namespace=${this.namespace} and j.state='ready' and r.state in ('ready','waiting','advancing','settling') and (not r.paused or j.finalizer) and ${
-			options === undefined || options.activities.length > 0 || options.finalizers.length > 0
-		}
-			and (${options === undefined} or exists(select 1 from jsonb_array_elements(${
-			this.#database.json([...(options?.activities ?? [])])
-		}) d where d=j.definition and not j.finalizer) or exists(select 1 from jsonb_array_elements(${
-			this.#database.json([...(options?.finalizers ?? [])])
-		}) d where d=j.definition and j.finalizer)) order by j.available limit 1)
-			union all (select i.due from utils_workflow.instructions i join utils_workflow.runs r on r.namespace=i.namespace and r.id=i.run
-			where i.namespace=${this.namespace} and i.outcome is null and i.due is not null and r.state in ('ready','waiting','advancing') and not r.paused order by i.due limit 1)
-		) deadlines`;
-		// PostgreSQL greatest ignores NULL. Test the aggregate separately to distinguish no saved deadline.
-		return rows[0]?.delay == null ? undefined : Number(rows[0].delay);
+		const found = (await one(this.#database, maintenance.next(this.namespace, options)))!;
+		if (found.due === null) return undefined;
+		// Round up to whole milliseconds, never below zero, as the deadline's distance from database time.
+		const distance = Number(found.due.epochNanoseconds - found.now.epochNanoseconds) / 1_000_000;
+		return Math.max(0, Math.ceil(distance));
 	}
 
 	/** Reject new work after disposal; an open application pool does not reopen this view. */
@@ -441,10 +456,7 @@ class Store implements StoreType {
 		this.#assert();
 		return begin(this.#database, async (tx) => {
 			// Locks and transactions are bounded even if a caller waits inside its callback.
-			await tx`set local statement_timeout = '5000ms'`;
-			await tx`set local lock_timeout = '2000ms'`;
-			await tx`set local idle_in_transaction_session_timeout = '10000ms'`;
-			await tx`set local transaction_timeout = '10000ms'`;
+			for (const statement of shared.limits()) await exec(tx, statement);
 			return await callback(tx);
 		});
 	}
@@ -482,11 +494,9 @@ class Store implements StoreType {
 	 * dependent writes.
 	 */
 	async #run(tx: Native, id: string, lock = false): Promise<RunType> {
-		const rows = lock
-			? await tx`select * from utils_workflow.runs where namespace=${this.namespace} and id=${id} for update`
-			: await tx`select * from utils_workflow.runs where namespace=${this.namespace} and id=${id}`;
-		if (!rows[0]) throw new ExecutionError('not_found');
-		return RunSchema.parse(rows[0]);
+		const found = await one(tx, runs.run(this.namespace, id, lock));
+		if (!found) throw new ExecutionError('not_found');
+		return RunSchema.parse(found);
 	}
 	/**
 	 * Read the installed revision and required schema features before declaring this store ready. No
@@ -495,27 +505,20 @@ class Store implements StoreType {
 	async check(signal?: AbortSignal): Promise<void> {
 		this.#assert();
 		signal?.throwIfAborted();
-		// Refuse a partially installed or incompatible schema before accepting worker readiness.
-		const query = this.#database`select version, exists (
-      select 1 from information_schema.columns where table_schema='utils_workflow'
-      and table_name='runs' and column_name='trace' and data_type='jsonb'
-    ) as trace, (to_regclass('utils_workflow.cleanups') is not null and to_regclass('utils_workflow.events') is not null and to_regclass('utils_workflow.progress') is not null and exists(select 1 from information_schema.columns where table_schema='utils_workflow' and table_name='instructions' and column_name='event_key') and exists(select 1 from information_schema.columns where table_schema='utils_workflow' and table_name='instructions' and column_name='parent') and exists(select 1 from information_schema.columns where table_schema='utils_workflow' and table_name='instructions' and column_name='branches')) as reports,
-    (to_regclass('utils_workflow.run_events') is not null and (select count(*) from information_schema.columns where table_schema='utils_workflow' and table_name='runs' and column_name in ('paused','control_revision','updated_at','finished_at','chain_root','chain_index','continued_to','continuation'))=8 and exists(select 1 from information_schema.columns where table_schema='utils_workflow' and table_name='progress' and column_name='reported_at')) as operations from utils_workflow.version where id`;
-		const abort = () => {
-			query.cancel();
-		};
-		signal?.addEventListener('abort', abort, { once: true });
-		try {
-			const rows = await query;
+		// Refuse a partially installed or incompatible schema before accepting worker readiness: the revision must match
+		// and every column this revision defines must exist with its type.
+		const tx = executor(this.#database);
+		const stored = await sql.one(tx, tables.stored, { signal }).catch((error) => {
 			signal?.throwIfAborted();
-			if (
-				rows[0]?.version !== version || rows[0]?.trace !== true || rows[0]?.reports !== true ||
-				rows[0]?.operations !== true
-			) {
-				throw new ExecutionError('schema_version');
-			}
-		} finally {
-			signal?.removeEventListener('abort', abort);
+			if ((error as { code?: unknown }).code === '42P01') return undefined;
+			throw error;
+		});
+		const found = new Set(
+			(await sql.rows(tx, tables.installed, { signal })).map((item) => `${item.table}.${item.column} ${item.type}`),
+		);
+		signal?.throwIfAborted();
+		if (stored?.version !== tables.revision || [...tables.expected].some((item) => !found.has(item))) {
+			throw new ExecutionError('schema_version');
 		}
 	}
 	/** Admit a root request or a guarded successor, optionally in the caller's own transaction. */
@@ -554,31 +557,24 @@ class Store implements StoreType {
 			location === undefined ? decode(input.input) : { input: decode(input.input), location },
 		);
 		const policyhash = await fingerprint(policy);
-		await tx`select pg_advisory_xact_lock(hashtextextended(${this.namespace}, 776161004))`;
-		const found =
-			await tx`select * from utils_workflow.runs where namespace=${this.namespace} and scope=${input.scope} and kind=${contract.kind} and definition=${contract.id} and key=${input.key}`;
-		if (found[0]) {
+		await exec(tx, shared.named(this.namespace, shared.keys.admission));
+		const found = await one(
+			tx,
+			runs.keyed(this.namespace, { scope: input.scope, kind: contract.kind, definition: contract.id, key: input.key }),
+		);
+		if (found) {
 			if (
-				found[0].fingerprint !== digest ||
-				await fingerprint(found[0].location ?? null) !== await fingerprint(location ?? null) ||
-				found[0].version !== contract.version ||
-				found[0].policyhash !== policyhash || (parent !== undefined && found[0].family !== parent.family)
+				found.fingerprint !== digest ||
+				await fingerprint(found.location ?? null) !== await fingerprint(location ?? null) ||
+				found.version !== contract.version ||
+				found.policyhash !== policyhash || (parent !== undefined && found.family !== parent.family)
 			) throw new ExecutionError('admission_conflict');
-			return this.#ref(RunSchema.parse(found[0]));
+			return this.#ref(RunSchema.parse(found));
 		}
 		const reservation = reserve(policy, contract);
 		if (!parent) {
 			// Charge a family's root reservation once while any member is live, including after root completion.
-			const usage = await tx`with live_families as materialized (
- select distinct family from utils_workflow.runs where namespace=${this.namespace}
- and state not in ('completed','failed','cancelled','continued')
- ) select count(*)::integer as roots,
- coalesce(sum((r.reservation->>'successors')::integer),0)::integer as successors,
- coalesce(sum((r.reservation->>'children')::integer),0)::integer as children,
- coalesce(sum((r.reservation->>'finalizers')::integer),0)::integer as finalizers
- from live_families live join utils_workflow.runs r on r.namespace=${this.namespace} and r.id=live.family
- where r.id=r.family and r.policy->>'id'=${policy.id} and r.policy->>'version'=${policy.version}`;
-			const current = usage[0]!;
+			const current = (await one(tx, runs.usage(this.namespace, policy)))!;
 			if (
 				current.roots >= policy.limits.pendingRoots ||
 				current.successors + reservation.successors > policy.limits.reservedSuccessors ||
@@ -593,40 +589,54 @@ class Store implements StoreType {
 				!allowed || parent.successors >= allowed.maximum ||
 				!allowed.choices.some((entry) => address(entry) === address(contract))
 			) throw new ExecutionError('successor_capacity');
-			await tx`update utils_workflow.runs set successors=successors+1 where namespace=${this.namespace} and id=${parent.id}`;
+			await exec(tx, runs.addSuccessor(this.namespace, parent.id));
 		} else {
 			const owner = policy.workflows.find((entry) =>
 				entry.definition.id === parent.definition && entry.definition.version === parent.version
 			);
 			const allowed = owner?.children.find((entry) => address(entry.definition) === address(contract));
-			const prior =
-				await tx`select count(*)::integer as count from utils_workflow.runs where namespace=${this.namespace} and parent=${parent.id} and kind=${contract.kind} and definition=${contract.id} and version=${contract.version}`;
-			if (!owner || !allowed || parent.children >= owner.maximumChildren || prior[0]!.count >= allowed.maximum) {
+			const prior = (await one(tx, runs.children(this.namespace, parent.id, contract)))!.count;
+			if (!owner || !allowed || parent.children >= owner.maximumChildren || prior >= allowed.maximum) {
 				throw new ExecutionError('child_capacity');
 			}
-			await tx`update utils_workflow.runs set children=children+1 where namespace=${this.namespace} and id=${parent.id}`;
+			await exec(tx, runs.addChild(this.namespace, parent.id));
 		}
 		const id = crypto.randomUUID();
-		await tx`insert into utils_workflow.runs (namespace,id,scope,key,kind,definition,version,input,fingerprint,policy,policyhash,state,family,parent,cancellation,reservation,trace,location)
- values (${this.namespace},${id},${input.scope},${input.key},${contract.kind},${contract.id},${contract.version},${
-			tx.json(input.input)
-		},${digest},${tx.json(policy)},${policyhash},${contract.kind === 'workflow' ? 'ready' : 'waiting'},${
-			parent?.family ?? id
-		},${parent?.id ?? null},${cancellation ?? 'independent'},${tx.json(reservation)},${
-			tx.json(telemetry.saved(input.trace) ?? this.#instrument.capture() ?? parent?.trace ?? null)
-		},${location === undefined ? null : tx.json(location)})`;
-		const run = await this.#run(tx, id);
+		await exec(
+			tx,
+			runs.admit({
+				namespace: this.namespace,
+				id,
+				scope: input.scope,
+				key: input.key,
+				kind: contract.kind,
+				definition: contract.id,
+				version: contract.version,
+				input: input.input,
+				fingerprint: digest,
+				policy,
+				policyhash,
+				state: contract.kind === 'workflow' ? 'ready' : 'waiting',
+				family: parent?.family ?? id,
+				parent: parent?.id ?? null,
+				cancellation: cancellation ?? 'independent',
+				reservation,
+				trace: telemetry.saved(input.trace) ?? this.#instrument.capture() ?? parent?.trace ?? null,
+				location: location ?? null,
+			}),
+		);
+		const saved = await this.#run(tx, id);
 		if (contract.kind === 'activity') {
 			await this.#job(
 				tx,
-				run,
+				saved,
 				'root',
 				contract,
 				input.input,
 				policy.activities.find((entry) => address(entry.definition) === address(contract))!,
 			);
 		}
-		return this.#ref(run);
+		return this.#ref(saved);
 	}
 	/**
 	 * Read a saved run and bounded progress observations after checking its exact reference. Intended
@@ -636,13 +646,7 @@ class Store implements StoreType {
 		this.#reference(ref);
 		const run = await this.#run(this.#database, ref.id);
 		this.#matches(run, ref);
-		const reports = await this.#database`with recursive tree as (
- select id from utils_workflow.runs where namespace=${this.namespace} and id=${run.id}
- union all select r.id from utils_workflow.runs r join tree t on r.parent=t.id where ${
-			options.children ?? false
-		} and r.namespace=${this.namespace} and r.scope=${run.scope}
- ) select p.*,j.path,r.scope,r.kind,r.definition,r.version from tree t join utils_workflow.progress p on p.namespace=${this.namespace} and p.run=t.id
- join utils_workflow.runs r on r.namespace=p.namespace and r.id=p.run join utils_workflow.jobs j on j.namespace=p.namespace and j.id=p.job order by p.job,p.effect limit 1001`;
+		const reports = await rows(this.#database, history.reports(this.namespace, run, options.children ?? false));
 		return Object.freeze({
 			ref: this.#ref(run),
 			state: run.state,
@@ -652,12 +656,12 @@ class Store implements StoreType {
 			progress: reports.slice(0, 1000).map((row) => {
 				const occurrence = decode(row.occurrence as ReturnType<typeof encode>) as EffectEncoded;
 				return {
-					job: row.job as string,
-					attempt: row.attempt as number,
-					revision: row.revision as string,
+					job: row.job,
+					attempt: row.attempt,
+					revision: row.revision,
 					effect: occurrence,
 					progress: occurrence.value,
-					operation: row.path as string,
+					operation: row.path,
 					run: ReferenceSchema.parse({
 						id: row.run,
 						namespace: this.namespace,
@@ -677,17 +681,26 @@ class Store implements StoreType {
 		await this.#transaction(async (tx) => {
 			const { run } = await this.#guard(tx, claim);
 			const occurrence = decode(encode(effect, run.policy.limits.resultBytes)) as EffectEncoded;
-			const old =
-				await tx`select * from utils_workflow.progress where namespace=${this.namespace} and run=${run.id} and job=${claim.jobId} and effect=${occurrence.id}`;
-			if (old[0] && old[0].generation === claim.generation && old[0].sequence >= sequence) return;
+			const old = await one(tx, history.report(this.namespace, run.id, claim.jobId, occurrence.id));
+			if (old && old.generation === claim.generation && old.sequence >= sequence) return;
 			const saved = encode(occurrence, run.policy.limits.resultBytes);
 			const bytes = new TextEncoder().encode(JSON.stringify(saved)).byteLength + occurrence.id.length * 3 + 128;
-			await this.#budget(tx, run, bytes - (old[0]?.bytes ?? 0));
-			await tx`insert into utils_workflow.progress(namespace,run,job,effect,generation,sequence,attempt,revision,occurrence,bytes)
- values(${this.namespace},${run.id},${claim.jobId},${occurrence.id},${claim.generation},${sequence},${claim.sequence},${crypto.randomUUID()},${
-				tx.json(saved)
-			},${bytes})
- on conflict(namespace,run,job,effect) do update set generation=excluded.generation,sequence=excluded.sequence,attempt=excluded.attempt,revision=excluded.revision,occurrence=excluded.occurrence,bytes=excluded.bytes,reported_at=clock_timestamp()`;
+			await this.#budget(tx, run, bytes - (old?.bytes ?? 0));
+			await exec(
+				tx,
+				history.saveReport({
+					namespace: this.namespace,
+					run: run.id,
+					job: claim.jobId,
+					effect: occurrence.id,
+					generation: claim.generation,
+					sequence,
+					attempt: claim.sequence,
+					revision: crypto.randomUUID(),
+					occurrence: saved,
+					bytes,
+				}),
+			);
 		});
 	}
 	/** Retain early delivery. The run lock serializes delivery, wait installation, timeout, and cancellation. */
@@ -700,43 +713,44 @@ class Store implements StoreType {
 			if (run.kind !== 'workflow') throw new ExecutionError('event_binding');
 			const checked = encode(decode(value), run.policy.limits.inputBytes);
 			const hash = await fingerprint(checked);
-			const old =
-				await tx`select fingerprint from utils_workflow.events where namespace=${this.namespace} and run=${run.id} and event=${event} and key=${key}`;
-			if (old[0]) {
-				if (old[0].fingerprint !== hash) throw new ExecutionError('event_conflict');
+			const old = await one(tx, history.event(this.namespace, run.id, event, key));
+			if (old) {
+				if (old.fingerprint !== hash) throw new ExecutionError('event_conflict');
 				return;
 			}
 			if (
 				run.outcome !== null || run.continuation !== null || run.state === 'blocked' || terminal.includes(run.state)
 			) throw new ExecutionError('event_closed');
-			const waits =
-				await tx`select path,outcome,due,due<=clock_timestamp() as expired from utils_workflow.instructions where namespace=${this.namespace} and run=${run.id} and event=${event} and event_key=${key}`;
-			if (waits[0] && (waits[0].outcome !== null || waits[0].expired)) throw new ExecutionError('event_closed');
+			const wait = await one(tx, history.waiting(this.namespace, run.id, event, key));
+			if (wait && (wait.outcome !== null || wait.expired)) throw new ExecutionError('event_closed');
 			const bytes = new TextEncoder().encode(JSON.stringify(checked)).byteLength + event.length * 3 + key.length * 3 +
 				128;
 			await this.#budget(tx, run, bytes);
-			await tx`insert into utils_workflow.events(namespace,run,event,key,value,fingerprint,bytes) values(${this.namespace},${run.id},${event},${key},${
-				tx.json(checked)
-			},${hash},${bytes})`;
-			if (waits[0]) {
+			await exec(
+				tx,
+				history.deliver({
+					namespace: this.namespace,
+					run: run.id,
+					event,
+					key,
+					value: checked,
+					fingerprint: hash,
+					bytes,
+				}),
+			);
+			if (wait) {
 				const outcome: OutcomeType = {
 					type: 'success',
 					value: encode({ type: 'received', value: decode(checked) }, run.policy.limits.resultBytes),
 				};
-				if (await this.#record(tx, run, waits[0].path as string, outcome)) {
-					await tx`update utils_workflow.runs set state=case when state='advancing' then state else 'ready' end,expires=case when state='advancing' then expires else null end where namespace=${this.namespace} and id=${run.id}`;
-				}
+				if (await this.#record(tx, run, wait.path, outcome)) await exec(tx, runs.wake(this.namespace, run.id));
 			}
 		});
 	}
 	/** All retained event and report data shares the run's explicit history budget. */
 	async #budget(tx: Transaction, run: RunType, additional: number): Promise<void> {
-		const rows = await tx`select (
- (select coalesce(sum(bytes),0) from utils_workflow.instructions where namespace=${this.namespace} and run=${run.id}) +
- (select coalesce(sum(bytes),0) from utils_workflow.events where namespace=${this.namespace} and run=${run.id}) +
- (select coalesce(sum(bytes),0) from utils_workflow.progress where namespace=${this.namespace} and run=${run.id})
- )::integer as bytes`;
-		if (rows[0]!.bytes + additional > run.policy.limits.historyBytes) throw new ExecutionError('history_limit');
+		const used = (await one(tx, shared.history(this.namespace, run.id)))!.bytes;
+		if (used + additional > run.policy.limits.historyBytes) throw new ExecutionError('history_limit');
 	}
 
 	/**
@@ -766,34 +780,37 @@ class Store implements StoreType {
 		}
 		return await this.#transaction(async (tx) => {
 			// New registrations cannot cross the version check and an actual schema upgrade.
-			await tx`select pg_advisory_xact_lock_shared(776161003)`;
-			const schema = await tx`select version from utils_workflow.version where id`;
-			if (schema[0]?.version !== version) throw new ExecutionError('schema_version');
+			await exec(tx, tables.registrationLock);
+			if ((await one(tx, tables.stored))?.version !== tables.revision) {
+				throw new ExecutionError('schema_version');
+			}
 			await this.#placementLock(tx);
 			for (const node of lineage) {
-				const saved =
-					await tx`select generation,value from utils_workflow.compute where namespace=${this.namespace} and id=${node.id} for update`;
+				const saved = await one(tx, hosts.node(this.namespace, node.id));
 				if (
-					saved[0] &&
-					(Number(saved[0].generation) > node.generation ||
-						(Number(saved[0].generation) === node.generation &&
-							await fingerprint(saved[0].value) !== await fingerprint(node)))
+					saved &&
+					(saved.generation > node.generation ||
+						(saved.generation === node.generation && await fingerprint(saved.value) !== await fingerprint(node)))
 				) {
 					throw new ExecutionError('compute_conflict');
 				}
-				await tx`insert into utils_workflow.compute(namespace,id,generation,value) values(${this.namespace},${node.id},${node.generation},${
-					tx.json(node)
-				}) on conflict(namespace,id) do update set generation=excluded.generation,value=excluded.value`;
+				await exec(tx, hosts.saveNode(this.namespace, { id: node.id, generation: node.generation, value: node }));
 			}
-			const rows =
-				await tx`insert into utils_workflow.hosts(namespace,id,generation,definitions,engine,activations,activities,expires,compute,affinity)
- values (${this.namespace},${id},1,${
-					tx.json([...definitions])
-				},${engine},${capacity.activations},${capacity.activities},clock_timestamp()+${leaseMs}*interval '1 millisecond',${
-					tx.json([...lineage])
-				},${tx.json(affinity)})
- on conflict(namespace,id) do update set generation=utils_workflow.hosts.generation+1,definitions=excluded.definitions,engine=excluded.engine,activations=excluded.activations,activities=excluded.activities,expires=excluded.expires,compute=excluded.compute,affinity=excluded.affinity,draining=false returning generation`;
-			return Object.freeze({ id, generation: rows[0]!.generation });
+			const registered = await one(
+				tx,
+				hosts.register({
+					namespace: this.namespace,
+					id,
+					definitions: [...definitions],
+					engine,
+					activations: capacity.activations,
+					activities: capacity.activities,
+					lease: leaseMs,
+					compute: [...lineage],
+					affinity,
+				}),
+			);
+			return Object.freeze({ id, generation: registered!.generation });
 		});
 	}
 	/**
@@ -802,27 +819,22 @@ class Store implements StoreType {
 	 * Ordinary guarded operations keep a shared lock so independent attempts can run concurrently.
 	 */
 	async #host(tx: Native, host: HostType, mode: 'share' | 'update' = 'share'): Promise<void> {
-		const paths =
-			await tx`select compute from utils_workflow.hosts where namespace=${this.namespace} and id=${host.id} and generation=${host.generation}`;
-		if (!paths[0]) throw new ExecutionError('stale_claim');
+		const path = await one(tx, hosts.lineage(this.namespace, host));
+		if (!path) throw new ExecutionError('stale_claim');
 		// Lock ancestors root first, before the host row, matching registration lock order.
-		for (const node of paths[0].compute as placement.BoundaryType[]) {
-			const current =
-				await tx`select generation from utils_workflow.compute where namespace=${this.namespace} and id=${node.id} for share`;
-			if (Number(current[0]?.generation) !== node.generation) throw new ExecutionError('stale_claim');
+		for (const node of path.compute as placement.BoundaryType[]) {
+			const current = await one(tx, hosts.nodeShare(this.namespace, node.id));
+			if (current?.generation !== node.generation) throw new ExecutionError('stale_claim');
 		}
-		const rows = mode === 'update'
-			? await tx`select id from utils_workflow.hosts where namespace=${this.namespace} and id=${host.id} and generation=${host.generation} and expires>clock_timestamp() and not draining for update`
-			: await tx`select id from utils_workflow.hosts where namespace=${this.namespace} and id=${host.id} and generation=${host.generation} and expires>clock_timestamp() and not draining for share`;
-		if (rows.length !== 1) throw new ExecutionError('stale_claim');
+		if ((await rows(tx, hosts.guard(this.namespace, host, mode))).length !== 1) throw new ExecutionError('stale_claim');
 	}
 	/** Serialize shared ancestor admission and topology replacement in this namespace. */
 	async #placementLock(tx: Transaction): Promise<void> {
-		await tx`select pg_advisory_xact_lock(hashtextextended(${this.namespace}, 776161009))`;
+		await exec(tx, shared.named(this.namespace, shared.keys.placement));
 	}
 	/** Check this worker's free slots one at a time. Release the slot-check lock before running activity code. */
 	async #capacity(tx: Transaction, host: HostType): Promise<void> {
-		await tx`select pg_advisory_xact_lock(hashtextextended(${JSON.stringify([this.namespace, host.id])}, 776161005))`;
+		await exec(tx, shared.named(JSON.stringify([this.namespace, host.id]), shared.keys.capacity));
 	}
 	/**
 	 * Extend a live host registration, using the database clock.
@@ -832,13 +844,12 @@ class Store implements StoreType {
 	async renewHost(host: HostType, leaseMs: number): Promise<void> {
 		await this.#transaction(async (tx) => {
 			await this.#host(tx, host, 'update');
-			await tx`update utils_workflow.hosts set expires=clock_timestamp()+${leaseMs}*interval '1 millisecond' where namespace=${this.namespace} and id=${host.id} and generation=${host.generation}`;
+			await exec(tx, hosts.renew(this.namespace, host, leaseMs));
 		});
 	}
 	/** Stop admission for this generation only; an older host cannot drain its replacement. */
 	async leave(host: HostType): Promise<void> {
-		await this
-			.#database`update utils_workflow.hosts set draining=true where namespace=${this.namespace} and id=${host.id} and generation=${host.generation}`;
+		await exec(this.#database, hosts.drain(this.namespace, host));
 	}
 	/**
 	 * Create and retain an object-identity permission token; copying its public fields cannot authorize
@@ -865,26 +876,25 @@ class Store implements StoreType {
 		return await this.#transaction(async (tx) => {
 			await this.#host(tx, host);
 			await this.#capacity(tx, host);
-			const capacity =
-				await tx`select h.activations, (select count(*) from utils_workflow.runs r where r.namespace=h.namespace and r.host=h.id and r.host_generation=h.generation and r.state='advancing' and r.expires>clock_timestamp())::integer as active from utils_workflow.hosts h where namespace=${this.namespace} and id=${host.id}`;
-			if (capacity[0]!.active >= capacity[0]!.activations) return;
-			const rows =
-				await tx`select * from utils_workflow.runs r where namespace=${this.namespace} and state='ready' and kind='workflow' and not paused
- and exists(select 1 from jsonb_array_elements(${tx.json([...definitions])}) d where d->>'id'=r.definition)
- and (exists(select 1 from jsonb_array_elements(${
-					tx.json([...definitions])
-				}) d where d->>'id'=r.definition and d->>'version'=r.version)
- or not exists(select 1 from utils_workflow.hosts h where h.namespace=r.namespace and not h.draining and h.expires>clock_timestamp()
- and h.definitions @> jsonb_build_array(jsonb_build_object('kind','workflow','id',r.definition,'version',r.version))))
- order by created for update skip locked limit 1`;
-			if (!rows[0]) return;
-			const run = RunSchema.parse(rows[0]);
+			const capacity = (await one(tx, runs.activations(this.namespace, host.id)))!;
+			if (capacity.active >= capacity.limit) return;
+			const found = await one(tx, runs.ready(this.namespace, [...definitions]));
+			if (!found) return;
+			const run = RunSchema.parse(found);
 			if (!definitions.some((entry) => address(entry) === address(this.#ref(run).definition))) {
-				await tx`update utils_workflow.runs set state='blocked',reason='missing_version' where namespace=${this.namespace} and id=${run.id}`;
+				await exec(tx, runs.block(this.namespace, run.id, 'missing_version'));
 				return;
 			}
 			const generation = run.generation + 1;
-			await tx`update utils_workflow.runs set state='advancing',generation=${generation},host=${host.id},host_generation=${host.generation},expires=clock_timestamp()+${run.policy.claims.leaseMs}*interval '1 millisecond' where namespace=${this.namespace} and id=${run.id}`;
+			await exec(
+				tx,
+				runs.advance(this.namespace, run.id, {
+					generation,
+					host: host.id,
+					hostGeneration: host.generation,
+					lease: run.policy.claims.leaseMs,
+				}),
+			);
 			return {
 				claim: this.#claim(run, run.id, generation, 0, host),
 				ref: this.#ref(run),
@@ -904,57 +914,53 @@ class Store implements StoreType {
 			await this.#placementLock(tx);
 			await this.#host(tx, host);
 			await this.#capacity(tx, host);
-			const capacity =
-				await tx`select h.activities, (select count(*) from utils_workflow.jobs j where j.namespace=h.namespace and j.host=h.id and j.host_generation=h.generation and j.state='claimed' and j.expires>clock_timestamp())::integer as active from utils_workflow.hosts h where namespace=${this.namespace} and id=${host.id}`;
-			if (capacity[0]!.active >= capacity[0]!.activities) return;
-			const registered =
-				await tx`select compute,affinity from utils_workflow.hosts where namespace=${this.namespace} and id=${host.id}`;
-			const lineage = registered[0]!.compute as placement.BoundaryType[];
+			const capacity = (await one(tx, jobs.slots(this.namespace, host.id)))!;
+			if (capacity.active >= capacity.limit) return;
+			const registered = (await one(tx, hosts.placement(this.namespace, host.id)))!;
+			const lineage = registered.compute as placement.BoundaryType[];
 			for (const node of lineage) {
 				if (node.capacity === undefined) continue;
-				const occupied =
-					await tx`select count(*)::integer as active from utils_workflow.jobs j join utils_workflow.hosts h on h.namespace=j.namespace and h.id=j.host and h.generation=j.host_generation where j.namespace=${this.namespace} and j.state='claimed' and j.expires>clock_timestamp() and h.compute @> ${
-						tx.json([{ id: node.id, generation: node.generation }])
-					}::jsonb`;
-				if (occupied[0]!.active >= node.capacity) return;
+				const occupied = (await one(tx, jobs.occupied(this.namespace, { id: node.id, generation: node.generation })))!;
+				if (occupied.active >= node.capacity) return;
 			}
 			// Exclude locked owners before the bounded scan, then take each job under its owner lock.
-			const candidates =
-				await tx`select j.id,j.run from utils_workflow.jobs j join utils_workflow.runs r on r.namespace=j.namespace and r.id=j.run
- where j.namespace=${this.namespace} and j.state='ready' and j.available<=clock_timestamp()
- and r.state in ('waiting','ready','advancing','settling')
- and (not r.paused or j.finalizer)
- and (${finalizer ?? null}::boolean is null or j.finalizer=${finalizer ?? null})
- and exists(select 1 from jsonb_array_elements(${tx.json([...definitions])}) d where d=j.definition)
- and (j.location is null or (coalesce(j.location->'within','[]'::jsonb) <@ ${tx.json([...lineage])}::jsonb
- and (j.location->'on' is null or ${tx.json(lineage.at(-1) ?? {})}::jsonb @> (j.location->'on'))))
- and (j.affinity is null or j.affinity <@ ${tx.json(registered[0]!.affinity)}::jsonb)
- order by j.finalizer desc,j.available,j.id for update of r skip locked limit 32`;
+			const candidates = await rows(
+				tx,
+				jobs.candidates(this.namespace, {
+					definitions: [...definitions],
+					lineage,
+					affinity: registered.affinity,
+					...(finalizer === undefined ? {} : { finalizer }),
+				}),
+			);
 			for (const candidate of candidates) {
-				const locked =
-					await tx`select * from utils_workflow.runs where namespace=${this.namespace} and id=${candidate.run} for update skip locked`;
-				if (!locked[0]) continue;
-				const run = RunSchema.parse(locked[0]);
-				const jobs =
-					await tx`select * from utils_workflow.jobs where namespace=${this.namespace} and id=${candidate.id} and state='ready' and available<=clock_timestamp() for update`;
+				const locked = await one(tx, runs.run(this.namespace, candidate.run).for({ skipLocked: true }));
+				if (!locked) continue;
+				const run = RunSchema.parse(locked);
+				const job = await one(tx, jobs.due(this.namespace, candidate.id));
 				if (
-					!jobs[0] || !['waiting', 'ready', 'advancing', 'settling'].includes(run.state) ||
-					(run.control.paused && !jobs[0].finalizer)
+					!job || !['waiting', 'ready', 'advancing', 'settling'].includes(run.state) ||
+					(run.control.paused && !job.finalizer)
 				) continue;
-				const job = jobs[0];
-				const originPath = (job.path as string).startsWith('cleanup:')
-					? (job.path as string).slice(8)
-					: job.path as string;
-				const origins =
-					await tx`select fingerprint from utils_workflow.instructions where namespace=${this.namespace} and run=${run.id} and path=${originPath}`;
-				const admissions = origins.length
-					? origins
-					: await tx`select fingerprint from utils_workflow.runs where namespace=${this.namespace} and id=${run.id}`;
+				const originPath = job.path.startsWith('cleanup:') ? job.path.slice(8) : job.path;
+				// A job's admission fingerprint is its instruction's, or the run's own for a root activity.
+				const origin = await one(tx, history.instruction(this.namespace, run.id, originPath));
+				const admission = origin?.fingerprint ?? (await one(tx, runs.run(this.namespace, run.id)))!.fingerprint;
 				const rules = job.rules as AttemptType;
 				const generation = job.generation + 1;
 				const sequence = job.sequence + 1;
-				await tx`update utils_workflow.jobs set state='claimed',generation=${generation},sequence=${sequence},host=${host.id},host_generation=${host.generation},expires=least(clock_timestamp()+${run.policy.claims.leaseMs}*interval '1 millisecond',clock_timestamp()+${rules.deadlineMs}*interval '1 millisecond'),deadline=clock_timestamp()+${rules.deadlineMs}*interval '1 millisecond' where namespace=${this.namespace} and id=${job.id}`;
-				await tx`insert into utils_workflow.attempts(namespace,job,generation,sequence,state) values (${this.namespace},${job.id},${generation},${sequence},'started')`;
+				await exec(
+					tx,
+					jobs.claim(this.namespace, job.id, {
+						generation,
+						sequence,
+						host: host.id,
+						hostGeneration: host.generation,
+						lease: run.policy.claims.leaseMs,
+						deadline: rules.deadlineMs,
+					}),
+				);
+				await exec(tx, jobs.start(this.namespace, job.id, generation, sequence));
 				return {
 					claim: this.#claim(run, job.id, generation, sequence, host),
 					ref: this.#ref(run),
@@ -965,8 +971,8 @@ class Store implements StoreType {
 					policy: run.policy,
 					definition: identity(job.definition as IdentityType),
 					attempt: rules,
-					path: job.path as string,
-					fingerprint: admissions[0]!.fingerprint as string,
+					path: job.path,
+					fingerprint: admission,
 				};
 			}
 		});
@@ -987,15 +993,29 @@ class Store implements StoreType {
 		}
 		// A workflow activation owns the run itself. An activity attempt owns a separate job row.
 		if (activation) {
-			const valid =
-				await tx`select id from utils_workflow.runs where namespace=${this.namespace} and id=${run.id} and state='advancing' and generation=${claim.generation} and host=${claim.hostId} and host_generation=${claim.hostGeneration} and expires>clock_timestamp()`;
-			if (!valid.length) throw new ExecutionError('stale_claim');
-			return { run, job: {} };
+			const valid = await one(
+				tx,
+				runs.activation(this.namespace, run.id, {
+					generation: claim.generation,
+					host: claim.hostId,
+					hostGeneration: claim.hostGeneration,
+				}),
+			);
+			if (!valid) throw new ExecutionError('stale_claim');
+			return { run, job: undefined };
 		}
-		const jobs =
-			await tx`select * from utils_workflow.jobs where namespace=${this.namespace} and id=${claim.jobId} and run=${run.id} and state='claimed' and generation=${claim.generation} and host=${claim.hostId} and host_generation=${claim.hostGeneration} and expires>clock_timestamp() and deadline>clock_timestamp() for update`;
-		if (!jobs[0] || (run.state === 'settling' && !jobs[0].finalizer)) throw new ExecutionError('stale_claim');
-		return { run, job: jobs[0] };
+		const job = await one(
+			tx,
+			jobs.guard(this.namespace, {
+				job: claim.jobId,
+				run: run.id,
+				generation: claim.generation,
+				host: claim.hostId,
+				hostGeneration: claim.hostGeneration,
+			}),
+		);
+		if (!job || (run.state === 'settling' && !job.finalizer)) throw new ExecutionError('stale_claim');
+		return { run, job };
 	}
 	/**
 	 * Extend a live activation or activity claim after checking its host and run.
@@ -1006,9 +1026,9 @@ class Store implements StoreType {
 		await this.#transaction(async (tx) => {
 			const { run } = await this.#guard(tx, claim, claim.jobId === claim.runId);
 			if (claim.jobId === claim.runId) {
-				await tx`update utils_workflow.runs set expires=clock_timestamp()+${run.policy.claims.leaseMs}*interval '1 millisecond' where namespace=${this.namespace} and id=${run.id}`;
+				await exec(tx, runs.extend(this.namespace, run.id, run.policy.claims.leaseMs));
 			} else {
-				await tx`update utils_workflow.jobs set expires=least(deadline,clock_timestamp()+${run.policy.claims.leaseMs}*interval '1 millisecond') where namespace=${this.namespace} and id=${claim.jobId}`;
+				await exec(tx, jobs.extend(this.namespace, claim.jobId, run.policy.claims.leaseMs));
 			}
 		});
 	}
@@ -1025,11 +1045,23 @@ class Store implements StoreType {
 		affinity?: EngineAffinityType,
 	): Promise<string> {
 		const id = crypto.randomUUID();
-		await tx`insert into utils_workflow.jobs(namespace,id,run,path,definition,input,rules,state,budget,finalizer,location,affinity) values (${this.namespace},${id},${run.id},${path},${
-			tx.json(definition)
-		},${tx.json(input)},${tx.json(rules)},'ready',${rules.maxAttempts},${finalizer},${
-			tx.json(placement.intersect(run.location, selection))
-		},${affinity === undefined ? null : tx.json(affinity)})`;
+		await exec(
+			tx,
+			jobs.add({
+				namespace: this.namespace,
+				id,
+				run: run.id,
+				path,
+				definition,
+				input,
+				rules,
+				state: 'ready',
+				budget: rules.maxAttempts,
+				finalizer,
+				location: placement.intersect(run.location, selection) ?? null,
+				affinity: affinity ?? null,
+			}),
+		);
 		return id;
 	}
 	/**
@@ -1044,32 +1076,23 @@ class Store implements StoreType {
 	): Promise<OutcomeType | undefined> {
 		return await this.#transaction(async (tx) => {
 			const { run } = await this.#guard(tx, activation.claim, true);
-			const found =
-				await tx`select * from utils_workflow.instructions where namespace=${this.namespace} and run=${run.id} and path=${intent.path}`;
-			if (found[0]) {
-				if (found[0].fingerprint !== intent.fingerprint) throw new ExecutionError('replay_conflict');
-				if (found[0].outcome !== null) return OutcomeSchema.parse(found[0].outcome);
-				if (options.park) {
-					await tx`update utils_workflow.runs set state='waiting',expires=null where namespace=${this.namespace} and id=${run.id}`;
-				}
+			const found = await one(tx, history.instruction(this.namespace, run.id, intent.path));
+			if (found) {
+				if (found.fingerprint !== intent.fingerprint) throw new ExecutionError('replay_conflict');
+				if (found.outcome !== null) return OutcomeSchema.parse(found.outcome);
+				if (options.park) await exec(tx, runs.rest(this.namespace, run.id, 'waiting'));
 				return;
 			}
 			const rule = run.policy.workflows.find((entry) =>
 				address(entry.definition) === address(this.#ref(run).definition)
 			);
-			const count =
-				await tx`select count(*)::integer as count from utils_workflow.instructions where namespace=${this.namespace} and run=${run.id}`;
-			if (rule && count[0]!.count >= rule.maxInstructions) throw new ExecutionError('instruction_limit');
+			const count = (await one(tx, history.count(this.namespace, run.id)))!.count;
+			if (rule && count >= rule.maxInstructions) throw new ExecutionError('instruction_limit');
 			let bytes = new TextEncoder().encode(JSON.stringify(intent)).byteLength;
-			const history = await tx`select (
- (select coalesce(sum(bytes),0) from utils_workflow.instructions where namespace=${this.namespace} and run=${run.id}) +
- (select coalesce(sum(bytes),0) from utils_workflow.events where namespace=${this.namespace} and run=${run.id}) +
- (select coalesce(sum(bytes),0) from utils_workflow.progress where namespace=${this.namespace} and run=${run.id})
- )::integer as bytes`;
-			if (history[0]!.bytes + bytes > run.policy.limits.historyBytes) throw new ExecutionError('history_limit');
-			const due = intent.type === 'sleep'
-				? (await tx`select clock_timestamp()+${intent.delay!}*interval '1 millisecond' as due`)[0]!.due as Date
-				: intent.due;
+			const used = (await one(tx, shared.history(this.namespace, run.id)))!.bytes;
+			if (used + bytes > run.policy.limits.historyBytes) throw new ExecutionError('history_limit');
+			// A sleep's due time comes from the database clock; other timers carry a saved ISO time.
+			const due = intent.type === 'sleep' ? iso((await one(tx, shared.later(intent.delay!)))!.at) : intent.due;
 			let job: string | null = null;
 			let child: string | null = null;
 			let outcome: OutcomeType | null = null;
@@ -1078,9 +1101,16 @@ class Store implements StoreType {
 					throw new ExecutionError('cleanup_binding');
 				}
 				if (!rule?.requires.includes('workflow.cleanup')) throw new ExecutionError('cleanup_policy');
-				await tx`insert into utils_workflow.cleanups(namespace,run,path,scope,request) values (${this.namespace},${run.id},${intent.path},${
-					intent.parent ?? null
-				},${tx.json(encode(intent.cleanup, run.policy.limits.historyBytes))})`;
+				await exec(
+					tx,
+					cleanups.defer({
+						namespace: this.namespace,
+						run: run.id,
+						path: intent.path,
+						scope: intent.parent ?? null,
+						request: encode(intent.cleanup, run.policy.limits.historyBytes),
+					}),
+				);
 				outcome = { type: 'success', value: encode(undefined, run.policy.limits.resultBytes) };
 			} else if (intent.type === 'activity') {
 				const rules = run.policy.activities.find((entry) => address(entry.definition) === address(intent.definition!));
@@ -1114,46 +1144,58 @@ class Store implements StoreType {
 				child = ref.id;
 				if (intent.discard) outcome = { type: 'success', value: encode(undefined, run.policy.limits.resultBytes) };
 			} else if (intent.type === 'wait-event') {
-				const other =
-					await tx`select path from utils_workflow.instructions where namespace=${this.namespace} and run=${run.id} and event=${intent
-						.event!} and event_key=${intent.eventKey!}`;
-				if (other.length) throw new ExecutionError('event_wait_conflict');
-				const events =
-					await tx`select value from utils_workflow.events where namespace=${this.namespace} and run=${run.id} and event=${intent
-						.event!} and key=${intent.eventKey!} and (${intent.due ?? null}::timestamptz is null or created<=${
-						intent.due ?? null
-					}::timestamptz)`;
-				if (events[0]) {
+				const other = await one(tx, history.waiting(this.namespace, run.id, intent.event!, intent.eventKey!));
+				if (other) throw new ExecutionError('event_wait_conflict');
+				const delivered = await one(
+					tx,
+					history.received(
+						this.namespace,
+						run.id,
+						intent.event!,
+						intent.eventKey!,
+						intent.due === undefined ? undefined : temporal.Instant.from(intent.due),
+					),
+				);
+				if (delivered) {
 					outcome = {
 						type: 'success',
 						value: encode(
-							{ type: 'received', value: decode(events[0].value as ReturnType<typeof encode>) },
+							{ type: 'received', value: decode(delivered.value as ReturnType<typeof encode>) },
 							run.policy.limits.resultBytes,
 						),
 					};
 				} else if (
-					intent.due !== undefined && (await tx`select ${intent.due}::timestamptz<=clock_timestamp() as due`)[0]!.due
+					intent.due !== undefined && (await one(tx, shared.due(temporal.Instant.from(intent.due))))!.due
 				) outcome = { type: 'success', value: encode({ type: 'timeout' }, run.policy.limits.resultBytes) };
 			} else if (intent.type !== 'control') {
-				const ready = await tx`select ${due!}::timestamptz<=clock_timestamp() as due`;
-				if (ready[0]!.due) {
-					outcome = {
-						type: 'success',
-						value: encode(due instanceof Date ? due.toISOString() : due, run.policy.limits.resultBytes),
-					};
+				if ((await one(tx, shared.due(temporal.Instant.from(due!))))!.due) {
+					outcome = { type: 'success', value: encode(due, run.policy.limits.resultBytes) };
 				}
 			}
 			if (outcome !== null) bytes += new TextEncoder().encode(JSON.stringify(outcome)).byteLength;
-			if (history[0]!.bytes + bytes > run.policy.limits.historyBytes) throw new ExecutionError('history_limit');
-			await tx`insert into utils_workflow.instructions(namespace,run,path,fingerprint,type,job,child,due,discard,outcome,bytes,event,event_key,parent,branches) values (${this.namespace},${run.id},${intent.path},${intent.fingerprint},${intent.type},${job},${child},${
-				due ?? null
-			},${intent.discard ?? false},${outcome === null ? null : tx.json(outcome)},${bytes},${intent.event ?? null},${
-				intent.eventKey ?? null
-			},${intent.parent ?? null},${intent.branches === undefined ? null : tx.json([...intent.branches])})`;
+			if (used + bytes > run.policy.limits.historyBytes) throw new ExecutionError('history_limit');
+			await exec(
+				tx,
+				history.add({
+					namespace: this.namespace,
+					run: run.id,
+					path: intent.path,
+					fingerprint: intent.fingerprint,
+					type: intent.type,
+					job,
+					child,
+					due: due === undefined ? null : temporal.Instant.from(due),
+					discard: intent.discard ?? false,
+					outcome,
+					bytes,
+					event: intent.event ?? null,
+					event_key: intent.eventKey ?? null,
+					parent: intent.parent ?? null,
+					branches: intent.branches === undefined ? null : [...intent.branches],
+				}),
+			);
 			if (outcome !== null) return outcome;
-			if (options.park) {
-				await tx`update utils_workflow.runs set state='waiting',expires=null where namespace=${this.namespace} and id=${run.id}`;
-			}
+			if (options.park) await exec(tx, runs.rest(this.namespace, run.id, 'waiting'));
 		});
 	}
 	/** No completion can fall between the final check and the saved waiting state. */
@@ -1163,31 +1205,22 @@ class Store implements StoreType {
 			if (pending.length === 0) throw new ExecutionError('empty_wait');
 			const scopes = pending.filter((path) => path.startsWith('@cleanup:')).map((path) => path.slice(9));
 			const ordinary = pending.filter((path) => !path.startsWith('@cleanup:'));
-			const completed =
-				await tx`select path,outcome from utils_workflow.instructions where namespace=${this.namespace} and run=${run.id} and path in ${
-					tx(ordinary.length ? ordinary : ['@none'])
-				}`;
+			const completed = ordinary.length ? await rows(tx, history.outcomes(this.namespace, run.id, ordinary)) : [];
 			if (completed.length !== new Set(ordinary).size) throw new ExecutionError('replay_conflict');
 			let cleanupReady = false;
 			for (const scope of scopes) {
-				const pendingCleanup =
-					await tx`select path from utils_workflow.cleanups where namespace=${this.namespace} and run=${run.id} and (scope=${scope} or starts_with(scope,${
-						scope + '/'
-					})) and state!='completed' limit 1`;
-				if (!pendingCleanup.length) cleanupReady = true;
+				if (!await one(tx, cleanups.unfinished(this.namespace, run.id, scope))) cleanupReady = true;
 			}
-			await tx`update utils_workflow.runs set state=${
-				cleanupReady || completed.some((step) => step.outcome !== null) ? 'ready' : 'waiting'
-			},expires=null where namespace=${this.namespace} and id=${run.id}`;
+			const woken = cleanupReady || completed.some((step) => step.outcome !== null);
+			await exec(tx, runs.rest(this.namespace, run.id, woken ? 'ready' : 'waiting'));
 		});
 	}
 	/** A removed nested step must block replay just like a removed root step. */
 	async verify(activation: ActivationType, parent: string, instructions: number): Promise<void> {
 		await this.#transaction(async (tx) => {
 			const { run } = await this.#guard(tx, activation.claim, true);
-			const rows =
-				await tx`select count(*)::integer as count from utils_workflow.instructions where namespace=${this.namespace} and run=${run.id} and parent=${parent}`;
-			if (rows[0]!.count !== instructions) throw new ExecutionError('replay_conflict');
+			const nested = (await one(tx, history.count(this.namespace, run.id, parent)))!.count;
+			if (nested !== instructions) throw new ExecutionError('replay_conflict');
 		});
 	}
 
@@ -1195,9 +1228,7 @@ class Store implements StoreType {
 	async choose(activation: ActivationType, path: string, key: string): Promise<string> {
 		return await this.#transaction(async (tx) => {
 			const { run } = await this.#guard(tx, activation.claim, true);
-			const rows =
-				await tx`select * from utils_workflow.instructions where namespace=${this.namespace} and run=${run.id} and path=${path} and type='control'`;
-			const entry = rows[0];
+			const entry = await one(tx, history.race(this.namespace, run.id, path));
 			if (!entry || !Array.isArray(entry.branches) || !entry.branches.includes(key)) {
 				throw new ExecutionError('race_binding');
 			}
@@ -1210,12 +1241,9 @@ class Store implements StoreType {
 			for (const loser of entry.branches as string[]) {
 				if (loser === key) continue;
 				const prefix = `${path}/${encodeURIComponent(loser)}/`;
-				await tx`update utils_workflow.attempts a set state='cancelled',ended=clock_timestamp() from utils_workflow.jobs j where j.namespace=${this.namespace} and j.run=${run.id} and starts_with(j.path,${prefix}) and j.state='claimed' and a.namespace=j.namespace and a.job=j.id and a.generation=j.generation`;
-				await tx`update utils_workflow.jobs set state='failed',outcome=${
-					tx.json(outcome)
-				},expires=null,generation=generation+1 where namespace=${this.namespace} and run=${run.id} and starts_with(path,${prefix}) and state in ('ready','claimed')`;
-				const abandoned =
-					await tx`select path from utils_workflow.instructions where namespace=${this.namespace} and run=${run.id} and starts_with(path,${prefix}) and outcome is null`;
+				await exec(tx, jobs.revokeAttempts(this.namespace, run.id, { prefix }));
+				await exec(tx, jobs.revoke(this.namespace, run.id, { prefix }, outcome));
+				const abandoned = await rows(tx, history.abandoned(this.namespace, run.id, prefix));
 				for (const step of abandoned) {
 					if (!await this.#record(tx, run, step.path, outcome)) throw new ExecutionError('history_limit');
 				}
@@ -1231,7 +1259,7 @@ class Store implements StoreType {
 	async continue(activation: ActivationType, request: ContinuationType, instructions: number): Promise<void> {
 		await this.#transaction(async (tx) => {
 			const { run } = await this.#guard(tx, activation.claim, true);
-			await continuation.request(tx, { namespace: this.namespace, run, request, instructions });
+			await continuation.request(on(tx), { namespace: this.namespace, run, request, instructions });
 			await this.#settle(tx, await this.#run(tx, run.id));
 		});
 	}
@@ -1239,9 +1267,8 @@ class Store implements StoreType {
 	async finish(activation: ActivationType, outcome: OutcomeType, instructions: number): Promise<void> {
 		await this.#transaction(async (tx) => {
 			const { run } = await this.#guard(tx, activation.claim, true);
-			const counts =
-				await tx`select count(*)::integer as count from utils_workflow.instructions where namespace=${this.namespace} and run=${run.id} and parent is null`;
-			if (counts[0]!.count !== instructions) throw new ExecutionError('replay_conflict');
+			const roots = (await one(tx, history.count(this.namespace, run.id, null)))!.count;
+			if (roots !== instructions) throw new ExecutionError('replay_conflict');
 			await this.#exit(tx, run, OutcomeSchema.parse(outcome));
 		});
 	}
@@ -1250,15 +1277,11 @@ class Store implements StoreType {
 	 * finalization.
 	 */
 	async #exit(tx: Transaction, run: RunType, outcome: OutcomeType): Promise<void> {
-		await tx`update utils_workflow.runs set state=${'settling'},outcome=${
-			tx.json(outcome)
-		},expires=null,reason=null where namespace=${this.namespace} and id=${run.id}`;
+		await exec(tx, runs.settle(this.namespace, run.id, outcome));
 		// A terminal parent no longer permits ordinary siblings to write. Retain their attempts as cancellation evidence.
 		const cancelled: OutcomeType = { type: 'cancelled', reason: 'The parent workflow finished.' };
-		await tx`update utils_workflow.attempts a set state='cancelled',ended=clock_timestamp() from utils_workflow.jobs j where j.namespace=${this.namespace} and j.run=${run.id} and not j.finalizer and j.state='claimed' and a.namespace=j.namespace and a.job=j.id and a.generation=j.generation`;
-		await tx`update utils_workflow.jobs set state='failed',outcome=${
-			tx.json(cancelled)
-		},expires=null,generation=generation+1 where namespace=${this.namespace} and run=${run.id} and not finalizer and state in ('ready','claimed')`;
+		await exec(tx, jobs.revokeAttempts(this.namespace, run.id, { ordinary: true }));
+		await exec(tx, jobs.revoke(this.namespace, run.id, { ordinary: true }, cancelled));
 
 		await this.#settle(tx, { ...run, outcome });
 	}
@@ -1266,7 +1289,7 @@ class Store implements StoreType {
 	async #settle(tx: Transaction, run: RunType): Promise<void> {
 		if (!await this.#cleanupNext(tx, run)) return;
 		if (run.continuation !== null) {
-			await continuation.rollover(tx, { namespace: this.namespace, run });
+			await continuation.rollover(on(tx), { namespace: this.namespace, run });
 			return;
 		}
 		const outcome = run.outcome!;
@@ -1274,9 +1297,7 @@ class Store implements StoreType {
 			entry.roots.some((root) => address(root) === address(this.#ref(run).definition))
 		);
 		if (finalizer) {
-			const prior =
-				await tx`select id from utils_workflow.jobs where namespace=${this.namespace} and run=${run.id} and path='finalizer'`;
-			if (prior.length) return;
+			if (await one(tx, jobs.at(this.namespace, run.id, 'finalizer'))) return;
 			await this.#job(
 				tx,
 				run,
@@ -1294,9 +1315,7 @@ class Store implements StoreType {
 				{ ...finalizer, recovery: 'retry', requires: ['postgres.transactions', 'postgres.receipts'] },
 				true,
 			);
-		} else {await tx`update utils_workflow.runs set state=${
-				outcome.type === 'success' ? 'completed' : outcome.type === 'cancelled' ? 'cancelled' : 'failed'
-			},reason=null where namespace=${this.namespace} and id=${run.id}`;}
+		} else await exec(tx, runs.close(this.namespace, run.id, terminalState(outcome)));
 		// Recovery finds waiting parents through saved indexed rows. Do not lock a parent while holding its child lock.
 	}
 	/** Close a branch without closing the run. Registrations are durable before this method can start them. */
@@ -1308,15 +1327,11 @@ class Store implements StoreType {
 	}
 	/** Start one cleanup at a time in reverse registration order within the selected scope. */
 	async #cleanupNext(tx: Transaction, run: RunType, scope?: string): Promise<boolean> {
-		const rows = await tx`select * from utils_workflow.cleanups where namespace=${this.namespace} and run=${run.id}
- and state!='completed' and (${scope ?? null}::text is null or scope=${scope ?? null} or starts_with(scope,${
-			(scope ?? '') + '/'
-		}))
- order by ordinal desc for update`;
-		if (!rows.length) return true;
+		const rows_ = await rows(tx, cleanups.queue(this.namespace, run.id, scope));
+		if (!rows_.length) return true;
 		// An already-running cleanup keeps its position even if another branch registered later.
-		if (rows.some((row) => row.state === 'running')) return false;
-		const next = rows[0]!;
+		if (rows_.some((row) => row.state === 'running')) return false;
+		const next = rows_[0]!;
 		if (next.state === 'failed') return false;
 		const request = decode(next.request as ReturnType<typeof encode>) as IntentType;
 		let job: string | null = null;
@@ -1327,7 +1342,7 @@ class Store implements StoreType {
 			job = await this.#job(
 				tx,
 				run,
-				`cleanup:${next.path as string}`,
+				`cleanup:${next.path}`,
 				request.definition!,
 				request.input!,
 				rules,
@@ -1344,7 +1359,7 @@ class Store implements StoreType {
 					input: request.input!,
 					policy: run.policy,
 					scope: run.scope,
-					key: `cleanup:${run.id}:${next.path as string}`,
+					key: `cleanup:${run.id}:${next.path}`,
 				},
 				run,
 				'child',
@@ -1352,8 +1367,7 @@ class Store implements StoreType {
 			);
 			child = reference.id;
 		}
-		await tx`update utils_workflow.cleanups set state='running',job=${job},child=${child} where namespace=${this.namespace} and run=${run.id} and path=${next
-			.path as string}`;
+		await exec(tx, cleanups.start(this.namespace, run.id, next.path, { job, child }));
 		return false;
 	}
 	/** Cleanup failure blocks inspection without replacing the intended business outcome. */
@@ -1364,24 +1378,25 @@ class Store implements StoreType {
 		scope: string | null,
 		outcome: OutcomeType,
 	): Promise<void> {
-		await tx`update utils_workflow.cleanups set state=${outcome.type === 'success' ? 'completed' : 'failed'},outcome=${
-			tx.json(outcome)
-		} where namespace=${this.namespace} and run=${run.id} and path=${path}`;
+		await exec(
+			tx,
+			cleanups.end(this.namespace, run.id, path, outcome.type === 'success' ? 'completed' : 'failed', outcome),
+		);
 		if (outcome.type !== 'success') {
-			await tx`update utils_workflow.runs set state='blocked',reason='cleanup_exhausted' where namespace=${this.namespace} and id=${run.id}`;
+			await exec(tx, runs.block(this.namespace, run.id, 'cleanup_exhausted'));
 			return;
 		}
 		if (run.outcome !== null || run.continuation !== null) await this.#settle(tx, run);
 		else {
 			await this.#cleanupNext(tx, run, scope ?? undefined);
-			await tx`update utils_workflow.runs set state=case when state='advancing' then state else 'ready' end where namespace=${this.namespace} and id=${run.id}`;
+			await exec(tx, runs.wake(this.namespace, run.id, false));
 		}
 	}
 	/** Persist a blocking reason only while this activation still holds the live claim. */
 	async block(activation: ActivationType, reason: string): Promise<void> {
 		await this.#transaction(async (tx) => {
 			await this.#guard(tx, activation.claim, true);
-			await tx`update utils_workflow.runs set state='blocked',reason=${reason},expires=null where namespace=${this.namespace} and id=${activation.ref.id}`;
+			await exec(tx, runs.block(this.namespace, activation.ref.id, reason, true));
 		});
 	}
 	/** Validate live permission and persist the attempt result plus its next action in the same transaction. */
@@ -1392,7 +1407,7 @@ class Store implements StoreType {
 	): Promise<void> {
 		await this.#transaction(async (tx) => {
 			const { run, job: current } = await this.#guard(tx, job.claim);
-			await this.#outcome(tx, run, current, OutcomeSchema.parse(outcome), disposition);
+			await this.#outcome(tx, run, current!, OutcomeSchema.parse(outcome), disposition);
 		});
 	}
 	/**
@@ -1401,18 +1416,12 @@ class Store implements StoreType {
 	 */
 	async #record(tx: Transaction, run: RunType, path: string, outcome: OutcomeType): Promise<boolean> {
 		const bytes = new TextEncoder().encode(JSON.stringify(outcome)).byteLength;
-		const history = await tx`select (
- (select coalesce(sum(bytes),0) from utils_workflow.instructions where namespace=${this.namespace} and run=${run.id}) +
- (select coalesce(sum(bytes),0) from utils_workflow.events where namespace=${this.namespace} and run=${run.id}) +
- (select coalesce(sum(bytes),0) from utils_workflow.progress where namespace=${this.namespace} and run=${run.id})
- )::integer as bytes`;
-		if (history[0]!.bytes + bytes > run.policy.limits.historyBytes) {
-			await tx`update utils_workflow.runs set state='blocked',reason='history_limit',expires=null where namespace=${this.namespace} and id=${run.id}`;
+		const used = (await one(tx, shared.history(this.namespace, run.id)))!.bytes;
+		if (used + bytes > run.policy.limits.historyBytes) {
+			await exec(tx, runs.block(this.namespace, run.id, 'history_limit', true));
 			return false;
 		}
-		await tx`update utils_workflow.instructions set outcome=${
-			tx.json(outcome)
-		},bytes=bytes+${bytes} where namespace=${this.namespace} and run=${run.id} and path=${path} and outcome is null`;
+		await exec(tx, history.record(this.namespace, run.id, path, outcome, bytes));
 		return true;
 	}
 	/**
@@ -1422,63 +1431,45 @@ class Store implements StoreType {
 	async #outcome(
 		tx: Transaction,
 		run: RunType,
-		job: Record<string, unknown>,
+		job: JobRow,
 		outcome: OutcomeType,
 		disposition: 'transient' | 'permanent' | 'unknown',
 	): Promise<void> {
 		const rules = job.rules as AttemptType;
-		await tx`update utils_workflow.attempts set state=${outcome.type},outcome=${
-			tx.json(outcome)
-		},ended=clock_timestamp() where namespace=${this.namespace} and job=${job.id as string} and generation=${job
-			.generation as number}`;
+		await exec(tx, jobs.settle(this.namespace, job.id, job.generation, outcome.type, outcome));
 		if (outcome.type !== 'success' && disposition === 'unknown') {
-			await tx`update utils_workflow.jobs set state='blocked',outcome=${
-				tx.json(outcome)
-			},expires=null where namespace=${this.namespace} and id=${job.id as string}`;
-			await tx`update utils_workflow.runs set state='blocked',reason='reconciliation' where namespace=${this.namespace} and id=${run.id}`;
+			await exec(tx, jobs.block(this.namespace, job.id, outcome));
+			await exec(tx, runs.block(this.namespace, run.id, 'reconciliation'));
 			return;
 		}
 		if (
 			outcome.type !== 'success' && disposition === 'transient' && rules.retry === 'transient' &&
-			(job.sequence as number) < (job.budget as number)
+			job.sequence < job.budget
 		) {
-			const delay = Math.min(
-				rules.delay.maximumMs,
-				rules.delay.initialMs * 2 ** Math.min(30, (job.sequence as number) - 1),
-			);
-			await tx`update utils_workflow.jobs set state='ready',outcome=${
-				tx.json(outcome)
-			},expires=null,available=clock_timestamp()+${delay}*interval '1 millisecond' where namespace=${this.namespace} and id=${job
-				.id as string}`;
+			const delay = Math.min(rules.delay.maximumMs, rules.delay.initialMs * 2 ** Math.min(30, job.sequence - 1));
+			await exec(tx, jobs.retry(this.namespace, job.id, outcome, delay));
 			return;
 		}
-		await tx`update utils_workflow.jobs set state=${outcome.type === 'success' ? 'completed' : 'failed'},outcome=${
-			tx.json(outcome)
-		},expires=null where namespace=${this.namespace} and id=${job.id as string}`;
-		const cleanup =
-			await tx`select * from utils_workflow.cleanups where namespace=${this.namespace} and run=${run.id} and job=${job
-				.id as string}`;
-		if (cleanup[0]) {
-			await this.#cleanupDone(tx, run, cleanup[0].path as string, cleanup[0].scope as string | null, outcome);
+		await exec(tx, jobs.finish(this.namespace, job.id, outcome.type === 'success' ? 'completed' : 'failed', outcome));
+		const cleanup = await one(tx, cleanups.of(this.namespace, run.id, job.id));
+		if (cleanup) {
+			await this.#cleanupDone(tx, run, cleanup.path, cleanup.scope, outcome);
 			return;
 		}
 		if (job.finalizer) {
 			if (outcome.type !== 'success') {
-				await tx`update utils_workflow.runs set state='blocked',reason='finalizer_exhausted' where namespace=${this.namespace} and id=${run.id}`;
+				await exec(tx, runs.block(this.namespace, run.id, 'finalizer_exhausted'));
 				return;
 			}
-			const intended = run.outcome!;
-			await tx`update utils_workflow.runs set state=${
-				intended.type === 'success' ? 'completed' : intended.type === 'cancelled' ? 'cancelled' : 'failed'
-			},reason=null where namespace=${this.namespace} and id=${run.id}`;
+			await exec(tx, runs.close(this.namespace, run.id, terminalState(run.outcome!)));
 			return;
 		}
 		if (run.kind === 'activity') {
 			await this.#exit(tx, run, outcome);
 			return;
 		}
-		if (!await this.#record(tx, run, job.path as string, outcome)) return;
-		await tx`update utils_workflow.runs set state=case when state='advancing' then state else 'ready' end,expires=case when state='advancing' then expires else null end where namespace=${this.namespace} and id=${run.id}`;
+		if (!await this.#record(tx, run, job.path, outcome)) return;
+		await exec(tx, runs.wake(this.namespace, run.id));
 	}
 	/**
 	 * Rebuild progress from saved rows after process loss. A live JS timer or notification is never required.
@@ -1491,42 +1482,33 @@ class Store implements StoreType {
 		}
 		// Filter inactive owners before the limit so retained history cannot starve live recovery.
 		// Recheck each candidate while holding its run and job locks.
-		const expired = await this
-			.#database`select j.id,j.run from utils_workflow.jobs j join utils_workflow.runs r on r.namespace=j.namespace and r.id=j.run where j.namespace=${this.namespace} and j.state='claimed' and r.state in ('ready','waiting','advancing','settling')
- and (j.expires<=clock_timestamp() or j.deadline<=clock_timestamp() or not exists(select 1 from utils_workflow.hosts h where h.namespace=j.namespace and h.id=j.host and h.generation=j.host_generation and not h.draining and h.expires>clock_timestamp())) order by j.expires limit ${limit}`;
+		const expired = await rows(this.#database, jobs.lostClaims(this.namespace, limit));
 		for (const candidate of expired) {
 			await this.#transaction(async (tx) => {
 				const run = await this.#run(tx, candidate.run, true);
-				const rows =
-					await tx`select * from utils_workflow.jobs j where namespace=${this.namespace} and id=${candidate.id} and state='claimed' and (expires<=clock_timestamp() or deadline<=clock_timestamp() or not exists(select 1 from utils_workflow.hosts h where h.namespace=j.namespace and h.id=j.host and h.generation=j.host_generation and not h.draining and h.expires>clock_timestamp())) for update`;
-				if (!rows[0] || !['ready', 'waiting', 'advancing', 'settling'].includes(run.state)) return;
-				const job = rows[0];
+				const job = await one(tx, jobs.lostClaim(this.namespace, candidate.id));
+				if (!job || !['ready', 'waiting', 'advancing', 'settling'].includes(run.state)) return;
 				const rules = job.rules as AttemptType;
 				await this.#outcome(tx, run, job, {
 					type: 'fault',
 					code: 'abandoned',
 					message: 'Attempt lost its execution authority.',
 				}, rules.recovery === 'retry' ? 'transient' : 'unknown');
-				await tx`update utils_workflow.attempts set state='abandoned' where namespace=${this.namespace} and job=${job.id} and generation=${job.generation}`;
+				await exec(tx, jobs.abandon(this.namespace, job.id, job.generation));
 			});
 		}
 		await this.#transaction(async (tx) => {
-			const rows =
-				await tx`select * from utils_workflow.runs where namespace=${this.namespace} and state='advancing' and expires<=clock_timestamp() order by expires for update skip locked limit ${limit}`;
-			for (const run of rows) {
-				await tx`update utils_workflow.runs set state='ready',expires=null where namespace=${this.namespace} and id=${run.id}`;
+			for (const run of await rows(tx, maintenance.expired(this.namespace, limit))) {
+				await exec(tx, runs.rest(this.namespace, run.id, 'ready'));
 			}
 		});
-		const waits = await this
-			.#database`select i.run,i.path from utils_workflow.instructions i join utils_workflow.runs r on r.namespace=i.namespace and r.id=i.run where i.namespace=${this.namespace} and r.state in ('waiting','ready','advancing') and i.outcome is null and ((i.due is not null and i.due<=clock_timestamp()) or (i.child is not null and exists(select 1 from utils_workflow.runs c where c.namespace=i.namespace and c.id=i.child and c.state in ('completed','failed','cancelled')))) order by i.run,i.path limit ${limit}`;
+		const waits = await rows(this.#database, history.wakeable(this.namespace, limit));
 		for (const wait of waits) {
 			await this.#transaction(async (tx) => {
 				const run = await this.#run(tx, wait.run, true);
 				if (!['waiting', 'ready', 'advancing'].includes(run.state)) return;
-				const rows =
-					await tx`select * from utils_workflow.instructions where namespace=${this.namespace} and run=${run.id} and path=${wait.path} and outcome is null for update`;
-				if (!rows[0]) return;
-				const entry = rows[0];
+				const entry = await one(tx, history.pending(this.namespace, run.id, wait.path));
+				if (!entry) return;
 				let outcome: OutcomeType;
 				if (entry.child) {
 					const child = await this.#run(tx, entry.child);
@@ -1535,45 +1517,35 @@ class Store implements StoreType {
 				} else {outcome = {
 						type: 'success',
 						value: encode(
-							entry.type === 'wait-event' ? { type: 'timeout' } : (entry.due as Date).toISOString(),
+							entry.type === 'wait-event' ? { type: 'timeout' } : iso(entry.due!),
 							run.policy.limits.resultBytes,
 						),
 					};}
 				if (!await this.#record(tx, run, entry.path, outcome)) return;
-				await tx`update utils_workflow.runs set state=case when state='advancing' then state else 'ready' end,expires=case when state='advancing' then expires else null end where namespace=${this.namespace} and id=${run.id}`;
+				await exec(tx, runs.wake(this.namespace, run.id));
 			});
 		}
 		// Child cleanup has its own run. Observe it without holding child and parent locks together.
-		const cleanups = await this
-			.#database`select c.run,c.path,c.scope,c.child from utils_workflow.cleanups c
- join utils_workflow.runs r on r.namespace=c.namespace and r.id=c.child
- join utils_workflow.runs p on p.namespace=c.namespace and p.id=c.run
- where c.namespace=${this.namespace} and c.state='running' and p.state in ('ready','waiting','advancing','settling')
- and (r.state in ('completed','failed','cancelled') or (r.state='blocked' and p.reason is distinct from 'cleanup_child_blocked'))
- order by c.ordinal,c.run,c.path limit ${limit}`;
-		for (const cleanup of cleanups) {
+		const finished = await rows(this.#database, cleanups.finished(this.namespace, limit));
+		for (const cleanup of finished) {
 			await this.#transaction(async (tx) => {
-				const run = await this.#run(tx, cleanup.run as string, true);
+				const run = await this.#run(tx, cleanup.run, true);
 				if (!['ready', 'waiting', 'advancing', 'settling'].includes(run.state)) return;
-				const rows =
-					await tx`select state from utils_workflow.cleanups where namespace=${this.namespace} and run=${run.id} and path=${cleanup
-						.path as string} for update`;
-				if (rows[0]?.state !== 'running') return;
-				const child = await this.#run(tx, cleanup.child as string);
+				if ((await one(tx, cleanups.state(this.namespace, run.id, cleanup.path)))?.state !== 'running') return;
+				const child = await this.#run(tx, cleanup.child!);
 				if (child.state === 'blocked') {
 					// The child owns its repair budget. Leave the parent waiting, with a diagnostic reason.
 					if (run.reason !== 'cleanup_child_blocked') {
-						await tx`update utils_workflow.runs set reason='cleanup_child_blocked' where namespace=${this.namespace} and id=${run.id}`;
+						await exec(tx, runs.note(this.namespace, run.id, 'cleanup_child_blocked'));
 					}
 					return;
 				}
 				// A child can be repaired between discovery and this read; wait for its new terminal result.
 				if (!terminal.includes(child.state) || child.outcome === null) return;
-				await this.#cleanupDone(tx, run, cleanup.path as string, cleanup.scope as string | null, child.outcome!);
+				await this.#cleanupDone(tx, run, cleanup.path, cleanup.scope, child.outcome!);
 			});
 		}
-		const children = await this
-			.#database`select c.* from utils_workflow.runs c join utils_workflow.runs p on p.namespace=c.namespace and p.id=c.parent where c.namespace=${this.namespace} and c.cancellation in ('follow-parent','request') and (p.outcome->>'type'='cancelled' or exists(select 1 from utils_workflow.instructions i where i.namespace=c.namespace and i.child=c.id and (i.outcome->>'type'='cancelled' or (p.outcome is not null and i.outcome is null and not i.discard)))) and c.state not in ('completed','failed','cancelled','continued','settling') limit ${limit}`;
+		const children = await rows(this.#database, maintenance.orphans(this.namespace, limit));
 		for (const child of children) await this.cancel(this.#ref(RunSchema.parse(child)), 'Parent cancelled.');
 	}
 	/** Pause future admissions without revoking already granted execution permission. */
@@ -1598,11 +1570,19 @@ class Store implements StoreType {
 			if (run.outcome !== null || terminal.includes(run.state)) throw new ExecutionError('control_closed');
 			if (run.control.paused === paused) return run.control;
 			const revision = run.control.revision + 1;
-			await tx`update utils_workflow.runs set paused=${paused},control_revision=${revision} where namespace=${this.namespace} and id=${run.id}`;
-			await tx`insert into utils_workflow.audit(namespace,id,run,epoch,actor,reason,action)
- values(${this.namespace},${crypto.randomUUID()},${run.id},${run.epoch},${options.actor},${options.reason},${
-				paused ? 'pause' : 'resume'
-			})`;
+			await exec(tx, runs.control(this.namespace, run.id, paused, revision));
+			await exec(
+				tx,
+				cleanups.decide({
+					namespace: this.namespace,
+					id: crypto.randomUUID(),
+					run: run.id,
+					epoch: run.epoch,
+					actor: options.actor,
+					reason: options.reason,
+					action: paused ? 'pause' : 'resume',
+				}),
+			);
 			return { paused, revision };
 		});
 	}
@@ -1612,56 +1592,26 @@ class Store implements StoreType {
 			throw new RangeError('Pruning limit must be 1..1000 total rows.');
 		}
 		return await this.#transaction(async (tx) => {
-			let deleted = 0, runs = 0, families = 0;
-			const eligible = () =>
-				tx`r.namespace=${this.namespace} and r.id=r.family
- and r.state in ('completed','failed','cancelled','continued') and r.finished_at<=clock_timestamp()
- and not exists(select 1 from utils_workflow.runs m where m.namespace=r.namespace and m.family=r.id
-  and (m.state not in ('completed','failed','cancelled','continued') or m.finished_at is null
-   or extract(epoch from (clock_timestamp()-m.finished_at))*1000 < greatest(
-    (m.policy->'retention'->>'dedupeMs')::numeric,(m.policy->'retention'->>'resultsMs')::numeric,(m.policy->'retention'->>'auditMs')::numeric)))`;
+			let deleted = 0, removedRuns = 0, families = 0;
 			// Bound discovery as well as deletions; a family can resume across many small maintenance calls.
 			for (let examined = 0; examined < 32 && deleted < options.limit; examined++) {
-				const roots = await tx`select r.id from utils_workflow.runs r where ${eligible()}
- order by r.finished_at,r.id for update of r skip locked limit 1`;
-				if (!roots[0]) break;
-				const family = roots[0].id as string;
-				// Identifiers are fixed here. Delete referencing rows before their jobs/runs.
-				for (
-					const table of [
-						'progress',
-						'receipts',
-						'attempts',
-						'instructions',
-						'cleanups',
-						'events',
-						'audit',
-						'run_events',
-						'jobs',
-					] as const
-				) {
+				const root = await one(tx, maintenance.family(this.namespace));
+				if (!root) break;
+				// Delete referencing rows before their jobs and runs.
+				for (const table of maintenance.order) {
 					if (deleted === options.limit) break;
-					const belongs = table === 'receipts' || table === 'attempts'
-						? tx`exists(select 1 from utils_workflow.jobs j join utils_workflow.runs m on m.namespace=j.namespace and m.id=j.run where j.namespace=x.namespace and j.id=x.job and m.family=${family})`
-						: tx`exists(select 1 from utils_workflow.runs m where m.namespace=x.namespace and m.id=x.run and m.family=${family})`;
-					const removed = await tx`delete from ${
-						tx(`utils_workflow.${table}`)
-					} d where d.namespace=${this.namespace} and d.ctid in (
- select x.ctid from ${tx(`utils_workflow.${table}`)} x where x.namespace=${this.namespace} and ${belongs}
- order by x.ctid limit ${options.limit - deleted}) returning 1`;
-					deleted += removed.length;
+					deleted +=
+						(await rows(tx, maintenance.purge(table, this.namespace, root.id, options.limit - deleted))).length;
 				}
 				if (deleted === options.limit) break;
 				// The root remains discoverable until every other family run has been removed.
-				const removed = await tx`delete from utils_workflow.runs where namespace=${this.namespace} and id in (
- select id from utils_workflow.runs where namespace=${this.namespace} and family=${family}
- order by (id=family),id limit ${options.limit - deleted}) returning id`;
+				const removed = await rows(tx, maintenance.prune(this.namespace, root.id, options.limit - deleted));
 				deleted += removed.length;
-				runs += removed.length;
-				if (removed.some((row) => row.id === family)) families++;
+				removedRuns += removed.length;
+				if (removed.some((row) => row.id === root.id)) families++;
 			}
-			const remaining = await tx`select exists(select 1 from utils_workflow.runs r where ${eligible()}) as more`;
-			return { deleted, runs, families, more: remaining[0]!.more as boolean };
+			const remaining = (await one(tx, maintenance.more(this.namespace)))!;
+			return { deleted, runs: removedRuns, families, more: remaining.more };
 		});
 	}
 	/**
@@ -1677,14 +1627,8 @@ class Store implements StoreType {
 				run.state === 'settling' || terminal.includes(run.state) || run.outcome !== null || run.continuation !== null
 			) return 'too_late';
 			const outcome: OutcomeType = { type: 'cancelled', reason: reason.slice(0, 2048) };
-			await tx`update utils_workflow.attempts a set state='cancelled',outcome=${
-				tx.json(outcome)
-			},ended=clock_timestamp()
- where a.namespace=${this.namespace} and a.state='started' and exists(select 1 from utils_workflow.jobs j
- where j.namespace=a.namespace and j.id=a.job and j.run=${run.id} and not j.finalizer)`;
-			await tx`update utils_workflow.jobs set state='failed',outcome=${
-				tx.json(outcome)
-			},generation=generation+1,expires=null where namespace=${this.namespace} and run=${run.id} and not finalizer and state in ('ready','claimed','blocked')`;
+			await exec(tx, jobs.cancelAttempts(this.namespace, run.id, outcome));
+			await exec(tx, jobs.cancel(this.namespace, run.id, outcome));
 			await this.#exit(tx, run, outcome);
 			return 'requested';
 		});
@@ -1710,30 +1654,32 @@ class Store implements StoreType {
 			if (run.reason === 'history_limit' || run.reason === 'continuation_limit') {
 				throw new ExecutionError('repair_policy', 'A pinned execution bound cannot be increased by granting attempts.');
 			}
-			const failedChildCleanup =
-				await tx`select path from utils_workflow.cleanups where namespace=${this.namespace} and run=${run.id} and state='failed' and child is not null limit 1`;
-			if (failedChildCleanup.length) {
+			if (await one(tx, cleanups.failedChild(this.namespace, run.id))) {
 				throw new ExecutionError(
 					'repair_policy',
 					'A terminal failed child cleanup needs explicit reconciliation; granting local attempts cannot replace it.',
 				);
 			}
-			const jobs =
-				await tx`select * from utils_workflow.jobs where namespace=${this.namespace} and run=${run.id} and state in ('blocked','failed') order by finalizer desc,id for update`;
-			await tx`insert into utils_workflow.audit(namespace,id,run,epoch,actor,reason,action) values (${this.namespace},${crypto.randomUUID()},${run.id},${
-				run.epoch + 1
-			},${options.actor},${options.reason},'repair')`;
-			if (jobs[0]) {
-				const job = jobs[0];
-				await tx`update utils_workflow.jobs set state='ready',budget=sequence+${options.attempts},generation=generation+1,available=clock_timestamp(),expires=null where namespace=${this.namespace} and id=${job.id}`;
-			}
-			await tx`update utils_workflow.runs set epoch=epoch+1,generation=generation+1,state=${
-				jobs[0]?.finalizer && (run.outcome !== null || run.continuation !== null)
-					? 'settling'
-					: jobs[0]
-					? 'waiting'
-					: 'ready'
-			},reason=null,expires=null where namespace=${this.namespace} and id=${run.id}`;
+			const job = (await rows(tx, jobs.repairable(this.namespace, run.id)))[0];
+			await exec(
+				tx,
+				cleanups.decide({
+					namespace: this.namespace,
+					id: crypto.randomUUID(),
+					run: run.id,
+					epoch: run.epoch + 1,
+					actor: options.actor,
+					reason: options.reason,
+					action: 'repair',
+				}),
+			);
+			if (job) await exec(tx, jobs.restart(this.namespace, job.id, options.attempts));
+			const state = job?.finalizer && (run.outcome !== null || run.continuation !== null)
+				? 'settling'
+				: job
+				? 'waiting'
+				: 'ready';
+			await exec(tx, runs.repair(this.namespace, run.id, state));
 		});
 	}
 	/** Validate current attempt permission before looking up a committed write result for retry reconciliation. */
@@ -1762,13 +1708,12 @@ class Store implements StoreType {
 	): Promise<ReceiptType<Value> | undefined> {
 		if (!options.key.trim() || options.key.length > 512) throw new ExecutionError('receipt_key');
 		const digest = await fingerprint(options.input);
-		const rows =
-			await tx`select * from utils_workflow.receipts where namespace=${this.namespace} and job=${claim.jobId} and key=${options.key}`;
-		if (!rows[0]) return;
-		if (rows[0].fingerprint !== digest || rows[0].contract !== (options.contract ?? options.key)) {
+		const saved = await one(tx, cleanups.receipt(this.namespace, claim.jobId, options.key));
+		if (!saved) return;
+		if (saved.fingerprint !== digest || saved.contract !== (options.contract ?? options.key)) {
 			throw new ExecutionError('receipt_conflict');
 		}
-		const wire = decode(rows[0].value as ReturnType<typeof encode>);
+		const wire = decode(saved.value as ReturnType<typeof encode>);
 		// Check the persisted representation and budget before applying its application decoder.
 		encode(wire, 16_777_216);
 		if (expected !== undefined && await fingerprint(wire) !== await fingerprint(decode(expected))) {
@@ -1848,9 +1793,17 @@ class Store implements StoreType {
 							receipts.add(previous);
 							return previous;
 						}
-						await tx`insert into utils_workflow.receipts(namespace,job,key,contract,fingerprint,value) values (${this.namespace},${
-							claim!.jobId
-						},${write.key},${write.contract ?? write.key},${await fingerprint(write.input)},${tx.json(encoded)})`;
+						await exec(
+							tx,
+							cleanups.save({
+								namespace: this.namespace,
+								job: claim!.jobId,
+								key: write.key,
+								contract: write.contract ?? write.key,
+								fingerprint: await fingerprint(write.input),
+								value: encoded,
+							}),
+						);
 						const saved = Object.freeze({ value: await codec.read(write.result, decode(encoded)) });
 						receipts.add(saved);
 						return saved;
@@ -1872,6 +1825,11 @@ class Store implements StoreType {
 			return result;
 		});
 	}
+}
+
+/** The terminal run state an intended outcome ends in. */
+function terminalState(outcome: OutcomeType): 'completed' | 'cancelled' | 'failed' {
+	return outcome.type === 'success' ? 'completed' : outcome.type === 'cancelled' ? 'cancelled' : 'failed';
 }
 
 /**

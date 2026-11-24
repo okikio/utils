@@ -694,7 +694,7 @@ describe('PostgreSQL process-crash recovery', { timeout: 240_000, concurrency: f
 			);
 			const cancellation = client.cancel(ref, 'after guard');
 			await until(async () =>
-				(await sql`select pid from pg_stat_activity where datname=current_database() and wait_event_type='Lock' and query like '%utils_workflow.runs%'`)
+				(await sql`select pid from pg_stat_activity where datname=current_database() and wait_event_type='Lock' and query like '%"utils_workflow"."runs"%'`)
 					.length > 0
 			);
 			release.resolve();
@@ -1507,7 +1507,7 @@ describe('PostgreSQL process-crash recovery', { timeout: 240_000, concurrency: f
 				expect(response.status).toBe(503);
 				expect(snapshot.host.reasons).toContain('authority_unavailable');
 				expect(
-					await tx`select pid from pg_stat_activity where datname=current_database() and wait_event_type='Lock' and query like '%utils_workflow.hosts%'`,
+					await tx`select pid from pg_stat_activity where datname=current_database() and wait_event_type='Lock' and query like '%"utils_workflow"."hosts"%'`,
 				).not.toHaveLength(0);
 			});
 			await execution.ready();
