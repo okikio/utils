@@ -260,7 +260,11 @@ export function dialectOfSource(from: Source): Dialect {
 
 /** A source as it appears in `from`, `using` or a join. */
 export function source(from: Source): Fragment {
-	if ('call' in from) return join([from.call, keyword(' as '), identifier(from.alias)]);
+	if ('call' in from) {
+		// Name the columns: CockroachDB names a lone column after the alias, so `e.value` would not resolve.
+		const names = Object.values(from.c).map((item) => identifier(item.name));
+		return join([from.call, keyword(' as '), identifier(from.alias), group(join(names, ', '))]);
+	}
 	if ('table' in from) {
 		return join([
 			identifier(from.table.schema),
