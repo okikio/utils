@@ -22,17 +22,33 @@ export interface SqlType<T> {
 	read(expression: Fragment): Fragment;
 	/** Check one returned value and build the JavaScript value. */
 	decode(raw: unknown): T;
+	/**
+	 * The value's text form, which a cast to {@link SqlType.name} reads, such as `'2026-01-02'` for a date. Arrays and
+	 * composite values are built from it; a type without it cannot be an array element or a field.
+	 */
+	encode?(value: T): string;
+}
+
+/** Marks a type made by {@link nullable}, whose JavaScript `null` is SQL NULL. */
+export const nulls: unique symbol = Symbol('okikio.sql.nulls');
+
+/** Whether a type's `null` is SQL NULL. For other types, such as `jsonb`, `null` is a value. */
+export function allowsNull(type: SqlType<unknown>): boolean {
+	return nulls in type;
 }
 
 /** A type whose values may also be SQL NULL. NULL is written `cast(null as type)`, which every dialect reads. */
 export function nullable<T>(type: SqlType<T>): SqlType<T | null> {
 	return Object.freeze({
+		[nulls]: true,
 		dialect: type.dialect,
 		name: type.name,
 		send: (value: T | null) =>
 			value === null ? join([keyword('cast(null as '), keyword(type.name), keyword(')')]) : type.send(value),
 		read: type.read,
 		decode: (raw: unknown) => raw === null || raw === undefined ? null : type.decode(raw),
+		// NULL has no text form; arrays and composites write it themselves.
+		...(type.encode ? { encode: (value: T | null) => type.encode!(value as T) } : {}),
 	});
 }
 

@@ -25,7 +25,7 @@ import { dialect } from './dialect.ts';
 
 export * from '../mod.ts';
 export { dialect } from './dialect.ts';
-export * as types from './types.ts';
+export * as types from './types/mod.ts';
 export * as json from './json.ts';
 export * as trigger from './trigger.ts';
 export { collate, type Collation, fn, later } from './functions.ts';

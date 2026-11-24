@@ -31,7 +31,7 @@ import { type Fragment, group, identifier, join, keyword, qualified } from '../f
 import { type Ddl, ddl } from '../statement.ts';
 import { type Columns, record, type Refs, type Table } from '../table.ts';
 import { dialect } from './dialect.ts';
-import * as types from './types.ts';
+import * as types from './types/mod.ts';
 
 const brand: unique symbol = Symbol('okikio.sql.step');
 

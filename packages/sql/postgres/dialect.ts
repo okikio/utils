@@ -55,4 +55,5 @@ export const boolean: SqlType<boolean> = Object.freeze({
 	send: (value: boolean) => param(expect(value, isBoolean, 'boolean'), 'boolean'),
 	read: (expression: Fragment) => cast(expression, 'boolean'),
 	decode: (raw: unknown) => expect(raw, isBoolean, 'boolean'),
+	encode: (value: boolean) => String(expect(value, isBoolean, 'boolean')),
 });

@@ -63,6 +63,42 @@ describe('values every client can send unchanged', () => {
 	});
 });
 
+describe('compound and temporal types', () => {
+	it('sends arrays and composites as the text forms of their parts', () => {
+		const list = sent(types.array(types.nullable(types.integer)) as never, [1, null, -3]);
+		expect(list.text).toBe(
+			'select case when (array(select ("_okikio_item".v)::integer from jsonb_array_elements_text(($1::text)::jsonb)' +
+				' with ordinality as "_okikio_item"(v, i) order by "_okikio_item".i)) is null then null else' +
+				' (select coalesce(json_agg(("_okikio_item".v)::integer order by "_okikio_item".i), \'[]\')' +
+				' from unnest((array(select ("_okikio_item".v)::integer from jsonb_array_elements_text(($2::text)::jsonb)' +
+				' with ordinality as "_okikio_item"(v, i) order by "_okikio_item".i))) with ordinality as "_okikio_item"(v, i))::text end as "v"',
+		);
+		expect(list.values).toEqual(['["1",null,"-3"]', '["1",null,"-3"]']);
+		// For jsonb, `null` is the JSON value, not SQL NULL.
+		expect(sent(types.array(types.jsonb()) as never, [null, { a: 1 }]).values[0]).toBe('["null","{\\"a\\":1}"]');
+		const point = types.composite(['app', 'point'], { x: types.double, label: types.nullable(types.text()) });
+		expect(sent(point as never, { x: -0, label: null }).values[0]).toBe('{"x":"-0","label":null}');
+	});
+
+	it('writes bytes, dates, times and intervals as text PostgreSQL reads under every setting', () => {
+		expect(types.bytea.encode!(new Uint8Array([0, 15, 255]))).toBe('\\x000fff');
+		expect([...types.bytea.decode('000fff')]).toEqual([0, 15, 255]);
+		expect(types.date.encode!(temporal.PlainDate.from('-000001-06-01'))).toBe('0002-06-01 BC');
+		expect(types.date.decode('-719376').toString()).toBe('0000-06-01');
+		expect(types.time.decode('47655.123456').toString()).toBe('13:14:15.123456');
+		expect(() => types.time.decode('86400.000000')).toThrow(RangeError);
+		expect(types.interval.encode!({ months: -1, days: 30, microseconds: -1n })).toBe(
+			'-1 months 30 days -0.000001 seconds',
+		);
+		expect(types.interval.decode('["14", "-3", "14706.789012"]')).toEqual({
+			months: 14,
+			days: -3,
+			microseconds: 14706789012n,
+		});
+		expect(() => types.smallint.encode!(40_000)).toThrow(RangeError);
+	});
+});
+
 describe('limits', () => {
 	it('builds a 5,000-row insert without overflowing the stack', () => {
 		const rows = Array.from({ length: 5000 }, (_, i) => ({ a: i, b: i }));
