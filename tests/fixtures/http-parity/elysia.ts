@@ -102,13 +102,13 @@ export function createElysiaApi(): ParityApiType {
 		return 'ready';
 	});
 	app.get('/items/current', () => ({ id: 'current', kind: 'static' }));
-	app.get('/items/:id', ({ params, request }) => {
+	app.get('/items/:id', ({ request }) => {
 		try {
-			// Elysia's router already decodes parameters. Validate the raw pathname
-			// to reject malformed escapes without decoding legitimate percent data twice.
+			// Elysia selected this route, so the raw segment is everything after the
+			// prefix. Decode it once: that rejects malformed escapes and restores `%2F`.
 			const url = new URL(request.url);
-			decodeURIComponent(url.pathname);
-			return { id: params.id, kind: 'dynamic', tags: url.searchParams.getAll('tag') };
+			const id = decodeURIComponent(url.pathname.slice('/items/'.length));
+			return { id, kind: 'dynamic', tags: url.searchParams.getAll('tag') };
 		} catch (error) {
 			if (!(error instanceof URIError)) throw error;
 			return Response.json({ code: 'invalid-parameter' }, { status: 400 });
@@ -159,10 +159,31 @@ export function createElysiaApi(): ParityApiType {
 }
 
 /**
+ * Decode the last path segment of a URL that Elysia already routed.
+ *
+ * Elysia 1.4.32 leaves `%2F` encoded in parameters, so `params.id` for
+ * `/groups/0/work%2Fitem` is `work%2Fitem`. Decoding that value again would turn
+ * a literal `%252F` into `/` as well, so this reads the raw segment instead and
+ * decodes it exactly once. String slicing keeps the routing batch free of an
+ * extra `URL` parse per request.
+ *
+ * @example
+ * ```ts
+ * segment('http://localhost/groups/0/work%2Fitem?x=1'); // 'work/item'
+ * ```
+ */
+function segment(url: string): string {
+	const query = url.indexOf('?');
+	const end = query === -1 ? url.length : query;
+	return decodeURIComponent(url.slice(url.lastIndexOf('/', end - 1) + 1, end));
+}
+
+/**
  * Compile exactly routeCount Elysia routes, half static and half parameterized.
  * Elysia owns route selection and compilation; the fixture does not scan or
  * emulate a route table. Construction and first-use costs are separate from warm
- * Fetch dispatch. Elysia's router supplies the decoded parameter output.
+ * Fetch dispatch. Elysia's router selects the route; {@link segment} decodes
+ * the selected parameter once.
  */
 export function createElysiaRouting(routeCount: number): ParityApiType {
 	if (!Number.isSafeInteger(routeCount) || routeCount < 2 || routeCount % 2 !== 0) {
@@ -171,10 +192,10 @@ export function createElysiaRouting(routeCount: number): ParityApiType {
 	const app = new Elysia(options());
 	for (let slot = 0; slot < routeCount / 2; slot++) {
 		app.get(`/fixed/${slot}`, () => ({ kind: 'static', slot }));
-		app.get(`/groups/${slot}/:id`, ({ params }) => ({
+		app.get(`/groups/${slot}/:id`, ({ request }) => ({
 			kind: 'dynamic',
 			slot,
-			id: params.id,
+			id: segment(request.url),
 		}));
 	}
 	app.onError(({ code }) => {
