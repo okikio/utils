@@ -4,8 +4,8 @@
  *
  * @module
  */
-import * as sql from '@okikio/sql';
-import { types } from '@okikio/sql';
+import * as sql from '@okikio/sql/postgres';
+import { types } from '@okikio/sql/postgres';
 import type { Temporal } from '@okikio/duration/temporal';
 import { events, instructions, jobs, progress, runs } from '../schema/mod.ts';
 import { clock } from './shared.ts';
@@ -14,7 +14,7 @@ const i = instructions.c;
 const e = events.c;
 const p = progress.c;
 
-function step(namespace: string, run: string): sql.Expr<boolean>[] {
+function step(namespace: string, run: string): sql.Expr<boolean, typeof instructions.key>[] {
 	return [i.namespace.eq(namespace), i.run.eq(run)];
 }
 
@@ -35,7 +35,7 @@ export function count(namespace: string, run: string, parent?: string | null) {
 }
 
 /** Save a requested instruction, with its result when it already has one. */
-export function add(step: sql.InsertRow<typeof instructions.columns>) {
+export function add(step: sql.InsertRow<typeof instructions.columns, never>) {
 	return sql.insert(instructions, step);
 }
 
@@ -121,7 +121,7 @@ export function event(namespace: string, run: string, name: string, key: string)
 }
 
 /** Save a delivered event. */
-export function deliver(item: sql.InsertRow<typeof events.columns>) {
+export function deliver(item: sql.InsertRow<typeof events.columns, never>) {
 	return sql.insert(events, item);
 }
 
@@ -147,7 +147,7 @@ export function report(namespace: string, run: string, job: string, effect: stri
 }
 
 /** Save the latest progress report of an effect, replacing an older one. */
-export function saveReport(item: Omit<sql.InsertRow<typeof progress.columns>, 'reported_at'>) {
+export function saveReport(item: Omit<sql.InsertRow<typeof progress.columns, never>, 'reported_at'>) {
 	const fresh = sql.excluded(progress).c;
 	return sql.insert(progress, item).onConflict({
 		target: [p.namespace, p.run, p.job, p.effect],

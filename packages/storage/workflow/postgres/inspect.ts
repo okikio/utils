@@ -3,9 +3,9 @@
  * migrate work. @module
  */
 import type { Sql, TransactionSql } from 'postgres';
-import * as sql from '@okikio/sql';
-import type { Executor } from '@okikio/sql';
-import { executor } from '@okikio/sql/postgres';
+import * as sql from '@okikio/sql/postgres';
+import type { Executor } from '@okikio/sql/postgres';
+import { executor } from '@okikio/sql/postgres/postgresjs';
 import type { Temporal } from '@okikio/duration/temporal';
 import { inspect as statements } from './statements/mod.ts';
 import * as record from '@okikio/collection/record';

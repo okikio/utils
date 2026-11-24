@@ -4,8 +4,8 @@
  *
  * @module
  */
-import * as sql from '@okikio/sql';
-import { json } from '@okikio/sql';
+import * as sql from '@okikio/sql/postgres';
+import { json } from '@okikio/sql/postgres';
 import type { Temporal } from '@okikio/duration/temporal';
 import { attempts, hosts, instructions, jobs, progress, runEvents, runs, type runStates } from '../schema/mod.ts';
 
@@ -100,8 +100,8 @@ export function totals(namespace: string, run: string) {
 	const a = attempts.c;
 	const p = progress.c;
 	const e = runEvents.as('e');
-	const counted = (query: sql.Select<{ count: sql.Expr<number> }>) => sql.aggregate(query);
-	const ofJobs = (...more: sql.Expr<boolean>[]) =>
+	const counted = <Q extends sql.Subquery<{ count: number }>>(query: Q) => sql.aggregate(query);
+	const ofJobs = (...more: sql.Expr<boolean, typeof jobs.key>[]) =>
 		counted(sql.select({ count: sql.fn.count() }).from(jobs).where(j.namespace.eq(namespace), j.run.eq(run), ...more));
 	return sql.select({
 		jobs: ofJobs(),

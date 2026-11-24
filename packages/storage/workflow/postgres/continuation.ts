@@ -1,6 +1,6 @@
 /** Bounded root-chain rollover. Every function that writes requires the adapter's guarded transaction. @module */
-import * as sql from '@okikio/sql';
-import type { Executor } from '@okikio/sql';
+import * as sql from '@okikio/sql/postgres';
+import type { Executor } from '@okikio/sql/postgres';
 import * as execution from '@okikio/workflow/execution';
 import type { ContinuationType, IdentityType, PolicyType } from '@okikio/workflow/execution';
 import { chain, cleanups, history, shared } from './statements/mod.ts';

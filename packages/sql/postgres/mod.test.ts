@@ -3,7 +3,7 @@ import { expect } from '@std/expect';
 import { temporal } from '@okikio/duration/temporal';
 import * as sql from './mod.ts';
 import { types } from './mod.ts';
-import { executor, isClient } from './postgres.ts';
+import { executor, isClient } from './postgresjs.ts';
 
 const app = sql.schema('app');
 const notes = app.table('notes', {
@@ -93,7 +93,7 @@ describe('statements', () => {
 		const query = sql.toQuery(
 			sql.select({ id: n.id, locked: lock(hash('app:notes', 0n)) }).from(notes).where(
 				sql.or(n.id.in(tagged), sql.exists(tagged), n.seen.isNull()),
-				sql.row(n.title.collate('C'), n.id).gt(['b', 'c']),
+				sql.row(sql.collate(n.title, 'C'), n.id).gt(['b', 'c']),
 				n.state.in([]),
 			),
 		);
@@ -137,7 +137,7 @@ describe('statements', () => {
 		expect(() => sql.schema('App')).toThrow(TypeError);
 		expect(() => app.table('notes; drop', {})).toThrow(TypeError);
 		expect(() => sql.select({ 'a b': n.id })).not.toThrow();
-		expect(() => sql.toQuery(sql.select({ 'a b': n.id }))).toThrow(TypeError);
+		expect(() => sql.toQuery(sql.select({ 'a b': n.id }).from(notes))).toThrow(TypeError);
 	});
 });
 

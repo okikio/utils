@@ -10,7 +10,8 @@
 	},
 	"exports": {
 		".": "./mod.ts",
-		"./postgres": "./postgres.ts"
+		"./postgres": "./postgres/mod.ts",
+		"./postgres/postgresjs": "./postgres/postgresjs.ts"
 	},
 	"imports": {
 	},

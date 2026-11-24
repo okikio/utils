@@ -20,10 +20,10 @@
  *
  * @module
  */
-import * as sql from '@okikio/sql';
-import type { Executor } from '@okikio/sql';
-import * as postgres from '@okikio/sql/postgres';
-import type { Client } from '@okikio/sql/postgres';
+import * as sql from '@okikio/sql/postgres';
+import type { Executor } from '@okikio/sql/postgres';
+import * as postgres from '@okikio/sql/postgres/postgresjs';
+import type { Client } from '@okikio/sql/postgres/postgresjs';
 import * as statements from './statements.ts';
 import { OutboxError } from './error.ts';
 

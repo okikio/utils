@@ -4,7 +4,7 @@
  *
  * @module
  */
-import * as sql from '@okikio/sql';
+import * as sql from '@okikio/sql/postgres';
 import type { SnapshotType } from '@okikio/context/state';
 import { snapshots } from './schema.ts';
 
@@ -24,7 +24,7 @@ export function timeout(milliseconds: number): sql.Statement<{ value: string }> 
 
 /** The current snapshot. */
 export function load(namespace: string, key: string): sql.Statement<{ snapshot: SnapshotType }> {
-	return sql.select({ snapshot: s.snapshot as sql.Column<SnapshotType> }).from(snapshots)
+	return sql.select({ snapshot: s.snapshot as sql.Column<SnapshotType, typeof snapshots.key> }).from(snapshots)
 		.where(s.namespace.eq(namespace), s.key.eq(key));
 }
 

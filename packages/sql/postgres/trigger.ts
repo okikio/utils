@@ -6,6 +6,10 @@
  * `assign`, `branch`, `run`, `ensure` and `result`. Each step takes typed expressions over the changed row, which
  * {@link changed} gives as `new` or `old` with the table's column types.
  *
+ * Scope is checked like a statement's. A step, and a statement in {@link run}, may read only `new`, `old` and
+ * {@link operation} from outside. A trigger's condition may read only `new` and `old`, because PostgreSQL evaluates it
+ * before the function runs.
+ *
  * Function bodies are written with literals, because PostgreSQL takes no parameters in DDL. A string literal there may
  * not hold `$`, so it cannot end the dollar quote around the body.
  *
@@ -21,70 +25,116 @@
  *
  * @module
  */
-import { type AnyExpr, type Column, Expr, type Input, lift } from './expr.ts';
-import { type Fragment, group, identifier, join, keyword, qualified } from './fragment.ts';
-import { type Ddl, ddl } from './ddl.ts';
-import { type Statement } from './statement.ts';
-import { type Columns, record, type Refs, type Table } from './table.ts';
-import * as types from './type.ts';
+import { type Dialect, same } from '../dialect.ts';
+import { type Column, Expr, lift, reads, type ValueOf } from '../expr.ts';
+import { type Fragment, group, identifier, join, keyword, qualified } from '../fragment.ts';
+import { type Ddl, ddl } from '../statement.ts';
+import { type Columns, record, type Refs, type Table } from '../table.ts';
+import { dialect } from './dialect.ts';
+import * as types from './types.ts';
 
 const brand: unique symbol = Symbol('okikio.sql.step');
+
+/** The rows a trigger's condition can read. */
+export type RowType = 'new' | 'old';
+
+/** What a step of a trigger function can read: the changed rows and the operation. */
+export type BodyType = RowType | 'tg_op';
 
 /** One PL/pgSQL statement of a trigger function. */
 export interface StepType {
 	readonly [brand]: true;
 	readonly fragment: Fragment;
+	/** Whether the step ends the function. */
+	readonly last: boolean;
 }
 
-function step(fragment: Fragment): StepType {
-	return Object.freeze({ [brand]: true as const, fragment });
+/** A statement a trigger can run: it may read `new`, `old` and {@link operation} from outside. */
+export interface RunnableType {
+	readonly dialect: Dialect;
+	/** The SQL, without the scope check. */
+	readonly fragment: Fragment;
+	readonly free: ReadonlySet<string>;
+	readonly [reads]?: BodyType;
+}
+
+function step(fragment: Fragment, last = false): StepType {
+	return Object.freeze({ [brand]: true as const, fragment, last });
 }
 
 function block(steps: readonly StepType[]): Fragment {
 	return join(steps.map((item) => item.fragment), ' ');
 }
 
-/** The operation that fired the trigger. */
-export const operation: Expr<'INSERT' | 'UPDATE' | 'DELETE'> = new Expr(
+/** Fail when a part reads anything but the allowed owners. */
+function inside(owners: ReadonlySet<string>, allowed: readonly string[], what: string): void {
+	for (const owner of owners) {
+		if (!allowed.includes(owner)) {
+			throw new TypeError(`A ${what} reads ${owner}; it may read only ${allowed.join(', ')}.`);
+		}
+	}
+}
+
+/** The checked SQL of an expression in a function body. */
+function body(expression: Expr<unknown, string>, what: string): Fragment {
+	same(dialect, expression.dialect);
+	inside(expression.owners, ['new', 'old', 'tg_op'], what);
+	return expression.fragment;
+}
+
+/** The operation that fired the trigger. A trigger's condition cannot read it. */
+export const operation: Expr<'INSERT' | 'UPDATE' | 'DELETE', 'tg_op'> = new Expr(
 	keyword('tg_op'),
 	types.text(['INSERT', 'UPDATE', 'DELETE'] as const),
 	true,
+	Object.freeze(new Set(['tg_op'])),
 );
 
 /** The row after the change (`new`) or before it (`old`), with the table's column types. `old` is NULL on insert. */
-export function changed<C extends Columns>(table: Table<C>, which: 'new' | 'old'): { readonly c: Refs<C> } {
+export function changed<C extends Columns, const W extends RowType>(
+	table: Table<C>,
+	which: W,
+): { readonly c: Refs<C, W> } {
+	same(dialect, table.dialect);
 	return record(table, which);
 }
 
 /** Evaluate an expression for its effect, such as a function call: `perform …;`. */
-export function perform(expression: AnyExpr): StepType {
-	return step(join([keyword('perform '), expression.fragment, keyword(';')]));
+export function perform(expression: Expr<unknown, BodyType>): StepType {
+	return step(join([keyword('perform '), body(expression, 'perform step'), keyword(';')]));
 }
 
 /** Change a column of the new row before it is written: `new.column = value;`. Only `before` triggers can do this. */
-export function assign<T>(target: Column<T>, value: Input<T>): StepType {
+export function assign<C extends Column<unknown, 'new'>>(
+	target: C,
+	value: ValueOf<C> | Expr<ValueOf<C>, BodyType>,
+): StepType {
 	const [part] = target.fragment;
 	if (target.fragment.length !== 1 || part?.kind !== 'column' || part.owner.join('.') !== 'new') {
 		throw new TypeError('A trigger can assign only a column of the new row.');
 	}
-	return step(join([target.fragment, keyword(' = '), lift(value, target.type).fragment, keyword(';')]));
+	return step(
+		join([target.fragment, keyword(' = '), body(lift(value as unknown, target.type), 'assign step'), keyword(';')]),
+	);
 }
 
 /** Run `then` when the condition holds, and `otherwise` when it does not: `if … then … else … end if;`. */
 export function branch(
-	condition: Expr<boolean>,
+	condition: Expr<boolean, BodyType>,
 	then: readonly StepType[],
 	otherwise: readonly StepType[] = [],
 ): StepType {
-	const parts: Fragment[] = [keyword('if '), condition.fragment, keyword(' then '), block(then)];
+	const parts: Fragment[] = [keyword('if '), body(condition, 'branch condition'), keyword(' then '), block(then)];
 	if (otherwise.length) parts.push(keyword(' else '), block(otherwise));
 	parts.push(keyword(' end if;'));
 	return step(join(parts));
 }
 
 /** Run a statement, such as an insert into a history table. Its rows are discarded. */
-export function run(statement: Statement<unknown>): StepType {
-	return step(join([statement.query, keyword(';')]));
+export function run(statement: RunnableType): StepType {
+	same(dialect, statement.dialect);
+	inside(statement.free, ['new', 'old', 'tg_op'], 'statement in a trigger');
+	return step(join([statement.fragment, keyword(';')]));
 }
 
 /**
@@ -104,7 +154,7 @@ export function ensure(message: string): StepType {
  * result is ignored, so it returns `null`.
  */
 export function result(value: 'new' | 'null'): StepType {
-	return step(keyword(`return ${value};`));
+	return step(keyword(`return ${value};`), true);
 }
 
 /** A trigger function and the statement that creates or replaces it. */
@@ -117,13 +167,12 @@ export interface RoutineType {
 
 /** Define a trigger function from steps. The last step must be a {@link result}. */
 export function routine(schema: string, name: string, steps: readonly StepType[]): RoutineType {
-	if (!steps.length || !steps.at(-1)!.fragment.some((part) => part.kind === 'text' && part.text.startsWith('return'))) {
-		throw new TypeError(`Trigger function ${schema}.${name} must end with result().`);
-	}
+	if (!steps.at(-1)?.last) throw new TypeError(`Trigger function ${schema}.${name} must end with result().`);
 	return Object.freeze({
 		schema,
 		name,
 		ddl: ddl(
+			dialect,
 			join([
 				keyword('create or replace function '),
 				qualified(schema, name),
@@ -150,13 +199,14 @@ export interface TriggerType {
 	 * Fire only when this holds. It may read only `new` and `old`, not {@link operation}, so an insert and an update
 	 * with different conditions need two triggers.
 	 */
-	readonly condition?: Expr<boolean>;
+	readonly condition?: Expr<boolean, RowType>;
 	readonly routine: RoutineType;
 }
 
-function event(item: EventType): Fragment {
+function event(table: Table<Columns>, item: EventType): Fragment {
 	if (typeof item === 'string') return keyword(item);
 	if (!item.update.length) return keyword('update');
+	for (const column of item.update) inside(column.owners, [table.key], `update event of ${table.key}`);
 	return join([keyword('update of '), join(item.update.map((column) => identifier(column.name)), ', ')]);
 }
 
@@ -165,16 +215,15 @@ function event(item: EventType): Fragment {
  * the migration transaction; the table never runs without the trigger after the transaction commits.
  */
 export function create(trigger: TriggerType): readonly Ddl[] {
+	same(dialect, trigger.table.dialect);
 	if (!trigger.events.length) throw new TypeError(`Trigger ${trigger.name} needs at least one event.`);
-	if (trigger.condition?.fragment.some((part) => part.kind === 'text' && part.text.includes('tg_op'))) {
-		throw new TypeError(`Trigger ${trigger.name} cannot test the operation in its condition.`);
-	}
+	if (trigger.condition) inside(trigger.condition.owners, ['new', 'old'], `condition of trigger ${trigger.name}`);
 	const table = qualified(trigger.table.schema, trigger.table.name);
 	const parts: Fragment[] = [
 		keyword('create trigger '),
 		identifier(trigger.name),
 		keyword(` ${trigger.timing} `),
-		join(trigger.events.map(event), ' or '),
+		join(trigger.events.map((item) => event(trigger.table, item)), ' or '),
 		keyword(' on '),
 		table,
 		keyword(' for each row'),
@@ -182,7 +231,7 @@ export function create(trigger: TriggerType): readonly Ddl[] {
 	if (trigger.condition) parts.push(keyword(' when '), group(trigger.condition.fragment));
 	parts.push(keyword(' execute function '), qualified(trigger.routine.schema, trigger.routine.name), keyword('()'));
 	return [
-		ddl(join([keyword('drop trigger if exists '), identifier(trigger.name), keyword(' on '), table])),
-		ddl(join(parts), true),
+		ddl(dialect, join([keyword('drop trigger if exists '), identifier(trigger.name), keyword(' on '), table])),
+		ddl(dialect, join(parts), true),
 	];
 }

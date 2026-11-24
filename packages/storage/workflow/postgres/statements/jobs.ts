@@ -4,8 +4,8 @@
  *
  * @module
  */
-import * as sql from '@okikio/sql';
-import { json, types } from '@okikio/sql';
+import * as sql from '@okikio/sql/postgres';
+import { json, types } from '@okikio/sql/postgres';
 import { attempts, hosts, jobs, runs } from '../schema/mod.ts';
 import { after, clock, live } from './shared.ts';
 
@@ -18,7 +18,7 @@ const h = hosts.c;
 export const row = j;
 
 /** Save a new ready job. No activity code runs until a host takes it. */
-export function add(job: sql.InsertRow<typeof jobs.columns>) {
+export function add(job: sql.InsertRow<typeof jobs.columns, never>) {
 	return sql.insert(jobs, job);
 }
 
@@ -162,7 +162,7 @@ export function at(namespace: string, run: string, path: string) {
 /** Which jobs of a run a revocation covers. */
 export type ScopeType = { readonly prefix: string } | { readonly ordinary: true };
 
-function covered(scope: ScopeType): sql.Expr<boolean> {
+function covered(scope: ScopeType): sql.Expr<boolean, typeof jobs.key> {
 	return 'prefix' in scope ? sql.fn.startsWith(j.path, scope.prefix) : sql.not(j.finalizer);
 }
 
@@ -252,7 +252,7 @@ export function finish(namespace: string, id: string, state: 'completed' | 'fail
 }
 
 /** A live host still owns this claim. */
-function owned(): sql.Expr<boolean> {
+function owned(): sql.Expr<boolean, typeof jobs.key> {
 	return sql.exists(
 		sql.select({}).from(hosts).where(
 			h.namespace.eq(j.namespace),

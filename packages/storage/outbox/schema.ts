@@ -8,8 +8,8 @@
  *
  * @module
  */
-import * as sql from '@okikio/sql';
-import { types } from '@okikio/sql';
+import * as sql from '@okikio/sql/postgres';
+import { types } from '@okikio/sql/postgres';
 
 /** The revision this module installs. */
 export const revision = 2;

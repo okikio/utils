@@ -6,8 +6,8 @@
  *
  * @module
  */
-import * as sql from '@okikio/sql';
-import { types } from '@okikio/sql';
+import * as sql from '@okikio/sql/postgres';
+import { types } from '@okikio/sql/postgres';
 import type { Temporal } from '@okikio/duration/temporal';
 import { active, items, policies } from './schema.ts';
 
@@ -19,13 +19,13 @@ function after(milliseconds: number): sql.Expr<Temporal.Instant> {
 }
 
 /** Whether a worker may claim the item now: it is queued and due, or its claim expired. */
-const claimable: sql.Expr<boolean> = sql.or(
+const claimable: sql.Expr<boolean, typeof items.key> = sql.or(
 	sql.and(c.state.eq('queued'), c.available.lte(sql.fn.clockTimestamp())),
 	sql.and(c.state.eq('claimed'), c.expires.lte(sql.fn.clockTimestamp())),
 );
 
 /** The exact live claim: same item, claim and owner, still claimed and not expired. */
-function live(namespace: string, claim: ClaimRef): sql.Expr<boolean> {
+function live(namespace: string, claim: ClaimRef): sql.Expr<boolean, typeof items.key> {
 	return sql.and(
 		c.namespace.eq(namespace),
 		c.id.eq(claim.itemId),
@@ -234,8 +234,11 @@ export interface RetentionType {
 }
 
 /** Whether a terminal item has outlived the retention time. */
-function expired(finished: sql.Expr<Temporal.Instant | null>, ttl: number): sql.Expr<boolean> {
-	return finished.lte(after(-ttl));
+function expired<X extends sql.Expr<Temporal.Instant | null, string>>(
+	finished: X,
+	ttl: number,
+): sql.Expr<boolean, sql.OwnersOf<X>> {
+	return finished.lte(after(-ttl)) as sql.Expr<boolean, sql.OwnersOf<X>>;
 }
 
 /**

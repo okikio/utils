@@ -6,7 +6,8 @@
 	"license": "MIT",
 	"exports": {
 		".": "./mod.ts",
-		"./postgres": "./postgres.ts"
+		"./postgres": "./postgres/mod.ts",
+		"./postgres/postgresjs": "./postgres/postgresjs.ts"
 	},
 	"dependencies": {
 		"@okikio/duration": "workspace:^0.1.0"

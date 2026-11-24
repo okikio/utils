@@ -6,14 +6,14 @@
  *
  * @module
  */
-import * as sql from '@okikio/sql';
+import * as sql from '@okikio/sql/postgres';
 import { audit, cleanups, receipts, runs } from '../schema/mod.ts';
 import { live } from './shared.ts';
 
 const c = cleanups.c;
 
 /** A scope and every scope nested in it. */
-function within(scope: string): sql.Expr<boolean> {
+function within(scope: string): sql.Expr<boolean, typeof cleanups.key> {
 	return sql.or(c.scope.eq(scope), sql.fn.startsWith(c.scope, `${scope}/`));
 }
 
@@ -111,11 +111,11 @@ export function receipt(namespace: string, job: string, key: string) {
 }
 
 /** Save a write receipt in the business transaction. */
-export function save(item: Omit<sql.InsertRow<typeof receipts.columns>, 'created'>) {
+export function save(item: Omit<sql.InsertRow<typeof receipts.columns, never>, 'created'>) {
 	return sql.insert(receipts, item);
 }
 
 /** Record an operator decision; a trigger adds it to the run history. */
-export function decide(item: Omit<sql.InsertRow<typeof audit.columns>, 'created'>) {
+export function decide(item: Omit<sql.InsertRow<typeof audit.columns, never>, 'created'>) {
 	return sql.insert(audit, item);
 }

@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import * as sql from './mod.ts';
 import { types } from './mod.ts';
-import { database, executor } from './postgres.ts';
+import { database, executor } from './postgresjs.ts';
 
 const app = sql.schema('app');
 const jobs = app.table('jobs', {

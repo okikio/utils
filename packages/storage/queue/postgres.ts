@@ -7,10 +7,10 @@
  * @module
  */
 import type { Temporal } from '@okikio/duration/temporal';
-import * as sql from '@okikio/sql';
-import type { Database, Executor, Statement } from '@okikio/sql';
-import * as postgres from '@okikio/sql/postgres';
-import type { Pool } from '@okikio/sql/postgres';
+import * as sql from '@okikio/sql/postgres';
+import type { Database, Executor, Statement } from '@okikio/sql/postgres';
+import * as postgres from '@okikio/sql/postgres/postgresjs';
+import type { Pool } from '@okikio/sql/postgres/postgresjs';
 import { EventBus } from '@okikio/observables/events';
 import { observe } from '@okikio/telemetry/observe';
 import * as context from '@okikio/context';

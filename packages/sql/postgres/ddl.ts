@@ -1,41 +1,26 @@
 /**
- * Schema statements built from table definitions.
+ * PostgreSQL schema statements built from table definitions.
  *
  * PostgreSQL does not accept parameters in DDL, so these statements write their constants as literals. Only constants
- * from table definitions reach them; see `compile` in `fragment.ts` for the rules.
+ * from table definitions reach them; see `literal` in `dialect.ts` for the rules.
  *
  * Every statement is idempotent (`if not exists`), so a migration can run the same list again after a partial failure.
  *
  * @module
  */
-import { Column, type Expr, isExpr } from './expr.ts';
-import { compile, type CompiledType, type Fragment, group, identifier, join, keyword, qualified } from './fragment.ts';
-import { type ColumnDef, type Columns, fallback, type IndexType, type Table } from './table.ts';
+import { Column, type Expr, isExpr } from '../expr.ts';
+import { type Fragment, group, identifier, join, keyword, qualified } from '../fragment.ts';
+import type { IsolationType } from '../run.ts';
+import { type Ddl, ddl as wrap, isDdl, toDdlQuery } from '../statement.ts';
+import { type ColumnDef, type Columns, fallback, type IndexType, type Table } from '../table.ts';
+import { dialect } from './dialect.ts';
 
-const brand: unique symbol = Symbol('okikio.sql.ddl');
-
-/** One schema statement. */
-export interface Ddl {
-	readonly [brand]: true;
-	readonly ddl: Fragment;
-	/** A function or trigger, whose columns keep their table (`new`, `old`) and whose text may not hold `$`. */
-	readonly routine?: boolean;
+/** A PostgreSQL schema statement. */
+function ddl(fragment: Fragment, routine = false): Ddl {
+	return wrap(dialect, fragment, routine);
 }
 
-/** Whether a value is a schema statement. */
-export function isDdl(value: unknown): value is Ddl {
-	return typeof value === 'object' && value !== null && brand in value;
-}
-
-/** Compile a schema statement; it has no parameters. */
-export function toDdlQuery(statement: Ddl): CompiledType {
-	return compile(statement.ddl, { ddl: true, routine: statement.routine ?? false });
-}
-
-/** Wrap a schema statement. Pass `routine` for a function or trigger. */
-export function ddl(fragment: Fragment, routine = false): Ddl {
-	return Object.freeze({ [brand]: true as const, ddl: fragment, ...(routine ? { routine } : {}) });
-}
+export { type Ddl, isDdl, toDdlQuery };
 
 /** `create schema if not exists`. */
 export function createSchema(name: string): Ddl {
@@ -44,6 +29,9 @@ export function createSchema(name: string): Ddl {
 
 /** One column's definition: name, type, NULL rule, default or identity. */
 function columnSql(name: string, def: ColumnDef<unknown>): Fragment {
+	if ((def.generated || def.sequenced) && def.type.name !== 'bigint') {
+		throw new TypeError(`Column ${name} must be a bigint to be an identity or bigserial.`);
+	}
 	const parts: Fragment[] = [identifier(name), keyword(` ${def.sequenced ? 'bigserial' : def.type.name}`)];
 	if (def.generated) parts.push(keyword(' generated always as identity'));
 	if (!def.allowsNull) parts.push(keyword(' not null'));
@@ -140,7 +128,14 @@ export function setNotNull(table: Table<Columns>, name: string): Ddl {
  * Replace a named check, for an upgrade that widens or narrows it. PostgreSQL names an unnamed one-column check
  * `<table>_<column>_check`, so an upgrade can replace a check a table definition created.
  */
-export function replaceCheck(table: Table<Columns>, name: string, check: Expr<boolean>): readonly Ddl[] {
+export function replaceCheck<K extends string>(
+	table: Table<Columns, K>,
+	name: string,
+	check: Expr<boolean, NoInfer<K>>,
+): readonly Ddl[] {
+	for (const item of check.owners) {
+		if (item !== table.key) throw new TypeError(`Check ${name} of ${table.key} reads ${item}, which is another table.`);
+	}
 	const owner = qualified(table.schema, table.name);
 	return [
 		ddl(join([keyword('alter table '), owner, keyword(' drop constraint if exists '), identifier(name)])),
@@ -159,9 +154,6 @@ export function replaceCheck(table: Table<Columns>, name: string, check: Expr<bo
 export function tableStatements(table: Table<Columns>): readonly Ddl[] {
 	return [createTable(table), ...(table.constraints.indexes ?? []).map((index) => createIndex(table, index))];
 }
-
-/** Isolation levels for {@link begin}. */
-export type IsolationType = 'read committed' | 'repeatable read' | 'serializable';
 
 /** `begin`, for a client that controls a reserved connection itself. */
 export function begin(isolation?: IsolationType): Ddl {

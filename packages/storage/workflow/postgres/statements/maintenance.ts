@@ -4,8 +4,8 @@
  *
  * @module
  */
-import * as sql from '@okikio/sql';
-import { json, types } from '@okikio/sql';
+import * as sql from '@okikio/sql/postgres';
+import { json, types } from '@okikio/sql/postgres';
 import {
 	attempts,
 	audit,
@@ -142,7 +142,7 @@ export function orphans(namespace: string, limit: number) {
  * Root runs whose whole family ended and outlived every retention window its members promised. A member counts until
  * `finished_at` plus the largest of its dedupe, result and audit retention has passed.
  */
-function prunable(root: ReturnType<typeof runs.as>): sql.Expr<boolean> {
+function prunable<A extends string>(root: sql.Aliased<typeof runs.columns, A>): sql.Expr<boolean, A> {
 	const member = runs.as('m');
 	const m = member.c;
 	const retention = (name: string) => json.text(json.get(m.policy, 'retention'), name).cast(types.double);

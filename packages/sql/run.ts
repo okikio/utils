@@ -3,7 +3,8 @@
  *
  * This package has no database client. An application passes an {@link Executor}: one `run` method that sends a
  * compiled statement on its current connection or transaction and returns the rows. Postgres.js, pg, Drizzle, Kysely,
- * Prisma and Bun SQL can each provide one in a few lines; `./postgres.ts` provides the Postgres.js one.
+ * Prisma and Bun SQL can each provide one in a few lines; `@okikio/sql/postgres/postgresjs` provides the Postgres.js
+ * one.
  *
  * @example Drizzle
  * ```ts ignore
@@ -20,8 +21,10 @@
  * @module
  */
 import type { CompiledType } from './fragment.ts';
-import { type Ddl, isDdl, type IsolationType, toDdlQuery } from './ddl.ts';
-import { type Statement, toQuery } from './statement.ts';
+import { type Ddl, isDdl, type Statement, toDdlQuery, toQuery } from './statement.ts';
+
+/** Standard transaction isolation levels. */
+export type IsolationType = 'read committed' | 'repeatable read' | 'serializable';
 
 /** One row as a client returns it. */
 export type RawRow = Readonly<Record<string, unknown>>;

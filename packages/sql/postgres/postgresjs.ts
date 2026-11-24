@@ -6,9 +6,8 @@
  *
  * @module
  */
-import type { IsolationType } from './ddl.ts';
-import type { CompiledType } from './fragment.ts';
-import type { BeginOptions, Database, Executor, RawRow, RunOptions } from './run.ts';
+import type { CompiledType } from '../fragment.ts';
+import type { BeginOptions, Database, Executor, IsolationType, RawRow, RunOptions } from '../run.ts';
 
 /** A running Postgres.js query. `cancel` asks the server to stop it. */
 export interface PendingType extends PromiseLike<readonly RawRow[]> {
