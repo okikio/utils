@@ -14,12 +14,41 @@ INTEROP_MIRROR=mirror.gcr.io mise run test:interop     # pull Docker Hub images 
 ```
 
 The report is written to `.tmp/tests/interop/report.md`, with every outcome in
-`results.json`. CI runs the suite in four parallel groups whenever the SQL
-package or this folder changes, and uploads each group's report.
+`results.json`. `INTEROP_CONCURRENCY=4` runs four clients against one server at
+once, each in its own schema.
+
+## How CI runs only what changed
+
+Each target × client pair is a cell, and each cell has a key built from exactly
+what it runs (`tools/testing/interop/keys.ts`):
+
+- the files its imports reach, from `matrix.test.ts`, its own client module and
+  its own target module, through `@okikio/sql` and the cases;
+- the pnpm lock closure of every npm package those imports load;
+- the pinned Node, Bun or Deno version from `mise.toml`;
+- the digests of the images its target starts;
+- only the known limits that apply to that cell.
+
+So a change to `clients/postgresjs.ts` reruns only the Postgres.js cells, a
+change to `packages/sql/postgres/pg.ts` only the clients that load the `pg`
+binding, a new CockroachDB limit only CockroachDB's cells, and a Renovate bump
+of knex only knex's cells.
+
+CI keeps every passed key in a ledger, a workflow artifact that lasts 90 days
+from its last upload and is uploaded again at least monthly while CI runs. The
+plan job starts one job per target that has a cell the ledger lacks, holding
+only those clients; a target whose cells all passed starts no job. Each job
+stores its images with `docker save`, layers included, in the Actions cache
+under their digests. Dispatching CI with `fresh` runs every cell again.
+
+```sh
+node tools/testing/interop/cli.ts explain --target postgres-18 --client pg   # what one cell's key holds
+node tools/testing/interop/cli.ts plan --out .tmp/interop/plan.json          # cells and shards, with no ledger
+```
 
 ## What runs
 
-- **Clients** (`clients/`): Postgres.js, pg (through the package's binding, by
+- **Clients** (`clients/`, one module each): Postgres.js, pg (through the package's binding, by
   hand, on one connection and with type parsers), Bun's SQL, Deno's
   `@db/postgres`, Drizzle, Kysely, Prisma 7, TypeORM, Sequelize, knex, MikroORM,
   Slonik, pg-promise, Neon's serverless driver over HTTP and WebSocket, and
@@ -46,11 +75,16 @@ package for everything else.
 
 ## Adding a client or a target
 
-- A client is an entry in `clients/`: how it opens a connection, and an executor
-  around its own query call. Use the package's bindings where they exist; the
-  hand-written forms are what the package README shows.
-- A target is an entry in `targets/`: how to start it and the URL clients use.
-  Pin the image by digest. A server whose types differ, as CockroachDB's floats
-  do, sets `flavor` so the cases use the matching types module.
+- A client is one module in `clients/`, named after it, exporting `client`; add
+  it to `clients/mod.ts`. Use the package's bindings where they exist; the
+  hand-written forms are what the package README shows. Code that several
+  clients share goes in `clients/shared/`.
+- A target is a module in `targets/`, exporting `target` or `targets`, with the
+  images it starts in `images`; add it to `targets/mod.ts`. Pin each image by
+  digest in `targets/images.ts`, where Renovate updates it. A server whose types
+  differ, as CockroachDB's floats do, sets `flavor`.
+- A module that reads files or loads npm packages in a way no import shows
+  exports `inputs` (paths) or `packages` (names), so the cell key holds them, as
+  `clients/shared/prisma.ts` does for its schema.
 - Run the new entry against every target or client, then add a limit for each
   failure the package cannot fix.

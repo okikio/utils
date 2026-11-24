@@ -73,6 +73,8 @@ export interface CellType {
 	readonly key: string;
 	/** Image references the target starts, for the CI step that stores them. */
 	readonly images: readonly string[];
+	/** How many clients may run against the target at once, from its module's `concurrency` export; 4 by default. */
+	readonly concurrency: number;
 	/** Repository files in the key, for `explain` and the planner's tests. */
 	readonly files: readonly string[];
 	/** npm packages in the key, as `importer package`. */
@@ -110,7 +112,7 @@ export async function cells(root: string): Promise<readonly CellType[]> {
 	);
 	const targets = targetModules.flatMap(({ file, exports }) =>
 		[...(exports.targets ?? []) as readonly TargetType[], ...(exports.target ? [exports.target as TargetType] : [])]
-			.map((target) => ({ file, target }))
+			.map((target) => ({ file, target, concurrency: Number(exports.concurrency ?? 4) }))
 	);
 	const { limits } = await import(pathToFileURL(path.join(root, suite, 'expectations.ts')).href) as {
 		limits: readonly LimitType[];
@@ -130,7 +132,7 @@ export async function cells(root: string): Promise<readonly CellType[]> {
 		return found;
 	};
 	const found: CellType[] = [];
-	for (const { file: targetFile, target } of targets) {
+	for (const { file: targetFile, target, concurrency } of targets) {
 		for (const { file: clientFile, client } of clients) {
 			if (!reaches(client, target)) continue;
 			const roots = [`${suite}/matrix.test.ts`, clientFile, targetFile];
@@ -168,6 +170,7 @@ export async function cells(root: string): Promise<readonly CellType[]> {
 				client: client.name,
 				key: `interop-v1-${sha(JSON.stringify(identity))}`,
 				images: target.images,
+				concurrency,
 				files,
 				packages: npm.map(([importer, name]) => `${importer} ${name}`),
 			});
