@@ -37,9 +37,20 @@ export function coalesce<X extends AnyExpr, const R extends readonly Input<NonNu
 	return call('coalesce', items, type) as never;
 }
 
+/**
+ * `cast(left op right as <left's type>)`. The cast keeps the result in the left operand's type, as the TypeScript type
+ * says; CockroachDB, for one, widens `int4 + int4` to `int8`, which a recursive query then rejects.
+ */
 function arithmetic(operator: string, left: Expr<number, string>, right: Input<number>): Expr<number, string> {
 	const other = lift(right, left.type);
-	return new Expr(join([left.operand, keyword(operator), other.operand]), left.type, false, union(left, other));
+	const fragment = join([
+		keyword('cast('),
+		left.operand,
+		keyword(operator),
+		other.operand,
+		keyword(` as ${left.type.name})`),
+	]);
+	return new Expr(fragment, left.type, true, union(left, other));
 }
 
 /** Number addition. */

@@ -24,14 +24,25 @@ import {
 	union,
 	type ValueOf,
 } from '../expr.ts';
-import { identifier, join, keyword } from '../fragment.ts';
+import { type Fragment, identifier, join, keyword } from '../fragment.ts';
 import { call, coalesce, max, min, sum } from '../functions.ts';
-import { nullable } from '../type.ts';
+import { nullable, type SqlType } from '../type.ts';
+import { textOf } from './types/shared.ts';
 import * as types from './types/mod.ts';
 
-/** `(value)::integer`, which PostgreSQL needs for a count, because `count` returns `bigint`. */
+/**
+ * A `double precision` count of milliseconds since the epoch, read as whole microseconds. A timestamp holds whole
+ * microseconds, so the read is exact without `float8send`, which CockroachDB lacks, and no session setting rounds it.
+ */
+const milliseconds: SqlType<number> = Object.freeze({
+	...types.double,
+	read: (expression: Fragment) => join([keyword('(('), expression, keyword(') * 1000)::int8::text')]),
+	decode: (raw: unknown) => Number(textOf(raw, /^-?\d+$/u, 'epoch milliseconds')) / 1000,
+});
+
+/** `(value)::int4`, which a count needs, because `count` returns `bigint`. */
 function counted(fragment: ReturnType<typeof join>, owners: ReadonlySet<string>): Expr<number, string> {
-	return new Expr(join([keyword('('), fragment, keyword(')::integer')]), types.integer, true, owners);
+	return new Expr(join([keyword('('), fragment, keyword(')::int4')]), types.integer, true, owners);
 }
 
 /** The number of rows, or of rows where `filter` holds, as an integer. */
@@ -58,7 +69,7 @@ const rows = {
 	/** Bytes that each stored row of an aliased table takes: `pg_column_size(alias)`. Sum it for a table's share. */
 	size: <A extends string>(source: { readonly alias: A }): Expr<number, A> =>
 		new Expr(
-			join([keyword('pg_column_size('), identifier(source.alias), keyword(')::integer')]),
+			join([keyword('pg_column_size('), identifier(source.alias), keyword(')::int4')]),
 			types.integer,
 			true,
 			new Set([source.alias]),
@@ -78,7 +89,7 @@ const time = {
 	epochMilliseconds: <X extends Expr<Temporal.Instant, string>>(instant: X): Expr<number, OwnersOf<X>> =>
 		new Expr(
 			join([keyword('(extract(epoch from '), instant.fragment, keyword(') * 1000)::double precision')]),
-			types.double,
+			milliseconds,
 			true,
 			instant.owners,
 		) as never,

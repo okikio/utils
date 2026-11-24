@@ -70,7 +70,7 @@ describe('trigger functions', () => {
 
 	it('adds a not-null column for a backfill, then requires it, and replaces a named check', () => {
 		expect(sql.toDdlQuery(sql.addColumn(items, 'root', { backfill: true })).text).toBe(
-			'alter table "app"."items" add column if not exists "root" integer',
+			'alter table "app"."items" add column if not exists "root" int4',
 		);
 		expect(sql.toDdlQuery(sql.setNotNull(items, 'root')).text).toBe(
 			'alter table "app"."items" alter column "root" set not null',

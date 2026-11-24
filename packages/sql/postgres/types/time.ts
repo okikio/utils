@@ -3,32 +3,53 @@
  *
  * The default text form of these types depends on the session's `TimeZone`, `DateStyle` and `IntervalStyle`, so no
  * direction uses it. Values are sent as ISO 8601 text, which PostgreSQL reads the same way under every setting, and read
- * as exact numbers: seconds or days since the epoch, or interval parts. Reading needs PostgreSQL 14 or later, where
- * `extract` returns an exact `numeric`.
+ * as whole numbers: days since 1970-01-01 and microseconds since midnight, or interval parts. Each is built from
+ * fields that `extract` returns, such as the hour and the microseconds within the minute, which are whole numbers on
+ * PostgreSQL 14 and later and on CockroachDB, where `extract` returns a float, so no field loses precision.
  *
  * @module
  */
 import { temporal } from '@okikio/duration/temporal';
 import type { Temporal } from '@okikio/duration/temporal';
-import { type Fragment, group, join, keyword } from '../../fragment.ts';
+import { type Fragment, group, join, keyword, once } from '../../fragment.ts';
 import { expect, type SqlType } from '../../type.ts';
 import { cast } from '../dialect.ts';
 import { era, textOf, textual } from './shared.ts';
 
-/** Seconds as PostgreSQL's exact `numeric` text, such as `-62154086400.500000`. */
-const seconds = /^(-?)(\d+)(?:\.(\d{1,6}))?$/u;
+const whole = /^-?\d+$/u;
 
-/** Microseconds from exact seconds text. */
-function micros(text: string, name: string): bigint {
-	const parts = seconds.exec(text);
-	if (!parts) throw new TypeError(`Expected a finite ${name}; received ${JSON.stringify(text)}.`);
-	const value = BigInt(parts[2]!) * 1_000_000n + BigInt((parts[3] ?? '').padEnd(6, '0'));
-	return parts[1] ? -value : value;
+/** A whole number of microseconds or days from its text. */
+function count(raw: unknown, name: string): bigint {
+	return BigInt(textOf(raw, whole, name));
 }
 
-/** `(extract(epoch from x))::text`: exact seconds. */
-const epoch = (expression: Fragment): Fragment =>
-	cast(join([keyword('extract(epoch from '), expression, keyword(')')]), 'text');
+/** `(extract(f from x))`, one field of a time, timestamp or interval. */
+const field = (name: string, x: Fragment): Fragment => join([keyword(`extract(${name} from `), x, keyword(')')]);
+
+/**
+ * Microseconds from the hours, minutes and seconds of `x`, as `int8`. Each field is a whole number of its unit, so the
+ * sum is exact even where `extract` returns a float.
+ */
+const clockMicros = (x: Fragment): Fragment =>
+	join([
+		keyword('('),
+		field('hour', x),
+		keyword(' * 3600000000 + '),
+		field('minute', x),
+		keyword(' * 60000000 + '),
+		field('microseconds', x),
+		keyword(')::int8'),
+	]);
+
+/** `'<days since 1970-01-01> <microseconds since midnight>'` for a timestamp in UTC wall-clock time. */
+const dayAndClock = (utc: Fragment): Fragment =>
+	join([
+		keyword('(('),
+		utc,
+		keyword(")::date - date '1970-01-01')::text || ' ' || ("),
+		clockMicros(utc),
+		keyword(')::text'),
+	]);
 
 const instant = (value: Temporal.Instant): Temporal.Instant =>
 	expect(value, (v): v is Temporal.Instant => v instanceof temporal.Instant, 'Temporal.Instant');
@@ -78,10 +99,11 @@ function iso(value: Temporal.Instant): string {
 	return text + suffix;
 }
 
-const fromEpoch = (raw: unknown, name: string): Temporal.Instant =>
-	temporal.Instant.fromEpochNanoseconds(
-		micros(expect(raw, (v): v is string => typeof v === 'string', name), name) * 1000n,
-	);
+/** An instant from `'<days> <microseconds>'`. A stored `infinity` fails earlier, when the database subtracts it. */
+function fromDayAndClock(raw: unknown, name: string): Temporal.Instant {
+	const [days, clock] = textOf(raw, /^-?\d+ \d+$/u, name).split(' ');
+	return temporal.Instant.fromEpochNanoseconds((BigInt(days!) * 86_400_000_000n + BigInt(clock!)) * 1000n);
+}
 
 /**
  * A point in time as a `Temporal.Instant`, at PostgreSQL's microsecond precision, from 4713 BC to 294276 AD. A
@@ -90,8 +112,8 @@ const fromEpoch = (raw: unknown, name: string): Temporal.Instant =>
 export const timestamptz: SqlType<Temporal.Instant> = textual(
 	'timestamptz',
 	iso,
-	(raw) => fromEpoch(raw, 'timestamp'),
-	epoch,
+	(raw) => fromDayAndClock(raw, 'timestamp'),
+	(expression) => once(expression, (x) => dayAndClock(join([keyword('('), group(x), keyword(" at time zone 'UTC')")]))),
 );
 
 /**
@@ -105,8 +127,8 @@ export const timestamp: SqlType<Temporal.Instant> = textual(
 		const { text, suffix } = era(utc(value));
 		return text.replace('Z', '') + suffix;
 	},
-	(raw) => fromEpoch(raw, 'timestamp'),
-	epoch,
+	(raw) => fromDayAndClock(raw, 'timestamp'),
+	(expression) => once(expression, (x) => dayAndClock(group(x))),
 );
 
 const epochDay = (): Temporal.PlainDate => temporal.PlainDate.from('1970-01-01');
@@ -132,11 +154,11 @@ export const time: SqlType<Temporal.PlainTime> = textual(
 	(value) =>
 		expect(value, (v): v is Temporal.PlainTime => v instanceof temporal.PlainTime, 'Temporal.PlainTime').toString(),
 	(raw) => {
-		const total = micros(expect(raw, (v): v is string => typeof v === 'string', 'time'), 'time');
+		const total = count(raw, 'time');
 		if (total >= 86_400_000_000n) throw new RangeError('PostgreSQL time 24:00:00 has no Temporal.PlainTime.');
 		return temporal.PlainTime.from('00:00').add({ microseconds: Number(total) });
 	},
-	epoch,
+	(expression) => once(expression, (x) => cast(clockMicros(group(x)), 'text')),
 );
 
 /**
@@ -157,28 +179,27 @@ function secondsText(value: bigint): string {
 	return `${sign}${abs / 1_000_000n}.${String(abs % 1_000_000n).padStart(6, '0')}`;
 }
 
-const parts = (expression: Fragment): Fragment => {
-	const x = group(expression);
-	// `json_build_array` of NULL parts is not NULL, so a NULL interval is tested first.
-	return cast(
-		join([
-			keyword('case when '),
-			x,
-			keyword(' is null then null else json_build_array((extract(year from '),
-			x,
-			keyword(') * 12 + extract(month from '),
-			x,
-			keyword('))::text, (extract(day from '),
-			x,
-			keyword('))::text, (extract(epoch from '),
-			x,
-			keyword(" - date_trunc('day', "),
-			x,
-			keyword(')))::text) end'),
-		]),
-		'text',
-	);
-};
+const parts = (expression: Fragment): Fragment =>
+	once(expression, (value) => {
+		const x = group(value);
+		// `json_build_array` of NULL parts is not NULL, so a NULL interval is tested first.
+		return cast(
+			join([
+				keyword('case when '),
+				x,
+				keyword(' is null then null else json_build_array(('),
+				field('year', x),
+				keyword(' * 12 + '),
+				field('month', x),
+				keyword(')::int8::text, ('),
+				field('day', x),
+				keyword(')::int8::text, '),
+				clockMicros(x),
+				keyword('::text) end'),
+			]),
+			'text',
+		);
+	});
 
 /** An `interval`, as {@link IntervalType}. */
 export const interval: SqlType<IntervalType> = textual(
@@ -197,9 +218,9 @@ export const interval: SqlType<IntervalType> = textual(
 			string,
 		];
 		return Object.freeze({
-			months: Number(textOf(months, /^-?\d+$/u, 'interval months')),
-			days: Number(textOf(days, /^-?\d+$/u, 'interval days')),
-			microseconds: micros(time, 'interval'),
+			months: Number(textOf(months, whole, 'interval months')),
+			days: Number(textOf(days, whole, 'interval days')),
+			microseconds: count(time, 'interval'),
 		});
 	},
 	parts,
