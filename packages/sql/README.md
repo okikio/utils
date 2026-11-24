@@ -20,6 +20,7 @@ on a shared core:
 | `@okikio/sql/postgres/kysely`     | Run PostgreSQL statements through Kysely, in its transactions too.            |
 | `@okikio/sql/postgres/postgresjs` | Run PostgreSQL statements through Postgres.js.                                |
 | `@okikio/sql/postgres/pg`         | Run PostgreSQL statements through node-postgres (`pg`), with cancellation.    |
+| `@okikio/sql/postgres/cockroach`  | The PostgreSQL types, with floats read the way CockroachDB can.               |
 
 Application code imports one dialect's entry point. A library that only accepts an executor or a statement can depend
 on the core. Only PostgreSQL exists today. Other tabular dialects, such as ClickHouse, MySQL and T-SQL, would be sibling
@@ -113,20 +114,20 @@ client can change a value:
 | Type                    | JavaScript value    | Sent as                                 | Read as                          |
 | ----------------------- | ------------------- | --------------------------------------- | -------------------------------- |
 | `text(values?)`         | `string`            | `text`                                  | `text`                           |
-| `integer`               | `number`            | text, cast to `integer`                 | `integer`                        |
+| `integer`               | `number`            | text, cast to `int4`                    | `int4`                           |
 | `bigint`                | `bigint`            | text, cast to `bigint`                  | text                             |
 | `long`                  | `number` (safe int) | text, cast to `bigint`                  | text, then range-checked         |
-| `double`                | `number`            | text, with `NaN`, `±Infinity` and `-0`  | text, exact                      |
+| `double`                | `number`            | text, with `NaN`, `±Infinity` and `-0`  | its 8 bytes as hex, exact        |
 | `numeric`               | `string`            | decimal text, cast to `numeric`         | decimal text, exact              |
 | `boolean`               | `boolean`           | `boolean`                               | `boolean`                        |
 | `uuid`                  | `string`            | text, cast to `uuid`                    | text                             |
 | `jsonb(parse?)`         | any JSON value      | JSON text, cast to `jsonb`              | JSON text, then parsed           |
-| `timestamptz`           | `Temporal.Instant`  | ISO 8601 text in UTC, any year          | exact epoch seconds              |
-| `timestamp`             | `Temporal.Instant`  | UTC wall-clock text                     | exact epoch seconds              |
+| `timestamptz`           | `Temporal.Instant`  | ISO 8601 text in UTC, any year          | UTC day and microsecond of day   |
+| `timestamp`             | `Temporal.Instant`  | UTC wall-clock text                     | day and microsecond of day       |
 | `enumerated(name, all)` | one of `all`        | text, cast to the enum type             | text                             |
-| `smallint`, `real`      | `number`            | text, range-checked                     | `integer`, exact text            |
+| `smallint`, `real`      | `number`            | text, range-checked                     | `int4`, 4 bytes as hex           |
 | `date`                  | `Temporal.PlainDate`| ISO 8601 text, any year                 | days since 1970-01-01            |
-| `time`                  | `Temporal.PlainTime`| ISO 8601 text                           | exact seconds since midnight     |
+| `time`                  | `Temporal.PlainTime`| ISO 8601 text                           | microseconds since midnight      |
 | `interval`              | `IntervalType`      | `months days seconds` text              | months, days, microseconds       |
 | `bytea`                 | `Uint8Array`        | `\x` hex text                           | hex text                         |
 | `array(element)`        | `readonly T[]`      | JSON list of element text forms         | JSON list of element read forms  |
@@ -142,8 +143,12 @@ client can change a value:
   silently replace a lone surrogate with U+FFFD, so sending either is a `TypeError`.
 - Use `timestamp`, not `timestamptz`, for a `timestamp without time zone` column, such as the ones Prisma and TypeORM
   create. PostgreSQL converts between the two with the session's `TimeZone`, so the wrong one shifts the value.
-- A stored `infinity` timestamp has no `Temporal.Instant`, so reading one fails. Timestamps need PostgreSQL 14 or
-  later, where `extract` returns exact `numeric` seconds.
+- A stored `infinity` timestamp has no `Temporal.Instant`, so reading one fails.
+- Reads use whole numbers and bytes, never the server's text for a float or a date, so `DateStyle`, `IntervalStyle`,
+  `TimeZone` and `extra_float_digits` change nothing. Supabase, for one, sets `extra_float_digits` to 0, which rounds a
+  float's text to 15 digits.
+- A value that a read needs more than once, such as an array, is computed once in a subquery, so it is sent once and a
+  volatile call such as `clock_timestamp()` runs once.
 
 ## Adopt a schema made elsewhere
 
@@ -298,15 +303,20 @@ const viaSequelize = {
 The template `strings` are a real template object, so tags that check for one, such as Bun's `sql` and Slonik's
 `sql.unsafe`, accept them.
 
-These forms were checked with Postgres.js, pg, Drizzle, Kysely, Prisma 7, TypeORM, Sequelize, knex, MikroORM, Slonik,
-pg-promise, Bun's SQL, Deno's `@db/postgres` and PGlite, against PostgreSQL 14 to 19.
+Every form here runs in the interoperability suite in `tests/interop`, which sends the same statements
+through Postgres.js, pg, Drizzle, Kysely, Prisma 7, TypeORM, Sequelize, knex, MikroORM, Slonik, pg-promise, Bun's SQL,
+Deno's `@db/postgres`, Neon's serverless driver and PGlite. It runs them against PostgreSQL 14 to 19, PgBouncer and
+Supavisor in both pool modes, a Neon proxy, Supabase, TimescaleDB, Citus, ParadeDB, AlloyDB Omni, CockroachDB and
+YugabyteDB, and lists each known limit with its reason.
 
 `@okikio/sql/postgres/pg` binds a node-postgres pool the same way: `database(pool)` runs, cancels and opens
 transactions. Drizzle's `node-postgres` driver, Kysely's `PostgresDialect`, TypeORM, Sequelize, knex and MikroORM all
 sit on a `pg` pool, so pass that pool to share its connections and get cancellation too.
 
 `run` also takes `{ signal }`. The bindings cancel the running query when the signal aborts and reject with the abort
-reason; the `pg` binding sends `pg_cancel_backend` through a second connection of the pool. The Kysely binding asks
+reason; the `pg` binding sends the protocol's cancel request with the connection's own key, which PgBouncer, Supavisor
+and CockroachDB route to the right server, and falls back to `pg_cancel_backend` through a second connection of the
+pool for a client without a key. The Kysely binding asks
 Kysely 0.29 or later to cancel in the database. Drizzle takes no signal, so the Drizzle binding sends a cancellable
 statement through the `pg` pool or Postgres.js client under it (`db.$client`); inside a Drizzle transaction the signal
 is only checked before sending. The hand-written forms above ignore the signal and let the statement finish.

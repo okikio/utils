@@ -5,11 +5,13 @@
  * `node-postgres` driver, Kysely's `PostgresDialect`, TypeORM, Sequelize, knex and MikroORM all sit on a `pg` pool, so
  * passing that same pool here shares its connections.
  *
- * **Cancellation.** PostgreSQL cancels a statement from outside its connection: `pg_cancel_backend(pid)` on another
- * connection stops whatever that backend runs. So a statement with a `signal` runs on a checked-out connection, and an
- * abort asks the pool for a second one to send the cancel. The run then rejects with the signal's reason. A cancel that
- * arrives after the statement finished may stop the next statement on that connection; the binding sends it only while
- * the statement is still pending, which keeps that window short but cannot close it.
+ * **Cancellation.** A statement with a `signal` runs on a checked-out connection, and an abort sends PostgreSQL's
+ * cancel request for that connection, as `psql` and Postgres.js do: a new connection of the same client class carries
+ * the connection's process id and secret key. PgBouncer, Supavisor and Neon's proxy route that request to the right
+ * server connection. A client that has no secret key, such as a mock, falls back to `pg_cancel_backend(pid)` on
+ * another connection of the pool. The run then rejects with the signal's reason. A cancel that arrives after the
+ * statement finished may stop the next statement on that connection; the binding sends it only while the statement is
+ * still pending, which keeps that window short but cannot close it.
  *
  * @example
  * ```ts ignore
@@ -31,10 +33,32 @@ export interface ResultType {
 	readonly rows: readonly RawRow[];
 }
 
-/** A `pg` client or a client checked out of a pool. `processID` is the backend's pid once connected. */
+/**
+ * A `pg` client or a client checked out of a pool. Once connected, `processID` and `secretKey` are the key the server
+ * sent for cancel requests, and `connectionParameters` says where to send one.
+ */
 export interface Client {
 	query(text: string, values?: readonly unknown[]): Promise<ResultType>;
 	readonly processID?: number | null;
+	readonly secretKey?: number | null;
+}
+
+/** The parts of a `pg` client that sending its cancel request reads. They are not in `pg`'s type definitions. */
+interface CancellableType {
+	readonly processID?: number | null;
+	readonly secretKey?: number | null;
+	readonly connectionParameters?: object;
+}
+
+/** A new client of the same class, used only to carry one cancel request. */
+interface CancellerType {
+	readonly host?: string;
+	readonly port?: number;
+	readonly connection?: {
+		connect?(...target: unknown[]): unknown;
+		cancel?(processID: number, secretKey: number): unknown;
+		on?(event: string, listener: () => void): unknown;
+	};
 }
 
 /** A checked-out pool client, which must be released. `release(error)` discards a broken connection. */
@@ -58,11 +82,45 @@ const levels: Readonly<Record<IsolationType, string>> = {
 	serializable: 'begin isolation level serializable',
 };
 
-/** Send `pg_cancel_backend` for a backend through another connection of the pool. */
-function canceller(pool: Pool | undefined): ((pid: number) => Promise<void>) | undefined {
-	if (!pool) return undefined;
-	return async (pid) => {
-		await pool.query('select pg_cancel_backend($1::integer)', [pid]);
+/** How long to wait for a cancel request's connection to close before treating it as sent. */
+const cancelWaitMs = 5000;
+
+/**
+ * Send the protocol's cancel request for the statement `client` runs, over the connection of a new client of the same
+ * class and settings, so TLS, a WebSocket transport or a pooler in between applies to it as well. This is what `pg`'s
+ * own `cancel` does, without reading `Client.activeQuery`, which `pg` 8.21 deprecates: the binding only cancels while
+ * its own statement runs. Returns `undefined` when the client lacks what the request needs.
+ */
+function protocolCancel(client: Client): Promise<void> | undefined {
+	const target = client as Client & CancellableType;
+	const { processID, secretKey } = target;
+	if (!processID || !secretKey || !target.connectionParameters) return undefined;
+	const Class = target.constructor as new (config: object) => CancellerType;
+	const { connection, host, port } = new Class(target.connectionParameters);
+	if (!connection?.connect || !connection.cancel || !connection.on) return undefined;
+	return new Promise((resolve) => {
+		const timer = setTimeout(resolve, cancelWaitMs);
+		const done = () => {
+			clearTimeout(timer);
+			resolve();
+		};
+		// The server closes the connection after reading the request; an error means it could not be sent.
+		connection.on!('end', done);
+		connection.on!('error', done);
+		connection.on!('connect', () => connection.cancel!(processID, secretKey));
+		if (host?.startsWith('/')) connection.connect!(`${host}/.s.PGSQL.${port}`);
+		else connection.connect!(port, host);
+	});
+}
+
+/** Cancel the statement a client runs: by cancel request, or by `pg_cancel_backend` through the pool. */
+function canceller(pool: Pool | undefined): (client: Client) => Promise<void> {
+	return async (client) => {
+		const sent = protocolCancel(client);
+		if (sent) return await sent;
+		if (pool && client.processID) {
+			await pool.query('select pg_cancel_backend($1::int4)', [client.processID]);
+		}
 	};
 }
 
@@ -71,15 +129,14 @@ async function send(
 	client: Client,
 	query: CompiledType,
 	signal: AbortSignal | undefined,
-	cancel: ((pid: number) => Promise<void>) | undefined,
+	cancel: (client: Client) => Promise<void>,
 ): Promise<readonly RawRow[]> {
 	signal?.throwIfAborted();
 	const pending = client.query(query.text, query.values);
-	if (!signal || !cancel || !client.processID) return (await pending).rows;
+	if (!signal) return (await pending).rows;
 	let settled = false;
-	const pid = client.processID;
 	const abort = () => {
-		if (!settled) cancel(pid).catch(() => {/* The statement may have finished; its result stays authoritative. */});
+		if (!settled) cancel(client).catch(() => {/* The statement may have finished; its result stays authoritative. */});
 	};
 	signal.addEventListener('abort', abort, { once: true });
 	try {
@@ -94,8 +151,9 @@ async function send(
 }
 
 /**
- * Run statements on one `pg` client, such as a checked-out pool client inside your own transaction. Pass the `pool`
- * the client came from to make `signal` cancel the statement; without it the signal is checked only before sending.
+ * Run statements on one `pg` client, such as a checked-out pool client inside your own transaction. A `signal` cancels
+ * the statement with a cancel request. Pass the `pool` the client came from as a fallback for a client without a cancel
+ * key, which then cancels with `pg_cancel_backend`.
  */
 export function executor(client: Client, pool?: Pool): Executor {
 	const cancel = canceller(pool);

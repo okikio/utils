@@ -40,7 +40,51 @@ describe('pg binding', () => {
 		expect(released).toEqual([undefined]);
 	});
 
-	it('cancels a running statement through another connection and rejects with the reason', async () => {
+	it('sends a cancel request through a new client of the same class when the client has a key', async () => {
+		const sent: unknown[] = [];
+		let stop: ((error: Error) => void) | undefined;
+		/** The cancel connection of a new client: it records where it connects and what it sends. */
+		class Wire {
+			listeners = new Map<string, () => void>();
+			on(event: string, listener: () => void) {
+				this.listeners.set(event, listener);
+			}
+			connect(...target: unknown[]) {
+				sent.push({ connect: target });
+				this.listeners.get('connect')?.();
+			}
+			cancel(pid: number, key: number) {
+				sent.push({ pid, key });
+				stop?.(Object.assign(new Error('canceling statement due to user request'), { code: '57014' }));
+				this.listeners.get('end')?.();
+			}
+		}
+		class Fake {
+			processID = 7;
+			secretKey = 1234;
+			connectionParameters = { host: 'pooler', port: 6432 };
+			host: string;
+			port: number;
+			connection = new Wire();
+			constructor(config?: { host: string; port: number }) {
+				this.host = config?.host ?? 'db';
+				this.port = config?.port ?? 5432;
+			}
+			query() {
+				return new Promise<never>((_, reject) => {
+					stop = reject;
+				});
+			}
+		}
+		const controller = new AbortController();
+		const run = sql.execute(executor(new Fake() as never), one, { signal: controller.signal });
+		await new Promise((resolve) => setTimeout(resolve, 5));
+		controller.abort(new Error('stopped'));
+		await expect(run).rejects.toThrow('stopped');
+		expect(sent).toEqual([{ connect: [6432, 'pooler'] }, { pid: 7, key: 1234 }]);
+	});
+
+	it('falls back to pg_cancel_backend through the pool for a client without a key', async () => {
 		const { pool, log } = fake({ hold: 'pg_sleep' });
 		const sleep = sql.declare('pg_sleep', [types.double], types.empty);
 		const controller = new AbortController();
@@ -48,7 +92,7 @@ describe('pg binding', () => {
 		await new Promise((resolve) => setTimeout(resolve, 5));
 		controller.abort(new Error('stopped'));
 		await expect(run).rejects.toThrow('stopped');
-		expect(log.at(-1)).toBe('select pg_cancel_backend($1::integer) [42]');
+		expect(log.at(-1)).toBe('select pg_cancel_backend($1::int4) [42]');
 	});
 
 	it('opens a transaction at an isolation level, commits, and rolls back on error', async () => {
