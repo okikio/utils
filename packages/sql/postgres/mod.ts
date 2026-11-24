@@ -20,7 +20,7 @@
  *
  * @module
  */
-import { schema as core, type SchemaType } from '../table.ts';
+import { schema as core, type SchemaOptions, type SchemaType } from '../table.ts';
 import { dialect } from './dialect.ts';
 
 export * from '../mod.ts';
@@ -48,7 +48,10 @@ export {
 	tableStatements,
 } from './ddl.ts';
 
-/** Start a PostgreSQL schema definition: a namespace for tables. */
-export function schema<const S extends string>(name: S): SchemaType<S> {
-	return core(dialect, name);
+/**
+ * Start a PostgreSQL schema definition: a namespace for tables. Pass `{ owned: false }` for a schema made elsewhere,
+ * such as by Prisma, Drizzle or plain SQL, so schema statements refuse to change its tables.
+ */
+export function schema<const S extends string>(name: S, options?: SchemaOptions): SchemaType<S> {
+	return core(dialect, name, options);
 }

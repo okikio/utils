@@ -15,6 +15,7 @@ on a shared core:
 | ------------------------------------ | ----------------------------------------------------------------------------- |
 | `@okikio/sql`                     | The dialect-neutral core: expressions, conditions, tables, scope, executors.  |
 | `@okikio/sql/postgres`            | The core, plus PostgreSQL statements, types, functions, DDL and triggers.     |
+| `@okikio/sql/postgres/adopt`      | Read a schema made elsewhere, generate its definitions, check them for drift. |
 | `@okikio/sql/postgres/postgresjs` | Run PostgreSQL statements through Postgres.js.                                |
 | `@okikio/sql/postgres/pg`         | Run PostgreSQL statements through node-postgres (`pg`), with cancellation.    |
 
@@ -141,6 +142,32 @@ client can change a value:
   create. PostgreSQL converts between the two with the session's `TimeZone`, so the wrong one shifts the value.
 - A stored `infinity` timestamp has no `Temporal.Instant`, so reading one fails. Timestamps need PostgreSQL 14 or
   later, where `extract` returns exact `numeric` seconds.
+
+## Adopt a schema made elsewhere
+
+The package does not need to own a schema. Tables made by Prisma, Drizzle, TypeORM, Sequelize, a migration tool or
+plain SQL can be described and queried the same way:
+
+```ts ignore
+import { drift, generate, inspect } from '@okikio/sql/postgres/adopt';
+
+// 1. Write definitions from the catalog once, and commit them.
+await Deno.writeTextFile('tables.ts', generate(await inspect(db, ['prisma_app'])));
+
+// 2. Check them in a test, so a change made elsewhere fails there instead of in production.
+expect((await drift(db, [User, Post])).filter((item) => item.severity === 'error')).toEqual([]);
+```
+
+- `sql.schema(name, { owned: false })` marks a schema made elsewhere. Its tables can be queried, and `createTable`,
+  `createIndex`, `addColumn`, `setNotNull` and `replaceCheck` refuse to change them.
+- `.named('seen_at')` maps a key to a different column name. `.filled()` lets inserts omit a column the database fills
+  (a default, sequence or trigger). `.computed()` marks a column the database writes, such as a generated column.
+- `.onInsert(() => value)` and `.onUpdate(() => value)` write values the application owns, such as Sequelize's
+  `createdAt` or Prisma's `@updatedAt`, which have no database default.
+- `drift` reports a missing table or column, a type that reads or writes wrongly (`integer` for `bigint`,
+  `timestamptz` for `timestamp`), a NULL rule or default that would fail, and a column the definition writes but the
+  database computes. Near types, such as `text` for `varchar(40)`, are warnings.
+- `types.custom(['pg_catalog', 'inet'])` reads and writes any other type as text.
 
 ## Compose larger statements
 

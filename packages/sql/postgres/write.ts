@@ -26,7 +26,7 @@ import {
 	type TypesOf,
 	typesOf,
 } from '../statement.ts';
-import type { ColumnDef, Columns, Table } from '../table.ts';
+import { applied, type ColumnDef, columnName, type Columns, type Table } from '../table.ts';
 import type { SqlType } from '../type.ts';
 import { dialect } from './dialect.ts';
 
@@ -83,7 +83,7 @@ export type OwnersOfConflict<X> = X extends { readonly set: infer S } ?
 export function writable(table: Table<Columns>, name: string): ColumnDef<unknown> {
 	const def = table.columns[name];
 	if (!def) throw new TypeError(`Unknown column ${name} of ${table.schema}.${table.name}.`);
-	if (def.generated) throw new TypeError(`Column ${name} is generated and cannot be written.`);
+	if (def.generated) throw new TypeError(`Column ${name} is written by the database and cannot be written.`);
 	return def;
 }
 
@@ -95,10 +95,37 @@ export function values<C extends Columns>(table: Table<C>, row: UpdateRow<C>): [
 	]);
 }
 
+/** A row with the values the application writes for columns an insert omits; see `ColumnBuilder.onInsert`. */
+export function withInsertValues<C extends Columns, R>(table: Table<C>, row: R): R {
+	let out: Record<string, unknown> | undefined;
+	for (const [key, def] of Object.entries(table.columns)) {
+		if (def.insertValue && (row as Record<string, unknown>)[key] === undefined) {
+			out ??= { ...(row as Record<string, unknown>) };
+			out[key] = applied(def.insertValue, `${table.name}.${key}`);
+		}
+	}
+	return (out ?? row) as R;
+}
+
+/** Update values with the values the application writes on every update; see `ColumnBuilder.onUpdate`. */
+export function withUpdateValues<C extends Columns, R>(table: Table<C>, row: R): R {
+	let out: Record<string, unknown> | undefined;
+	for (const [key, def] of Object.entries(table.columns)) {
+		if (def.updateValue && (row as Record<string, unknown>)[key] === undefined) {
+			out ??= { ...(row as Record<string, unknown>) };
+			out[key] = applied(def.updateValue, `${table.name}.${key}`);
+		}
+	}
+	return (out ?? row) as R;
+}
+
 /** `name = value` for each listed column. */
 export function assignments(set: readonly [string, Expr<unknown, string>][], table: Table<Columns>): Fragment {
 	if (set.length === 0) throw new TypeError(`An update of ${table.schema}.${table.name} needs at least one column.`);
-	return join(set.map(([key, value]) => join([identifier(key), keyword(' = '), value.fragment])), ', ');
+	return join(
+		set.map(([key, value]) => join([identifier(columnName(table, key)), keyword(' = '), value.fragment])),
+		', ',
+	);
 }
 
 /** A where clause, or nothing. */

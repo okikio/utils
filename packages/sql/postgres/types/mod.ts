@@ -16,7 +16,7 @@ import { cast, dialect } from '../dialect.ts';
 export { boolean } from '../dialect.ts';
 export { nullable, type SqlType } from '../../type.ts';
 export { bigint, double, integer, long, numeric, real, smallint } from './numbers.ts';
-export { bytea, enumerated, jsonb, text, uuid } from './text.ts';
+export { bytea, custom, enumerated, jsonb, text, uuid } from './text.ts';
 export { date, interval, type IntervalType, time, timestamp, timestamptz } from './time.ts';
 export { array, composite, type FieldsType, type FieldValuesType } from './compound.ts';
 

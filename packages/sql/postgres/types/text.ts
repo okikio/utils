@@ -52,6 +52,23 @@ export function enumerated<const T extends string>(
 	return textual(compile(qualified(...name), dialect).text, base.encode!, base.decode);
 }
 
+/**
+ * A value of any other PostgreSQL type as its text form, such as `inet`, `citext` or `tsvector`, for columns of a
+ * schema made elsewhere. The value is sent as text cast to the type, and read as text.
+ *
+ * @example
+ * ```ts ignore
+ * const address = types.custom(['pg_catalog', 'inet']);
+ * ```
+ */
+export function custom(name: readonly [schema: string, type: string]): SqlType<string> {
+	return textual(
+		compile(qualified(...name), dialect).text,
+		text().encode!,
+		(raw) => expect(raw, isString, name.join('.')),
+	);
+}
+
 /** Any JSON value. It travels as JSON text both ways, so no client encodes or parses it differently. */
 export function jsonb<T = unknown>(parse: (value: unknown) => T = (value) => value as T): SqlType<T> {
 	return textual(
