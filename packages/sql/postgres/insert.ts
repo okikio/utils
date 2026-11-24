@@ -17,6 +17,7 @@ import {
 	type OwnersOfConflict,
 	type OwnersOfRow,
 	returning,
+	type Strict,
 	type UpdateRow,
 	values,
 	where,
@@ -146,7 +147,7 @@ export class Insert<
  */
 export function insert<C extends Columns, K extends string, const V extends InsertRow<C> | readonly InsertRow<C>[]>(
 	table: Table<C, K>,
-	rows: V,
+	rows: V & Strict<V, C>,
 ): Insert<C, K, Record<never, never>, OwnersOfRow<V>>;
 export function insert<C extends Columns, K extends string, Q extends InsertSelect<C>>(
 	table: Table<C, K>,

@@ -31,7 +31,12 @@ describe('tables made elsewhere', () => {
 	it('refuses to change the table or write a column the database computes', () => {
 		expect(() => sql.createTable(users)).toThrow('owned elsewhere');
 		expect(() => sql.addColumn(users, 'seenAt')).toThrow('owned elsewhere');
-		expect(() => sql.toQuery(sql.update(users, { total: '1' } as never))).toThrow('written by the database');
+		// @ts-expect-error: an unknown column fails to type-check too.
+		expect(() => sql.toQuery(sql.insert(users, { nope: 1 }))).toThrow();
+		// @ts-expect-error: the same for an update.
+		expect(() => sql.toQuery(sql.update(users, { total: '1' }))).toThrow('written by the database');
+		// @ts-expect-error: the database writes `total`, so the row type leaves it out.
+		expect(() => sql.toQuery(sql.insert(users, { total: '1' }))).toThrow('written by the database');
 		const reading = sql.schema('app').table('t', { v: sql.column(types.integer).onInsert(() => u.id as never) });
 		expect(() => sql.insert(reading, {})).toThrow('may not read a table');
 	});

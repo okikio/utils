@@ -36,18 +36,32 @@ import { dialect } from './dialect.ts';
  */
 export type InsertRow<C extends Columns, O extends string = string> =
 	& {
-		[K in keyof C as C[K] extends ColumnDef<unknown, true> ? never : K]: C[K] extends ColumnDef<infer T> ? Input<T, O>
+		[K in Writable<C> as C[K] extends ColumnDef<unknown, true> ? never : K]: C[K] extends ColumnDef<infer T>
+			? Input<T, O>
 			: never;
 	}
 	& {
-		[K in keyof C as C[K] extends ColumnDef<unknown, true> ? K : never]?: C[K] extends ColumnDef<infer T> ? Input<T, O>
+		[K in Writable<C> as C[K] extends ColumnDef<unknown, true> ? K : never]?: C[K] extends ColumnDef<infer T>
+			? Input<T, O>
 			: never;
 	};
 
 /** Values an update may set. `O` limits what an expression value may read, as for {@link InsertRow}. */
 export type UpdateRow<C extends Columns, O extends string = string> = {
-	[K in keyof C]?: C[K] extends ColumnDef<infer T> ? Input<T, O> : never;
+	[K in Writable<C>]?: C[K] extends ColumnDef<infer T> ? Input<T, O> : never;
 };
+
+/** The keys of the columns a statement may write: all but identity and computed columns. */
+export type Writable<C extends Columns> = {
+	[K in keyof C]: C[K] extends ColumnDef<unknown, boolean, true> ? never : K;
+}[keyof C];
+
+/**
+ * Refuse keys a row may not write: unknown columns, and columns the database writes. Without this, a `const` row would
+ * pass with extra keys, which the builder then rejects only at run time.
+ */
+export type Strict<V, C extends Columns> = V extends readonly (infer E)[] ? readonly Strict<E, C>[]
+	: { readonly [K in Exclude<keyof V, Writable<C>>]: never };
 
 /** The owners the values of a row or rows read. */
 export type OwnersOfRow<R> = R extends readonly (infer E)[] ? OwnersOfRow<E>
