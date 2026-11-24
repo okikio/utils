@@ -419,13 +419,13 @@ describe('outbox retirement', () => {
 		const later = Date.now() + 10000;
 		expect((await box.completed({ before: later })).map((item) => item.key)).toEqual(['done']);
 		expect(await box.completed({ before: 0 })).toEqual([]);
-		expect(await box.completed({ before: later, where: database`utils_outbox.messages.key <> 'done'` })).toEqual([]);
-		expect((await box.completed({ before: later, limit: 1, where: database`utils_outbox.messages.key = 'done'` }))
+		expect(await box.completed({ before: later, where: outbox.messages.c.key.ne('done') })).toEqual([]);
+		expect((await box.completed({ before: later, limit: 1, where: outbox.messages.c.key.eq('done') }))
 			.map((item) => item.key)).toEqual(['done']);
 		// The same read inside a transaction the caller holds, with a condition built from it.
 		expect(
 			(await database.begin((tx) =>
-				box.completed({ database: tx, before: later, where: tx`utils_outbox.messages.key = ${'done'}` })
+				box.completed({ database: tx, before: later, where: outbox.messages.c.key.eq('done') })
 			)).map((item) => item.key),
 		).toEqual(['done']);
 		await expect(box.completed({ before: later, limit: 1001 })).rejects.toThrow(RangeError);

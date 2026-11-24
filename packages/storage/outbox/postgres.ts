@@ -1,19 +1,35 @@
-/** Transactional acceptance and fenced, at-least-once delivery over a borrowed Postgres.js pool. Imports issue no SQL. @module */
-import type { Sql, TransactionSql } from 'postgres';
+/**
+ * Transactional acceptance and fenced, at-least-once delivery over a borrowed database. Imports issue no SQL.
+ *
+ * The application owns the client. Pass a Postgres.js pool or transaction, or any `@okikio/sql` executor (and
+ * database, for the operations that own a transaction): that is how an application using Drizzle, Kysely or another
+ * client joins its own transaction. Every table is defined in `schema.ts` and every statement is built in
+ * `statements.ts`, without SQL strings.
+ *
+ * @module
+ */
 import * as schema from '@okikio/schema';
 import * as json from '@okikio/collection/record/json';
+import * as sql from '@okikio/sql';
+import type { Database, Executor } from '@okikio/sql';
+import * as postgres from '@okikio/sql/postgres';
+import type { Client, Pool } from '@okikio/sql/postgres';
 import * as retire from './retire.ts';
+import * as statements from './statements.ts';
+import * as tables from './schema.ts';
 import { OutboxError } from './error.ts';
 
 export { OutboxError } from './error.ts';
 export { type PolicyType, resize } from './policy.ts';
 
 export type { CompletedOptions, RetiredType } from './retire.ts';
+export type { Database, Executor } from '@okikio/sql';
+export type { Client, Pool } from '@okikio/sql/postgres';
+/** The messages table, for building a `completed()` condition. */
+export { messages } from './schema.ts';
 
 /** Bound namespace, definition and occurrence keys before a database transaction acquires locks. */
 const NameSchema: schema.JsonReader<string, string> = schema.string({ minLength: 1, maxLength: 512 });
-/** PostgreSQL text OID. Prevent the driver from JSON-encoding canonical JSON text a second time. */
-const TextOid = 25;
 /** A logical message key is unique within its namespace and definition ID. Payloads must be finite JSON. */
 export interface MessageType {
 	/** Exact message/effect definition ID used to select a trusted decoder. */
@@ -126,8 +142,11 @@ export interface RetryOptions {
 }
 /** Bounded shared admission policy; every view of a namespace must agree. */
 export interface Options {
-	/** Application-owned pool, borrowed for short transactions and never closed by the outbox. */
-	readonly database: Sql;
+	/**
+	 * Application-owned pool, borrowed for short transactions and never closed by the outbox: a Postgres.js pool, or a
+	 * {@link Database} that runs statements and opens transactions on another client.
+	 */
+	readonly database: Pool | Database;
 	/** Application partition, not an authorization boundary; all views must share the same policy. */
 	readonly namespace: string;
 	/** Includes retained terminal messages. Prune explicitly to release capacity. @default 10000 */
@@ -138,34 +157,15 @@ export interface Options {
 	readonly maximumAttempts?: number;
 }
 /** Install only this adapter's revision. Applications own running migrations and transaction pools. */
-export async function migrate({ database }: { readonly database: Sql }): Promise<void> {
-	await database.begin(async (tx) => {
-		await tx`select pg_advisory_xact_lock(776161007)`;
-		await tx`create schema if not exists utils_outbox`;
-		await tx`create table if not exists utils_outbox.version (id boolean primary key check(id), revision integer not null)`;
-		await tx`insert into utils_outbox.version values (true,1) on conflict do nothing`;
-		const revision = (await tx`select revision from utils_outbox.version where id`)[0]?.revision;
-		if (revision !== 1 && revision !== 2) {
+export async function migrate({ database }: { readonly database: Pool | Database }): Promise<void> {
+	await postgres.toDatabase(database).begin(async (tx) => {
+		await sql.execute(tx, tables.migrationLock);
+		for (const statement of tables.prepare) await sql.execute(tx, statement);
+		const stored = (await sql.one(tx, tables.stored))?.revision;
+		if (stored === undefined || !tables.supported.includes(stored)) {
 			throw new TypeError('Unsupported outbox schema revision.');
 		}
-		await tx`create table if not exists utils_outbox.policies (namespace text primary key, maximum integer not null, bytes integer not null, attempts integer not null)`;
-		await tx`create table if not exists utils_outbox.messages (
-			namespace text not null, id text not null, key text not null, value jsonb not null,
-			state text not null check(state in ('pending','leased','complete','failed')),
-			attempt integer not null default 0, token text, expires double precision,
-			due double precision not null, updated double precision not null,
-			primary key(namespace,id,key))`;
-		await tx`create index if not exists outbox_ready on utils_outbox.messages(namespace,state,due)`;
-		// Additive revision 2 keeps lifetime attempts intact. The budget baseline
-		// grants another finite cycle without making an old reservation current again.
-		await tx`alter table utils_outbox.messages add column if not exists budget integer not null default 0`;
-		await tx`alter table utils_outbox.messages add column if not exists failure text`;
-		await tx`create table if not exists utils_outbox.repairs (
-			namespace text not null, id text not null, key text not null, attempt integer not null,
-			actor text not null, reason text not null, updated double precision not null,
-			primary key(namespace,id,key,attempt),
-			foreign key(namespace,id,key) references utils_outbox.messages(namespace,id,key) on delete cascade)`;
-		await tx`update utils_outbox.version set revision=2 where id`;
+		for (const statement of tables.install) await sql.execute(tx, statement);
 	});
 }
 /** Reject unbounded durations/counts before obtaining database ownership. @internal */
@@ -174,8 +174,8 @@ function count(value: number, maximum: number): number {
 	return value;
 }
 /** Database time is read after serialization, so an expired claim cannot acknowledge a late sink result. @internal */
-async function now(tx: TransactionSql): Promise<number> {
-	return Number((await tx`select extract(epoch from clock_timestamp()) * 1000 as now`)[0]!.now);
+async function now(tx: Executor): Promise<number> {
+	return (await sql.one(tx, statements.now))!.now;
 }
 /**
  * Create an inert namespace view. append() borrows the application's existing transaction;
@@ -188,7 +188,7 @@ export function open(
 ): Readonly<
 	{
 		/** Join the caller's transaction. Reusing a retained key requires the same payload. */
-		append(tx: TransactionSql, message: MessageType): Promise<void>;
+		append(tx: Client | Executor, message: MessageType): Promise<void>;
 		/** Reserve a bounded batch with fresh lease tokens; expired work can be delivered again. */
 		claim(options?: { readonly limit?: number; readonly leaseMs?: number }): Promise<readonly ClaimType[]>;
 		/** Record sink acceptance only while this exact claim remains current and unexpired. */
@@ -217,7 +217,7 @@ export function open(
 		completed(options: retire.CompletedOptions): Promise<readonly retire.RetiredType[]>;
 		/** Delete one completed message inside the caller's transaction; `false` when it no longer qualifies. */
 		remove(
-			tx: TransactionSql,
+			tx: Client | Executor,
 			message: { readonly id: string; readonly key: string },
 			before: number,
 		): Promise<boolean>;
@@ -227,12 +227,19 @@ export function open(
 	const maximum = count(options.maximum ?? 10000, 1000000);
 	const bytes = count(options.maximumBytes ?? 1048576, 16777216);
 	const attempts = count(options.maximumAttempts ?? 8, 10000);
+	const database = postgres.toDatabase(options.database);
 	/** Serialize capacity and policy with insertion. A duplicate message does not consume another slot. */
-	async function policy(tx: TransactionSql): Promise<void> {
-		await tx`select pg_advisory_xact_lock(hashtextextended(${`outbox:${namespace}`},0))`;
-		await tx`insert into utils_outbox.policies values (${namespace},${maximum},${bytes},${attempts}) on conflict do nothing`;
-		const row = (await tx`select * from utils_outbox.policies where namespace=${namespace}`)[0]!;
+	async function policy(tx: Executor): Promise<void> {
+		await sql.execute(tx, statements.guard(namespace));
+		await sql.execute(tx, statements.addPolicy(namespace, { maximum, bytes, attempts }));
+		const row = (await sql.one(tx, statements.policy(namespace)))!;
 		if (row.maximum !== maximum || row.bytes !== bytes || row.attempts !== attempts) throw new OutboxError('policy');
+	}
+	/** Check a claim's identity before any statement runs. */
+	function identify(claim: ClaimType): statements.MessageKeyType {
+		if (claim.namespace !== namespace) throw new OutboxError('stale');
+		for (const value of [claim.id, claim.key, claim.token]) NameSchema.parse(value);
+		return { namespace, id: claim.id, key: claim.key };
 	}
 	/** A current unexpired token alone can mutate delivery. Repeated successful acknowledgement is idempotent. */
 	async function settle(
@@ -241,52 +248,35 @@ export function open(
 		delay: number,
 		failure: string | null = null,
 	): Promise<void> {
-		if (claim.namespace !== namespace) throw new OutboxError('stale');
-		NameSchema.parse(claim.id);
-		NameSchema.parse(claim.key);
-		NameSchema.parse(claim.token);
-		await options.database.begin(async (tx) => {
-			const row =
-				(await tx`select * from utils_outbox.messages where namespace=${namespace} and id=${claim.id} and key=${claim.key} for update`)[
-					0
-				];
+		const message = identify(claim);
+		await database.begin(async (tx) => {
+			const row = await sql.one(tx, statements.lease(message));
 			const time = await now(tx);
 			if (complete && row?.state === 'complete' && row.token === claim.token) return;
-			if (!row || row.state !== 'leased' || row.token !== claim.token || Number(row.expires) <= time) {
+			if (!row || row.state !== 'leased' || row.token !== claim.token || (row.expires ?? 0) <= time) {
 				throw new OutboxError('stale');
 			}
-			const state = complete ? 'complete' : Number(row.attempt) - Number(row.budget) >= attempts ? 'failed' : 'pending';
-			await tx`update utils_outbox.messages set state=${state}, due=${
-				time + delay
-			}, updated=${time}, expires=null, failure=${failure} where namespace=${namespace} and id=${claim.id} and key=${claim.key}`;
+			const state = complete ? 'complete' : row.attempt - row.budget >= attempts ? 'failed' : 'pending';
+			await sql.execute(tx, statements.settle({ ...message, state, due: time + delay, time, failure }));
 		});
 	}
 	return Object.freeze({
 		/** Accept inside the same transaction as the business write. Changed payload under a retained key rejects. */
-		async append(tx: TransactionSql, message: MessageType): Promise<void> {
+		async append(client: Client | Executor, message: MessageType): Promise<void> {
 			NameSchema.parse(message.id);
 			NameSchema.parse(message.key);
+			const tx = postgres.toExecutor(client);
 			const text = json.stringify(message.value, { maximumBytes: bytes, maximumDepth: 64 });
 			await policy(tx);
-			const old =
-				(await tx`select value from utils_outbox.messages where namespace=${namespace} and id=${message.id} and key=${message.key}`)[
-					0
-				];
+			const key = { namespace, id: message.id, key: message.key };
+			const old = await sql.one(tx, statements.payload(key));
 			if (old) {
 				if (json.stringify(old.value, { maximumBytes: bytes }) !== text) throw new OutboxError('conflict');
 				return;
 			}
-			if (
-				Number(
-					(await tx`select count(*) as count from utils_outbox.messages where namespace=${namespace}`)[0]!.count,
-				) >= maximum
-			) throw new OutboxError('capacity');
-			const time = await now(tx);
-			// Bind canonical text and cast it to JSONB. Passing JavaScript null to
-			// the driver's JSON helper can instead bind SQL NULL, losing a valid payload.
-			await tx`insert into utils_outbox.messages(namespace,id,key,value,state,due,updated) values (${namespace},${message.id},${message.key},${
-				tx.typed(text, TextOid)
-			}::jsonb,'pending',${time},${time})`;
+			if ((await sql.one(tx, statements.size(namespace)))!.count >= maximum) throw new OutboxError('capacity');
+			// The checked canonical text is what gets stored, so a repeated append compares exactly.
+			await sql.execute(tx, statements.insert({ ...key, value: JSON.parse(text), time: await now(tx) }));
 		},
 		/** Atomically reserve at most 100 messages; expired claims can be redelivered with a fresh token. No background polling. */
 		async claim(
@@ -294,21 +284,19 @@ export function open(
 		): Promise<readonly ClaimType[]> {
 			count(limit, 100);
 			count(leaseMs, 86400000);
-			return await options.database.begin(async (tx) => {
+			return await database.begin(async (tx) => {
 				await policy(tx);
 				const time = await now(tx);
-				await tx`update utils_outbox.messages set state='failed', expires=null, updated=${time} where namespace=${namespace} and state='leased' and expires<=${time} and attempt-budget>=${attempts}`;
-				const rows =
-					await tx`select * from utils_outbox.messages where namespace=${namespace} and attempt-budget<${attempts} and ((state='pending' and due<=${time}) or (state='leased' and expires<=${time})) order by due,id,key limit ${limit} for update skip locked`;
+				await sql.execute(tx, statements.exhaust(namespace, time, attempts));
+				const rows = await sql.rows(tx, statements.candidates(namespace, { time, attempts, limit }));
 				const claims: ClaimType[] = [];
 				for (const row of rows) {
-					const token = crypto.randomUUID(), attempt = Number(row.attempt) + 1;
-					await tx`update utils_outbox.messages set state='leased',token=${token},attempt=${attempt},expires=${
-						time + leaseMs
-					},updated=${time} where namespace=${namespace} and id=${row.id} and key=${row.key}`;
-					claims.push(
-						Object.freeze({ namespace, id: String(row.id), key: String(row.key), value: row.value, token, attempt }),
+					const token = crypto.randomUUID(), attempt = row.attempt + 1;
+					await sql.execute(
+						tx,
+						statements.reserve({ namespace, id: row.id, key: row.key, token, attempt, expires: time + leaseMs, time }),
 					);
+					claims.push(Object.freeze({ namespace, id: row.id, key: row.key, value: row.value, token, attempt }));
 				}
 				return Object.freeze(claims);
 			});
@@ -330,31 +318,21 @@ export function open(
 		/** Serialize renewal with settlement and replacement. A lost lease cannot be revived. */
 		async renew(claim: ClaimType, leaseMs = 30000): Promise<void> {
 			count(leaseMs, 86400000);
-			if (claim.namespace !== namespace) throw new OutboxError('stale');
-			for (const value of [claim.id, claim.key, claim.token]) NameSchema.parse(value);
-			await options.database.begin(async (tx) => {
-				const row =
-					(await tx`select state,token,expires from utils_outbox.messages where namespace=${namespace} and id=${claim.id} and key=${claim.key} for update`)[
-						0
-					];
+			const message = identify(claim);
+			await database.begin(async (tx) => {
+				const row = await sql.one(tx, statements.lease(message));
 				const time = await now(tx);
-				if (row?.state !== 'leased' || row.token !== claim.token || Number(row.expires) <= time) {
+				if (row?.state !== 'leased' || row.token !== claim.token || (row.expires ?? 0) <= time) {
 					throw new OutboxError('stale');
 				}
-				await tx`update utils_outbox.messages set expires=${
-					time + leaseMs
-				},updated=${time} where namespace=${namespace} and id=${claim.id} and key=${claim.key}`;
+				await sql.execute(tx, statements.extend({ ...message, expires: time + leaseMs, time }));
 			});
 		},
 		/** Read retained delivery state without extending any lease. */
 		async inspect(id: string, key: string): Promise<StateType | undefined> {
 			NameSchema.parse(id);
 			NameSchema.parse(key);
-			const row = (await options
-				.database`select state from utils_outbox.messages where namespace=${namespace} and id=${id} and key=${key}`)[
-					0
-				];
-			return row ? StateSchema.parse(row.state) : undefined;
+			return (await sql.one(database, statements.inspect({ namespace, id, key })))?.state;
 		},
 		/** Keep identity order independent of the database's locale. State changes may enter or leave later pages. */
 		async list(
@@ -370,13 +348,10 @@ export function open(
 				NameSchema.parse(after.id);
 				NameSchema.parse(after.key);
 			}
-			const rows = await options.database`select id,key,state,attempt,budget,due,updated,expires,failure
-				from utils_outbox.messages where namespace=${namespace}
-				and (${state ?? null}::text is null or state=${state ?? null})
-				and (${after?.id ?? null}::text is null or (id collate "C",key collate "C")>(${
-				after?.id ?? null
-			}::text collate "C",${after?.key ?? null}::text collate "C"))
-				order by id collate "C",key collate "C" limit ${limit + 1}`;
+			const rows = await sql.rows(
+				database,
+				statements.page(namespace, { ...(state ? { state } : {}), ...(after ? { after } : {}), limit }),
+			);
 			const entries = Object.freeze(rows.slice(0, limit).map((row) => Object.freeze(EntrySchema.parse(row))));
 			const last = entries.at(-1);
 			return Object.freeze({
@@ -390,18 +365,16 @@ export function open(
 		): Promise<void> {
 			for (const value of [id, key, actor, reason]) NameSchema.parse(value);
 			count(attempt, 2147473647);
-			await options.database.begin(async (tx) => {
+			const message = { namespace, id, key };
+			await database.begin(async (tx) => {
 				await policy(tx);
-				const row =
-					(await tx`select state,attempt from utils_outbox.messages where namespace=${namespace} and id=${id} and key=${key} for update`)[
-						0
-					];
-				if (row?.state !== 'failed' || Number(row.attempt) !== attempt) throw new OutboxError('stale');
+				const row = await sql.one(tx, statements.lease(message));
+				if (row?.state !== 'failed' || row.attempt !== attempt) throw new OutboxError('stale');
 				const time = await now(tx);
 				// Audit and renewed admission commit together. Clearing the token fences
 				// all previous acknowledgements even before the next claim is reserved.
-				await tx`insert into utils_outbox.repairs values (${namespace},${id},${key},${attempt},${actor},${reason},${time})`;
-				await tx`update utils_outbox.messages set state='pending',budget=attempt,token=null,expires=null,due=${time},updated=${time} where namespace=${namespace} and id=${id} and key=${key}`;
+				await sql.execute(tx, statements.addRepair({ ...message, attempt, actor, reason, time }));
+				await sql.execute(tx, statements.redrive({ ...message, time }));
 			});
 		},
 		/** Retained audit reads neither extend a reservation nor authorize another delivery. */
@@ -414,31 +387,32 @@ export function open(
 			NameSchema.parse(key);
 			count(limit, 1000);
 			if (!Number.isSafeInteger(after) || after < 0) throw new RangeError('Invalid repair history position.');
-			const rows = await options
-				.database`select attempt,actor,reason,updated from utils_outbox.repairs where namespace=${namespace} and id=${id} and key=${key} and attempt>${after} order by attempt limit ${limit}`;
+			const rows = await sql.rows(database, statements.history({ namespace, id, key, after, limit }));
 			return Object.freeze(rows.map((row) => Object.freeze(RepairSchema.parse(row))));
 		},
 		/** Remove a bounded terminal batch. Callers must preserve their required deduplication window. */
 		async prune(before: number, limit = 100): Promise<number> {
 			if (!Number.isSafeInteger(before) || before < 0) throw new RangeError('Invalid retention cutoff.');
 			count(limit, 1000);
-			const rows = await options
-				.database`delete from utils_outbox.messages where (namespace,id,key) in (select namespace,id,key from utils_outbox.messages where namespace=${namespace} and state in ('complete','failed') and updated<${before} order by updated limit ${limit}) returning id`;
-			return rows.length;
+			return (await sql.rows(database, statements.prune(namespace, { before, limit }))).length;
 		},
 		/** Candidates only: the caller locks and rechecks its own records before calling remove(). */
 		completed(query: retire.CompletedOptions): Promise<readonly retire.RetiredType[]> {
-			return retire.completed(query.database ?? options.database, namespace, query);
+			return retire.completed(
+				query.database === undefined ? database : postgres.toExecutor(query.database),
+				namespace,
+				query,
+			);
 		},
 		/** Joins the caller's transaction and rechecks state and time before deleting. */
 		remove(
-			tx: TransactionSql,
+			tx: Client | Executor,
 			message: { readonly id: string; readonly key: string },
 			before: number,
 		): Promise<boolean> {
 			NameSchema.parse(message.id);
 			NameSchema.parse(message.key);
-			return retire.remove(tx, namespace, message, before);
+			return retire.remove(postgres.toExecutor(tx), namespace, message, before);
 		},
 	});
 }

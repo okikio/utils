@@ -13,9 +13,10 @@
  * Failed messages are never touched here. They stay for an operator to inspect and redrive.
  *
  * ```ts ignore
- * const found = await box.completed(database, {
+ * const found = await box.completed({
  * 	before: Date.now() - 48 * 3600_000,
- * 	where: database`exists (select 1 from app.jobs j where j.id::text = utils_outbox.messages.key and j.done)`,
+ * 	// `jobs` is the application's own table, defined with `@okikio/sql`.
+ * 	where: sql.exists(sql.select({ id: jobs.c.id }).from(jobs).where(jobs.c.key.eq(messages.c.key), jobs.c.done)),
  * });
  * for (const item of found) {
  * 	await database.begin(async (tx) => {
@@ -27,7 +28,10 @@
  *
  * @module
  */
-import type { Fragment, Sql, TransactionSql } from 'postgres';
+import * as sql from '@okikio/sql';
+import type { Executor } from '@okikio/sql';
+import type { Client } from '@okikio/sql/postgres';
+import * as statements from './statements.ts';
 
 /** One completed message, without its payload. */
 export interface RetiredType {
@@ -48,14 +52,15 @@ export interface CompletedOptions {
 	/**
 	 * Extra condition, applied before the limit so rows the application must keep cannot crowd out
 	 * rows it may retire. It may refer to the columns of `utils_outbox.messages`: `namespace`, `id`,
-	 * `key` and `updated`. Build it with the same Postgres.js instance, so values stay parameters.
+	 * `key` and `updated`. Build it from the exported `messages` table and your own typed tables, so values stay
+	 * parameters.
 	 */
-	readonly where?: Fragment;
+	readonly where?: sql.Expr<boolean>;
 	/**
 	 * Read through this connection or transaction instead of the view's pool, for example to discover candidates
-	 * in a transaction the caller already holds. Build `where` with the same one.
+	 * in a transaction the caller already holds.
 	 */
-	readonly database?: Sql | TransactionSql;
+	readonly database?: Client | Executor;
 }
 
 /** Validate an epoch cutoff before it reaches SQL. */
@@ -69,20 +74,18 @@ function cutoff(before: number): number {
  * A listed message is only a candidate: {@link remove} checks its state again before deleting.
  */
 export async function completed(
-	database: Sql | TransactionSql,
+	executor: Executor,
 	namespace: string,
 	options: CompletedOptions,
 ): Promise<readonly RetiredType[]> {
 	const before = cutoff(options.before);
 	const limit = options.limit ?? 100;
 	if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000) throw new RangeError('Invalid limit.');
-	const extra = options.where ? database`and (${options.where})` : database``;
-	const rows = await database`select id,key,updated from utils_outbox.messages
-		where namespace=${namespace} and state='complete' and updated<${before} ${extra}
-		order by updated,id,key limit ${limit}`;
-	return Object.freeze(
-		rows.map((row) => Object.freeze({ id: String(row.id), key: String(row.key), updated: Number(row.updated) })),
-	);
+	if (options.where !== undefined && !sql.isExpr(options.where)) {
+		throw new TypeError('Build the outbox where condition as a typed expression.');
+	}
+	const rows = await sql.rows(executor, statements.completed(namespace, { before, limit, where: options.where }));
+	return Object.freeze(rows.map((row) => Object.freeze(row)));
 }
 
 /**
@@ -94,15 +97,13 @@ export async function completed(
  * Deleting ends deduplication for that key: a later append with the same key is accepted again.
  */
 export async function remove(
-	tx: TransactionSql,
+	tx: Executor,
 	namespace: string,
 	message: { readonly id: string; readonly key: string },
 	before: number,
 ): Promise<boolean> {
 	const time = cutoff(before);
-	await tx`select pg_advisory_xact_lock(hashtextextended(${`outbox:${namespace}`},0))`;
-	const rows = await tx`delete from utils_outbox.messages
-		where namespace=${namespace} and id=${message.id} and key=${message.key}
-		and state='complete' and updated<${time} returning id`;
-	return rows.length === 1;
+	await sql.execute(tx, statements.guard(namespace));
+	return (await sql.rows(tx, statements.retire({ namespace, id: message.id, key: message.key, before: time })))
+		.length === 1;
 }

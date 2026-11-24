@@ -162,7 +162,10 @@ const before = Date.now() - 48 * 3600_000;
 const found = await box.completed({
   before,
   // Applied before the limit, so rows you must keep cannot crowd out rows you may retire.
-  where: database`exists (select 1 from app.jobs j where j.id::text = utils_outbox.messages.key and j.done)`,
+  // `jobs` is your own table, defined with `@okikio/sql`; `outbox.messages` is the outbox table.
+  where: sql.exists(
+    sql.select({ id: jobs.c.id }).from(jobs).where(jobs.c.key.eq(outbox.messages.c.key), jobs.c.done),
+  ),
 });
 for (const message of found) {
   await database.begin(async (tx) => {
@@ -311,3 +314,34 @@ fixture audit cleanup in timing, so retained history stays bounded across
 samples. The untimed oracle checks the unchanged occurrence identity, cumulative
 attempt, new budget and retained safe failure label. It does not model a
 production audit-retention policy.
+
+### Use your own client or ORM
+
+The outbox does not need Postgres.js. Every call that joins your transaction (`append()`, `remove()`, `resize()` and
+`completed({ database })`) accepts an `@okikio/sql` **executor**: an object with one `run(query)` method that sends
+a compiled statement in your current transaction and returns its rows. `open()` and `migrate()` accept a **database**,
+which is an executor that can also `begin()` a transaction. A Postgres.js pool or transaction still works directly.
+
+A compiled statement carries `$1` text with `values`, and the same statement as template `strings`, which a client's
+own `sql` tag accepts. With Drizzle:
+
+```ts ignore
+import { sql as tag } from 'drizzle-orm';
+
+await db.transaction(async (tx) => {
+  await tx.insert(notes).values({ id: 'one', title: 'Read later' });
+  await box.append({
+    async run(query) {
+      const result = await tx.execute(tag(query.strings, ...query.values));
+      // A Postgres.js driver returns the rows; a node-postgres driver returns { rows }.
+      return Array.isArray(result) ? result : result.rows;
+    },
+  }, message);
+});
+```
+
+The outbox has no SQL strings. Its tables are defined in `packages/storage/outbox/schema.ts` and every statement is
+built in `statements.ts` with `@okikio/sql`. `statements.sql` beside them holds the compiled SQL of every
+statement, and the outbox statement tests compare it and ask PostgreSQL to describe each statement against the
+installed schema.
+
