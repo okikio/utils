@@ -13,6 +13,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 import { type OutcomeType, runCases } from './cases/mod.ts';
+import { reaches } from './cells.ts';
 import { clients, type ClientType } from './clients/mod.ts';
 import { limitFor } from './expectations.ts';
 import { type StartedType, targets, type TargetType } from './targets/mod.ts';
@@ -116,9 +117,6 @@ async function outcomes(
 		return [{ case: 'client run', status: 'fail', detail, ms: 0 }];
 	}
 }
-
-/** Whether a client can reach a target at all. */
-const reaches = (client: ClientType, target: TargetType) => client.reach === (target.reach ?? 'url');
 
 for (const target of selectedTargets) {
 	const users = selectedClients.filter((client) => reaches(client, target));
