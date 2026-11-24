@@ -131,12 +131,14 @@ describe('typed statements on PostgreSQL', () => {
 	});
 
 	it('round-trips the edge values the client matrix found, under an unusual session', async () => {
-		const edges = space.table('edges', {
+		const edges = space.table('Edge Values', {
 			id: sql.column(types.integer),
 			small: sql.column(types.integer),
 			ratio: sql.column(types.double),
+			amount: sql.column(types.numeric),
 			at: sql.column(types.timestamptz),
-			odd: sql.column(types.text()),
+			wall: sql.column(types.timestamp),
+			'Mixed "Name"': sql.column(types.text()),
 		});
 		await sql.execute(db, sql.createTable(edges));
 		const rows = [
@@ -144,29 +146,37 @@ describe('typed statements on PostgreSQL', () => {
 				id: 1,
 				small: -2147483648,
 				ratio: -0,
+				amount: '-12345678901234567890.000000001',
 				at: '0002-06-01T00:00:00.5Z BC',
+				wall: '9999-12-31T23:59:59.999999Z',
 				odd: 'é 漢字 🙂',
 			},
 			{
 				id: 2,
 				small: 2147483647,
 				ratio: Number.NaN,
+				amount: 'NaN',
 				at: '+010000-01-01T00:00:00Z',
+				wall: '2026-03-29T01:30:00Z',
 				odd: '\'"\\$1 ? :x',
 			},
 			{
 				id: 3,
 				small: 0,
 				ratio: Number.NEGATIVE_INFINITY,
+				amount: '0',
 				at: '1969-12-31T23:59:59.999999Z',
+				wall: '0001-01-01T00:00:00Z',
 				odd: '',
 			},
 		].map((row) => ({
 			id: row.id,
 			small: row.small,
 			ratio: row.ratio,
+			amount: row.amount,
 			at: row.at.endsWith(' BC') ? temporal.Instant.from('-000001-06-01T00:00:00.5Z') : temporal.Instant.from(row.at),
-			odd: row.odd,
+			wall: temporal.Instant.from(row.wall),
+			'Mixed "Name"': row.odd,
 		}));
 		const e = edges.c;
 		const back = await db.begin(async (tx) => {
@@ -182,21 +192,28 @@ describe('typed statements on PostgreSQL', () => {
 					id: e.id,
 					small: e.small,
 					ratio: e.ratio,
+					amount: e.amount,
 					at: e.at,
-					odd: e.odd,
+					wall: e.wall,
+					odd: e['Mixed "Name"'],
 				}).from(edges).orderBy(e.id),
 			);
 		});
-		expect(back.map((row) => ({ ...row, at: row.at.toString() }))).toEqual(
+		expect(back.map((row) => ({ ...row, at: row.at.toString(), wall: row.wall.toString() }))).toEqual(
 			rows.map((row) => ({
 				id: row.id,
 				small: row.small,
 				ratio: row.ratio,
+				amount: row.amount,
 				at: row.at.toString(),
-				odd: row.odd,
+				wall: row.wall.toString(),
+				odd: row['Mixed "Name"'],
 			})),
 		);
 		expect(Object.is(back[0]!.ratio, -0)).toBe(true);
+		// A `timestamp` column holds the UTC wall clock, whatever the writing session's time zone.
+		const [wall] = await client`select wall::text as text from utils_sql_test."Edge Values" where id = 2`;
+		expect(wall?.text).toBe('2026-03-29 01:30:00');
 		await expect(sql.execute(db, sql.insert(edges, Array.from({ length: 14_000 }, () => rows[0]!)))).rejects.toThrow(
 			'at most 65535',
 		);

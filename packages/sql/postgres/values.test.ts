@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { temporal } from '@okikio/duration/temporal';
 import * as sql from './mod.ts';
-import { types } from './mod.ts';
+import { trigger, types } from './mod.ts';
 
 const app = sql.schema('app');
 const wide = app.table('wide', { a: sql.column(types.integer), b: sql.column(types.integer) });
@@ -42,11 +42,24 @@ describe('values every client can send unchanged', () => {
 		expect(at('+010000-01-01T00:00:00Z')).toBe('10000-01-01T00:00:00Z');
 		expect(at('0000-06-01T00:00:00Z')).toBe('0001-06-01T00:00:00Z BC');
 		expect(at('-000001-06-01T00:00:00Z')).toBe('0002-06-01T00:00:00Z BC');
+		expect(sent(types.timestamp as never, temporal.Instant.from('2026-01-02T03:04:05Z')).values).toEqual([
+			'2026-01-02T03:04:05',
+		]);
 		expect(types.timestamptz.decode('1700000000.123456').toString()).toBe('2023-11-14T22:13:20.123456Z');
 		expect(types.timestamptz.decode('-62135596800.5').toString()).toBe('0000-12-31T23:59:59.5Z');
 		for (const raw of ['Infinity', '-Infinity', '2026-01-01T00:00:00Z', 1700000000]) {
 			expect(() => types.timestamptz.decode(raw)).toThrow(TypeError);
 		}
+	});
+
+	it('keeps numeric exact and casts an enum to its own type', () => {
+		expect(sent(types.numeric as never, '12345678901234567890.000000001').values).toEqual([
+			'12345678901234567890.000000001',
+		]);
+		expect(() => sent(types.numeric as never, '1e5')).toThrow(TypeError);
+		const mood = types.enumerated(['My App', 'Mood'], ['sad', 'ok']);
+		expect(sent(mood as never, 'ok').text).toBe('select (($1::text)::"My App"."Mood")::text as "v"');
+		expect(() => sent(mood as never, 'happy')).toThrow(TypeError);
 	});
 });
 
@@ -68,8 +81,17 @@ describe('limits', () => {
 		expect([...strings.raw]).toEqual([...strings]);
 	});
 
-	it('writes negative DDL constants in parentheses', () => {
+	it('writes negative DDL constants in parentheses and refuses a "$" in a function body name', () => {
 		const t = app.table('signed', { v: sql.column(types.integer).default(-2147483648) });
 		expect(sql.toDdlQuery(sql.createTable(t)).text).toContain("default ('-2147483648'::text)::integer");
+		const odd = app.table('odd$name', { v: sql.column(types.integer) });
+		const fresh = trigger.changed(odd, 'new').c;
+		const body = trigger.routine('app', 'touch', [trigger.assign(fresh.v, 1), trigger.result('new')]);
+		expect(() => sql.toDdlQuery(body.ddl)).not.toThrow();
+		const reading = trigger.routine('app', 'copy', [
+			trigger.run(sql.insert(odd, { v: fresh.v })),
+			trigger.result('null'),
+		]);
+		expect(() => sql.toDdlQuery(reading.ddl)).toThrow('may not hold "$"');
 	});
 });

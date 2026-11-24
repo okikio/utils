@@ -66,7 +66,9 @@ select ("app"."notes"."title")::text as "title" from "app"."notes" where "app"."
 - Column names and value types: `n.state.eq('closed')` does not compile when `state` allows only `open` and `done`.
 - An insert must give every required column, and cannot write an identity column.
 - A statement is not an expression. Embed a `select` only through `sql.exists`, `sql.scalar` or `.in(...)`.
-- Schema, table, column and function names must be plain lowercase identifiers. Result names may be camelCase.
+- Names are always quoted, so `"User"."createdAt"`, `"full name"` and reserved words such as `order` keep their
+  spelling. A name may not be empty, pass 63 bytes (PostgreSQL would silently cut it), or hold NUL. Prefer lowercase
+  `snake_case` for new schemas, because hand-written SQL then needs no quotes.
 - A statement may send at most 65,535 parameters, the wire protocol's limit. Split a larger insert.
 - **Scope.** A statement reads only the sources it defines, as the next section explains.
 - **One dialect.** Every type, table and expression knows its dialect. Mixing two in one statement throws.
@@ -111,14 +113,19 @@ client can change a value:
 | `bigint`                | `bigint`            | text, cast to `bigint`                  | text                             |
 | `long`                  | `number` (safe int) | text, cast to `bigint`                  | text, then range-checked         |
 | `double`                | `number`            | text, with `NaN`, `±Infinity` and `-0`  | text, exact                      |
+| `numeric`               | `string`            | decimal text, cast to `numeric`         | decimal text, exact              |
 | `boolean`               | `boolean`           | `boolean`                               | `boolean`                        |
 | `uuid`                  | `string`            | text, cast to `uuid`                    | text                             |
 | `jsonb(parse?)`         | any JSON value      | JSON text, cast to `jsonb`              | JSON text, then parsed           |
 | `timestamptz`           | `Temporal.Instant`  | ISO 8601 text in UTC, any year          | exact epoch seconds              |
+| `timestamp`             | `Temporal.Instant`  | UTC wall-clock text                     | exact epoch seconds              |
+| `enumerated(name, all)` | one of `all`        | text, cast to the enum type             | text                             |
 
 - A row with a missing, extra or mistyped column is an error, not `undefined`.
 - Text and JSON strings may not hold NUL or a lone UTF-16 surrogate. PostgreSQL rejects NUL, and every client would
   silently replace a lone surrogate with U+FFFD, so sending either is a `TypeError`.
+- Use `timestamp`, not `timestamptz`, for a `timestamp without time zone` column, such as the ones Prisma and TypeORM
+  create. PostgreSQL converts between the two with the session's `TimeZone`, so the wrong one shifts the value.
 - A stored `infinity` timestamp has no `Temporal.Instant`, so reading one fails. Timestamps need PostgreSQL 14 or
   later, where `extract` returns exact `numeric` seconds.
 

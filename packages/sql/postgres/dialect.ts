@@ -35,7 +35,7 @@ export function cast(expression: Fragment, type: string): Fragment {
 /** PostgreSQL. */
 export const dialect: Dialect = Object.freeze({
 	name: 'postgres',
-	quote: (name: string) => `"${name}"`,
+	quote: (name: string) => `"${name.replaceAll('"', '""')}"`,
 	placeholder: (index: number, type: string) => ({ text: `$${index}::${type}`, suffix: `::${type}` }),
 	literal,
 	// The Bind message counts parameters in 16 bits. Past this, some clients wrap the count and fail with a misleading
