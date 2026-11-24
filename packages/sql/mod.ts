@@ -38,6 +38,7 @@ export {
 	value,
 } from './expr.ts';
 export { aggregate, and, choose, exists, not, nothing, or, row, RowExpr, scalar } from './logic.ts';
+export * as trigger from './trigger.ts';
 export { add, coalesce, declare, fn, later, multiply, subtract } from './functions.ts';
 export {
 	type Aliased,
@@ -49,6 +50,7 @@ export {
 	excluded,
 	type ForeignKeyType,
 	type IndexType,
+	record,
 	type Refs,
 	type RowOf,
 	schema,
@@ -82,6 +84,7 @@ export {
 } from './write.ts';
 export {
 	addColumn,
+	type AddColumnOptions,
 	begin,
 	commit,
 	createIndex,
@@ -90,7 +93,9 @@ export {
 	type Ddl,
 	isDdl,
 	type IsolationType,
+	replaceCheck,
 	rollback,
+	setNotNull,
 	tableStatements,
 	toDdlQuery,
 } from './ddl.ts';

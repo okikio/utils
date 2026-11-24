@@ -92,6 +92,28 @@ const due = sql.cte(
 const take = sql.update(notes, { state: 'done' }).with(due).from(due).where(n.id.eq(due.c.id)).returning({ id: n.id });
 ```
 
+## Triggers without PL/pgSQL text
+
+A trigger holds an invariant for every writer, including older workers and an operator's own SQL. `trigger.routine`
+builds its function from a fixed set of typed steps (`perform`, `assign`, `branch`, `run`, `ensure` and `result`),
+and `trigger.changed(table, 'new' | 'old')` gives the changed row with the table's column types. `trigger.create`
+drops and creates the trigger, so a later revision can change its events or condition.
+
+```ts ignore
+const n = sql.trigger.changed(notes, 'new').c;
+const stamp = sql.trigger.routine('app', 'stamp', [
+	sql.trigger.assign(n.seen, sql.fn.clockTimestamp()),
+	sql.trigger.result('new'),
+]);
+const statements = [
+	stamp.ddl,
+	...sql.trigger.create({ name: 'notes_stamp', table: notes, timing: 'before', events: ['insert'], routine: stamp }),
+];
+```
+
+A trigger condition can read only `new` and `old`, so an insert and an update with different conditions are two
+triggers. A string literal in a function body may not hold `$`, because the body is dollar-quoted.
+
 ## Run with any client
 
 An executor has one method, `run(query)`, which sends a compiled statement on the caller's connection or transaction.

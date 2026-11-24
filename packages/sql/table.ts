@@ -36,6 +36,8 @@ export interface ColumnDef<T, Optional extends boolean = boolean> {
 	readonly fallback?: Input<T>;
 	/** `generated always as identity`; inserts must omit the column. */
 	readonly generated: boolean;
+	/** `bigserial`: a sequence fills the column when an insert omits it. */
+	readonly sequenced?: boolean;
 	/** Phantom flag: an insert may omit this column. */
 	readonly optional?: Optional;
 }
@@ -48,6 +50,16 @@ export interface ColumnBuilder<T, Optional extends boolean> extends ColumnDef<T,
 	default(value: Input<T>): ColumnBuilder<T, true>;
 	/** Make a `bigint` column `generated always as identity`. */
 	identity(): ColumnBuilder<T, true>;
+	/**
+	 * Make a `bigint` column a `bigserial`, filled from a sequence when an insert omits it. Prefer
+	 * {@link ColumnBuilder.identity} for a new table; this keeps an existing `bigserial` column as it is.
+	 */
+	serial(): ColumnBuilder<T, true>;
+	/**
+	 * Let inserts omit the column because a `before insert` trigger fills it. The column keeps `not null`, which
+	 * PostgreSQL checks after the trigger runs.
+	 */
+	filled(): ColumnBuilder<T, true>;
 }
 
 /** Start a column definition of a type. */
@@ -64,6 +76,11 @@ function build<T, Optional extends boolean>(definition: ColumnDef<T, boolean>): 
 			if (definition.type.name !== 'bigint') throw new TypeError('Only a bigint column can be an identity.');
 			return build<T, true>({ ...definition, generated: true });
 		},
+		filled: () => build<T, true>(definition),
+		serial: () => {
+			if (definition.type.name !== 'bigint') throw new TypeError('Only a bigint column can be a bigserial.');
+			return build<T, true>({ ...definition, sequenced: true });
+		},
 	}) as unknown as ColumnBuilder<T, Optional>;
 }
 
@@ -79,6 +96,8 @@ export type RowOf<C extends Columns> = { [K in keyof C]: C[K] extends ColumnDef<
 /** An index. Plain columns are written by name; other entries are expressions. */
 export interface IndexType {
 	readonly name: string;
+	/** The index method. Defaults to `btree`; use `gin` for JSON containment. */
+	readonly method?: 'btree' | 'gin';
 	readonly on: readonly (Column<unknown> | OrderType | Expr<unknown>)[];
 	readonly unique?: boolean;
 	/** A partial index covers only rows where this holds. */
@@ -158,7 +177,18 @@ export function schema(name: string): SchemaType {
 
 /** The row an insert proposed, inside `onConflict({ action: 'update' })`: `excluded(notes).c.title`. */
 export function excluded<C extends Columns>(table: Table<C>): { readonly c: Refs<C> } {
-	return Object.freeze({ c: refs(['excluded'], table.columns) });
+	return record(table, 'excluded');
+}
+
+/**
+ * A row of a table under a fixed name that PostgreSQL provides: `excluded` in an upsert, or `new` and `old` in a
+ * trigger. Its columns are typed like the table's.
+ */
+export function record<C extends Columns>(
+	table: Table<C>,
+	name: 'excluded' | 'new' | 'old',
+): { readonly c: Refs<C> } {
+	return Object.freeze({ c: refs([name], table.columns) });
 }
 
 /** The default of a column as an expression, if it has one. */
