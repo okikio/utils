@@ -7,7 +7,7 @@ import { after, before, describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { readFileSync, writeFileSync } from 'node:fs';
 import postgres from 'postgres';
-import * as sql from '@okikio/sql';
+import * as sql from '@okikio/sql/postgres';
 import { temporal } from '@okikio/duration/temporal';
 import * as store from '@okikio/storage/workflow/postgres';
 import * as tables from '../../packages/storage/workflow/postgres/schema/mod.ts';

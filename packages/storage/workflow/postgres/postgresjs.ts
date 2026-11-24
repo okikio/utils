@@ -43,12 +43,12 @@ import type {
 	ReferenceType,
 	SnapshotType,
 } from '@okikio/workflow';
-import * as sql from '@okikio/sql';
-import { executor } from '@okikio/sql/postgres';
+import * as sql from '@okikio/sql/postgres';
+import { executor } from '@okikio/sql/postgres/postgresjs';
 import { temporal } from '@okikio/duration/temporal';
 import type { Temporal } from '@okikio/duration/temporal';
 import * as tables from './schema/mod.ts';
-import type { Executor, Statement } from '@okikio/sql';
+import type { Executor, Statement } from '@okikio/sql/postgres';
 import { cleanups, history, hosts, jobs, maintenance, runs, shared } from './statements/mod.ts';
 import * as continuation from './continuation.ts';
 

@@ -3,15 +3,14 @@
  *
  * - {@link render} turns a named set of statements into stable SQL text. Commit it next to the adapter and compare it
  *   in a test, so a review shows the real SQL that changed and an accidental change fails.
- * - {@link describe} asks PostgreSQL to parse and plan each statement against an installed schema, without running
+ * - {@link describe} asks the database to parse and plan each statement against an installed schema, without running
  *   it, and compares the result columns with the statement's declared shape. A wrong table, column, parameter type or
  *   result name fails here.
  *
  * @module
  */
 import type { CompiledType } from './fragment.ts';
-import { type Ddl, isDdl, toDdlQuery } from './ddl.ts';
-import { type Statement, toQuery } from './statement.ts';
+import { type Ddl, isDdl, type Statement, toDdlQuery, toQuery } from './statement.ts';
 
 /** Statements and schema statements by name. */
 export type CatalogType = Readonly<Record<string, Statement<unknown> | Ddl>>;
@@ -29,7 +28,7 @@ export function render(catalog: CatalogType): string {
 	return Object.keys(catalog).sort().map((name) => `-- ${name}\n${compiled(catalog[name]!).text};\n`).join('\n');
 }
 
-/** What PostgreSQL reports for a statement: its parameter types and result column names. */
+/** What the database reports for a statement: its parameter types and result column names. */
 export interface DescriptionType {
 	readonly parameters: number;
 	readonly columns: readonly string[];
@@ -44,7 +43,7 @@ export interface ProblemType {
 /**
  * Describe every statement and report mismatches. `describe` must ask the database to prepare the text without
  * running it; with Postgres.js that is `(text) => sql.unsafe(text).describe()`, mapped to {@link DescriptionType}.
- * Schema statements are skipped, because PostgreSQL does not describe DDL; run them in a rolled-back transaction.
+ * Schema statements are skipped, because databases do not describe DDL; run them in a rolled-back transaction.
  */
 export async function describe(
 	catalog: CatalogType,

@@ -14,7 +14,7 @@ select ("utils_outbox"."messages"."id")::text as "id", ("utils_outbox"."messages
 select ("utils_outbox"."messages"."id")::text as "id", ("utils_outbox"."messages"."key")::text as "key", ("utils_outbox"."messages"."updated")::double precision as "updated" from "utils_outbox"."messages" where ("utils_outbox"."messages"."namespace" = $1::text) and ("utils_outbox"."messages"."state" = $2::text) and ("utils_outbox"."messages"."updated" < $3::double precision) and ("utils_outbox"."messages"."key" <> $4::text) order by "utils_outbox"."messages"."updated" asc, "utils_outbox"."messages"."id" asc, "utils_outbox"."messages"."key" asc limit $5::bigint;
 
 -- exhaust
-update "utils_outbox"."messages" set "state" = $1::text, "expires" = null::double precision, "updated" = $2::double precision where ("utils_outbox"."messages"."namespace" = $3::text) and ("utils_outbox"."messages"."state" = $4::text) and ("utils_outbox"."messages"."expires" <= $5::double precision) and (("utils_outbox"."messages"."attempt" - "utils_outbox"."messages"."budget") >= $6::integer);
+update "utils_outbox"."messages" set "state" = $1::text, "expires" = cast(null as double precision), "updated" = $2::double precision where ("utils_outbox"."messages"."namespace" = $3::text) and ("utils_outbox"."messages"."state" = $4::text) and ("utils_outbox"."messages"."expires" <= $5::double precision) and (("utils_outbox"."messages"."attempt" - "utils_outbox"."messages"."budget") >= $6::integer);
 
 -- extend
 update "utils_outbox"."messages" set "expires" = $1::double precision, "updated" = $2::double precision where ("utils_outbox"."messages"."namespace" = $3::text) and ("utils_outbox"."messages"."id" = $4::text) and ("utils_outbox"."messages"."key" = $5::text);
@@ -92,7 +92,7 @@ select ("utils_outbox"."policies"."maximum")::integer as "maximum", ("utils_outb
 delete from "utils_outbox"."messages" where ("utils_outbox"."messages"."namespace", "utils_outbox"."messages"."id", "utils_outbox"."messages"."key") in (select "utils_outbox"."messages"."namespace" as "namespace", "utils_outbox"."messages"."id" as "id", "utils_outbox"."messages"."key" as "key" from "utils_outbox"."messages" where ("utils_outbox"."messages"."namespace" = $1::text) and ("utils_outbox"."messages"."state" in ($2::text, $3::text)) and ("utils_outbox"."messages"."updated" < $4::double precision) order by "utils_outbox"."messages"."updated" asc limit $5::bigint) returning ("utils_outbox"."messages"."id")::text as "id";
 
 -- redrive
-update "utils_outbox"."messages" set "state" = $1::text, "budget" = "utils_outbox"."messages"."attempt", "token" = null::text, "expires" = null::double precision, "due" = $2::double precision, "updated" = $3::double precision where ("utils_outbox"."messages"."namespace" = $4::text) and ("utils_outbox"."messages"."id" = $5::text) and ("utils_outbox"."messages"."key" = $6::text);
+update "utils_outbox"."messages" set "state" = $1::text, "budget" = "utils_outbox"."messages"."attempt", "token" = cast(null as text), "expires" = cast(null as double precision), "due" = $2::double precision, "updated" = $3::double precision where ("utils_outbox"."messages"."namespace" = $4::text) and ("utils_outbox"."messages"."id" = $5::text) and ("utils_outbox"."messages"."key" = $6::text);
 
 -- reserve
 update "utils_outbox"."messages" set "state" = $1::text, "token" = $2::text, "attempt" = $3::integer, "expires" = $4::double precision, "updated" = $5::double precision where ("utils_outbox"."messages"."namespace" = $6::text) and ("utils_outbox"."messages"."id" = $7::text) and ("utils_outbox"."messages"."key" = $8::text);
@@ -104,7 +104,7 @@ delete from "utils_outbox"."messages" where (("utils_outbox"."messages"."namespa
 update "utils_outbox"."policies" set "maximum" = $1::integer where "utils_outbox"."policies"."namespace" = $2::text;
 
 -- settle
-update "utils_outbox"."messages" set "state" = $1::text, "due" = $2::double precision, "updated" = $3::double precision, "expires" = null::double precision, "failure" = null::text where ("utils_outbox"."messages"."namespace" = $4::text) and ("utils_outbox"."messages"."id" = $5::text) and ("utils_outbox"."messages"."key" = $6::text);
+update "utils_outbox"."messages" set "state" = $1::text, "due" = $2::double precision, "updated" = $3::double precision, "expires" = cast(null as double precision), "failure" = cast(null as text) where ("utils_outbox"."messages"."namespace" = $4::text) and ("utils_outbox"."messages"."id" = $5::text) and ("utils_outbox"."messages"."key" = $6::text);
 
 -- size
-select (count(*)::integer)::integer as "count" from "utils_outbox"."messages" where "utils_outbox"."messages"."namespace" = $1::text;
+select ((count(*))::integer)::integer as "count" from "utils_outbox"."messages" where "utils_outbox"."messages"."namespace" = $1::text;

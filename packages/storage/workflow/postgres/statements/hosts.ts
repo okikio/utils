@@ -6,7 +6,7 @@
  *
  * @module
  */
-import * as sql from '@okikio/sql';
+import * as sql from '@okikio/sql/postgres';
 import { compute, hosts } from '../schema/mod.ts';
 import { after, clock } from './shared.ts';
 

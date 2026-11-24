@@ -4,8 +4,8 @@
  *
  * @module
  */
-import * as sql from '@okikio/sql';
-import { types } from '@okikio/sql';
+import * as sql from '@okikio/sql/postgres';
+import { types } from '@okikio/sql/postgres';
 import { RecordSchema } from '@okikio/capability/resource/session';
 
 /** The revision this module installs. */

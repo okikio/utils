@@ -11,10 +11,10 @@ import { AsyncDisposableStack } from '@okikio/dispose';
 import { SnapshotSchema } from '@okikio/context/state';
 import type { OperationOptions, SaveOptions, SnapshotType, Store } from '@okikio/context/state';
 import * as schema from '@okikio/schema';
-import * as sql from '@okikio/sql';
-import type { Database, Executor } from '@okikio/sql';
-import * as postgres from '@okikio/sql/postgres';
-import type { Pool } from '@okikio/sql/postgres';
+import * as sql from '@okikio/sql/postgres';
+import type { Database, Executor } from '@okikio/sql/postgres';
+import * as postgres from '@okikio/sql/postgres/postgresjs';
+import type { Pool } from '@okikio/sql/postgres/postgresjs';
 import * as tables from './schema.ts';
 import * as statements from './statements.ts';
 

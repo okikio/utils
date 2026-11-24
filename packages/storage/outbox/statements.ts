@@ -7,7 +7,7 @@
  *
  * @module
  */
-import * as sql from '@okikio/sql';
+import * as sql from '@okikio/sql/postgres';
 import { hash, lock, messages, policies, repairs, type states } from './schema.ts';
 
 const m = messages.c, p = policies.c, r = repairs.c;
@@ -20,7 +20,7 @@ export interface MessageKeyType {
 }
 
 /** The message with this identity. */
-function at(message: MessageKeyType): sql.Expr<boolean> {
+function at(message: MessageKeyType): sql.Expr<boolean, typeof messages.key> {
 	return sql.and(m.namespace.eq(message.namespace), m.id.eq(message.id), m.key.eq(message.key));
 }
 
@@ -162,7 +162,7 @@ export function page(
 		readonly limit: number;
 	},
 ) {
-	const id = m.id.collate('C'), key = m.key.collate('C');
+	const id = sql.collate(m.id, 'C'), key = sql.collate(m.key, 'C');
 	return sql.select({
 		id: m.id,
 		key: m.key,
@@ -233,7 +233,7 @@ export function prune(namespace: string, options: { readonly before: number; rea
  */
 export function completed(
 	namespace: string,
-	options: { readonly before: number; readonly limit: number; readonly where?: sql.Expr<boolean> },
+	options: { readonly before: number; readonly limit: number; readonly where?: sql.Expr<boolean, typeof messages.key> },
 ) {
 	return sql.select({ id: m.id, key: m.key, updated: m.updated }).from(messages).where(
 		m.namespace.eq(namespace),

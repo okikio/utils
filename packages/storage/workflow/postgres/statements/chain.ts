@@ -4,8 +4,8 @@
  *
  * @module
  */
-import * as sql from '@okikio/sql';
-import { types } from '@okikio/sql';
+import * as sql from '@okikio/sql/postgres';
+import { types } from '@okikio/sql/postgres';
 import { jobs, runs, terminal } from '../schema/mod.ts';
 
 const r = runs.c;

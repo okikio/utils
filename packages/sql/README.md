@@ -1,14 +1,30 @@
 # `@okikio/sql`
 
-Build PostgreSQL statements from typed tables and expressions instead of SQL strings, then run them with any client:
+Build SQL statements from typed tables and expressions instead of SQL strings, then run them with any client:
 Postgres.js, pg, Drizzle, Kysely, Prisma or Bun SQL. The package has no database client of its own.
 
 A table is defined once. That definition gives typed column expressions for queries, the `create table` statement for
 migrations, and the shape that checks compare with the live database.
 
+## Entry points
+
+SQL dialects share an algebra but differ in clauses, types and built-in functions. Each dialect has its own entry point
+on a shared core:
+
+| Entry point                          | What it holds                                                                 |
+| ------------------------------------ | ----------------------------------------------------------------------------- |
+| `@okikio/sql`                     | The dialect-neutral core: expressions, conditions, tables, scope, executors.  |
+| `@okikio/sql/postgres`            | The core, plus PostgreSQL statements, types, functions, DDL and triggers.     |
+| `@okikio/sql/postgres/postgresjs` | Run PostgreSQL statements through Postgres.js.                                |
+
+Application code imports one dialect's entry point. A library that only accepts an executor or a statement can depend
+on the core. Only PostgreSQL exists today. Other tabular dialects, such as ClickHouse, MySQL and T-SQL, would be sibling
+entry points on the same core. Document dialects, such as Cosmos DB SQL and Couchbase SQL++, have no fixed columns, so
+they would need their own model rather than tables.
+
 ```ts ignore
-import * as sql from '@okikio/sql';
-import { types } from '@okikio/sql';
+import * as sql from '@okikio/sql/postgres';
+import { types } from '@okikio/sql/postgres';
 
 const app = sql.schema('app');
 const notes = app.table('notes', {
@@ -26,8 +42,8 @@ const found = await sql.rows(executor, open); // { id: string; title: string }[]
 Building a statement needs no database. Compile it to see exactly what a client sends:
 
 ```ts runnable=sql-statement.ts
-import * as sql from '@okikio/sql';
-import { types } from '@okikio/sql';
+import * as sql from '@okikio/sql/postgres';
+import { types } from '@okikio/sql/postgres';
 
 const notes = sql.schema('app').table('notes', {
 	id: sql.column(types.uuid),
@@ -51,6 +67,32 @@ select ("app"."notes"."title")::text as "title" from "app"."notes" where "app"."
 - An insert must give every required column, and cannot write an identity column.
 - A statement is not an expression. Embed a `select` only through `sql.exists`, `sql.scalar` or `.in(...)`.
 - Schema, table, column and function names must be plain lowercase identifiers. Result names may be camelCase.
+- **Scope.** A statement reads only the sources it defines, as the next section explains.
+- **One dialect.** Every type, table and expression knows its dialect. Mixing two in one statement throws.
+
+## Scope: a statement reads only its own sources
+
+Tabular SQL has a fixed structure: a column belongs to a table, and a statement can read a table only after `from`, a
+join, `update … from` or `delete … using` names it. The package holds statements to that rule.
+
+Every expression carries its **owners**: the tables, aliases and named rows whose columns it reads. The type says so,
+as in `Expr<boolean, 'app.notes'>`. A statement collects the owners it reads and the sources it defines. A runnable
+`Statement` must read nothing else:
+
+```ts ignore
+// Type error, and `toQuery` throws: the select reads `app.people` but never names it.
+const stray: sql.Statement<{ id: string }> = sql.select({ id: n.id }).from(notes).where(p.name.eq('a'));
+// Fine: the join brings `app.people` into scope.
+sql.select({ title: n.title, name: p.name }).from(notes).join(people, p.id.eq(n.owner));
+```
+
+A subquery may read an outer statement's columns. Those owners pass up through `sql.exists`, `sql.scalar`,
+`sql.aggregate` and `.in(...)`, so the outer statement must define them. A named subquery (`sql.cte`) and a union must
+read only their own sources. A check, key or index may read only its own table. A trigger step reads only `new`, `old`
+and `trigger.operation`, and a trigger condition only `new` and `old`.
+
+Type a helper that returns a condition with its owners: `sql.Expr<boolean, typeof notes.key>`. A function that takes
+a row of plain values, such as an insert's input, can say so with `sql.InsertRow<typeof notes.columns, never>`.
 
 Every value becomes a parameter with an explicit cast, such as `$1::text`. Only schema statements write values as
 literals, because PostgreSQL takes no parameters there, and they accept only constants that cannot change meaning.
@@ -82,7 +124,8 @@ A query that would need several round trips in application code can stay one sta
   `delete … using` do.
 - `insert(table, select)` inserts the rows a select returns. Name each selected value after the column it fills.
 - `.for({ of: [table], skipLocked: true })` locks rows of one source only and skips rows other workers hold.
-- `fn.count(condition)` counts only matching rows, and `fn.rowNumber(order)` numbers rows as a window function.
+- `sql.fn.count(condition)` counts only matching rows, and `sql.fn.rowNumber(order)` numbers rows as a window
+  function.
 - `sql.unionAll(...)` keeps each select's own order and limit, and `sql.recursive(name, shape, step)` walks a tree.
   `cte(name, query, { materialized: true })` computes shared rows once.
 - `json.elements(array, alias)` reads the elements of a `jsonb` array in `from`, and `json.contains`, `json.within`,
@@ -95,6 +138,24 @@ const due = sql.cte(
 );
 const take = sql.update(notes, { state: 'done' }).with(due).from(due).where(n.id.eq(due.c.id)).returning({ id: n.id });
 ```
+
+## Built-in functions
+
+Each dialect has hundreds of built-in functions, and they differ. The core keeps only what every dialect shares:
+`coalesce`, `add`, `subtract`, `multiply`, `min`, `max` and `sum`. A dialect's entry point adds a typed catalog of the
+built-ins this repository uses, grouped by what they work on. For PostgreSQL, `sql.fn` has:
+
+| Group   | Functions                                                                  |
+| ------- | -------------------------------------------------------------------------- |
+| Rows    | `count`, `rowNumber`, `min`, `max`, `sum`, `size`                          |
+| Time    | `clockTimestamp`, `now`, `transactionTimestamp`, `epochMilliseconds`       |
+| Numbers | `ceil`, `greatest`, `least`, `coalesce`                                    |
+| Text    | `startsWith`, `charLength`                                                 |
+| System  | `setLocal`, `tableExists`, `randomUuid`                                    |
+
+`sql.later(instant, milliseconds)` moves a time, `sql.collate(text, 'C')` fixes a collation, and `json` holds the
+`jsonb` operators. The catalog grows only when a package needs a function. Type any other function, including your
+own, with `sql.declare(name, parameterTypes, resultType)`, which checks argument types the same way.
 
 ## Triggers without PL/pgSQL text
 
@@ -116,7 +177,8 @@ const statements = [
 ```
 
 A trigger condition can read only `new` and `old`, so an insert and an update with different conditions are two
-triggers. A string literal in a function body may not hold `$`, because the body is dollar-quoted.
+triggers. A step, and a statement in `trigger.run`, may read only `new`, `old` and `trigger.operation`. A string
+literal in a function body may not hold `$`, because the body is dollar-quoted.
 
 ## Run with any client
 
@@ -124,11 +186,11 @@ An executor has one method, `run(query)`, which sends a compiled statement on th
 A compiled statement has `$1` text with `values`, and the same statement as template `strings`, which a client's own
 `sql` tag accepts.
 
-`@okikio/sql/postgres` binds Postgres.js without depending on it:
+`@okikio/sql/postgres/postgresjs` binds Postgres.js without depending on it:
 
 ```ts ignore
 // Postgres.js
-import { database, executor } from '@okikio/sql/postgres';
+import { database, executor } from '@okikio/sql/postgres/postgresjs';
 const db = database(pool); // also opens transactions: db.begin(async (tx) => …)
 
 // Drizzle

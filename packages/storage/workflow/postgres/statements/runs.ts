@@ -6,15 +6,15 @@
  *
  * @module
  */
-import * as sql from '@okikio/sql';
-import { json, types } from '@okikio/sql';
+import * as sql from '@okikio/sql/postgres';
+import { json, types } from '@okikio/sql/postgres';
 import { hosts, runs, terminal } from '../schema/mod.ts';
 import { after, clock } from './shared.ts';
 
 const r = runs.c;
 
 /** The run with this ID in the namespace. */
-function owned(namespace: string, id: string): sql.Expr<boolean> {
+function owned(namespace: string, id: string): sql.Expr<boolean, typeof runs.key> {
 	return sql.and(r.namespace.eq(namespace), r.id.eq(id));
 }
 
@@ -93,7 +93,7 @@ export function children(
 }
 
 /** Save a new run. The insert trigger sets its chain root, times and first history entry. */
-export function admit(input: sql.InsertRow<typeof runs.columns>) {
+export function admit(input: sql.InsertRow<typeof runs.columns, never>) {
 	return sql.insert(runs, input);
 }
 

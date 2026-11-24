@@ -7,8 +7,8 @@
  *
  * @module
  */
-import * as sql from '@okikio/sql';
-import { types } from '@okikio/sql';
+import * as sql from '@okikio/sql/postgres';
+import { types } from '@okikio/sql/postgres';
 import { SnapshotSchema } from '@okikio/context/state';
 
 /** The revision this module installs. */

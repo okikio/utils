@@ -3,9 +3,9 @@ import { after, before, describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import postgres from 'postgres';
 import { temporal } from '@okikio/duration/temporal';
-import * as sql from '@okikio/sql';
-import { types } from '@okikio/sql';
-import { database as bind, executor } from '@okikio/sql/postgres';
+import * as sql from '@okikio/sql/postgres';
+import { types } from '@okikio/sql/postgres';
+import { database as bind, executor } from '@okikio/sql/postgres/postgresjs';
 
 const url = process.env.UTILS_WORKFLOW_TEST_DATABASE_URL;
 if (!url) throw new Error('SQL checks require a disposable PostgreSQL database.');
@@ -87,9 +87,10 @@ describe('typed statements on PostgreSQL', () => {
 		});
 		const page = await sql.rows(
 			db,
-			sql.select({ title: n.title, rank: n.rank }).from(notes).where(sql.row(n.title.collate('C')).gt(['A'])).orderBy(
-				n.title.collate('C'),
-			),
+			sql.select({ title: n.title, rank: n.rank }).from(notes).where(sql.row(sql.collate(n.title, 'C')).gt(['A']))
+				.orderBy(
+					sql.collate(n.title, 'C'),
+				),
 		);
 		expect(page).toEqual([{ title: 'null', rank: 2 }, { title: 'string', rank: 0 }]);
 		const counted = await sql.one(db, sql.select({ open: sql.fn.count() }).from(notes).where(n.state.eq('open')));

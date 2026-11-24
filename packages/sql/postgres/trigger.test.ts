@@ -49,6 +49,7 @@ describe('trigger functions', () => {
 	});
 
 	it('refuses steps that PostgreSQL would reject or that could end the body early', () => {
+		// @ts-expect-error: only a column of the new row can be assigned.
 		expect(() => trigger.assign(prior.state, 'a')).toThrow('only a column of the new row');
 		expect(() => trigger.routine('app', 'open', [trigger.perform(sql.fn.clockTimestamp())])).toThrow('result()');
 		const wake = trigger.routine('app', 'wake', [trigger.result('null')]);
@@ -58,10 +59,11 @@ describe('trigger functions', () => {
 				table: items,
 				timing: 'after',
 				events: ['insert'],
+				// @ts-expect-error: a condition cannot read the operation.
 				condition: trigger.operation.eq('INSERT'),
 				routine: wake,
 			})
-		).toThrow('cannot test the operation');
+		).toThrow('reads tg_op');
 		const quoted = trigger.routine('app', 'quoted', [trigger.ensure('cost $5'), trigger.result('null')]);
 		expect(() => sql.toDdlQuery(quoted.ddl)).toThrow('DDL constant');
 	});

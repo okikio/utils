@@ -10,10 +10,10 @@
  */
 import * as schema from '@okikio/schema';
 import * as json from '@okikio/collection/record/json';
-import * as sql from '@okikio/sql';
-import type { Database, Executor } from '@okikio/sql';
-import * as postgres from '@okikio/sql/postgres';
-import type { Client, Pool } from '@okikio/sql/postgres';
+import * as sql from '@okikio/sql/postgres';
+import type { Database, Executor } from '@okikio/sql/postgres';
+import * as postgres from '@okikio/sql/postgres/postgresjs';
+import type { Client, Pool } from '@okikio/sql/postgres/postgresjs';
 import * as retire from './retire.ts';
 import * as statements from './statements.ts';
 import * as tables from './schema.ts';
@@ -23,8 +23,8 @@ export { OutboxError } from './error.ts';
 export { type PolicyType, resize } from './policy.ts';
 
 export type { CompletedOptions, RetiredType } from './retire.ts';
-export type { Database, Executor } from '@okikio/sql';
-export type { Client, Pool } from '@okikio/sql/postgres';
+export type { Database, Executor } from '@okikio/sql/postgres';
+export type { Client, Pool } from '@okikio/sql/postgres/postgresjs';
 /** The messages table, for building a `completed()` condition. */
 export { messages } from './schema.ts';
 

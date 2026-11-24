@@ -10,8 +10,8 @@
  *
  * @module
  */
-import * as sql from '@okikio/sql';
-import { trigger, types } from '@okikio/sql';
+import * as sql from '@okikio/sql/postgres';
+import { trigger, types } from '@okikio/sql/postgres';
 import { audit, hosts, instructions, jobs, name, runEvents, runs, terminal } from './tables.ts';
 
 const notice = sql.declare('pg_notify', [types.text(), types.text()], types.empty);
@@ -28,7 +28,7 @@ const fresh = trigger.changed(runs, 'new').c;
 const prior = trigger.changed(runs, 'old').c;
 
 /** The run columns whose change is visible to operators and history. */
-const visible = (row: typeof fresh) =>
+const visible = (row: typeof fresh | typeof prior) =>
 	sql.row(
 		row.state,
 		row.outcome,
@@ -72,7 +72,7 @@ export const touchRun: trigger.RoutineType = trigger.routine(name, 'touch_run', 
 const history = runEvents.c;
 
 /** The next history sequence of a run. The caller already holds the run lock, which serializes these numbers. */
-function next(namespace: sql.Expr<string>, run: sql.Expr<string>): sql.Expr<number> {
+function next(namespace: sql.Expr<string, 'new'>, run: sql.Expr<string, 'new'>): sql.Expr<number, 'new'> {
 	return sql.aggregate(
 		sql.select({ next: sql.add(sql.coalesce(sql.fn.max(history.sequence), 0), 1) }).from(runEvents).where(
 			history.namespace.eq(namespace),

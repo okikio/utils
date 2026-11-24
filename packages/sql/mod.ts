@@ -1,13 +1,26 @@
 /**
- * Typed PostgreSQL statements without SQL strings, for any client or ORM.
+ * Typed SQL statements without SQL strings, for any client or ORM.
  *
- * Define tables once, build statements from typed expressions, and run them through a one-method executor. The
- * package depends on no database client: Postgres.js, pg, Drizzle, Kysely and Prisma all run its compiled statements.
+ * This entry point is the dialect-neutral core: typed expressions, conditions, tables, scope checks and the executor
+ * port. It builds no statements by itself. Each SQL dialect has its own entry point, because their clauses, types and
+ * built-in functions differ:
+ *
+ * - `@okikio/sql/postgres`: PostgreSQL statements, types and functions.
+ * - `@okikio/sql/postgres/postgresjs`: run PostgreSQL statements through Postgres.js.
+ *
+ * Other tabular dialects, such as ClickHouse, MySQL and T-SQL, would get sibling entry points on this core. Document
+ * dialects, such as Cosmos DB SQL and Couchbase SQL++, have no fixed columns, so they would need their own model.
+ *
+ * The core enforces two rules for every dialect:
+ *
+ * - **Scope.** A statement can read only the tables, aliases and named subqueries it defines. TypeScript reports a
+ *   stray column, and building the statement throws a `TypeError` that names it.
+ * - **One dialect.** Every type, table and expression knows its dialect. Mixing two in one statement throws.
  *
  * @example
  * ```ts ignore
- * import * as sql from '@okikio/sql';
- * import { types } from '@okikio/sql';
+ * import * as sql from '@okikio/sql/postgres';
+ * import { types } from '@okikio/sql/postgres';
  *
  * const app = sql.schema('app');
  * const notes = app.table('notes', {
@@ -22,25 +35,27 @@
  *
  * @module
  */
-export * as types from './type.ts';
-export type { SqlType } from './type.ts';
+export { type Dialect, same } from './dialect.ts';
+export { nullable, type SqlType } from './type.ts';
 export type { CompiledType, Fragment } from './fragment.ts';
 export {
 	type AnyExpr,
-	type Collation,
 	Column,
 	Expr,
 	type Input,
 	isExpr,
 	lift,
+	type OnlyOf,
 	type Operand,
 	type OrderType,
+	type OwnersOf,
+	type OwnersOfAll,
 	type Subquery,
 	value,
+	type ValueOf,
 } from './expr.ts';
 export { aggregate, and, choose, exists, not, nothing, or, row, RowExpr, scalar } from './logic.ts';
-export * as trigger from './trigger.ts';
-export { add, coalesce, declare, fn, later, multiply, subtract } from './functions.ts';
+export { add, coalesce, declare, max, min, multiply, subtract, sum } from './functions.ts';
 export {
 	type Aliased,
 	column,
@@ -58,57 +73,31 @@ export {
 	type SchemaType,
 	type Table,
 } from './table.ts';
-export * as json from './json.ts';
 export {
+	type CallSourceType,
 	cte,
 	type CteType,
+	type Ddl,
+	isDdl,
 	isStatement,
 	recursive,
 	type RowOfShape,
 	type Shape,
 	type Source,
 	type Statement,
+	toDdlQuery,
 	toQuery,
 	type TypesOf,
 	unionAll,
 	type UnionType,
 } from './statement.ts';
-export { type LockType, Select, select } from './select.ts';
-export {
-	type ConflictType,
-	Delete,
-	Insert,
-	insert,
-	type InsertRow,
-	type InsertSelect,
-	remove,
-	Update,
-	update,
-	type UpdateRow,
-} from './write.ts';
-export {
-	addColumn,
-	type AddColumnOptions,
-	begin,
-	commit,
-	createIndex,
-	createSchema,
-	createTable,
-	type Ddl,
-	isDdl,
-	type IsolationType,
-	replaceCheck,
-	rollback,
-	setNotNull,
-	tableStatements,
-	toDdlQuery,
-} from './ddl.ts';
 export {
 	type BeginOptions,
 	type Database,
 	decode,
 	execute,
 	type Executor,
+	type IsolationType,
 	one,
 	type RawRow,
 	rows,

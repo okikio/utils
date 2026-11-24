@@ -4,7 +4,7 @@
  *
  * @module
  */
-import * as sql from '@okikio/sql';
+import * as sql from '@okikio/sql/postgres';
 import type { RecordType } from '@okikio/capability/resource/session';
 import { records } from './schema.ts';
 
@@ -22,7 +22,7 @@ export const now: sql.Statement<{ now: number }> = sql.select({
 
 /** One record, locked until the transaction ends. */
 export function load(namespace: string, id: string): sql.Statement<{ value: RecordType }> {
-	return sql.select({ value: r.value as sql.Column<RecordType> }).from(records).where(
+	return sql.select({ value: r.value as sql.Column<RecordType, typeof records.key> }).from(records).where(
 		r.namespace.eq(namespace),
 		r.id.eq(id),
 	)

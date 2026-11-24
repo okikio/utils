@@ -28,9 +28,10 @@
  *
  * @module
  */
-import * as sql from '@okikio/sql';
-import type { Executor } from '@okikio/sql';
-import type { Client } from '@okikio/sql/postgres';
+import * as sql from '@okikio/sql/postgres';
+import type { Executor } from '@okikio/sql/postgres';
+import type { Client } from '@okikio/sql/postgres/postgresjs';
+import type { messages } from './schema.ts';
 import * as statements from './statements.ts';
 
 /** One completed message, without its payload. */
@@ -53,9 +54,10 @@ export interface CompletedOptions {
 	 * Extra condition, applied before the limit so rows the application must keep cannot crowd out
 	 * rows it may retire. It may refer to the columns of `utils_outbox.messages`: `namespace`, `id`,
 	 * `key` and `updated`. Build it from the exported `messages` table and your own typed tables, so values stay
-	 * parameters.
+	 * parameters. Reach your own tables through `sql.exists`: the condition itself may read only `messages`, and a
+	 * column of another table fails to type-check.
 	 */
-	readonly where?: sql.Expr<boolean>;
+	readonly where?: sql.Expr<boolean, typeof messages.key>;
 	/**
 	 * Read through this connection or transaction instead of the view's pool, for example to discover candidates
 	 * in a transaction the caller already holds.

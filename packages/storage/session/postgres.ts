@@ -8,10 +8,10 @@
  */
 import { RecordSchema } from '@okikio/capability/resource/session';
 import type { Store } from '@okikio/capability/resource/session';
-import * as sql from '@okikio/sql';
-import type { Database } from '@okikio/sql';
-import * as postgres from '@okikio/sql/postgres';
-import type { Pool } from '@okikio/sql/postgres';
+import * as sql from '@okikio/sql/postgres';
+import type { Database } from '@okikio/sql/postgres';
+import * as postgres from '@okikio/sql/postgres/postgresjs';
+import type { Pool } from '@okikio/sql/postgres/postgresjs';
 import * as tables from './schema.ts';
 import * as statements from './statements.ts';
 

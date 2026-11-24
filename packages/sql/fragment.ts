@@ -1,13 +1,16 @@
 /**
- * The low-level form every statement compiles to: a list of trusted text pieces and parameters.
+ * The low-level form every statement compiles to: trusted text pieces, checked names, column references and
+ * parameters.
  *
- * Only this package creates text pieces, from fixed keywords and validated identifiers. Every value a caller supplies
- * becomes a parameter with an explicit cast, so no caller value is ever pasted into SQL. A {@link CompiledType} carries
- * the result in two shapes: `$1` text with values for drivers, and template strings with values for clients whose
- * `sql` tag takes a template, such as Postgres.js, Drizzle and Kysely.
+ * Only this package creates text pieces, from fixed keywords. Every name passes an identifier check, and every value a
+ * caller supplies becomes a parameter, so no caller value is ever pasted into SQL. A {@link Dialect} decides how names
+ * are quoted and how parameters are written. A {@link CompiledType} carries the result in two shapes: numbered text with
+ * values for drivers, and template strings with values for clients whose `sql` tag takes a template, such as
+ * Postgres.js, Drizzle and Kysely.
  *
  * @module
  */
+import type { Dialect } from './dialect.ts';
 
 /** One trusted SQL text piece, created only by this package. */
 interface TextPart {
@@ -15,14 +18,20 @@ interface TextPart {
 	readonly text: string;
 }
 
-/** One parameter value; `cast` is the SQL type it is sent as. */
+/** A checked name: a schema, table, column, index, function or result name. The dialect quotes it. */
+interface NamePart {
+	readonly kind: 'name';
+	readonly name: string;
+}
+
+/** One parameter value; `type` is the SQL type it is sent as. */
 interface ParamPart {
 	readonly kind: 'param';
 	readonly value: unknown;
-	readonly cast: string;
+	readonly type: string;
 }
 
-/** A column reference. DML writes it qualified by its table; DDL writes the bare column name. */
+/** A column reference. A statement writes it with its owner; DDL writes the bare column name. */
 interface ColumnPart {
 	readonly kind: 'column';
 	/** Schema and table, or a single alias. */
@@ -30,14 +39,14 @@ interface ColumnPart {
 	readonly name: string;
 }
 
-type Part = TextPart | ParamPart | ColumnPart;
+type Part = TextPart | NamePart | ParamPart | ColumnPart;
 
 /** A piece of SQL. Fragments nest by concatenation and never hold caller text. */
 export type Fragment = readonly Part[];
 
-/** A statement ready for any client. */
+/** A compiled statement in both forms a client may need. */
 export interface CompiledType {
-	/** SQL with `$1`, `$2`, … placeholders. */
+	/** SQL with numbered placeholders. */
 	readonly text: string;
 	/** Parameter values, in placeholder order. */
 	readonly values: readonly unknown[];
@@ -50,9 +59,9 @@ export function keyword(text: string): Fragment {
 	return [{ kind: 'text', text }];
 }
 
-/** A parameter sent as `cast`, for example `text` or `double precision`. */
-export function param(value: unknown, cast: string): Fragment {
-	return [{ kind: 'param', value, cast }];
+/** A parameter sent as `type`, for example `text` or `double precision`. */
+export function param(value: unknown, type: string): Fragment {
+	return [{ kind: 'param', value, type }];
 }
 
 /** Concatenate fragments, with an optional fixed separator between them. */
@@ -70,22 +79,25 @@ export function group(inner: Fragment): Fragment {
 	return join([keyword('('), inner, keyword(')')]);
 }
 
-/** Unquoted identifiers: lowercase ASCII letters, digits and `_`, not starting with a digit, at most 63 bytes. */
+/**
+ * Plain identifiers: lowercase ASCII letters, digits and `_`, not starting with a digit, at most 63 bytes. Every common
+ * dialect accepts these names quoted or not, so a schema keeps one spelling across dialects.
+ */
 const identifierPattern = /^[a-z_][a-z0-9_]{0,62}$/u;
 
-/** Check an identifier and quote it. A schema, table, column, index or function name always passes through here. */
+/** Check a schema, table, column, index or function name. */
 export function identifier(name: string): Fragment {
 	if (!identifierPattern.test(name)) throw new TypeError(`Invalid SQL identifier: ${JSON.stringify(name)}.`);
-	return keyword(`"${name}"`);
+	return [{ kind: 'name', name }];
 }
 
 /** Result names may use mixed case, because they are always quoted. */
 const aliasPattern = /^[A-Za-z_][A-Za-z0-9_]{0,62}$/u;
 
-/** Check and quote a result column name, which may be camelCase. */
+/** Check a result column name, which may be camelCase. */
 export function alias(name: string): Fragment {
 	if (!aliasPattern.test(name)) throw new TypeError(`Invalid SQL result name: ${JSON.stringify(name)}.`);
-	return keyword(`"${name}"`);
+	return [{ kind: 'name', name }];
 }
 
 /** A reference to a column of a table or alias. */
@@ -99,54 +111,40 @@ export function qualified(...names: readonly string[]): Fragment {
 	return join(names.map(identifier), '.');
 }
 
-/**
- * A parameter value written as a SQL literal, for DDL, where PostgreSQL accepts no parameters. Only constants from table
- * definitions reach this, and only strings, safe integers, finite numbers, booleans and null are accepted. A string may
- * not hold a backslash or NUL, so its meaning does not depend on `standard_conforming_strings`.
- */
-function literal(value: unknown, cast: string, routine: boolean): string {
-	if (value === null) return `null::${cast}`;
-	if (typeof value === 'boolean') return `${value}::${cast}`;
-	if (typeof value === 'number' && Number.isFinite(value)) return `${value}::${cast}`;
-	// Inside a function body, `$` could close the dollar quote around the body.
-	const unsafe = routine ? /[\\\0$]/u : /[\\\0]/u;
-	if (typeof value === 'string' && !unsafe.test(value)) return `'${value.replaceAll("'", "''")}'::${cast}`;
-	throw new TypeError('A DDL constant must be a plain string, finite number, boolean or null.');
-}
-
-/** How {@link compile} writes parameters. */
+/** How {@link compile} writes a fragment. */
 export interface CompileOptions {
-	/** Write values as literals instead of parameters, and columns without their table, for DDL. */
+	/** Write values as literals and columns without their table, for DDL. */
 	readonly ddl?: boolean;
 	/**
-	 * Write values as literals but keep each column's table, for a function body or trigger condition, where `new` and
-	 * `old` name the changed row. A string literal may not hold `$` there.
+	 * Write values as literals but keep each column's owner, for a function body or trigger condition, where `new` and
+	 * `old` name the changed row.
 	 */
 	readonly routine?: boolean;
 }
 
-/** Turn a fragment into text, values and template pieces. */
-export function compile(fragment: Fragment, options: CompileOptions = {}): CompiledType {
+/** Turn a fragment into text, values and template pieces with a dialect's rules. */
+export function compile(fragment: Fragment, dialect: Dialect, options: CompileOptions = {}): CompiledType {
 	const strings: string[] = [''];
 	const values: unknown[] = [];
+	const mode = options.routine ? 'routine' : options.ddl ? 'ddl' : undefined;
 	let text = '';
 	for (const part of fragment) {
-		const literals = options.ddl || options.routine;
-		if (part.kind !== 'param' || literals) {
-			const bare = options.ddl && !options.routine;
-			const piece = part.kind === 'text'
-				? part.text
-				: part.kind === 'column'
-				? (bare ? [part.name] : [...part.owner, part.name]).map((name) => `"${name}"`).join('.')
-				: literal(part.value, part.cast, options.routine ?? false);
-			strings[strings.length - 1] += piece;
-			text += piece;
+		if (part.kind === 'param' && mode === undefined) {
+			values.push(part.value);
+			const placeholder = dialect.placeholder(values.length, part.type);
+			text += placeholder.text;
+			strings.push(placeholder.suffix);
 			continue;
 		}
-		values.push(part.value);
-		text += `$${values.length}::${part.cast}`;
-		// The template form carries the cast in its text, so every client sends the same parameter type.
-		strings.push(`::${part.cast}`);
+		const piece = part.kind === 'text'
+			? part.text
+			: part.kind === 'name'
+			? dialect.quote(part.name)
+			: part.kind === 'column'
+			? (mode === 'ddl' ? [part.name] : [...part.owner, part.name]).map((name) => dialect.quote(name)).join('.')
+			: dialect.literal(part.value, part.type, mode!);
+		strings[strings.length - 1] += piece;
+		text += piece;
 	}
 	const template = Object.freeze(Object.assign([...strings], { raw: Object.freeze([...strings]) }));
 	return Object.freeze({ text, values: Object.freeze(values), strings: template as TemplateStringsArray });
