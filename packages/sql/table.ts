@@ -32,7 +32,7 @@ import { nullable, type SqlType } from './type.ts';
 const brand: unique symbol = Symbol('okikio.sql.column');
 
 /** A column definition: its type, whether it may be NULL, and how it gets a value when an insert omits it. */
-export interface ColumnDef<T, Optional extends boolean = boolean> {
+export interface ColumnDef<T, Optional extends boolean = boolean, Locked extends boolean = boolean> {
 	readonly [brand]: true;
 	readonly type: SqlType<T>;
 	/** Whether the column may hold SQL NULL. */
@@ -55,47 +55,50 @@ export interface ColumnDef<T, Optional extends boolean = boolean> {
 	readonly sequenced?: boolean;
 	/** Phantom flag: an insert may omit this column. */
 	readonly optional?: Optional;
+	/** Phantom flag: the database writes this column, so inserts and updates may not name it. */
+	readonly locked?: Locked;
 }
 
 /** A column definition being built. */
-export interface ColumnBuilder<T, Optional extends boolean> extends ColumnDef<T, Optional> {
+export interface ColumnBuilder<T, Optional extends boolean, Locked extends boolean = false>
+	extends ColumnDef<T, Optional, Locked> {
 	/** Allow SQL NULL; an insert may then omit the column. */
-	nullable(): ColumnBuilder<T | null, true>;
+	nullable(): ColumnBuilder<T | null, true, Locked>;
 	/** Give the column a default; an insert may then omit it. A default may read no table. */
-	default(value: T | Expr<T, never>): ColumnBuilder<T, true>;
+	default(value: T | Expr<T, never>): ColumnBuilder<T, true, Locked>;
 	/** Make a 64-bit integer column `generated always as identity`. */
-	identity(): ColumnBuilder<T, true>;
+	identity(): ColumnBuilder<T, true, true>;
 	/**
 	 * The database computes this column, such as a `generated always as (…) stored` column of a schema made elsewhere.
 	 * Inserts and updates refuse it, and `createTable` cannot create it.
 	 */
-	computed(): ColumnBuilder<T, true>;
+	computed(): ColumnBuilder<T, true, true>;
 	/**
 	 * The column's name in the database, when the key in the definition differs, such as `seenAt` for `"seen_at"`.
 	 * Statements use the key for values and results and the name in SQL.
 	 */
-	named(column: string): ColumnBuilder<T, Optional>;
+	named(column: string): ColumnBuilder<T, Optional, Locked>;
 	/**
 	 * Let inserts omit the column because the application writes `value()` then, as Sequelize's `createdAt` or Prisma's
 	 * `@default(now())` do outside the database. `value` may return an expression that reads no table, such as
 	 * `sql.fn.now()`; it runs once for each statement built.
 	 */
-	onInsert(value: () => T | Expr<T, never>): ColumnBuilder<T, true>;
+	onInsert(value: () => T | Expr<T, never>): ColumnBuilder<T, true, Locked>;
 	/**
 	 * Write `value()` on every update that does not set the column itself, as Prisma's `@updatedAt` does. Upserts
 	 * count as updates.
 	 */
-	onUpdate(value: () => T | Expr<T, never>): ColumnBuilder<T, Optional>;
+	onUpdate(value: () => T | Expr<T, never>): ColumnBuilder<T, Optional, Locked>;
 	/**
 	 * Make a 64-bit integer column fill from a sequence when an insert omits it. Prefer
 	 * {@link ColumnBuilder.identity} for a new table; this keeps an existing sequence column as it is.
 	 */
-	serial(): ColumnBuilder<T, true>;
+	serial(): ColumnBuilder<T, true, Locked>;
 	/**
 	 * Let inserts omit the column because the database fills it: a `before insert` trigger, or a default or sequence of
 	 * a schema made elsewhere. The column keeps `not null`, which the database checks after filling it.
 	 */
-	filled(): ColumnBuilder<T, true>;
+	filled(): ColumnBuilder<T, true, Locked>;
 }
 
 /** Start a column definition of a type. */

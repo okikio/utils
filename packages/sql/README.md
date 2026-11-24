@@ -168,6 +168,8 @@ expect((await drift(db, [User, Post])).filter((item) => item.severity === 'error
   `timestamptz` for `timestamp`), a NULL rule or default that would fail, and a column the definition writes but the
   database computes. Near types, such as `text` for `varchar(40)`, are warnings.
 - `types.custom(['pg_catalog', 'inet'])` reads and writes any other type as text.
+- Inserts and updates may not name a column marked `.computed()` or `.identity()`; the row type leaves it out, so the
+  mistake fails to type-check.
 
 ## Compose larger statements
 

@@ -25,6 +25,7 @@ import {
 	type OwnersOfRow,
 	returning,
 	sources,
+	type Strict,
 	type UpdateRow,
 	values,
 	where,
@@ -103,7 +104,7 @@ export class Update<
 /** Start an update that sets columns. Add `where` to limit the rows. */
 export function update<C extends Columns, K extends string, const V extends UpdateRow<C>>(
 	table: Table<C, K>,
-	values: V,
+	values: V & Strict<V, C>,
 ): Update<C, K, Record<never, never>, never, OwnersOfRow<V>> {
 	same(dialect, table.dialect);
 	return new Update({ table, values: withUpdateValues(table, values), from: [], with: [], where: [] });
