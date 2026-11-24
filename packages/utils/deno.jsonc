@@ -278,6 +278,8 @@
 		"./server/service/resilience": "./server/service/resilience.ts",
 		"./server/service/route": "./server/service/route.ts",
 		"./server/service/types": "./server/service/types.ts",
+		"./sql": "./sql.ts",
+		"./sql/postgres": "./sql/postgres.ts",
 		"./storage": "./storage.ts",
 		"./storage/outbox/effect": "./storage/outbox/effect.ts",
 		"./storage/outbox/postgres": "./storage/outbox/postgres.ts",

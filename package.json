@@ -41,6 +41,7 @@
 		"@okikio/scheduler": "workspace:*",
 		"@okikio/schema": "workspace:*",
 		"@okikio/server": "workspace:*",
+		"@okikio/sql": "workspace:*",
 		"@okikio/storage": "workspace:*",
 		"@okikio/streams": "workspace:*",
 		"@okikio/task": "workspace:*",

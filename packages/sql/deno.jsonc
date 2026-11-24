@@ -1,0 +1,33 @@
+{
+	"name": "@okikio/sql",
+	"version": "0.1.0",
+	"publish": {
+		"exclude": [
+			"**/*.test.ts",
+			"**/*.bench.ts",
+			"**/fixtures/**"
+		]
+	},
+	"exports": {
+		".": "./mod.ts",
+		"./postgres": "./postgres.ts"
+	},
+	"imports": {
+	},
+	"license": "MIT",
+	"tasks": {
+		"check": "mise run check -- --project sql",
+		"test": "mise run test -- --project sql",
+		"bench": "mise run bench -- --project sql",
+		"bench:check": "mise run bench -- --project sql --check"
+	},
+	"permissions": {
+		"test": {}
+	},
+	"test": {
+		"exclude": [
+			"**/*.types.test.ts",
+			"**/types.test.ts"
+		]
+	}
+}

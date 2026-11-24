@@ -1,0 +1,22 @@
+{
+	"name": "@okikio/sql",
+	"version": "0.1.0",
+	"type": "module",
+	"sideEffects": false,
+	"license": "MIT",
+	"exports": {
+		".": "./mod.ts",
+		"./postgres": "./postgres.ts"
+	},
+	"dependencies": {
+		"@okikio/duration": "workspace:^0.1.0"
+	},
+	"devDependencies": {
+		"@std/expect": "npm:@jsr/std__expect@^1.0.20"
+	},
+	"publishConfig": {
+		"access": "restricted",
+		"directory": "../../.tmp/artifacts/npm/sql",
+		"linkDirectory": false
+	}
+}
