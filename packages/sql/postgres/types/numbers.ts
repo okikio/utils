@@ -87,12 +87,30 @@ export const real: SqlType<number> = floating('real');
 
 const decimal = /^(?:NaN|-?Infinity|-?\d+(?:\.\d+)?)$/u;
 
+/** A decimal in scientific notation, as CockroachDB writes small and large values: `-1E-9`, `1.5E+20`. */
+const scientific = /^(-?)(\d+)(?:\.(\d+))?E([-+]?\d+)$/iu;
+
+/** Plain decimal text for a decimal in scientific notation, moving the point without rounding any digit. */
+function plainDecimal(text: string): string {
+	const parts = scientific.exec(text);
+	if (!parts) return text;
+	const [, sign, whole, fraction = '', power] = parts;
+	const digits = whole! + fraction;
+	const point = whole!.length + Number(power);
+	const padded = point <= 0 ? '0'.repeat(1 - point) + digits : digits.padEnd(point, '0');
+	const at = Math.max(point, 1);
+	const integer = padded.slice(0, at).replace(/^0+(?=\d)/u, '');
+	const rest = padded.slice(at);
+	return `${sign}${integer}${rest ? `.${rest}` : ''}`;
+}
+
 /**
  * An exact `numeric` value as its decimal text, such as `'12.50'`, so no digit is lost to a JavaScript number. A
- * column with a scale, such as `numeric(12, 2)`, rounds a longer value when it stores it.
+ * column with a scale, such as `numeric(12, 2)`, rounds a longer value when it stores it. A value the server writes in
+ * scientific notation, as CockroachDB does for `-1E-9`, is read back as plain decimal text.
  */
 export const numeric: SqlType<string> = textual(
 	'numeric',
 	(value: string) => textOf(value, decimal, 'numeric'),
-	(raw) => textOf(raw, decimal, 'numeric'),
+	(raw) => textOf(typeof raw === 'string' ? plainDecimal(raw) : raw, decimal, 'numeric'),
 );

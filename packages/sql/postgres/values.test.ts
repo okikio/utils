@@ -58,6 +58,17 @@ describe('values every client can send unchanged', () => {
 			'12345678901234567890.000000001',
 		]);
 		expect(() => sent(types.numeric as never, '1e5')).toThrow(TypeError);
+		// CockroachDB writes some decimals in scientific notation; they come back as the same plain digits.
+		for (
+			const [raw, plain] of [
+				['-1E-9', '-0.000000001'],
+				['1.5E+20', '150000000000000000000'],
+				['1.2345678901234567890123456789E+19', '12345678901234567890.123456789'],
+				['1.50E+1', '15.0'],
+			] as const
+		) {
+			expect(types.numeric.decode(raw)).toBe(plain);
+		}
 		const mood = types.enumerated(['My App', 'Mood'], ['sad', 'ok']);
 		expect(sent(mood as never, 'ok').text).toBe('select (($1::text)::"My App"."Mood")::text as "v"');
 		expect(() => sent(mood as never, 'happy')).toThrow(TypeError);
