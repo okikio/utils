@@ -12,6 +12,7 @@ export const PlanSchema = z.strictObject({
 		packages: z.boolean(),
 		postgres: z.boolean(),
 		containers: z.boolean(),
+		interop: z.boolean(),
 		benchmark: z.boolean(),
 		docs: z.boolean(),
 		examples: z.boolean(),
@@ -66,6 +67,7 @@ export function plan(
 		packages: false,
 		postgres: false,
 		containers: false,
+		interop: false,
 		benchmark: false,
 		docs: false,
 		examples: false,
@@ -112,6 +114,8 @@ export function plan(
 			['storage', 'workflow', 'worker', 'server', 'streams', 'scheduler', 'context', 'capability'].some((name) =>
 				selected.has(name)
 			);
+		// Every ORM, driver, pooler and compatible server runs the SQL package's statements; storage builds on it.
+		lanes.interop = broad || selected.has('sql');
 	}
 	return { version: 1, projects: broad ? [] : [...selected].sort(), lanes };
 }

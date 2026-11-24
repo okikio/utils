@@ -17,6 +17,7 @@ describe('affected CI work', () => {
 		expect(result.lanes.docs).toBe(true);
 		expect(result.lanes.postgres).toBe(false);
 		expect(result.lanes.containers).toBe(false);
+		expect(result.lanes.interop).toBe(false);
 		expect(result.lanes.browser).toBe(false);
 	});
 	it('includes transitive consumers of a changed utility', () => {
@@ -24,6 +25,16 @@ describe('affected CI work', () => {
 		expect(result.projects).toEqual(['http', 'result', 'server', 'utils']);
 		expect(result.lanes.packages).toBe(true);
 		expect(result.lanes.containers).toBe(true);
+		expect(result.lanes.interop).toBe(false);
+	});
+	it('runs every client and compatible server when the SQL package or its consumers change', () => {
+		const result = plan(['packages/sql/postgres/json.ts'], [{ name: 'sql', dependencies: [] }, {
+			name: 'storage',
+			dependencies: ['sql'],
+		}]);
+		expect(result.lanes.interop).toBe(true);
+		expect(plan(['tests/interop/expectations.ts'], projects).lanes.interop).toBe(true);
+		expect(plan(['packages/storage/mod.ts'], [{ name: 'storage', dependencies: ['sql'] }]).lanes.interop).toBe(false);
 	});
 	it('traverses current package names and development consumers after the registry scope rename', () => {
 		const packageRoot = new URL('../../packages/', import.meta.url);

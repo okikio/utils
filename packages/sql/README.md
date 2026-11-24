@@ -303,7 +303,7 @@ const viaSequelize = {
 The template `strings` are a real template object, so tags that check for one, such as Bun's `sql` and Slonik's
 `sql.unsafe`, accept them.
 
-Every form here runs in the interoperability suite in `tests/interop`, which sends the same statements
+Every form here runs in the [interoperability suite](../../tests/interop/README.md), which sends the same statements
 through Postgres.js, pg, Drizzle, Kysely, Prisma 7, TypeORM, Sequelize, knex, MikroORM, Slonik, pg-promise, Bun's SQL,
 Deno's `@db/postgres`, Neon's serverless driver and PGlite. It runs them against PostgreSQL 14 to 19, PgBouncer and
 Supavisor in both pool modes, a Neon proxy, Supabase, TimescaleDB, Citus, ParadeDB, AlloyDB Omni, CockroachDB and
