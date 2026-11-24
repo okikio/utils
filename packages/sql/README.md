@@ -69,7 +69,7 @@ Clients disagree about how they return `bigint`, `jsonb` and `timestamptz`. Each
 | `boolean`        | `boolean`            | `boolean`                                 | `boolean`                   |
 | `uuid`           | `string`             | text, cast to `uuid`                      | text                        |
 | `jsonb(parse?)`  | any JSON value       | JSON text, cast to `jsonb`                | JSON text, then parsed      |
-| `timestamptz`    | `Temporal.Instant`   | epoch milliseconds through `to_timestamp` | epoch milliseconds          |
+| `timestamptz`    | `Temporal.Instant`   | ISO 8601 text in UTC                      | UTC text with microseconds  |
 
 A row with a missing, extra or mistyped column is an error, not `undefined`.
 
