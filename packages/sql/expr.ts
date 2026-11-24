@@ -288,8 +288,26 @@ export const fn = Object.freeze({
 			types.double,
 			true,
 		),
-	/** The number of rows. */
-	count: (): Expr<number> => new Expr(keyword('count(*)::integer'), types.integer, true),
+	/** The number of rows, or of rows where `filter` holds. */
+	count: (filter?: Expr<boolean>): Expr<number> =>
+		new Expr(
+			filter
+				? join([keyword('(count(*) filter (where '), filter.fragment, keyword('))::integer')])
+				: keyword('count(*)::integer'),
+			types.integer,
+			true,
+		),
+	/** Each row's 1-based position in this order, as a window function. */
+	rowNumber: (...order: readonly OrderType[]): Expr<number> =>
+		new Expr(
+			join([
+				keyword('(row_number() over (order by '),
+				join(order.map((item) => item.fragment), ', '),
+				keyword('))::integer'),
+			]),
+			types.integer,
+			true,
+		),
 	/** The largest value, or NULL for no rows. */
 	max: <T>(input: Expr<T>): Expr<T | null> =>
 		new Expr(join([keyword('max('), input.fragment, keyword(')')]), types.nullable(input.type), true),

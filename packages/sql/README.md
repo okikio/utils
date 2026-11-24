@@ -64,6 +64,7 @@ Clients disagree about how they return `bigint`, `jsonb` and `timestamptz`. Each
 | `text(values?)`  | `string`             | `text`                                    | `text`                      |
 | `integer`        | `number`             | `integer`                                 | `integer`                   |
 | `bigint`         | `bigint`             | text, cast to `bigint`                    | text                        |
+| `long`           | `number` (safe int)  | text, cast to `bigint`                    | text, then range-checked    |
 | `double`         | `number`             | `double precision`                        | `double precision`          |
 | `boolean`        | `boolean`            | `boolean`                                 | `boolean`                   |
 | `uuid`           | `string`             | text, cast to `uuid`                      | text                        |
@@ -71,6 +72,25 @@ Clients disagree about how they return `bigint`, `jsonb` and `timestamptz`. Each
 | `timestamptz`    | `Temporal.Instant`   | epoch milliseconds through `to_timestamp` | epoch milliseconds          |
 
 A row with a missing, extra or mistyped column is an error, not `undefined`.
+
+## Compose larger statements
+
+A query that would need several round trips in application code can stay one statement:
+
+- `sql.cte(name, select)` names a subquery. Pass it to a statement's `.with(...)`, then read its columns as `due.c.id`.
+- `update(...).from(...)` and `remove(...).using(...)` read other sources, as PostgreSQL's `update … from` and
+  `delete … using` do.
+- `insert(table, select)` inserts the rows a select returns. Name each selected value after the column it fills.
+- `.for({ of: [table], skipLocked: true })` locks rows of one source only and skips rows other workers hold.
+- `fn.count(condition)` counts only matching rows, and `fn.rowNumber(order)` numbers rows as a window function.
+
+```ts ignore
+const due = sql.cte(
+	'due',
+	sql.select({ id: n.id }).from(notes).where(n.state.eq('open')).limit(10).for({ skipLocked: true }),
+);
+const take = sql.update(notes, { state: 'done' }).with(due).from(due).where(n.id.eq(due.c.id)).returning({ id: n.id });
+```
 
 ## Run with any client
 
@@ -97,6 +117,10 @@ const drizzle = (tx) => ({
 // Any driver that takes text and values
 const plain = { run: async (query) => (await client.query(query.text, query.values)).rows };
 ```
+
+`run` also takes `{ signal }`. The Postgres.js binding cancels the running query when the signal aborts and rejects
+with the abort reason. A client that cannot cancel may ignore the signal. `database.begin(work, { isolation })` opens
+the transaction at a chosen isolation level, such as `'read committed'`.
 
 ## Verify statements before they reach production
 

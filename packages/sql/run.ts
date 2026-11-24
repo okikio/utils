@@ -20,21 +20,36 @@
  * @module
  */
 import type { CompiledType } from './fragment.ts';
-import { type Ddl, isDdl, toDdlQuery } from './ddl.ts';
+import { type Ddl, isDdl, type IsolationType, toDdlQuery } from './ddl.ts';
 import { type Statement, toQuery } from './statement.ts';
 
 /** One row as a client returns it. */
 export type RawRow = Readonly<Record<string, unknown>>;
 
+/** Options for one statement. */
+export interface RunOptions {
+	/**
+	 * Cancel the statement when this signal aborts. The run then rejects with the signal's reason. A client that cannot
+	 * cancel may ignore the signal and let the statement finish.
+	 */
+	readonly signal?: AbortSignal;
+}
+
 /** Runs one compiled statement in the caller's connection or transaction. It never commits or ends either. */
 export interface Executor {
-	run(query: CompiledType): Promise<readonly RawRow[]>;
+	run(query: CompiledType, options?: RunOptions): Promise<readonly RawRow[]>;
+}
+
+/** Options for a new transaction. */
+export interface BeginOptions {
+	/** The isolation level. The client's default applies when this is omitted. */
+	readonly isolation?: IsolationType;
 }
 
 /** An executor that can also open a transaction. */
 export interface Database extends Executor {
 	/** Run `work` in a new transaction; commit when it resolves and roll back when it rejects. */
-	begin<T>(work: (tx: Executor) => Promise<T>): Promise<T>;
+	begin<T>(work: (tx: Executor) => Promise<T>, options?: BeginOptions): Promise<T>;
 }
 
 /** Decode one returned row with the statement's types. A missing or extra column is an error. */
@@ -49,21 +64,33 @@ export function decode<Row>(statement: Statement<Row>, raw: RawRow): Row {
 }
 
 /** Run a statement and decode every row. */
-export async function rows<Row>(executor: Executor, statement: Statement<Row>): Promise<Row[]> {
-	const found = await executor.run(toQuery(statement));
+export async function rows<Row>(
+	executor: Executor,
+	statement: Statement<Row>,
+	options?: RunOptions,
+): Promise<Row[]> {
+	const found = await executor.run(toQuery(statement), options);
 	// A statement that returns no columns, such as an update without `returning`, may still report rows.
 	if (Object.keys(statement.shape).length === 0) return [];
 	return found.map((raw) => decode(statement, raw));
 }
 
 /** Run a statement and return its one row, or `undefined`. More than one row is an error. */
-export async function one<Row>(executor: Executor, statement: Statement<Row>): Promise<Row | undefined> {
-	const found = await rows(executor, statement);
+export async function one<Row>(
+	executor: Executor,
+	statement: Statement<Row>,
+	options?: RunOptions,
+): Promise<Row | undefined> {
+	const found = await rows(executor, statement, options);
 	if (found.length > 1) throw new TypeError('Expected at most one row.');
 	return found[0];
 }
 
 /** Run a statement or schema statement and ignore any rows. */
-export async function execute(executor: Executor, statement: Statement<unknown> | Ddl): Promise<void> {
-	await executor.run(isDdl(statement) ? toDdlQuery(statement) : toQuery(statement));
+export async function execute(
+	executor: Executor,
+	statement: Statement<unknown> | Ddl,
+	options?: RunOptions,
+): Promise<void> {
+	await executor.run(isDdl(statement) ? toDdlQuery(statement) : toQuery(statement), options);
 }
