@@ -17,7 +17,7 @@ export const revision = 2;
 /** Revisions that `migrate()` can bring to {@link revision}. Any other stored revision stops the migration. */
 export const supported: readonly number[] = [1, 2];
 
-const space: sql.SchemaType = sql.schema('utils_outbox');
+const space: sql.SchemaType<'utils_outbox'> = sql.schema('utils_outbox');
 
 /** Delivery states. */
 export const states = ['pending', 'leased', 'complete', 'failed'] as const;
@@ -53,7 +53,7 @@ export type MessageColumnsType = {
 };
 
 /** Messages and their delivery state. Times are database epoch milliseconds. */
-export const messages: sql.Table<MessageColumnsType> = space.table('messages', {
+export const messages: sql.Table<MessageColumnsType, 'utils_outbox.messages'> = space.table('messages', {
 	namespace: sql.column(types.text()),
 	id: sql.column(types.text()),
 	key: sql.column(types.text()),
