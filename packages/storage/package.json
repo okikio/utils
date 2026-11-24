@@ -26,6 +26,7 @@
 		"@okikio/result": "workspace:^1.0.0",
 		"@okikio/scheduler": "workspace:^1.0.0",
 		"@okikio/schema": "workspace:^1.0.0",
+		"@okikio/sql": "workspace:^0.1.0",
 		"@okikio/telemetry": "workspace:^0.1.0",
 		"@okikio/workflow": "workspace:^1.0.0",
 		"@okikio/observables": "^1.4.0",

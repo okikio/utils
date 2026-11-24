@@ -1,17 +1,16 @@
 /** Bind effect acceptance to the business transaction, then deliver through the same persistent outbox. @module */
-import type { TransactionSql } from 'postgres';
 import * as effects from '@okikio/capability/effect';
 import type { EffectEmitter, EffectHandler } from '@okikio/capability/effect';
 import { check } from '@okikio/context';
 import type { Context } from '@okikio/context';
-import type { Outbox } from './postgres.ts';
+import type { Client, Executor, Outbox } from './postgres.ts';
 
 /**
  * Borrow a transaction for producer emission. emit() stages acceptance; only the
  * enclosing transaction's successful commit makes it durable. Do not retain this
  * emitter after that transaction or configure it as an application-wide owner.
  */
-export function emitter(box: Outbox, tx: TransactionSql): EffectEmitter {
+export function emitter(box: Outbox, tx: Client | Executor): EffectEmitter {
 	return Object.freeze({
 		async emit(ctx: Context, occurrence: effects.EffectOccurrence) {
 			check(ctx);

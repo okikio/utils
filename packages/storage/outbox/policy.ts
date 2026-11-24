@@ -20,7 +20,11 @@
  *
  * @module
  */
-import type { TransactionSql } from 'postgres';
+import * as sql from '@okikio/sql';
+import type { Executor } from '@okikio/sql';
+import * as postgres from '@okikio/sql/postgres';
+import type { Client } from '@okikio/sql/postgres';
+import * as statements from './statements.ts';
 import { OutboxError } from './error.ts';
 
 /** A namespace's stored admission policy. */
@@ -43,26 +47,27 @@ function check(policy: PolicyType): PolicyType {
 }
 
 /**
- * Raise `maximum` from `from` to `to` inside the caller's transaction. Only `maximum` may change, and only
+ * Raise `maximum` from `from` to `to` inside the caller's transaction: a Postgres.js transaction or an executor bound
+ * to another client's transaction. Only `maximum` may change, and only
  * upward; `bytes` and `attempts` must match. Returns `'resized'`, or `'replayed'` when the stored policy already
  * equals `to`, so a retried migration is safe. Throws `OutboxError` with code `policy` when the stored policy
  * is missing or differs from `from`: someone else changed it, and the change needs another review.
  */
 export async function resize(
-	tx: TransactionSql,
+	client: Client | Executor,
 	input: { readonly namespace: string; readonly from: PolicyType; readonly to: PolicyType },
 ): Promise<'resized' | 'replayed'> {
 	const from = check(input.from), to = check(input.to);
 	if (to.maximum < from.maximum || to.bytes !== from.bytes || to.attempts !== from.attempts) {
 		throw new RangeError('An outbox resize may only raise maximum.');
 	}
-	await tx`select pg_advisory_xact_lock(hashtextextended(${`outbox:${input.namespace}`},0))`;
-	const row = (await tx`select maximum,bytes,attempts from utils_outbox.policies
-		where namespace=${input.namespace} for update`)[0];
+	const tx = postgres.toExecutor(client);
+	await sql.execute(tx, statements.guard(input.namespace));
+	const row = await sql.one(tx, statements.policy(input.namespace, true));
 	const same = (policy: PolicyType) =>
 		row?.maximum === policy.maximum && row.bytes === policy.bytes && row.attempts === policy.attempts;
 	if (same(to)) return 'replayed';
 	if (!same(from)) throw new OutboxError('policy');
-	await tx`update utils_outbox.policies set maximum=${to.maximum} where namespace=${input.namespace}`;
+	await sql.execute(tx, statements.setMaximum(input.namespace, to.maximum));
 	return 'resized';
 }

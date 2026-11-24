@@ -1111,6 +1111,9 @@ importers:
       '@okikio/schema':
         specifier: workspace:^1.0.0
         version: link:../schema
+      '@okikio/sql':
+        specifier: workspace:^0.1.0
+        version: link:../sql
       '@okikio/telemetry':
         specifier: workspace:^0.1.0
         version: link:../telemetry
