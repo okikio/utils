@@ -141,8 +141,14 @@ export function composite<const F extends FieldsType>(
 	);
 	return Object.freeze({
 		...base,
+		// A scalar subquery, not a bare call: CockroachDB treats `jsonb_populate_record` as a set-returning function, which
+		// a `values` list cannot hold.
 		send: (value: FieldValuesType<F>) =>
-			join([keyword(`jsonb_populate_record(null::${label}, (`), param(send(value), 'text'), keyword(')::jsonb)')]),
+			join([
+				keyword(`(select "_okikio_row" from jsonb_populate_record(null::${label}, (`),
+				param(send(value), 'text'),
+				keyword(')::jsonb) as "_okikio_row")'),
+			]),
 		encode: undefined,
 	}) as SqlType<FieldValuesType<F>>;
 }
