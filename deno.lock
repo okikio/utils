@@ -55,13 +55,14 @@
     "npm:ajv@8.20.0": "8.20.0",
     "npm:binaryen@132.0.0": "132.0.0",
     "npm:csv-parse@7.0.3": "7.0.3",
-    "npm:drizzle-orm@0.45.4": "0.45.4_@types+pg@8.23.1_pg@8.23.1_postgres@4.1.1",
+    "npm:drizzle-orm@0.45.4": "0.45.4_@types+pg@8.23.1_kysely@0.29.9_pg@8.23.1_postgres@4.1.1",
     "npm:elysia@1.4.30": "1.4.30_@sinclair+typebox@0.34.52_exact-mirror@0.2.9_file-type@22.3.0_openapi-types@12.1.3_typescript@7.0.2",
     "npm:elysia@1.4.32": "1.4.32_@sinclair+typebox@0.34.52_exact-mirror@0.2.9_file-type@22.3.0_openapi-types@12.1.3_typescript@7.0.2",
     "npm:fast-check@4.11.0": "4.11.0",
     "npm:fast-check@^4.11.0": "4.11.0",
     "npm:hono@4.13.19": "4.13.19",
     "npm:hono@^4.13.19": "4.13.19",
+    "npm:kysely@0.29.9": "0.29.9",
     "npm:mitata@1.0.34": "1.0.34",
     "npm:mitata@^1.0.34": "1.0.34",
     "npm:neverthrow@8.2.0": "8.2.0",
@@ -1288,15 +1289,17 @@
         "tar-fs@2.1.5"
       ]
     },
-    "drizzle-orm@0.45.4_@types+pg@8.23.1_pg@8.23.1_postgres@4.1.1": {
+    "drizzle-orm@0.45.4_@types+pg@8.23.1_kysely@0.29.9_pg@8.23.1_postgres@4.1.1": {
       "integrity": "sha512-NiM1YZpJ2UxyeE67DpDDZ+Tsw4YLX3trSlkNT7Tm9eKoUNb1LvaAaQzXgYQsWs+AQ9TUmmwMmBOCXuqqxUWKKQ==",
       "dependencies": [
         "@types/pg",
+        "kysely",
         "pg",
         "postgres"
       ],
       "optionalPeers": [
         "@types/pg",
+        "kysely",
         "pg",
         "postgres"
       ]
@@ -1517,6 +1520,9 @@
     },
     "json-schema-traverse@1.0.0": {
       "integrity": "sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug=="
+    },
+    "kysely@0.29.9": {
+      "integrity": "sha512-K48ErswC3MlIcBqR0pYIIEl+n9rIgwxgzaM1FxKHMXn7egxr1NHj7bCeF98mXl9A3/QoL5I7mo5S/mLXgeDgGA=="
     },
     "lazystream@1.0.1": {
       "integrity": "sha512-b94GiNHQNy6JNTrt5w6zNyffMrNkXZb3KTkCZJb2V1xaEGCk093vkZ2jk3tpaeP33/OiXC+WvK9AxUebnf5nbw==",
@@ -2432,6 +2438,7 @@
         "npm:elysia@1.4.32",
         "npm:fast-check@4.11.0",
         "npm:hono@4.13.19",
+        "npm:kysely@0.29.9",
         "npm:mitata@1.0.34",
         "npm:neverthrow@8.2.0",
         "npm:oxc-parser@0.159.0",
