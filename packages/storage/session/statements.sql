@@ -14,7 +14,7 @@ create schema if not exists "utils_session";
 create table if not exists "utils_session"."version" ("id" boolean not null default true::boolean, "revision" integer not null, primary key ("id"), check ("id"));
 
 -- migration.install.2
-insert into "utils_session"."version" ("revision") values ($1::integer) on conflict do nothing;
+insert into "utils_session"."version" ("revision") values (($1::text)::integer) on conflict do nothing;
 
 -- migration.install.3
 create table if not exists "utils_session"."records" ("namespace" text not null, "id" text not null, "value" jsonb not null, primary key ("namespace", "id"));
@@ -29,7 +29,7 @@ select ("pg_advisory_xact_lock"(($1::text)::bigint))::text as "locked";
 select ("utils_session"."version"."revision")::integer as "revision" from "utils_session"."version" where "utils_session"."version"."id";
 
 -- now
-select ((extract(epoch from clock_timestamp()) * 1000)::double precision)::double precision as "now";
+select ((extract(epoch from clock_timestamp()) * 1000)::double precision)::text as "now";
 
 -- remove
 delete from "utils_session"."records" where ("utils_session"."records"."namespace" = $1::text) and ("utils_session"."records"."id" = $2::text);

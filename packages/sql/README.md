@@ -67,6 +67,7 @@ select ("app"."notes"."title")::text as "title" from "app"."notes" where "app"."
 - An insert must give every required column, and cannot write an identity column.
 - A statement is not an expression. Embed a `select` only through `sql.exists`, `sql.scalar` or `.in(...)`.
 - Schema, table, column and function names must be plain lowercase identifiers. Result names may be camelCase.
+- A statement may send at most 65,535 parameters, the wire protocol's limit. Split a larger insert.
 - **Scope.** A statement reads only the sources it defines, as the next section explains.
 - **One dialect.** Every type, table and expression knows its dialect. Mixing two in one statement throws.
 
@@ -99,21 +100,27 @@ literals, because PostgreSQL takes no parameters there, and they accept only con
 
 ## The same values from every client
 
-Clients disagree about how they return `bigint`, `jsonb` and `timestamptz`. Each type in `types` fixes both directions:
+Clients disagree about how they return `bigint`, `jsonb` and timestamps, and some write values into the SQL text
+instead of sending parameters. Each type in `types` fixes both directions, and every number travels as text, so no
+client can change a value:
 
-| Type             | JavaScript value     | Sent as                                   | Read as                     |
-| ---------------- | -------------------- | ----------------------------------------- | --------------------------- |
-| `text(values?)`  | `string`             | `text`                                    | `text`                      |
-| `integer`        | `number`             | `integer`                                 | `integer`                   |
-| `bigint`         | `bigint`             | text, cast to `bigint`                    | text                        |
-| `long`           | `number` (safe int)  | text, cast to `bigint`                    | text, then range-checked    |
-| `double`         | `number`             | `double precision`                        | `double precision`          |
-| `boolean`        | `boolean`            | `boolean`                                 | `boolean`                   |
-| `uuid`           | `string`             | text, cast to `uuid`                      | text                        |
-| `jsonb(parse?)`  | any JSON value       | JSON text, cast to `jsonb`                | JSON text, then parsed      |
-| `timestamptz`    | `Temporal.Instant`   | ISO 8601 text in UTC                      | UTC text with microseconds  |
+| Type                    | JavaScript value    | Sent as                                 | Read as                          |
+| ----------------------- | ------------------- | --------------------------------------- | -------------------------------- |
+| `text(values?)`         | `string`            | `text`                                  | `text`                           |
+| `integer`               | `number`            | text, cast to `integer`                 | `integer`                        |
+| `bigint`                | `bigint`            | text, cast to `bigint`                  | text                             |
+| `long`                  | `number` (safe int) | text, cast to `bigint`                  | text, then range-checked         |
+| `double`                | `number`            | text, with `NaN`, `±Infinity` and `-0`  | text, exact                      |
+| `boolean`               | `boolean`           | `boolean`                               | `boolean`                        |
+| `uuid`                  | `string`            | text, cast to `uuid`                    | text                             |
+| `jsonb(parse?)`         | any JSON value      | JSON text, cast to `jsonb`              | JSON text, then parsed           |
+| `timestamptz`           | `Temporal.Instant`  | ISO 8601 text in UTC, any year          | exact epoch seconds              |
 
-A row with a missing, extra or mistyped column is an error, not `undefined`.
+- A row with a missing, extra or mistyped column is an error, not `undefined`.
+- Text and JSON strings may not hold NUL or a lone UTF-16 surrogate. PostgreSQL rejects NUL, and every client would
+  silently replace a lone surrogate with U+FFFD, so sending either is a `TypeError`.
+- A stored `infinity` timestamp has no `Temporal.Instant`, so reading one fails. Timestamps need PostgreSQL 14 or
+  later, where `extract` returns exact `numeric` seconds.
 
 ## Compose larger statements
 
@@ -202,12 +209,29 @@ const drizzle = (tx) => ({
 	},
 });
 
-// Any driver that takes text and values
+// Any driver that takes text and values: pg, Kysely's CompiledQuery.raw, Prisma's $queryRawUnsafe, TypeORM,
+// pg-promise, Bun's sql.unsafe and Deno's @db/postgres.
 const plain = { run: async (query) => (await client.query(query.text, query.values)).rows };
+
+// Clients with `?` placeholders, such as knex and MikroORM: escape each literal `?` (jsonb's `?&`), then join.
+const positional = (query) => query.strings.map((piece) => piece.replaceAll('?', '\\?')).join('?');
+const viaKnex = { run: async (query) => (await knex.raw(positional(query), query.values)).rows };
+
+// Sequelize: pass `bind` only when there are values, or it reads `$body$` in a function body as a parameter.
+const viaSequelize = {
+	run: async (query) =>
+		(await sequelize.query(query.text, { ...(query.values.length ? { bind: query.values } : {}), type: 'RAW' }))[0],
+};
 ```
 
+The template `strings` are a real template object, so tags that check for one, such as Bun's `sql` and Slonik's
+`sql.unsafe`, accept them.
+
+These forms were checked with Postgres.js, pg, Drizzle, Kysely, Prisma 7, TypeORM, Sequelize, knex, MikroORM, Slonik,
+pg-promise, Bun's SQL, Deno's `@db/postgres` and PGlite, against PostgreSQL 14 to 19.
+
 `run` also takes `{ signal }`. The Postgres.js binding cancels the running query when the signal aborts and rejects
-with the abort reason. A client that cannot cancel may ignore the signal. `database.begin(work, { isolation })` opens
+with the abort reason. The other forms above ignore the signal and let the statement finish. `database.begin(work, { isolation })` opens
 the transaction at a chosen isolation level, such as `'read committed'`.
 
 ## Verify statements before they reach production

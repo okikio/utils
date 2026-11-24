@@ -10,7 +10,7 @@
  */
 import { temporal } from '@okikio/duration/temporal';
 import type { Temporal } from '@okikio/duration/temporal';
-import { type Fragment, group, join, keyword, param } from '../fragment.ts';
+import { type Fragment, join, keyword, param } from '../fragment.ts';
 import { expect, type SqlType } from '../type.ts';
 import { cast, dialect } from './dialect.ts';
 
@@ -18,7 +18,17 @@ export { boolean } from './dialect.ts';
 export { nullable, type SqlType } from '../type.ts';
 
 const isString = (value: unknown): value is string => typeof value === 'string';
-const isNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+
+/**
+ * Whether PostgreSQL can store a string unchanged. It has no NUL character, and a lone UTF-16 surrogate has no UTF-8
+ * form, so every client would replace it with U+FFFD without an error.
+ */
+function storable(value: string): boolean {
+	return !value.includes('\0') && value.isWellFormed();
+}
+
+/** A JSON escape PostgreSQL's `jsonb` rejects: `\u0000`, or a lone surrogate, which `JSON.stringify` escapes. */
+const unstorable = /(?<!\\)(?:\\\\)*\\u(?:0000|d[89a-f][0-9a-f]{2})/iu;
 
 /** Text, optionally limited to a fixed set of values. */
 export function text<const T extends string = string>(values?: readonly T[]): SqlType<T> {
@@ -27,18 +37,29 @@ export function text<const T extends string = string>(values?: readonly T[]): Sq
 	return Object.freeze({
 		dialect,
 		name: 'text',
-		send: (value: T) => param(expect(value, check, 'text'), 'text'),
+		send: (value: T) => {
+			if (!storable(expect(value, check, 'text'))) {
+				throw new TypeError('Text for PostgreSQL may not hold NUL or a lone UTF-16 surrogate.');
+			}
+			return param(value, 'text');
+		},
 		read: (expression: Fragment) => cast(expression, 'text'),
 		decode: (raw: unknown) => expect(raw, check, values ? `text in ${[...values].join(', ')}` : 'text'),
 	});
 }
 
-/** A 32-bit integer. */
+/**
+ * A 32-bit integer. It is sent as text, like every number: a client that writes values into the SQL text, such as
+ * MikroORM, would turn `-1` into `-1::integer`, which PostgreSQL reads as `-(1::integer)` and rejects at the minimum.
+ */
 export const integer: SqlType<number> = Object.freeze({
 	dialect,
 	name: 'integer',
 	send: (value: number) =>
-		param(expect(value, Number.isSafeInteger as (v: unknown) => v is number, 'integer'), 'integer'),
+		cast(
+			param(String(expect(value, Number.isSafeInteger as (v: unknown) => v is number, 'integer')), 'text'),
+			'integer',
+		),
 	read: (expression: Fragment) => cast(expression, 'integer'),
 	decode: (raw: unknown) => expect(raw, Number.isSafeInteger as (v: unknown) => v is number, 'integer'),
 });
@@ -71,13 +92,22 @@ export const long: SqlType<number> = Object.freeze({
 	},
 });
 
-/** A double-precision float. */
+/** The text PostgreSQL reads and writes for a double, including `NaN`, the infinities and `-0`. */
+const float = /^(?:NaN|-?Infinity|-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)$/u;
+
+/**
+ * A double-precision float, including `NaN`, `Infinity`, `-Infinity` and `-0`. It travels as text both ways: clients
+ * disagree about sending `NaN` and `-0` as numbers, and text keeps every value exact on PostgreSQL 12 and later.
+ */
 export const double: SqlType<number> = Object.freeze({
 	dialect,
 	name: 'double precision',
-	send: (value: number) => param(expect(value, isNumber, 'double precision'), 'double precision'),
-	read: (expression: Fragment) => cast(expression, 'double precision'),
-	decode: (raw: unknown) => expect(raw, isNumber, 'double precision'),
+	send: (value: number) => {
+		const number = expect(value, (v): v is number => typeof v === 'number', 'double precision');
+		return cast(param(Object.is(number, -0) ? '-0' : String(number), 'text'), 'double precision');
+	},
+	read: (expression: Fragment) => cast(expression, 'text'),
+	decode: (raw: unknown) => Number(expect(raw, (v): v is string => isString(v) && float.test(v), 'double precision')),
 });
 
 /** A UUID as its canonical lowercase text. */
@@ -97,6 +127,9 @@ export function jsonb<T = unknown>(parse: (value: unknown) => T = (value) => val
 		send: (value: T) => {
 			const encoded = JSON.stringify(value);
 			if (encoded === undefined) throw new TypeError('Expected a JSON value for jsonb.');
+			if (unstorable.test(encoded)) {
+				throw new TypeError('A jsonb string may not hold NUL or a lone UTF-16 surrogate.');
+			}
 			return cast(param(encoded, 'text'), 'jsonb');
 		},
 		read: (expression: Fragment) => cast(expression, 'text'),
@@ -105,29 +138,39 @@ export function jsonb<T = unknown>(parse: (value: unknown) => T = (value) => val
 }
 
 /**
- * A point in time as a `Temporal.Instant`, at PostgreSQL's microsecond precision.
+ * ISO 8601 text that PostgreSQL reads: years after 9999 lose Temporal's `+` and leading zeros, and years before 1
+ * become `BC` years, because PostgreSQL has no year 0 (Temporal's year 0 is 1 BC).
+ */
+function iso(value: Temporal.Instant): string {
+	const text = value.toString();
+	const extended = /^([+-])(\d{6})(-.*)$/u.exec(text);
+	const year = extended ? Number(`${extended[1]}${extended[2]}`) : Number(text.slice(0, 4));
+	const rest = extended ? extended[3]! : text.slice(4);
+	return year > 0 ? `${String(year).padStart(4, '0')}${rest}` : `${String(1 - year).padStart(4, '0')}${rest} BC`;
+}
+
+/** Seconds since the epoch as PostgreSQL's exact `numeric` text, such as `-62154086400.500000`. */
+const seconds = /^(-?)(\d+)(?:\.(\d{1,6}))?$/u;
+
+/**
+ * A point in time as a `Temporal.Instant`, at PostgreSQL's microsecond precision, from 4713 BC to 294276 AD.
  *
  * The default text form of `timestamptz` depends on the session's time zone and date style, so neither direction uses
- * it. A value is sent as an ISO 8601 string in UTC, which PostgreSQL reads the same way under every setting, and read
- * through `to_char` in UTC with six fractional digits. A nanosecond part is rounded by PostgreSQL to microseconds.
+ * it. A value is sent as ISO 8601 text in UTC, which PostgreSQL reads the same way under every setting, and read as
+ * exact seconds since the epoch (`extract` returns `numeric` from PostgreSQL 14). A nanosecond part is rounded by
+ * PostgreSQL to microseconds. A stored `infinity` has no `Temporal.Instant`, so reading one fails.
  */
 export const timestamptz: SqlType<Temporal.Instant> = Object.freeze({
 	dialect,
 	name: 'timestamptz',
-	send: (value: Temporal.Instant) => cast(param(value.toString(), 'text'), 'timestamptz'),
-	read: (expression: Fragment) =>
-		join([
-			keyword('to_char('),
-			group(expression),
-			keyword(` at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`),
-		]),
+	send: (value: Temporal.Instant) => cast(param(iso(value), 'text'), 'timestamptz'),
+	read: (expression: Fragment) => cast(join([keyword('extract(epoch from '), expression, keyword(')')]), 'text'),
 	decode: (raw: unknown) => {
 		const text = expect(raw, isString, 'timestamp');
-		try {
-			return temporal.Instant.from(text);
-		} catch {
-			throw new TypeError(`Expected a UTC timestamp; received ${JSON.stringify(text)}.`);
-		}
+		const parts = seconds.exec(text);
+		if (!parts) throw new TypeError(`Expected a finite timestamp; received ${JSON.stringify(text)}.`);
+		const micros = BigInt(parts[2]!) * 1_000_000n + BigInt((parts[3] ?? '').padEnd(6, '0'));
+		return temporal.Instant.fromEpochNanoseconds((parts[1] ? -micros : micros) * 1000n);
 	},
 });
 

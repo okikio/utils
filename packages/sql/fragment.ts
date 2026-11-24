@@ -69,7 +69,8 @@ export function join(parts: readonly Fragment[], separator = ''): Fragment {
 	const out: Part[] = [];
 	parts.forEach((part, index) => {
 		if (index > 0 && separator) out.push({ kind: 'text', text: separator });
-		out.push(...part);
+		// A loop, not `push(...part)`: spreading a large fragment, such as a 5,000-row insert, overflows the stack.
+		for (const item of part) out.push(item);
 	});
 	return out;
 }
@@ -146,6 +147,13 @@ export function compile(fragment: Fragment, dialect: Dialect, options: CompileOp
 		strings[strings.length - 1] += piece;
 		text += piece;
 	}
-	const template = Object.freeze(Object.assign([...strings], { raw: Object.freeze([...strings]) }));
+	// Shape it like a real template object, with a non-enumerable `raw`: Bun's SQL rejects an enumerable one.
+	if (values.length > dialect.parameters) {
+		throw new RangeError(
+			`A ${dialect.name} statement may send at most ${dialect.parameters} parameters; this one sends ${values.length}. ` +
+				'Split it, such as an insert into several smaller inserts.',
+		);
+	}
+	const template = Object.freeze(Object.defineProperty([...strings], 'raw', { value: Object.freeze([...strings]) }));
 	return Object.freeze({ text, values: Object.freeze(values), strings: template as TemplateStringsArray });
 }

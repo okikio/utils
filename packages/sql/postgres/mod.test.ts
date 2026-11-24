@@ -43,14 +43,14 @@ describe('statements', () => {
 		);
 		expect(query.text).toBe(
 			'select ("app"."notes"."id")::text as "id", ("app"."notes"."title")::text as "title" from "app"."notes"' +
-				' where ("app"."notes"."state" = $1::text) and ("app"."notes"."rank" > $2::integer)' +
+				' where ("app"."notes"."state" = $1::text) and ("app"."notes"."rank" > ($2::text)::integer)' +
 				' order by "app"."notes"."rank" desc, "app"."notes"."id" asc limit $3::bigint for update skip locked',
 		);
-		expect(query.values).toEqual(['open', 2, 10]);
+		expect(query.values).toEqual(['open', '2', 10]);
 		expect([...query.strings]).toEqual([
 			query.text.slice(0, query.text.indexOf('$1')),
-			'::text) and ("app"."notes"."rank" > ',
-			'::integer) order by "app"."notes"."rank" desc, "app"."notes"."id" asc limit ',
+			'::text) and ("app"."notes"."rank" > (',
+			'::text)::integer) order by "app"."notes"."rank" desc, "app"."notes"."id" asc limit ',
 			'::bigint for update skip locked',
 		]);
 	});
@@ -76,8 +76,8 @@ describe('statements', () => {
 			sql.update(notes, { state: 'done', seen: later, rank: sql.add(n.rank, 1) }).where(n.id.eq('a')),
 		);
 		expect(changed.text).toBe(
-			'update "app"."notes" set "state" = $1::text, "seen" = clock_timestamp() + $2::double precision * interval \'1 millisecond\',' +
-				' "rank" = "app"."notes"."rank" + $3::integer where "app"."notes"."id" = ($4::text)::uuid',
+			'update "app"."notes" set "state" = $1::text, "seen" = clock_timestamp() + ($2::text)::double precision * interval \'1 millisecond\',' +
+				' "rank" = "app"."notes"."rank" + ($3::text)::integer where "app"."notes"."id" = ($4::text)::uuid',
 		);
 		const removed = sql.toQuery(sql.remove(notes).where(n.state.eq('done')).returning({ id: n.id }));
 		expect(removed.text).toBe(
@@ -114,8 +114,8 @@ describe('statements', () => {
 			}),
 		);
 		expect(upsert.text).toContain(
-			'on conflict ("id") do update set "body" = "excluded"."body", "rank" = "app"."notes"."rank" + $4::integer' +
-				' where "app"."notes"."rank" between $5::integer and $6::integer',
+			'on conflict ("id") do update set "body" = "excluded"."body", "rank" = "app"."notes"."rank" + ($4::text)::integer' +
+				' where "app"."notes"."rank" between ($5::text)::integer and ($6::text)::integer',
 		);
 		const members = sql.toQuery(
 			sql.select({ kind: sql.json.kind(n.body), words: sql.json.text(n.body, 'words') }).from(notes).where(
@@ -147,8 +147,8 @@ describe('schema statements', () => {
 		expect(table!.text).toBe(
 			'create table if not exists "app"."notes" ("id" uuid not null, "title" text not null,' +
 				' "state" text not null default \'open\'::text, "body" jsonb not null, "seen" timestamptz,' +
-				' "rank" integer not null default 0::integer, "sequence" bigint generated always as identity not null,' +
-				' primary key ("id"), unique ("title", "state"), check ("rank" >= 0::integer))',
+				' "rank" integer not null default (\'0\'::text)::integer, "sequence" bigint generated always as identity not null,' +
+				' primary key ("id"), unique ("title", "state"), check ("rank" >= (\'0\'::text)::integer))',
 		);
 		expect(index!.text).toBe(
 			'create index if not exists "notes_open" on "app"."notes" ("rank" desc, "sequence") where "state" = \'open\'::text',
@@ -179,7 +179,7 @@ describe('schema statements', () => {
 describe('running and decoding', () => {
 	it('decodes each column with its type and rejects missing, extra and mistyped columns', async () => {
 		const query = sql.select({ id: n.id, body: n.body, seen: n.seen, sequence: n.sequence }).from(notes);
-		const raw = { id: 'a', body: '{"words":3}', seen: '2023-11-14T22:13:20.123456Z', sequence: '9007199254740993' };
+		const raw = { id: 'a', body: '{"words":3}', seen: '1700000000.123456', sequence: '9007199254740993' };
 		expect(await sql.rows(fixed([raw]), query)).toEqual([
 			{
 				id: 'a',
@@ -188,7 +188,12 @@ describe('running and decoding', () => {
 				sequence: 9007199254740993n,
 			},
 		]);
-		for (const row of [{ ...raw, extra: 1 }, { id: 'a' }, { ...raw, body: { words: 3 } }, { ...raw, seen: '2026' }]) {
+		for (
+			const row of [{ ...raw, extra: 1 }, { id: 'a' }, { ...raw, body: { words: 3 } }, { ...raw, seen: 'Infinity' }, {
+				...raw,
+				seen: '2026-01-01',
+			}]
+		) {
 			await expect(sql.rows(fixed([row]), query)).rejects.toThrow(TypeError);
 		}
 		expect(await sql.rows(fixed([{ ...raw, seen: null }]), query).then((found) => found[0]!.seen)).toBeNull();
@@ -204,8 +209,8 @@ describe('running and decoding', () => {
 		expect(isClient(client)).toBe(true);
 		await sql.execute(executor(client), sql.update(notes, { rank: 1 }).where(n.id.eq('a')));
 		expect(calls).toEqual([[
-			['update "app"."notes" set "rank" = ', '::integer where "app"."notes"."id" = (', '::text)::uuid'],
-			[1, 'a'],
+			['update "app"."notes" set "rank" = (', '::text)::integer where "app"."notes"."id" = (', '::text)::uuid'],
+			['1', 'a'],
 		]]);
 	});
 

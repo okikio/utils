@@ -20,10 +20,10 @@ create schema if not exists "utils_state";
 create table if not exists "utils_state"."version" ("id" boolean not null default true::boolean, "revision" integer not null, primary key ("id"), check ("id"));
 
 -- migration.install.2
-insert into "utils_state"."version" ("revision") values ($1::integer) on conflict do nothing;
+insert into "utils_state"."version" ("revision") values (($1::text)::integer) on conflict do nothing;
 
 -- migration.install.3
-create table if not exists "utils_state"."snapshots" ("namespace" text not null, "key" text not null, "snapshot" jsonb not null, primary key ("namespace", "key"), check (char_length("namespace") between 1::integer and 128::integer), check (char_length("key") between 1::integer and 512::integer), check (coalesce((jsonb_typeof("snapshot") = 'object'::text) and ("snapshot" ?& array['format'::text, 'contract'::text, 'version'::text, 'value'::text]) and (("snapshot" -> 'format'::text) = ('1'::text)::jsonb) and (jsonb_typeof("snapshot" -> 'contract'::text) = 'string'::text) and (char_length("snapshot" ->> 'contract'::text) between 1::integer and 256::integer) and (jsonb_typeof("snapshot" -> 'version'::text) = 'string'::text) and (char_length("snapshot" ->> 'version'::text) between 1::integer and 128::integer), false::boolean)));
+create table if not exists "utils_state"."snapshots" ("namespace" text not null, "key" text not null, "snapshot" jsonb not null, primary key ("namespace", "key"), check (char_length("namespace") between ('1'::text)::integer and ('128'::text)::integer), check (char_length("key") between ('1'::text)::integer and ('512'::text)::integer), check (coalesce((jsonb_typeof("snapshot") = 'object'::text) and ("snapshot" ?& array['format'::text, 'contract'::text, 'version'::text, 'value'::text]) and (("snapshot" -> 'format'::text) = ('1'::text)::jsonb) and (jsonb_typeof("snapshot" -> 'contract'::text) = 'string'::text) and (char_length("snapshot" ->> 'contract'::text) between ('1'::text)::integer and ('256'::text)::integer) and (jsonb_typeof("snapshot" -> 'version'::text) = 'string'::text) and (char_length("snapshot" ->> 'version'::text) between ('1'::text)::integer and ('128'::text)::integer), false::boolean)));
 
 -- migration.installed
 select (to_regclass($1::text) is not null)::boolean as "present";
