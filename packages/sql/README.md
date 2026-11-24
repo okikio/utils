@@ -17,6 +17,7 @@ on a shared core:
 | `@okikio/sql/postgres`            | The core, plus PostgreSQL statements, types, functions, DDL and triggers.     |
 | `@okikio/sql/postgres/adopt`      | Read a schema made elsewhere, generate its definitions, check them for drift. |
 | `@okikio/sql/postgres/drizzle`    | Read Drizzle tables as definitions, and run statements through Drizzle.       |
+| `@okikio/sql/postgres/kysely`     | Run PostgreSQL statements through Kysely, in its transactions too.            |
 | `@okikio/sql/postgres/postgresjs` | Run PostgreSQL statements through Postgres.js.                                |
 | `@okikio/sql/postgres/pg`         | Run PostgreSQL statements through node-postgres (`pg`), with cancellation.    |
 
@@ -188,7 +189,8 @@ The keys, database names, `not null`, defaults, identity and generated columns, 
 come from Drizzle, at run time and in the types. Drizzle's `$defaultFn` and `$onUpdateFn` run here too. Values follow
 this package's types rather than Drizzle's modes: a `timestamp` is a `Temporal.Instant`, a `numeric` is exact text. A
 column type with no mapping here, such as `customType`, `inet` or `vector`, fails when the table is read; adopt that
-table through `inspect` and `generate`.
+table through `inspect` and `generate`. Kysely tables are TypeScript interfaces with nothing to read at run time, so
+adopt them through `inspect` and `generate`.
 
 ## Compose larger statements
 
@@ -268,11 +270,15 @@ A compiled statement has `$1` text with `values`, and the same statement as temp
 import { database, executor } from '@okikio/sql/postgres/postgresjs';
 const db = database(pool); // also opens transactions: db.begin(async (tx) => …)
 
-// Drizzle: pass Drizzle's own `sql` tag. `executor(tx, tag)` joins their transactions.
+// Drizzle and Kysely: pass the library's own `sql` tag. `executor(tx, tag)` joins their transactions.
 import { sql as drizzleTag } from 'drizzle-orm';
 import * as drizzle from '@okikio/sql/postgres/drizzle';
 const viaDrizzle = drizzle.database(orm, drizzleTag);
 await orm.transaction(async (tx) => sql.execute(drizzle.executor(tx, drizzleTag), statement));
+import { sql as kyselyTag } from 'kysely';
+import * as kysely from '@okikio/sql/postgres/kysely';
+const viaKysely = kysely.database(k, kyselyTag);
+await k.transaction().execute(async (trx) => sql.execute(kysely.executor(trx, kyselyTag), statement));
 
 // Any driver that takes text and values: pg, Kysely's CompiledQuery.raw, Prisma's $queryRawUnsafe, TypeORM,
 // pg-promise, Bun's sql.unsafe and Deno's @db/postgres.
@@ -300,10 +306,11 @@ transactions. Drizzle's `node-postgres` driver, Kysely's `PostgresDialect`, Type
 sit on a `pg` pool, so pass that pool to share its connections and get cancellation too.
 
 `run` also takes `{ signal }`. The bindings cancel the running query when the signal aborts and reject with the abort
-reason; the `pg` binding sends `pg_cancel_backend` through a second connection of the pool. Drizzle takes no signal, so the Drizzle binding sends a cancellable
+reason; the `pg` binding sends `pg_cancel_backend` through a second connection of the pool. The Kysely binding asks
+Kysely 0.29 or later to cancel in the database. Drizzle takes no signal, so the Drizzle binding sends a cancellable
 statement through the `pg` pool or Postgres.js client under it (`db.$client`); inside a Drizzle transaction the signal
-is only checked before sending. The hand-written forms above ignore the signal and let the statement finish. `database.begin(work, { isolation })` opens
-the transaction at a chosen isolation level, such as `'read committed'`.
+is only checked before sending. The hand-written forms above ignore the signal and let the statement finish.
+`database.begin(work, { isolation })` opens the transaction at a chosen isolation level, such as `'read committed'`.
 
 ## Verify statements before they reach production
 
