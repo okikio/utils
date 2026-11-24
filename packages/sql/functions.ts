@@ -94,6 +94,30 @@ export const fn = Object.freeze({
 			types.integer,
 			true,
 		),
+	/** The sum of the values, or NULL for no rows. A `bigint` sum is `numeric` in SQL, so cast it back as needed. */
+	sum: (input: Expr<number>): Expr<number | null> =>
+		new Expr(
+			join([keyword('sum('), input.fragment, keyword(`)::${input.type.name}`)]),
+			types.nullable(input.type),
+			true,
+		),
+	/** The smallest integer not less than the value. */
+	ceil: (input: Expr<number>): Expr<number> =>
+		new Expr(join([keyword('ceil('), input.fragment, keyword(')')]), input.type, true),
+	/** The time the transaction started; the same for every statement of the transaction. */
+	transactionTimestamp: (): Expr<Temporal.Instant> =>
+		new Expr(keyword('transaction_timestamp()'), types.timestamptz, true),
+	/** The smallest of the inputs. */
+	least: <T>(first: Expr<T>, ...rest: readonly Input<T>[]): Expr<T> =>
+		new Expr(
+			join([
+				keyword('least('),
+				join([first, ...rest.map((item) => lift(item, first.type))].map((item) => item.fragment), ', '),
+				keyword(')'),
+			]),
+			first.type,
+			true,
+		),
 	/** The largest value, or NULL for no rows. */
 	max: <T>(input: Expr<T>): Expr<T | null> =>
 		new Expr(join([keyword('max('), input.fragment, keyword(')')]), types.nullable(input.type), true),

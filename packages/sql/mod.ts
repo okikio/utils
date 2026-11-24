@@ -62,12 +62,15 @@ export {
 	cte,
 	type CteType,
 	isStatement,
+	recursive,
 	type RowOfShape,
 	type Shape,
 	type Source,
 	type Statement,
 	toQuery,
 	type TypesOf,
+	unionAll,
+	type UnionType,
 } from './statement.ts';
 export { type LockType, Select, select } from './select.ts';
 export {

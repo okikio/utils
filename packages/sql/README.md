@@ -83,6 +83,10 @@ A query that would need several round trips in application code can stay one sta
 - `insert(table, select)` inserts the rows a select returns. Name each selected value after the column it fills.
 - `.for({ of: [table], skipLocked: true })` locks rows of one source only and skips rows other workers hold.
 - `fn.count(condition)` counts only matching rows, and `fn.rowNumber(order)` numbers rows as a window function.
+- `sql.unionAll(...)` keeps each select's own order and limit, and `sql.recursive(name, shape, step)` walks a tree.
+  `cte(name, query, { materialized: true })` computes shared rows once.
+- `json.elements(array, alias)` reads the elements of a `jsonb` array in `from`, and `json.contains`, `json.within`,
+  `json.array` and `json.object` write containment and build values in SQL.
 
 ```ts ignore
 const due = sql.cte(

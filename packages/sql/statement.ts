@@ -20,6 +20,7 @@ import {
 	keyword,
 	qualified,
 } from './fragment.ts';
+import type { ElementsType } from './json.ts';
 import type { Aliased, Columns, Table } from './table.ts';
 import type { SqlType } from './type.ts';
 
@@ -75,6 +76,10 @@ export function returning(shape: Shape | undefined): Fragment {
 /** A subquery with a name, defined in a statement's `with` clause and read like a table. */
 export interface CteType<Row> {
 	readonly name: string;
+	/** The subquery reads its own rows; see {@link recursive}. */
+	readonly recursive?: boolean;
+	/** Compute the rows once, even when the statement reads them several times. */
+	readonly materialized?: boolean;
 	/** The subquery's SQL, with raw values. */
 	readonly fragment: Fragment;
 	/** Its columns, referenced as `name.column`. */
@@ -93,25 +98,92 @@ export interface CteType<Row> {
 export function cte<Row>(
 	name: string,
 	subquery: { readonly fragment: Fragment; readonly shape: TypesOf<Row> },
+	options: { readonly materialized?: boolean } = {},
 ): CteType<Row> {
+	return Object.freeze({
+		name,
+		fragment: subquery.fragment,
+		c: refs<Row>(name, subquery.shape),
+		...(options.materialized ? { materialized: true } : {}),
+	});
+}
+
+function refs<Row>(name: string, shape: TypesOf<Row>): CteType<Row>['c'] {
 	identifier(name);
-	const shape = subquery.shape as Readonly<Record<string, SqlType<unknown>>>;
-	const c = Object.fromEntries(Object.entries(shape).map(([key, type]) => [key, new Column([name], key, type)]));
-	return Object.freeze({ name, fragment: subquery.fragment, c: Object.freeze(c) as never });
+	const types = shape as Readonly<Record<string, SqlType<unknown>>>;
+	return Object.freeze(
+		Object.fromEntries(Object.entries(types).map(([key, type]) => [key, new Column([name], key, type)])),
+	) as never;
+}
+
+/**
+ * Name a subquery that reads its own earlier rows, such as a walk down a tree. `step` receives the named rows and
+ * returns a `unionAll` of the starting rows and the next ones. The statement's `with` becomes `with recursive`.
+ *
+ * @example
+ * ```ts ignore
+ * const tree = sql.recursive('tree', { id: types.uuid }, (self) =>
+ * 	sql.unionAll(
+ * 		sql.select({ id: runs.c.id }).from(runs).where(runs.c.id.eq(root)),
+ * 		sql.select({ id: runs.c.id }).from(runs).join(self, runs.c.parent.eq(self.c.id)),
+ * 	));
+ * ```
+ */
+export function recursive<Row>(
+	name: string,
+	shape: TypesOf<Row>,
+	step: (self: CteType<Row>) => { readonly fragment: Fragment; readonly shape: TypesOf<Row> },
+): CteType<Row> {
+	const self: CteType<Row> = Object.freeze({ name, fragment: [], c: refs<Row>(name, shape) });
+	const body = step(self);
+	if (Object.keys(body.shape).join() !== Object.keys(shape).join()) {
+		throw new TypeError(`Recursive subquery ${name} must select ${Object.keys(shape).join(', ')}.`);
+	}
+	return Object.freeze({ ...self, fragment: body.fragment, recursive: true });
+}
+
+/** Rows of several selects with the same columns, kept in order and with duplicates: `union all`. */
+export interface UnionType<Row> {
+	readonly fragment: Fragment;
+	readonly shape: TypesOf<Row>;
+}
+
+/**
+ * `(select …) union all (select …)`. Each select keeps its own `order by` and `limit`. Name the result with
+ * {@link cte} to read it. Every select must name the same columns in the same order.
+ */
+export function unionAll<Row>(
+	first: { readonly fragment: Fragment; readonly shape: TypesOf<Row> },
+	...rest: readonly { readonly fragment: Fragment; readonly shape: TypesOf<Row> }[]
+): UnionType<Row> {
+	const names = Object.keys(first.shape).join();
+	for (const item of rest) {
+		if (Object.keys(item.shape).join() !== names) {
+			throw new TypeError('Every select of a union names the same columns.');
+		}
+	}
+	return Object.freeze({
+		fragment: join([first, ...rest].map((item) => group(item.fragment)), ' union all '),
+		shape: first.shape,
+	});
 }
 
 /** A `with` clause, or nothing. */
 export function prefix(ctes: readonly CteType<unknown>[]): Fragment {
 	if (!ctes.length) return [];
-	const items = ctes.map((item) => join([identifier(item.name), keyword(' as '), group(item.fragment)]));
-	return join([keyword('with '), join(items, ', '), keyword(' ')]);
+	const items = ctes.map((item) =>
+		join([identifier(item.name), keyword(item.materialized ? ' as materialized ' : ' as '), group(item.fragment)])
+	);
+	const word = ctes.some((item) => item.recursive) ? 'with recursive ' : 'with ';
+	return join([keyword(word), join(items, ', '), keyword(' ')]);
 }
 
-/** A table, an aliased table or a named subquery. */
-export type Source = Table<Columns> | Aliased<Columns> | CteType<unknown>;
+/** A table, an aliased table, a named subquery or the elements of a JSON array. */
+export type Source = Table<Columns> | Aliased<Columns> | CteType<unknown> | ElementsType;
 
 /** A source as it appears in `from`, `using` or a join. */
 export function source(from: Source): Fragment {
+	if ('call' in from) return join([from.call, keyword(' as '), identifier(from.alias)]);
 	if ('alias' in from) {
 		return join([qualified(from.table.schema, from.table.name), keyword(' as '), identifier(from.alias)]);
 	}
