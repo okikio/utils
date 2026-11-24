@@ -28,6 +28,7 @@ export type { CompiledType, Fragment } from './fragment.ts';
 export {
 	add,
 	and,
+	type AnyExpr,
 	coalesce,
 	type Collation,
 	Column,
@@ -45,17 +46,24 @@ export {
 	type OrderType,
 	row,
 	scalar,
+	type Subquery,
 	subtract,
 	value,
 } from './expr.ts';
 export {
+	type Aliased,
 	column,
+	type ColumnBuilder,
 	type ColumnDef,
 	type Columns,
 	type Constraints,
 	excluded,
+	type ForeignKeyType,
+	type IndexType,
+	type Refs,
 	type RowOf,
 	schema,
+	type SchemaType,
 	type Table,
 } from './table.ts';
 export * as json from './json.ts';
