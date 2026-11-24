@@ -58,7 +58,7 @@ The capability guide table below keeps the detailed chapters accessible after th
 | [authz](../packages/authz/README.md)                        | [Guide](./authz/01-guide.md)             | Declare permissions, roles, and plan features; check access                 |
 | [pool](../packages/pool/README.md)                          | [Guide](./pool.md)                       | Reuse a resource while preserving exclusive ownership                       |
 | [postgres](../packages/storage/README.md)                   | [Guide](./postgres/01-workflow.md)       | Save workflow progress beside business state                                |
-| [sql](../packages/sql/README.md)                            | [Package](../packages/sql/README.md)     | Build typed PostgreSQL statements and run them with any client.             |
+| [sql](../packages/sql/README.md)                            | [Package](../packages/sql/README.md)     | Build typed SQL statements per dialect (PostgreSQL today) and run them.      |
 | [process](../packages/worker/process/README.md)             | [Guide](./process.md)                    | Own a child process and its streams                                         |
 | [query](../packages/query/README.md)                        | [Guide](./query.md)                      | Describe an allowed query before applying it                                |
 | [queue](../packages/scheduler/queue/README.md)              | [Guide](./queue.md)                      | Separate accepted work from a worker's attempt                              |
