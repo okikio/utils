@@ -45,8 +45,9 @@ describe('values every client can send unchanged', () => {
 		expect(sent(types.timestamp as never, temporal.Instant.from('2026-01-02T03:04:05Z')).values).toEqual([
 			'2026-01-02T03:04:05',
 		]);
-		expect(types.timestamptz.decode('1700000000.123456').toString()).toBe('2023-11-14T22:13:20.123456Z');
-		expect(types.timestamptz.decode('-62135596800.5').toString()).toBe('0000-12-31T23:59:59.5Z');
+		// Compared as epoch nanoseconds, which need no time zone rules on any runtime.
+		expect(types.timestamptz.decode('1700000000.123456').epochNanoseconds).toBe(1_700_000_000_123_456_000n);
+		expect(types.timestamptz.decode('-62135596800.5').epochNanoseconds).toBe(-62_135_596_800_500_000_000n);
 		for (const raw of ['Infinity', '-Infinity', '2026-01-01T00:00:00Z', 1700000000]) {
 			expect(() => types.timestamptz.decode(raw)).toThrow(TypeError);
 		}

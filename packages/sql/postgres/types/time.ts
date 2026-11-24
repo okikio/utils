@@ -33,9 +33,48 @@ const epoch = (expression: Fragment): Fragment =>
 const instant = (value: Temporal.Instant): Temporal.Instant =>
 	expect(value, (v): v is Temporal.Instant => v instanceof temporal.Instant, 'Temporal.Instant');
 
+const nanosPerDay = 86_400_000_000_000n;
+const two = (value: number): string => String(value).padStart(2, '0');
+
+/**
+ * An instant as ISO 8601 text in UTC, in the form `Temporal.Instant.toString()` writes, built from its epoch
+ * nanoseconds. Deno's `toString` loads ICU time zone rules even for UTC, and throws when they fail to load, such as
+ * when `ICU_TIMEZONE_FILES_DIR` points at rules of another ICU version. Sending a timestamp needs no time zone.
+ */
+function utc(value: Temporal.Instant): string {
+	const nanos = instant(value).epochNanoseconds;
+	let days = nanos / nanosPerDay;
+	let rest = nanos % nanosPerDay;
+	if (rest < 0n) {
+		rest += nanosPerDay;
+		days -= 1n;
+	}
+	// Days since 1970-01-01 to a proleptic Gregorian date, by Howard Hinnant's `civil_from_days`.
+	const z = Number(days) + 719_468;
+	const cycle = Math.floor(z / 146_097);
+	const dayOfCycle = z - cycle * 146_097;
+	const yearOfCycle = Math.floor(
+		(dayOfCycle - Math.floor(dayOfCycle / 1460) + Math.floor(dayOfCycle / 36_524) - Math.floor(dayOfCycle / 146_096)) /
+			365,
+	);
+	const dayOfYear = dayOfCycle - (365 * yearOfCycle + Math.floor(yearOfCycle / 4) - Math.floor(yearOfCycle / 100));
+	const shifted = Math.floor((5 * dayOfYear + 2) / 153);
+	const day = dayOfYear - Math.floor((153 * shifted + 2) / 5) + 1;
+	const month = shifted < 10 ? shifted + 3 : shifted - 9;
+	const year = yearOfCycle + cycle * 400 + (month <= 2 ? 1 : 0);
+	const yearText = year >= 0 && year <= 9999
+		? String(year).padStart(4, '0')
+		: `${year < 0 ? '-' : '+'}${String(Math.abs(year)).padStart(6, '0')}`;
+	const seconds = Number(rest / 1_000_000_000n);
+	const fraction = rest % 1_000_000_000n;
+	const clock = `${two(Math.floor(seconds / 3600))}:${two(Math.floor(seconds / 60) % 60)}:${two(seconds % 60)}`;
+	const digits = fraction ? `.${String(fraction).padStart(9, '0').replace(/0+$/u, '')}` : '';
+	return `${yearText}-${two(month)}-${two(day)}T${clock}${digits}Z`;
+}
+
 /** An instant as ISO 8601 text in UTC that PostgreSQL reads, for any year it holds. */
 function iso(value: Temporal.Instant): string {
-	const { text, suffix } = era(instant(value).toString());
+	const { text, suffix } = era(utc(value));
 	return text + suffix;
 }
 
@@ -63,7 +102,7 @@ export const timestamptz: SqlType<Temporal.Instant> = textual(
 export const timestamp: SqlType<Temporal.Instant> = textual(
 	'timestamp',
 	(value) => {
-		const { text, suffix } = era(instant(value).toString());
+		const { text, suffix } = era(utc(value));
 		return text.replace('Z', '') + suffix;
 	},
 	(raw) => fromEpoch(raw, 'timestamp'),
