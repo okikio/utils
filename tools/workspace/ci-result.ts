@@ -9,7 +9,18 @@ interface JobResult {
 }
 
 /** These selection names remain independent even when two lanes share a hosted job. */
-const Lanes = ['source', 'runtimes', 'browser', 'packages', 'postgres', 'containers', 'benchmark', 'docs', 'examples'];
+const Lanes = [
+	'source',
+	'runtimes',
+	'browser',
+	'packages',
+	'postgres',
+	'containers',
+	'interop',
+	'benchmark',
+	'docs',
+	'examples',
+];
 
 /**
  * A selected stack top must finish its own combined candidate checks.

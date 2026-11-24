@@ -11,12 +11,14 @@
 /**
  * Where cases are known to fail, and why. Absent `targets` or `clients` means every one. `cases: 'any'` is for a client
  * set up in a way the target does not support, where which statements fail varies from run to run; those cases may
- * fail or pass. The pseudo-case `client run` stands for a client that stopped before reporting its cases.
+ * fail or pass. `sometimes` marks listed cases that depend on timing or a server outside the package, so they may
+ * pass too. The pseudo-case `client run` stands for a client that stopped before reporting its cases.
  */
 export interface LimitType {
 	readonly targets?: readonly string[];
 	readonly clients?: readonly string[];
 	readonly cases: readonly string[] | 'any';
+	readonly sometimes?: boolean;
 	readonly reason: string;
 }
 
@@ -45,6 +47,26 @@ export const limits: readonly LimitType[] = [
 			"Use the package's `pg` or Postgres.js binding on the same pool to cancel.",
 	},
 	{
+		targets: [
+			'pgbouncer-session',
+			'pgbouncer-transaction',
+			'supavisor-session',
+			'supavisor-transaction',
+		],
+		clients: ['kysely', 'kysely-compiled-query', 'mikroorm'],
+		cases: ['an abort signal cancels a running statement'],
+		reason: 'Kysely and MikroORM cancel with `pg_cancel_backend(pid)`, and a pooler hands out its own pid, not the ' +
+			"server's. The package's `pg` binding sends a cancel request, which the pooler routes; use it on the same pool.",
+	},
+	{
+		targets: ['supavisor-transaction'],
+		clients: ['bun-sql', 'bun-sql-template'],
+		cases: 'any',
+		reason: "Bun's SQL client names its prepared statements, and Supavisor in transaction mode hands the next " +
+			'statement to a server connection that already has that name. Set `prepare: false`, as `bun-sql-unprepared` ' +
+			"does, or enable Supavisor's named prepared statements.",
+	},
+	{
 		clients: ['neon-http', 'drizzle-neon-http'],
 		cases: [
 			'numeric, timestamp, enum and quoted names',
@@ -61,6 +83,52 @@ export const limits: readonly LimitType[] = [
 		cases: ['10 MB of text and jsonb', 'insert 5,000 rows in one statement'],
 		reason: 'Neon\'s HTTP endpoint refuses a request over 10 MiB, and a 50,000-parameter statement ("value too large ' +
 			'to transmit"). Split the write, or use the WebSocket `Pool`.',
+	},
+	{
+		targets: ['neon-proxy'],
+		clients: ['neon-http'],
+		cases: ['an abort signal cancels a running statement'],
+		sometimes: true,
+		reason:
+			'Over HTTP, an abort closes the request, and the local Neon proxy stops the statement only when it notices ' +
+			'the closed request before the statement ends. It keeps no cancel keys, as the next limit says.',
+	},
+	{
+		targets: ['neon-proxy'],
+		cases: ['an abort signal cancels a running statement'],
+		reason: "The local Neon proxy runs without the Redis store Neon's deployment keeps cancel keys in, so it drops " +
+			'every cancel request ("cancellation handler is not available" in its log). The `pg` binding does send one over ' +
+			'the WebSocket; cancellation on Neon itself is not covered here.',
+	},
+	{
+		targets: ['alloydb-omni'],
+		clients: ['postgresjs', 'postgresjs-unprepared', 'drizzle-postgresjs'],
+		cases: ['an abort signal cancels a running statement'],
+		sometimes: true,
+		reason: "Postgres.js's cancel request stops the statement on AlloyDB Omni only some of the time: here 2 to 6 of " +
+			'15 tries ran to the end, with one connection or four and with the abort after 50 ms or 1 s. On PostgreSQL ' +
+			"it worked every time, and node-postgres's cancel request worked every time on AlloyDB Omni. Use the `pg` " +
+			'binding there to cancel.',
+	},
+	{
+		targets: ['cockroachdb'],
+		cases: ['create trigger from typed steps', 'trigger wrote history with tg_op'],
+		reason:
+			"CockroachDB triggers cannot name update columns (`after update of label`), and the suite's trigger does. " +
+			'A trigger on every update works there.',
+	},
+	{
+		targets: ['cockroachdb'],
+		cases: ['session DateStyle changes nothing'],
+		reason:
+			'CockroachDB has only the ISO `DateStyle` and refuses to set another, so there is nothing to guard against.',
+	},
+	{
+		targets: ['yugabytedb'],
+		cases: ['numeric NaN is stored and read back'],
+		reason:
+			'A YugabyteDB `numeric` column cannot store `NaN` ("DECIMAL does not support NaN yet"); a `NaN` value in a ' +
+			'statement and every other stored value work.',
 	},
 ];
 

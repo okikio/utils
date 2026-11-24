@@ -12,6 +12,7 @@ function documentation() {
 		'packages',
 		'postgres',
 		'containers',
+		'interop',
 		'benchmark',
 		'docs',
 		'examples',

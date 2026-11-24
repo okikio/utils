@@ -53,7 +53,7 @@ if (values.help) {
   --runtime <host>    deno (default), node, or bun
   --kind <operation> Select a check or preparation operation
   --suite <suite>    source, comparisons, docs, examples, packages, bundles,
-                     browser, postgres, containers, soak, list
+                     browser, postgres, containers, interop, soak, list
   --check            Benchmark correctness or release/publish dry runs
   --operation <name> bench: measure, compare, profile; release: add, plan, version, publish
   --full             Select all CI lanes (default planning uses --base and --head)
@@ -260,6 +260,10 @@ async function ci(): Promise<void> {
 				break;
 			case 'examples':
 				test('examples');
+				break;
+			case 'interop':
+				// INTEROP_TARGETS, set by the workflow, selects the servers this job starts.
+				test('interop');
 				break;
 			case 'postgres':
 			case 'containers': {

@@ -130,6 +130,7 @@ mise run test -- --runtime bun -- packages/input
 | `test --suite packages`                             | Built archives physically installed outside the checkout: Deno, Node ESM, Bun, inferred types and real Chromium             |
 | `test --suite postgres`                             | PostgreSQL state, queue and durable workflow recovery, including real process death and restart                                     |
 | `test --suite containers`                           | Docker worker recovery, streaming through nginx, physical PostgreSQL promotion and explicit real-browser duplex HTTP checks          |
+| `test --suite interop`                              | SQL statements through every supported ORM and driver, against PostgreSQL 14 to 19, poolers and compatible servers in Docker        |
 | `test --suite soak`                                 | Opt-in two-hour PostgreSQL guarded writes, lease renewal and midpoint promotion; separate from ordinary CI                          |
 | `bench --check`, `bench --operation freeze --check` | Untimed correctness oracles for the measured workloads                                                                              |
 
@@ -162,8 +163,8 @@ timeout or a passing Chromium run cannot establish that Firefox starts and compl
 ### Shared CI and release checks
 
 [`.github/workflows/quality.yml`](../../.github/workflows/quality.yml) selects jobs for source contracts, the
-Deno/Node/Bun matrix, native Chromium, installed packages, PostgreSQL recovery, container recovery, benchmark
-correctness, documentation and native examples. Formatting and linting run as separate advisory checks on main or manual requests. Every job checks
+Deno/Node/Bun matrix, native Chromium, installed packages, PostgreSQL recovery, container recovery, PostgreSQL
+interoperability, benchmark correctness, documentation and native examples. Formatting and linting run as separate advisory checks on main or manual requests. Every job checks
 out the caller's commit and receives a read-only repository token. The runtime matrix, resource fixtures, pinned actions
 and report retention are defined once in that workflow.
 
@@ -183,7 +184,9 @@ See [the release guide](./03-releases.md) for setup and partial-release recovery
 Check names include the caller prefix. Ordinary CI reports `Quality / Source and public contracts`,
 `Quality / Source on deno`, `Quality / Source on node`, `Quality / Source on bun`,
 `Quality / Native Chromium contracts`, `Quality / Installed package consumers`,
-`Quality / PostgreSQL queue and durable recovery`, `Quality / Container recovery` and `Quality / Benchmark correctness`.
+`Quality / PostgreSQL queue and durable recovery`, `Quality / Container recovery`,
+`Quality / PostgreSQL interoperability (<group>)` for the `postgres`, `poolers`, `distributions` and `distributed`
+groups, and `Quality / Benchmark correctness`.
 Review branch-protection names when changing workflows; the release-metadata job is now `changesets`.
 
 Install the browser before its source or package checks:
@@ -225,7 +228,10 @@ UTILS_TEST_DATABASE_URL=postgres://fixture:fixture@127.0.0.1:5432/utils_test mis
 mise run test -- --suite containers
 ```
 
-The container task needs Docker. PostgreSQL tests use the supplied database and real Node/Deno children; they do not
+The container and interoperability tasks need Docker. The interoperability suite starts its own servers; select
+some with `INTEROP_TARGETS` and `INTEROP_CLIENTS`, and set `INTEROP_MIRROR=mirror.gcr.io` when Docker Hub limits
+anonymous pulls. [Its guide](../../tests/interop/README.md) lists the targets, the clients and the known limits.
+PostgreSQL tests use the supplied database and real Node/Deno children; they do not
 need to provision their own database container. Deno source tasks declare fixture filesystem, child-process, system and
 environment capabilities, and restrict network access to loopback. A source test that needs a new capability must state
 why and belong to the appropriate owner.
