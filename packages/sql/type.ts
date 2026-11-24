@@ -83,6 +83,23 @@ export const bigint: SqlType<bigint> = Object.freeze({
 	decode: (raw: unknown) => BigInt(expect(raw, (v): v is string => isString(v) && /^-?\d+$/u.test(v), 'bigint')),
 });
 
+/**
+ * A 64-bit integer column read as a JavaScript `number`, for counts and limits that stay below 2^53. It travels as
+ * text, like {@link bigint}, and a value outside the safe range is an error instead of a rounded number.
+ */
+export const long: SqlType<number> = Object.freeze({
+	name: 'bigint',
+	send: (value: number) =>
+		cast(param(String(expect(value, Number.isSafeInteger as (v: unknown) => v is number, 'long')), 'text'), 'bigint'),
+	read: (expression: Fragment) => cast(expression, 'text'),
+	decode: (raw: unknown) => {
+		const text = expect(raw, (v): v is string => isString(v) && /^-?\d+$/u.test(v), 'long');
+		const value = Number(text);
+		if (!Number.isSafeInteger(value)) throw new RangeError(`Value ${text} is outside the safe integer range.`);
+		return value;
+	},
+});
+
 /** A double-precision float. */
 export const double: SqlType<number> = Object.freeze({
 	name: 'double precision',

@@ -68,23 +68,29 @@ export {
 } from './table.ts';
 export * as json from './json.ts';
 export {
+	cte,
+	type CteType,
+	isStatement,
+	type RowOfShape,
+	type Shape,
+	type Source,
+	type Statement,
+	toQuery,
+	type TypesOf,
+} from './statement.ts';
+export { type LockType, Select, select } from './select.ts';
+export {
+	type ConflictType,
 	Delete,
 	Insert,
 	insert,
 	type InsertRow,
-	isStatement,
-	type LockType,
+	type InsertSelect,
 	remove,
-	type RowOfShape,
-	Select,
-	select,
-	type Shape,
-	type Statement,
-	toQuery,
 	Update,
 	update,
 	type UpdateRow,
-} from './statement.ts';
+} from './write.ts';
 export {
 	addColumn,
 	begin,
@@ -99,5 +105,15 @@ export {
 	tableStatements,
 	toDdlQuery,
 } from './ddl.ts';
-export { type Database, decode, execute, type Executor, one, type RawRow, rows } from './run.ts';
+export {
+	type BeginOptions,
+	type Database,
+	decode,
+	execute,
+	type Executor,
+	one,
+	type RawRow,
+	rows,
+	type RunOptions,
+} from './run.ts';
 export { type CatalogType, compiled, describe, type DescriptionType, type ProblemType, render } from './verify.ts';
