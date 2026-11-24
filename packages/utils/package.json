@@ -361,7 +361,8 @@
 		"@okikio/hash": "workspace:^0.1.0",
 		"@okikio/input": "workspace:^1.0.0",
 		"@okikio/storage": "workspace:^1.0.0",
-		"@okikio/authz": "workspace:^0.1.0"
+		"@okikio/authz": "workspace:^0.1.0",
+		"@okikio/sql": "workspace:^0.1.0"
 	},
 	"devDependencies": {
 		"mitata": "^1.0.34"
