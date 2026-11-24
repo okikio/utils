@@ -16,6 +16,7 @@ on a shared core:
 | `@okikio/sql`                     | The dialect-neutral core: expressions, conditions, tables, scope, executors.  |
 | `@okikio/sql/postgres`            | The core, plus PostgreSQL statements, types, functions, DDL and triggers.     |
 | `@okikio/sql/postgres/postgresjs` | Run PostgreSQL statements through Postgres.js.                                |
+| `@okikio/sql/postgres/pg`         | Run PostgreSQL statements through node-postgres (`pg`), with cancellation.    |
 
 Application code imports one dialect's entry point. A library that only accepts an executor or a statement can depend
 on the core. Only PostgreSQL exists today. Other tabular dialects, such as ClickHouse, MySQL and T-SQL, would be sibling
@@ -237,8 +238,13 @@ The template `strings` are a real template object, so tags that check for one, s
 These forms were checked with Postgres.js, pg, Drizzle, Kysely, Prisma 7, TypeORM, Sequelize, knex, MikroORM, Slonik,
 pg-promise, Bun's SQL, Deno's `@db/postgres` and PGlite, against PostgreSQL 14 to 19.
 
-`run` also takes `{ signal }`. The Postgres.js binding cancels the running query when the signal aborts and rejects
-with the abort reason. The other forms above ignore the signal and let the statement finish. `database.begin(work, { isolation })` opens
+`@okikio/sql/postgres/pg` binds a node-postgres pool the same way: `database(pool)` runs, cancels and opens
+transactions. Drizzle's `node-postgres` driver, Kysely's `PostgresDialect`, TypeORM, Sequelize, knex and MikroORM all
+sit on a `pg` pool, so pass that pool to share its connections and get cancellation too.
+
+`run` also takes `{ signal }`. Both bindings cancel the running query when the signal aborts and reject with the abort
+reason; the `pg` binding sends `pg_cancel_backend` through a second connection of the pool. The hand-written forms
+above ignore the signal and let the statement finish. `database.begin(work, { isolation })` opens
 the transaction at a chosen isolation level, such as `'read committed'`.
 
 ## Verify statements before they reach production
