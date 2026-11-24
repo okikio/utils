@@ -80,24 +80,31 @@ export function group(inner: Fragment): Fragment {
 	return join([keyword('('), inner, keyword(')')]);
 }
 
+const encoder = new TextEncoder();
+
 /**
- * Plain identifiers: lowercase ASCII letters, digits and `_`, not starting with a digit, at most 63 bytes. Every common
- * dialect accepts these names quoted or not, so a schema keeps one spelling across dialects.
+ * Whether a name can be written quoted, exactly as given. Every name is quoted, so mixed case, spaces and reserved
+ * words keep their meaning, as schemas made by Prisma (`"User"."createdAt"`) or plain SQL need. A name may not be
+ * empty, hold NUL or a lone surrogate, or pass 63 bytes, the limit past which PostgreSQL silently truncates it.
+ * Lowercase `snake_case` stays the advice for new schemas, because it needs no quotes in hand-written SQL.
  */
-const identifierPattern = /^[a-z_][a-z0-9_]{0,62}$/u;
+function nameable(name: string): boolean {
+	return name.length > 0 && !name.includes('\0') && name.isWellFormed() && encoder.encode(name).length <= 63;
+}
 
 /** Check a schema, table, column, index or function name. */
 export function identifier(name: string): Fragment {
-	if (!identifierPattern.test(name)) throw new TypeError(`Invalid SQL identifier: ${JSON.stringify(name)}.`);
+	if (typeof name !== 'string' || !nameable(name)) {
+		throw new TypeError(`Invalid SQL identifier: ${JSON.stringify(name)}.`);
+	}
 	return [{ kind: 'name', name }];
 }
 
-/** Result names may use mixed case, because they are always quoted. */
-const aliasPattern = /^[A-Za-z_][A-Za-z0-9_]{0,62}$/u;
-
-/** Check a result column name, which may be camelCase. */
+/** Check a result column name. The same rules apply; a result name is quoted like any other. */
 export function alias(name: string): Fragment {
-	if (!aliasPattern.test(name)) throw new TypeError(`Invalid SQL result name: ${JSON.stringify(name)}.`);
+	if (typeof name !== 'string' || !nameable(name)) {
+		throw new TypeError(`Invalid SQL result name: ${JSON.stringify(name)}.`);
+	}
 	return [{ kind: 'name', name }];
 }
 
@@ -136,6 +143,13 @@ export function compile(fragment: Fragment, dialect: Dialect, options: CompileOp
 			text += placeholder.text;
 			strings.push(placeholder.suffix);
 			continue;
+		}
+		if (mode === 'routine' && (part.kind === 'name' || part.kind === 'column')) {
+			// A `$` in a name could close the dollar quote around a function body.
+			const names = part.kind === 'name' ? [part.name] : [...part.owner, part.name];
+			if (names.some((name) => name.includes('$'))) {
+				throw new TypeError(`A name in a function body may not hold "$": ${JSON.stringify(names.join('.'))}.`);
+			}
 		}
 		const piece = part.kind === 'text'
 			? part.text

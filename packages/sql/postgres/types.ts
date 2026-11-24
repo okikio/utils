@@ -10,7 +10,7 @@
  */
 import { temporal } from '@okikio/duration/temporal';
 import type { Temporal } from '@okikio/duration/temporal';
-import { type Fragment, join, keyword, param } from '../fragment.ts';
+import { compile, type Fragment, join, keyword, param, qualified } from '../fragment.ts';
 import { expect, type SqlType } from '../type.ts';
 import { cast, dialect } from './dialect.ts';
 
@@ -173,6 +173,60 @@ export const timestamptz: SqlType<Temporal.Instant> = Object.freeze({
 		return temporal.Instant.fromEpochNanoseconds((parts[1] ? -micros : micros) * 1000n);
 	},
 });
+
+/**
+ * A `timestamp without time zone` column that stores UTC wall-clock time, as Prisma, TypeORM and many migrations
+ * create, read and written as a `Temporal.Instant`.
+ *
+ * Use it for such a column instead of {@link timestamptz}. PostgreSQL converts between the two types with the
+ * session's `TimeZone`, so a `timestamptz` value written into this column shifts by the session's offset.
+ */
+export const timestamp: SqlType<Temporal.Instant> = Object.freeze({
+	dialect,
+	name: 'timestamp',
+	send: (value: Temporal.Instant) => cast(param(iso(value).replace('Z', ''), 'text'), 'timestamp'),
+	read: timestamptz.read,
+	decode: timestamptz.decode,
+});
+
+const decimal = /^(?:NaN|-?Infinity|-?\d+(?:\.\d+)?)$/u;
+
+/**
+ * An exact `numeric` value as its decimal text, such as `'12.50'`, so no digit is lost to a JavaScript number. A
+ * column with a scale, such as `numeric(12, 2)`, rounds a longer value when it stores it.
+ */
+export const numeric: SqlType<string> = Object.freeze({
+	dialect,
+	name: 'numeric',
+	send: (value: string) =>
+		cast(param(expect(value, (v): v is string => isString(v) && decimal.test(v), 'numeric'), 'text'), 'numeric'),
+	read: (expression: Fragment) => cast(expression, 'text'),
+	decode: (raw: unknown) => expect(raw, (v): v is string => isString(v) && decimal.test(v), 'numeric'),
+});
+
+/**
+ * A value of an existing PostgreSQL enum type, such as the `mood` type that Drizzle's `pgEnum` or a Prisma `enum`
+ * creates. Text has no implicit cast to an enum, so a column of an enum type needs this instead of {@link text}.
+ *
+ * @example
+ * ```ts ignore
+ * const mood = types.enumerated(['app', 'mood'], ['sad', 'ok', 'happy']);
+ * ```
+ */
+export function enumerated<const T extends string>(
+	name: readonly [schema: string, type: string],
+	values: readonly T[],
+): SqlType<T> {
+	const label = compile(qualified(...name), dialect).text;
+	const base = text(values);
+	return Object.freeze({
+		dialect,
+		name: label,
+		send: (value: T) => cast(base.send(value), label),
+		read: base.read,
+		decode: base.decode,
+	});
+}
 
 /** The result of a function such as `pg_advisory_xact_lock` that returns nothing. */
 export const empty: SqlType<undefined> = Object.freeze({

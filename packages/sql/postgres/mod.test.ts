@@ -134,10 +134,21 @@ describe('statements', () => {
 		expect(() => sql.toQuery(sql.insert(notes, { id: 'a', title: 't', body: { words: 0 }, sequence: 1n } as never)))
 			.toThrow(TypeError);
 		expect(() => sql.toQuery(sql.update(notes, { nope: 1 } as never))).toThrow(TypeError);
-		expect(() => sql.schema('App')).toThrow(TypeError);
-		expect(() => app.table('notes; drop', {})).toThrow(TypeError);
-		expect(() => sql.select({ 'a b': n.id })).not.toThrow();
-		expect(() => sql.toQuery(sql.select({ 'a b': n.id }).from(notes))).toThrow(TypeError);
+		for (const name of ['', 'x'.repeat(64), 'a\u0000b', 'a\uD800b']) expect(() => sql.schema(name)).toThrow(TypeError);
+		expect(() => app.table('é'.repeat(32), {})).toThrow(TypeError);
+	});
+
+	it('quotes any other name exactly, so schemas made elsewhere keep their spelling', () => {
+		expect(sql.toDdlQuery(sql.createSchema('My "App"')).text).toBe(
+			String.raw`create schema if not exists "My ""App"""`,
+		);
+		const users = sql.schema('prisma_app').table('User', {
+			createdAt: sql.column(types.timestamptz),
+			'full name': sql.column(types.text()),
+		});
+		expect(sql.toQuery(sql.select({ 'a b': users.c['full name'] }).from(users)).text).toBe(
+			'select ("prisma_app"."User"."full name")::text as "a b" from "prisma_app"."User"',
+		);
 	});
 });
 
