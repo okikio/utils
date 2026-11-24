@@ -8,6 +8,10 @@ This queue is in memory. Restarting a scheduler around the same queue differs fr
 [PostgreSQL queue adapter](../packages/storage/queue/postgres.ts) when these items must survive process death. A
 [Workflow](./workflows/01-basics.md) is a separate choice for recorded multi-step execution.
 
+The PostgreSQL adapter takes a Postgres.js pool or any [`@okikio/sql`](../packages/sql/README.md) database, so
+another client or ORM can back it. Its typed tables are in `queue/schema.ts`, and `queue/statements.sql` shows every
+statement it sends.
+
 The **producer** submits work, the **executor** attempts it, and the **queue store**
 records who may publish a result. A claim is temporary permission for one attempt;
 it is not the final answer. A newer attempt can replace expired permission, so an

@@ -1,0 +1,113 @@
+-- add
+insert into "utils_queue"."items" ("namespace", "id", "key", "input", "priority", "state") values ($1::text, ($2::text)::uuid, null::text, ($3::text)::jsonb, ($4::text)::bigint, $5::text);
+
+-- add.later
+insert into "utils_queue"."items" ("namespace", "id", "key", "input", "priority", "available", "state") values ($1::text, ($2::text)::uuid, $3::text, ($4::text)::jsonb, ($5::text)::bigint, to_timestamp($6::double precision / 1000), $7::text);
+
+-- addPolicy
+insert into "utils_queue"."policies" ("namespace", "contract", "capacity", "retained", "ttl") values ($1::text, $2::text, ($3::text)::bigint, ($4::text)::bigint, ($5::text)::bigint) on conflict ("namespace") do nothing;
+
+-- cancel
+update "utils_queue"."items" set "claim" = null::uuid, "owner" = null::text, "claimed" = null::timestamptz, "expires" = null::timestamptz, "state" = $1::text, "finished" = clock_timestamp(), "cancellation" = null::text where ("utils_queue"."items"."namespace" = $2::text) and ("utils_queue"."items"."id" = ($3::text)::uuid) and ("utils_queue"."items"."state" in ($4::text, $5::text)) returning ("utils_queue"."items"."id")::text as "id";
+
+-- cancel.claim
+update "utils_queue"."items" set "claim" = null::uuid, "owner" = null::text, "claimed" = null::timestamptz, "expires" = null::timestamptz, "state" = $1::text, "finished" = clock_timestamp(), "cancellation" = $2::text where ("utils_queue"."items"."namespace" = $3::text) and ("utils_queue"."items"."id" = ($4::text)::uuid) and ("utils_queue"."items"."claim" = ($5::text)::uuid) and ("utils_queue"."items"."owner" = $6::text) and ("utils_queue"."items"."state" = $7::text) and ("utils_queue"."items"."expires" > clock_timestamp()) returning ("utils_queue"."items"."id")::text as "id";
+
+-- claim
+with "candidates" as (select "utils_queue"."items"."id" as "id" from "utils_queue"."items" where ("utils_queue"."items"."namespace" = $1::text) and ((("utils_queue"."items"."state" = $2::text) and ("utils_queue"."items"."available" <= clock_timestamp())) or (("utils_queue"."items"."state" = $3::text) and ("utils_queue"."items"."expires" <= clock_timestamp()))) order by "utils_queue"."items"."priority" desc, "utils_queue"."items"."sequence" asc limit $4::bigint for update skip locked) update "utils_queue"."items" set "state" = $5::text, "claim" = gen_random_uuid(), "owner" = $6::text, "claimed" = clock_timestamp(), "expires" = clock_timestamp() + $7::double precision * interval '1 millisecond', "attempt" = "utils_queue"."items"."attempt" + $8::integer from "candidates" where ("utils_queue"."items"."namespace" = $9::text) and ("utils_queue"."items"."id" = "candidates"."id") returning ("utils_queue"."items"."namespace")::text as "namespace", ("utils_queue"."items"."id")::text as "id", ("utils_queue"."items"."key")::text as "key", ("utils_queue"."items"."sequence")::text as "sequence", ("utils_queue"."items"."input")::text as "input", ("utils_queue"."items"."redriven_from")::text as "redriven_from", ("utils_queue"."items"."priority")::text as "priority", ("utils_queue"."items"."state")::text as "state", floor(extract(epoch from "utils_queue"."items"."available") * 1000)::double precision as "available", ("utils_queue"."items"."attempt")::integer as "attempt", ("utils_queue"."items"."claim")::text as "claim", ("utils_queue"."items"."owner")::text as "owner", floor(extract(epoch from "utils_queue"."items"."claimed") * 1000)::double precision as "claimed", floor(extract(epoch from "utils_queue"."items"."expires") * 1000)::double precision as "expires", ("utils_queue"."items"."output")::text as "output", ("utils_queue"."items"."failure")::text as "failure", ("utils_queue"."items"."cancellation")::text as "cancellation", floor(extract(epoch from "utils_queue"."items"."finished") * 1000)::double precision as "finished";
+
+-- claim.ref
+with "candidates" as (select "utils_queue"."items"."id" as "id" from "utils_queue"."items" where ("utils_queue"."items"."namespace" = $1::text) and ((("utils_queue"."items"."state" = $2::text) and ("utils_queue"."items"."available" <= clock_timestamp())) or (("utils_queue"."items"."state" = $3::text) and ("utils_queue"."items"."expires" <= clock_timestamp()))) and ("utils_queue"."items"."id" = ($4::text)::uuid) order by "utils_queue"."items"."priority" desc, "utils_queue"."items"."sequence" asc limit $5::bigint for update skip locked) update "utils_queue"."items" set "state" = $6::text, "claim" = gen_random_uuid(), "owner" = $7::text, "claimed" = clock_timestamp(), "expires" = clock_timestamp() + $8::double precision * interval '1 millisecond', "attempt" = "utils_queue"."items"."attempt" + $9::integer from "candidates" where ("utils_queue"."items"."namespace" = $10::text) and ("utils_queue"."items"."id" = "candidates"."id") returning ("utils_queue"."items"."namespace")::text as "namespace", ("utils_queue"."items"."id")::text as "id", ("utils_queue"."items"."key")::text as "key", ("utils_queue"."items"."sequence")::text as "sequence", ("utils_queue"."items"."input")::text as "input", ("utils_queue"."items"."redriven_from")::text as "redriven_from", ("utils_queue"."items"."priority")::text as "priority", ("utils_queue"."items"."state")::text as "state", floor(extract(epoch from "utils_queue"."items"."available") * 1000)::double precision as "available", ("utils_queue"."items"."attempt")::integer as "attempt", ("utils_queue"."items"."claim")::text as "claim", ("utils_queue"."items"."owner")::text as "owner", floor(extract(epoch from "utils_queue"."items"."claimed") * 1000)::double precision as "claimed", floor(extract(epoch from "utils_queue"."items"."expires") * 1000)::double precision as "expires", ("utils_queue"."items"."output")::text as "output", ("utils_queue"."items"."failure")::text as "failure", ("utils_queue"."items"."cancellation")::text as "cancellation", floor(extract(epoch from "utils_queue"."items"."finished") * 1000)::double precision as "finished";
+
+-- exists
+select ("utils_queue"."items"."id")::text as "id" from "utils_queue"."items" where ("utils_queue"."items"."namespace" = $1::text) and ("utils_queue"."items"."id" = ($2::text)::uuid);
+
+-- finish
+update "utils_queue"."items" set "claim" = null::uuid, "owner" = null::text, "claimed" = null::timestamptz, "expires" = null::timestamptz, "state" = $1::text, "output" = ($2::text)::jsonb, "finished" = clock_timestamp() where ("utils_queue"."items"."namespace" = $3::text) and ("utils_queue"."items"."id" = ($4::text)::uuid) and ("utils_queue"."items"."claim" = ($5::text)::uuid) and ("utils_queue"."items"."owner" = $6::text) and ("utils_queue"."items"."state" = $7::text) and ("utils_queue"."items"."expires" > clock_timestamp()) returning ("utils_queue"."items"."id")::text as "id";
+
+-- finish.failed
+update "utils_queue"."items" set "claim" = null::uuid, "owner" = null::text, "claimed" = null::timestamptz, "expires" = null::timestamptz, "state" = $1::text, "failure" = ($2::text)::jsonb, "finished" = clock_timestamp() where ("utils_queue"."items"."namespace" = $3::text) and ("utils_queue"."items"."id" = ($4::text)::uuid) and ("utils_queue"."items"."claim" = ($5::text)::uuid) and ("utils_queue"."items"."owner" = $6::text) and ("utils_queue"."items"."state" = $7::text) and ("utils_queue"."items"."expires" > clock_timestamp()) returning ("utils_queue"."items"."id")::text as "id";
+
+-- item
+select ("utils_queue"."items"."namespace")::text as "namespace", ("utils_queue"."items"."id")::text as "id", ("utils_queue"."items"."key")::text as "key", ("utils_queue"."items"."sequence")::text as "sequence", ("utils_queue"."items"."input")::text as "input", ("utils_queue"."items"."redriven_from")::text as "redriven_from", ("utils_queue"."items"."priority")::text as "priority", ("utils_queue"."items"."state")::text as "state", floor(extract(epoch from "utils_queue"."items"."available") * 1000)::double precision as "available", ("utils_queue"."items"."attempt")::integer as "attempt", ("utils_queue"."items"."claim")::text as "claim", ("utils_queue"."items"."owner")::text as "owner", floor(extract(epoch from "utils_queue"."items"."claimed") * 1000)::double precision as "claimed", floor(extract(epoch from "utils_queue"."items"."expires") * 1000)::double precision as "expires", ("utils_queue"."items"."output")::text as "output", ("utils_queue"."items"."failure")::text as "failure", ("utils_queue"."items"."cancellation")::text as "cancellation", floor(extract(epoch from "utils_queue"."items"."finished") * 1000)::double precision as "finished", ((("utils_queue"."items"."state" = $1::text) and ("utils_queue"."items"."available" <= clock_timestamp())) or (("utils_queue"."items"."state" = $2::text) and ("utils_queue"."items"."expires" <= clock_timestamp())))::boolean as "claimable" from "utils_queue"."items" where ("utils_queue"."items"."namespace" = $3::text) and ("utils_queue"."items"."id" = ($4::text)::uuid);
+
+-- keyed
+select ("utils_queue"."items"."id")::text as "id", ("utils_queue"."items"."redriven_from")::text as "redriven_from" from "utils_queue"."items" where ("utils_queue"."items"."namespace" = $1::text) and ("utils_queue"."items"."key" = $2::text);
+
+-- last
+select (coalesce(max("utils_queue"."items"."sequence"), ($1::text)::bigint))::text as "last" from "utils_queue"."items" where "utils_queue"."items"."namespace" = $2::text;
+
+-- lockItem
+select ("utils_queue"."items"."id")::text as "id" from "utils_queue"."items" where ("utils_queue"."items"."namespace" = $1::text) and ("utils_queue"."items"."id" = ($2::text)::uuid) for update;
+
+-- migration.install.0
+create table if not exists "utils_queue"."policies" ("namespace" text not null, "contract" text not null, "capacity" bigint not null, "retained" bigint not null, "ttl" bigint not null, primary key ("namespace"), check ("capacity" > ('0'::text)::bigint), check ("retained" > ('0'::text)::bigint), check ("ttl" > ('0'::text)::bigint));
+
+-- migration.install.1
+create table if not exists "utils_queue"."items" ("namespace" text not null, "id" uuid not null, "key" text, "sequence" bigint generated always as identity not null, "input" jsonb not null, "redriven_from" uuid, "priority" bigint not null default ('0'::text)::bigint, "state" text not null, "available" timestamptz not null default clock_timestamp(), "attempt" integer not null default 0::integer, "claim" uuid, "owner" text, "claimed" timestamptz, "expires" timestamptz, "output" jsonb, "failure" jsonb, "cancellation" text, "finished" timestamptz, primary key ("namespace", "id"), unique ("namespace", "key"), check ("state" in ('queued'::text, 'claimed'::text, 'completed'::text, 'failed'::text, 'cancelled'::text)), check ("attempt" >= 0::integer), check (("state" = 'claimed'::text) = (("claim" is not null) and ("owner" is not null) and ("claimed" is not null) and ("expires" is not null))), check (("state" in ('completed'::text, 'failed'::text, 'cancelled'::text)) = ("finished" is not null)), foreign key ("namespace") references "utils_queue"."policies" ("namespace"));
+
+-- migration.install.2
+create index if not exists "queue_ready" on "utils_queue"."items" ("namespace", "priority" desc, "sequence") where "state" = 'queued'::text;
+
+-- migration.install.3
+create index if not exists "queue_expired" on "utils_queue"."items" ("namespace", "expires") where "state" = 'claimed'::text;
+
+-- migration.install.4
+create index if not exists "queue_terminal" on "utils_queue"."items" ("namespace", "finished", "sequence") where "finished" is not null;
+
+-- migration.install.5
+create index if not exists "queue_inspection" on "utils_queue"."items" ("namespace", "sequence");
+
+-- migration.install.6
+alter table "utils_queue"."items" add column if not exists "redriven_from" uuid;
+
+-- migration.install.7
+update "utils_queue"."version" set "revision" = $1::integer where "utils_queue"."version"."id";
+
+-- migration.lock
+select ("pg_advisory_xact_lock"(($1::text)::bigint))::text as "locked";
+
+-- migration.prepare.0
+create schema if not exists "utils_queue";
+
+-- migration.prepare.1
+create table if not exists "utils_queue"."version" ("id" boolean not null default true::boolean, "revision" integer not null, primary key ("id"), check ("id"));
+
+-- migration.prepare.2
+insert into "utils_queue"."version" ("id", "revision") values ($1::boolean, $2::integer) on conflict do nothing;
+
+-- migration.stored
+select ("utils_queue"."version"."revision")::integer as "revision" from "utils_queue"."version" where "utils_queue"."version"."id";
+
+-- more
+select ((count(*)::integer > $1::integer) or coalesce(min("utils_queue"."items"."finished") <= (clock_timestamp() + $2::double precision * interval '1 millisecond'), $3::boolean))::boolean as "more" from "utils_queue"."items" where ("utils_queue"."items"."namespace" = $4::text) and ("utils_queue"."items"."finished" is not null);
+
+-- occupied
+select (count(*)::integer)::integer as "count" from "utils_queue"."items" where ("utils_queue"."items"."namespace" = $1::text) and ("utils_queue"."items"."state" in ($2::text, $3::text));
+
+-- page
+select ("utils_queue"."items"."id")::text as "id", ("utils_queue"."items"."state")::text as "state", ("utils_queue"."items"."priority")::text as "priority", ("utils_queue"."items"."attempt")::integer as "attempt", ("utils_queue"."items"."sequence")::text as "sequence", ("utils_queue"."items"."redriven_from")::text as "redriven_from" from "utils_queue"."items" where ("utils_queue"."items"."namespace" = $1::text) and ("utils_queue"."items"."sequence" > ($2::text)::bigint) and ("utils_queue"."items"."sequence" <= ($3::text)::bigint) order by "utils_queue"."items"."sequence" asc limit $4::bigint;
+
+-- policy
+select ("utils_queue"."policies"."contract")::text as "contract", ("utils_queue"."policies"."capacity")::text as "capacity", ("utils_queue"."policies"."retained")::text as "retained", ("utils_queue"."policies"."ttl")::text as "ttl" from "utils_queue"."policies" where "utils_queue"."policies"."namespace" = $1::text;
+
+-- policy.locked
+select ("utils_queue"."policies"."contract")::text as "contract", ("utils_queue"."policies"."capacity")::text as "capacity", ("utils_queue"."policies"."retained")::text as "retained", ("utils_queue"."policies"."ttl")::text as "ttl" from "utils_queue"."policies" where "utils_queue"."policies"."namespace" = $1::text for update;
+
+-- prune
+with "ranked" as (select "utils_queue"."items"."id" as "id", "utils_queue"."items"."finished" as "finished", (row_number() over (order by "utils_queue"."items"."finished" desc, "utils_queue"."items"."sequence" desc))::integer as "position" from "utils_queue"."items" where ("utils_queue"."items"."namespace" = $1::text) and ("utils_queue"."items"."finished" is not null)), "selected" as (select "utils_queue"."items"."id" as "id" from "utils_queue"."items" join "ranked" on "utils_queue"."items"."id" = "ranked"."id" where ("utils_queue"."items"."namespace" = $2::text) and (("ranked"."position" > $3::integer) or ("ranked"."finished" <= (clock_timestamp() + $4::double precision * interval '1 millisecond'))) order by "utils_queue"."items"."finished" asc, "utils_queue"."items"."sequence" asc limit $5::bigint for update of "items" skip locked) delete from "utils_queue"."items" using "selected" where ("utils_queue"."items"."namespace" = $6::text) and ("utils_queue"."items"."id" = "selected"."id") returning ("utils_queue"."items"."id")::text as "id";
+
+-- redrive
+insert into "utils_queue"."items" ("namespace", "id", "key", "input", "priority", "state", "redriven_from") select "utils_queue"."items"."namespace" as "namespace", ($1::text)::uuid as "id", $2::text as "key", "utils_queue"."items"."input" as "input", "utils_queue"."items"."priority" as "priority", $3::text as "state", "utils_queue"."items"."id" as "redriven_from" from "utils_queue"."items" where ("utils_queue"."items"."namespace" = $4::text) and ("utils_queue"."items"."id" = ($5::text)::uuid);
+
+-- renew
+update "utils_queue"."items" set "expires" = clock_timestamp() + $1::double precision * interval '1 millisecond' where ("utils_queue"."items"."namespace" = $2::text) and ("utils_queue"."items"."id" = ($3::text)::uuid) and ("utils_queue"."items"."claim" = ($4::text)::uuid) and ("utils_queue"."items"."owner" = $5::text) and ("utils_queue"."items"."state" = $6::text) and ("utils_queue"."items"."expires" > clock_timestamp()) returning ("utils_queue"."items"."namespace")::text as "namespace", ("utils_queue"."items"."id")::text as "id", ("utils_queue"."items"."key")::text as "key", ("utils_queue"."items"."sequence")::text as "sequence", ("utils_queue"."items"."input")::text as "input", ("utils_queue"."items"."redriven_from")::text as "redriven_from", ("utils_queue"."items"."priority")::text as "priority", ("utils_queue"."items"."state")::text as "state", floor(extract(epoch from "utils_queue"."items"."available") * 1000)::double precision as "available", ("utils_queue"."items"."attempt")::integer as "attempt", ("utils_queue"."items"."claim")::text as "claim", ("utils_queue"."items"."owner")::text as "owner", floor(extract(epoch from "utils_queue"."items"."claimed") * 1000)::double precision as "claimed", floor(extract(epoch from "utils_queue"."items"."expires") * 1000)::double precision as "expires", ("utils_queue"."items"."output")::text as "output", ("utils_queue"."items"."failure")::text as "failure", ("utils_queue"."items"."cancellation")::text as "cancellation", floor(extract(epoch from "utils_queue"."items"."finished") * 1000)::double precision as "finished";
+
+-- retry
+update "utils_queue"."items" set "claim" = null::uuid, "owner" = null::text, "claimed" = null::timestamptz, "expires" = null::timestamptz, "state" = $1::text, "available" = clock_timestamp() + $2::double precision * interval '1 millisecond' where ("utils_queue"."items"."namespace" = $3::text) and ("utils_queue"."items"."id" = ($4::text)::uuid) and ("utils_queue"."items"."claim" = ($5::text)::uuid) and ("utils_queue"."items"."owner" = $6::text) and ("utils_queue"."items"."state" = $7::text) and ("utils_queue"."items"."expires" > clock_timestamp()) returning floor(extract(epoch from "utils_queue"."items"."available") * 1000)::double precision as "available";
+
+-- retry.at
+update "utils_queue"."items" set "claim" = null::uuid, "owner" = null::text, "claimed" = null::timestamptz, "expires" = null::timestamptz, "state" = $1::text, "available" = to_timestamp($2::double precision / 1000), "priority" = ($3::text)::bigint where ("utils_queue"."items"."namespace" = $4::text) and ("utils_queue"."items"."id" = ($5::text)::uuid) and ("utils_queue"."items"."claim" = ($6::text)::uuid) and ("utils_queue"."items"."owner" = $7::text) and ("utils_queue"."items"."state" = $8::text) and ("utils_queue"."items"."expires" > clock_timestamp()) returning floor(extract(epoch from "utils_queue"."items"."available") * 1000)::double precision as "available";
+
+-- stats
+select ((count(*) filter (where (("utils_queue"."items"."state" = $1::text) and ("utils_queue"."items"."available" <= clock_timestamp())) or (("utils_queue"."items"."state" = $2::text) and ("utils_queue"."items"."expires" <= clock_timestamp()))))::integer)::integer as "queued", ((count(*) filter (where ("utils_queue"."items"."state" = $3::text) and ("utils_queue"."items"."expires" > clock_timestamp())))::integer)::integer as "claimed", ((count(*) filter (where "utils_queue"."items"."state" = $4::text))::integer)::integer as "completed", ((count(*) filter (where "utils_queue"."items"."state" = $5::text))::integer)::integer as "failed", ((count(*) filter (where "utils_queue"."items"."state" = $6::text))::integer)::integer as "cancelled" from "utils_queue"."items" where "utils_queue"."items"."namespace" = $7::text;

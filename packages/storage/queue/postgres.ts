@@ -1,12 +1,16 @@
 /**
- * Lease work through a borrowed Postgres.js pool. Construction starts no SQL.
+ * Lease work through a borrowed Postgres.js pool, or any client behind the `@okikio/sql` database port.
+ * Construction starts no SQL.
  * Apply migrate() explicitly, then open matching contracts and limits on each host.
  * Database time owns leases; local clocks control only polling. Closing a view joins
  * its requests and leaves saved work and the caller's pool intact.
  * @module
  */
-import { temporal } from '@okikio/duration/temporal';
-import type { Parameter, Sql, TransactionSql } from 'postgres';
+import type { Temporal } from '@okikio/duration/temporal';
+import * as sql from '@okikio/sql';
+import type { Database, Executor, Statement } from '@okikio/sql';
+import * as postgres from '@okikio/sql/postgres';
+import type { Pool } from '@okikio/sql/postgres';
 import { EventBus } from '@okikio/observables/events';
 import { observe } from '@okikio/telemetry/observe';
 import * as context from '@okikio/context';
@@ -43,19 +47,18 @@ import type {
 	QueueStats,
 } from '@okikio/scheduler/queue';
 import { cursor, elapsed, inspection, policy, position, pruneLimit } from '@okikio/scheduler/queue/policy';
-import { ddl, revision, upgrade } from './schema.ts';
+import * as tables from './schema.ts';
+import * as statements from './statements.ts';
 
-/** Native SQL remains available to the application; this adapter borrows it. */
-type Database = Sql | TransactionSql;
-/** Rows stay untrusted until their used columns are inspected. */
-type Row = Record<string, unknown>;
+/** One saved item, decoded with the column types. */
+type Row = sql.RowOf<typeof tables.items.columns>;
 
 /** One persistent queue's authored payloads and shared admission policy. */
 export interface Options<Input extends Contract, Output extends Contract> {
 	/** Receive local subscriber callback failures without failing committed work. */
 	readonly onObserverError?: (error: unknown) => void | PromiseLike<void>;
-	/** Borrowed pool. The application opens and closes it. */
-	readonly database: Sql;
+	/** Borrowed Postgres.js pool or database port. The application opens and closes it. */
+	readonly database: Pool | Database;
 	/** Isolated queue identity. Use separate namespaces for independently governed queues. */
 	readonly namespace: string;
 	/** Explicit payload contract revision. Every host using this namespace must agree. */
@@ -87,19 +90,16 @@ export class PolicyConflictError extends Error {
 }
 
 /** Apply the queue schema atomically. Future revisions reject before any schema changes. */
-export async function migrate(options: { readonly database: Sql }): Promise<void> {
-	await options.database.begin('isolation level read committed', async (tx) => {
-		await tx.unsafe('select pg_advisory_xact_lock(776161004)');
-		const present = await tx.unsafe("select to_regclass('utils_queue.version') as version");
-		if (present[0]!.version !== null) {
-			const current = await tx.unsafe('select revision from utils_queue.version where id');
-			if (current[0]?.revision === 1) {
-				for (const statement of upgrade) await tx.unsafe(statement);
-			} else if (current[0]?.revision !== revision) throw new Error('Unsupported persistent queue schema revision.');
-			return;
+export async function migrate(options: { readonly database: Pool | Database }): Promise<void> {
+	await postgres.toDatabase(options.database).begin(async (tx) => {
+		await sql.execute(tx, tables.migrationLock);
+		for (const statement of tables.prepare) await sql.execute(tx, statement);
+		const stored = (await sql.one(tx, tables.stored))?.revision;
+		if (stored === undefined || !tables.supported.includes(stored)) {
+			throw new Error('Unsupported persistent queue schema revision.');
 		}
-		for (const statement of ddl) await tx.unsafe(statement);
-	});
+		for (const statement of tables.install) await sql.execute(tx, statement);
+	}, { isolation: 'read committed' });
 }
 
 /**
@@ -120,6 +120,8 @@ export function open<const Input extends Contract, const Output extends Contract
 class PostgresQueue<Input extends Contract, Output extends Contract>
 	implements Queue<ContractOutput<Input>, ContractOutput<Output>> {
 	readonly #options: Options<Input, Output>;
+	/** The borrowed pool behind the database port. */
+	readonly #database: Database;
 	/** Compare the local admission contract with the policy already saved for this namespace. */
 	readonly #policy: ReturnType<typeof policy>;
 	readonly #poll: number;
@@ -147,6 +149,7 @@ class PostgresQueue<Input extends Contract, Output extends Contract>
 		text(options.namespace, 'queue namespace', 128);
 		text(options.contract, 'queue contract', 256);
 		this.#options = Object.freeze({ ...options });
+		this.#database = postgres.toDatabase(options.database);
 		this.#policy = policy(options);
 		this.#poll = count(options.pollMilliseconds ?? 100, 'poll milliseconds', 60_000);
 		this.#maximumBytes = count(options.maximumBytes ?? 1_048_576, 'maximum bytes', 16_777_216);
@@ -165,29 +168,25 @@ class PostgresQueue<Input extends Contract, Output extends Contract>
 			if (key !== undefined) text(key, 'queue key', 512);
 			const priority = integer(options.priority ?? 0, 'queue priority');
 			const value = this.#json(await codec.write(this.#options.input, input));
-			const available = options.availableAt?.toString() ?? null;
 			const admitted = await this.#transaction(signal, async (tx) => {
 				await this.#lockPolicy(tx, signal);
 				await this.#prune(tx, 1000, signal);
 				if (key !== undefined) {
-					const prior = await this.#query(tx, 'select id from utils_queue.items where namespace=$1 and key=$2', [
-						this.#options.namespace,
-						key,
-					], signal);
-					if (prior[0]) return { ref: Object.freeze({ id: string(prior[0].id) }), added: false };
+					const prior = await this.#one(tx, statements.keyed(this.#options.namespace, key), signal);
+					if (prior) return { ref: Object.freeze({ id: prior.id }), added: false };
 				}
-				const active = await this.#query(
-					tx,
-					"select count(*)::integer as count from utils_queue.items where namespace=$1 and state in ('queued','claimed')",
-					[this.#options.namespace],
-					signal,
-				);
-				if (Number(active[0]!.count) >= this.#policy.capacity) throw new QueueCapacityError(this.#policy.capacity);
+				await this.#admit(tx, signal);
 				const id = crypto.randomUUID();
-				await this.#query(
+				await this.#run(
 					tx,
-					"insert into utils_queue.items(namespace,id,key,input,priority,state,available) values($1,$2,$3,$4::jsonb,$5,'queued',coalesce($6::timestamptz,clock_timestamp()))",
-					[this.#options.namespace, id, key ?? null, value, priority, available],
+					statements.add({
+						namespace: this.#options.namespace,
+						id,
+						key: key ?? null,
+						input: value,
+						priority,
+						...(options.availableAt === undefined ? {} : { available: options.availableAt }),
+					}),
 					signal,
 				);
 				return { ref: Object.freeze({ id }), added: true };
@@ -204,37 +203,27 @@ class PostgresQueue<Input extends Contract, Output extends Contract>
 		const parsed = options.cursor === undefined ? undefined : position(options.cursor, identity, options.state);
 		return this.#perform(undefined, async (signal) => {
 			const through = parsed?.[1] ??
-				BigInt(
-					string(
-						(await this.#query(
-							this.#options.database,
-							'select coalesce(max(sequence),0)::text as last from utils_queue.items where namespace=$1',
-							[this.#options.namespace],
-							signal,
-						))[0]!.last,
-					),
-				);
+				(await this.#one(this.#database, statements.last(this.#options.namespace), signal))!.last;
 			let after = parsed?.[0] ?? 0n;
-			const rows = await this.#query(
-				this.#options.database,
-				'select id,state,priority,attempt,sequence::text,redriven_from from utils_queue.items where namespace=$1 and sequence>$2::bigint and sequence<=$3::bigint order by sequence limit $4',
-				[this.#options.namespace, String(after), String(through), options.maximumScanned],
+			const rows = await this.#rows(
+				this.#database,
+				statements.page(this.#options.namespace, after, through, options.maximumScanned),
 				signal,
 			);
 			const entries = [];
 			let scanned = 0;
 			for (const row of rows) {
-				after = BigInt(string(row.sequence));
+				after = row.sequence;
 				scanned++;
-				const state = string(row.state) as QueueStateType;
+				const state: QueueStateType = row.state;
 				if (options.state === undefined || state === options.state) {
 					entries.push(
 						Object.freeze({
-							id: string(row.id),
+							id: row.id,
 							state,
-							priority: Number(row.priority),
-							attempt: Number(row.attempt),
-							...(row.redriven_from === null ? {} : { redrivenFrom: string(row.redriven_from) }),
+							priority: row.priority,
+							attempt: row.attempt,
+							...(row.redriven_from === null ? {} : { redrivenFrom: row.redriven_from }),
 						}),
 					);
 				}
@@ -258,37 +247,19 @@ class PostgresQueue<Input extends Contract, Output extends Contract>
 			text(options.key, 'redrive key', 512);
 			const admitted = await this.#transaction(signal, async (tx) => {
 				await this.#lockPolicy(tx, signal);
-				const source = (await this.#query(tx, 'select id,state from utils_queue.items where namespace=$1 and id=$2', [
-					this.#options.namespace,
-					ref.id,
-				], signal))[0];
+				const source = await this.#one(tx, statements.item(this.#options.namespace, ref.id), signal);
 				if (!source) throw new QueueItemNotFoundError(ref.id);
 				if (source.state !== 'failed' && source.state !== 'cancelled') {
 					throw new TypeError('Redrive requires a retained failed or cancelled item.');
 				}
-				const prior =
-					(await this.#query(tx, 'select id,redriven_from from utils_queue.items where namespace=$1 and key=$2', [
-						this.#options.namespace,
-						options.key,
-					], signal))[0];
+				const prior = await this.#one(tx, statements.keyed(this.#options.namespace, options.key), signal);
 				if (prior) {
 					if (prior.redriven_from !== ref.id) throw new TypeError('Redrive key belongs to another logical item.');
-					return { ref: Object.freeze({ id: string(prior.id) }), added: false };
+					return { ref: Object.freeze({ id: prior.id }), added: false };
 				}
-				const active = (await this.#query(
-					tx,
-					"select count(*)::integer as count from utils_queue.items where namespace=$1 and state in ('queued','claimed')",
-					[this.#options.namespace],
-					signal,
-				))[0]!;
-				if (Number(active.count) >= this.#policy.capacity) throw new QueueCapacityError(this.#policy.capacity);
+				await this.#admit(tx, signal);
 				const id = crypto.randomUUID();
-				await this.#query(
-					tx,
-					"insert into utils_queue.items(namespace,id,key,input,priority,state,redriven_from) select namespace,$3,$4,input,priority,'queued',id from utils_queue.items where namespace=$1 and id=$2",
-					[this.#options.namespace, ref.id, id, options.key],
-					signal,
-				);
+				await this.#run(tx, statements.redrive(this.#options.namespace, ref.id, id, options.key), signal);
 				return { ref: Object.freeze({ id }), added: true };
 			});
 			if (admitted.added) this.#emit({ type: 'added', itemId: admitted.ref.id, key: options.key });
@@ -308,14 +279,19 @@ class PostgresQueue<Input extends Contract, Output extends Contract>
 			try {
 				while (true) {
 					const claims = await this.#transaction(signal, async (tx) => {
-						const rows = await this.#query(
+						const rows = await this.#rows(
 							tx,
-							"with candidates as (select id from utils_queue.items where namespace=$1 and ($2::uuid is null or id=$2::uuid) and ((state='queued' and available<=clock_timestamp()) or (state='claimed' and expires<=clock_timestamp())) order by priority desc,sequence for update skip locked limit $3) update utils_queue.items i set state='claimed',claim=gen_random_uuid(),owner=$4,claimed=clock_timestamp(),expires=clock_timestamp()+$5::double precision*interval '1 millisecond',attempt=attempt+1 from candidates c where i.namespace=$1 and i.id=c.id returning i.*",
-							[this.#options.namespace, options.ref?.id ?? null, limit, owner, lease],
+							statements.claim({
+								namespace: this.#options.namespace,
+								...(options.ref === undefined ? {} : { ref: options.ref.id }),
+								limit,
+								owner,
+								lease,
+							}),
 							signal,
 						);
 						// UPDATE RETURNING has no ordering guarantee, so restore the public priority/FIFO order.
-						rows.sort((a, b) => Number(b.priority) - Number(a.priority) || Number(a.sequence) - Number(b.sequence));
+						rows.sort((a, b) => b.priority - a.priority || (a.sequence < b.sequence ? -1 : 1));
 						const claims: QueueClaim<ContractOutput<Input>>[] = [];
 						for (const row of rows) claims.push(await this.#claimValue(row));
 						return Object.freeze(claims);
@@ -366,7 +342,7 @@ class PostgresQueue<Input extends Contract, Output extends Contract>
 	complete(ctx: Context, claim: QueueClaim<ContractOutput<Input>>, output: ContractOutput<Output>): Promise<void> {
 		return this.#perform(ctx, async (signal) => {
 			const encoded = this.#json(await codec.write(this.#options.output, output));
-			await this.#finish(claim, 'completed', encoded, null, null, signal);
+			await this.#finish(claim, { state: 'completed', output: encoded }, signal);
 			this.#emit({ type: 'completed', itemId: claim.itemId, claimId: claim.id });
 		});
 	}
@@ -377,7 +353,7 @@ class PostgresQueue<Input extends Contract, Output extends Contract>
 			text(failure.id, 'failure id', 512);
 			if (typeof failure.message !== 'string') throw new TypeError('Failure message must be text.');
 			const encoded = this.#json(failure);
-			await this.#finish(claim, 'failed', null, encoded, null, signal);
+			await this.#finish(claim, { state: 'failed', failure: encoded }, signal);
 			this.#emit({ type: 'failed', itemId: claim.itemId, claimId: claim.id, failureId: failure.id });
 		});
 	}
@@ -389,21 +365,16 @@ class PostgresQueue<Input extends Contract, Output extends Contract>
 				throw new TypeError('Retry accepts availableAt or delay, not both.');
 			}
 			const delay = elapsed(options.delay ?? { milliseconds: 0 }, 'retry delay', true);
-			const priority = options.priority === undefined ? null : integer(options.priority, 'queue priority');
+			const priority = options.priority === undefined ? undefined : integer(options.priority, 'queue priority');
 			const rows = await this.#transaction(signal, async (tx) => {
 				await this.#lockClaim(tx, claim, signal);
-				const rows = await this.#query(
+				const rows = await this.#rows(
 					tx,
-					"update utils_queue.items set state='queued',claim=null,owner=null,claimed=null,expires=null,available=coalesce($5::timestamptz,clock_timestamp()+$6::double precision*interval '1 millisecond'),priority=coalesce($7::bigint,priority) where namespace=$1 and id=$2 and claim=$3 and owner=$4 and state='claimed' and expires>clock_timestamp() returning available",
-					[
-						this.#options.namespace,
-						claim.itemId,
-						claim.id,
-						claim.owner,
-						options.availableAt?.toString() ?? null,
+					statements.retry(this.#options.namespace, claim, {
 						delay,
-						priority,
-					],
+						...(options.availableAt === undefined ? {} : { available: options.availableAt }),
+						...(priority === undefined ? {} : { priority }),
+					}),
 					signal,
 				);
 				this.#fenced(rows, claim);
@@ -413,7 +384,7 @@ class PostgresQueue<Input extends Contract, Output extends Contract>
 				type: 'retried',
 				itemId: claim.itemId,
 				claimId: claim.id,
-				availableAt: instant(rows[0]!.available).toString(),
+				availableAt: rows[0]!.available.toString(),
 			});
 		});
 	}
@@ -427,19 +398,11 @@ class PostgresQueue<Input extends Contract, Output extends Contract>
 			const changed = await this.#transaction(signal, async (tx) => {
 				await this.#lockPolicy(tx, signal);
 				if (claim !== undefined) await this.#lockClaim(tx, claim, signal);
-				const rows = await this.#query(
-					tx,
-					"update utils_queue.items set state='cancelled',claim=null,owner=null,claimed=null,expires=null,finished=clock_timestamp(),cancellation=$3 where namespace=$1 and id=$2 and state in ('queued','claimed') and ($4::uuid is null or (claim=$4::uuid and owner=$5 and expires>clock_timestamp())) returning id",
-					[this.#options.namespace, id, message, claim?.id ?? null, claim?.owner ?? null],
-					signal,
-				);
+				const rows = await this.#rows(tx, statements.cancel(this.#options.namespace, id, message, claim), signal);
 				if (!rows.length) {
 					if (claim !== undefined) throw new StaleClaimError(id, claim.id);
-					const prior = await this.#query(tx, 'select id from utils_queue.items where namespace=$1 and id=$2', [
-						this.#options.namespace,
-						id,
-					], signal);
-					if (!prior.length) throw new QueueItemNotFoundError(id);
+					const prior = await this.#one(tx, statements.exists(this.#options.namespace, id), signal);
+					if (!prior) throw new QueueItemNotFoundError(id);
 				}
 				await this.#prune(tx, 1000, signal);
 				return rows.length > 0;
@@ -476,12 +439,7 @@ class PostgresQueue<Input extends Contract, Output extends Contract>
 			const milliseconds = elapsed(duration, 'renewal duration');
 			const renewed = await this.#transaction(signal, async (tx) => {
 				await this.#lockClaim(tx, claim, signal);
-				const rows = await this.#query(
-					tx,
-					"update utils_queue.items set expires=clock_timestamp()+$5::double precision*interval '1 millisecond' where namespace=$1 and id=$2 and claim=$3 and owner=$4 and state='claimed' and expires>clock_timestamp() returning *",
-					[this.#options.namespace, claim.itemId, claim.id, claim.owner, milliseconds],
-					signal,
-				);
+				const rows = await this.#rows(tx, statements.renew(this.#options.namespace, claim, milliseconds), signal);
 				this.#fenced(rows, claim);
 				return await this.#claimValue(rows[0]!);
 			});
@@ -493,19 +451,13 @@ class PostgresQueue<Input extends Contract, Output extends Contract>
 	/** Shared occupancy counts treat expired claims as eligible queued work. */
 	stats(): Promise<QueueStats> {
 		return this.#perform(undefined, async (signal) => {
-			const rows = await this.#query(
-				this.#options.database,
-				"select count(*) filter(where state='queued' or (state='claimed' and expires<=clock_timestamp()))::integer as queued,count(*) filter(where state='claimed' and expires>clock_timestamp())::integer as claimed,count(*) filter(where state='completed')::integer as completed,count(*) filter(where state='failed')::integer as failed,count(*) filter(where state='cancelled')::integer as cancelled from utils_queue.items where namespace=$1",
-				[this.#options.namespace],
-				signal,
-			);
-			const row = rows[0]!;
+			const row = (await this.#one(this.#database, statements.stats(this.#options.namespace), signal))!;
 			return Object.freeze({
-				queued: Number(row.queued),
-				claimed: Number(row.claimed),
-				completed: Number(row.completed),
-				failed: Number(row.failed),
-				cancelled: Number(row.cancelled),
+				queued: row.queued,
+				claimed: row.claimed,
+				completed: row.completed,
+				failed: row.failed,
+				cancelled: row.cancelled,
 				waitingClaims: this.#waitingClaims,
 				waitingResults: this.#waitingResults,
 			});
@@ -569,29 +521,21 @@ class PostgresQueue<Input extends Contract, Output extends Contract>
 	 */
 	async #initialize(signal: AbortSignal): Promise<void> {
 		if (this.#initialized) return;
-		const db = this.#options.database;
-		await this.#query(
-			db,
-			'insert into utils_queue.policies(namespace,contract,capacity,retained,ttl) values($1,$2,$3,$4,$5) on conflict(namespace) do nothing',
-			[
-				this.#options.namespace,
-				this.#options.contract,
-				this.#policy.capacity,
-				this.#policy.retention.limit,
-				this.#policy.retention.milliseconds,
-			],
+		await this.#run(
+			this.#database,
+			statements.addPolicy({
+				namespace: this.#options.namespace,
+				contract: this.#options.contract,
+				capacity: this.#policy.capacity,
+				retained: this.#policy.retention.limit,
+				ttl: this.#policy.retention.milliseconds,
+			}),
 			signal,
 		);
-		const rows = await this.#query(
-			db,
-			'select contract,capacity,retained,ttl from utils_queue.policies where namespace=$1',
-			[this.#options.namespace],
-			signal,
-		);
-		const row = rows[0]!;
+		const row = (await this.#one(this.#database, statements.policy(this.#options.namespace), signal))!;
 		if (
-			row.contract !== this.#options.contract || Number(row.capacity) !== this.#policy.capacity ||
-			Number(row.retained) !== this.#policy.retention.limit || Number(row.ttl) !== this.#policy.retention.milliseconds
+			row.contract !== this.#options.contract || row.capacity !== this.#policy.capacity ||
+			row.retained !== this.#policy.retention.limit || row.ttl !== this.#policy.retention.milliseconds
 		) throw new PolicyConflictError(this.#options.namespace);
 		this.#initialized = true;
 	}
@@ -602,14 +546,14 @@ class PostgresQueue<Input extends Contract, Output extends Contract>
 	 * READ COMMITTED gives statements after a policy-lock wait the preceding owner's
 	 * committed rows, independently of the borrowed pool's application defaults.
 	 */
-	async #transaction<Value>(signal: AbortSignal, action: (tx: TransactionSql) => Promise<Value>): Promise<Value> {
+	async #transaction<Value>(signal: AbortSignal, action: (tx: Executor) => Promise<Value>): Promise<Value> {
 		signal.throwIfAborted();
-		return await this.#options.database.begin('isolation level read committed', async (tx) => {
+		return await this.#database.begin(async (tx) => {
 			signal.throwIfAborted();
 			const value = await action(tx);
 			signal.throwIfAborted();
 			return value;
-		}) as Value;
+		}, { isolation: 'read committed' });
 	}
 
 	/**
@@ -617,10 +561,8 @@ class PostgresQueue<Input extends Contract, Output extends Contract>
 	 * before item locks so competing terminal transactions cannot invert lock order.
 	 * Claim, retry and renewal do not change retained history and need no policy lock.
 	 */
-	async #lockPolicy(tx: TransactionSql, signal: AbortSignal): Promise<void> {
-		await this.#query(tx, 'select namespace from utils_queue.policies where namespace=$1 for update', [
-			this.#options.namespace,
-		], signal);
+	async #lockPolicy(tx: Executor, signal: AbortSignal): Promise<void> {
+		await this.#run(tx, statements.policy(this.#options.namespace, true), signal);
 	}
 
 	/**
@@ -628,54 +570,48 @@ class PostgresQueue<Input extends Contract, Output extends Contract>
 	 * PostgreSQL can evaluate a volatile WHERE predicate before waiting for a row lock;
 	 * a separate locked statement makes the subsequent expiry check use the time after that wait.
 	 */
-	async #lockClaim(tx: TransactionSql, claim: QueueClaim<ContractOutput<Input>>, signal: AbortSignal): Promise<void> {
-		const rows = await this.#query(tx, 'select id from utils_queue.items where namespace=$1 and id=$2 for update', [
-			this.#options.namespace,
-			claim.itemId,
-		], signal);
-		this.#fenced(rows, claim);
+	async #lockClaim(tx: Executor, claim: QueueClaim<ContractOutput<Input>>, signal: AbortSignal): Promise<void> {
+		this.#fenced(await this.#rows(tx, statements.lockItem(this.#options.namespace, claim.itemId), signal), claim);
 	}
 
-	/** A cancelled query is still joined before its owning operation releases capacity. */
-	async #query(
-		database: Database,
-		statement: string,
-		parameters: readonly unknown[],
-		signal: AbortSignal,
-	): Promise<Row[]> {
-		signal.throwIfAborted();
-		const pending = database.unsafe(statement, parameters as NonNullable<Parameters<Sql['unsafe']>[1]>);
-		const cancel = () => {
-			try {
-				pending.cancel();
-			} catch { /* The query may already have committed. Its promise remains authoritative. */ }
-		};
-		signal.addEventListener('abort', cancel, { once: true });
-		if (signal.aborted) cancel();
-		try {
-			return await pending as Row[];
-		} catch (error) {
-			if (
-				signal.aborted && typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '57014'
-			) {
-				throw signal.reason;
-			}
-			throw error;
-		} finally {
-			signal.removeEventListener('abort', cancel);
-		}
+	/**
+	 * Run a statement and decode its rows. An abort cancels the running query and rejects with the abort reason; the
+	 * owning operation still joins it before it releases capacity.
+	 */
+	#rows<Row>(database: Executor, statement: Statement<Row>, signal: AbortSignal): Promise<Row[]> {
+		return sql.rows(database, statement, { signal });
+	}
+
+	/** Run a statement and return its one row, if any. */
+	#one<Row>(database: Executor, statement: Statement<Row>, signal: AbortSignal): Promise<Row | undefined> {
+		return sql.one(database, statement, { signal });
+	}
+
+	/** Run a statement and ignore its rows. */
+	#run(database: Executor, statement: Statement<unknown>, signal: AbortSignal): Promise<void> {
+		return sql.execute(database, statement, { signal });
+	}
+
+	/** Reject an admission when the namespace already holds its capacity of active items. */
+	async #admit(tx: Executor, signal: AbortSignal): Promise<void> {
+		const active = (await this.#one(tx, statements.occupied(this.#options.namespace), signal))!.count;
+		if (active >= this.#policy.capacity) throw new QueueCapacityError(this.#policy.capacity);
 	}
 
 	/** Convert persisted input after validating exact claim fields. */
 	async #claimValue(row: Row): Promise<QueueClaim<ContractOutput<Input>>> {
+		// The schema's claim check guarantees these fields together for a claimed row.
+		if (row.claim === null || row.owner === null || row.claimed === null || row.expires === null) {
+			throw new TypeError('Invalid saved queue claim.');
+		}
 		return Object.freeze({
-			id: string(row.claim),
-			itemId: string(row.id),
-			owner: string(row.owner),
+			id: row.claim,
+			itemId: row.id,
+			owner: row.owner,
 			value: await codec.read(this.#options.input, row.input),
-			attempt: count(Number(row.attempt), 'stored attempt'),
-			claimedAt: instant(row.claimed),
-			expiresAt: instant(row.expires),
+			attempt: count(row.attempt, 'stored attempt'),
+			claimedAt: row.claimed,
+			expiresAt: row.expires,
 		});
 	}
 
@@ -684,47 +620,37 @@ class PostgresQueue<Input extends Contract, Output extends Contract>
 		ref: QueueRef,
 		signal: AbortSignal,
 		cancellation: 'cancel-query' | 'join-read' = 'cancel-query',
-	): Promise<Row> {
-		const statement =
-			"select *,((state='queued' and available<=clock_timestamp()) or (state='claimed' and expires<=clock_timestamp())) as claimable from utils_queue.items where namespace=$1 and id=$2";
-		const parameters = [this.#options.namespace, ref.id];
+	): Promise<Row & { readonly claimable: boolean }> {
+		const statement = statements.item(this.#options.namespace, ref.id);
 		signal.throwIfAborted();
 		// A PostgreSQL CancelRequest addresses a backend, not a statement. A late
 		// cancel from a finished read can hit the next claim on the borrowed pool.
 		// Finish this read before releasing the result waiter slot; sleep remains abortable.
-		const rows = cancellation === 'join-read'
-			? await this.#options.database.unsafe<Row[]>(statement, parameters)
-			: await this.#query(this.#options.database, statement, parameters, signal);
+		const row = cancellation === 'join-read'
+			? await sql.one(this.#database, statement)
+			: await this.#one(this.#database, statement, signal);
 		signal.throwIfAborted();
-		if (!rows[0]) throw new QueueItemNotFoundError(ref.id);
-		return rows[0];
+		if (!row) throw new QueueItemNotFoundError(ref.id);
+		return row;
 	}
 
 	/** Commit terminal data and retention in the same transaction. */
 	async #finish(
 		claim: QueueClaim<ContractOutput<Input>>,
-		state: 'completed' | 'failed',
-		output: Parameter | null,
-		failure: Parameter | null,
-		cancellation: string | null,
+		result: { state: 'completed'; output: unknown } | { state: 'failed'; failure: unknown },
 		signal: AbortSignal,
 	): Promise<void> {
 		await this.#transaction(signal, async (tx) => {
 			await this.#lockPolicy(tx, signal);
 			await this.#lockClaim(tx, claim, signal);
-			const rows = await this.#query(
-				tx,
-				"update utils_queue.items set state=$5,output=$6::jsonb,failure=$7::jsonb,cancellation=$8,claim=null,owner=null,claimed=null,expires=null,finished=clock_timestamp() where namespace=$1 and id=$2 and claim=$3 and owner=$4 and state='claimed' and expires>clock_timestamp() returning id",
-				[this.#options.namespace, claim.itemId, claim.id, claim.owner, state, output, failure, cancellation],
-				signal,
-			);
+			const rows = await this.#rows(tx, statements.finish(this.#options.namespace, claim, result), signal);
 			this.#fenced(rows, claim);
 			await this.#prune(tx, 1000, signal);
 		});
 	}
 
 	/** Zero changed rows means the caller no longer owns the live claim. */
-	#fenced(rows: readonly Row[], claim: QueueClaim<ContractOutput<Input>>): void {
+	#fenced(rows: readonly unknown[], claim: QueueClaim<ContractOutput<Input>>): void {
 		if (rows.length === 0) throw new StaleClaimError(claim.itemId, claim.id);
 	}
 
@@ -733,26 +659,11 @@ class PostgresQueue<Input extends Contract, Output extends Contract>
 	 * sees earlier terminal commits; concurrent completions cannot each prune an
 	 * incomplete snapshot. External row locks are skipped and reported through `more`.
 	 */
-	async #prune(database: TransactionSql, limit: number, signal: AbortSignal): Promise<QueuePruneResult> {
-		const parameters = [
-			this.#options.namespace,
-			this.#policy.retention.limit,
-			this.#policy.retention.milliseconds,
-			limit,
-		];
-		const rows = await this.#query(
-			database,
-			"with ranked as (select id,finished,row_number() over(order by finished desc,sequence desc) as position from utils_queue.items where namespace=$1 and finished is not null), selected as (select i.id from utils_queue.items i join ranked r on i.id=r.id where i.namespace=$1 and (r.position>$2 or r.finished<=clock_timestamp()-$3::double precision*interval '1 millisecond') order by i.finished,i.sequence for update of i skip locked limit $4) delete from utils_queue.items i using selected s where i.namespace=$1 and i.id=s.id returning i.id",
-			parameters,
-			signal,
-		);
-		const remaining = await this.#query(
-			database,
-			"select (count(*)>$2 or coalesce(min(finished)<=clock_timestamp()-$3::double precision*interval '1 millisecond',false)) as more from utils_queue.items where namespace=$1 and finished is not null",
-			parameters.slice(0, 3),
-			signal,
-		);
-		return Object.freeze({ deleted: rows.length, more: remaining[0]!.more === true });
+	async #prune(tx: Executor, limit: number, signal: AbortSignal): Promise<QueuePruneResult> {
+		const retention = { retained: this.#policy.retention.limit, ttl: this.#policy.retention.milliseconds };
+		const rows = await this.#rows(tx, statements.prune(this.#options.namespace, retention, limit), signal);
+		const remaining = (await this.#one(tx, statements.more(this.#options.namespace, retention), signal))!;
+		return Object.freeze({ deleted: rows.length, more: remaining.more });
 	}
 
 	/** Observers cannot change a committed transition or turn success into an ambiguous retry. */
@@ -763,14 +674,13 @@ class PostgresQueue<Input extends Contract, Output extends Contract>
 	}
 
 	/** Copy inert JSON and reject oversized payloads before any state is accepted. */
-	#json(value: unknown): Parameter {
+	#json(value: unknown): unknown {
 		const copied = json.copy(value, { maximumDepth: 64, maximumNodes: 100_000 });
 		const encoded = JSON.stringify(copied);
 		if (new TextEncoder().encode(encoded).byteLength > this.#maximumBytes) {
 			throw new RangeError('Queue payload exceeds maximumBytes.');
 		}
-		// The inert copy satisfies the driver's JSON model; readonly only restricts callers.
-		return this.#options.database.json(copied as Parameters<Sql['json']>[0]);
+		return copied;
 	}
 
 	/** Bound polling pressure independently of shared active-item capacity. */
@@ -783,13 +693,6 @@ class PostgresQueue<Input extends Contract, Output extends Contract>
 	}
 }
 
-/** Validate native database timestamp values rather than accepting local-time strings. */
-function instant(value: unknown): Temporal.Instant {
-	if (!(value instanceof Date) || !Number.isFinite(value.getTime())) {
-		throw new TypeError('Invalid saved queue timestamp.');
-	}
-	return temporal.Instant.fromEpochMilliseconds(value.getTime());
-}
 /** Inspect the saved failure envelope without interpreting its domain-specific data. */
 function readFailure(value: unknown): EncodedFailure {
 	const copied = json.copy(value);
@@ -799,9 +702,9 @@ function readFailure(value: unknown): EncodedFailure {
 	) throw new TypeError('Invalid saved queue failure.');
 	return Object.freeze({ id: copied.id, message: copied.message, data: copied.data });
 }
-/** Queue states are constrained by the schema and inspected at the read point. */
+/** Whether an item has ended. */
 function terminal(row: Row): boolean {
-	return row.state === 'completed' || row.state === 'failed' || row.state === 'cancelled';
+	return (tables.terminal as readonly string[]).includes(row.state);
 }
 /** Text identities are bounded before they enter database indexes or protocol observations. */
 function text(value: string, label: string, maximum: number): void {
@@ -819,10 +722,5 @@ function count(value: number, label: string, maximum = Number.MAX_SAFE_INTEGER):
 	if (integer(value, label) < 1 || value > maximum) {
 		throw new RangeError(label + ' is outside its supported count range.');
 	}
-	return value;
-}
-/** Stored identifier columns cannot be silently coerced into authority. */
-function string(value: unknown): string {
-	if (typeof value !== 'string' || !value) throw new TypeError('Invalid saved queue identity.');
 	return value;
 }
