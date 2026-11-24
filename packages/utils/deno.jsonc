@@ -281,6 +281,7 @@
 		"./sql": "./sql.ts",
 		"./sql/postgres": "./sql/postgres.ts",
 		"./sql/postgres/adopt": "./sql/postgres/adopt.ts",
+		"./sql/postgres/drizzle": "./sql/postgres/drizzle.ts",
 		"./sql/postgres/pg": "./sql/postgres/pg.ts",
 		"./sql/postgres/postgresjs": "./sql/postgres/postgresjs.ts",
 		"./storage": "./storage.ts",

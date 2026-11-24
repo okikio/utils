@@ -16,6 +16,7 @@ on a shared core:
 | `@okikio/sql`                     | The dialect-neutral core: expressions, conditions, tables, scope, executors.  |
 | `@okikio/sql/postgres`            | The core, plus PostgreSQL statements, types, functions, DDL and triggers.     |
 | `@okikio/sql/postgres/adopt`      | Read a schema made elsewhere, generate its definitions, check them for drift. |
+| `@okikio/sql/postgres/drizzle`    | Read Drizzle tables as definitions, and run statements through Drizzle.       |
 | `@okikio/sql/postgres/postgresjs` | Run PostgreSQL statements through Postgres.js.                                |
 | `@okikio/sql/postgres/pg`         | Run PostgreSQL statements through node-postgres (`pg`), with cancellation.    |
 
@@ -171,6 +172,24 @@ expect((await drift(db, [User, Post])).filter((item) => item.severity === 'error
 - Inserts and updates may not name a column marked `.computed()` or `.identity()`; the row type leaves it out, so the
   mistake fails to type-check.
 
+A Drizzle schema needs no generated copy. `@okikio/sql/postgres/drizzle` reads the Drizzle table itself, so one
+schema file describes the table for both:
+
+```ts ignore
+import { getTableConfig } from 'drizzle-orm/pg-core';
+import * as drizzle from '@okikio/sql/postgres/drizzle';
+import { accounts as drizzleAccounts } from './schema.ts';
+
+const accounts = drizzle.table(drizzleAccounts, getTableConfig);
+sql.select({ name: accounts.c.displayName }).from(accounts); // key `displayName`, column "display_name"
+```
+
+The keys, database names, `not null`, defaults, identity and generated columns, enums, arrays and the primary key all
+come from Drizzle, at run time and in the types. Drizzle's `$defaultFn` and `$onUpdateFn` run here too. Values follow
+this package's types rather than Drizzle's modes: a `timestamp` is a `Temporal.Instant`, a `numeric` is exact text. A
+column type with no mapping here, such as `customType`, `inet` or `vector`, fails when the table is read; adopt that
+table through `inspect` and `generate`.
+
 ## Compose larger statements
 
 A query that would need several round trips in application code can stay one statement:
@@ -249,14 +268,11 @@ A compiled statement has `$1` text with `values`, and the same statement as temp
 import { database, executor } from '@okikio/sql/postgres/postgresjs';
 const db = database(pool); // also opens transactions: db.begin(async (tx) => …)
 
-// Drizzle
-import { sql as tag } from 'drizzle-orm';
-const drizzle = (tx) => ({
-	async run(query) {
-		const result = await tx.execute(tag(query.strings, ...query.values));
-		return Array.isArray(result) ? result : result.rows;
-	},
-});
+// Drizzle: pass Drizzle's own `sql` tag. `executor(tx, tag)` joins their transactions.
+import { sql as drizzleTag } from 'drizzle-orm';
+import * as drizzle from '@okikio/sql/postgres/drizzle';
+const viaDrizzle = drizzle.database(orm, drizzleTag);
+await orm.transaction(async (tx) => sql.execute(drizzle.executor(tx, drizzleTag), statement));
 
 // Any driver that takes text and values: pg, Kysely's CompiledQuery.raw, Prisma's $queryRawUnsafe, TypeORM,
 // pg-promise, Bun's sql.unsafe and Deno's @db/postgres.
@@ -283,9 +299,10 @@ pg-promise, Bun's SQL, Deno's `@db/postgres` and PGlite, against PostgreSQL 14 t
 transactions. Drizzle's `node-postgres` driver, Kysely's `PostgresDialect`, TypeORM, Sequelize, knex and MikroORM all
 sit on a `pg` pool, so pass that pool to share its connections and get cancellation too.
 
-`run` also takes `{ signal }`. Both bindings cancel the running query when the signal aborts and reject with the abort
-reason; the `pg` binding sends `pg_cancel_backend` through a second connection of the pool. The hand-written forms
-above ignore the signal and let the statement finish. `database.begin(work, { isolation })` opens
+`run` also takes `{ signal }`. The bindings cancel the running query when the signal aborts and reject with the abort
+reason; the `pg` binding sends `pg_cancel_backend` through a second connection of the pool. Drizzle takes no signal, so the Drizzle binding sends a cancellable
+statement through the `pg` pool or Postgres.js client under it (`db.$client`); inside a Drizzle transaction the signal
+is only checked before sending. The hand-written forms above ignore the signal and let the statement finish. `database.begin(work, { isolation })` opens
 the transaction at a chosen isolation level, such as `'read committed'`.
 
 ## Verify statements before they reach production

@@ -8,6 +8,7 @@
 		".": "./mod.ts",
 		"./postgres": "./postgres/mod.ts",
 		"./postgres/adopt": "./postgres/adopt.ts",
+		"./postgres/drizzle": "./postgres/drizzle/mod.ts",
 		"./postgres/pg": "./postgres/pg.ts",
 		"./postgres/postgresjs": "./postgres/postgresjs.ts"
 	},
