@@ -7,7 +7,8 @@
  *
  * @module
  */
-import { and, type AnyExpr, Expr, type Input, lift, type OrderType, type Subquery } from './expr.ts';
+import { type AnyExpr, Expr, type Input, lift, type OrderType, type Subquery } from './expr.ts';
+import { and } from './logic.ts';
 import { type Fragment, group, join, keyword, param } from './fragment.ts';
 import {
 	brand,
@@ -39,6 +40,7 @@ export interface LockType {
 
 interface SelectState {
 	readonly shape: Shape;
+	readonly distinct?: boolean;
 	readonly with: readonly CteType<unknown>[];
 	readonly from?: Source;
 	readonly joins: readonly Fragment[];
@@ -74,6 +76,10 @@ export class Select<S extends Shape> implements Statement<RowOfShape<S>>, Subque
 	/** Define named subqueries first, to read them in `from` or a join. */
 	with(...ctes: readonly CteType<unknown>[]): Select<S> {
 		return new Select({ ...this.#state, with: [...this.#state.with, ...ctes] });
+	}
+	/** Return each distinct row once. */
+	distinct(): Select<S> {
+		return new Select({ ...this.#state, distinct: true });
 	}
 	/** Read from a table or named subquery. */
 	from(table: Source): Select<S> {
@@ -129,7 +135,11 @@ export class Select<S extends Shape> implements Statement<RowOfShape<S>>, Subque
 
 	#render(read: boolean): Fragment {
 		const state = this.#state;
-		const parts: Fragment[] = [prefix(state.with), keyword('select '), list(state.shape, read)];
+		const parts: Fragment[] = [
+			prefix(state.with),
+			keyword(state.distinct ? 'select distinct ' : 'select '),
+			list(state.shape, read),
+		];
 		if (state.from) parts.push(keyword(' from '), source(state.from), ...state.joins);
 		if (state.where.length) parts.push(keyword(' where '), and(...state.where).fragment);
 		if (state.groupBy.length) parts.push(keyword(' group by '), join(state.groupBy.map((item) => item.operand), ', '));

@@ -26,30 +26,21 @@ export * as types from './type.ts';
 export type { SqlType } from './type.ts';
 export type { CompiledType, Fragment } from './fragment.ts';
 export {
-	add,
-	and,
 	type AnyExpr,
-	coalesce,
 	type Collation,
 	Column,
-	declare,
-	exists,
 	Expr,
-	fn,
 	type Input,
 	isExpr,
-	later,
 	lift,
-	multiply,
-	not,
-	or,
+	type Operand,
 	type OrderType,
-	row,
-	scalar,
 	type Subquery,
-	subtract,
 	value,
 } from './expr.ts';
+export { aggregate, and, choose, exists, not, nothing, or, row, RowExpr, scalar } from './logic.ts';
+export * as trigger from './trigger.ts';
+export { add, coalesce, declare, fn, later, multiply, subtract } from './functions.ts';
 export {
 	type Aliased,
 	column,
@@ -60,6 +51,7 @@ export {
 	excluded,
 	type ForeignKeyType,
 	type IndexType,
+	record,
 	type Refs,
 	type RowOf,
 	schema,
@@ -71,12 +63,15 @@ export {
 	cte,
 	type CteType,
 	isStatement,
+	recursive,
 	type RowOfShape,
 	type Shape,
 	type Source,
 	type Statement,
 	toQuery,
 	type TypesOf,
+	unionAll,
+	type UnionType,
 } from './statement.ts';
 export { type LockType, Select, select } from './select.ts';
 export {
@@ -93,6 +88,7 @@ export {
 } from './write.ts';
 export {
 	addColumn,
+	type AddColumnOptions,
 	begin,
 	commit,
 	createIndex,
@@ -101,7 +97,9 @@ export {
 	type Ddl,
 	isDdl,
 	type IsolationType,
+	replaceCheck,
 	rollback,
+	setNotNull,
 	tableStatements,
 	toDdlQuery,
 } from './ddl.ts';

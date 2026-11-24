@@ -104,11 +104,13 @@ export function qualified(...names: readonly string[]): Fragment {
  * definitions reach this, and only strings, safe integers, finite numbers, booleans and null are accepted. A string may
  * not hold a backslash or NUL, so its meaning does not depend on `standard_conforming_strings`.
  */
-function literal(value: unknown, cast: string): string {
+function literal(value: unknown, cast: string, routine: boolean): string {
 	if (value === null) return `null::${cast}`;
 	if (typeof value === 'boolean') return `${value}::${cast}`;
 	if (typeof value === 'number' && Number.isFinite(value)) return `${value}::${cast}`;
-	if (typeof value === 'string' && !/[\\\0]/u.test(value)) return `'${value.replaceAll("'", "''")}'::${cast}`;
+	// Inside a function body, `$` could close the dollar quote around the body.
+	const unsafe = routine ? /[\\\0$]/u : /[\\\0]/u;
+	if (typeof value === 'string' && !unsafe.test(value)) return `'${value.replaceAll("'", "''")}'::${cast}`;
 	throw new TypeError('A DDL constant must be a plain string, finite number, boolean or null.');
 }
 
@@ -116,6 +118,11 @@ function literal(value: unknown, cast: string): string {
 export interface CompileOptions {
 	/** Write values as literals instead of parameters, and columns without their table, for DDL. */
 	readonly ddl?: boolean;
+	/**
+	 * Write values as literals but keep each column's table, for a function body or trigger condition, where `new` and
+	 * `old` name the changed row. A string literal may not hold `$` there.
+	 */
+	readonly routine?: boolean;
 }
 
 /** Turn a fragment into text, values and template pieces. */
@@ -124,12 +131,14 @@ export function compile(fragment: Fragment, options: CompileOptions = {}): Compi
 	const values: unknown[] = [];
 	let text = '';
 	for (const part of fragment) {
-		if (part.kind !== 'param' || options.ddl) {
+		const literals = options.ddl || options.routine;
+		if (part.kind !== 'param' || literals) {
+			const bare = options.ddl && !options.routine;
 			const piece = part.kind === 'text'
 				? part.text
 				: part.kind === 'column'
-				? (options.ddl ? [part.name] : [...part.owner, part.name]).map((name) => `"${name}"`).join('.')
-				: literal(part.value, part.cast);
+				? (bare ? [part.name] : [...part.owner, part.name]).map((name) => `"${name}"`).join('.')
+				: literal(part.value, part.cast, options.routine ?? false);
 			strings[strings.length - 1] += piece;
 			text += piece;
 			continue;

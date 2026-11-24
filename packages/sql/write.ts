@@ -7,7 +7,8 @@
  *
  * @module
  */
-import { and, type Column, type Expr, type Input, lift } from './expr.ts';
+import { type Column, type Expr, type Input, lift } from './expr.ts';
+import { and } from './logic.ts';
 import { type Fragment, group, identifier, join, keyword, qualified } from './fragment.ts';
 import {
 	brand,

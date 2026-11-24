@@ -139,16 +139,29 @@ export function jsonb<T = unknown>(parse: (value: unknown) => T = (value) => val
 }
 
 /**
- * A point in time as a `Temporal.Instant`, at millisecond precision. It travels as epoch milliseconds, because the
- * text form of `timestamptz` depends on the session's time zone and date style.
+ * A point in time as a `Temporal.Instant`, at PostgreSQL's microsecond precision.
+ *
+ * The default text form of `timestamptz` depends on the session's time zone and date style, so neither direction uses
+ * it. A value is sent as an ISO 8601 string in UTC, which PostgreSQL reads the same way under every setting, and read
+ * through `to_char` in UTC with six fractional digits. A nanosecond part is rounded by PostgreSQL to microseconds.
  */
 export const timestamptz: SqlType<Temporal.Instant> = Object.freeze({
 	name: 'timestamptz',
-	send: (value: Temporal.Instant) =>
-		join([keyword('to_timestamp('), param(value.epochMilliseconds, 'double precision'), keyword(' / 1000)')]),
+	send: (value: Temporal.Instant) => cast(param(value.toString(), 'text'), 'timestamptz'),
 	read: (expression: Fragment) =>
-		join([keyword('floor(extract(epoch from '), expression, keyword(') * 1000)::double precision')]),
-	decode: (raw: unknown) => temporal.Instant.fromEpochMilliseconds(expect(raw, isNumber, 'epoch milliseconds')),
+		join([
+			keyword('to_char('),
+			group(expression),
+			keyword(` at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`),
+		]),
+	decode: (raw: unknown) => {
+		const text = expect(raw, isString, 'timestamp');
+		try {
+			return temporal.Instant.from(text);
+		} catch {
+			throw new TypeError(`Expected a UTC timestamp; received ${JSON.stringify(text)}.`);
+		}
+	},
 });
 
 /** The result of a function such as `pg_advisory_xact_lock` that returns nothing. */

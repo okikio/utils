@@ -69,7 +69,7 @@ Clients disagree about how they return `bigint`, `jsonb` and `timestamptz`. Each
 | `boolean`        | `boolean`            | `boolean`                                 | `boolean`                   |
 | `uuid`           | `string`             | text, cast to `uuid`                      | text                        |
 | `jsonb(parse?)`  | any JSON value       | JSON text, cast to `jsonb`                | JSON text, then parsed      |
-| `timestamptz`    | `Temporal.Instant`   | epoch milliseconds through `to_timestamp` | epoch milliseconds          |
+| `timestamptz`    | `Temporal.Instant`   | ISO 8601 text in UTC                      | UTC text with microseconds  |
 
 A row with a missing, extra or mistyped column is an error, not `undefined`.
 
@@ -83,6 +83,10 @@ A query that would need several round trips in application code can stay one sta
 - `insert(table, select)` inserts the rows a select returns. Name each selected value after the column it fills.
 - `.for({ of: [table], skipLocked: true })` locks rows of one source only and skips rows other workers hold.
 - `fn.count(condition)` counts only matching rows, and `fn.rowNumber(order)` numbers rows as a window function.
+- `sql.unionAll(...)` keeps each select's own order and limit, and `sql.recursive(name, shape, step)` walks a tree.
+  `cte(name, query, { materialized: true })` computes shared rows once.
+- `json.elements(array, alias)` reads the elements of a `jsonb` array in `from`, and `json.contains`, `json.within`,
+  `json.array` and `json.object` write containment and build values in SQL.
 
 ```ts ignore
 const due = sql.cte(
@@ -91,6 +95,28 @@ const due = sql.cte(
 );
 const take = sql.update(notes, { state: 'done' }).with(due).from(due).where(n.id.eq(due.c.id)).returning({ id: n.id });
 ```
+
+## Triggers without PL/pgSQL text
+
+A trigger holds an invariant for every writer, including older workers and an operator's own SQL. `trigger.routine`
+builds its function from a fixed set of typed steps (`perform`, `assign`, `branch`, `run`, `ensure` and `result`),
+and `trigger.changed(table, 'new' | 'old')` gives the changed row with the table's column types. `trigger.create`
+drops and creates the trigger, so a later revision can change its events or condition.
+
+```ts ignore
+const n = sql.trigger.changed(notes, 'new').c;
+const stamp = sql.trigger.routine('app', 'stamp', [
+	sql.trigger.assign(n.seen, sql.fn.clockTimestamp()),
+	sql.trigger.result('new'),
+]);
+const statements = [
+	stamp.ddl,
+	...sql.trigger.create({ name: 'notes_stamp', table: notes, timing: 'before', events: ['insert'], routine: stamp }),
+];
+```
+
+A trigger condition can read only `new` and `old`, so an insert and an update with different conditions are two
+triggers. A string literal in a function body may not hold `$`, because the body is dollar-quoted.
 
 ## Run with any client
 

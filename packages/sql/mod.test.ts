@@ -179,12 +179,12 @@ describe('schema statements', () => {
 describe('running and decoding', () => {
 	it('decodes each column with its type and rejects missing, extra and mistyped columns', async () => {
 		const query = sql.select({ id: n.id, body: n.body, seen: n.seen, sequence: n.sequence }).from(notes);
-		const raw = { id: 'a', body: '{"words":3}', seen: 1700000000123, sequence: '9007199254740993' };
+		const raw = { id: 'a', body: '{"words":3}', seen: '2023-11-14T22:13:20.123456Z', sequence: '9007199254740993' };
 		expect(await sql.rows(fixed([raw]), query)).toEqual([
 			{
 				id: 'a',
 				body: { words: 3 },
-				seen: temporal.Instant.fromEpochMilliseconds(1700000000123),
+				seen: temporal.Instant.from('2023-11-14T22:13:20.123456Z'),
 				sequence: 9007199254740993n,
 			},
 		]);
