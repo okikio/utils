@@ -26,30 +26,19 @@ export * as types from './type.ts';
 export type { SqlType } from './type.ts';
 export type { CompiledType, Fragment } from './fragment.ts';
 export {
-	add,
-	and,
 	type AnyExpr,
-	coalesce,
 	type Collation,
 	Column,
-	declare,
-	exists,
 	Expr,
-	fn,
 	type Input,
 	isExpr,
-	later,
 	lift,
-	multiply,
-	not,
-	or,
 	type OrderType,
-	row,
-	scalar,
 	type Subquery,
-	subtract,
 	value,
 } from './expr.ts';
+export { aggregate, and, choose, exists, not, nothing, or, row, RowExpr, scalar } from './logic.ts';
+export { add, coalesce, declare, fn, later, multiply, subtract } from './functions.ts';
 export {
 	type Aliased,
 	column,

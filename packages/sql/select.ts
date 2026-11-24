@@ -7,7 +7,8 @@
  *
  * @module
  */
-import { and, type AnyExpr, Expr, type Input, lift, type OrderType, type Subquery } from './expr.ts';
+import { type AnyExpr, Expr, type Input, lift, type OrderType, type Subquery } from './expr.ts';
+import { and } from './logic.ts';
 import { type Fragment, group, join, keyword, param } from './fragment.ts';
 import {
 	brand,
