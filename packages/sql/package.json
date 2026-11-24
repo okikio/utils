@@ -7,6 +7,7 @@
 	"exports": {
 		".": "./mod.ts",
 		"./postgres": "./postgres/mod.ts",
+		"./postgres/pg": "./postgres/pg.ts",
 		"./postgres/postgresjs": "./postgres/postgresjs.ts"
 	},
 	"dependencies": {
