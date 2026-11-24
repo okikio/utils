@@ -33,6 +33,7 @@ export const packages = Object.freeze(
 		'@okikio/scheduler',
 		'@okikio/schema',
 		'@okikio/server',
+		'@okikio/sql',
 		'@okikio/storage',
 		'@okikio/streams',
 		'@okikio/task',

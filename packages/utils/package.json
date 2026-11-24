@@ -277,6 +277,8 @@
 		"./server/service/resilience": "./server/service/resilience.ts",
 		"./server/service/route": "./server/service/route.ts",
 		"./server/service/types": "./server/service/types.ts",
+		"./sql": "./sql.ts",
+		"./sql/postgres": "./sql/postgres.ts",
 		"./storage": "./storage.ts",
 		"./storage/outbox/effect": "./storage/outbox/effect.ts",
 		"./storage/outbox/postgres": "./storage/outbox/postgres.ts",
@@ -357,7 +359,8 @@
 		"@okikio/hash": "workspace:^0.1.0",
 		"@okikio/input": "workspace:^1.0.0",
 		"@okikio/storage": "workspace:^1.0.0",
-		"@okikio/authz": "workspace:^0.1.0"
+		"@okikio/authz": "workspace:^0.1.0",
+		"@okikio/sql": "workspace:^0.1.0"
 	},
 	"devDependencies": {
 		"mitata": "^1.0.34"

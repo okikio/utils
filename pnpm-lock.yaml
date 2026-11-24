@@ -251,6 +251,9 @@ importers:
       '@okikio/server':
         specifier: workspace:*
         version: link:packages/server
+      '@okikio/sql':
+        specifier: workspace:*
+        version: link:packages/sql
       '@okikio/storage':
         specifier: workspace:*
         version: link:packages/storage
@@ -1067,6 +1070,18 @@ importers:
     linkDirectory: false
     publishDirectory: ../../.tmp/artifacts/npm/server
 
+  packages/sql:
+    dependencies:
+      '@okikio/duration':
+        specifier: workspace:^0.1.0
+        version: link:../duration
+    devDependencies:
+      '@std/expect':
+        specifier: npm:@jsr/std__expect@^1.0.20
+        version: '@jsr/std__expect@1.0.20'
+    linkDirectory: false
+    publishDirectory: ../../.tmp/artifacts/npm/sql
+
   packages/storage:
     dependencies:
       '@okikio/capability':
@@ -1310,6 +1325,9 @@ importers:
       '@okikio/server':
         specifier: workspace:^1.0.0
         version: link:../server
+      '@okikio/sql':
+        specifier: workspace:^0.1.0
+        version: link:../sql
       '@okikio/storage':
         specifier: workspace:^1.0.0
         version: link:../storage
