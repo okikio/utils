@@ -20,10 +20,11 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, write
 import path from 'node:path';
 import process from 'node:process';
 import { parseArgs } from 'node:util';
+import { fileURLToPath } from 'node:url';
 import type { CellType } from './keys.ts';
 import { empty, type LedgerType, merge, parse, type PassType, prune } from './ledger.ts';
 
-const root = path.resolve(import.meta.dirname, '../../..');
+const root = fileURLToPath(new URL('../../..', import.meta.url));
 
 /** Every cell and its key. Loaded only by commands that need it, so `merge` runs without the suite's dependencies. */
 const cells = async (): Promise<readonly CellType[]> => (await import('./keys.ts')).cells(root);

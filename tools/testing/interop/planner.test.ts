@@ -1,12 +1,12 @@
 /** A cell's key must hold what the cell runs and nothing else, and the ledger must never turn bad input into a skip. */
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
-import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { cells } from './keys.ts';
 import { empty, merge, parse, prune } from './ledger.ts';
 import { closure, parseLock, snapshotKey } from './lock.ts';
 
-const root = path.resolve(import.meta.dirname, '../../..');
+const root = fileURLToPath(new URL('../../..', import.meta.url));
 const all = await cells(root);
 const cell = (target: string, client: string) => {
 	const found = all.find((item) => item.target === target && item.client === client);
