@@ -122,3 +122,8 @@ tests/fixtures/hono-upstream/source/src/utils/jwt/jwt.test.txt:jwt:772
 tests/fixtures/hono-upstream/source/src/utils/jwt/jwt.test.txt:jwt:803
 tests/fixtures/hono-upstream/source/src/utils/jwt/jwt.test.txt:jwt:97
 tests/fixtures/hono-upstream/source/src/utils/jwt/jwt.test.txt:private-key:1521
+
+# tests/interop/targets/poolers.ts: JWT secrets for the disposable Supavisor test container. They sign
+#   nothing outside that container.
+tests/interop/targets/poolers.ts:generic-api-key:110
+tests/interop/targets/poolers.ts:generic-api-key:111
