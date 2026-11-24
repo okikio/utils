@@ -38,7 +38,7 @@ CI keeps every passed key in a ledger, a workflow artifact that lasts 90 days
 from its last upload and is uploaded again at least monthly while CI runs. The
 plan job starts one job per target that has a cell the ledger lacks, holding
 only those clients; a target whose cells all passed starts no job. Images are
-pulled by digest through `mirror.gcr.io`: on Ubicloud runners that beat
+pulled by digest through `mirror.gcr.io`: in measured CI runs that beat
 restoring `docker save` archives from the Actions cache for every image
 measured. Dispatching CI with `fresh` runs every cell again.
 
