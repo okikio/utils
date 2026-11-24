@@ -1,0 +1,13 @@
+// The suite runs raw SQL through Prisma; this one model only lets `prisma generate` build a client.
+generator client {
+  provider = "prisma-client"
+  output   = "../.prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Placeholder {
+  id Int @id
+}

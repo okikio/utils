@@ -26,15 +26,41 @@ export const limits: readonly LimitType[] = [
 			'pg-by-hand',
 			'pg-one-connection',
 			'pg-type-parsers',
+			'prisma',
+			'typeorm',
+			'sequelize',
+			'knex',
+			'slonik',
+			'pg-promise',
 			'bun-sql',
 			'bun-sql-unprepared',
 			'bun-sql-template',
 			'deno-postgres',
+			'pglite',
+			'prisma-neon',
 		],
 		cases: ['an abort signal cancels a running statement'],
 		reason:
 			'The library has no way to cancel a statement in the database, so the hand-written adapter lets it finish. ' +
 			"Use the package's `pg` or Postgres.js binding on the same pool to cancel.",
+	},
+	{
+		clients: ['neon-http', 'drizzle-neon-http'],
+		cases: [
+			'numeric, timestamp, enum and quoted names',
+			'transactions roll back and take an isolation level',
+			'session TimeZone, extra_float_digits and IntervalStyle change nothing',
+			'session DateStyle changes nothing',
+		],
+		reason:
+			'Neon over HTTP sends each statement alone and has no interactive transactions, so `db.begin` throws. Use ' +
+			'the WebSocket `Pool` for work that needs a transaction.',
+	},
+	{
+		clients: ['neon-http', 'drizzle-neon-http'],
+		cases: ['10 MB of text and jsonb', 'insert 5,000 rows in one statement'],
+		reason: 'Neon\'s HTTP endpoint refuses a request over 10 MiB, and a 50,000-parameter statement ("value too large ' +
+			'to transmit"). Split the write, or use the WebSocket `Pool`.',
 	},
 ];
 
