@@ -1340,6 +1340,9 @@ importers:
       '@okikio/server':
         specifier: workspace:^1.0.0
         version: link:../server
+      '@okikio/sql':
+        specifier: workspace:^0.1.0
+        version: link:../sql
       '@okikio/storage':
         specifier: workspace:^1.0.0
         version: link:../storage
