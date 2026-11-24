@@ -148,7 +148,7 @@ for (const target of selectedTargets) {
 						mismatches.push(mismatch);
 						return { ...outcome, mismatch };
 					}
-					if (outcome.status === 'pass' && limit && limit.cases !== 'any') {
+					if (outcome.status === 'pass' && limit && limit.cases !== 'any' && !limit.sometimes) {
 						const mismatch = `passes despite a known limit, so remove it: ${outcome.case} (${limit.reason})`;
 						mismatches.push(mismatch);
 						return { ...outcome, limit: limit.reason, mismatch };
