@@ -23,6 +23,28 @@ const open = sql.select({ id: n.id, title: n.title }).from(notes).where(n.state.
 const found = await sql.rows(executor, open); // { id: string; title: string }[]
 ```
 
+Building a statement needs no database. Compile it to see exactly what a client sends:
+
+```ts runnable=sql-statement.ts
+import * as sql from '@okikio/sql';
+import { types } from '@okikio/sql';
+
+const notes = sql.schema('app').table('notes', {
+	id: sql.column(types.uuid),
+	title: sql.column(types.text()),
+	state: sql.column(types.text(['open', 'done'])),
+});
+const open = sql.select({ title: notes.c.title }).from(notes).where(notes.c.state.eq('open')).limit(10);
+const query = sql.toQuery(open);
+console.log(query.text);
+console.log(JSON.stringify(query.values));
+```
+
+```text output
+select ("app"."notes"."title")::text as "title" from "app"."notes" where "app"."notes"."state" = $1::text limit $2::bigint
+["open",10]
+```
+
 ## What TypeScript and the package check
 
 - Column names and value types: `n.state.eq('closed')` does not compile when `state` allows only `open` and `done`.
@@ -55,6 +77,8 @@ A row with a missing, extra or mistyped column is an error, not `undefined`.
 An executor has one method, `run(query)`, which sends a compiled statement on the caller's connection or transaction.
 A compiled statement has `$1` text with `values`, and the same statement as template `strings`, which a client's own
 `sql` tag accepts.
+
+`@okikio/sql/postgres` binds Postgres.js without depending on it:
 
 ```ts ignore
 // Postgres.js
