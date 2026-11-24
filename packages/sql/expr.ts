@@ -21,6 +21,12 @@ const brand: unique symbol = Symbol('okikio.sql.expr');
 /** A value, or an expression of the same type. */
 export type Input<T> = T | Expr<T>;
 
+/**
+ * The other side of a comparison: a value, or an expression that may be NULL. A comparison with NULL is NULL, which a
+ * condition treats as false, so `a.eq(nullableColumn)` is safe. Compare with NULL itself through `isNull`.
+ */
+export type Operand<T> = NonNullable<T> | Expr<T> | Expr<T | null> | Expr<NonNullable<T>>;
+
 /** A statement that can be embedded as a subquery. Implemented by `select`. */
 export interface Subquery<Row> {
 	/** The statement's SQL. */
@@ -61,27 +67,27 @@ export class Expr<T> {
 	}
 
 	/** This value equals `other`. Compare with NULL through {@link Expr.isNull}, never `eq(null)`. */
-	eq(other: Input<NonNullable<T>>): Expr<boolean> {
+	eq(other: Operand<T>): Expr<boolean> {
 		return this.#compare(' = ', other);
 	}
 	/** This value differs from `other`. */
-	ne(other: Input<NonNullable<T>>): Expr<boolean> {
+	ne(other: Operand<T>): Expr<boolean> {
 		return this.#compare(' <> ', other);
 	}
 	/** This value is less than `other`. */
-	lt(other: Input<NonNullable<T>>): Expr<boolean> {
+	lt(other: Operand<T>): Expr<boolean> {
 		return this.#compare(' < ', other);
 	}
 	/** This value is less than or equal to `other`. */
-	lte(other: Input<NonNullable<T>>): Expr<boolean> {
+	lte(other: Operand<T>): Expr<boolean> {
 		return this.#compare(' <= ', other);
 	}
 	/** This value is greater than `other`. */
-	gt(other: Input<NonNullable<T>>): Expr<boolean> {
+	gt(other: Operand<T>): Expr<boolean> {
 		return this.#compare(' > ', other);
 	}
 	/** This value is greater than or equal to `other`. */
-	gte(other: Input<NonNullable<T>>): Expr<boolean> {
+	gte(other: Operand<T>): Expr<boolean> {
 		return this.#compare(' >= ', other);
 	}
 	/** This value is SQL NULL. */
@@ -139,10 +145,10 @@ export class Expr<T> {
 	}
 
 	/** Send `value` with this expression's type, or embed it when it is already an expression. */
-	#value(value: Input<NonNullable<T>>): Fragment {
+	#value(value: Operand<T>): Fragment {
 		return value instanceof Expr ? value.operand : this.type.send(value as T);
 	}
-	#compare(operator: string, other: Input<NonNullable<T>>): Expr<boolean> {
+	#compare(operator: string, other: Operand<T>): Expr<boolean> {
 		return new Expr(join([this.operand, keyword(operator), this.#value(other)]), types.boolean);
 	}
 }

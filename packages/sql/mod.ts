@@ -33,6 +33,7 @@ export {
 	type Input,
 	isExpr,
 	lift,
+	type Operand,
 	type OrderType,
 	type Subquery,
 	value,

@@ -29,6 +29,11 @@ export function hasAll(value: Expr<unknown>, keys: readonly string[]): Expr<bool
 	return new Value(join([value.operand, keyword(' ?& array['), list, keyword(']')]), types.boolean);
 }
 
+/** `jsonb_array_length(value)`: the number of elements of a `jsonb` array. */
+export function length(value: Expr<unknown>): Expr<number> {
+	return new Value(join([keyword('jsonb_array_length'), group(value.fragment)]), types.integer, true);
+}
+
 /** `jsonb_typeof(value)`: `object`, `array`, `string`, `number`, `boolean` or `null`. */
 export function kind(value: Expr<unknown>): Expr<string | null> {
 	return new Value(join([keyword('jsonb_typeof'), group(value.fragment)]), types.nullable(types.text()), true);

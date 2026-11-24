@@ -29,8 +29,8 @@ export function multiply(left: Expr<number>, right: Input<number>): Expr<number>
 	return new Expr(join([left.operand, keyword(' * '), lift(right, left.type).operand]), left.type);
 }
 
-/** A point in time moved by a number of milliseconds, which may be negative. */
-export function later(instant: Expr<Temporal.Instant>, milliseconds: Input<number>): Expr<Temporal.Instant> {
+/** A point in time moved by a number of milliseconds, which may be negative. NULL stays NULL. */
+export function later<T extends Temporal.Instant | null>(instant: Expr<T>, milliseconds: Input<number>): Expr<T> {
 	const amount = lift(milliseconds, types.double).operand;
 	return new Expr(
 		join([instant.operand, keyword(' + '), amount, keyword(" * interval '1 millisecond'")]),
@@ -101,6 +101,16 @@ export const fn = Object.freeze({
 			types.nullable(input.type),
 			true,
 		),
+	/** Whether text starts with a prefix, compared as plain characters with no pattern syntax. */
+	startsWith: (input: Expr<string | null>, prefix: Input<string>): Expr<boolean> =>
+		new Expr(
+			join([keyword('starts_with('), input.fragment, keyword(', '), lift(prefix, types.text()).fragment, keyword(')')]),
+			types.boolean,
+			true,
+		),
+	/** Bytes that each stored row of an aliased table takes: `pg_column_size(alias)`. Sum it for a table's share. */
+	size: (source: { readonly alias: string }): Expr<number> =>
+		new Expr(join([keyword('pg_column_size('), identifier(source.alias), keyword(')::integer')]), types.integer, true),
 	/** The smallest integer not less than the value. */
 	ceil: (input: Expr<number>): Expr<number> =>
 		new Expr(join([keyword('ceil('), input.fragment, keyword(')')]), input.type, true),
