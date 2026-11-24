@@ -5,10 +5,6 @@
  * Docker Hub limits anonymous pulls. Set `INTEROP_MIRROR` to a Docker Hub mirror, such as `mirror.gcr.io`, to pull its
  * images from there instead; the digest still pins each one.
  *
- * CI stores the images between runs with `docker save`, which drops a name that ends in a digest. With
- * `INTEROP_LOCAL_IMAGES=1` the suite starts each image by a local tag that still carries the digest,
- * `interop.local/<name>:sha256-<hex>`, which the CI step creates after pulling and which `docker load` restores.
- *
  * @module
  */
 import process from 'node:process';
@@ -42,33 +38,17 @@ export function mirrored(reference: string, mirror: string | undefined): string 
 	return `${mirror}/${reference.includes('/') ? '' : 'library/'}${reference}`;
 }
 
-/** The local tag for a pinned reference: `interop.local/supabase-postgres:sha256-<hex>`. */
-export function local(reference: string): string {
-	const [name, digest] = reference.split('@');
-	if (!digest) throw new TypeError(`Image ${reference} is not pinned by digest.`);
-	// The same tag whether the reference names a registry, a mirror or Docker Hub's `library/` prefix.
-	const parts = name!.replace(/:[^/]*$/u, '').split('/');
-	if (parts.length > 1 && /[.:]/u.test(parts[0]!)) parts.shift();
-	if (parts[0] === 'library') parts.shift();
-	const repository = parts.join('-');
-	return `interop.local/${repository}:${digest.replace(':', '-')}`;
-}
-
-/** The digest an image reference names, in any of the forms above, so a result does not depend on where it came from. */
+/** The digest an image reference names, so a result does not depend on which registry or mirror served it. */
 export function digest(reference: string): string {
-	const found = /sha256[:-]([0-9a-f]{64})/u.exec(reference);
+	const found = /@sha256:([0-9a-f]{64})/u.exec(reference);
 	if (!found) throw new TypeError(`Image ${reference} is not pinned by digest.`);
 	return `sha256:${found[1]}`;
 }
 
 const mirror = process.env.INTEROP_MIRROR?.replace(/\/+$/u, '') || undefined;
-const tagged = process.env.INTEROP_LOCAL_IMAGES === '1';
 
 export const images: { readonly [K in keyof typeof pins]: string } = Object.freeze(
 	Object.fromEntries(
-		Object.entries(pins).map(([key, reference]) => [key, tagged ? local(reference) : mirrored(reference, mirror)]),
+		Object.entries(pins).map(([key, reference]) => [key, mirrored(reference, mirror)]),
 	) as { [K in keyof typeof pins]: string },
 );
-
-/** Where to pull a pinned reference from: the mirror, when one is set. */
-export const source = (reference: string): string => mirrored(reference, mirror);

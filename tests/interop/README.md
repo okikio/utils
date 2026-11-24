@@ -37,9 +37,10 @@ of knex only knex's cells.
 CI keeps every passed key in a ledger, a workflow artifact that lasts 90 days
 from its last upload and is uploaded again at least monthly while CI runs. The
 plan job starts one job per target that has a cell the ledger lacks, holding
-only those clients; a target whose cells all passed starts no job. Each job
-stores its images with `docker save`, layers included, in the Actions cache
-under their digests. Dispatching CI with `fresh` runs every cell again.
+only those clients; a target whose cells all passed starts no job. Images are
+pulled by digest through `mirror.gcr.io`: on Ubicloud runners that beat
+restoring `docker save` archives from the Actions cache for every image
+measured. Dispatching CI with `fresh` runs every cell again.
 
 ```sh
 node tools/testing/interop/cli.ts explain --target postgres-18 --client pg   # what one cell's key holds

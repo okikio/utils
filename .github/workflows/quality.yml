@@ -587,50 +587,10 @@ jobs:
         with:
           stores: pnpm deno
       - run: mise run prepare:node
-      - name: List the target's images
-        id: images
-        run: node tools/testing/interop/cli.ts images --target "$INTEROP_TARGETS" --out .tmp/interop/images.txt
-      # `docker save` keeps every layer, so an unchanged digest never downloads again while the cache holds it.
-      - name: Restore the stored images
-        id: stored
-        if: steps.images.outputs.count != '0'
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: .tmp/interop/images.tar
-          key: ${{ steps.images.outputs.key }}
-      - name: Load or pull the images
-        if: steps.images.outputs.count != '0'
-        env:
-          STORED: ${{ steps.stored.outputs.cache-hit }}
-        run: |
-          set -euo pipefail
-          start=$SECONDS
-          if [[ "$STORED" == true ]]; then
-            docker load -i .tmp/interop/images.tar > /dev/null
-            how='loaded from the cache'
-          else
-            while read -r ref tag; do docker pull -q "$ref" > /dev/null && docker tag "$ref" "$tag"; done < .tmp/interop/images.txt
-            how='pulled'
-          fi
-          took=$((SECONDS - start))
-          mapfile -t tags < <(cut -d' ' -f2 .tmp/interop/images.txt | sort -u)
-          mib=$(docker image inspect "${tags[@]}" --format '{{.Size}}' | awk '{ total += $1 } END { printf "%.0f", total / 1048576 }')
-          echo "Images ($mib MiB) $how in ${took}s." | tee -a "$GITHUB_STEP_SUMMARY"
-          if [[ "$STORED" != true ]]; then
-            start=$SECONDS
-            docker save -o .tmp/interop/images.tar "${tags[@]}"
-            echo "Saved them for the cache in $((SECONDS - start))s." | tee -a "$GITHUB_STEP_SUMMARY"
-          fi
-      - name: Store the images
-        if: steps.images.outputs.count != '0' && steps.stored.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: .tmp/interop/images.tar
-          key: ${{ steps.images.outputs.key }}
+      # Pulling by digest from the mirror beat restoring `docker save` archives from the Actions cache for every image
+      # measured, from 307 MiB (5 s against 6 s) to 2.4 GiB (27 s against 35 s), so images are not cached.
       - name: Run the stale clients against ${{ matrix.target }}
         id: interop
-        env:
-          INTEROP_LOCAL_IMAGES: '1'
         run: mise run ci:run -- --lane interop
       - name: Record the cells that passed
         if: always() && steps.interop.outcome != 'skipped'

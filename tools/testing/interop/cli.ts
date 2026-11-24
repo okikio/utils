@@ -4,7 +4,6 @@
  * ```sh
  * node tools/testing/interop/cli.ts fetch --out .tmp/interop/ledgers      # newest trusted ledgers, from artifacts
  * node tools/testing/interop/cli.ts plan --ledgers .tmp/interop/ledgers --out .tmp/interop/plan.json [--fresh]
- * node tools/testing/interop/cli.ts images --target cockroachdb --out .tmp/interop/images.txt  # pull ref and local tag
  * node tools/testing/interop/cli.ts record --target cockroachdb --out .tmp/interop/passed/cockroachdb.json
  * node tools/testing/interop/cli.ts merge --base .tmp/interop/plan.json --passed .tmp/interop/passed --out ledger.json
  * node tools/testing/interop/cli.ts explain --target postgres-18 --client postgresjs
@@ -17,7 +16,6 @@
  * @module
  */
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -139,21 +137,6 @@ if (command === 'fetch') {
 		: 0;
 	const renew = Date.now() - newest > 30 * 86_400_000;
 	output({ interop: String(shards.length > 0), renew: String(renew), shards: JSON.stringify(shards) });
-} else if (command === 'images') {
-	const cell = (await cells()).find((item) => item.target === values.target);
-	if (!cell) throw new TypeError(`Unknown target ${values.target}.`);
-	const { digest, local } = await import('../../../tests/interop/targets/images.ts');
-	// One line per image: where to pull it from, and the local tag the suite starts it by.
-	const pairs = cell.images.map((reference) => `${reference} ${local(reference)}`);
-	const key = cell.images.length
-		? `interop-images-v1-${createHash('sha256').update(cell.images.map(digest).sort().join('\n')).digest('hex')}`
-		: '';
-	console.log(pairs.join('\n'));
-	output({ key, count: String(pairs.length) });
-	if (values.out) {
-		mkdirSync(path.dirname(values.out), { recursive: true });
-		writeFileSync(values.out, pairs.length ? `${pairs.join('\n')}\n` : '');
-	}
 } else if (command === 'record') {
 	// A run stopped before its report records nothing; its cells run again next time.
 	const results = (existsSync(values.results!) ? JSON.parse(readFileSync(values.results!, 'utf8')) : []) as {
@@ -196,5 +179,5 @@ if (command === 'fetch') {
 	if (!cell) throw new TypeError(`No cell ${values.target} × ${values.client}.`);
 	console.log([cell.key, '', ...cell.files, '', ...cell.packages, '', ...cell.images].join('\n'));
 } else {
-	throw new TypeError('Use fetch, plan, images, record, merge or explain.');
+	throw new TypeError('Use fetch, plan, record, merge or explain.');
 }

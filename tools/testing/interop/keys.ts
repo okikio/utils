@@ -71,7 +71,7 @@ export interface CellType {
 	readonly target: string;
 	readonly client: string;
 	readonly key: string;
-	/** Image references the target starts, for the CI step that stores them. */
+	/** Image references the target starts. */
 	readonly images: readonly string[];
 	/** How many clients may run against the target at once, from its module's `concurrency` export; 4 by default. */
 	readonly concurrency: number;
@@ -117,7 +117,7 @@ export async function cells(root: string): Promise<readonly CellType[]> {
 	const { limits } = await import(pathToFileURL(path.join(root, suite, 'expectations.ts')).href) as {
 		limits: readonly LimitType[];
 	};
-	// The digest names an image whatever registry, mirror or local tag serves it.
+	// The digest names an image whatever registry or mirror serves it.
 	const { digest } = await import(pathToFileURL(path.join(root, suite, 'targets/images.ts')).href) as {
 		digest: (reference: string) => string;
 	};
