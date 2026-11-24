@@ -18,9 +18,12 @@ import { expect, type SqlType } from '../type.ts';
 function literal(value: unknown, type: string, mode: LiteralModeType): string {
 	if (value === null) return `null::${type}`;
 	if (typeof value === 'boolean') return `${value}::${type}`;
-	if (typeof value === 'number' && Number.isFinite(value)) return `${value}::${type}`;
+	// In parentheses, because `-1::integer` reads as `-(1::integer)`, which fails at the type's minimum.
+	if (typeof value === 'number' && Number.isFinite(value)) return `(${value})::${type}`;
 	const unsafe = mode === 'routine' ? /[\\\0$]/u : /[\\\0]/u;
-	if (typeof value === 'string' && !unsafe.test(value)) return `'${value.replaceAll("'", "''")}'::${type}`;
+	if (typeof value === 'string' && !unsafe.test(value) && value.isWellFormed()) {
+		return `'${value.replaceAll("'", "''")}'::${type}`;
+	}
 	throw new TypeError('A DDL constant must be a plain string, finite number, boolean or null.');
 }
 
@@ -35,6 +38,9 @@ export const dialect: Dialect = Object.freeze({
 	quote: (name: string) => `"${name}"`,
 	placeholder: (index: number, type: string) => ({ text: `$${index}::${type}`, suffix: `::${type}` }),
 	literal,
+	// The Bind message counts parameters in 16 bits. Past this, some clients wrap the count and fail with a misleading
+	// error, and clients that write values into the text send it anyway.
+	parameters: 65_535,
 	get boolean(): SqlType<boolean> {
 		return boolean;
 	},

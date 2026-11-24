@@ -45,7 +45,7 @@ describe('composed statements', () => {
 			'with "ranked" as (select "app"."jobs"."id" as "id", (row_number() over (order by "app"."jobs"."finished" desc))' +
 				'::integer as "position" from "app"."jobs" where "app"."jobs"."finished" is not null)' +
 				' delete from "app"."jobs" using "ranked" where ("app"."jobs"."id" = "ranked"."id")' +
-				' and ("ranked"."position" > $1::integer)',
+				' and ("ranked"."position" > ($1::text)::integer)',
 		);
 	});
 

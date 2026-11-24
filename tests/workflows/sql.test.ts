@@ -129,4 +129,76 @@ describe('typed statements on PostgreSQL', () => {
 			.toEqual([{ title: 'string', body: 'plain' }]);
 		await sql.execute(executor(client), sql.remove(notes).where(n.title.eq('nothing')));
 	});
+
+	it('round-trips the edge values the client matrix found, under an unusual session', async () => {
+		const edges = space.table('edges', {
+			id: sql.column(types.integer),
+			small: sql.column(types.integer),
+			ratio: sql.column(types.double),
+			at: sql.column(types.timestamptz),
+			odd: sql.column(types.text()),
+		});
+		await sql.execute(db, sql.createTable(edges));
+		const rows = [
+			{
+				id: 1,
+				small: -2147483648,
+				ratio: -0,
+				at: '0002-06-01T00:00:00.5Z BC',
+				odd: 'é 漢字 🙂',
+			},
+			{
+				id: 2,
+				small: 2147483647,
+				ratio: Number.NaN,
+				at: '+010000-01-01T00:00:00Z',
+				odd: '\'"\\$1 ? :x',
+			},
+			{
+				id: 3,
+				small: 0,
+				ratio: Number.NEGATIVE_INFINITY,
+				at: '1969-12-31T23:59:59.999999Z',
+				odd: '',
+			},
+		].map((row) => ({
+			id: row.id,
+			small: row.small,
+			ratio: row.ratio,
+			at: row.at.endsWith(' BC') ? temporal.Instant.from('-000001-06-01T00:00:00.5Z') : temporal.Instant.from(row.at),
+			odd: row.odd,
+		}));
+		const e = edges.c;
+		const back = await db.begin(async (tx) => {
+			for (
+				const [name, value] of [['TimeZone', 'Pacific/Chatham'], ['DateStyle', 'SQL, DMY'], ['extra_float_digits', '3']]
+			) {
+				await sql.execute(tx, sql.select({ s: sql.fn.setLocal(name!, value!) }));
+			}
+			await sql.execute(tx, sql.insert(edges, rows));
+			return await sql.rows(
+				tx,
+				sql.select({
+					id: e.id,
+					small: e.small,
+					ratio: e.ratio,
+					at: e.at,
+					odd: e.odd,
+				}).from(edges).orderBy(e.id),
+			);
+		});
+		expect(back.map((row) => ({ ...row, at: row.at.toString() }))).toEqual(
+			rows.map((row) => ({
+				id: row.id,
+				small: row.small,
+				ratio: row.ratio,
+				at: row.at.toString(),
+				odd: row.odd,
+			})),
+		);
+		expect(Object.is(back[0]!.ratio, -0)).toBe(true);
+		await expect(sql.execute(db, sql.insert(edges, Array.from({ length: 14_000 }, () => rows[0]!)))).rejects.toThrow(
+			'at most 65535',
+		);
+	});
 });

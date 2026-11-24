@@ -28,6 +28,8 @@ export interface Dialect {
 	 * value whose literal could change meaning.
 	 */
 	literal(value: unknown, type: string, mode: LiteralModeType): string;
+	/** The most parameters one statement may send, such as 65,535 in PostgreSQL's wire protocol. */
+	readonly parameters: number;
 	/** The type of a condition, which comparisons and `and`/`or` produce. */
 	readonly boolean: SqlType<boolean>;
 }
