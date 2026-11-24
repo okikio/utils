@@ -285,6 +285,29 @@ bounded fallback scan. `serve({ pollIntervalMs })` sets the maximum idle interva
 `postgres.open({ database, namespace, notifications: false })` selects polling for transaction-pooled connections. The
 worker owns its notification session. The application owns its query pool and closes it after worker drain.
 
+## Run on another PostgreSQL client
+
+`database` may also be any [`@okikio/sql`](../../../sql/README.md) database instead of a Postgres.js pool, such as
+`database(pool)` from `@okikio/sql/postgres/pg` for a node-postgres pool, or the Drizzle or Kysely binding. The
+store, `begin`, the inspector and the maintenance calls run the same statements on it. Two things differ:
+
+- Domain SQL receives an `Executor` rather than a native Postgres.js transaction, so run it with `sql.execute(tx, …)`.
+  `postgres.begin(db, async (tx) => client.in(tx).submit(…))` still admits work in the caller's transaction.
+- The port has no `LISTEN`, so workers poll at `serve({ pollIntervalMs })`. `notifications: true` throws.
+
+```ts ignore
+import pg from 'pg';
+import { database } from '@okikio/sql/postgres/pg';
+
+const db = database(new pg.Pool({ connectionString }));
+await postgres.migrate({ database: db });
+const store = postgres.open({ database: db, namespace: 'imports' });
+await store.transaction(claim, write, async (tx, receipt) => {
+	await sql.execute(tx, sql.insert(notes, { id, value }));
+	return await receipt.save(value);
+});
+```
+
 ## Control and inspection
 
 Schema revision 2 adds persisted admission pause/resume, a committed operational timeline, bounded terminal-family

@@ -2,10 +2,9 @@
  * Inspect saved execution metadata through a borrowed pool. Reads never claim, renew, recover, or
  * migrate work. @module
  */
-import type { Sql, TransactionSql } from 'postgres';
 import * as sql from '@okikio/sql/postgres';
 import type { Executor } from '@okikio/sql/postgres';
-import { executor } from '@okikio/sql/postgres/postgresjs';
+import { readOnly, type Source } from './connection.ts';
 import type { Temporal } from '@okikio/duration/temporal';
 import { inspect as statements } from './statements/mod.ts';
 import * as record from '@okikio/collection/record';
@@ -824,15 +823,14 @@ async function owner(tx: Executor, ref: ReferenceType): Promise<InspectedRun> {
 }
 /** Use database time for ages and one MVCC snapshot for all counts and rows returned by a method. */
 async function snapshot<Value>(
-	database: Sql,
+	database: Source,
 	read: (tx: Executor, observedAt: string, at: Temporal.Instant) => Promise<Value>,
 ): Promise<Value> {
-	return await database.begin('isolation level repeatable read read only', async (native: TransactionSql) => {
-		const tx = executor(native);
+	return await readOnly(database, async (tx) => {
 		await sql.execute(tx, statements.timeout);
 		const at = (await sql.one(tx, statements.observed))!.at;
 		return await read(tx, date(at)!, at);
-	}) as Value;
+	});
 }
 
 /**
@@ -848,7 +846,7 @@ async function snapshot<Value>(
  * // Consume pages while changes.hasMore. Persist changes.next to catch later commits after restart.
  * ```
  */
-export function inspector(options: { readonly database: Sql; readonly namespace: string }): Inspector {
+export function inspector(options: { readonly database: Source; readonly namespace: string }): Inspector {
 	const namespace = text(options.namespace, 128);
 	const database = options.database;
 	return {
