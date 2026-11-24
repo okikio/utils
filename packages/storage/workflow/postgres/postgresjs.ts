@@ -43,7 +43,9 @@ import type {
 	ReferenceType,
 	SnapshotType,
 } from '@okikio/workflow';
-import { migration, version } from './schema.ts';
+import * as sql from '@okikio/sql';
+import { executor } from '@okikio/sql/postgres';
+import * as tables from './schema/mod.ts';
 import * as continuation from './continuation.ts';
 
 /** Native Postgres.js transaction. It remains usable by domain SQL, not just the adapter. */
@@ -162,28 +164,30 @@ export interface MigrationStatusType {
  * always repeats its checks after obtaining the authoritative migration lock.
  */
 export async function migrationStatus(options: { readonly database: Sql }): Promise<MigrationStatusType> {
-	return await options.database.begin('isolation level repeatable read read only', async (tx) => {
-		const present =
-			await tx`select to_regclass('utils_workflow.version') as version, to_regclass('utils_workflow.hosts') as hosts`;
+	return await options.database.begin('isolation level repeatable read read only', async (native) => {
+		const tx = executor(native);
+		const present = (await sql.one(tx, tables.present))!;
 		let current: number | undefined;
-		if (present[0]!.version !== null) {
-			const rows = await tx`select version from utils_workflow.version where id`;
-			current = rows[0]?.version;
-			if (!Number.isSafeInteger(current) || current === undefined || current < 1) {
-				return Object.freeze({ current, target: version, state: 'incompatible' as const, activeWorkers: false });
+		if (present.version) {
+			current = (await sql.one(tx, tables.stored))?.version;
+			if (current === undefined || current < 1) {
+				return Object.freeze({
+					current,
+					target: tables.revision,
+					state: 'incompatible' as const,
+					activeWorkers: false,
+				});
 			}
 		}
-		const active = present[0]!.hosts === null
-			? []
-			: await tx`select id from utils_workflow.hosts where not draining and expires>clock_timestamp() limit 1`;
+		const active = present.hosts ? await sql.rows(tx, tables.activeHost) : [];
 		return Object.freeze({
 			current,
-			target: version,
+			target: tables.revision,
 			state: current === undefined
 				? 'uninstalled' as const
-				: current === version
+				: current === tables.revision
 				? 'current' as const
-				: current < version
+				: current < tables.revision
 				? 'upgrade' as const
 				: 'incompatible' as const,
 			activeWorkers: active.length > 0,
@@ -220,29 +224,22 @@ export async function planMigrations(options: { readonly database: Sql }): Promi
 
 /** Explicit maintenance. Current revisions run no DDL; an upgrade requires drained workers. */
 export async function migrate(options: { readonly database: Sql }): Promise<void> {
-	await options.database.begin(async (tx) => {
-		await tx`select pg_advisory_xact_lock(776161003)`;
-		const present =
-			await tx`select to_regclass('utils_workflow.version') as version, to_regclass('utils_workflow.hosts') as hosts`;
-		if (present[0]!.version !== null) {
-			const current = await tx`select version from utils_workflow.version where id`;
-			if (!Number.isSafeInteger(current[0]?.version) || current[0]!.version < 1 || current[0]!.version > version) {
-				throw new ExecutionError('schema_version');
-			}
-			if (current[0]!.version === version) return;
+	await options.database.begin(async (native) => {
+		const tx = executor(native);
+		await sql.execute(tx, tables.migrationLock);
+		const present = (await sql.one(tx, tables.present))!;
+		if (present.version) {
+			const current = (await sql.one(tx, tables.stored))?.version;
+			if (current === undefined || current < 1 || current > tables.revision) throw new ExecutionError('schema_version');
+			if (current === tables.revision) return;
 		}
-		if (present[0]!.hosts !== null) {
-			const active =
-				await tx`select id from utils_workflow.hosts where not draining and expires>clock_timestamp() limit 1`;
-			if (active.length) {
-				throw new ExecutionError('migration_workers_active', 'Drain workers before upgrading the execution schema.');
-			}
+		if (present.hosts && (await sql.rows(tx, tables.activeHost)).length) {
+			throw new ExecutionError('migration_workers_active', 'Drain workers before upgrading the execution schema.');
 		}
 		// Registration shares the migration lock. Old workers and unrelated database readers still need operational draining.
-		await tx`set local lock_timeout = '5000ms'`;
-		await tx.unsafe(migration);
-		const rows = await tx`select version from utils_workflow.version where id`;
-		if (rows[0]?.version !== version) throw new ExecutionError('schema_version');
+		await sql.execute(tx, tables.lockTimeout);
+		for (const statement of [...tables.prepare, ...tables.install]) await sql.execute(tx, statement);
+		if ((await sql.one(tx, tables.stored))?.version !== tables.revision) throw new ExecutionError('schema_version');
 	});
 }
 
@@ -495,27 +492,20 @@ class Store implements StoreType {
 	async check(signal?: AbortSignal): Promise<void> {
 		this.#assert();
 		signal?.throwIfAborted();
-		// Refuse a partially installed or incompatible schema before accepting worker readiness.
-		const query = this.#database`select version, exists (
-      select 1 from information_schema.columns where table_schema='utils_workflow'
-      and table_name='runs' and column_name='trace' and data_type='jsonb'
-    ) as trace, (to_regclass('utils_workflow.cleanups') is not null and to_regclass('utils_workflow.events') is not null and to_regclass('utils_workflow.progress') is not null and exists(select 1 from information_schema.columns where table_schema='utils_workflow' and table_name='instructions' and column_name='event_key') and exists(select 1 from information_schema.columns where table_schema='utils_workflow' and table_name='instructions' and column_name='parent') and exists(select 1 from information_schema.columns where table_schema='utils_workflow' and table_name='instructions' and column_name='branches')) as reports,
-    (to_regclass('utils_workflow.run_events') is not null and (select count(*) from information_schema.columns where table_schema='utils_workflow' and table_name='runs' and column_name in ('paused','control_revision','updated_at','finished_at','chain_root','chain_index','continued_to','continuation'))=8 and exists(select 1 from information_schema.columns where table_schema='utils_workflow' and table_name='progress' and column_name='reported_at')) as operations from utils_workflow.version where id`;
-		const abort = () => {
-			query.cancel();
-		};
-		signal?.addEventListener('abort', abort, { once: true });
-		try {
-			const rows = await query;
+		// Refuse a partially installed or incompatible schema before accepting worker readiness: the revision must match
+		// and every column this revision defines must exist with its type.
+		const tx = executor(this.#database);
+		const stored = await sql.one(tx, tables.stored, { signal }).catch((error) => {
 			signal?.throwIfAborted();
-			if (
-				rows[0]?.version !== version || rows[0]?.trace !== true || rows[0]?.reports !== true ||
-				rows[0]?.operations !== true
-			) {
-				throw new ExecutionError('schema_version');
-			}
-		} finally {
-			signal?.removeEventListener('abort', abort);
+			if ((error as { code?: unknown }).code === '42P01') return undefined;
+			throw error;
+		});
+		const found = new Set(
+			(await sql.rows(tx, tables.installed, { signal })).map((item) => `${item.table}.${item.column} ${item.type}`),
+		);
+		signal?.throwIfAborted();
+		if (stored?.version !== tables.revision || [...tables.expected].some((item) => !found.has(item))) {
+			throw new ExecutionError('schema_version');
 		}
 	}
 	/** Admit a root request or a guarded successor, optionally in the caller's own transaction. */
@@ -766,9 +756,10 @@ class Store implements StoreType {
 		}
 		return await this.#transaction(async (tx) => {
 			// New registrations cannot cross the version check and an actual schema upgrade.
-			await tx`select pg_advisory_xact_lock_shared(776161003)`;
-			const schema = await tx`select version from utils_workflow.version where id`;
-			if (schema[0]?.version !== version) throw new ExecutionError('schema_version');
+			await sql.execute(executor(tx), tables.registrationLock);
+			if ((await sql.one(executor(tx), tables.stored))?.version !== tables.revision) {
+				throw new ExecutionError('schema_version');
+			}
 			await this.#placementLock(tx);
 			for (const node of lineage) {
 				const saved =
