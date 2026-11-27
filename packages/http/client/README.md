@@ -37,6 +37,13 @@ Browser callers can omit the origin and use `credentials: 'same-origin'`.
 Server callers supply an absolute origin and verified credentials. Per-call
 headers cannot replace credential values supplied by the client owner.
 
+Pass an absolute path such as `/status?view=ready`. The client rejects network paths
+such as `//other.example.invalid`, backslashes, fragments and raw tab, carriage-return
+or line-feed characters before it calls Fetch. URL parsers can remove those control
+characters and change the path's meaning. Percent-encoded characters remain allowed.
+The client reads and validates the path once, before reading per-call headers, then
+sends that same value even if a caller getter changes the request object.
+
 Choose the method by who owns response consumption:
 
 | Method | Lifetime |

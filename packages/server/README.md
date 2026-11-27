@@ -187,6 +187,27 @@ Second note
 Put the service prefix `/api` in `baseUrl`. The client adds the endpoint path `/notes`. A real deployment supplies the
 network `fetch` instead of this local bridge. Construction makes no request; `call()` does the work.
 
+### Read evolving responses without guessing their shape
+
+A plain JSON body may contain fields named `meta` or `data`. The client preserves those fields. It unwraps only
+declarations with `envelope: 'data'`, timestamps, or paginated mode. If a legacy handler uses `response.withMeta()`
+or `response.create(..., { meta })`, declare `envelope: 'data'` before adopting this client. Occurrence metadata can
+still make the HTTP producer wrap a body; the client no longer guesses that policy from received field names.
+
+One operation may declare JSON, Markdown and plain text with the same status. Give each representation a distinct
+media type, such as `application/json`, `text/markdown` and `text/plain`. The client selects by status and normalized
+`Content-Type`, ignoring media parameters such as charset. It rejects ambiguous declarations before fetching and
+cancels unmatched response bodies. HEAD still permits one declaration per status because it may omit media headers.
+
+Successful-body and problem-extension validation failures become `ClientResponseError` with the observed HTTP
+`status` and original validation `cause`. Fetch failures and caller cancellation keep their original errors. A rejected
+admission response does not prove the server rejected the operation: reconcile with the original idempotency key
+instead of submitting a new request that could duplicate the work.
+
+The client enforces the schema you declared. For extensible response observations, choose unknown-field behavior
+deliberately and keep deployment quotas out of response validators. Request authorization, required field types,
+protocol states and client body-size budgets still need their own checks.
+
 ## Choose an entry point
 
 Use the table to find a focused import for the job you need. Contract links open the exact public source, including its
@@ -240,10 +261,11 @@ behavior.
 
 Body responses need an explicit Codec or an owned identity schema. A transforming Standard Schema supplies no inverse.
 Declare identity for a third-party identity validator with `codec.identity()` or provide both Codec directions. OpenAPI
-also needs an explicit wire JSON Schema for arbitrary transformations. The client rejects ambiguous successful status
+also needs an explicit wire JSON Schema for arbitrary transformations. The client rejects ambiguous status/media
 declarations, unknown status/problem type, incorrect media type and malformed or oversized materialized bodies. Declared
-problems return `kind: 'problem'`; protocol defects throw `ClientResponseError`. Validator and transport defects retain
-their original errors. The application owns redaction before showing an error cause.
+problems return `kind: 'problem'`; protocol defects throw `ClientResponseError`. Response validation failures preserve
+their original cause in that error. Fetch failures and caller cancellation retain their original errors.
+The application owns redaction before showing an error cause.
 
 `maximumRequestBytes` limits raw or JSON body bytes. For a form, it counts names, values, and declared Blob sizes.
 It does not include multipart separators or measure the total memory or network cost. Reading a raw body consumes

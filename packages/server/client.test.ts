@@ -10,6 +10,192 @@ import * as client from './client.ts';
 const bounds = { maximumDeclarations: 10, maximumRequestBytes: 4096, maximumResponseBytes: 4096 };
 
 describe('declaration-bound client', () => {
+	it('unwraps only declared envelopes, timestamped bodies and pages', async () => {
+		for (
+			const Saved of [
+				response.ok(schema.string(), { description: 'Enveloped.', envelope: 'data' }),
+				response.ok(schema.string(), { description: 'Timestamped.', timestamp: true }),
+				response.paginated(schema.string(), { description: 'Page.' }),
+			]
+		) {
+			const Route = endpoint.get({ id: 'envelope', path: '/', responses: [Saved] });
+			const value = Saved.mode === 'page' ? ['note'] : 'note';
+			for (const body of [{ data: value }, { data: value, meta: { future: true } }]) {
+				const result = await client.create(Route, {
+					...bounds,
+					baseUrl: 'https://local.invalid',
+					fetch: () => Response.json(body),
+				}).call(Route.operations[0], {});
+				if (result.kind !== 'success') throw new Error('Expected declared envelope');
+				expect(result.value).toEqual(value);
+			}
+			await expect(
+				client.create(Route, { ...bounds, baseUrl: 'https://local.invalid', fetch: () => Response.json({ meta: {} }) })
+					.call(Route.operations[0], {}),
+			).rejects.toThrow('Missing success envelope.');
+		}
+	});
+
+	it('keeps the observed status when a decoder throws a response error and preserves decoder cancellation', async () => {
+		const cause = new client.ClientResponseError(503, 'Decoder supplied status');
+		const abort = new AbortController();
+		const reason = new Error('Caller cancelled');
+		for (const cancelled of [false, true]) {
+			const Saved = response.ok(
+				codec.define({
+					decode: schema.define(() => {
+						if (cancelled) abort.abort(reason);
+						throw cause;
+					}),
+					encode: schema.string(),
+				}),
+				{ description: 'Decoder error.' },
+			);
+			const Route = endpoint.get({ id: 'decoder', path: '/', responses: [Saved] });
+			const pending = client.create(Route, {
+				...bounds,
+				baseUrl: 'https://local.invalid',
+				fetch: () => Response.json('wire'),
+			}).call(Route.operations[0], {}, { signal: abort.signal });
+			if (cancelled) await expect(pending).rejects.toBe(reason);
+			else await expect(pending).rejects.toMatchObject({ name: 'ClientResponseError', status: 200, cause });
+		}
+	});
+
+	it('keeps plain meta and data fields instead of inferring an envelope', async () => {
+		const Saved = response.ok(schema.unknown(), { description: 'Extensible observation.' });
+		const Route = endpoint.get({ id: 'plain', path: '/plain', responses: [Saved] });
+		for (const body of [{ name: 'outer', meta: { trace: 'future' } }, { name: 'outer', meta: {}, data: 'inner' }]) {
+			const caller = client.create(Route, {
+				...bounds,
+				baseUrl: 'https://local.invalid',
+				fetch: () => Response.json(body),
+			});
+			const result = await caller.call(Route.operations[0], {});
+			if (result.kind !== 'success') throw new Error('Expected plain success');
+			expect(result.value).toEqual(body);
+		}
+	});
+
+	it('selects successful representations by status and normalized media through the service', async () => {
+		const Json = response.ok(schema.object({ title: schema.string() }), { description: 'JSON.' });
+		const Markdown = response.ok(schema.string(), { description: 'Markdown.', contentType: 'text/markdown' });
+		const Text = response.ok(schema.string(), { description: 'Text.', contentType: 'text/plain' });
+		const Route = endpoint.get({ id: 'representations', path: '/result', responses: [Json, Markdown, Text] });
+		const Api = service.define({ id: 'representations', path: '/', endpoints: [Route] });
+		for (const [declaration, body] of [[Json, { title: 'Note' }], [Markdown, '# Note'], [Text, 'Note']] as const) {
+			await using runtime = service.create(
+				service.compile(service.implement(Api, {
+					endpoints: [endpoint.handler(Route, () => response.create(declaration, body))],
+				})),
+				{ host: {} },
+			);
+			const caller = client.create(Route, { ...bounds, baseUrl: 'https://local.invalid', fetch: runtime.fetch });
+			const result = await caller.call(Route.operations[0], {});
+			if (result.kind !== 'success') throw new Error('Expected representation');
+			expect(result.definition).toBe(declaration);
+			expect(result.value).toEqual(body);
+		}
+		const caller = client.create(Route, {
+			...bounds,
+			baseUrl: 'https://local.invalid',
+			fetch: () => new Response('# Note', { headers: { 'content-type': 'Text/Markdown; charset=utf-8' } }),
+		});
+		const result = await caller.call(Route.operations[0], {});
+		expect(result.definition).toBe(Markdown);
+	});
+
+	it('rejects ambiguous status/media declarations before transport', () => {
+		const Json = response.ok(schema.unknown(), { description: 'JSON.' });
+		const Duplicate = response.ok(schema.unknown(), {
+			description: 'Same media.',
+			contentType: 'Application/JSON; charset=utf-8',
+		});
+		for (
+			const Route of [
+				endpoint.get({ id: 'duplicate', path: '/', responses: [Json, Duplicate] }),
+				endpoint.head({
+					id: 'head.ambiguous',
+					path: '/',
+					responses: [Json, response.ok(schema.string(), { description: 'Text.', contentType: 'text/plain' })],
+				}),
+			]
+		) {
+			expect(() =>
+				client.create(Route, {
+					...bounds,
+					baseUrl: 'https://local.invalid',
+					fetch: () => {
+						throw new Error('Must not fetch');
+					},
+				})
+			).toThrow(TypeError);
+		}
+	});
+
+	it('cancels an unmatched representation instead of falling back to the first declaration', async () => {
+		let cancelled = false;
+		const Route = endpoint.get({
+			id: 'unknown.media',
+			path: '/',
+			responses: [
+				response.ok(schema.string(), { description: 'Text.', contentType: 'text/plain' }),
+				response.ok(schema.string(), { description: 'Markdown.', contentType: 'text/markdown' }),
+			],
+		});
+		const caller = client.create(Route, {
+			...bounds,
+			baseUrl: 'https://local.invalid',
+			fetch: () =>
+				new Response(
+					new ReadableStream({
+						cancel() {
+							cancelled = true;
+						},
+					}),
+					{ headers: { 'content-type': 'application/octet-stream' } },
+				),
+		});
+		await expect(caller.call(Route.operations[0], {})).rejects.toMatchObject({
+			status: 200,
+			name: 'ClientResponseError',
+		});
+		expect(cancelled).toBe(true);
+	});
+
+	it('retains HTTP status and validation cause for malformed success and problem extensions', async () => {
+		const Invalid = problem.define({
+			id: 'invalid',
+			type: 'https://local.invalid/invalid',
+			title: 'Invalid',
+			description: 'Invalid.',
+			status: 400,
+			extensions: { schema: schema.object({ retry: schema.boolean() }) },
+		});
+		const Route = endpoint.get({
+			id: 'schema.failure',
+			path: '/',
+			responses: [response.ok(schema.object({ name: schema.string() }), { description: 'Named.' })],
+			problems: [Invalid],
+		});
+		for (
+			const incoming of [
+				Response.json({ name: 1 }),
+				Response.json({ type: Invalid.type, title: 'Invalid', status: 400, retry: 1 }, {
+					status: 400,
+					headers: { 'content-type': 'application/problem+json' },
+				}),
+			]
+		) {
+			const caller = client.create(Route, { ...bounds, baseUrl: 'https://local.invalid', fetch: () => incoming });
+			await expect(caller.call(Route.operations[0], {})).rejects.toMatchObject({
+				name: 'ClientResponseError',
+				status: incoming.status,
+				cause: expect.any(Error),
+			});
+		}
+	});
+
 	it('round trips exact endpoint identity, encoded paths and directional responses through the real service', async () => {
 		let encodes = 0, decodes = 0, inputs = 0;
 		const DateCodec = codec.define({
