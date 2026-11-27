@@ -30,7 +30,7 @@
 	},
 	"license": "MIT",
 	"tasks": {
-		"check": "mise run check -- --project format",
+		"check": "mise run check",
 		"test": "mise run test -- --project format",
 		"bench": "mise run bench -- --project format",
 		"bench:check": "mise run bench -- --project format --check"

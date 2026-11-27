@@ -20,7 +20,7 @@
 	},
 	"license": "MIT",
 	"tasks": {
-		"check": "mise run check -- --project schema",
+		"check": "mise run check",
 		"test": "mise run test -- --project schema",
 		"bench": "mise run bench -- --project schema",
 		"bench:check": "mise run bench -- --project schema --check"

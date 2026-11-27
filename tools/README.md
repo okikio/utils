@@ -22,6 +22,11 @@ adding a new Mise task. `mise run test -- --help` explains selectors, and `mise 
 ownership. Choosing one package's tests does not narrow the workspace type check, which checks types that callers
 receive across package boundaries.
 
+Each package's generated Deno `check` task runs the complete workspace check.
+Only formatting and linting accept a package selector; narrow those with
+`mise run check -- --kind format --project <name>` or the lint example above.
+Package test and benchmark tasks keep their project selectors.
+
 ```text
 tools/
 ├── package.json        private npm workspace and direct dependencies

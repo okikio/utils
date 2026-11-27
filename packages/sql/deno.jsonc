@@ -22,7 +22,7 @@
 	},
 	"license": "MIT",
 	"tasks": {
-		"check": "mise run check -- --project sql",
+		"check": "mise run check",
 		"test": "mise run test -- --project sql",
 		"bench": "mise run bench -- --project sql",
 		"bench:check": "mise run bench -- --project sql --check"

@@ -5,6 +5,7 @@ import { graphProblems } from '#tools/packages/bundles.ts';
 import { packageProblems } from '#tools/packages/check.ts';
 import { patch, project, sync } from '#tools/packages/exports.ts';
 import { parse } from '@std/jsonc';
+import { spawnSync } from 'node:child_process';
 
 const bridge = 'packages/utils/result.ts';
 const owner = 'packages/result/';
@@ -184,5 +185,28 @@ describe('umbrella export projection', () => {
 			.toBe(true);
 		expect(await sync(root, 'write')).toEqual([]);
 		expect(await Deno.readTextFile(new URL('packages/utils/package.json', root))).toBe(written);
+
+		// Dispatch generated tasks through the real CLI; its selector rules are a separate contract.
+		await Deno.mkdir(new URL('tools/workspace/', root), { recursive: true });
+		await Deno.mkdir(new URL('bin/', root));
+		await Deno.writeTextFile(new URL('package.json', root), '{"type":"module"}\n');
+		await Deno.copyFile(new URL('../tools/workspace/run.ts', import.meta.url), new URL('tools/workspace/run.ts', root));
+		const mise = new URL('bin/mise', root);
+		await Deno.writeTextFile(mise, '#!/bin/sh\nprintf "%s\\n" "$@"\n');
+		await Deno.chmod(mise, 0o755);
+		for (const name of ['example', 'utils']) {
+			const projected = parse(await Deno.readTextFile(new URL(`packages/${name}/deno.jsonc`, root))) as {
+				tasks: Record<string, string>;
+			};
+			const argv = projected.tasks.check!.split(' ');
+			expect(argv.slice(0, 3)).toEqual(['mise', 'run', 'check']);
+			const args = argv.slice(argv[3] === '--' ? 4 : 3);
+			const dispatched = spawnSync('node', [`${directory}/tools/workspace/run.ts`, 'check', ...args], {
+				encoding: 'utf8',
+				env: { ...process.env, PATH: `${directory}/bin:${process.env.PATH}` },
+			});
+			expect(dispatched.status, dispatched.stderr).toBe(0);
+			expect(dispatched.stdout.trim().split('\n')).toEqual(['run', 'check:**']);
+		}
 	});
 });

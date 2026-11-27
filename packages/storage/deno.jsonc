@@ -25,7 +25,7 @@
 	},
 	"license": "MIT",
 	"tasks": {
-		"check": "mise run check -- --project storage",
+		"check": "mise run check",
 		"test": "mise run test -- --project storage",
 		"bench": "mise run bench -- --project storage",
 		"bench:check": "mise run bench -- --project storage --check"

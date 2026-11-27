@@ -344,7 +344,7 @@
 	},
 	"license": "MIT",
 	"tasks": {
-		"check": "mise run check -- --project utils",
+		"check": "mise run check",
 		"test": "mise run test -- --project utils",
 		"bench": "mise run bench -- --project utils",
 		"bench:check": "mise run bench -- --project utils --check"

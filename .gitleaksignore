@@ -12,6 +12,14 @@ packages/http/webhook/mod.test.ts:generic-api-key:8
 packages/server/service/observation.test.ts:generic-api-key:45
 packages/server/service/observation.test.ts:generic-api-key:73
 packages/server/service/requests.test.ts:generic-api-key:130
+
+# Earlier locations of the same numbered redaction fixtures and public webhook vector above.
+# Git-history scans still inspect these commits after the tests move to their current owners.
+0f06f87cd1ff74a74faa242a6c251b5c5c2ffb4d:packages/server/service/runtime.test.ts:generic-api-key:148
+0f06f87cd1ff74a74faa242a6c251b5c5c2ffb4d:packages/server/service/runtime.test.ts:generic-api-key:176
+d4aaecc623e537dc3dcc4413046516d69aa3ac31:packages/http/request/mod.test.ts:generic-api-key:412
+73f961d0b2257c8bb1c277227e3b9fe9893d7aae:packages/server/service/runtime.test.ts:generic-api-key:535
+
 tests/fixtures/hono-upstream/inventory.json:generic-api-key:11060
 tests/fixtures/hono-upstream/inventory.json:generic-api-key:13306
 tests/fixtures/hono-upstream/inventory.json:generic-api-key:4699

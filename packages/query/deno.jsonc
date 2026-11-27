@@ -24,7 +24,7 @@
 	},
 	"license": "MIT",
 	"tasks": {
-		"check": "mise run check -- --project query",
+		"check": "mise run check",
 		"test": "mise run test -- --project query",
 		"bench": "mise run bench -- --project query",
 		"bench:check": "mise run bench -- --project query --check"

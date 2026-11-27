@@ -19,7 +19,7 @@
 	},
 	"license": "MIT",
 	"tasks": {
-		"check": "mise run check -- --project dispose",
+		"check": "mise run check",
 		"test": "mise run test -- --project dispose",
 		"bench": "mise run bench -- --project dispose",
 		"bench:check": "mise run bench -- --project dispose --check"

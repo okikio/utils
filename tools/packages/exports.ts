@@ -154,7 +154,7 @@ export async function sync(root: URL, mode: 'check' | 'write' = 'check'): Promis
 			patch(source, {
 				exports: member.exports,
 				tasks: {
-					check: `mise run check -- --project ${name}`,
+					check: 'mise run check',
 					test: `mise run test -- --project ${name}`,
 					bench: `mise run bench -- --project ${name}`,
 					'bench:check': `mise run bench -- --project ${name} --check`,
@@ -170,7 +170,7 @@ export async function sync(root: URL, mode: 'check' | 'write' = 'check'): Promis
 				exports: projection.exports,
 				...(name === 'package.json' ? { sideEffects: projection.sideEffects } : {
 					tasks: {
-						check: 'mise run check -- --project utils',
+						check: 'mise run check',
 						test: 'mise run test -- --project utils',
 						bench: 'mise run bench -- --project utils',
 						'bench:check': 'mise run bench -- --project utils --check',

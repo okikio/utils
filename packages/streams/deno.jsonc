@@ -23,7 +23,7 @@
 	},
 	"license": "MIT",
 	"tasks": {
-		"check": "mise run check -- --project streams",
+		"check": "mise run check",
 		"test": "mise run test -- --project streams",
 		"bench": "mise run bench -- --project streams",
 		"bench:check": "mise run bench -- --project streams --check"
