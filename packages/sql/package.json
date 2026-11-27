@@ -21,7 +21,7 @@
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20"
 	},
 	"publishConfig": {
-		"access": "restricted",
+		"access": "public",
 		"directory": "../../.tmp/artifacts/npm/sql",
 		"linkDirectory": false
 	}

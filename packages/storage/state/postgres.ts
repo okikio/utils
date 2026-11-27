@@ -166,7 +166,7 @@ async function transaction<Value>(
 			const value = await work(tx);
 			signal?.throwIfAborted();
 			return value;
-		});
+		}, { isolation: 'read committed' });
 	}
 	await using resources = new AsyncDisposableStack();
 	const connection = await (database as Reserving).reserve();

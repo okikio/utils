@@ -239,3 +239,30 @@ describe('running and decoding', () => {
 		expect(text).toBe('-- a\ncreate schema if not exists "app";\n\n-- b\ndelete from "app"."tags";\n');
 	});
 });
+
+describe('all-default inserts', () => {
+	const defaults = app.table('defaults', { id: sql.column(types.bigint).identity() });
+	it('uses DEFAULT VALUES for one row, including an omitted undefined value', () => {
+		expect(sql.toQuery(sql.insert(defaults, {})).text).toBe('insert into "app"."defaults" default values');
+		const optional = app.table('optional', { id: sql.column(types.integer).default(1) });
+		expect(sql.toQuery(sql.insert(optional, { id: undefined })).text).toBe(
+			'insert into "app"."optional" default values',
+		);
+	});
+	it('keeps every default row and returning/conflict clauses in one statement', () => {
+		expect(
+			sql.toQuery(sql.insert(defaults, [{}, {}]).onConflict({ action: 'nothing' }).returning({ id: defaults.c.id }))
+				.text,
+		)
+			.toBe(
+				'insert into "app"."defaults" ("id") values (default), (default) on conflict do nothing returning ("app"."defaults"."id")::text as "id"',
+			);
+		expect(() => sql.toQuery(sql.insert(defaults, []))).toThrow('at least one row');
+	});
+	it('keeps batches for a table without columns', () => {
+		const empty = app.table('empty', {});
+		expect(sql.toQuery(sql.insert(empty, [{}, {}])).text).toBe(
+			'insert into "app"."empty" select from generate_series(1, 2)',
+		);
+	});
+});

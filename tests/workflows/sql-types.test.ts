@@ -2,7 +2,7 @@
 import { after, before, describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import postgres from 'postgres';
-import { temporal } from '@okikio/duration/temporal';
+import { Temporal, temporal } from '@okikio/duration/temporal';
 import * as sql from '@okikio/sql/postgres';
 import { types } from '@okikio/sql/postgres';
 import { database } from '@okikio/sql/postgres/postgresjs';
@@ -162,5 +162,21 @@ describe('PostgreSQL types', () => {
 		expect(() => sql.toQuery(sql.insert(all, { id: 9, small: 40_000 }))).toThrow(RangeError);
 		expect(() => sql.toQuery(sql.insert(all, { id: 9, tags: ['a\u0000'] }))).toThrow(TypeError);
 		expect(() => types.array(types.empty)).toThrow('has no text form');
+	});
+});
+
+describe('both Duration Temporal exports on PostgreSQL', () => {
+	it('round-trips ponyfill values through the selected host implementation', async () => {
+		const row = await sql.one(
+			db,
+			sql.select({
+				at: sql.value(Temporal.Instant.from('2026-01-02T03:04:05Z'), types.timestamptz),
+				day: sql.value(Temporal.PlainDate.from('2026-01-02'), types.date),
+				time: sql.value(Temporal.PlainTime.from('03:04:05'), types.time),
+			}),
+		);
+		expect(row?.at.epochNanoseconds).toBe(1767323045000000000n);
+		expect(row?.day.toString()).toBe('2026-01-02');
+		expect(row?.time.toString()).toBe('03:04:05');
 	});
 });
