@@ -51,6 +51,11 @@
 			// Entire manages its settings and the Codex hooks it installs.
 			".codex/hooks.json",
 			".entire/settings.json",
+			// Copied guidance keeps its upstream formatting; local agent files retain this repository's rules.
+			".agents/guides/**",
+			".agents/references/**",
+			".agents/skills/**",
+			".agents/handbook/**",
 			"pnpm-lock.yaml",
 			"**/*.md",
 			".sampo/changesets/*.md",
@@ -67,7 +72,15 @@
 		"indentWidth": 2
 	},
 	"lint": {
-		"exclude": [".tmp/**", "**/.example-*/**"],
+		"exclude": [
+			".tmp/**",
+			"**/.example-*/**",
+			// Upstream owns these guidance examples; local agent programs remain subject to lint.
+			".agents/guides/**",
+			".agents/references/**",
+			".agents/skills/**",
+			".agents/handbook/**"
+		],
 		"rules": {
 			"tags": [
 				"recommended"

@@ -1,5 +1,9 @@
 # Work on Utils
 
+Read the [local guidance profile](.agents/README.md), then use [START.md](.agents/START.md) to select the
+applicable skills, guides and handbook procedures. The repository rules below own project-specific contracts and
+commands; shared examples do not replace them.
+
 Read [README.md](README.md) for the programming model and [tools/README.md](tools/README.md) for repository workflows.
 Before editing a package, read its README, public export map, nearby tests and the matching guide linked from [the package directory](docs/01-packages.md).
 Guides may be single files or topic folders; use that directory rather than guessing a path.
