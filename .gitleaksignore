@@ -135,3 +135,7 @@ tests/fixtures/hono-upstream/source/src/utils/jwt/jwt.test.txt:private-key:1521
 #   nothing outside that container.
 tests/interop/targets/poolers.ts:generic-api-key:110
 tests/interop/targets/poolers.ts:generic-api-key:111
+
+# The same disposable Supavisor JWT fixtures after the target moved from poolers.ts to supavisor.ts.
+tests/interop/targets/supavisor.ts:generic-api-key:75
+tests/interop/targets/supavisor.ts:generic-api-key:76
