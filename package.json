@@ -20,6 +20,14 @@
 		"test": "mise run test",
 		"release": "mise run release"
 	},
+	"overrides": {
+		"@prisma/config@7.10.1": {
+			"effect": "3.22.1"
+		},
+		"sequelize@6.37.8": {
+			"uuid": "11.1.1"
+		}
+	},
 	"devDependencies": {
 		"@arethetypeswrong/cli": "0.18.5",
 		"@okikio/activity": "workspace:*",

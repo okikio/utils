@@ -87,9 +87,32 @@ consumers use isolated directories so this checkout's workspace dependencies can
 These locations are internal test details, not application layout recommendations.
 
 `pnpm` owns the installed workspace dependencies. When manifest membership changes, update Deno's resolution with
-`deno install --lockfile-only --frozen=false`, inspect the lock diff, then keep ordinary checks frozen. A plain
+`deno install --lockfile-only --frozen-lockfile=false`, inspect the lock diff, then keep ordinary checks frozen. A plain
 `deno install` can replace pnpm-owned optional dependency links even with the workspace's manual module setting;
 use `pnpm install --frozen-lockfile` to restore the declared installed graph after such an invocation.
+
+The private `tests/interop` package owns the Prisma and Sequelize fixtures. Their reviewed transitive overrides live
+in `pnpm-workspace.yaml` for pnpm and root `package.json` for Deno. Each selector names the exact parent version, so
+it changes only that parent's dependency edge. Deno supports its own overrides; it does not read pnpm's settings.
+
+| Parent and dependency | Installed version | Caller checked before changing the dependency |
+| --- | --- | --- |
+| `@prisma/config@7.10.1` → `effect` | `3.22.1` | Prisma config loading, schema decoding and invalid-field rejection. |
+| `sequelize@6.37.8` → `uuid` | `11.1.1` | CommonJS UUID v1/v4 defaults, transaction and query IDs, and PostgreSQL function delimiters. |
+
+These versions fix [the Effect advisory](https://github.com/advisories/GHSA-7589-6fvf-x4pw) and
+[the UUID advisory](https://github.com/advisories/GHSA-w5hq-g745-h8pq). They do not add dependencies to the published
+libraries. Review the overrides again when either parent changes, including the actual ORM callers. Config and SQL
+generation probes do not replace the interoperability suite against real databases.
+
+Regenerate pnpm's lock with `pnpm install --lockfile-only`. Deno can retain an old transitive resolution after an
+override changes. If that happens, use a disposable copy of the workspace manifests and existing Deno lock. Remove
+only the affected declarations in that copy, run the native lock-only install, restore the exact manifest bytes and
+run it again. Drizzle's optional Prisma peer can retain Prisma's graph, so this repair also needs to remove and restore
+Drizzle's root and interop declarations in the copy. Inspect the complete generated lock diff before adopting it;
+unrelated package versions must remain stable. Do not edit resolved lock entries by hand. Finish with
+`pnpm install --frozen-lockfile` and `deno install --lockfile-only --frozen-lockfile`, then check both advisory reports.
+The separate glob and minimatch exceptions remain in `osv-scanner.toml` until their Deno graph has been reconciled.
 
 CI installs pinned tools with the official Mise action and caches pnpm downloads and Deno modules. Check tools are lazy
 in `mise.toml`, so each one downloads the first time its task runs. The source lane runs these repository checks:
