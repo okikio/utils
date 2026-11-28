@@ -1,6 +1,6 @@
 /** Discover tests once; classify only capabilities that need a specific host or external resource. @module */
-import { readdir } from 'node:fs/promises';
-import { join, relative, resolve, sep } from 'node:path';
+import { glob, lstat } from 'node:fs/promises';
+import { join, sep } from 'node:path';
 
 /** Native source-test hosts. Browser behavior has its own Playwright task. */
 export type Runtime = 'deno' | 'node' | 'bun';
@@ -20,13 +20,18 @@ export type Family =
 
 /** A discovered source file and the reason it needs a particular test environment. */
 export interface TestFile {
+	/** Repository-relative source path, independent of the caller's working directory. */
 	readonly path: string;
+	/** Required host or external resource; portable tests can run on every supported native host. */
 	readonly family: Family;
+	/** Human-readable reason this file belongs to its host or resource owner. */
 	readonly reason: string;
 }
 
 /** Filesystem containers that cannot contain authored test programs. */
 const Ignored = new Set(['node_modules', '.artifacts', '.tmp', '.git', 'fixtures', 'generated', 'baseline-20261031']);
+/** Authored test filenames accepted by every selected native host. */
+const TestPattern = '**/*{.test,_test}.{ts,mts,cts,js,mjs,cjs}';
 /** These tools exercise Deno's compiler/module graph or Deno-hosted child fixtures. */
 const DenoFiles = new Set([
 	'tests/imports.test.ts',
@@ -122,23 +127,32 @@ export function classify(path: string): TestFile {
 	return { path, family: 'portable', reason: 'Same source test runs on Deno, Node and Bun.' };
 }
 
-/** Walk package tests, composition tests and tool tests in stable order without following dependency links. */
-export async function discover(root: string): Promise<readonly TestFile[]> {
-	const paths: string[] = [];
-	async function visit(directory: string): Promise<void> {
-		for (const entry of await readdir(directory, { withFileTypes: true })) {
-			if (entry.isSymbolicLink() || Ignored.has(entry.name)) continue;
-			const path = join(directory, entry.name);
-			if (entry.isDirectory()) await visit(path);
-			else if (entry.isFile() && /(?:\.test|_test)\.[cm]?[jt]s$/u.test(entry.name)) {
-				paths.push(relative(root, path).split(sep).join('/'));
-			}
-		}
+/** Native globs traverse only selected source directories; this module classifies the discovered tests. */
+export async function discover(root: string, filters: readonly string[] = []): Promise<readonly TestFile[]> {
+	const selected = filters.map(testPath);
+	const directories = selected.length === 0 || selected.includes('.')
+		? ['packages', 'tests', 'tools', 'bench']
+		: selected;
+	const paths = new Set<string>();
+	for (const directory of directories) {
+		if (
+			!/^(?:packages|tests|tools|bench)(?:\/|$)/u.test(directory) ||
+			directory.split('/').some((part) => Ignored.has(part))
+		) continue;
+		const entry = await lstat(join(root, directory)).catch((error: NodeJS.ErrnoException) => {
+			if (error.code === 'ENOENT') return undefined;
+			throw error;
+		});
+		if (entry?.isFile() && /(?:\.test|_test)\.(?:[cm]?[jt]s)$/u.test(directory)) paths.add(directory);
+		if (!entry?.isDirectory()) continue;
+		for await (
+			const path of glob(TestPattern, {
+				cwd: join(root, directory),
+				exclude: [...Ignored].map((name) => `**/${name}/**`),
+			})
+		) paths.add(`${directory}/${path.split(sep).join('/')}`);
 	}
-	for (const directory of ['packages', 'tests', 'tools', 'bench']) {
-		await visit(resolve(root, directory));
-	}
-	return paths.sort().map(classify);
+	return [...paths].sort().map(classify);
 }
 
 /** Source suites include portable behavior and only the adapters their real runtime can execute. */
@@ -147,21 +161,14 @@ export function supports(file: TestFile, runtime: Runtime): boolean {
 		(file.family === 'web-worker' && runtime !== 'node');
 }
 
-/**
- * Limit package tests to changed owners and their transitive consumers.
- * Repository compositions, tools and benchmarks still run because they can
- * combine packages without owning a package manifest. An empty owner list is
- * the planner's conservative full selection, never an empty test suite.
- */
-export function runtimeProjects(
-	files: readonly TestFile[],
-	projects: readonly string[],
-	runtime: Runtime,
-): readonly TestFile[] {
-	return files.filter((file) =>
-		supports(file, runtime) &&
-		(projects.length === 0 || !file.path.startsWith('packages/') || projects.includes(file.path.split('/')[1]!))
-	);
+/** Normalize a caller-resolved repository path without allowing traversal outside the source roots. */
+function testPath(filter: string): string {
+	const path = filter.replaceAll('\\', '/').replace(/^\.\//u, '').replace(/\/$/u, '');
+	if (path === '.') return path;
+	if (path === '' || path.startsWith('/') || path.split('/').some((part) => part === '..' || part === '.')) {
+		throw new TypeError(`Use a repository-relative test file or directory: ${filter}`);
+	}
+	return path;
 }
 
 /**
@@ -186,14 +193,11 @@ export function select(files: readonly TestFile[], filters: readonly string[]): 
 	if (filters.length === 0) return files;
 	const selected = new Set<TestFile>();
 	for (const filter of filters) {
-		const path = filter.replaceAll('\\', '/').replace(/^\.\//u, '').replace(/\/$/u, '');
-		if (path === '' || path.split('/').some((part) => part === '..' || part === '.')) {
-			throw new TypeError(`Use a repository-relative test file or directory: ${filter}`);
-		}
-		const matches = files.filter((file) => file.path === path || file.path.startsWith(`${path}/`));
+		const path = testPath(filter);
+		const matches = files.filter((file) => path === '.' || file.path === path || file.path.startsWith(`${path}/`));
 		if (matches.length === 0) {
 			throw new TypeError(
-				`No selected test matches ${filter}. Run mise run test -- --suite list to inspect ownership.`,
+				`No selected test matches ${filter}. Run mise run test:list to inspect ownership.`,
 			);
 		}
 		for (const match of matches) selected.add(match);

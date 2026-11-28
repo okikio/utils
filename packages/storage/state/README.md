@@ -38,7 +38,7 @@ A new `memory()` call starts empty, and process restart loses this backing store
 `await state.open()` loads or creates the value. `await using draft` registers the opened view for cleanup when its
 block ends. Closing that view does not erase the store, which is why the second view can read the saved title.
 
-After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare` from the root.
 Save the next complete TypeScript block as
 `memory-state.ts` at that root, then run `mise exec -- deno run memory-state.ts`.
 

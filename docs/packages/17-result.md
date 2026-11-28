@@ -21,7 +21,7 @@ contact object, and its fields can still change. Copy or freeze that value separ
 `match()` is convenient when both branches produce one display value. A fallback is a separate application choice: this
 example accepts a blank name as a normal failure, then deliberately supplies a guest display name.
 
-After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare` from the root.
 Save the next complete TypeScript block as
 `display-fallback.ts` at that root, then run `mise exec -- deno run display-fallback.ts`.
 

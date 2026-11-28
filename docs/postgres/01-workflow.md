@@ -51,7 +51,7 @@ example creates application tables and explicitly migrates `utils_workflow`; do 
 From the repository root:
 
 ```sh
-mise run prepare -- --kind deps
+mise run prepare
 docker run --name utils-docs-postgres --rm -d -e POSTGRES_PASSWORD=example -p 55432:5432 postgres:18.3
 ```
 
@@ -261,8 +261,8 @@ contracts, and remote-request safety.
 
 ## Run and maintain this profile
 
-Run `mise run test -- --suite postgres` with `UTILS_TEST_DATABASE_URL` selecting a disposable PostgreSQL database. Run
-`mise run test -- --suite containers` for Docker deployment cases. CI uses pinned PostgreSQL 18.3 and Postgres.js 4.0.0. The tests run the same host code in Node and Deno. The deployment tests bundle that code into two Node containers:
+Run `mise run test:postgres` with `UTILS_TEST_DATABASE_URL` selecting a disposable PostgreSQL database. Run
+`mise run test:containers` for Docker deployment cases. CI uses pinned PostgreSQL 18.3 and Postgres.js 4.0.0. The tests run the same host code in Node and Deno. The deployment tests bundle that code into two Node containers:
 one accepts requests and one runs jobs.
 
 The profile supports activities, children, relative/absolute timers, saved events, bounded branches, registered cleanup,

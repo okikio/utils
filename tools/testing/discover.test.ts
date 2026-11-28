@@ -4,7 +4,7 @@ import { expect } from '@std/expect';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { classify, discover, runtimeProjects, select, shard, supports } from '#tools/testing/discover.ts';
+import { classify, discover, select, shard, supports } from '#tools/testing/discover.ts';
 
 describe('test discovery', () => {
 	it('automatically admits a new package test without executing fixtures or following dependency links', async () => {
@@ -39,6 +39,12 @@ describe('test discovery', () => {
 
 		expect(files.map((file) => file.path)).toEqual(['packages/example/new.test.ts']);
 		for (const runtime of ['deno', 'node', 'bun'] as const) expect(supports(files[0]!, runtime)).toBe(true);
+		await writeFile(join(root, 'tests/composition.test.ts'), '');
+		expect(await discover(root, ['packages/example'])).toEqual(files);
+		expect(await discover(root, ['packages/example/new.test.ts'])).toEqual(files);
+		expect(await discover(root, ['packages/example/dependency'])).toEqual([]);
+		expect(await discover(root, ['packages/example/fixtures'])).toEqual([]);
+		expect(await discover(root, ['.'])).toHaveLength(2);
 	});
 
 	it('keeps PostgreSQL, container and compiler fixtures out of ordinary runtime tests', () => {
@@ -78,27 +84,7 @@ describe('test discovery', () => {
 		]);
 		expect(() => select(files, ['packages/contxt'])).toThrow(TypeError);
 		expect(() => select(files, ['../packages/context'])).toThrow(TypeError);
-	});
-
-	it('narrows package tests while retaining compositions, tools and the native runtime contract', () => {
-		const files = [
-			'packages/duration/mod.test.ts',
-			'packages/server/mod.test.ts',
-			'packages/unrelated/mod.test.ts',
-			'packages/runtime/deno/mod.test.ts',
-			'tests/composed.test.ts',
-			'tools/workspace/ci.test.ts',
-			'bench/selection.test.ts',
-			'tests/workflows/postgres-load.test.ts',
-		].map(classify);
-		expect(runtimeProjects(files, ['duration', 'server', 'runtime'], 'node').map((file) => file.path)).toEqual([
-			'packages/duration/mod.test.ts',
-			'packages/server/mod.test.ts',
-			'tests/composed.test.ts',
-			'tools/workspace/ci.test.ts',
-			'bench/selection.test.ts',
-		]);
-		expect(runtimeProjects(files, [], 'deno')).toEqual(files.filter((file) => supports(file, 'deno')));
+		expect(select(files, ['.'])).toHaveLength(files.length);
 	});
 
 	it('deals sorted files across shards so each file runs exactly once', () => {

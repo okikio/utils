@@ -10,7 +10,7 @@ The [package example](../../packages/result/failure/README.md) also shows encodi
 This file lookup uses an in-memory Map so it can run anywhere. The branch is the same one you can use around a real file
 index or database: handle the expected missing-file reason and rethrow unexpected exceptions.
 
-After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare` from the root.
 Save the next complete TypeScript block as
 `missing-file.ts` at that root, then run `mise exec -- deno run missing-file.ts`.
 

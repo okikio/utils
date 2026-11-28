@@ -14,7 +14,7 @@ notification grouping does not imply a storage transaction.
 
 ## Save a cursor, close it, then reopen it
 
-From this experimental checkout, run `mise trust`, `mise install`, and `mise run prepare -- --kind deps`. Save this as `cursor.ts` and run `mise exec -- deno run cursor.ts`.
+From this experimental checkout, run `mise trust`, `mise install`, and `mise run prepare`. Save this as `cursor.ts` and run `mise exec -- deno run cursor.ts`.
 
 ```ts runnable=cursor.ts
 import * as state from '@okikio/context/state';

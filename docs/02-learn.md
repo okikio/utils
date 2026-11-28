@@ -172,7 +172,7 @@ From the repository root, the existing example checker compiles and runs the mar
 through public package imports and compares their declared outputs:
 
 ```sh
-deno run --allow-read --allow-write --allow-run tools/testing/examples.ts
+deno run --allow-read --allow-write --allow-run tools/testing/examples/inventory.ts
 ```
 
 This verifies executable demonstrations. It does not turn a diagram into a deployed system or prove that every

@@ -10,6 +10,7 @@ import { build } from 'tsdown';
 import { parseSync } from 'oxc-parser';
 import { projection } from '../../tsdown.config.ts';
 import { npmRegistry } from '../releases/candidates.ts';
+import { packages } from './source.ts';
 
 /** Source-owned npm metadata; the projection replaces only distribution-specific fields. */
 interface Manifest {
@@ -29,34 +30,16 @@ if (!['build', 'check', 'consumer', 'pack', 'verify', 'member'].includes(mode)) 
 	throw new Error(`Unknown npm operation ${mode}.`);
 }
 const manifests = new Map<string, Manifest>();
-for (const entry of await readdir(resolve(root, 'packages'), { withFileTypes: true })) {
-	if (!entry.isDirectory()) continue;
-	const directory = entry.name;
-	const manifest = JSON.parse(await readFile(resolve(root, 'packages', directory, 'package.json'), 'utf8')) as Manifest;
+for (const member of packages(root)) {
+	const directory = member.directory.slice('packages/'.length);
+	const manifest = JSON.parse(await readFile(resolve(member.path, 'package.json'), 'utf8')) as Manifest;
 	manifests.set(directory, manifest);
 }
 const requested = mode === 'build' ? process.argv.slice(3) : [];
-const selected = new Set(requested);
-/** Include workspace dependencies so selected artifacts resolve outside workspace links. */
-function include(name: string): void {
-	const manifest = manifests.get(name);
-	if (!manifest) throw new TypeError(`Unknown npm project ${name}.`);
-	for (
-		const dependency of Object.keys({
-			...manifest.dependencies,
-			...manifest.peerDependencies,
-			...manifest.optionalDependencies as Record<string, string>,
-		})
-	) {
-		const member = [...manifests].find(([, value]) => value.name === dependency)?.[0];
-		if (member && !selected.has(member)) {
-			selected.add(member);
-			include(member);
-		}
-	}
+if (requested.length) {
+	throw new TypeError('Select package builds with native pnpm filtering; the root build owns all artifacts.');
 }
-for (const name of requested) include(name);
-const portable = [...manifests].filter(([name]) => requested.length === 0 || selected.has(name));
+const portable = [...manifests];
 
 /** Reuse canonical tests through public imports in emitted ESM; never substitute artifact-only oracles. */
 const scenarioSources: Record<string, string> = {};
@@ -84,6 +67,8 @@ if (mode === 'member') {
 	if (selected.length !== 1) throw new Error('Select one supported npm member for isolated emission.');
 	for (const [name, source] of selected) {
 		const stage = resolve(output, name);
+		// A failed build can leave its source copy and dependency link. Retry replaces only this owner's generated stage.
+		await rm(stage, { recursive: true, force: true });
 		const documents = (await readdir(resolve(root, 'packages', name))).filter((file) =>
 			['diagram.png', 'diagram.mmd'].includes(file)
 		);

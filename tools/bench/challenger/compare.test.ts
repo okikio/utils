@@ -4,13 +4,13 @@ import { access, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:f
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect } from '@std/expect';
-import { challengerCandidates, challengerNames } from '#tools/bench/challenger-contract.ts';
+import { challengerCandidates, challengerNames } from '#tools/bench/challenger/contract.ts';
 import {
 	challengerOrders,
 	challengerWorkloads,
 	compareChallengers,
 	completeChallengers,
-} from '#tools/bench/challenger-compare.ts';
+} from '#tools/bench/challenger/compare.ts';
 
 describe('four-way benchmark evidence', () => {
 	it('requires every workload/candidate exactly once, independently of registration order', () => {
@@ -104,9 +104,9 @@ async function projection(): Promise<ProjectionType> {
 	const baseline = join(directory, 'baseline'), candidate = join(directory, 'candidate');
 	const files: Readonly<Record<string, string>> = {
 		'bench/http-challengers.bench.ts': nativeFixture,
-		'tools/bench/challenger-compare.ts': '// comparison control\n',
-		'tools/bench/challenger-contract.ts': '// candidate control\n',
-		'tools/bench/challenger-run.ts': '// runtime control\n',
+		'tools/bench/challenger/compare.ts': '// comparison control\n',
+		'tools/bench/challenger/contract.ts': '// candidate control\n',
+		'tools/bench/challenger/execute.ts': '// runtime control\n',
 		'bench/fixtures/http-challengers.ts': '// workload control\n',
 		'pnpm-lock.yaml': 'lockfileVersion: 9\n',
 		'deno.lock': '{}\n',
@@ -145,7 +145,7 @@ async function compareProjection(
 	options: { readonly candidate?: string; readonly workload?: string; readonly failure?: boolean } = {},
 ): Promise<{ readonly code: number | null; readonly signal: string | null }> {
 	const child = spawn('node', [
-		fileURLToPath(new URL('./variant-repeat.ts', import.meta.url)),
+		fileURLToPath(new URL('../variant-repeat.ts', import.meta.url)),
 		fixture.output,
 		`--baseline=${fixture.baseline}`,
 		`--candidate=${options.candidate ?? fixture.candidate}`,

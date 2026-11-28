@@ -25,7 +25,7 @@ keep runtime ownership clear; representative built consumers are checked separat
 Read two values for the same search parameter through a focused umbrella import. The returned array preserves both
 choices, just as the independently installed HTTP package does.
 
-From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare -- --kind deps` at the repository root. Save the following program as `example.ts` and run `mise exec -- deno run example.ts`. These commands use the workspace export maps; they do not assume a published registry version.
+From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare` at the repository root. Save the following program as `example.ts` and run `mise exec -- deno run example.ts`. These commands use the workspace export maps; they do not assume a published registry version.
 
 ```ts runnable
 import { parseQuery } from '@okikio/utils/http/request';

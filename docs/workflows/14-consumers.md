@@ -42,7 +42,7 @@ before its completion is recorded, the stable domain write key prevents a duplic
 To exercise this complete fixture, prepare dependencies and run from the repository root:
 
 ```sh
-mise run prepare -- --kind deps
+mise run prepare
 mise exec -- deno test -A tests/workflows/consumers.test.ts
 ```
 

@@ -8,7 +8,8 @@ import { expect } from '@std/expect';
 import { parse } from '@std/jsonc';
 import ts from 'typescript';
 import { packagePrograms } from '../bench/suite.ts';
-import { plan, projectFromManifest } from '../workspace/ci.ts';
+import { affected } from '../workspace/ci/plan.ts';
+import { packages as sourcePackages } from './source.ts';
 
 const root = new URL('../../', import.meta.url);
 
@@ -159,16 +160,10 @@ describe('workspace import ownership', () => {
 
 	it('retains every statically observed package test consumer in the actual CI plan', async () => {
 		const packages = fileURLToPath(new URL('packages/', root));
-		const owners = (await readdir(packages, { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((
-			entry,
-		) => entry.name);
-		const projects = await Promise.all(owners.map(async (owner) =>
-			projectFromManifest(
-				owner,
-				JSON.parse(await readFile(resolve(packages, owner, 'package.json'), 'utf8')),
-			)
-		));
-		const selected = new Map(owners.map((owner) => [owner, plan([`packages/${owner}/mod.ts`], projects).projects]));
+		const owners = sourcePackages(fileURLToPath(root)).map((member) => member.directory.slice('packages/'.length));
+		const selected = new Map(
+			owners.map((owner) => [owner, affected(fileURLToPath(root), [`packages/${owner}/mod.ts`]).projects]),
+		);
 		for (const owner of owners) {
 			for await (const file of modules(resolve(packages, owner), true)) {
 				for (const specifier of specifiers(file, await readFile(file, 'utf8'), true)) {

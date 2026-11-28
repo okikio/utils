@@ -16,7 +16,7 @@ was lost, repeating it can charge twice. Decide which failures are safe to repea
 This read fails once with a known temporary error. Only that exact error permits repetition. The result stays a string;
 there is no special computation to unwrap and no workflow runtime to start.
 
-From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare -- --kind deps` at the repository root. Save the following program as `retry-read.ts` and run `mise exec -- deno run retry-read.ts`. These commands use the workspace export maps; they do not assume a published registry version.
+From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare` at the repository root. Save the following program as `retry-read.ts` and run `mise exec -- deno run retry-read.ts`. These commands use the workspace export maps; they do not assume a published registry version.
 
 ```ts runnable=retry-read.ts
 import { attempt, retry } from '@okikio/capability/resilience';

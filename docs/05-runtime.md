@@ -9,7 +9,7 @@ that actually starts it.
 
 A URL query can contain several selected tags. This complete program parses both choices without a listener, file
 access, Worker or process. From this source checkout, review `mise.toml`, then run `mise trust`, `mise install`, and
-`mise run prepare -- --kind deps`. Save `runtime-check.ts` at the root:
+`mise run prepare`. Save `runtime-check.ts` at the root:
 
 ```ts runnable=runtime-check.ts
 import { parseQuery } from '@okikio/http/request';
@@ -105,7 +105,7 @@ local examples and [scenarios](./06-scenarios.md) for the originating consumer p
 A filename such as `example.ts` describes one module, not a required parent
 folder. Keep related files together when their imports are relative. In this
 experimental checkout, prepare the workspace once with
-`mise run prepare -- --kind deps`. In a separate application, install its utility
+`mise run prepare`. In a separate application, install its utility
 dependencies using that application's package manager and dependency policy.
 
 | Runtime | Run one complete portable module |

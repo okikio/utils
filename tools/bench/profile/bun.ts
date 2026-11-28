@@ -4,8 +4,8 @@ import { execFileSync, spawn } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createInterface } from 'node:readline';
-import type { DoneType, ExitType, HttpGateType, ReadyType, WorkloadType } from './profile-types.ts';
-import { profileReceipt } from '#tools/bench/profile-startup.ts';
+import type { DoneType, ExitType, HttpGateType, ReadyType, WorkloadType } from './types.ts';
+import { profileReceipt } from '#tools/bench/profile/startup.ts';
 
 const args = process.argv.slice(2);
 for (const value of args) {

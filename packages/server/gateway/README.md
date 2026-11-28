@@ -20,7 +20,7 @@ domain input and decides whether the actor may perform the operation.
 Compile a forwarding route from a service declaration and call it through a supplied local upstream. The output shows
 the selected method and path, followed by the upstream JSON response; no real network request is needed.
 
-From the experimental Utils checkout, run `mise trust`, `mise install`, and `mise run prepare -- --kind deps` at the repository root. Save each named program there and run `mise exec -- deno run <filename>.ts`, replacing `<filename>` with the name shown. These examples use workspace exports, not an assumed published registry release.
+From the experimental Utils checkout, run `mise trust`, `mise install`, and `mise run prepare` at the repository root. Save each named program there and run `mise exec -- deno run <filename>.ts`, replacing `<filename>` with the name shown. These examples use workspace exports, not an assumed published registry release.
 
 Save `example-1.ts` and run `mise exec -- deno run example-1.ts`.
 

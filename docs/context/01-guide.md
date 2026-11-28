@@ -12,7 +12,7 @@ and deadline. A view adds no timer.
 Create a child lifetime for a download and pass its signal to the request. The child owns its deadline and cleanup; the
 parent remains available for other work after the child closes.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `download-text.ts` at the checkout root and use
+Run from this checkout after `mise run prepare`. Save the runnable block as `download-text.ts` at the checkout root and use
 `mise exec -- deno run download-text.ts`.
 
 ```ts runnable=download-text.ts

@@ -8,7 +8,7 @@ Run the check below to see Sam accepted, a form preserve Sam and Jo as separate 
 same signed callback return `409` without generating another greeting.
 
 This guide uses Web `Request`, `Response` and `FormData` values. You can call the application locally before choosing a
-network host. From the Utils checkout, review `mise.toml`, run `mise trust`, `mise install`, and `mise run prepare -- --kind deps`.
+network host. From the Utils checkout, review `mise.toml`, run `mise trust`, `mise install`, and `mise run prepare`.
 Save the next two files at the repository root, then run `mise exec -- deno run greeting-input-check.ts`.
 
 ## Admit bytes, check names, then create greetings

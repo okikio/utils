@@ -19,7 +19,7 @@ programs live in `tools/packages/` and `tools/bench/`.
 
 `tools/testing/discover.ts` walks authored package, composition and tool tests in stable order. New ordinary tests run
 on all three runtimes automatically. Only named host capabilities and resources have separate classifications. Run
-`mise run test -- --suite list` to see each file's owner and reason. `mise run check:tests` inspects
+`mise run test:list` to see each file's owner and reason. `mise run check:tests` inspects
 TypeScript syntax without executing tests: a behavior test must register with its runner, and a compile-time fixture
 must not be counted as a runtime pass. Misspelled selectors and empty selections fail.
 
@@ -114,33 +114,36 @@ Install the tools from `mise.toml`, then install the exact workspace dependencie
 mise install
 mise run prepare:node
 mise run check
-mise run test -- --runtime node -- packages/duration
-mise run test -- --runtime deno -- packages/context
-mise run test -- --runtime bun -- packages/input
+mise run test:node -- packages/duration
+mise run test:deno -- packages/context
+mise run test:bun -- packages/input
 ```
 
 | Task                                                | Evidence                                                                                                                            |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `check`                                             | Formatting, lint, root types, portable consumer types, export maps, package structure, test ownership and release version alignment |
-| `test --runtime deno` (also `node` or `bun`) | Package tests and repository source tests on the selected native runtime |
-| `test --suite comparisons --runtime deno`           | Independent library comparisons, with pinned competitor fixtures prepared explicitly; also accepts `node` and `bun`                 |
-| `test --suite docs`                                 | Explicitly marked public examples compile and produce their declared results                                                        |
-| `test --suite bundles`                              | Focused/umbrella bundle behavior and browser-selected import graphs                                                                 |
-| `test --suite browser`                              | Real Chromium Input, Context, Collection/Schema, Duration and module Worker behavior through Playwright                             |
-| `test --suite packages`                             | Built archives physically installed outside the checkout: Deno, Node ESM, Bun, inferred types and real Chromium             |
-| `test --suite postgres`                             | PostgreSQL state, queue and durable workflow recovery, including real process death and restart                                     |
-| `test --suite containers`                           | Docker worker recovery, streaming through nginx, physical PostgreSQL promotion and explicit real-browser duplex HTTP checks          |
-| `test --suite interop`                              | SQL statements through every supported ORM and driver, against PostgreSQL 14 to 19, poolers and compatible servers in Docker        |
-| `test --suite soak`                                 | Opt-in two-hour PostgreSQL guarded writes, lease renewal and midpoint promotion; separate from ordinary CI                          |
-| `bench --check`, `bench --operation freeze --check` | Untimed correctness oracles for the measured workloads                                                                              |
+| `test:deno` (also `test:node` or `test:bun`) | Package tests and repository source tests on the selected native runtime |
+| `test:comparisons -- deno`                          | Independent library comparisons, with pinned competitor fixtures prepared explicitly; also accepts `node` and `bun`                 |
+| `test:docs`                                        | Explicitly marked public examples compile and produce their declared results                                                        |
+| `test:bundles`                                     | Focused/umbrella bundle behavior and browser-selected import graphs                                                                 |
+| `test:browser`                                     | Real Chromium Input, Context, Collection/Schema, Duration and module Worker behavior through Playwright                             |
+| `test:packages`                                    | Built archives physically installed outside the checkout: Deno, Node ESM, Bun, inferred types and real Chromium             |
+| `test:postgres`                                    | PostgreSQL state, queue and durable workflow recovery, including real process death and restart                                     |
+| `test:containers`                                  | Docker worker recovery, streaming through nginx, physical PostgreSQL promotion and explicit real-browser duplex HTTP checks          |
+| `test:interop`                                     | SQL statements through every supported ORM and driver, against PostgreSQL 14 to 19, poolers and compatible servers in Docker        |
+| `test:soak`                                        | Opt-in two-hour PostgreSQL guarded writes, lease renewal and midpoint promotion; separate from ordinary CI                          |
+| `bench:check`, `bench:freeze:check`                 | Untimed correctness oracles for the measured workloads                                                                              |
 
-Prefix the task arguments above with `mise run` and a `--` separator. For example,
-`mise run test -- --suite comparisons --runtime bun` runs the independent comparisons on Bun.
+Prefix each task with `mise run`. Put arguments after `--`. For example,
+`mise run test:comparisons -- bun` runs the independent comparisons on Bun.
 
 `mise run verify` checks source contracts, source tests and comparisons on Deno, Node and Bun, the native MCP examples,
 README examples, bundles, installed packages and JSR source publication. Real browser, database, container and soak
-suites remain explicit because they need their own environments. `mise run test` defaults to Deno source tests. Package
-and Deno aliases delegate to Mise rather than maintaining separate command recipes.
+suites remain explicit because they need their own environments. `mise run test` defaults to Deno source tests.
+Each public package owns its native `check`, `test`, `build` and benchmark scripts. Its generated Deno tasks use the same
+commands. For example, `pnpm --filter ./packages/http --fail-if-no-match run test:node` selects the HTTP owner by path;
+native package names, globs and dependency selectors are also available. Use `--no-sort` for independent source checks
+across several packages because their development-only test imports form cycles.
 
 The [duplex browser/container matrix](../../packages/activity/http/duplex.md#exercise-a-browser-and-an-isolated-host)
 also needs the pinned Chromium, Firefox and WebKit binaries. Select its named files when checking only that capability;
@@ -194,8 +197,8 @@ Install the browser before its source or package checks:
 
 ```sh
 mise run fixture:browser chromium
-mise run test -- --suite browser
-mise run test -- --suite packages
+mise run test:browser
+mise run test:packages
 ```
 
 On a fresh Linux CI machine, `mise run fixture:browser chromium --with-deps` also installs Chromium's system
@@ -203,10 +206,10 @@ dependencies. To run the browser/container matrix locally, select all three engi
 
 ```sh
 mise run fixture:browser chromium firefox webkit --with-deps
-mise run test -- --suite containers tests/workflows/duplex-browser.test.ts
+mise run test:containers -- tests/workflows/duplex-browser.test.ts
 ```
 
-The container CI lane performs this preparation itself. `mise run prepare -- --kind browser` selects Chromium by
+The container CI lane performs this preparation itself. `mise run fixture:browser` selects Chromium by
 default; the lower-level `fixture:browser` command forwards its browser selection directly to Playwright.
 CI caches browser downloads by the installed Playwright version, operating system release, architecture and
 browser set. A restored download never skips system dependency installation or current tests. Playwright is an
@@ -215,7 +218,7 @@ browser-selected code executed by Node is labeled separately.
 
 ## Keep resource admission explicit
 
-`test --suite postgres` requires `UTILS_TEST_DATABASE_URL` to select a disposable PostgreSQL database. The task forwards
+`test:postgres` requires `UTILS_TEST_DATABASE_URL` to select a disposable PostgreSQL database. The task forwards
 it to all state, queue and workflow fixtures and fails before execution when it is absent. A selected queue test
 therefore cannot silently become an environment-dependent skip. Each suite owns its tables or schema and cleanup. Run
 database and container cases against fixtures intended for destructive crash/recovery testing.
@@ -225,8 +228,8 @@ use `transaction_timeout`; an older server that lacks that setting cannot run th
 queue-only test against another server version does not establish support for the complete workflow adapter.
 
 ```sh
-UTILS_TEST_DATABASE_URL=postgres://fixture:fixture@127.0.0.1:5432/utils_test mise run test -- --suite postgres
-mise run test -- --suite containers
+UTILS_TEST_DATABASE_URL=postgres://fixture:fixture@127.0.0.1:5432/utils_test mise run test:postgres
+mise run test:containers
 ```
 
 The container and interoperability tasks need Docker. The interoperability suite starts its own servers; select
@@ -261,7 +264,7 @@ types from an unrelated host. Real browser overloads and small structural mocks 
 include accepted programs and `@ts-expect-error` calls that must fail for the intended reason. Files named
 `types.test.ts` or `*.types.test.ts` are compiler fixtures, not empty runtime tests.
 
-`test --suite packages` repeats public type and runtime scenarios against emitted, physically installed archives. The
+`test:packages` repeats public type and runtime scenarios against emitted, physically installed archives. The
 consumer must be outside the source checkout, so ancestor resolution cannot accidentally satisfy a missing dependency.
 Archive integrity, resolved JavaScript paths, runtime versions and complete diagnostics are retained under
 `.tmp/artifacts/`. Native package tests never substitute workspace TypeScript for emitted code.
@@ -343,13 +346,13 @@ while nested groups distinguish migration, admission, encoding, cancellation and
 ## Keep each run separate from source
 
 Native test receipts and temporary diagnostics belong under `.tmp/`; CI uploads selected reports from its own run.
-Before benchmark correctness on a fresh checkout, run `mise run prepare -- --kind freeze` to create the ignored
+Before benchmark correctness on a fresh checkout, run `mise run bench:freeze:prepare` to create the ignored
 treatment modules and inventory. Historical verification records are not inputs to current tests. See
 [artifact ownership](./05-artifacts.md) for retention, local evidence recovery, and the distinction between a prepared
 correctness check and a timed measurement.
 
 For finite streaming pressure, a real nginx/gateway hop and physical PostgreSQL promotion, use the
-[fault checks guide](./07-recovery.md). These root integration tests belong to `test --suite containers`;
+[fault checks guide](./07-recovery.md). These root integration tests belong to `test:containers`;
 ordinary package tests do not start Docker. Each run keeps new local measurements and failure logs under
 `.tmp/tests/recovery/`.
 
@@ -361,8 +364,8 @@ databases and reconcile exact note/receipt identities after physical promotion. 
 
 For renewable claims and longer SQL lifetimes, run the
 [lease and soak checks](./07-recovery.md#keep-permission-alive-during-a-long-database-run).
-`mise run test -- --suite containers tests/workflows/postgres-leases.test.ts` covers live renewal and stale-owner
-rejection. `mise run test -- --suite soak` is a separate opt-in two-hour Docker task. Its 90-second harness mode is
+`mise run test:containers -- tests/workflows/postgres-leases.test.ts` covers live renewal and stale-owner
+rejection. `mise run test:soak` is a separate opt-in two-hour Docker task. Its 90-second harness mode is
 useful preparation, but only a completed run of at least 7,200 seconds counts as multi-hour evidence. Journals, SQL
 dumps and native runner receipts remain in `.tmp/`. The normal container CI job does not run this longer task.
 

@@ -130,7 +130,7 @@ the focused implementations into the umbrella.
 
 ```sh
 mise run prepare:node
-mise run test -- --suite packages
+mise run test:packages
 ```
 
 CI bootstraps mise at the version the workflows pin, which matches `min_version` in `mise.toml`. The runtime versions remain declared once in `mise.toml`; the action

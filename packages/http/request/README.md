@@ -23,7 +23,7 @@ The query line preserves both choices. The body line admits a complete bounded b
 not return a successful partial upload. A byte limit is not a character limit, so non-ASCII text can consume several
 bytes per character.
 
-From the Utils checkout, review `mise.toml`, then run `mise trust`, `mise install`, and `mise run prepare -- --kind deps`.
+From the Utils checkout, review `mise.toml`, then run `mise trust`, `mise install`, and `mise run prepare`.
 Save each runnable block as a `.ts` file in your project and run it with `mise exec -- deno run <file>.ts`.
 
 ## Read search filters and a small upload

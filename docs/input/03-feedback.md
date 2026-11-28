@@ -15,7 +15,7 @@ Edit the draft and click Save changes. After the browser accepts the text into l
 draft is still saved. The example waits for any cue it started to finish before releasing it. Sound and vibration would
 need their own available devices and permission checks.
 
-Prepare the checkout from its root with `mise trust`, `mise install` and `mise run prepare -- --kind deps` after reviewing
+Prepare the checkout from its root with `mise trust`, `mise install` and `mise run prepare` after reviewing
 `mise.toml`. Create `feedback/`, then save the HTML as `feedback/save-feedback.html` and TypeScript as
 `feedback/save-feedback.ts`. These names keep the HTML module reference and build
 command aligned; another parent directory works if you update the commands.
@@ -194,7 +194,7 @@ A persistent text status gives feedback when optional hardware is missing or an 
 announcer on a dedicated, already-mounted live region before the first message. The following portable example uses the
 same small contract as a native element. It also shows that disposal restores the values the announcer owns.
 
-After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare` from the root.
 Save the next complete TypeScript block as
 `feedback-status.ts` at that root, then run `mise exec -- deno run feedback-status.ts`.
 

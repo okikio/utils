@@ -20,7 +20,7 @@ const Upstream = Object.freeze({
 	commit: '06880c4a2b04de9dd74217f26dd831209b9c01f1',
 	version: '4.13.5',
 });
-const Root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const Root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const Corpus = join(Root, 'tests/fixtures/hono-upstream');
 
 /** Preserve exact text together with source offsets and one-based lines. */

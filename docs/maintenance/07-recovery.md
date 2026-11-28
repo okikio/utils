@@ -16,12 +16,12 @@ from `mise.toml`.
 | The writer disappears and saved work must continue | [Database promotion](#recover-saved-work-after-the-database-writer-disappears) |
 | The write may have committed but the client never got a reply | [Lost COMMIT reply](#recover-when-commit-succeeded-but-its-reply-disappeared) |
 
-Run all container tests with `mise run test -- --suite containers`. The suite tests where workers run, what happens to
+Run all container tests with `mise run test:containers`. The suite tests where workers run, what happens to
 resources they own, and how streaming and saved database work recover. To investigate just streaming and database
 failover, pass the two test filenames:
 
 ```sh
-mise run test -- --suite containers tests/workflows/streaming-load.test.ts tests/workflows/postgres-failover.test.ts
+mise run test:containers -- tests/workflows/streaming-load.test.ts tests/workflows/postgres-failover.test.ts
 ```
 
 The [stream pressure and proxy test](../../tests/workflows/streaming-load.test.ts) and
@@ -234,7 +234,7 @@ Run this separately from package unit tests. It creates and destroys three isola
 takes a little over two minutes:
 
 ```sh
-mise run test -- --suite containers tests/workflows/postgres-load.test.ts
+mise run test:containers -- tests/workflows/postgres-load.test.ts
 ```
 
 The command selects three tests: two load profiles and the COMMIT-reply drill below. Each prints a unique local evidence
@@ -350,7 +350,7 @@ physical promotion. They also check concurrent renewal against the same host row
 container checks:
 
 ```sh
-mise run test -- --suite containers tests/workflows/postgres-leases.test.ts
+mise run test:containers -- tests/workflows/postgres-leases.test.ts
 ```
 
 | Scenario | Expected owner behavior | What the test verifies |
@@ -388,14 +388,14 @@ Run it explicitly on a machine that can remain awake with Docker available for t
 ordinary runtime and container tasks so that a short CI run cannot silently stand in for a multi-hour check:
 
 ```sh
-mise run test -- --suite soak
+mise run test:soak
 ```
 
 To check the harness before committing that time, use its short mode. This runs the same assertions and midpoint
 promotion, but **does not test multi-hour behavior**:
 
 ```sh
-UTILS_POSTGRES_SOAK_SECONDS=90 mise run test -- --suite soak
+UTILS_POSTGRES_SOAK_SECONDS=90 mise run test:soak
 ```
 
 `UTILS_POSTGRES_SOAK_SECONDS` accepts whole seconds from 90 to 14,400; its default is 7,200. The value is elapsed test

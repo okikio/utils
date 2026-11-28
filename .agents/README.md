@@ -32,16 +32,18 @@ Run these commands from the repository root. Mise owns the pinned tools and nati
 
 | Purpose | Existing command |
 | --- | --- |
-| Inspect test ownership and external prerequisites | `mise run test -- --suite list` |
-| Test one package on a selected runtime | `mise run test -- --project sql --runtime node` |
-| Check workspace types | `mise run check -- --kind types` |
-| Check one package's formatting or lint | `mise run check -- --kind format --project sql` or `--kind lint` |
+| Inspect test ownership and external prerequisites | `mise run test:list` |
+| Test one package on a selected runtime | `pnpm --filter ./packages/sql --fail-if-no-match run test:node` |
+| Check workspace types | `mise run check:types` |
+| Check one package's formatting or lint | `mise run check:format -- packages/sql` or `mise run check:lint -- packages/sql` |
 | Check the complete repository | `mise run check` |
-| Build, pack and exercise installed consumers, including the browser artifact | `mise run test -- --suite packages` |
-| Inspect source publication without uploading | `mise run check -- --kind jsr` |
+| Build, pack and exercise installed consumers, including the browser artifact | `mise run test:packages` |
+| Inspect source publication without uploading | `mise run check:jsr` |
 
-Replace `sql` with the affected package and select the required Deno, Node or Bun runtime. A package test selector does
-not narrow the workspace type check. Read test ownership before starting external services. Record actual results and
+Replace `sql` with the affected package and select the required Deno, Node or Bun runtime. Native pnpm filters accept
+package names, paths and dependency relations; Deno supports `deno task --cwd=packages/sql check`. A member check follows
+that member's source graph. `mise run check:types` separately checks the full workspace and its inference fixtures.
+Read test ownership before starting external services. Record actual results and
 missing prerequisites separately; source, installed-artifact and browser checks support different claims.
 
 ## Keep the collection reproducible

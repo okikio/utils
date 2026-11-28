@@ -23,7 +23,7 @@ Define a byte counter, attach a recipient, and record one 2,048-byte download. B
 from the returned occurrence and the other from the recipient that accepted it. The array is local evidence of
 acceptance.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the block as `download-usage.ts` at the checkout
+Run from this checkout after `mise run prepare`. Save the block as `download-usage.ts` at the checkout
 root and run `mise exec -- deno run download-usage.ts`.
 
 ```ts runnable=download-usage.ts

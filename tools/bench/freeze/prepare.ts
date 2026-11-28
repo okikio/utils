@@ -5,10 +5,11 @@ import { createRequire } from 'node:module';
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, relative, resolve, sep } from 'node:path';
 import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { digest, provenance } from '#tools/bench/freeze/provenance.ts';
 
 /** Only the ignored experiment directory receives generated files. */
-const root = resolve(import.meta.dirname, '../../..');
+const root = fileURLToPath(new URL('../../../', import.meta.url));
 const output = resolve(root, '.tmp/artifacts/bench/freeze');
 /** Use the compiler already installed by the selected source snapshot. */
 const require = createRequire(resolve(root, 'package.json'));

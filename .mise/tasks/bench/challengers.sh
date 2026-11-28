@@ -3,4 +3,4 @@
 #MISE hide=true
 #MISE depends=["fixture:bench"]
 set -euo pipefail
-exec node tools/bench/challenger-repeat.ts "$@"
+exec node tools/bench/challenger/repeat.ts "$@"

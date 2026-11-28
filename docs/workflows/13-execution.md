@@ -20,7 +20,7 @@ but a memory inbox makes delivery inspectable without PostgreSQL. `run` steps th
 instruction to the scheduler; the outer `await` receives the final string. The following source fragments then extend
 that pattern with actual imported batch activities.
 
-From the repository root, run `mise run prepare -- --kind deps` once. Save the complete block as the named `.ts` file in your project and run
+From the repository root, run `mise run prepare` once. Save the complete block as the named `.ts` file in your project and run
 `mise exec -- deno run approve-import.ts`. These examples use workspace imports; they need no published package or network service.
 
 ```ts runnable=approve-import.ts

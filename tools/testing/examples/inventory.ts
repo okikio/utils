@@ -3,12 +3,11 @@ import { availableParallelism } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { stripVTControlCharacters } from 'node:util';
 
-/** One authored module and, when supplied, its expected standard output. */
 /**
  * Environment variables that Postgres.js 4 reads for its option defaults when it constructs a client, even
  * when the example passes an explicit URL. The driver names each one `PG` plus the option name in upper case,
  * and a few by hand. Connection and credential variables (host, user, password, passfile, database) are
- * deliberately absent: an example names its own connection. `examples.test.ts` fails when an installed
+ * deliberately absent: an example names its own connection. `inventory.test.ts` fails when an installed
  * driver reads a default that is missing here.
  */
 export const postgresDefaults: readonly string[] = [
@@ -41,6 +40,7 @@ export const postgresDefaults: readonly string[] = [
 	'PGCANCEL_TIMEOUT',
 ];
 
+/** One authored module and, when supplied, its expected standard output. */
 export interface ExampleType {
 	/** Local basename shared by support imports, never an arbitrary filesystem path. */
 	readonly filename: string;
@@ -85,8 +85,8 @@ export function examples(markdown: string): readonly ExampleType[] {
 
 /** Find package quick starts and runnable examples in maintained root guides. */
 export async function readmes(): Promise<readonly URL[]> {
-	const root = new URL('../../packages/', import.meta.url);
-	const values: URL[] = [new URL('../../README.md', import.meta.url)];
+	const root = new URL('../../../packages/', import.meta.url);
+	const values: URL[] = [new URL('../../../README.md', import.meta.url)];
 	async function visit(directory: URL, guides = false): Promise<void> {
 		for await (const entry of Deno.readDir(directory)) {
 			if (
@@ -105,7 +105,7 @@ export async function readmes(): Promise<readonly URL[]> {
 		}
 	}
 	await visit(root);
-	await visit(new URL('../../docs/', import.meta.url), true);
+	await visit(new URL('../../../docs/', import.meta.url), true);
 	return values.toSorted((left, right) => left.href.localeCompare(right.href));
 }
 
@@ -128,7 +128,7 @@ export async function checkExamples(
 	paths?: readonly URL[],
 	concurrency = availableParallelism(),
 ): Promise<number> {
-	const temporary = new URL('../../.tmp/examples/', import.meta.url);
+	const temporary = new URL('../../../.tmp/examples/', import.meta.url);
 	await Deno.mkdir(temporary, { recursive: true });
 	const documents = paths ?? await readmes();
 	const results: ({ count: number } | { error: unknown })[] = new Array(documents.length);
@@ -203,12 +203,12 @@ async function checkDocument(path: URL, temporary: URL): Promise<number> {
 
 /** Select the package's existing configuration without copying or changing its import map. */
 function configuration(path: URL): string {
-	const packages = new URL('../../packages/', import.meta.url);
+	const packages = new URL('../../../packages/', import.meta.url);
 	if (path.href.startsWith(packages.href)) {
 		const name = path.href.slice(packages.href.length).split('/')[0]!;
 		return fileURLToPath(new URL(`${name}/deno.jsonc`, packages));
 	}
-	return fileURLToPath(new URL('../../deno.jsonc', import.meta.url));
+	return fileURLToPath(new URL('../../../deno.jsonc', import.meta.url));
 }
 
 /** Fail on runtime errors and join termination before returning from a timeout. */
@@ -218,7 +218,7 @@ async function command(args: readonly string[], path: URL): Promise<string> {
 	try {
 		const output = await child.output();
 		// A later failed example must not replace an earlier command's diagnostics.
-		const commands = new URL('../../.tmp/examples/commands/', import.meta.url);
+		const commands = new URL('../../../.tmp/examples/commands/', import.meta.url);
 		await Deno.mkdir(commands, { recursive: true });
 		const evidence = await Deno.makeTempDir({ dir: fileURLToPath(commands), prefix: 'command-' });
 		await Deno.writeFile(`${evidence}/stdout.log`, output.stdout);

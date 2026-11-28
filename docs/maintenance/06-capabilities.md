@@ -15,8 +15,8 @@ From the checkout, review `mise.toml`, run `mise trust`, `mise install`, and `mi
 workflows, the local checks are:
 
 ```sh
-mise run test -- --suite docs
-mise run test -- --runtime deno packages/http packages/server
+mise run test:docs
+mise run test:deno -- packages/http packages/server
 deno task --cwd=packages/http bench:check
 deno task --cwd=packages/server bench:check
 ```

@@ -19,7 +19,7 @@ JSON cannot preserve the identity its consumers use.
 A deployment can narrow a shared catalog, then an endpoint can narrow that selection again. The selected definitions
 remain the same objects, and a later selection cannot recover a definition excluded earlier.
 
-From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare -- --kind deps` at the repository root. Save the following program as `select-definitions.ts` and run `mise exec -- deno run select-definitions.ts`. These commands use the workspace export maps; they do not assume a published registry version.
+From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare` at the repository root. Save the following program as `select-definitions.ts` and run `mise exec -- deno run select-definitions.ts`. These commands use the workspace export maps; they do not assume a published registry version.
 
 ```ts runnable=select-definitions.ts
 import { catalog } from '@okikio/collection';

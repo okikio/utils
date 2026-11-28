@@ -42,7 +42,7 @@ Run the current Deno executable as a child and collect its short reply. The exam
 from standard output and discards standard error. The command returns its result after the child and its
 cleanup finish.
 
-After `mise run prepare -- --kind deps`, save the program as `example.ts` and run `mise exec -- deno run --allow-run example.ts`.
+After `mise run prepare`, save the program as `example.ts` and run `mise exec -- deno run --allow-run example.ts`.
 The permission allows the program to start its child.
 
 ```ts runnable

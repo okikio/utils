@@ -2,9 +2,12 @@
 	"imports": {
 		"#tools/": "./"
 	},
-	"publish": {
-		"exclude": [
-			"**"
-		]
+	"publish": false,
+	"tasks": {
+		"check": "deno check --frozen .",
+		"test": "node testing/run.ts deno .",
+		"test:deno": "node testing/run.ts deno .",
+		"test:node": "node testing/run.ts node .",
+		"test:bun": "node testing/run.ts bun ."
 	}
 }

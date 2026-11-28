@@ -1,6 +1,6 @@
 import { expect } from '@std/expect';
 import { describe, it } from 'node:test';
-import { indexSource } from '#tools/testing/hono-inventory.ts';
+import { indexSource } from '#tools/testing/hono/inventory.ts';
 
 describe('Hono source inventory', () => {
 	it('keeps callback inputs and matcher arguments at their exact upstream source sites', () => {

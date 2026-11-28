@@ -32,7 +32,7 @@ A document screen can send report text to an analysis module and receive a small
 and Worker modules below together. This fixture is deliberately short so its counts are inspectable. The same handler
 can analyze a larger text; choose a Worker when isolating that CPU work is worth module startup and message-copy costs.
 
-Use the supported Deno host in this checkout. From the repository root, run `mise run prepare -- --kind deps`, save the two
+Use the supported Deno host in this checkout. From the repository root, run `mise run prepare`, save the two
 files together as `main.ts` and `thread.ts`, then run:
 
 ```sh

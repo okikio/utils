@@ -5,7 +5,7 @@ A **hotspot** is work that appears in many samples. Start with one request that 
 profile to see which functions appear.
 To tell whether a change makes the request faster, repeat timings with the profiler turned off.
 
-From a fresh checkout, review `mise.toml`, run `mise trust`, `mise install` and `mise run prepare -- --kind deps`. Run the commands
+From a fresh checkout, review `mise.toml`, run `mise trust`, `mise install` and `mise run prepare`. Run the commands
 below from the repository root. They write new evidence under `.tmp/artifacts/profile/gateway`; keep that directory for
 comparison. Open the generated SVG in a browser. If a child fails, inspect its retained receipt and logs before reading
 a partial chart as complete coverage. No deployed service is required for this in-process fixture.
@@ -18,8 +18,8 @@ Start with the same API request on both implementations. This records warmed gat
 Requests and fully consumed response observations:
 
 ```sh
-mise run bench -- --operation profile -- .tmp/artifacts/profile/gateway --section=http --match=gateway --duration=1500
-mise exec -- node tools/bench/profile-render.ts .tmp/artifacts/profile/gateway
+mise run bench:profile -- .tmp/artifacts/profile/gateway --section=http --match=gateway --duration=1500
+mise exec -- node tools/bench/profile/render.ts .tmp/artifacts/profile/gateway
 ```
 
 Open `gateway-utils-0.cpuprofile.svg` and its Hono counterpart. Hover for the sampled function and source URL; click a
@@ -36,8 +36,8 @@ and route construction. Compiled service cases with 0/4/16 resource-using middle
 request-scope closure. Those service cases have no equivalent Hono implementation and are labeled Utils-only.
 
 ```sh
-mise run bench -- --operation profile -- .tmp/artifacts/profile/http --section=http
-mise exec -- node tools/bench/profile-render.ts .tmp/artifacts/profile/http
+mise run bench:profile -- .tmp/artifacts/profile/http --section=http
+mise exec -- node tools/bench/profile/render.ts .tmp/artifacts/profile/http
 ```
 
 Filter by identity with `--match=proxy` or `--match=service-middleware`. Construction callbacks deliberately include
@@ -58,8 +58,8 @@ less work on those paths. Keep that difference in view when comparing timings.
 ## Profile the benchmark inventory
 
 ```sh
-mise run bench -- --operation profile -- .tmp/artifacts/profile/suite --section=suite
-mise exec -- node tools/bench/profile-render.ts .tmp/artifacts/profile/suite
+mise run bench:profile -- .tmp/artifacts/profile/suite --section=suite
+mise exec -- node tools/bench/profile/render.ts .tmp/artifacts/profile/suite
 ```
 
 This runs the canonical program registry serially and samples each real Mitata `B.run` registration separately. Each
@@ -69,17 +69,17 @@ Range-driven arguments can share one registration profile; the receipt lists tho
 hook checks the pinned Mitata trial representation and restores its method after the child finishes. Ordinary benchmark
 runs do not install the hook.
 
-Add `--npm` after `mise run test -- --suite packages` to include the physically installed Node ESM import benchmarks. A
+Add `--npm` after `mise run test:packages` to include the physically installed Node ESM import benchmarks. A
 parent import or host-operation profile measures spawn, messaging and output collection. It does not establish CPU
 coverage of a subprocess or a Worker isolate. Use the separate startup and worker drivers for those boundaries.
 
 ```sh
-mise exec -- node tools/bench/profile-startup.ts .tmp/artifacts/profile/imports --section=source
-mise run test -- --suite packages
-mise exec -- node tools/bench/profile-startup.ts .tmp/artifacts/profile/npm-imports --section=npm
-mise exec -- node tools/bench/profile-worker.ts .tmp/artifacts/profile/worker --count=10000
-mise exec -- node tools/bench/profile-worker.ts .tmp/artifacts/profile/worker-startup --phase=startup
-mise exec -- node tools/bench/profile-process.ts .tmp/artifacts/profile/process-child
+mise exec -- node tools/bench/profile/startup.ts .tmp/artifacts/profile/imports --section=source
+mise run test:packages
+mise exec -- node tools/bench/profile/startup.ts .tmp/artifacts/profile/npm-imports --section=npm
+mise exec -- node tools/bench/profile/worker.ts .tmp/artifacts/profile/worker --count=10000
+mise exec -- node tools/bench/profile/worker.ts .tmp/artifacts/profile/worker-startup --phase=startup
+mise exec -- node tools/bench/profile/process.ts .tmp/artifacts/profile/process-child
 ```
 
 The startup driver profiles each actual child. Native Node uses startup-to-exit CPU sampling. If the pinned Deno CLI

@@ -13,7 +13,7 @@ a value such as `00123` to a number. For a large file, you can read one row at a
 The example tells the parser that row 1 contains the column names. It finds `Email` by name and uses the
 column's index to read the address. If the file moves that column, the lookup still finds it.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
+Run from this checkout after `mise run prepare`. Save the runnable block as `example.ts` at the checkout root and use
 `mise exec -- deno run example.ts`.
 
 ```ts runnable=example.ts

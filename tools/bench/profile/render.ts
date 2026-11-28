@@ -1,6 +1,6 @@
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { basename } from 'node:path';
-import type { ProfileType } from './profile-types.ts';
+import type { ProfileType } from './types.ts';
 
 /** A display branch aggregates samples by the complete call frame, including its caller path. */
 type BranchType = {
@@ -11,7 +11,7 @@ type BranchType = {
 	total: number;
 	children: Map<string, BranchType>;
 };
-import { profileReceipt } from '#tools/bench/profile-startup.ts';
+import { profileReceipt } from '#tools/bench/profile/startup.ts';
 const folder = process.argv[2];
 if (folder === undefined) throw new TypeError('Provide a profile directory.');
 const escape = (value: unknown) =>

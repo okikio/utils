@@ -16,7 +16,7 @@ export async function run(): Promise<void> {
 				'The suite inspector profile adapter requires Deno. Run ordinary measurements on Node or Bun.',
 			);
 		}
-		const close = (await import('#tools/bench/profile-gate.ts')).install();
+		const close = (await import('#tools/bench/profile/gate.ts')).install();
 		try {
 			await measure({ throw: true, colors: false, format: 'quiet' });
 		} finally {

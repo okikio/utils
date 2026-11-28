@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url';
 
 const [checkoutArgument, outputArgument] = Deno.args;
 if (checkoutArgument === undefined || outputArgument === undefined) {
-	throw new TypeError('Usage: parser-check.ts <STD checkout> <new evidence directory>');
+	throw new TypeError('Usage: tools/testing/parser/check.ts <STD checkout> <new evidence directory>');
 }
 const checkout = resolve(checkoutArgument);
 const output = resolve(outputArgument);
@@ -39,7 +39,7 @@ await Deno.writeTextFile(
 		},
 	}),
 );
-const probe = new URL('./fixtures/parser-probe.ts', import.meta.url).href;
+const probe = new URL('./fixtures/probe.ts', import.meta.url).href;
 const scenarios = [
 	'dotenv-basic',
 	'dotenv-missing',
@@ -83,7 +83,7 @@ async function trial(runtime: 'deno' | 'node' | 'bun', scenario: string, candida
 			candidate,
 			scenario,
 		]
-		: [new URL('./fixtures/parser-probe.ts', import.meta.url).pathname, candidate, scenario];
+		: [new URL('./fixtures/probe.ts', import.meta.url).pathname, candidate, scenario];
 	const executable = runtime === 'deno' ? Deno.execPath() : runtime;
 	const child = new Deno.Command(executable, {
 		args,

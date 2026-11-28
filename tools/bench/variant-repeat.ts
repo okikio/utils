@@ -7,9 +7,9 @@ import { resolve } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { isDeepStrictEqual } from 'node:util';
 import { parse } from '@std/jsonc';
-import { challengerOrders } from '#tools/bench/challenger-compare.ts';
-import { challengerCandidates, challengerNames } from '#tools/bench/challenger-contract.ts';
-import { compareChallengers } from '#tools/bench/challenger-compare.ts';
+import { challengerOrders } from '#tools/bench/challenger/compare.ts';
+import { challengerCandidates, challengerNames } from '#tools/bench/challenger/contract.ts';
+import { compareChallengers } from '#tools/bench/challenger/compare.ts';
 import { validateMitata } from '#tools/bench/validate.ts';
 
 const args = process.argv.slice(2);
@@ -224,9 +224,9 @@ try {
 	for (
 		const name of [
 			'bench/http-challengers.bench.ts',
-			'tools/bench/challenger-compare.ts',
-			'tools/bench/challenger-contract.ts',
-			'tools/bench/challenger-run.ts',
+			'tools/bench/challenger/compare.ts',
+			'tools/bench/challenger/contract.ts',
+			'tools/bench/challenger/execute.ts',
 			'bench/fixtures/http-challengers.ts',
 			'pnpm-lock.yaml',
 			'deno.lock',

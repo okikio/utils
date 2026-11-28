@@ -11,7 +11,7 @@ as whether a port number is in range. To copy nested JSON data, use the
 An object with plain fields can still contain an invalid port. This example copies the fields, checks the port value,
 then tries a second object whose getter must never run.
 
-After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare` from the root.
 Save the next complete TypeScript block as
 `checked-options.ts` at that root, then run `mise exec -- deno run checked-options.ts`.
 

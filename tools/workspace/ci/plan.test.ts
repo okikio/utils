@@ -1,15 +1,10 @@
 /** Protect affected-work selection: a skipped resource lane must be a deliberate decision. */
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
-import { readdirSync, readFileSync } from 'node:fs';
-import { plan, PlanSchema, projectFromManifest } from './ci.ts';
+import { fileURLToPath } from 'node:url';
+import { affected, plan, PlanSchema } from './plan.ts';
 
-const projects = [
-	{ name: 'result', dependencies: [] },
-	{ name: 'http', dependencies: ['result'] },
-	{ name: 'server', dependencies: ['http'] },
-	{ name: 'utils', dependencies: ['server'] },
-];
+const projects = ['result', 'http', 'server', 'utils'];
 
 describe('affected CI work', () => {
 	it('checks guide examples without opening a database or browser', () => {
@@ -21,44 +16,27 @@ describe('affected CI work', () => {
 		expect(result.lanes.browser).toBe(false);
 	});
 	it('includes transitive consumers of a changed utility', () => {
-		const result = plan(['packages/result/mod.ts'], projects);
+		const result = plan(['packages/result/mod.ts'], projects, false, ['http', 'server', 'utils']);
 		expect(result.projects).toEqual(['http', 'result', 'server', 'utils']);
 		expect(result.lanes.packages).toBe(true);
 		expect(result.lanes.containers).toBe(true);
 		expect(result.lanes.interop).toBe(false);
 	});
 	it('runs every client and compatible server when the SQL package or its consumers change', () => {
-		const result = plan(['packages/sql/postgres/json.ts'], [{ name: 'sql', dependencies: [] }, {
-			name: 'storage',
-			dependencies: ['sql'],
-		}]);
+		const result = plan(['packages/sql/postgres/json.ts'], ['sql', 'storage'], false, ['storage']);
 		expect(result.lanes.interop).toBe(true);
 		expect(plan(['tests/interop/expectations.ts'], projects).lanes.interop).toBe(true);
-		expect(plan(['packages/storage/mod.ts'], [{ name: 'storage', dependencies: ['sql'] }]).lanes.interop).toBe(false);
+		expect(plan(['packages/storage/mod.ts'], ['storage']).lanes.interop).toBe(false);
 	});
-	it('traverses current package names and development consumers after the registry scope rename', () => {
-		const packageRoot = new URL('../../packages/', import.meta.url);
-		const current = readdirSync(packageRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((
-			entry,
-		) =>
-			projectFromManifest(
-				entry.name,
-				JSON.parse(readFileSync(new URL(`${entry.name}/package.json`, packageRoot), 'utf8')),
-			)
-		);
-		const result = plan(['packages/duration/mod.ts'], current);
+	it('uses the installed native dependency graph, including development consumers', () => {
+		const root = fileURLToPath(new URL('../../../', import.meta.url));
+		const result = affected(root, ['packages/duration/mod.ts']);
 		expect(result.projects).toContain('server');
 		expect(result.projects).toContain('utils');
 		expect(result.lanes.postgres).toBe(true);
 		expect(result.lanes.containers).toBe(true);
-		expect(
-			projectFromManifest('consumer', {
-				devDependencies: { '@okikio/duration': 'workspace:*', external: '1.0.0' },
-				optionalDependencies: { '@okikio/result': 'workspace:*' },
-				peerDependencies: { '@okikio/http': 'workspace:*' },
-			}).dependencies,
-		).toEqual(['duration', 'result', 'http']);
 	});
+
 	it('selects all lanes for lock, task, or unclassified source changes', () => {
 		for (const path of ['pnpm-lock.yaml', 'mise.toml', 'new-owner/module.ts', 'packages/removed/mod.ts']) {
 			const result = plan([path], projects);
@@ -66,14 +44,19 @@ describe('affected CI work', () => {
 			expect(Object.values(result.lanes).every(Boolean)).toBe(true);
 		}
 	});
-	it('includes new packages without a CI branch and terminates dependency cycles', () => {
-		const result = plan(['packages/new/mod.ts'], [{ name: 'new', dependencies: ['consumer'] }, {
-			name: 'consumer',
-			dependencies: ['new'],
-		}]);
+	it('accepts native consumers without reproducing graph traversal', () => {
+		const result = plan(['packages/new/mod.ts'], ['new', 'consumer'], false, ['consumer', 'new']);
 		expect(result.projects).toEqual(['consumer', 'new']);
 		expect(result.lanes.source).toBe(true);
+		expect(() => plan(['packages/new/mod.ts'], ['new'], false, ['missing'])).toThrow(TypeError);
 	});
+
+	it('assigns a changed file to its nearest declared native owner', () => {
+		const result = plan(['packages/group/nested/value.ts'], ['group', 'group/nested', 'unrelated']);
+		expect(result.projects).toEqual(['group/nested']);
+		expect(result.lanes.source).toBe(true);
+	});
+
 	it('selects native example checks and rejects unrecognized serialized plan fields', () => {
 		expect(plan(['examples/mcp/server.ts'], projects).lanes.examples).toBe(true);
 		expect(() => PlanSchema.parse({ ...plan([], projects), typo: true })).toThrow();

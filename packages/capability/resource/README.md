@@ -32,7 +32,7 @@ The `await using` declaration below closes the collection when its block ends, i
 `open()` supplies its cancellation and cleanup lifetime. `await stores.get(Store)` waits for the client; the collection
 still owns closing it. The factory receives `ctx` so it can register cleanup when it acquires something.
 
-After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare` from the root.
 Save the next complete TypeScript block as
 `example.ts` at that root, then run `mise exec -- deno run example.ts`.
 

@@ -2,13 +2,13 @@
 import { readFileSync } from 'node:fs';
 import { it } from 'node:test';
 import { expect } from '@std/expect';
-import { postgresDefaults } from './examples.ts';
+import { postgresDefaults } from './inventory.ts';
 
 /** Postgres.js names variables for credentials and connection targets; an example passes its own. */
 const connection = new Set(['PGHOST', 'PGUSER', 'PGUSERNAME', 'PGPASSWORD', 'PGPASSFILE', 'PGDATABASE']);
 
 it('grants every option default that the installed Postgres.js reads', () => {
-	const source = readFileSync(new URL('../../node_modules/postgres/src/index.js', import.meta.url), 'utf8');
+	const source = readFileSync(new URL('../../../node_modules/postgres/src/index.js', import.meta.url), 'utf8');
 	const block = /const defaults = \{([\s\S]*?)\n {2}\}/.exec(source)?.[1];
 	expect(block).toBeDefined();
 	// Each default key becomes `PG` plus the key in upper case; literal reads cover the rest.

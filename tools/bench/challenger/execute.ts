@@ -24,7 +24,7 @@ export async function runChallengers(): Promise<void> {
 	if (challengerArguments.includes('--check')) return;
 	if (challengerArguments.includes('--profile')) {
 		if (typeof Deno === 'undefined') throw new TypeError('Use the native HTTP operation profiler for this runtime.');
-		const close = (await import('#tools/bench/profile-gate.ts')).install();
+		const close = (await import('#tools/bench/profile/gate.ts')).install();
 		try {
 			await measure({ throw: true, colors: false, format: 'quiet' });
 		} finally {

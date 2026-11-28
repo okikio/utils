@@ -21,7 +21,7 @@ Read the table as separate responsibilities. Creating the first two values does 
 Name the CSV export feature and turn it into a requirement. This first example inspects the declaration only; the next
 example supplies the application policy that decides whether an actual export may proceed.
 
-After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare` from the root.
 Save the next complete TypeScript block as
 `example.ts` at that root, then run `mise exec -- deno run example.ts`.
 

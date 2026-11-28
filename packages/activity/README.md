@@ -32,7 +32,7 @@ The business operation is still an ordinary function: trim the submitted title, 
 its own cancellation and cleanup lifetime. The activity borrows the store through `ctx.get(Store)` and must not close
 it itself. Placement defaults to the current process; no worker, queue or saved job is created.
 
-From the repository root, run `mise run prepare -- --kind deps` once. Save the complete block as the named `.ts` file and run
+From the repository root, run `mise run prepare` once. Save the complete block as the named `.ts` file and run
 `mise exec -- deno run save-title.ts`. These examples use workspace imports; they need no published package or network service.
 
 ```ts runnable=save-title.ts
@@ -213,9 +213,9 @@ eligibility rule. Provider startup and remote execution remain root scenarios.
 From the repository root, run the package's tests and untimed benchmark checks before collecting timings:
 
 ```sh
-mise run test -- --project activity
-mise run bench -- --project activity --check
-mise run bench -- --project activity
+pnpm --filter ./packages/activity --fail-if-no-match run test
+pnpm --filter ./packages/activity --fail-if-no-match run bench:check
+pnpm --filter ./packages/activity --fail-if-no-match run bench
 ```
 
 These commands use package-owned fixtures and development dependencies. The

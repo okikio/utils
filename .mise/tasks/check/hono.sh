@@ -3,4 +3,4 @@
 #MISE hide=true
 #MISE depends=[]
 set -euo pipefail
-exec deno run --frozen --allow-read --allow-env tools/testing/hono-inventory.ts check
+exec deno run --frozen --allow-read --allow-env tools/testing/hono/inventory.ts check

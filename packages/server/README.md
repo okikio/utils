@@ -7,7 +7,7 @@ rules and owns the resources created for its requests; the deployment host still
 For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters keep their native runtime requirements.
 
 These examples use the experimental Utils source checkout. From its root, review `mise.toml`, then run `mise trust`,
-`mise install`, and `mise run prepare -- --kind deps`. Save each named file at that root. The examples use workspace exports;
+`mise install`, and `mise run prepare`. Save each named file at that root. The examples use workspace exports;
 they do not assume a newly published registry version.
 
 ## Save one note with ordinary Request and Response values

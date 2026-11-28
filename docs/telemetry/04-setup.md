@@ -29,7 +29,7 @@ at a base URL such as `http://127.0.0.1:4318`; its storage, authentication and n
 The checkout does not install or start a collector. To check the local HTTP behavior alone you can use an unavailable
 URL, but exporter errors then mean no successful delivery has been demonstrated.
 
-From the checkout root, review `mise.toml`, run `mise trust`, `mise install` and `mise run prepare -- --kind deps`. Save the complete
+From the checkout root, review `mise.toml`, run `mise trust`, `mise install` and `mise run prepare`. Save the complete
 module below as `telemetry-service.ts`. Run its Node APIs through the prepared Deno source workspace:
 
 ```sh

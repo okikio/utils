@@ -4,8 +4,8 @@ A changeset tells Sampo which package needs a new version and what changed for u
 feature it describes:
 
 ```sh
-mise run release -- --operation add --project streams --bump patch --message 'Stop reading when the consumer cancels.'
-mise run release -- --operation plan
+mise run release:add -- --package npm/@okikio/streams --bump patch --message 'Stop reading when the consumer cancels.'
+mise run release
 ```
 
 Sampo reads `changesets/*.md`, selects dependent bumps, and writes changelogs during version preparation. Review the

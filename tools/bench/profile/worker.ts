@@ -5,7 +5,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { pathToFileURL } from 'node:url';
-import type { ExitType, InspectorType, ResponseType } from './profile-types.ts';
+import type { ExitType, InspectorType, ResponseType } from './types.ts';
 
 /** The diagnostic parent publishes a phase only after the real Worker reaches it. */
 type GateType =
@@ -18,7 +18,7 @@ type TargetType = { sessionId: string; waitingForDebugger?: boolean; workerInfo?
 type PendingType = { settle(value: unknown): void; reject(reason: unknown): void };
 /** Missing frames remain an incomplete result, even when the Worker itself finished successfully. */
 type CpuType = Record<string, unknown> & { status: string };
-import { identity, policy, profileReceipt, root } from '#tools/bench/profile-startup.ts';
+import { identity, policy, profileReceipt, root } from '#tools/bench/profile/startup.ts';
 
 const arguments_ = process.argv.slice(2);
 const option = (name: string) =>

@@ -9,6 +9,6 @@ translations and their limits. `manifest.json` owns source hashes. `inventory.js
 sites, assertion and callback spans, input candidates, shared setup, and exact links to local executable tests.
 Registration-site counts are not expanded test counts or execution receipts.
 
-Recreate the corpus with `tools/testing/hono-inventory.ts capture <pinned-checkout>`. After executable mappings change,
+Recreate the corpus with `tools/testing/hono/inventory.ts capture <pinned-checkout>`. After executable mappings change,
 run `write`, then `check`. The source's relative imports, fixture helpers, Vitest environment, provider bindings and JSX
 setup are preserved as text. This directory is not a runnable copy of Hono's complete repository.

@@ -1,39 +1,38 @@
 /** Discover workload owners without maintaining a second list of benchmark files. @module */
-import { readdirSync, readFileSync } from 'node:fs';
+import { globSync, readFileSync } from 'node:fs';
+import { relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const root = new URL('../../', import.meta.url);
 
 /** One independently launched program and the host policy declared beside it. */
 export interface Workload {
+	/** Repository-relative program path used by the selected runtime. */
 	readonly path: string;
+	/** Explicit resource experiments stay outside ordinary benchmark correctness checks. */
 	readonly optional: boolean;
+	/** A native Deno capability prevents this workload from running through another host. */
 	readonly deno: boolean;
 }
 
 /** Registration-only modules and specialized experiments are not standalone Mitata programs. */
 export function discoverBenchmarks(directory: URL = root): readonly Workload[] {
 	const values: Workload[] = [];
-	/** Walk owned source directories without following dependency or fixture trees. */
-	function visit(path: string): void {
-		for (const entry of readdirSync(new URL(path, directory), { withFileTypes: true })) {
-			if (entry.isSymbolicLink() || entry.name.startsWith('.') || ['node_modules', 'fixtures'].includes(entry.name)) {
-				continue;
-			}
-			const name = `${path}${entry.name}`;
-			if (entry.isDirectory()) visit(`${name}/`);
-			else if (entry.name.endsWith('.bench.ts') || name === 'bench/mod.ts') {
-				const source = readFileSync(new URL(name, directory), 'utf8');
-				if (/^\/\/ @benchmark (?:register-only|runner=)/mu.test(source)) continue;
-				values.push({
-					path: name,
-					optional: /^\/\/ @benchmark optional$/mu.test(source),
-					deno: /^\/\/ @benchmark deno$/mu.test(source),
-				});
-			}
-		}
+	for (
+		const path of globSync(['{packages,bench}/**/*.bench.ts', 'bench/mod.ts'], {
+			cwd: directory,
+			exclude: ['**/node_modules/**', '**/fixtures/**', '**/.*/**'],
+		})
+	) {
+		const name = path.split(sep).join('/');
+		const source = readFileSync(new URL(name, directory), 'utf8');
+		if (/^\/\/ @benchmark (?:register-only|runner=)/mu.test(source)) continue;
+		values.push({
+			path: name,
+			optional: /^\/\/ @benchmark optional$/mu.test(source),
+			deno: /^\/\/ @benchmark deno$/mu.test(source),
+		});
 	}
-	visit('packages/');
-	visit('bench/');
 	return values.sort((left, right) => left.path.localeCompare(right.path));
 }
 
@@ -55,11 +54,14 @@ export const denoPrograms: readonly string[] = workloads.filter((value) => value
 /** Each program starts with a fresh Mitata registration realm. */
 export const programs: readonly string[] = [...packagePrograms, ...integrationPrograms];
 
-/** Match a package name or directory, failing rather than silently measuring the full suite. */
-export function selectPrograms(values: readonly string[], project?: string): readonly string[] {
-	if (project === undefined) return values;
-	const name = project.replace(/^@okikio\//u, '').replace(/^packages\//u, '').replace(/\/$/u, '');
-	const selected = values.filter((value) => value.startsWith(`packages/${name}/`));
-	if (selected.length === 0) throw new TypeError(`No benchmarks match project ${project}.`);
+/** Native package scripts run in their owner directory; repository tasks keep the complete workload set. */
+export function selectPrograms(values: readonly string[], directory = '.'): readonly string[] {
+	const path = relative(fileURLToPath(root), resolve(directory)).split(sep).join('/');
+	if (path === '') return values;
+	if (path.startsWith('../') || path === '..') {
+		throw new TypeError('Benchmark ownership must stay inside the repository.');
+	}
+	const selected = values.filter((value) => value.startsWith(`${path}/`));
+	if (selected.length === 0) throw new TypeError(`No benchmarks belong to ${path}.`);
 	return selected;
 }

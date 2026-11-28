@@ -18,7 +18,7 @@ describe('benchmark discovery', () => {
 		await writeFile(`${directory}/bench/part.bench.ts`, '// @benchmark register-only\n');
 		const found = discoverBenchmarks(pathToFileURL(`${directory}/`));
 		expect(found.map((value) => value.path)).toEqual(['packages/new/new.bench.ts']);
-		expect(selectPrograms(found.map((value) => value.path), '@okikio/new')).toEqual(['packages/new/new.bench.ts']);
+		expect(selectPrograms(found.map((value) => value.path), 'packages/new')).toEqual(['packages/new/new.bench.ts']);
 		expect(() => selectPrograms(found.map((value) => value.path), 'typo')).toThrow(TypeError);
 	});
 });

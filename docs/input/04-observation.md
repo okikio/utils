@@ -20,7 +20,7 @@ This portable example uses a standard EventTarget with a value property. Dispatc
 browser text field emits. The Context reader changes while the observation is active and retains its last value after
 cancellation.
 
-After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare` from the root.
 Save the next complete TypeScript block as
 `text-observation.ts` at that root, then run `mise exec -- deno run text-observation.ts`.
 
@@ -94,7 +94,7 @@ Type Ada, then Lin. Each committed edit replaces the displayed search. The previ
 not merely unsubscribed. A data URL produces no remote search or throughput evidence; it lets you inspect the same
 fetch/signal pattern without supplying a server.
 
-Prepare the checkout from its root with `mise trust`, `mise install` and `mise run prepare -- --kind deps` after reviewing
+Prepare the checkout from its root with `mise trust`, `mise install` and `mise run prepare` after reviewing
 `mise.toml`. Save the HTML as `search-observation.html` and TypeScript as `search-observation.ts`.
 
 ```html

@@ -1,6 +1,6 @@
 # Test Utils against Hono's own HTTP observations
 
-Run `mise run test -- --runtime deno tests/hono-contracts.test.ts tests/http-native.test.ts` from the repository root.
+Run `mise run test:deno -- tests/hono-contracts.test.ts tests/http-native.test.ts` from the repository root.
 Replace `deno` with `node` or `bun` to test the other runtimes. The suite registers one test for each authored vector and checks both candidates
 against literal expectations. It also checks vector identities and provenance. It does not construct expected output by
 asking either candidate for its result.

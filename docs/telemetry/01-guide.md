@@ -34,7 +34,7 @@ an optional delivery policy, rather than prerequisites for emitting a diagnostic
 Attach a request ID to the import events and retain recent history until an error occurs. The output shows which records
 reach the destination. Application code still owns whether the import succeeds or fails.
 
-From the checkout root, review `mise.toml`, run `mise trust`, `mise install` and `mise run prepare -- --kind deps`. Save this as
+From the checkout root, review `mise.toml`, run `mise trust`, `mise install` and `mise run prepare`. Save this as
 `example.ts` and run `mise exec -- deno run example.ts`. No collector or network permission is needed.
 
 ```ts runnable

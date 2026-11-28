@@ -44,7 +44,6 @@ const selected = selectPrograms(
 	selector === undefined
 		? defaults.filter((program) => runtime === 'deno' || !denoPrograms.includes(program))
 		: [selector],
-	Deno.args.find((arg) => arg.startsWith('--project='))?.slice(10),
 );
 const output = positional[0] ?? `.tmp/artifacts/bench/${new Date().toISOString().replaceAll(':', '-')}`;
 await claimOutput(output);
@@ -168,9 +167,8 @@ async function identity(): Promise<Record<string, string>> {
 		'package.json',
 		'pnpm-lock.yaml',
 		'mise.toml',
-		'tools/workspace/run.ts',
 		'.mise/tasks/bench/run.sh',
-		'.mise/tasks/prepare/bench.sh',
+		'.mise/tasks/fixture/bench.sh',
 	];
 	await visit(new URL('packages/', root), paths);
 	await visit(new URL('bench/', root), paths);

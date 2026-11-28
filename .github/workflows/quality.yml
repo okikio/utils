@@ -803,17 +803,17 @@ jobs:
         run: mise run prepare:node
       - name: Verify benchmark correctness
         if: steps.passed.outputs.hit != 'true' && (needs.plan.outputs.benchmark == 'true')
-        run: mise run ci:run -- --lane benchmark --check
+        run: mise run ci:run -- --lane benchmark
       # A failing task does not hide the other runtimes; any failure still fails this job.
       - name: Test copyable examples on Deno
         if: steps.passed.outputs.hit != 'true' && (!cancelled() && needs.plan.outputs.examples == 'true' && steps.prepare.outcome == 'success')
-        run: mise run test -- --suite examples --runtime deno
+        run: mise run test:examples -- --runtime deno
       - name: Test copyable examples on Node
         if: steps.passed.outputs.hit != 'true' && (!cancelled() && needs.plan.outputs.examples == 'true' && steps.prepare.outcome == 'success')
-        run: mise run test -- --suite examples --runtime node
+        run: mise run test:examples -- --runtime node
       - name: Test copyable examples on Bun
         if: steps.passed.outputs.hit != 'true' && (!cancelled() && needs.plan.outputs.examples == 'true' && steps.prepare.outcome == 'success')
-        run: mise run test -- --suite examples --runtime bun
+        run: mise run test:examples -- --runtime bun
       - name: Save dependency downloads after successful checks
         if: steps.passed.outputs.hit != 'true'
         uses: $/.github/actions/dependency-cache
@@ -853,7 +853,7 @@ jobs:
         with:
           stores: pnpm deno
       - run: mise run prepare:node
-      - run: mise run check -- --kind "${{ matrix.kind }}"
+      - run: mise run "check:${{ matrix.kind }}"
       - name: Save dependency downloads after successful checks
         uses: $/.github/actions/dependency-cache
         with:
@@ -941,4 +941,4 @@ jobs:
       - name: Report selected checks
         env:
           RESULTS: ${{ toJSON(needs) }}
-        run: node tools/workspace/ci-result.ts
+        run: node tools/workspace/ci/result.ts

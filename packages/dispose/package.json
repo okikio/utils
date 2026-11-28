@@ -21,5 +21,15 @@
 		"access": "public",
 		"directory": "../../.tmp/artifacts/npm/dispose",
 		"linkDirectory": false
+	},
+	"scripts": {
+		"check": "deno check --frozen .",
+		"test": "node ../../tools/testing/run.ts deno .",
+		"test:deno": "node ../../tools/testing/run.ts deno .",
+		"test:node": "node ../../tools/testing/run.ts node .",
+		"test:bun": "node ../../tools/testing/run.ts bun .",
+		"build": "node ../../tools/packages/npm.ts member dispose",
+		"bench": "deno run --frozen -A ../../tools/bench/measure.ts --suite=packages",
+		"bench:check": "deno run --frozen --allow-read --allow-env=__MINIMATCH_TESTING_PLATFORM__ --allow-run ../../tools/bench/check.ts --check --suite=packages"
 	}
 }

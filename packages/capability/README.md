@@ -22,7 +22,7 @@ It is not a new thread or a background service. The `ctx` variable carries that 
 `await` waits for each asynchronous operation, and `await using` closes the owned collection and Context when the block
 ends. Borrowed views do not close those owners independently.
 
-From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare -- --kind deps` at the repository root. Save the following program as `save-note.ts` and run `mise exec -- deno run save-note.ts`. These commands use the workspace export maps; they do not assume a published registry version.
+From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare` at the repository root. Save the following program as `save-note.ts` and run `mise exec -- deno run save-note.ts`. These commands use the workspace export maps; they do not assume a published registry version.
 
 ```ts runnable=save-note.ts
 import * as context from '@okikio/context';

@@ -23,7 +23,7 @@ as acquisition succeeds so a failure during the next acquisition still unwinds e
 The operation fails after registering two cleanup actions. Watch their order in the output: the last registered action
 runs first, then the earlier action runs, and the original failure remains visible to the caller.
 
-From this checkout, run `mise run prepare -- --kind deps`, save the runnable block as `release-on-failure.ts` at the checkout root,
+From this checkout, run `mise run prepare`, save the runnable block as `release-on-failure.ts` at the checkout root,
 and use `mise exec -- deno run release-on-failure.ts`. In a separate application, install the shown dependencies with your package
 manager. The same source runs with `deno run release-on-failure.ts`, `node release-on-failure.ts`, or `bun release-on-failure.ts` on the supported runtimes.
 

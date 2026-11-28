@@ -28,7 +28,7 @@ The wrapper receives a Web `Request` and returns a Promise of a Web `Response`. 
 Keep a familiar Hono health route and wrap its Fetch entry with the shared security-header policy. Calling it locally
 shows the response body and headers without starting another server.
 
-After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare` from the root.
 Save the next complete TypeScript block as
 `example.ts` at that root, then run `mise exec -- deno run example.ts`.
 

@@ -9,5 +9,8 @@
 	},
 	"devDependencies": {
 		"@std/expect": "npm:@jsr/std__expect@^1.0.20"
+	},
+	"scripts": {
+		"check": "deno check --frozen ."
 	}
 }

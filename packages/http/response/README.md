@@ -24,7 +24,7 @@ these stages for its handlers. The caller owns reading or cancelling the resulti
 Define the saved-asset response once, materialize a value against it, and construct a native Response. The application then sends the checked status, headers and body through a native Response.
 
 These examples use the current experimental source checkout, not an assumed registry release. From the `utils`
-repository root, review `mise.toml`, run `mise trust`, then `mise install` and `mise run prepare -- --kind deps`.
+repository root, review `mise.toml`, run `mise trust`, then `mise install` and `mise run prepare`.
 Save the following module as `example.ts` and run `mise exec -- deno run example.ts`.
 [Checkout prerequisites](../../../README.md#work-on-the-repository) explain installing Mise.
 

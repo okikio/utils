@@ -2,5 +2,10 @@
 	"name": "@examples/websocket",
 	"private": true,
 	"type": "module",
-	"dependencies": { "@okikio/server": "workspace:*" }
+	"dependencies": {
+		"@okikio/server": "workspace:*"
+	},
+	"scripts": {
+		"check": "deno check --frozen ."
+	}
 }

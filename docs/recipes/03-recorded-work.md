@@ -53,7 +53,7 @@ These objects divide responsibility for running and remembering the two photo wr
 | History and scheduler | Retain completed instructions / decide whether a request reuses or runs work. |
 | Context | Supply cancellation and local cleanup lifetime. It does not persist an execution. |
 
-From the repository root, run `mise run prepare -- --kind deps` once. Save the next block as `recorded-upload.ts` and run
+From the repository root, run `mise run prepare` once. Save the next block as `recorded-upload.ts` and run
 `mise exec -- deno run recorded-upload.ts`. Clock and cleanup support use local providers. These workspace imports need no published package or network service.
 
 ```ts runnable=recorded-upload.ts

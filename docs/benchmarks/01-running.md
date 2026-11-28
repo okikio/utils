@@ -40,9 +40,9 @@ shared launcher does not make a focused workload an integration benchmark.
 validate its fixtures on a real runtime, use:
 
 ```sh
-mise run bench -- --check --suite=packages
-mise run bench -- --check --suite=packages --runtime=node
-mise run bench -- --check --suite=packages --runtime=bun
+mise run bench:check -- --suite=packages
+mise run bench:check -- --suite=packages --runtime=node
+mise run bench:check -- --suite=packages --runtime=bun
 mise run bench -- .tmp/artifacts/bench/package-pilot --suite=packages
 mise run bench -- .tmp/artifacts/bench/integration-pilot --suite=integration
 ```
@@ -201,7 +201,7 @@ exploratory Node result as a Deno benchmark.
 | Workflow identity       | Repeated instructions share fingerprints; changed instructions do not                      | Hash 32 timer instructions; no workflow execution, durable storage or restart                         |
 | Router                  | Every prepared result agrees with an independent linear route selection                    | 16, 256 and 4,096 routes, 256 requests, static/parameter paths, HEAD fallback and misses              |
 
-Run `mise run bench -- --check` for these oracles without collecting a performance number. A failed Mitata case also
+Run `mise run bench:check --` for these oracles without collecting a performance number. A failed Mitata case also
 fails the measuring command through its `throw` option. None of the workloads impose a minimum speed, exact duration,
 exact generated ID or allocation count.
 
@@ -268,7 +268,7 @@ collection hook: exposed `globalThis.gc()` on Node/Deno and Mitata's `Bun.gc(tru
 collection mode; the default is once before sampling. Samples and available heap/GC observations remain in the native
 report.
 
-`mise run bench -- --check` runs the actual untimed fixtures and correctness oracles in isolated child processes. CI
+`mise run bench:check --` runs the actual untimed fixtures and correctness oracles in isolated child processes. CI
 runs this gate and does not use noisy shared-runner timings to accept a release. Full native measurements belong on an
 idle machine. The report records the environment but cannot certify that unrelated work was absent. No throughput,
 elapsed millisecond, heap size or fixed output-text threshold is part of the correctness contract.
@@ -286,8 +286,8 @@ ceiling.
 Separate tests check which host releases each resource and how work finishes. To measure a browser, a deployed
 storage adapter, or a remote cluster, run a benchmark in that environment.
 
-After `mise run test -- --suite packages` creates the physical clean consumer, measure its ESM package
-roots with `mise run bench -- --operation npm`. Read the owned temporary consumer path from
+After `mise run test:packages` creates the physical clean consumer, measure its ESM package
+roots with `mise run bench:npm --`. Read the owned temporary consumer path from
 `.tmp/artifacts/npm/consumer-location.json` when supplying it explicitly. The consumer lives outside the checkout so
 Node cannot find uninstalled workspace packages through ancestor directories. This separate program includes all
 portable npm roots, the focused umbrella result subpath, the eager umbrella and matched empty-child baselines.

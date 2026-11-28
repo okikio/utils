@@ -1,6 +1,7 @@
 /** Summarize independent process runs without treating batch averages as service tails. */
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { digest } from '#tools/bench/freeze/provenance.ts';
 
 /** One batch average from a treatment pair; these values are not request latency percentiles. */
@@ -75,7 +76,7 @@ interface RowType {
 }
 
 /** Read evidence and write derived summaries in ignored experiment output, independent of the caller's location. */
-const root = resolve(import.meta.dirname, '../../..');
+const root = fileURLToPath(new URL('../../../', import.meta.url));
 const directory = resolve(root, '.tmp/artifacts/bench/freeze');
 const inventorySha256 = digest(await readFile(resolve(directory, 'inventory.json')));
 /** Explicit files allow a local rerun to be summarized without mixing it with archived measurements. */

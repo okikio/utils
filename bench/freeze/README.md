@@ -15,9 +15,9 @@ From the repository root:
 
 ```sh
 mise install
-mise run prepare -- --kind deps
-mise run prepare -- --kind freeze
-mise run bench -- --operation freeze --check
+mise run prepare
+mise run bench:freeze:prepare
+mise run bench:freeze:check
 ```
 
 Preparation reads the abstract syntax tree (AST), the parser's structured representation of the source, to locate
@@ -32,17 +32,17 @@ Each stage consumes the previous stage's evidence:
 
 | Stage | Input | Output or observation |
 | --- | --- | --- |
-| `prepare -- --kind freeze` | Current source and toolchain | Generated frozen/plain pairs, inventory hashes, verification receipt |
-| `bench -- --operation freeze --check` | Prepared files and current source | Read-only agreement checks; no timing samples |
-| `bench -- --operation freeze` | Matching prepared checkpoint and a seed | A fresh raw measurement JSON file |
-| `bench -- --operation freeze:summarize` | Compatible raw files from independent runs | `summary.json` and readable `RESULTS.md` |
+| `bench:freeze:prepare` | Current source and toolchain | Generated frozen/plain pairs, inventory hashes, verification receipt |
+| `bench:freeze:check` | Prepared files and current source | Read-only agreement checks; no timing samples |
+| `bench:freeze:run` | Matching prepared checkpoint and a seed | A fresh raw measurement JSON file |
+| `bench:freeze:summarize` | Compatible raw files from independent runs | `summary.json` and readable `RESULTS.md` |
 
 The first two rows establish what was measured. The last two measure and summarize it; a successful check alone is not
 a performance result.
 
 The check is read-only after preparation. It verifies those hashes, emitted-code equivalence after the documented
 substitution, successful-output agreement, invalid-input behavior, identity, and mutation differences. It takes no timed
-samples. To save the derived verification receipt deliberately, run `mise run bench -- --operation freeze:verify -- --write`;
+samples. To save the derived verification receipt deliberately, run `mise run bench:freeze:verify -- --write`;
 preparation already does this.
 
 ## Record and summarize independent runs
@@ -52,10 +52,10 @@ file.
 
 ```sh
 # Collect two independent Node processes against the same prepared checkpoint.
-mise run bench -- --operation freeze -- \
+mise run bench:freeze:run -- \
   --output .tmp/artifacts/bench/freeze/node-1701.json \
   --seed 1701
-mise run bench -- --operation freeze -- \
+mise run bench:freeze:run -- \
   --output .tmp/artifacts/bench/freeze/node-1702.json \
   --seed 1702
 
@@ -75,7 +75,7 @@ mise exec -- bun bench/freeze/freeze.bench.ts \
   --seed 1701
 
 # Summarize these two Node trials without pooling unlike runtimes.
-mise run bench -- --operation freeze:summarize -- \
+mise run bench:freeze:summarize -- \
   .tmp/artifacts/bench/freeze/node-1701.json \
   .tmp/artifacts/bench/freeze/node-1702.json
 ```

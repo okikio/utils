@@ -22,7 +22,7 @@ describes the metadata and inferred definition types.
 Give two permission definitions one catalog, then select the read definition for a consumer. The identity comparison
 shows that lookup returns the original object, while the write definition stays outside the selection.
 
-From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare -- --kind deps` at the repository root. Save the following program as `example.ts` and run `mise exec -- deno run example.ts`. These commands use the workspace export maps; they do not assume a published registry version.
+From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare` at the repository root. Save the following program as `example.ts` and run `mise exec -- deno run example.ts`. These commands use the workspace export maps; they do not assume a published registry version.
 
 ```ts runnable
 import * as catalog from '@okikio/collection/catalog';

@@ -11,7 +11,7 @@ owns scheduling, cancellation, clocks, and validation such as “the lease must 
 
 Unit constructors and conversion functions can be imported independently. Neither requires the other package utilities.
 
-After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare` from the root.
 Save the next complete TypeScript block as
 `example.ts` at that root, then run `mise exec -- deno run example.ts`.
 

@@ -35,7 +35,7 @@ join the separately exposed cleanup when your operation owns that obligation.
 Three records become two bounded groups. A separate byte stream becomes two text lines. These small inputs let you
 inspect the returned values before introducing a network source or a destination that applies backpressure.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `group-records.ts` at the checkout root and use
+Run from this checkout after `mise run prepare`. Save the runnable block as `group-records.ts` at the checkout root and use
 `mise exec -- deno run group-records.ts`.
 
 ```ts runnable=group-records.ts

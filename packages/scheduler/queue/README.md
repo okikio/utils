@@ -49,7 +49,7 @@ with that process; persistent stores and real host delivery are separate choices
 
 ## Queue an invoice calculation and retrieve its total
 
-From the repository root, run `mise run prepare -- --kind deps` once. Save the complete block as the named `.ts` file and run
+From the repository root, run `mise run prepare` once. Save the complete block as the named `.ts` file and run
 `mise exec -- deno run invoice.ts`. These examples use workspace imports; they need no published package or network service.
 
 ```ts runnable

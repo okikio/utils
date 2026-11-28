@@ -12,7 +12,7 @@ after closing and reopening access to it. No browser is needed. Restarting the p
 Check three things in the output: the command finds Ada, the screen's result list has one entry, and a fresh owner
 loads Ada back into the search box. The third check reads the saved input; it does not run the search again.
 
-At the checkout root, review `mise.toml`, run `mise trust`, `mise install` and `mise run prepare -- --kind deps`. Save the complete
+At the checkout root, review `mise.toml`, run `mise trust`, `mise install` and `mise run prepare`. Save the complete
 program below as `search.ts` and run `mise exec -- deno run search.ts`; it needs no network or filesystem permissions.
 Follow four steps: read the requested name from the URL, search the array, save the exact URL, then read it back.
 `await` waits for a step to finish. `results` is a cell: it holds the latest matches and lets another part of the

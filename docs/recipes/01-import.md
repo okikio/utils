@@ -5,7 +5,7 @@ Build a contact import that tells someone what to fix in their spreadsheet. At t
 and the comma in its name belongs inside one cell. First check the name, then import the full list.
 
 From the checkout root, review `mise.toml`, run `mise trust`, `mise install`, then
-`mise run prepare -- --kind deps`. Both programs supply their own input. You can run them without a database or
+`mise run prepare`. Both programs supply their own input. You can run them without a database or
 permissions for network, environment, or file access.
 
 ## 1. Check that the company name stays in one cell

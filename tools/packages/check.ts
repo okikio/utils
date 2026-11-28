@@ -1,5 +1,7 @@
 /** Validate source export parity, local module targets, and explicit setup retention metadata. @module */
 import { parse } from '@std/jsonc';
+import { fileURLToPath } from 'node:url';
+import { packages } from './source.ts';
 
 /** Validate manifest claims against an independently discovered set of physical local files. */
 export function packageProblems(npm: unknown, deno: unknown, files: ReadonlySet<string>): readonly string[] {
@@ -27,6 +29,20 @@ export function packageProblems(npm: unknown, deno: unknown, files: ReadonlySet<
 	for (const [key, target] of Object.entries(exports)) {
 		if (key.endsWith('/polyfill') && !selected.includes(target)) {
 			errors.push(`Explicit setup export ${key} must be retained by sideEffects.`);
+		}
+	}
+	return errors;
+}
+
+/** A broad native workspace run may skip a missing script; reject absent owners before CI selects work. */
+export function taskProblems(npm: unknown, deno: unknown): readonly string[] {
+	if (!record(npm) || !record(deno)) return ['Both package manifests must be objects.'];
+	const errors: string[] = [];
+	if (!same(npm.scripts, deno.tasks)) errors.push('Deno tasks must project the package-owned npm scripts.');
+	const scripts = record(npm.scripts) ? npm.scripts : {};
+	for (const name of ['check', 'test', 'test:deno', 'test:node', 'test:bun', 'build', 'bench', 'bench:check']) {
+		if (typeof scripts[name] !== 'string' || scripts[name].trim() === '') {
+			errors.push(`The package must own a non-empty ${name} script.`);
 		}
 	}
 	return errors;
@@ -69,11 +85,10 @@ function record(value: unknown): value is Readonly<Record<string, unknown>> {
 }
 
 if (import.meta.main) {
-	const root = new URL('../../packages/', import.meta.url);
+	const root = new URL('../../', import.meta.url);
 	const failures: string[] = [];
-	for await (const entry of Deno.readDir(root)) {
-		if (!entry.isDirectory) continue;
-		const directory = new URL(`${entry.name}/`, root);
+	for (const member of packages(fileURLToPath(root))) {
+		const directory = new URL(`${member.directory}/`, root);
 		const npm = await readJson(new URL('package.json', directory));
 		const deno = await readJson(new URL('deno.jsonc', directory));
 		if (npm === undefined && deno === undefined) continue;
@@ -90,7 +105,8 @@ if (import.meta.main) {
 				}
 			}
 		}
-		failures.push(...packageProblems(npm, deno, targets).map((failure) => `${entry.name}: ${failure}`));
+		failures.push(...packageProblems(npm, deno, targets).map((failure) => `${member.name}: ${failure}`));
+		failures.push(...taskProblems(npm, deno).map((failure) => `${member.name}: ${failure}`));
 	}
 	if (failures.length > 0) throw new Error(`Package validation failed:\n${failures.join('\n')}`);
 	console.log('Source export parity, physical targets, and explicit setup retention metadata are valid.');

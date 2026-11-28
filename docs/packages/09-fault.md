@@ -39,7 +39,7 @@ objects throw, `bigint` throws, and object getters can execute while serializati
 Unexpected failures can contain circular objects as well as errors. This example produces a printable diagnostic without
 letting one repeated object or a long message prevent reporting.
 
-After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare` from the root.
 Save the next complete TypeScript block as
 `bounded-report.ts` at that root, then run `mise exec -- deno run bounded-report.ts`.
 

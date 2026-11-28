@@ -24,7 +24,7 @@ object does not retry the lookup or display an error for the user.
 Start with an ordinary function and a `Map`. Return a result when “not found” is a normal answer, then use an ordinary
 `if` statement to choose the display. The package does not require callback chains.
 
-From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare -- --kind deps` at the repository root. Save the following program as `example.ts` and run `mise exec -- deno run example.ts`. These commands use the workspace export maps; they do not assume a published registry version.
+From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare` at the repository root. Save the following program as `example.ts` and run `mise exec -- deno run example.ts`. These commands use the workspace export maps; they do not assume a published registry version.
 
 ```ts runnable
 import { fail, ok } from '@okikio/result';

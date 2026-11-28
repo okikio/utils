@@ -57,7 +57,7 @@ sequenceDiagram
 ## Choose a runtime and keep the files together
 
 The tested program lives in [examples/mcp](../../examples/mcp/README.md). Clone this repository and run
-`mise run prepare -- --kind deps` at its root, then open `examples/mcp`. The example pins MCP SDK **2.4.0**;
+`mise run prepare` at its root, then open `examples/mcp`. The example pins MCP SDK **2.4.0**;
 it does not use the older `@modelcontextprotocol/sdk` import paths. This source checkout supplies the
 unreleased Utils workspace packages. When copying the files into an application, install your chosen
 published Utils version and the pinned SDK there instead of copying workspace dependency ranges.

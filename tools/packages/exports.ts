@@ -9,6 +9,8 @@
 import { parse } from '@std/jsonc';
 import { parseSync } from 'oxc-parser';
 import { fileURLToPath } from 'node:url';
+import { relative } from 'node:path';
+import { packages as sourcePackages } from './source.ts';
 
 /** Focused source metadata needed to derive one umbrella bridge per module export. */
 export interface PackageType {
@@ -119,11 +121,15 @@ export function patch(source: string, fields: Readonly<Record<string, unknown>>)
 
 /** Report drift without writes, or replace validated generated files and owned manifest values. */
 export async function sync(root: URL, mode: 'check' | 'write' = 'check'): Promise<readonly string[]> {
-	const focused: PackageType[] = [];
-	const packages = new URL('packages/', root), umbrella = new URL('utils/', packages);
-	for await (const entry of Deno.readDir(packages)) {
-		if (!entry.isDirectory || entry.name === 'utils') continue;
-		const source = recordValue(parse(await Deno.readTextFile(new URL(`${entry.name}/package.json`, packages))));
+	const focused: (PackageType & { readonly directory: string; readonly scripts: Readonly<Record<string, string>> })[] =
+		[];
+	const members = sourcePackages(fileURLToPath(root));
+	const umbrellaMember = members.find((member) => member.name === '@okikio/utils');
+	if (umbrellaMember === undefined) throw new TypeError('Native inventory must include the public umbrella package.');
+	const umbrella = new URL(`${umbrellaMember.directory}/`, root);
+	for (const member of members) {
+		if (member === umbrellaMember) continue;
+		const source = recordValue(parse(await Deno.readTextFile(new URL(`${member.directory}/package.json`, root))));
 		if (typeof source.name !== 'string' || !source.name.startsWith('@okikio/')) continue;
 		const exports = recordValue(source.exports);
 		if (!Object.values(exports).every((value) => typeof value === 'string')) {
@@ -137,31 +143,32 @@ export async function sync(root: URL, mode: 'check' | 'write' = 'check'): Promis
 		}
 		focused.push({
 			name: source.name,
+			directory: member.directory,
 			exports: exports as Readonly<Record<string, string>>,
 			sideEffects: source.sideEffects as false | readonly string[],
+			scripts: scripts(source),
 		});
 	}
 	const projection = project(focused);
 	const planned = new Map(Object.entries(projection.bridges).map(([path, source]) => [path, source]));
 	// Focused npm manifests own source export names. Deno metadata is a projection,
 	// while permissions and JSR-only aliases stay authored by their runtime owner.
+	// Tasks keep the same package working directory in pnpm and Deno. The npm
+	// manifest owns the commands; projection must never substitute a root aggregate.
 	for (const member of focused) {
-		const name = member.name.slice('@okikio/'.length);
-		const path = `../${name}/deno.jsonc`;
+		// Registry identity owns bridge names; native inventory owns each physical manifest location.
+		const path = relative(umbrellaMember.path, fileURLToPath(new URL(`${member.directory}/deno.jsonc`, root)))
+			.replaceAll('\\', '/');
 		const source = await Deno.readTextFile(new URL(path, umbrella));
 		planned.set(
 			path,
 			patch(source, {
 				exports: member.exports,
-				tasks: {
-					check: 'mise run check',
-					test: `mise run test -- --project ${name}`,
-					bench: `mise run bench -- --project ${name}`,
-					'bench:check': `mise run bench -- --project ${name} --check`,
-				},
+				tasks: member.scripts,
 			}),
 		);
 	}
+	const umbrellaTasks = scripts(recordValue(parse(await Deno.readTextFile(new URL('package.json', umbrella)))));
 	for (const name of ['package.json', 'deno.jsonc']) {
 		const source = await Deno.readTextFile(new URL(name, umbrella));
 		planned.set(
@@ -169,12 +176,7 @@ export async function sync(root: URL, mode: 'check' | 'write' = 'check'): Promis
 			patch(source, {
 				exports: projection.exports,
 				...(name === 'package.json' ? { sideEffects: projection.sideEffects } : {
-					tasks: {
-						check: 'mise run check',
-						test: 'mise run test -- --project utils',
-						bench: 'mise run bench -- --project utils',
-						'bench:check': 'mise run bench -- --project utils --check',
-					},
+					tasks: umbrellaTasks,
 				}),
 			}),
 		);
@@ -195,6 +197,15 @@ export async function sync(root: URL, mode: 'check' | 'write' = 'check'): Promis
 		for (const path of changed) await replace(new URL(path, umbrella), planned.get(path)!);
 	}
 	return changed;
+}
+
+/** Native task definitions are authored commands, not another package-selector interface. */
+function scripts(source: Readonly<Record<string, unknown>>): Readonly<Record<string, string>> {
+	const value = recordValue(source.scripts);
+	if (!Object.values(value).every((command) => typeof command === 'string' && command.trim() !== '')) {
+		throw new TypeError('Package scripts must be non-empty command strings.');
+	}
+	return value as Readonly<Record<string, string>>;
 }
 
 /** Publish complete file bytes with a same-directory rename; never leave a truncated generated file. */

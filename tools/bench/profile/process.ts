@@ -7,7 +7,7 @@ import { createInterface } from 'node:readline';
 import { parseSync } from 'oxc-parser';
 import type { Node } from 'oxc-parser';
 import type { Debugger } from 'node:inspector';
-import type { ExitType, PendingType, ResponseType } from './profile-types.ts';
+import type { ExitType, PendingType, ResponseType } from './types.ts';
 
 /** Literal benchmark program and its source range; hashes cover the actual eval bytes. */
 type ProgramType = {
@@ -38,7 +38,7 @@ type RowType = Record<string, unknown> & {
 	childCPU?: { status: string; scriptSamples: number; reason?: string };
 	terminal?: ExitType;
 };
-import { identity, policy, profileReceipt, root } from '#tools/bench/profile-startup.ts';
+import { identity, policy, profileReceipt, root } from '#tools/bench/profile/startup.ts';
 
 const arguments_ = process.argv.slice(2);
 const option = (name: string) =>

@@ -21,7 +21,7 @@ const { values, positionals } = parseArgs({
 });
 if (values.help) {
 	console.log(
-		'Usage: mise run bench -- --operation queue <fresh-output-directory> [--source-root=PATH] [--jobs=200] [--concurrency=8] [--samples=3]',
+		'Usage: mise run bench:queue -- <fresh-output-directory> [--source-root=PATH] [--jobs=200] [--concurrency=8] [--samples=3]',
 	);
 	console.log(
 		'Requires explicit UTILS_TEST_DATABASE_URL for a disposable PostgreSQL database. UTILS_BENCH_NODE optionally selects Node.',
@@ -48,9 +48,9 @@ const harnessFiles = [
 	'bench/queue.bench.ts',
 	'tools/bench/queue.ts',
 	'tools/bench/output.ts',
-	'tools/workspace/run.ts',
+	'mise.toml',
 	'.mise/tasks/bench/queue.sh',
-	'.mise/tasks/prepare/deps.sh',
+	'pnpm-workspace.yaml',
 	'node_modules/postgres/package.json',
 ];
 const metadata = {

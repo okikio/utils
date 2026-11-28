@@ -5,10 +5,11 @@ import { createRequire } from 'node:module';
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { digest, provenance } from '#tools/bench/freeze/provenance.ts';
 
 /** Resolve ignored experiment output from the repository root, independent of the caller's working directory. */
-const root = resolve(import.meta.dirname, '../../..');
+const root = fileURLToPath(new URL('../../../', import.meta.url));
 const directory = resolve(root, '.tmp/artifacts/bench/freeze');
 const options = process.argv.slice(2);
 if (options.some((value) => value !== '--write')) {
@@ -24,7 +25,7 @@ const inventory = JSON.parse(inventoryBytes.toString('utf8')) as {
 	readonly objectBindings: readonly { readonly file: string; readonly line: number }[];
 };
 if (inventory.schemaVersion !== 2) {
-	throw new Error('Run mise run prepare -- --kind freeze for this source checkpoint first.');
+	throw new Error('Run mise run bench:freeze:prepare for this source checkpoint first.');
 }
 /** Use the source snapshot's compiler instead of introducing another parser version. */
 const require = createRequire(resolve(root, 'package.json'));

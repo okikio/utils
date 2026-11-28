@@ -4,7 +4,7 @@ A request body arrives as bytes. JSON decoding turns those bytes into a JavaScri
 whether the value means something your application accepts. Valid JSON can still have the wrong fields or types.
 For a small note, buffer only a bounded body, check its title, then create the outgoing response.
 
-Run the complete program below from this checkout after `mise run prepare -- --kind deps`. Save it as `request-json.ts`
+Run the complete program below from this checkout after `mise run prepare`. Save it as `request-json.ts`
 and run `mise exec -- deno run request-json.ts`. `await` waits for reading and decoding; no listener or database is needed.
 
 ## Turn a JSON request into a familiar response

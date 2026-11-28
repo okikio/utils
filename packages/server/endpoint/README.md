@@ -19,7 +19,7 @@ creates no provider connection.
 The example runs a service so you can see the declared endpoint answer a request. Its runtime owns request lifetimes
 and resource cleanup; creating the endpoint description alone starts neither.
 
-After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare` from the root.
 Save the next complete TypeScript block as
 `example.ts` at that root, then run `mise exec -- deno run example.ts`.
 

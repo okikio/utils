@@ -295,7 +295,7 @@ renewal fencing and metadata pagination against PostgreSQL.
 
 ```sh
 UTILS_TEST_DATABASE_URL=postgres://fixture:fixture@127.0.0.1:5432/utils_test \
-  mise run test -- --suite postgres tests/workflows/outbox.test.ts
+  mise run test:postgres -- tests/workflows/outbox.test.ts
 UTILS_BENCH_DATABASE_URL=postgres://fixture:fixture@127.0.0.1:5432/utils_test \
   node bench/outbox.bench.ts --check
 ```

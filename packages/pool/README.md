@@ -41,7 +41,7 @@ individual caller and can cancel that caller's wait without stopping other borro
 The pool creates reusable sessions; each caller borrows one through a lease. This offline session simply labels a note.
 The counters make reuse and final closure visible without introducing a transaction API first.
 
-From the repository root, run `mise run prepare -- --kind deps` once. Save the complete block as the named `.ts` file and run
+From the repository root, run `mise run prepare` once. Save the complete block as the named `.ts` file and run
 `mise exec -- deno run borrow-session.ts`. These examples use workspace imports; they need no published package or network service.
 
 ```ts runnable=borrow-session.ts

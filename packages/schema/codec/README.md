@@ -11,7 +11,7 @@ text when you send that value back. A codec keeps both rules together:
 Run the example to see the timestamp make that round trip. The text you see at the end comes from encoding the
 `Date`, so the program is testing both directions.
 
-From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare -- --kind deps` at the repository root. Save the following program as `example.ts` and run `mise exec -- deno run example.ts`. These commands use the workspace export maps; they do not assume a published registry version.
+From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare` at the repository root. Save the following program as `example.ts` and run `mise exec -- deno run example.ts`. These commands use the workspace export maps; they do not assume a published registry version.
 
 ```ts runnable
 import * as codec from '@okikio/schema/codec';

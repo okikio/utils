@@ -17,7 +17,7 @@ issues should I get back?
 
 ## Check a submitted profile before saving
 
-After `mise trust`, `mise install`, and `mise run prepare -- --kind deps` in this checkout, save the following as `profile.ts` at the root and run `mise exec -- deno run profile.ts`. The record is local input, so the example needs no network or environment permission.
+After `mise trust`, `mise install`, and `mise run prepare` in this checkout, save the following as `profile.ts` at the root and run `mise exec -- deno run profile.ts`. The record is local input, so the example needs no network or environment permission.
 
 ```ts runnable=profile.ts
 import * as schema from '@okikio/schema';

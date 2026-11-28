@@ -11,7 +11,8 @@
 	"workspaces": [
 		"packages/*",
 		"examples/*",
-		"tools"
+		"tools",
+		"tests/interop"
 	],
 	"license": "MIT",
 	"scripts": {

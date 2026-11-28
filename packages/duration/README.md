@@ -13,7 +13,7 @@ milliseconds. Calendar months still need a date and time zone when you ask how m
 
 A service allows 2.5 seconds for a read. Keep that setting as a duration, then convert it to milliseconds for a timer consumer. `PT2.5S` is ISO duration text: a period of 2.5 seconds, not a timestamp.
 
-From the experimental checkout, run `mise trust`, `mise install`, and `mise run prepare -- --kind deps`. Save this as `duration-setting.ts` and run `mise exec -- deno run duration-setting.ts`. Ordinary Duration imports need no global installer.
+From the experimental checkout, run `mise trust`, `mise install`, and `mise run prepare`. Save this as `duration-setting.ts` and run `mise exec -- deno run duration-setting.ts`. Ordinary Duration imports need no global installer.
 
 ```ts runnable=duration-setting.ts
 import { elapsed, sec } from '@okikio/duration';

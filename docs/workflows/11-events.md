@@ -44,7 +44,7 @@ The import has three possible answers: approved, rejected, or expired. In the co
 alive in a durable worker. Context owns local cleanup, the inbox owns addressed messages, and the scheduler connects
 the program to that inbox. These memory owners disappear with the process.
 
-After `mise run prepare -- --kind deps`, save this block as `approval.ts` and run
+After `mise run prepare`, save this block as `approval.ts` and run
 `mise exec -- deno run approval.ts`. No database or service is required. Look for `approved`: it shows that the
 event was retained even though the workflow had not started waiting when it arrived.
 

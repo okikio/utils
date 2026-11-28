@@ -12,7 +12,7 @@ after process loss.
 The same save contract accepts a photo title and rejects a blank one before the store is called. The receipt contains
 the new ID and normalized title; the final labels show exactly what reached the in-memory store.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `save-title.ts` at the checkout root and use
+Run from this checkout after `mise run prepare`. Save the runnable block as `save-title.ts` at the checkout root and use
 `mise exec -- deno run save-title.ts`.
 
 The examples use a few names that can otherwise make this small idea feel larger:

@@ -10,7 +10,7 @@ need to share it.
 keyboard and gesture share an action, `commands.define()` gives it a stable ID, label, eligibility predicate and typed
 input/output. It acquires no resources.
 
-After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare` from the root.
 Save the next complete TypeScript block as
 `input-command.ts` at that root, then run `mise exec -- deno run input-command.ts`.
 

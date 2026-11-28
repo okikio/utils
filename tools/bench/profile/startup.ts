@@ -6,7 +6,7 @@ import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse } from '@std/jsonc';
 import type { Debugger } from 'node:inspector';
-import type { ExitType, ProfileType, ResponseType } from './profile-types.ts';
+import type { ExitType, ProfileType, ResponseType } from './types.ts';
 
 /** Inputs retain exact bytes by path, so a source change cannot reuse an older profile receipt. */
 type InputsType = Record<string, string>;
@@ -16,7 +16,7 @@ type EntryType = { name: string; module?: string; runtime: string; format: strin
 type RowType = Record<string, unknown> & EntryType & { status: string };
 
 /** Absolute checkout owner for source inputs; installed consumers must live outside it. */
-export const root = fileURLToPath(new URL('../../', import.meta.url));
+export const root = fileURLToPath(new URL('../../../', import.meta.url));
 /** Child-only color policy keeps native diagnostic output machine-readable. */
 export const policy = { ...process.env, NODE_DISABLE_COLORS: '1', NO_COLOR: '1', FORCE_COLOR: '0' };
 

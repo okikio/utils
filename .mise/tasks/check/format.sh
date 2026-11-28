@@ -3,4 +3,4 @@
 #MISE hide=true
 #MISE depends=[]
 set -euo pipefail
-exec deno fmt --check
+exec deno fmt --check "$@"

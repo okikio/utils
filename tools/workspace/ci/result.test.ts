@@ -1,7 +1,7 @@
 /** Lower stack layers and failed combined candidates must never become passing required checks. */
 import { it } from 'node:test';
 import { expect } from '@std/expect';
-import { requireSelectedResults } from './ci-result.ts';
+import { requireSelectedResults } from './result.ts';
 
 /** A documentation-only plan deliberately leaves every resource lane unselected. */
 function documentation() {

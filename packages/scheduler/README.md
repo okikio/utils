@@ -16,7 +16,7 @@ Start with an ordinary function for one call. These modules do not create thread
 permission for one item; its **lease** ends at an expiry time. The queue examples below introduce those rules with an
 inspectable calculation. The root exports the three namespaces for applications that combine them.
 
-From the repository root, run `mise run prepare -- --kind deps` once. Save the complete block as the named `.ts` file and run
+From the repository root, run `mise run prepare` once. Save the complete block as the named `.ts` file and run
 `mise exec -- deno run invoice.ts`. These examples use workspace imports; they need no published package or network service.
 
 An operation awaiting network input is still active. `await` lets other JavaScript

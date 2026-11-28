@@ -1,55 +1,62 @@
 # Maintain repository workflows
 
-`@okikio/tools` is a private workspace package. It owns the programs used to inspect, build and test Utils, rather than
-another set of library APIs. Mise is the local and CI entry point. Start with a task family and select the package or
-runtime you need. For example, after changing how Streams releases a reader, run its tests on the runtime that exposed
-the problem. Benchmark only after the tests establish the expected result. If you changed an exported path, check the
-workspace first; use the export write operation when you intend to update the derived manifests and forwarders.
+`@okikio/tools` is the private workspace package that builds and checks Utils. A contributor chooses an owner through
+native package filtering, then runs that owner's declared command. Mise selects pinned tools and composes repository
+checks, resource fixtures and release operations. There is no separate package-selector or task-dispatch language.
+
+After changing how Streams releases a reader, start with its own check and the runtime that exposed the problem:
 
 ```sh
-mise run check
-mise run check -- --kind lint --project streams
-mise run test -- --project streams --runtime node
-mise run test -- --project tools --runtime bun
-mise run bench -- --check --project streams --runtime deno
-mise run build -- --target exports --write
-mise run release -- --operation plan
+mise run prepare
+pnpm --filter ./packages/streams --fail-if-no-match run check
+pnpm --filter ./packages/streams --fail-if-no-match run test:node
+pnpm --filter ./packages/streams --fail-if-no-match run bench:check
+pnpm --filter @okikio/tools --fail-if-no-match run test:bun
+mise run check:lint -- packages/streams
+mise run build:exports
+mise run release
 ```
 
-`--project` accepts a short name or `@okikio/name`. Test selection accepts repeated projects. Benchmark measurements
-keep one project per report so a result has an unambiguous owner. Adding an ordinary package or test does not require
-adding a new Mise task. `mise run test -- --help` explains selectors, and `mise run test -- --suite list` explains test
-ownership. Choosing one package's tests does not narrow the workspace type check, which checks types that callers
-receive across package boundaries.
+Package names are optional selectors. pnpm also accepts paths, globs, dependencies and dependents. For example,
+`pnpm --filter '@okikio/server...' --fail-if-no-match --no-sort run check` checks Server and its workspace dependencies.
+`pnpm --filter '...{./packages/http}' --fail-if-no-match --no-sort run check` checks HTTP and its workspace consumers.
+The source checks consume the available source graph and do not emit prerequisites for another package. `--no-sort`
+therefore allows deliberate cycles introduced by test consumers without deleting those dependency declarations.
 
-Each package's generated Deno `check` task runs the complete workspace check.
-Only formatting and linting accept a package selector; narrow those with
-`mise run check -- --kind format --project <name>` or the lint example above.
-Package test and benchmark tasks keep their project selectors.
+Each public `package.json` owns `check`, `test`, `test:deno`, `test:node`, `test:bun`, `build`, `bench` and `bench:check`.
+The generator copies those commands into `deno.jsonc`; it does not replace a local check with the root aggregate.
+`deno task --cwd packages/http check` uses the same owner. Deno's named `--filter` can exit successfully with no matching
+task, and recursive pnpm `run` can skip a missing script when another selected member has it. CI validates task
+declarations with `check:packages`, then uses `pnpm --filter <selector> --fail-if-no-match --no-sort -r exec pnpm run <task>`
+so every selected owner must execute its required script. CI also sets `verifyDepsBeforeRun=error`; dependency preparation
+owns installation. A real task failure remains a failure in both runtimes. Member Deno checks, including the private tools owner, supplement the complete
+repository TypeScript-native check. A selected package without an authored benchmark fails explicitly instead of
+reporting an empty measurement as success.
 
-```text
-tools/
-├── package.json        private npm workspace and direct dependencies
-├── deno.jsonc          Deno workspace boundary and private imports
-├── workspace/          task selection and affected-CI planning
-├── packages/           source exports, npm projection and package contracts
-├── releases/           npm-to-JSR version projection and GitHub release notes
-├── testing/            test discovery, runtime adapters and installed consumers
-└── bench/              fixture checks, measurements, comparisons and profiling
-```
+| Owner | Responsibility |
+| --- | --- |
+| `tools/package.json`, `tools/deno.jsonc` | Private tooling dependencies, imports and native tasks. |
+| `tools/workspace/ci/plan.ts` | Exact Git changes and resource-lane policy; pnpm supplies dependency reachability. |
+| `tools/workspace/ci/execute.ts` | Execute an admitted CI lane through native package commands and Mise resource tasks. |
+| `tools/workspace/ci/result.ts` | Require successful results for the exact selected candidate and lanes. |
+| `tools/packages/` | Source metadata, Deno/umbrella projections, npm ESM/declarations and installed artifacts. |
+| `tools/releases/` | Sampo planning, npm-to-JSR version projection and validated publication. |
+| `tools/testing/` | Native test-file discovery, host/resource admission and actual execution receipts. |
+| `tools/bench/` | Fixture correctness, retained measurements, comparisons and profiling. |
 
-`workspace/run.ts` checks options such as `--project`, then calls the matching task under `.mise/tasks/`.
-Those shell tasks select the runtime, set its environment, and pass permissions. The TypeScript programs run the
-steps. Mise chooses the pinned runtime versions and runs prerequisites first. Package scripts and Deno tasks
-call the same task families.
+The small `packages/source.ts` adapter reads pnpm's JSON listing. It validates the returned identities and selects public
+source owners from that result, including nested packages and excluding private manifests. It does not crawl the workspace
+or rebuild dependency traversal. `packages/exports.ts`
+then reads the selected manifests and projects only declared public paths and scripts. Private source files never become
+exports merely because a file finder saw them. `packages/npm.ts` builds ESM and declarations, strips repository scripts
+from distribution manifests, packs archives and tests clean installed consumers. Rebuilding a selected package removes
+only that package's generated stage, including temporary files left by an interrupted build.
 
-`packages/exports.ts` reads each package's public paths, then checks or writes the matching Deno exports and
-`@okikio/utils` re-exports. Only paths listed in a package manifest become public. Finding every `.ts` file
-would also expose private code.
-
-`packages/npm.ts` reads the same paths to build ESM JavaScript and TypeScript declarations with stable tsdown.
-It keeps external dependencies separate. It packs npm archives and installs them into clean projects for testing.
-For example, `tests/npm-consumer.mjs` runs the installed JavaScript without a TypeScript loader.
+`testing/run.ts` remains because tests have real host and resource contracts. Native file globs find authored tests;
+the owner classifies Node, Deno, Web Worker, PostgreSQL and container requirements, launches the actual runtime and
+retains its output and exit status. A package task passes its working directory. CI also retains root compositions,
+tool tests and comparisons after selecting affected packages. Use `mise run test:list` to inspect ownership. Database
+and container tasks fail when their required environment is absent; they do not become successful empty suites.
 
 Tests remain next to their package; composed workflows remain in root `tests/`. Package benchmarks remain next to the
 package, and cross-package measurements remain in root `bench/`. Tools select these programs without duplicating their
@@ -64,6 +71,11 @@ waiting for time to pass on each runtime; service expiry tests keep their real c
 Repository-owned generated artifacts and execution evidence live in `.tmp/`. Existing evidence is preserved. Installed
 consumers use isolated directories so this checkout's workspace dependencies cannot conceal a missing dependency.
 These locations are internal test details, not application layout recommendations.
+
+`pnpm` owns the installed workspace dependencies. When manifest membership changes, update Deno's resolution with
+`deno install --lockfile-only --frozen=false`, inspect the lock diff, then keep ordinary checks frozen. A plain
+`deno install` can replace pnpm-owned optional dependency links even with the workspace's manual module setting;
+use `pnpm install --frozen-lockfile` to restore the declared installed graph after such an invocation.
 
 CI installs pinned tools with the official Mise action and caches pnpm downloads and Deno modules. Check tools are lazy
 in `mise.toml`, so each one downloads the first time its task runs. The source lane runs these repository checks:

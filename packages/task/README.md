@@ -41,7 +41,7 @@ An import screen needs a Pause button that stops admitting new records. An async
 array stands in for the destination: no database account is required. Pausing before admission leaves it empty; resuming
 saves the three normalized names. `await using` closes the handle when its block ends, including after an error.
 
-From the repository root, run `mise run prepare -- --kind deps`, save the next block as `normalize-contacts.ts`, then run
+From the repository root, run `mise run prepare`, save the next block as `normalize-contacts.ts`, then run
 `mise exec -- deno run normalize-contacts.ts` with the pinned Deno 2.9.7 host. The examples below use workspace imports
 and local arrays; no network or database is required. Later named blocks can be saved and run in the same way.
 
@@ -131,9 +131,9 @@ tests saved orchestration, remote work or process-loss recovery.
 From the repository root, run the package's tests and untimed benchmark checks before collecting timings:
 
 ```sh
-mise run test -- --project task
-mise run bench -- --project task --check
-mise run bench -- --project task
+pnpm --filter ./packages/task --fail-if-no-match run test
+pnpm --filter ./packages/task --fail-if-no-match run bench:check
+pnpm --filter ./packages/task --fail-if-no-match run bench
 ```
 
 These commands use package-owned fixtures and development dependencies. The

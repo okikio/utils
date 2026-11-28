@@ -22,7 +22,7 @@ does not do this. Use an asynchronous stack for cleanup that returns a Promise; 
 Direct imports give this lifetime its own stack without installing or replacing global constructors. This example also
 works when the host's stack globals are absent.
 
-From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare -- --kind deps` at the repository root. Save the following program as `example.ts` and run `mise exec -- deno run example.ts`. These commands use the workspace export maps; they do not assume a published registry version.
+From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare` at the repository root. Save the following program as `example.ts` and run `mise exec -- deno run example.ts`. These commands use the workspace export maps; they do not assume a published registry version.
 
 ```ts runnable
 import { AsyncDisposableStack } from '@okikio/dispose';

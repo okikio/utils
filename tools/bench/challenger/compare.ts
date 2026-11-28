@@ -1,6 +1,6 @@
 /** Eight whole-process HTTP trials support individual paired comparisons without timing gates. @module */
-import { challengerCandidates, challengerNames } from '#tools/bench/challenger-contract.ts';
-import type { ChallengerCandidateType } from '#tools/bench/challenger-contract.ts';
+import { challengerCandidates, challengerNames } from '#tools/bench/challenger/contract.ts';
+import type { ChallengerCandidateType } from '#tools/bench/challenger/contract.ts';
 
 /** Fixed workload IDs prevent a missing entire matrix row from looking successful. */
 export const challengerWorkloads = [

@@ -5,13 +5,13 @@ import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { cpus, release, totalmem } from 'node:os';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { challengerCandidates, challengerNames } from '#tools/bench/challenger-contract.ts';
+import { challengerCandidates, challengerNames } from '#tools/bench/challenger/contract.ts';
 import {
 	challengerOrders,
 	challengerWorkloads,
 	compareChallengers,
 	completeChallengers,
-} from '#tools/bench/challenger-compare.ts';
+} from '#tools/bench/challenger/compare.ts';
 import { validateMitata } from '#tools/bench/validate.ts';
 
 const args = process.argv.slice(2);
@@ -27,8 +27,8 @@ if (!['deno', 'node', 'bun'].includes(runtime)) throw new TypeError('Select deno
 const executable = args.find((value) => value.startsWith('--executable='))?.slice(13) ??
 	(runtime === 'node' ? process.execPath : runtime);
 if (!executable) throw new TypeError('Runtime executable cannot be empty.');
-const root = new URL('../../', import.meta.url);
-const program = fileURLToPath(new URL('../../bench/http-challengers.bench.ts', import.meta.url));
+const root = new URL('../../../', import.meta.url);
+const program = fileURLToPath(new URL('../../../bench/http-challengers.bench.ts', import.meta.url));
 const output = resolve(
 	positional[0] ?? `.tmp/artifacts/challengers/${runtime}-${new Date().toISOString().replaceAll(':', '-')}`,
 );
