@@ -1,5 +1,6 @@
 /** Retain serial native reports, exact inputs and failures; correctness gates never compare speed. */
 import { cpus, release, totalmem } from 'node:os';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
 	denoPrograms,
@@ -45,7 +46,8 @@ const selected = selectPrograms(
 		? defaults.filter((program) => runtime === 'deno' || !denoPrograms.includes(program))
 		: [selector],
 );
-const output = positional[0] ?? `.tmp/artifacts/bench/${new Date().toISOString().replaceAll(':', '-')}`;
+// Native package tasks retain their own cwd. Every report belongs to the directory claimed from that caller.
+const output = resolve(positional[0] ?? `.tmp/artifacts/bench/${new Date().toISOString().replaceAll(':', '-')}`);
 await claimOutput(output);
 const policy = { NODE_DISABLE_COLORS: '1', NO_COLOR: '1', FORCE_COLOR: '0' };
 const metadata = {
@@ -89,9 +91,7 @@ try {
 				? ['run', '--no-check', '--v8-flags=--expose-gc', '-A', new URL(program, root).href]
 				: [...(runtime === 'node' ? ['--expose-gc'] : []), fileURLToPath(new URL(program, root))]),
 			'--json',
-			...(packagePrograms.includes(program)
-				? [`--resources=${fileURLToPath(new URL(`${output}/${index}.resources.json`, root))}`]
-				: []),
+			...(packagePrograms.includes(program) ? [`--resources=${resolve(output, `${index}.resources.json`)}`] : []),
 			...(Deno.args.includes('--reverse') ? ['--reverse'] : []),
 			...(program === 'bench/npm-imports.bench.ts' ? ['--consumer', consumer!] : []),
 		];
