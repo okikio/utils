@@ -97,8 +97,20 @@ in `mise.toml`, so each one downloads the first time its task runs. The source l
 - `check:actions` runs jactionlint, zizmor and pinact on the workflows and local actions. zizmor and pinact use their
   online audits only in GitHub Actions; local runs stay offline.
 - `check:shell` runs shellcheck on every shell script, and `check:tasks` validates the Mise task graph.
-- `check:secrets` runs gitleaks on the Git history. Each exception in `.gitleaksignore` is one exact fingerprint with a
-  comment that says why it is not a secret. Never allow a whole file or a whole rule.
+- `check:secrets` runs the pinned Gitleaks scanner on the available Git history. Git's native Trace2 status must also
+  confirm that the selected patch traversal completed. Missing objects or incomplete status evidence fail the task,
+  even when the scanner reports no findings. Valid shallow history remains supported. Each exception in
+  `.gitleaksignore` is one exact fingerprint with a comment that says why it is not a secret. Never allow a whole file
+  or a whole rule.
+
+`tools/security/secrets.ts` forwards native scanner arguments, stdout, stderr and nonzero exit status. For example,
+`mise run check:secrets -- --log-opts='HEAD~1..HEAD'` scans a selected range, and `--staged` scans the index without
+requiring unrelated history. Git owns that selection; the wrapper checks the Git processes that actually supply
+patches and archive blobs. Optional remote-metadata failures remain separate. The invocation removes its temporary
+trace before returning and never prints recorded arguments. Use standalone `--help` or `-h` for scanner help.
+`mise run test:secrets` exercises the real pinned scanner against disposable Git histories, including missing blobs,
+selected patch parents and shallow clones. The ordinary native test lanes exercise the portable status checks without
+installing a scanner.
 
 `check:security` runs `deno audit` and osv-scanner in the advisory lane. Advisory databases change without a commit,
 so this check never reuses an earlier pass. An exception goes in `osv-scanner.toml` with a reason and an `ignoreUntil`
