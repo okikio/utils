@@ -129,7 +129,7 @@ not authorize the rest. See [npm trusted publishing](https://docs.npmjs.com/trus
 [the npm trust CLI](https://docs.npmjs.com/cli/v11/commands/npm-trust/), and
 [JSR publication settings](https://jsr.io/docs/publishing-packages).
 
-The pinned CLI is `sampo@0.24.0`. It supports npm workspace releases, not a native JSR adapter. The JSR job is an explicit
+The pinned CLI is `sampo@0.24.1`. It supports npm workspace releases, not a native JSR adapter. The JSR job is an explicit
 Deno step, not a claim of upstream JSR support. Registry configuration and real hosted publication need to be checked by
 the repository owner; local dry runs cannot prove those credentials or permissions.
 

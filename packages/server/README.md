@@ -156,6 +156,10 @@ The numeric title is rejected before the saving callback. `await using` disposes
 waits for its owned cleanup. It leaves borrowed host clients under their caller's ownership. Read or cancel every
 response body before disposing its owner, especially when the body streams.
 
+The incoming request body is also borrowed. If it remains unread, request teardown starts cancellation without waiting
+for the source's asynchronous cleanup. A rejected cancellation cannot replace the response. When source cleanup must
+finish before the host shuts down, the caller must retain and join its own cleanup promise.
+
 ## Call that exact contract from a client
 
 An ordinary `fetch` caller can build JSON itself. The optional typed client reuses `Save` and its response definitions.

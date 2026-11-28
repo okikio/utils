@@ -108,6 +108,8 @@ export class ServiceRuntimeConfigurationError extends Error {
  * Its Context owns cancellation and the lazy collection owns resources constructed
  * by declared factories. Consume or cancel response bodies, then await disposal
  * to join owned cleanup. An empty host is sufficient when no factory needs clients.
+ * An unread incoming body remains borrowed: request teardown starts cancellation
+ * without waiting for its source's asynchronous cleanup.
  */
 export function create<Host extends object, Values extends ServiceRequestValues = ServiceRequestValues>(
 	compiled: CompiledService<import('./types.ts').ServiceDefinition, Host>,
@@ -358,20 +360,30 @@ async function serveOperation<Host extends object, Values extends ServiceRequest
 			signal: requestContext.signal,
 			duplex: 'half',
 		};
-		activeRequest = new Request(request, scopedInit);
-		if (originalBody !== null && originalBody !== activeRequest.body && !originalBody.locked) {
-			// Some hosts tee an inherited body instead of transferring it. Own the unused branch too.
-			const cancelOriginal = (): void => {
-				if (!originalBody.locked) {
-					// The active reader records source cleanup failure without replacing its primary result.
-					void originalBody.cancel(requestContext.signal.reason).catch(() => {});
-				}
-			};
-			if (requestContext.signal.aborted) cancelOriginal();
-			else {
-				requestContext.signal.addEventListener('abort', cancelOriginal, { once: true });
-				requestContext.defer(() => requestContext.signal.removeEventListener('abort', cancelOriginal));
+		const scopedRequest = new Request(request, scopedInit);
+		activeRequest = scopedRequest;
+		// Keep the scoped Request reachable from its owner while a body read waits.
+		// Node's Request signal follows its source through weak references; the
+		// pending read alone need not retain that follower until the deadline fires.
+		const cancelRequestInputs = (): void => {
+			const scopedBody = scopedRequest.body;
+			const reason = requestContext.signal.reason;
+			// A locked reader owns cancellation through the forwarded signal. An
+			// unread body still needs cancellation when the request lifetime ends.
+			// Its source is borrowed: a slow or rejected cancel callback must not
+			// delay the response or runtime disposal, so contain rejection here.
+			if (scopedBody !== null && !scopedBody.locked) {
+				void scopedBody.cancel(reason).catch(() => {});
 			}
+			// Some hosts retain a distinct unused branch when adopting a body.
+			if (originalBody !== null && originalBody !== scopedBody && !originalBody.locked) {
+				void originalBody.cancel(reason).catch(() => {});
+			}
+		};
+		if (requestContext.signal.aborted) cancelRequestInputs();
+		else {
+			requestContext.signal.addEventListener('abort', cancelRequestInputs, { once: true });
+			requestContext.defer(() => requestContext.signal.removeEventListener('abort', cancelRequestInputs));
 		}
 		mutableState = { ...mutableState, request: activeRequest };
 		context.check(requestContext);
