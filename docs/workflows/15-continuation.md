@@ -92,7 +92,7 @@ repository root. It uses no activities or external business writes, so the count
 following from idempotency questions.
 
 ```sh
-mise run prepare -- --kind deps
+mise run prepare
 docker run --name utils-counter-postgres --rm -d -e POSTGRES_PASSWORD=example -p 55433:5432 postgres:18.3
 ```
 

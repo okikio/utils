@@ -219,3 +219,22 @@ describe('typed statements on PostgreSQL', () => {
 		);
 	});
 });
+
+describe('default-only rows on PostgreSQL', () => {
+	it('inserts the requested rows for identity, generated and zero-column tables', async () => {
+		await client`create table utils_sql_test.defaults (id bigint generated always as identity primary key)`;
+		await client`create table utils_sql_test.computed (value integer generated always as (42) stored)`;
+		await client`create table utils_sql_test.empty ()`;
+		const identity = space.table('defaults', { id: sql.column(types.bigint).identity() });
+		const computed = space.table('computed', { value: sql.column(types.integer).computed() });
+		const empty = space.table('empty', {});
+		expect(await sql.rows(db, sql.insert(identity, {}).returning(identity.c))).toHaveLength(1);
+		expect(await sql.rows(db, sql.insert(identity, [{}, {}]).onConflict({ action: 'nothing' }).returning(identity.c)))
+			.toHaveLength(2);
+		expect(await sql.rows(db, sql.insert(computed, [{}, {}]).returning(computed.c))).toEqual([{ value: 42 }, {
+			value: 42,
+		}]);
+		await sql.execute(db, sql.insert(empty, [{}, {}]));
+		expect((await client`select count(*)::integer as total from utils_sql_test.empty`)[0]!.total).toBe(2);
+	});
+});

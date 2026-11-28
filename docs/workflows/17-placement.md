@@ -38,7 +38,7 @@ capacity-bearing ancestor must have room independently. The executor's capacity 
 container's capacity of two. Registration records this trusted deployment description; it starts none of the hosts
 drawn here. The program below checks admission using that metadata without needing a Kubernetes installation.
 
-After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare` from the root.
 Save the next complete TypeScript block as
 `example.ts` at that root, then run `mise exec -- deno run example.ts`.
 

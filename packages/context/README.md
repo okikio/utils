@@ -18,7 +18,7 @@ The code that creates the context owns that cleanup and must await it before tre
 The child allows two elapsed seconds for both the request and the body read. The `data:` URL supplies real offline
 input. Context uses the owned local Temporal and disposal implementations when needed; importing it changes no globals.
 
-From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare -- --kind deps` at the repository root. Save the following program as `download-text.ts` and run `mise exec -- deno run download-text.ts`. These commands use the workspace export maps; they do not assume a published registry version.
+From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare` at the repository root. Save the following program as `download-text.ts` and run `mise exec -- deno run download-text.ts`. These commands use the workspace export maps; they do not assume a published registry version.
 
 ```ts runnable=download-text.ts
 import * as context from '@okikio/context';

@@ -40,7 +40,7 @@ with that process; persistent stores and real host delivery are separate choices
 Add two prices, take the queued calculation, and publish its total. The caller retrieves that result through the
 original item reference. The queue and its result exist only in this process.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as a `.ts` file in your project and use
+Run from this checkout after `mise run prepare`. Save the runnable block as a `.ts` file in your project and use
 `mise exec -- deno run example.ts`.
 
 ```ts runnable

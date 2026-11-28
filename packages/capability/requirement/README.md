@@ -32,7 +32,7 @@ Promise stops that path unless the application catches it and deliberately choos
 
 Context supplies its own clock and cleanup support. Importing this utility does not require changing runtime globals.
 
-After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare` from the root.
 Save the next complete TypeScript block as
 `example.ts` at that root, then run `mise exec -- deno run example.ts`.
 

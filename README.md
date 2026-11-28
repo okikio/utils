@@ -48,7 +48,7 @@ For later examples, use the filename shown in the instructions. Keep any named c
 beside the file you run. Unmarked code fragments may require values from your own application.
 
 Process examples explicitly need subprocess permission, and Worker examples need their listed companion files and
-module-read permission. Their focused READMEs name those requirements. Run `mise run test -- --suite docs` to compile and execute
+module-read permission. Their focused READMEs name those requirements. Run `mise run test:docs` to compile and execute
 maintained examples together. Passing local examples does not establish database, browser, or deployment support. The
 [repository checks](#work-on-the-repository) explain the separate runtime and integration checks.
 
@@ -258,9 +258,9 @@ Mise selects the tool versions and runs the repository commands. The programs th
 [the private tools workspace](tools/README.md). A package keeps its own tests beside its code. Tests that
 use several packages together live in `tests/`.
 
-For a ZIP checkout, install [Mise](https://mise.jdx.dev/getting-started.html) version 2026.10.3 or newer, then extract
-the archive. Run the following commands from the directory containing the extracted `utils` folder. These tasks work
-without initializing a Git repository. Review `utils/mise.toml` before trusting the local configuration:
+Install [Mise](https://mise.jdx.dev/getting-started.html) version 2026.11.5 or newer and use a checkout with its genuine
+Git metadata for shared repository checks and revision-based CI. When recovering an archive, restore its native history
+companion and Unix modes before those checks. Review `mise.toml` before trusting the local configuration:
 
 ```sh
 cd utils
@@ -268,17 +268,17 @@ mise trust
 mise install
 mise run prepare:node
 mise run check
-mise run test -- --runtime node
-mise run test -- --runtime deno
-mise run test -- --runtime bun
-mise run test -- --suite docs
+mise run test:node --
+mise run test:deno --
+mise run test:bun --
+mise run test:docs
 ```
 
-`check --kind portable` compiles browser, Worker and Node consumers with separate ambient types. `test --suite browser` uses real
-Chromium. `mise run test -- --suite packages` builds and installs emitted archives before running consumer checks. PostgreSQL and Docker
+`check:portable` compiles browser, Worker and Node consumers with separate ambient types. `test:browser` uses real
+Chromium. `mise run test:packages` builds and installs emitted archives before running consumer checks. PostgreSQL and Docker
 tests have explicit resource tasks. Read [testing](docs/maintenance/01-testing.md),
 [packaging](docs/maintenance/02-packaging.md), and [releases](docs/maintenance/03-releases.md) for the exact commands.
-For long PostgreSQL lifetimes, `mise run test -- --suite soak` explicitly runs two hours of guarded writes, renewable claims and
+For long PostgreSQL lifetimes, `mise run test:soak` explicitly runs two hours of guarded writes, renewable claims and
 a midpoint primary promotion. Read the [lease and soak instructions](docs/maintenance/07-recovery.md#keep-permission-alive-during-a-long-database-run)
 before running it; its short harness mode does not test multi-hour behavior. All local run evidence stays in `.tmp/`.
 

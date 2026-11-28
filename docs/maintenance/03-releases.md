@@ -8,11 +8,11 @@ For example, suppose you fix cancellation in `@okikio/streams`. A changeset is a
 the version change, and the note for users. Add a patch changeset for this fix while it is still in review:
 
 ```sh
-mise run release -- --operation add --project streams --bump patch --message 'Stop reading when the consumer cancels.'
-mise run release -- --operation plan
+mise run release:add -- --package npm/@okikio/streams --bump patch --message 'Stop reading when the consumer cancels.'
+mise run release
 ```
 
-Commit the generated file in `.sampo/changesets/` with the fix. The plan previews the PR base branch (or `main` locally) and is read-only: it shows version changes,
+Commit the generated file in `.sampo/changesets/` with the fix. The plan previews `main` and is read-only: it shows version changes,
 dependent-package changes and changelog entries. Review that output, including changes to the umbrella package.
 Choose `minor` for new compatible capabilities and `major` for incompatible public changes. Documentation-only or
 private-tool changes do not need an artificial package bump. Sampo has no `none` bump type.
@@ -38,9 +38,9 @@ flowchart LR
 To inspect the same preparation locally, use a clean checkout of `main`:
 
 ```sh
-mise run release -- --operation version --check
+mise run release
 # The following command writes versions and consumes changesets. Review its diff.
-mise run release -- --operation version
+mise run release:version
 mise run check:versions
 ```
 
@@ -87,10 +87,10 @@ publishes source at the same revision with Deno's frozen lockfile. Tsdown is not
 For local inspection, these commands perform no upload:
 
 ```sh
-mise run test -- --suite packages
-mise run check -- --kind jsr
-mise run release -- --operation publish --target npm --check
-mise run release -- --operation publish --target jsr --check
+mise run test:packages
+mise run check:jsr
+mise run release:publish -- --target npm --check
+mise run release:publish -- --target jsr --check
 ```
 
 The npm dry run requires prepared artifact directories. Publication also requires a Git checkout; ordinary source and
@@ -129,7 +129,7 @@ not authorize the rest. See [npm trusted publishing](https://docs.npmjs.com/trus
 [the npm trust CLI](https://docs.npmjs.com/cli/v11/commands/npm-trust/), and
 [JSR publication settings](https://jsr.io/docs/publishing-packages).
 
-The pinned CLI is `sampo@0.24.0`. It supports npm workspace releases, not a native JSR adapter. The JSR job is an explicit
+The pinned CLI is `sampo@0.24.1`. It supports npm workspace releases, not a native JSR adapter. The JSR job is an explicit
 Deno step, not a claim of upstream JSR support. Registry configuration and real hosted publication need to be checked by
 the repository owner; local dry runs cannot prove those credentials or permissions.
 

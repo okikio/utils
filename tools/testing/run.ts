@@ -4,6 +4,7 @@ import { createWriteStream } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { finished } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
+import { relative, resolve, sep } from 'node:path';
 import process from 'node:process';
 import { discover, select, supports } from '#tools/testing/discover.ts';
 import type { Runtime, TestFile } from '#tools/testing/discover.ts';
@@ -18,7 +19,8 @@ Postgres requires UTILS_TEST_DATABASE_URL for a disposable database.
 Containers owns Docker fixtures. Interop starts every compatible server in Docker. Soak owns opt-in multi-hour Docker runs. Docs compiles runnable examples with Deno.
 Comparisons uses prepared competitor fixtures on the selected native runtime.
 List prints ownership without executing tests. Check validates test registration and ownership.
-Selectors are repository-relative files or directories; unmatched selectors fail.
+Selectors are files or directories relative to the caller; unmatched selectors fail.
+Native workspace filtering chooses packages. This program owns only test host/resource admission and execution.
 `;
 
 let execution = 0;
@@ -147,10 +149,13 @@ if (import.meta.main) {
 	} else {
 		const host = command === 'comparisons' ? filters.shift() : runtime(command) ? command : undefined;
 		if (command === 'comparisons' && !runtime(host)) throw new TypeError('Comparisons requires deno, node or bun.');
-		const files = await discover(Root);
+		// Package scripts run from their own directory. Keep the native working-directory contract,
+		// then use repository-relative paths only for resource classification and retained receipts.
+		const selectors = filters.map((filter) => relative(Root, resolve(filter)).split(sep).join('/') || '.');
+		const files = await discover(Root, selectors);
 		if (files.length === 0) throw new Error('No authored test files were discovered.');
 		if (command === 'list') {
-			console.log(JSON.stringify(select(files, filters), null, 2));
+			console.log(JSON.stringify(select(files, selectors), null, 2));
 		} else if (command === 'check') {
 			if (filters.length) throw new TypeError('Test ownership checks inspect the complete test inventory.');
 			const { audit } = await import('#tools/testing/audit.ts');
@@ -162,7 +167,7 @@ if (import.meta.main) {
 			else if (['postgres', 'containers', 'interop', 'soak', 'docs'].includes(command)) {
 				selected = files.filter((file) => file.family === command);
 			} else throw new TypeError(`Unknown test command ${command}.\n${Help}`);
-			selected = select(selected, filters);
+			selected = select(selected, selectors);
 			if (selected.length === 0) throw new Error(`No ${command} tests were selected.`);
 			console.log(
 				`${command}: ${selected.length} discovered test files. Type fixtures and other resource owners are separate tasks.`,

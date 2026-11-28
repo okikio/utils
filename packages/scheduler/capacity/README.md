@@ -31,7 +31,7 @@ This job reserves a browser instance and three upload slots together. The counte
 One upload needs a browser slot and three upload slots together. Inspect the available counts before and after releasing
 its lease; both limits return to their initial values.
 
-After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare` from the root.
 Save the next complete TypeScript block as
 `example.ts` at that root, then run `mise exec -- deno run example.ts`.
 

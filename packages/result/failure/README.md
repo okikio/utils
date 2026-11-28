@@ -15,7 +15,7 @@ enter the encoded representation.
 An asset lookup reports a known missing ID. Encode that occurrence as transferable data, then decode it against the
 receiver's trusted definition list. The restored value keeps both the recognized definition and the asset ID.
 
-From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare -- --kind deps` at the repository root. Save the following program as `example.ts` and run `mise exec -- deno run example.ts`. These commands use the workspace export maps; they do not assume a published registry version.
+From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare` at the repository root. Save the following program as `example.ts` and run `mise exec -- deno run example.ts`. These commands use the workspace export maps; they do not assume a published registry version.
 
 ```ts runnable
 import * as failure from '@okikio/result/failure';

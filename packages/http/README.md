@@ -27,7 +27,7 @@ caller’s cancellation and a deadline active through decoding or streaming and 
 
 ## Keep every search filter in a native handler
 
-From the Utils checkout, review `mise.toml`, then run `mise trust`, `mise install` and `mise run prepare -- --kind deps`.
+From the Utils checkout, review `mise.toml`, then run `mise trust`, `mise install` and `mise run prepare`.
 Save this complete program as `http-search.ts` and run `mise exec -- deno run http-search.ts`.
 It calls an ordinary function with a Request; it opens no port.
 

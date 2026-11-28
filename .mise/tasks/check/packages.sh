@@ -3,4 +3,4 @@
 #MISE hide=true
 #MISE depends=[]
 set -euo pipefail
-exec deno run --frozen --allow-read tools/packages/check.ts
+exec deno run --frozen --allow-read --allow-env --allow-run=pnpm tools/packages/check.ts

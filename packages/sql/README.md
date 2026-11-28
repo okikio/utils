@@ -329,3 +329,16 @@ is only checked before sending. The hand-written forms above ignore the signal a
 - `sql.describe(catalog, describe)` asks PostgreSQL to parse and plan each statement without running it, and compares
   the parameter count and result columns with the declaration. A wrong table, column or type fails there.
 - `sql.tableStatements(table)` creates a table and its indexes; `sql.addColumn` upgrades an older revision.
+
+### Generated TypeScript names
+
+Catalog generation preserves database schema and table names exactly in the definitions. Module bindings replace
+punctuation with underscores and prefix names beginning with a digit. Reserved words receive an underscore prefix.
+Imports and schema bindings are reserved before table bindings; collisions receive deterministic suffixes such as
+`users_2` in catalog order. Inspect the generated exports when adopting tables from several schemas.
+
+Catalog text in generated comments escapes line breaks and comment terminators, so those names and default
+expressions cannot change the generated program. The definitions still contain the original database names.
+A column named `__proto__` uses a computed property, so JavaScript preserves it as an own column field.
+Custom type names such as `constructor` and `toString` retain their schema-qualified SQL codecs; they do not
+select inherited JavaScript object properties as built-in types.

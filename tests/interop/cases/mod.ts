@@ -40,17 +40,35 @@ export type FlavorType = keyof typeof flavors;
 export interface OutcomeType {
 	readonly case: string;
 	readonly status: 'pass' | 'fail' | 'blocked';
-	/** The first line of the error, or the cases that blocked this one. */
+	/** The bounded error/cause chain with SQLSTATE codes, or the cases that blocked this one. */
 	readonly detail?: string;
 	readonly ms: number;
 }
 
-/** The first line of an error that says something; Prisma starts its messages with a blank line. */
-const short = (error: unknown): string =>
-	String((error as Error | undefined)?.message ?? error).split('\n').map((
-		line,
-	) => line.trim()).find(Boolean)
-		?.slice(0, 400) ?? String(error);
+/** Preserve the database cause hidden by transaction wrappers; bound cyclic or deeply nested errors. */
+function short(error: unknown): string {
+	const parts: string[] = [];
+	const seen = new Set<unknown>();
+	let current = error;
+	while (current !== undefined && parts.length < 4 && !seen.has(current)) {
+		seen.add(current);
+		const item = current !== null && typeof current === 'object'
+			? current as {
+				readonly message?: unknown;
+				readonly code?: unknown;
+				readonly cause?: unknown;
+				readonly fields?: { readonly code?: unknown };
+			}
+			: undefined;
+		// Prisma starts some messages with a blank line; retain the first useful line at each level.
+		const message = String(item?.message ?? current).split('\n').map((line) => line.trim()).find(Boolean) ?? '';
+		const state = item?.code ?? item?.fields?.code;
+		const code = typeof state === 'string' ? ` [${state.slice(0, 32)}]` : '';
+		parts.push(`${message.slice(0, 360)}${code}`);
+		current = item?.cause;
+	}
+	return parts.join(' <- ');
+}
 
 /** Run every case against one database in schema `name`, dropping the schema before and after. */
 export async function runCases(

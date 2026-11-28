@@ -9,7 +9,7 @@ A declaration alone never protects a response.
 
 ## Return the picture or a denial
 
-From the `utils` checkout root, review `mise.toml` and run `mise trust`, `mise install`, and `mise run prepare -- --kind deps`.
+From the `utils` checkout root, review `mise.toml` and run `mise trust`, `mise install`, and `mise run prepare`.
 Save the complete block as `gallery.ts` and run `mise exec -- deno run gallery.ts`. No server or database is needed.
 
 ```ts runnable=gallery.ts

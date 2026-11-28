@@ -39,7 +39,7 @@ This complete example uses a disposable PostgreSQL 18.3 database and this checko
 application table are explicit setup. Prepare dependencies and start the isolated database from the repository root:
 
 ```sh
-mise run prepare -- --kind deps
+mise run prepare
 docker run --name utils-progress-postgres --rm -d -e POSTGRES_PASSWORD=example -p 55434:5432 postgres:18.3
 ```
 

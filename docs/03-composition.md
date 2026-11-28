@@ -31,7 +31,7 @@ Watch for three forms as the examples grow. A Promise represents a result that m
 when the work fails. A `scope()` or `view()` can give a function access to an existing owner without making the function
 responsible for closing it.
 
-`tools/testing/examples.ts` compiles and runs authored examples through their public imports and compares declared
+`tools/testing/examples/inventory.ts` compiles and runs authored examples through their public imports and compares declared
 output. It does not test heading wording, prose, or an arbitrary example count.
 
 ## Start with an ordinary account import

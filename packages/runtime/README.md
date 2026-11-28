@@ -37,7 +37,7 @@ Prepare an echo protocol and a checked reply without opening a browser Worker. T
 empty transfer list shows that this reply transfers no separately owned buffers.
 
 These examples use the current experimental source checkout, not an assumed registry release. From the `utils`
-repository root, review `mise.toml`, run `mise trust`, then `mise install` and `mise run prepare -- --kind deps`.
+repository root, review `mise.toml`, run `mise trust`, then `mise install` and `mise run prepare`.
 Save the following module as `example.ts` and run `mise exec -- deno run example.ts`.
 [Checkout prerequisites](../../README.md#work-on-the-repository) explain installing Mise.
 

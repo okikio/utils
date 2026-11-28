@@ -19,7 +19,7 @@ standard FormData in Deno, Node, Bun or a browser. It retains both tags, convert
 the fields in the application's schema.
 
 These examples use the current experimental source checkout, not an assumed registry release. From the `utils`
-repository root, review `mise.toml`, run `mise trust`, then `mise install` and `mise run prepare -- --kind deps`.
+repository root, review `mise.toml`, run `mise trust`, then `mise install` and `mise run prepare`.
 Save the following module as `input-form.ts` and run `mise exec -- deno run input-form.ts`.
 [Checkout prerequisites](../../README.md#work-on-the-repository) explain installing Mise.
 

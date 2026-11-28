@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-#MISE description="Dry-run JSR publication of the source workspace without uploading"
+#MISE description="Validate JSR source publication without uploading any package"
 #MISE hide=true
 #MISE depends=[]
-# tools/workspace/run.ts owns the dry-run flags, so CI and this task stay the same.
 set -euo pipefail
-exec node tools/workspace/run.ts check --kind jsr
+args=(publish --dry-run --frozen-lockfile)
+if [[ -z "${CI:-}" ]]; then args+=(--allow-dirty); fi
+exec deno "${args[@]}"

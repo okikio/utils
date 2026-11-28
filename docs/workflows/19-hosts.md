@@ -282,11 +282,11 @@ crash and replace a host, and reject saved references after whole-container loss
 The shared fixture runs the same nested memory and durable flow for both host kinds.
 
 ```sh
-mise run test -- --runtime node packages/pool packages/activity packages/workflow/placement.test.ts packages/workflow/scheduler.test.ts
-mise run test -- --runtime deno packages/pool packages/activity tests/activity-providers.test.ts
-UTILS_TEST_DATABASE_URL=postgres://... mise run test -- --suite postgres tests/workflows/resource-sessions.test.ts tests/workflows/placement.test.ts
-mise run test -- --suite containers tests/workflows/session-containers.test.ts
-mise run bench -- --project pool --check
+mise run test:node -- packages/pool packages/activity packages/workflow/placement.test.ts packages/workflow/scheduler.test.ts
+mise run test:deno -- packages/pool packages/activity tests/activity-providers.test.ts
+UTILS_TEST_DATABASE_URL=postgres://... mise run test:postgres -- tests/workflows/resource-sessions.test.ts tests/workflows/placement.test.ts
+mise run test:containers -- tests/workflows/session-containers.test.ts
+pnpm --filter ./packages/pool --fail-if-no-match run bench:check
 ```
 
 The pool benchmark holds work fixed at 100 exact selections among eight values,

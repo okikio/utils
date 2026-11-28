@@ -23,7 +23,7 @@ creating it does not fetch that URL or create a documentation page.
 Give a missing asset a stable problem type and a 404 response. The diagnostic detail explains this occurrence, while the
 type URL lets a caller recognize the failure independently of its wording.
 
-After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare` from the root.
 Save the next complete TypeScript block as
 `example.ts` at that root, then run `mise exec -- deno run example.ts`.
 

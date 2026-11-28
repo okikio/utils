@@ -8,8 +8,8 @@ Choose the suite for the failure you need to reproduce. Run both when changing t
 
 | What you need to check | Command | What you supply |
 | --- | --- | --- |
-| Saved claims, receipts, and process restart | `mise run test -- --suite postgres` | Set `UTILS_TEST_DATABASE_URL` to a disposable PostgreSQL database. |
-| HTTP service, worker-container loss, and replacement | `mise run test -- --suite containers` | Start Docker. The suite creates its own database and workers. |
+| Saved claims, receipts, and process restart | `mise run test:postgres` | Set `UTILS_TEST_DATABASE_URL` to a disposable PostgreSQL database. |
+| HTTP service, worker-container loss, and replacement | `mise run test:containers` | Start Docker. The suite creates its own database and workers. |
 
 Mise pins Node and Deno. Set `DENO_BIN` to select the binary for fresh-process cases. A missing database URL or Docker
 daemon is a setup failure; the corresponding suite does not silently skip. CI runs the two suites separately from

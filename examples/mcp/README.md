@@ -12,7 +12,7 @@ reads and writes MCP messages. Before the SDK sees a request, the Utils route ch
 
 ## Run the checked example
 
-From this repository's root, run `mise run prepare -- --kind deps`, then
+From this repository's root, run `mise run prepare`, then
 `cd examples/mcp`. Choose one installed runtime:
 
 | Runtime | Verify discovery and calls | Start a listener |

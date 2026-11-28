@@ -23,7 +23,7 @@ dependencies:
 ```sh
 mise trust
 mise install
-mise run prepare -- --kind deps
+mise run prepare
 ```
 
 [Mise installation and checkout setup](../../../README.md#work-on-the-repository) explains the prerequisites for a fresh

@@ -1,50 +1,76 @@
 # Maintain repository workflows
 
-`@okikio/tools` is a private workspace package. It owns the programs used to inspect, build and test Utils, rather than
-another set of library APIs. Mise is the local and CI entry point. Start with a task family and select the package or
-runtime you need. For example, after changing how Streams releases a reader, run its tests on the runtime that exposed
-the problem. Benchmark only after the tests establish the expected result. If you changed an exported path, check the
-workspace first; use the export write operation when you intend to update the derived manifests and forwarders.
+`@okikio/tools` is the private workspace package that builds and checks Utils. A contributor chooses an owner through
+native package filtering, then runs that owner's declared command. Mise selects pinned tools and composes repository
+checks, resource fixtures and release operations. There is no separate package-selector or task-dispatch language.
+
+After changing how Streams releases a reader, start with its own check and the runtime that exposed the problem:
 
 ```sh
-mise run check
-mise run check -- --kind lint --project streams
-mise run test -- --project streams --runtime node
-mise run test -- --project tools --runtime bun
-mise run bench -- --check --project streams --runtime deno
-mise run build -- --target exports --write
-mise run release -- --operation plan
+mise run prepare
+pnpm --filter ./packages/streams --fail-if-no-match run check
+pnpm --filter ./packages/streams --fail-if-no-match run test:node
+pnpm --filter ./packages/streams --fail-if-no-match run bench:check
+pnpm --filter @okikio/tools --fail-if-no-match run test:bun
+mise run check:lint -- packages/streams
+mise run build:exports
+mise run release
 ```
 
-`--project` accepts a short name or `@okikio/name`. Test selection accepts repeated projects. Benchmark measurements
-keep one project per report so a result has an unambiguous owner. Adding an ordinary package or test does not require
-adding a new Mise task. `mise run test -- --help` explains selectors, and `mise run test -- --suite list` explains test
-ownership. Choosing one package's tests does not narrow the workspace type check, which checks types that callers
-receive across package boundaries.
+Package names are optional selectors. pnpm also accepts paths, globs, dependencies and dependents. For example,
+`pnpm --filter '@okikio/server...' --fail-if-no-match --no-sort run check` checks Server and its workspace dependencies.
+`pnpm --filter '...{./packages/http}' --fail-if-no-match --no-sort run check` checks HTTP and its workspace consumers.
+The source checks consume the available source graph and do not emit prerequisites for another package. `--no-sort`
+therefore allows deliberate cycles introduced by test consumers without deleting those dependency declarations.
 
-```text
-tools/
-├── package.json        private npm workspace and direct dependencies
-├── deno.jsonc          Deno workspace boundary and private imports
-├── workspace/          task selection and affected-CI planning
-├── packages/           source exports, npm projection and package contracts
-├── releases/           npm-to-JSR version projection and GitHub release notes
-├── testing/            test discovery, runtime adapters and installed consumers
-└── bench/              fixture checks, measurements, comparisons and profiling
-```
+Each public `package.json` owns `check`, `test`, `test:deno`, `test:node`, `test:bun`, `build`, `bench` and `bench:check`.
+The generator copies those commands into `deno.jsonc`; it does not replace a local check with the root aggregate.
+`deno task --cwd packages/http check` uses the same owner. Deno's named `--filter` can exit successfully with no matching
+task, and recursive pnpm `run` can skip a missing script when another selected member has it. CI validates task
+declarations with `check:packages`, then uses `pnpm --filter <selector> --fail-if-no-match --no-sort -r exec pnpm run <task>`
+so every selected owner must execute its required script. CI also sets `verifyDepsBeforeRun=error`; dependency preparation
+owns installation. A real task failure remains a failure in both runtimes. Member Deno checks, including the private tools owner, supplement the complete
+repository TypeScript-native check. A selected package without an authored benchmark fails explicitly instead of
+reporting an empty measurement as success.
 
-`workspace/run.ts` checks options such as `--project`, then calls the matching task under `.mise/tasks/`.
-Those shell tasks select the runtime, set its environment, and pass permissions. The TypeScript programs run the
-steps. Mise chooses the pinned runtime versions and runs prerequisites first. Package scripts and Deno tasks
-call the same task families.
+| Owner | Responsibility |
+| --- | --- |
+| `tools/package.json`, `tools/deno.jsonc` | Private tooling dependencies, imports and native tasks. |
+| `tools/workspace/ci/plan.ts` | Exact Git changes and resource-lane policy; pnpm supplies dependency reachability. |
+| `tools/workspace/ci/execute.ts` | Execute an admitted CI lane through native package commands and Mise resource tasks. |
+| `tools/workspace/ci/result.ts` | Require successful results for the exact selected candidate and lanes. |
+| `tools/packages/` | Source metadata, Deno/umbrella projections, npm ESM/declarations and installed artifacts. |
+| `tools/releases/` | Sampo planning, npm-to-JSR version projection and validated publication. |
+| `tools/testing/` | Native test-file discovery, host/resource admission and actual execution receipts. |
+| `tools/bench/` | Fixture correctness, retained measurements, comparisons and profiling. |
 
-`packages/exports.ts` reads each package's public paths, then checks or writes the matching Deno exports and
-`@okikio/utils` re-exports. Only paths listed in a package manifest become public. Finding every `.ts` file
-would also expose private code.
+The small `packages/source.ts` adapter reads pnpm's JSON listing. It validates the returned identities and selects public
+source owners from that result, including nested packages and excluding private manifests. It does not crawl the workspace
+or rebuild dependency traversal. `packages/exports.ts`
+then reads the selected manifests and projects only declared public paths and scripts. Private source files never become
+exports merely because a file finder saw them. `packages/npm.ts` composes the npm artifact stages from one source
+snapshot. The owners in `packages/npm/` build ESM and declarations, inspect public targets, pack archives and test clean
+installed consumers. Rebuilding a selected package removes only that package's generated stage, including temporary
+files left by an interrupted build.
 
-`packages/npm.ts` reads the same paths to build ESM JavaScript and TypeScript declarations with stable tsdown.
-It keeps external dependencies separate. It packs npm archives and installs them into clean projects for testing.
-For example, `tests/npm-consumer.mjs` runs the installed JavaScript without a TypeScript loader.
+| npm owner | Responsibility |
+| --- | --- |
+| `packages/npm/source.ts` | Read native workspace manifests and marked installed-consumer scenarios. |
+| `packages/npm/build.ts` | Prepare one member stage and emit its JavaScript and declarations. |
+| `packages/npm/inspect.ts` | Inspect public files and parsed runtime imports. |
+| `packages/npm/pack.ts` | Check physical archive contents and write their hashes. |
+| `packages/npm/consumer.ts` | Install archives outside the checkout and compose consumer checks. |
+| `packages/npm/consumer/` | Check declaration resolution, selective bundles and authored scenarios. |
+| `packages/npm/command.ts` | Retain native command output and exit status. |
+
+The imported owners do no work until the CLI calls them. The CLI owns arguments, and the stage that creates a resource
+owns its cleanup. Build and pack failures retain diagnostics under `.tmp/artifacts/npm/commands/`.
+
+`testing/run.ts` remains because tests have real host and resource contracts. Native file globs find authored tests;
+the owner classifies Node, Deno, Web Worker, PostgreSQL and container requirements, launches the actual runtime and
+retains its output and exit status. A package task passes its working directory. CI also retains root compositions,
+tool tests and comparisons after selecting affected packages. Use `mise run test:list` to inspect ownership. Database
+and container tasks fail when their required environment is absent; they do not become successful empty suites.
 
 Tests remain next to their package; composed workflows remain in root `tests/`. Package benchmarks remain next to the
 package, and cross-package measurements remain in root `bench/`. Tools select these programs without duplicating their
@@ -60,14 +86,54 @@ Repository-owned generated artifacts and execution evidence live in `.tmp/`. Exi
 consumers use isolated directories so this checkout's workspace dependencies cannot conceal a missing dependency.
 These locations are internal test details, not application layout recommendations.
 
+`pnpm` owns the installed workspace dependencies. When manifest membership changes, update Deno's resolution with
+`deno install --lockfile-only --frozen-lockfile=false`, inspect the lock diff, then keep ordinary checks frozen. A plain
+`deno install` can replace pnpm-owned optional dependency links even with the workspace's manual module setting;
+use `pnpm install --frozen-lockfile` to restore the declared installed graph after such an invocation.
+
+The private `tests/interop` package owns the Prisma and Sequelize fixtures. Their reviewed transitive overrides live
+in `pnpm-workspace.yaml` for pnpm and root `package.json` for Deno. Each selector names the exact parent version, so
+it changes only that parent's dependency edge. Deno supports its own overrides; it does not read pnpm's settings.
+
+| Parent and dependency | Installed version | Caller checked before changing the dependency |
+| --- | --- | --- |
+| `@prisma/config@7.10.1` → `effect` | `3.22.1` | Prisma config loading, schema decoding and invalid-field rejection. |
+| `sequelize@6.37.8` → `uuid` | `11.1.1` | CommonJS UUID v1/v4 defaults, transaction and query IDs, and PostgreSQL function delimiters. |
+
+These versions fix [the Effect advisory](https://github.com/advisories/GHSA-7589-6fvf-x4pw) and
+[the UUID advisory](https://github.com/advisories/GHSA-w5hq-g745-h8pq). They do not add dependencies to the published
+libraries. Review the overrides again when either parent changes, including the actual ORM callers. Config and SQL
+generation probes do not replace the interoperability suite against real databases.
+
+Regenerate pnpm's lock with `pnpm install --lockfile-only`. Deno can retain an old transitive resolution after an
+override changes. If that happens, use a disposable copy of the workspace manifests and existing Deno lock. Remove
+only the affected declarations in that copy, run the native lock-only install, restore the exact manifest bytes and
+run it again. Drizzle's optional Prisma peer can retain Prisma's graph, so this repair also needs to remove and restore
+Drizzle's root and interop declarations in the copy. Inspect the complete generated lock diff before adopting it;
+unrelated package versions must remain stable. Do not edit resolved lock entries by hand. Finish with
+`pnpm install --frozen-lockfile` and `deno install --lockfile-only --frozen-lockfile`, then check both advisory reports.
+The separate glob and minimatch exceptions remain in `osv-scanner.toml` until their Deno graph has been reconciled.
+
 CI installs pinned tools with the official Mise action and caches pnpm downloads and Deno modules. Check tools are lazy
 in `mise.toml`, so each one downloads the first time its task runs. The source lane runs these repository checks:
 
 - `check:actions` runs jactionlint, zizmor and pinact on the workflows and local actions. zizmor and pinact use their
   online audits only in GitHub Actions; local runs stay offline.
 - `check:shell` runs shellcheck on every shell script, and `check:tasks` validates the Mise task graph.
-- `check:secrets` runs gitleaks on the Git history. Each exception in `.gitleaksignore` is one exact fingerprint with a
-  comment that says why it is not a secret. Never allow a whole file or a whole rule.
+- `check:secrets` runs the pinned Gitleaks scanner on the available Git history. Git's native Trace2 status must also
+  confirm that the selected patch traversal completed. Missing objects or incomplete status evidence fail the task,
+  even when the scanner reports no findings. Valid shallow history remains supported. Each exception in
+  `.gitleaksignore` is one exact fingerprint with a comment that says why it is not a secret. Never allow a whole file
+  or a whole rule.
+
+`tools/security/secrets.ts` forwards native scanner arguments, stdout, stderr and nonzero exit status. For example,
+`mise run check:secrets -- --log-opts='HEAD~1..HEAD'` scans a selected range, and `--staged` scans the index without
+requiring unrelated history. Git owns that selection; the wrapper checks the Git processes that actually supply
+patches and archive blobs. Optional remote-metadata failures remain separate. The invocation removes its temporary
+trace before returning and never prints recorded arguments. Use standalone `--help` or `-h` for scanner help.
+`mise run test:secrets` exercises the real pinned scanner against disposable Git histories, including missing blobs,
+selected patch parents and shallow clones. The ordinary native test lanes exercise the portable status checks without
+installing a scanner.
 
 `check:security` runs `deno audit` and osv-scanner in the advisory lane. Advisory databases change without a commit,
 so this check never reuses an earlier pass. An exception goes in `osv-scanner.toml` with a reason and an `ignoreUntil`

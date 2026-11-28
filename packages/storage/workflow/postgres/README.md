@@ -68,7 +68,7 @@ example creates application tables and explicitly migrates `utils_workflow`; do 
 From the repository root:
 
 ```sh
-mise run prepare -- --kind deps
+mise run prepare
 docker run --name utils-docs-postgres --rm -d -e POSTGRES_PASSWORD=example -p 55432:5432 postgres:18.3
 ```
 

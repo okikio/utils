@@ -72,7 +72,7 @@ a slower consumer applies backpressure instead of forcing the package to retain 
 The application supplies the source URL and bytes. Sitemap waits for the candidate sink on each record. This example
 collects page URLs. The application must apply its own crawl policy before requesting those pages.
 
-After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare` from the root.
 Save the next complete TypeScript block as
 `stream-discovery.ts` at that root, then run `mise exec -- deno run stream-discovery.ts`.
 

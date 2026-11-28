@@ -21,7 +21,7 @@ Choose a [storage task](#choose-a-storage-task) below when you need a queue, a w
 
 ## Reopen a saved value through a different owner
 
-From the repository root, run `mise run prepare -- --kind deps` once. Save the complete block as the named `.ts` file and run
+From the repository root, run `mise run prepare` once. Save the complete block as the named `.ts` file and run
 `mise exec -- deno run saved-title.ts`. These examples use workspace imports; they need no published package or network service.
 
 A snapshot store is independent of a queue or workflow. Reusing this memory slot preserves its value across local
@@ -240,9 +240,9 @@ PostgreSQL collection is an explicit external-service lane.
 From the repository root, run the package's tests and untimed benchmark checks before collecting timings:
 
 ```sh
-mise run test -- --project storage
-mise run bench -- --project storage --check
-mise run bench -- --project storage
+pnpm --filter ./packages/storage --fail-if-no-match run test
+pnpm --filter ./packages/storage --fail-if-no-match run bench:check
+pnpm --filter ./packages/storage --fail-if-no-match run bench
 ```
 
 These commands use package-owned fixtures and development dependencies. The

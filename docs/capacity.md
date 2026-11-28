@@ -20,7 +20,7 @@ This job reserves a browser instance and three upload slots together. The counte
 A browser upload needs one browser slot and three upload slots at the same time. The first printout shows how many
 slots are left during the upload. When the upload releases its reservation, both counts go back up.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `upload-capacity.ts` at the checkout root and use
+Run from this checkout after `mise run prepare`. Save the runnable block as `upload-capacity.ts` at the checkout root and use
 `mise exec -- deno run upload-capacity.ts`.
 
 ```ts runnable=upload-capacity.ts

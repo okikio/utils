@@ -20,7 +20,7 @@ The [public source](./mod.ts) lists the options and the types of diagnostic valu
 A provider throws a TypeError. Encode its diagnostic name and message without a stack so the receiver gets useful
 context without an accidental disclosure of local source paths.
 
-After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare` from the root.
 Save the next complete TypeScript block as
 `example.ts` at that root, then run `mise exec -- deno run example.ts`.
 

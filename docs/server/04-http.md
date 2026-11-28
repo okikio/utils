@@ -14,7 +14,7 @@ workspace imports and pinned tools:
 ```sh
 mise trust
 mise install
-mise run prepare -- --kind deps
+mise run prepare
 ```
 
 [Checkout setup](../../README.md#work-on-the-repository) includes Mise installation. The checks below run without

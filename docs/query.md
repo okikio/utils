@@ -36,7 +36,7 @@ filter and page on a small array, so you can see each step without a database.
 Declare a name equality filter and a bounded page, parse a caller URL, then apply those checked values to a small people
 array. This local provider lets you see actual matching rows before learning alternate representations.
 
-Run `mise run prepare -- --kind deps` in the checkout. Save the block as `example.ts` at the checkout root and run
+Run `mise run prepare` in the checkout. Save the block as `example.ts` at the checkout root and run
 `mise exec -- deno run example.ts` there.
 
 `parse()` means “read and validate this request,” not “run this search.” The returned filter is data describing

@@ -5,8 +5,8 @@ import { createHash } from 'node:crypto';
 import { createInterface } from 'node:readline';
 import { resolve } from 'node:path';
 import { programs } from '#tools/bench/suite.ts';
-import type { HttpGateType, PendingType, ResponseType, WorkloadType } from './profile-types.ts';
-import { profileReceipt } from '#tools/bench/profile-startup.ts';
+import type { HttpGateType, PendingType, ResponseType, WorkloadType } from './profile/types.ts';
+import { profileReceipt } from '#tools/bench/profile/startup.ts';
 
 const arguments_ = process.argv.slice(2);
 for (const argument of arguments_) {
@@ -43,7 +43,9 @@ if (runtime === 'node' && selector !== 'http') {
 	);
 }
 if (arguments_.includes('--npm') && (runtime === 'node' || selector === 'http')) {
-	throw new TypeError('--npm selects a Deno suite program; use profile-startup.ts for native npm import children.');
+	throw new TypeError(
+		'--npm selects a Deno suite program; use tools/bench/profile/startup.ts for native npm import children.',
+	);
 }
 if (!Number.isFinite(Number(duration)) || Number(duration) < 1) throw new TypeError('Invalid profile duration.');
 

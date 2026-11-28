@@ -367,8 +367,8 @@ adapter for `workflow.client` or `workflow.serve` in utils today.
 
 ## Run the evidence and understand its limits
 
-Run `mise run test -- --suite postgres` with `UTILS_TEST_DATABASE_URL` set to a disposable PostgreSQL database, and
-`mise run test -- --suite containers` with Docker available. Missing configuration or Docker fails the respective task. They run
+Run `mise run test:postgres` with `UTILS_TEST_DATABASE_URL` set to a disposable PostgreSQL database, and
+`mise run test:containers` with Docker available. Missing configuration or Docker fails the respective task. They run
 complementary suites:
 
 - [Container scenarios](../../tests/workflows/containers.test.ts) send actual HTTP commands to a service container.

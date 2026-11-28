@@ -4,7 +4,7 @@ When your program starts another Deno program, it can decide which files that ch
 commands it may run. Build those choices as arguments first. Then use the
 [complete two-file launch](../../packages/runtime/deno/README.md#launch-a-real-child-with-the-chosen-grants) to see the
 child reject an ungranted file read. These are source-checkout examples: review `mise.toml`, run `mise trust`,
-`mise install` and `mise run prepare -- --kind deps` from the repository root. Save the first block as `scoped-permissions.ts` and
+`mise install` and `mise run prepare` from the repository root. Save the first block as `scoped-permissions.ts` and
 run `mise exec -- deno run scoped-permissions.ts`.
 
 ## Permission values and their flags

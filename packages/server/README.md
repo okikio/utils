@@ -7,7 +7,7 @@ rules and owns the resources created for its requests; the deployment host still
 For Deno, Node, and Bun execution, see [run a portable example](../../docs/05-runtime.md#run-a-portable-example-in-your-own-project). Host-specific adapters keep their native runtime requirements.
 
 These examples use the experimental Utils source checkout. From its root, review `mise.toml`, then run `mise trust`,
-`mise install`, and `mise run prepare -- --kind deps`. Save each named file at that root. The examples use workspace exports;
+`mise install`, and `mise run prepare`. Save each named file at that root. The examples use workspace exports;
 they do not assume a newly published registry version.
 
 ## Save one note with ordinary Request and Response values
@@ -156,6 +156,10 @@ The numeric title is rejected before the saving callback. `await using` disposes
 waits for its owned cleanup. It leaves borrowed host clients under their caller's ownership. Read or cancel every
 response body before disposing its owner, especially when the body streams.
 
+The incoming request body is also borrowed. If it remains unread, request teardown starts cancellation without waiting
+for the source's asynchronous cleanup. A rejected cancellation cannot replace the response. When source cleanup must
+finish before the host shuts down, the caller must retain and join its own cleanup promise.
+
 ## Call that exact contract from a client
 
 An ordinary `fetch` caller can build JSON itself. The optional typed client reuses `Save` and its response definitions.
@@ -186,6 +190,27 @@ Second note
 
 Put the service prefix `/api` in `baseUrl`. The client adds the endpoint path `/notes`. A real deployment supplies the
 network `fetch` instead of this local bridge. Construction makes no request; `call()` does the work.
+
+### Read evolving responses without guessing their shape
+
+A plain JSON body may contain fields named `meta` or `data`. The client preserves those fields. It unwraps only
+declarations with `envelope: 'data'`, timestamps, or paginated mode. If a legacy handler uses `response.withMeta()`
+or `response.create(..., { meta })`, declare `envelope: 'data'` before adopting this client. Occurrence metadata can
+still make the HTTP producer wrap a body; the client no longer guesses that policy from received field names.
+
+One operation may declare JSON, Markdown and plain text with the same status. Give each representation a distinct
+media type, such as `application/json`, `text/markdown` and `text/plain`. The client selects by status and normalized
+`Content-Type`, ignoring media parameters such as charset. It rejects ambiguous declarations before fetching and
+cancels unmatched response bodies. HEAD still permits one declaration per status because it may omit media headers.
+
+Successful-body and problem-extension validation failures become `ClientResponseError` with the observed HTTP
+`status` and original validation `cause`. Fetch failures and caller cancellation keep their original errors. A rejected
+admission response does not prove the server rejected the operation: reconcile with the original idempotency key
+instead of submitting a new request that could duplicate the work.
+
+The client enforces the schema you declared. For extensible response observations, choose unknown-field behavior
+deliberately and keep deployment quotas out of response validators. Request authorization, required field types,
+protocol states and client body-size budgets still need their own checks.
 
 ## Choose an entry point
 
@@ -240,10 +265,11 @@ behavior.
 
 Body responses need an explicit Codec or an owned identity schema. A transforming Standard Schema supplies no inverse.
 Declare identity for a third-party identity validator with `codec.identity()` or provide both Codec directions. OpenAPI
-also needs an explicit wire JSON Schema for arbitrary transformations. The client rejects ambiguous successful status
+also needs an explicit wire JSON Schema for arbitrary transformations. The client rejects ambiguous status/media
 declarations, unknown status/problem type, incorrect media type and malformed or oversized materialized bodies. Declared
-problems return `kind: 'problem'`; protocol defects throw `ClientResponseError`. Validator and transport defects retain
-their original errors. The application owns redaction before showing an error cause.
+problems return `kind: 'problem'`; protocol defects throw `ClientResponseError`. Response validation failures preserve
+their original cause in that error. Fetch failures and caller cancellation retain their original errors.
+The application owns redaction before showing an error cause.
 
 `maximumRequestBytes` limits raw or JSON body bytes. For a form, it counts names, values, and declared Blob sizes.
 It does not include multipart separators or measure the total memory or network cost. Reading a raw body consumes

@@ -1,7 +1,7 @@
 # Measurements behind the design
 
 Status: evidence for the proposal in [Backends](01-backends.md). These numbers come from a prototype outside the
-repository. The package benchmark (`mise run bench -- --project hash`) will replace them when the WASM build lands.
+repository. The package benchmark (`pnpm --filter ./packages/hash --fail-if-no-match run bench`) will replace them when the WASM build lands.
 
 Hosts: Linux x86-64 VM, Intel Xeon at 2.3 GHz with the SHA extensions (`sha_ni`). Deno 2.9.8 (V8 15.0), Node.js 22.23, Bun 1.4.4, Chrome for Testing 153 through
 Playwright. Each number is the median of repeated calls after warm-up. Treat differences below 10% as noise.
@@ -219,7 +219,7 @@ Browser rows other than Chrome 153 come from caniuse and the browser vendors' re
 
 ## The committed modules
 
-Built by `mise run build -- --target wasm --write` from the crates in `packages/hash/wasm/`. Time per call in
+Built by `mise run build:wasm -- --write` from the crates in `packages/hash/wasm/`. Time per call in
 microseconds on Node.js 22, through the package's own engine (window copy included).
 
 | Family | Module   | Packed text | Algorithm   | 64 B | 1 MiB |

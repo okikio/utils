@@ -77,10 +77,12 @@ describe('Drizzle tables', () => {
 				mood: a.mood,
 				total: a.total,
 				made: a.made,
+				changed: a.changed,
 				tags: a.tags,
 			}),
 		);
 		if (!row) throw new Error('The insert returned no row.');
+		expect(row.changed?.epochNanoseconds).toBe(1770091506000000000n);
 		expect(row).toMatchObject({ mood: 'ok', total: '12.3400000000000000', tags: ['x', null] });
 		expect(row.made.toString()).toBe('2026-01-02T03:04:05.678Z');
 		await sql.execute(db, sql.update(accounts, { displayName: 'Ada L' }).where(a.id.eq(row.id)));
@@ -114,6 +116,40 @@ describe('Drizzle tables', () => {
 				.toThrow();
 			expect(Date.now() - started).toBeLessThan(3_000);
 			expect(await sql.rows(db, sql.select({ n: sql.value(1, types.integer) }))).toEqual([{ n: 1 }]);
+		}
+	});
+});
+
+describe('Drizzle insert factory precedence', () => {
+	it('uses update factories only after explicit values and both kinds of default', async () => {
+		let calls = 0;
+		const source = space.table('fallbacks', {
+			id: integer().notNull(),
+			required: integer().notNull().$onUpdateFn(() => {
+				calls++;
+				return 42;
+			}),
+			optional: integer().$onUpdateFn(() => 43),
+			database: integer().default(7).$onUpdateFn(() => 99),
+			application: integer().$defaultFn(() => 8).$onUpdateFn(() => 99),
+		});
+		const target = bridge.table(source, getTableConfig);
+		await pool.query(
+			'create table utils_sql_drizzle_test.fallbacks (id integer, required integer not null, optional integer, database integer default 7, application integer)',
+		);
+		try {
+			const db = bridge.database(orm, drizzleTag);
+			const omitted = await sql.one(db, sql.insert(target, { id: 1 }).returning(target.c));
+			expect(omitted).toEqual({ id: 1, required: 42, optional: 43, database: 7, application: 8 });
+			expect(calls).toBe(1);
+			const explicit = await sql.one(
+				db,
+				sql.insert(target, { id: 2, required: 10, optional: null }).returning(target.c),
+			);
+			expect(explicit).toEqual({ id: 2, required: 10, optional: null, database: 7, application: 8 });
+			expect(calls).toBe(1);
+		} finally {
+			await pool.query('drop table utils_sql_drizzle_test.fallbacks');
 		}
 	});
 });

@@ -104,6 +104,11 @@ export interface Options {
  * validator cannot reverse its transformations. Use codec.identity() explicitly
  * when a third-party schema preserves the same representation.
  *
+ * Successes sharing a status require distinct media types. HEAD keeps one
+ * declaration per status because its response may omit representation headers.
+ * Only declared envelopes are unwrapped; plain meta/data fields stay in the body.
+ * Producers adding response metadata must declare envelope: 'data'.
+ *
  * JSON responses are read within maximumResponseBytes. Stream, download and HTML
  * success return the untouched Response; the caller must consume or cancel it.
  * Request form budgets count names and payloads, not multipart framing overhead.
@@ -141,10 +146,21 @@ export function create<const Definition extends EndpointDefinition>(
 		if (successes.length + problems.length > options.maximumDeclarations) {
 			throw new RangeError('Client exceeds maximumDeclarations.');
 		}
-		const statuses = new Set<number>();
+		const representations = new Map<number, Set<string | undefined>>();
 		for (const entry of successes) {
-			if (statuses.has(entry.status)) throw new TypeError('Client requires one successful declaration per status.');
-			statuses.add(entry.status);
+			if (problems.some((problem) => problem.status === entry.status)) {
+				throw new TypeError('Client success and problem statuses must be distinct.');
+			}
+			const media = response.mediaType(entry)?.split(';', 1)[0]?.trim().toLowerCase();
+			const declared = representations.get(entry.status) ?? new Set<string | undefined>();
+			if (
+				declared.has(media) ||
+				declared.size > 0 && (media === undefined || declared.has(undefined) || operation.method === 'head')
+			) {
+				throw new TypeError('Client requires unambiguous successful status/media declarations.');
+			}
+			declared.add(media);
+			representations.set(entry.status, declared);
 			if (entry.schema !== undefined && ['body', 'page'].includes(entry.mode)) codec.output(entry.schema);
 		}
 		plans.set(operation, { inputs: Object.freeze({ ...definition.inputs, ...operation.inputs }), successes, problems });
@@ -260,12 +276,19 @@ export function create<const Definition extends EndpointDefinition>(
 					cancel(incoming);
 					throw callOptions.signal.reason;
 				}
-				const success = plan.successes.find((entry) => entry.status === incoming.status);
-				if (!success && !plan.problems.some((entry) => entry.status === incoming.status)) {
+				const candidates = plan.successes.filter((entry) => entry.status === incoming.status);
+				if (candidates.length === 0 && !plan.problems.some((entry) => entry.status === incoming.status)) {
 					cancel(incoming);
 					throw new ClientResponseError(incoming.status, 'Undeclared response status.');
 				}
 				const media = incoming.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
+				const success = candidates.length === 1
+					? candidates[0]
+					: candidates.find((entry) => response.mediaType(entry)?.split(';', 1)[0]?.trim().toLowerCase() === media);
+				if (candidates.length > 0 && success === undefined) {
+					cancel(incoming);
+					throw new ClientResponseError(incoming.status, 'Response media type differs from its declaration.');
+				}
 				// Status alone is insufficient: the media type and exact declared problem
 				// type determine whether the peer fulfilled the imported contract.
 				if (success) {
@@ -320,22 +343,28 @@ export function create<const Definition extends EndpointDefinition>(
 						(decoded.instance !== undefined && typeof decoded.instance !== 'string')
 					) throw new ClientResponseError(incoming.status, 'Unknown or invalid problem declaration.');
 					if (problem.extensions) {
-						await schema.parse(
-							problem.extensions.schema,
-							Object.fromEntries(
-								Object.entries(decoded).filter(([key]) =>
-									!['type', 'status', 'title', 'detail', 'instance'].includes(key)
+						try {
+							await schema.parse(
+								problem.extensions.schema,
+								Object.fromEntries(
+									Object.entries(decoded).filter(([key]) =>
+										!['type', 'status', 'title', 'detail', 'instance'].includes(key)
+									),
 								),
-							),
-						);
+							);
+						} catch (cause) {
+							if (callOptions.signal?.aborted) throw callOptions.signal.reason;
+							throw new ClientResponseError(incoming.status, 'Problem extensions differ from their declaration.', {
+								cause,
+							});
+						}
 					}
 					return { kind: 'problem', definition: problem, value: decoded, response: incoming } as OutcomeType<
 						typeof operation,
 						Definition
 					>;
 				}
-				const enveloped = success.envelope === 'data' || success.timestamp || success.mode === 'page' ||
-					record.is(decoded) && Object.hasOwn(decoded, 'meta');
+				const enveloped = success.envelope === 'data' || success.timestamp || success.mode === 'page';
 				if (enveloped) {
 					if (!record.is(decoded) || !Object.hasOwn(decoded, 'data')) {
 						throw new ClientResponseError(
@@ -346,14 +375,21 @@ export function create<const Definition extends EndpointDefinition>(
 					decoded = decoded.data;
 				}
 				let value: unknown = decoded;
-				if (success.mode === 'page') {
-					if (!Array.isArray(decoded)) throw new ClientResponseError(incoming.status, 'Invalid page item array.');
-					const items: unknown[] = [];
-					for (const item of decoded) {
-						items.push(success.schema === undefined ? item : await codec.read(success.schema, item));
-					}
-					value = Object.freeze(items);
-				} else if (success.schema !== undefined) value = await codec.read(success.schema, decoded);
+				if (success.mode === 'page' && !Array.isArray(decoded)) {
+					throw new ClientResponseError(incoming.status, 'Invalid page item array.');
+				}
+				try {
+					if (success.mode === 'page' && Array.isArray(decoded)) {
+						const items: unknown[] = [];
+						for (const item of decoded) {
+							items.push(success.schema === undefined ? item : await codec.read(success.schema, item));
+						}
+						value = Object.freeze(items);
+					} else if (success.schema !== undefined) value = await codec.read(success.schema, decoded);
+				} catch (cause) {
+					if (callOptions.signal?.aborted) throw callOptions.signal.reason;
+					throw new ClientResponseError(incoming.status, 'Response body differs from its declaration.', { cause });
+				}
 				return { kind: 'success', definition: success, value, response: incoming } as OutcomeType<
 					typeof operation,
 					Definition

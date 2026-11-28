@@ -33,7 +33,7 @@ The local documents below use data URLs so the fetches need no network access. T
 and returns their byte counts in document order. The mapper uses ordinary `fetch()` and `Response.arrayBuffer()`; it
 forwards the supplied cancellation signal to the fetch that actually does the work.
 
-From the repository root, run `mise run prepare -- --kind deps` once. Save the complete block as the named `.ts` file and run
+From the repository root, run `mise run prepare` once. Save the complete block as the named `.ts` file and run
 `mise exec -- deno run count-documents.ts`. These examples use workspace imports; they need no published package or network service.
 
 This checkout uses Deno 2; `Array.fromAsync` collects an asynchronous sequence. The next example shows the same

@@ -217,7 +217,7 @@ Use the repository tool versions from `mise.toml`, install the locked workspace 
 ```sh
 mise install
 mise exec -- pnpm install --frozen-lockfile
-mise run check -- --kind types
+mise run check:types
 ```
 
 The canonical runner requires an explicit disposable database and runs the PostgreSQL family sequentially. It includes
@@ -226,9 +226,9 @@ workflow recovery, queue/state adapters, inspection, process/thread consumers an
 ```sh
 # Create this disposable database first; the runner does not create a database service.
 export UTILS_TEST_DATABASE_URL=postgres://localhost/utils_test
-mise run test -- --suite postgres
+mise run test:postgres
 # Or select the real HTTP host-death/replay workflow alone:
-mise run test -- --suite postgres tests/workflows/streaming.test.ts
+mise run test:postgres -- tests/workflows/streaming.test.ts
 ```
 
 Several test modules can also provision their own PostgreSQL container when invoked directly without a suite URL.
@@ -237,7 +237,7 @@ schema and test incompatible revisions; never borrow application data. Applicati
 where supported, and tested production adapter schemas remain shared within the disposable database.
 
 For direct suite invocation without containers, the following variables select separate disposable databases. These
-are not overrides for `mise run test -- --suite postgres`: that runner requires `UTILS_TEST_DATABASE_URL`, copies its value into
+are not overrides for `mise run test:postgres`: that runner requires `UTILS_TEST_DATABASE_URL`, copies its value into
 all suite variables below, and runs the selected suites sequentially. Prefer the runner above unless you need to
 isolate a directly invoked suite.
 

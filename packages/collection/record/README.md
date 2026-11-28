@@ -24,7 +24,7 @@ being inherited from its prototype. Record distinguishes these cases before it e
 Check the server options before enumerating them. The output contains only the plain own fields accepted by Record; the
 later shape checks explain why getters and hidden properties require different handling.
 
-After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare` from the root.
 Save the next complete TypeScript block as
 `example.ts` at that root, then run `mise exec -- deno run example.ts`.
 

@@ -7,8 +7,8 @@
  * before timing. Plain variants intentionally weaken mutation guarantees; equal
  * successful output does not make those variants safe replacements.
  *
- * From the repository root, prepare with `mise run prepare -- --kind freeze`.
- * Collect Node samples with `mise run bench -- --operation freeze -- --seed 101`.
+ * From the repository root, prepare with `mise run bench:freeze:prepare`.
+ * Collect Node samples with `mise run bench:freeze:run -- --seed 101`.
  * See this folder's README for Deno/Bun commands and explicit output filenames.
  * Use --validate-only to check existing oracles without warmups or timed batches.
  */
@@ -19,7 +19,7 @@ import { resolve } from 'node:path';
 
 // Generated modules are ignored; a fresh checkout must prepare an explicit source checkpoint.
 if (!existsSync(new URL('../../.tmp/artifacts/bench/freeze/inventory.json', import.meta.url))) {
-	throw new Error('No prepared freeze checkpoint. Run mise run prepare -- --kind freeze.');
+	throw new Error('No prepared freeze checkpoint. Run mise run bench:freeze:prepare.');
 }
 
 const frozenResult: typeof import('@okikio/result') = await import(
@@ -54,7 +54,7 @@ const inventory = JSON.parse(inventoryBytes.toString('utf8')) as {
 	readonly provenance: { readonly inputs: Readonly<Record<string, string>> };
 };
 if (inventory.schemaVersion !== 2) {
-	throw new Error('Run mise run prepare -- --kind freeze for this source checkpoint first.');
+	throw new Error('Run mise run bench:freeze:prepare for this source checkpoint first.');
 }
 const provenance = {
 	inventorySha256: createHash('sha256').update(inventoryBytes).digest('hex'),

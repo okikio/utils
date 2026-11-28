@@ -21,7 +21,9 @@ separately. Choose the umbrella when you want one dependency for several utiliti
 
 ## Use the umbrella
 
-The current workspace packages are experimental `0.0.0` sources. In this checkout, run `mise trust`, `mise install`, then `mise run prepare -- --kind deps`. Save the complete contact preview below as `contact-preview.ts` and run `mise exec -- deno run contact-preview.ts`.
+Each workspace package declares its own version in `package.json`; the generated Deno manifest carries the same version.
+In this checkout, run `mise trust`, `mise install`, then `mise run prepare`. Save the complete contact preview below as
+`contact-preview.ts` and run `mise exec -- deno run contact-preview.ts`.
 
 For an external application, verify a released registry version and its export map before adding it; this guide does not establish publication.
 

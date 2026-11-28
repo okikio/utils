@@ -15,7 +15,7 @@ submit. The status should show the label, `1 contacts` and both tags. A file lar
 rows reports an error instead of showing a partial successful preview. This preview reads a bounded complete file;
 use CSV's streaming API when even that retained text would be too large.
 
-Prepare the checkout from its root with `mise trust`, `mise install` and `mise run prepare -- --kind deps` after reviewing
+Prepare the checkout from its root with `mise trust`, `mise install` and `mise run prepare` after reviewing
 `mise.toml`. Save the HTML as `contact-import.html` and TypeScript as `contact-import.ts`.
 
 ```html
@@ -246,7 +246,7 @@ a letter plus a combining accent, or an emoji sequence, can contain several code
 one surrogate pair. It does not find grapheme boundaries for you. Use a grapheme segmenter when an editor must select
 whole user-perceived characters.
 
-Prepare the checkout from its root with `mise trust`, `mise install` and `mise run prepare -- --kind deps` after reviewing
+Prepare the checkout from its root with `mise trust`, `mise install` and `mise run prepare` after reviewing
 `mise.toml`. Save the HTML as `contact-edit.html` and TypeScript as `contact-edit.ts`.
 
 ```html

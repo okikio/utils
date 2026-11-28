@@ -53,7 +53,7 @@ jobs:
         with:
           stores: pnpm deno
       - run: mise run prepare:node
-      - run: mise run release -- --operation plan
+      - run: mise run release
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Save dependency downloads after successful changeset checks

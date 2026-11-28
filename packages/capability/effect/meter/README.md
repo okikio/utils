@@ -23,7 +23,7 @@ Download a local `data:` payload, measure the bytes accepted into this applicati
 This uses Fetch and actual response bytes without an external server or network permission. It does not measure remote
 receipt. Context supplies its own clock and cleanup support; no global polyfill setup is needed.
 
-After the [checkout setup](../../../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../../../README.md#work-on-the-repository), run `mise run prepare` from the root.
 Save the next complete TypeScript block as
 `example.ts` at that root, then run `mise exec -- deno run example.ts`.
 

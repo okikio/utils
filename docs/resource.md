@@ -21,7 +21,7 @@ operation waits for an answer. It does not return or move the borrowed client wh
 The definition names the store a caller needs. Its implementation creates the in-memory store, and the collection owns
 that value while the caller borrows it. Saving and reading the note makes those three roles visible.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
+Run from this checkout after `mise run prepare`. Save the runnable block as `example.ts` at the checkout root and use
 `mise exec -- deno run example.ts`.
 
 ```ts runnable

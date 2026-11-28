@@ -8,7 +8,7 @@ checked identity is called `Actor`.
 step promises to supply. The callback must still check the credential and set the value for this request.
 
 These examples use the experimental Utils source checkout. From its root, review `mise.toml`, then run `mise trust`,
-`mise install`, and `mise run prepare -- --kind deps`. Save each named file at that root. The examples use workspace exports;
+`mise install`, and `mise run prepare`. Save each named file at that root. The examples use workspace exports;
 they do not assume a newly published registry version.
 
 The middleware forms a call stack. On success, authentication supplies `Actor`, the reader uses it, and the handler

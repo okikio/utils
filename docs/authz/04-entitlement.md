@@ -17,7 +17,7 @@ it cannot infer purchased features from the feature name.
 
 ## Allow one plan and reject another
 
-From the `utils` checkout root, review `mise.toml` and run `mise trust`, `mise install`, and `mise run prepare -- --kind deps`.
+From the `utils` checkout root, review `mise.toml` and run `mise trust`, `mise install`, and `mise run prepare`.
 Save the complete block as `export-feature.ts` and run `mise exec -- deno run export-feature.ts`. No server or database is needed.
 
 ```ts runnable=export-feature.ts

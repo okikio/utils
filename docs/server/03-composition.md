@@ -10,7 +10,7 @@ you need to know which work happens once, which work repeats for each request, a
 ## Run a complete task
 
 Compose an endpoint implementation and call its Fetch runtime without a listener. This program supplies its own local
-input and uses public workspace imports. From the Utils checkout root, run `mise run prepare -- --kind deps`.
+input and uses public workspace imports. From the Utils checkout root, run `mise run prepare`.
 Save the block as `complete-task.ts` at that root and run `mise exec -- deno run complete-task.ts`.
 
 A **compiler** here checks the declarations and prepares lookup tables; it does not produce another JavaScript file.

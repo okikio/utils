@@ -3,6 +3,115 @@ import assert from 'node:assert/strict';
 import { lstat, readFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 
+// Installed clients must preserve plain fields and select the declared representation.
+{
+	const client = await import('@okikio/server/client');
+	const endpoint = await import('@okikio/server/endpoint');
+	const response = await import('@okikio/http/response');
+	const schema = await import('@okikio/schema');
+	const Json = response.ok(schema.object({ name: schema.string(), meta: schema.unknown(), data: schema.unknown() }), {
+		description: 'Observation.',
+	});
+	const Markdown = response.ok(schema.string(), { description: 'Markdown.', contentType: 'text/markdown' });
+	const Route = endpoint.get({ id: 'packed.representations', path: '/', responses: [Json, Markdown] });
+	const plain = { name: 'outer', meta: { future: true }, data: 'inner' };
+	for (
+		const [incoming, declaration, expected] of [
+			[Response.json(plain), Json, plain],
+			[new Response('# Note', { headers: { 'content-type': 'Text/Markdown; charset=utf-8' } }), Markdown, '# Note'],
+		]
+	) {
+		const result = await client.create(Route, {
+			baseUrl: 'https://packed.invalid',
+			fetch: () => incoming,
+			maximumDeclarations: 10,
+			maximumRequestBytes: 4096,
+			maximumResponseBytes: 4096,
+		}).call(Route.operations[0], {});
+		assert.equal(result.kind, 'success');
+		assert.equal(result.definition, declaration);
+		// Object schemas return a record without Object.prototype; transport must preserve its fields.
+		assert.deepEqual(
+			result.value,
+			typeof expected === 'string' ? expected : Object.assign(Object.create(null), expected),
+		);
+	}
+	await assert.rejects(
+		client.create(Route, {
+			baseUrl: 'https://packed.invalid',
+			fetch: () => Response.json({ ...plain, name: 42 }),
+			maximumDeclarations: 10,
+			maximumRequestBytes: 4096,
+			maximumResponseBytes: 4096,
+		}).call(Route.operations[0], {}),
+		(error) => error instanceof client.ClientResponseError && error.status === 200 && error.cause instanceof Error,
+	);
+}
+console.log('Packed Server preserves plain fields, selects media and retains validation status.');
+
+// Declared envelopes must work across the emitted umbrella, HTTP producer and Server client.
+{
+	const direct = await import('@okikio/server/client');
+	const client = await import('@okikio/utils/server/client');
+	const endpoint = await import('@okikio/utils/server/endpoint');
+	const service = await import('@okikio/utils/server/service');
+	const response = await import('@okikio/utils/http/response');
+	const schema = await import('@okikio/utils/schema');
+	assert.equal(client.create, direct.create);
+	const Body = schema.object({ data: schema.string(), meta: schema.object({ hint: schema.string() }) });
+	const body = { data: 'inner data', meta: { hint: 'inner metadata' } };
+	const bounds = { maximumDeclarations: 10, maximumRequestBytes: 4096, maximumResponseBytes: 4096 };
+	for (
+		const Saved of [
+			response.ok(Body, { description: 'Declared envelope.', envelope: 'data' }),
+			response.ok(Body, { description: 'Timestamped envelope.', timestamp: true }),
+			response.paginated(Body, { description: 'Paginated envelope.' }),
+		]
+	) {
+		const Route = endpoint.get({ id: 'packed.envelope', path: '/envelope', responses: [Saved] });
+		const Definition = service.define({ id: 'packed.envelopes', path: '/', endpoints: [Route] });
+		const value = Saved.mode === 'page' ? { kind: 'offset', items: [body], offset: 0, limit: 1, hasMore: false } : body;
+		const runtime = service.create(
+			service.compile(service.implement(Definition, {
+				endpoints: [
+					endpoint.handler(Route, () => response.withMeta(response.create(Saved, value), { source: 'handler' })),
+				],
+			})),
+			{ host: {} },
+		);
+		try {
+			const incoming = await runtime.fetch(new Request('https://packed.invalid/envelope'));
+			const wire = await incoming.clone().json();
+			assert.equal(wire.meta.source, 'handler');
+			if (Saved.timestamp) assert.equal(typeof wire.meta.timestamp, 'string');
+			if (Saved.mode === 'page') assert.equal(wire.meta.pagination.kind, 'offset');
+			const expected = Saved.mode === 'page' ? [body] : body;
+			assert.deepEqual(wire.data, expected);
+			const result = await client.create(Route, {
+				...bounds,
+				baseUrl: 'https://packed.invalid',
+				fetch: () => incoming,
+			}).call(Route.operations[0], {});
+			assert.equal(result.kind, 'success');
+			assert.equal(result.definition, Saved);
+			assert.deepEqual(JSON.parse(JSON.stringify(result.value)), expected);
+		} finally {
+			await runtime[Symbol.asyncDispose]();
+		}
+		await assert.rejects(
+			client.create(Route, {
+				...bounds,
+				baseUrl: 'https://packed.invalid',
+				fetch: () => Response.json({ meta: { source: 'handler' } }),
+			}).call(Route.operations[0], {}),
+			(error) => error instanceof client.ClientResponseError && error.status === 200,
+		);
+	}
+}
+console.log(
+	'Packed umbrella HTTP producer and Server client preserve inner fields through declared envelopes, timestamps and pages.',
+);
+
 // Provider startup must also work from the packed artifacts, not only TypeScript source.
 {
 	execFileSync(process.execPath, [

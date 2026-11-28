@@ -3,4 +3,4 @@
 #MISE hide=true
 #MISE depends=[]
 set -euo pipefail
-exec deno lint
+exec deno lint "$@"

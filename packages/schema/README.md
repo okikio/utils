@@ -8,7 +8,7 @@ A TypeScript type helps while you write code, but it is absent when JavaScript r
 sending `age: -1`. A **schema** is executable validation: it inspects that actual value before your save function uses it.
 Validation returns checked data or explains which rule failed; it does not repair an invalid profile or save one.
 
-From the experimental workspace checkout, run `mise trust`, `mise install`, and `mise run prepare -- --kind deps`. Save this program as `profile.ts` and run `mise exec -- deno run profile.ts`.
+From the experimental workspace checkout, run `mise trust`, `mise install`, and `mise run prepare`. Save this program as `profile.ts` and run `mise exec -- deno run profile.ts`.
 
 ```ts runnable=profile.ts
 import * as schema from '@okikio/schema';

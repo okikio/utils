@@ -3,4 +3,4 @@
 #MISE hide=true
 #MISE depends=[]
 set -euo pipefail
-exec node tools/workspace/run.ts release --operation plan
+exec node tools/releases/plan.ts

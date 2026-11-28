@@ -138,7 +138,6 @@ export async function provenance(
 			'deno.jsonc',
 			'deno.lock',
 			'mise.toml',
-			'tools/workspace/run.ts',
 			'.mise/tasks/bench/freeze/prepare.sh',
 			'.mise/tasks/bench/freeze/verify.sh',
 			'.mise/tasks/bench/freeze/check.sh',

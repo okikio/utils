@@ -10,7 +10,7 @@ newline-delimited JSON (NDJSON), then exposes a retained feed using server-sent 
 on each line. SSE adds named events and IDs that an application can use when reconnecting. Neither format provides
 persistent storage or exactly-once work.
 
-From the Utils checkout, review `mise.toml`, run `mise trust`, `mise install`, and `mise run prepare -- --kind deps`. Save the next
+From the Utils checkout, review `mise.toml`, run `mise trust`, `mise install`, and `mise run prepare`. Save the next
 two files together at the Utils checkout root. Run `mise exec -- deno run greeting-streams-check.ts`; no listener or network is required.
 
 ## Let the reader control how much it consumes
@@ -288,7 +288,7 @@ Use a disposable PostgreSQL database, never application data. From the checkout:
 ```sh
 # Replace this URL with a disposable database you created for test.
 export UTILS_TEST_DATABASE_URL=postgres://localhost/utils_test
-mise run test -- --suite postgres tests/workflows/streaming.test.ts
+mise run test:postgres -- tests/workflows/streaming.test.ts
 ```
 
 The runner maps that explicit URL to the suite and the suite owns an isolated application schema. It tears down its

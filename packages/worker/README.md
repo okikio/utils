@@ -20,7 +20,7 @@ An ordinary function is sufficient for a small string. Choose a Worker when expe
 JavaScript environment. The parent owns the handle; the companion owns the analysis. The returned value is still an
 ordinary Promise result, not a queue item or durable workflow.
 
-From the repository root run `mise run prepare -- --kind deps`, save `main.ts` and `thread.ts` below together, then run
+From the repository root run `mise run prepare`, save `main.ts` and `thread.ts` below together, then run
 `mise exec -- deno run --allow-read main.ts`. The pinned Deno 2.9.7 host supplies Web Workers; read permission permits
 loading the companion module and its imports. The data is local and no network service is used. Plain Node needs an
 explicit Runtime Worker factory rather than assuming a browser-style global constructor.
@@ -212,9 +212,9 @@ and process suites establish actual host behavior separately. Each scenario owns
 From the repository root, run the package's tests and untimed benchmark checks before collecting timings:
 
 ```sh
-mise run test -- --project worker
-mise run bench -- --project worker --check
-mise run bench -- --project worker
+pnpm --filter ./packages/worker --fail-if-no-match run test
+pnpm --filter ./packages/worker --fail-if-no-match run bench:check
+pnpm --filter ./packages/worker --fail-if-no-match run bench
 ```
 
 These commands use package-owned fixtures and development dependencies. The

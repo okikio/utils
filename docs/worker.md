@@ -21,7 +21,7 @@ workflow workers use a queue and recovery store.
 Keep the two named files together. The Worker counts the supplied text, while the main program owns the Worker and
 awaits its reply. The printed word, paragraph, and character counts are results from that actual request.
 
-After `mise run prepare -- --kind deps`, run the main file with `mise exec -- deno run --allow-read main.ts`.
+After `mise run prepare`, run the main file with `mise exec -- deno run --allow-read main.ts`.
 
 Save the companion module with its shown filename beside the main program. The example runner writes both files before
 launching the Worker.

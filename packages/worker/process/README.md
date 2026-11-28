@@ -32,7 +32,7 @@ not a promise to reap arbitrary grandchildren.
 This example uses the Deno adapter and needs subprocess permission. Use the Node adapter with node:process.execPath on a
 Node host.
 
-After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare` from the root.
 Save the next complete TypeScript block as
 `example.ts` at that root, then run `mise exec -- deno run --allow-run example.ts`.
 

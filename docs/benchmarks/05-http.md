@@ -4,7 +4,7 @@ Use this protocol when deciding whether a routing or middleware change preserves
 A **corpus** is the fixed collection of requests and expected replies; **warm dispatch** measures requests after route
 construction. These definitions matter because constructing a router and dispatching through it are different jobs.
 
-At the repository root, review `mise.toml`, run `mise trust`, `mise install` and `mise run prepare -- --kind deps`. The first
+At the repository root, review `mise.toml`, run `mise trust`, `mise install` and `mise run prepare`. The first
 command below must report passing request checks. The second checks benchmark observations without trusting timings.
 Only then run the multi-process comparison, which writes retained reports under `.tmp/artifacts/comparison/http`. If
 a request check fails, inspect that request before comparing timings. Read each report alongside its
@@ -24,8 +24,8 @@ Run correctness and performance separately:
 
 ```sh
 mise exec -- deno test -A tests/http-parity.test.ts
-mise run bench -- --check
-mise run bench -- --operation compare -- .tmp/artifacts/comparison/http
+mise run bench:check --
+mise run bench:compare -- .tmp/artifacts/comparison/http
 ```
 
 The performance program reuses the correctness fixture. Both sides register the same routes, satisfy the selected

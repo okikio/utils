@@ -19,7 +19,7 @@ caller that does not own it.
 Two saves compete for a pool containing at most one session. Both notes are committed, only one session is opened, and
 no lease remains after the saves. Exiting the pool scope closes that retained session.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as a `.ts` file in your project and use
+Run from this checkout after `mise run prepare`. Save the runnable block as a `.ts` file in your project and use
 `mise exec -- deno run example.ts`.
 
 ```ts runnable

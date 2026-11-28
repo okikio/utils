@@ -11,14 +11,14 @@ how to inspect where that run spent time before changing the implementation.
 
 ```sh
 mise exec -- pnpm install --frozen-lockfile
-mise run prepare -- --kind bench
+mise run fixture:bench
 mise exec -- deno run --no-check -A bench/http-challengers.bench.ts --check
 mise exec -- node bench/http-challengers.bench.ts --check
 mise exec -- bun bench/http-challengers.bench.ts --check
 
-mise run bench -- --operation challengers -- .tmp/artifacts/comparison/deno --runtime=deno
-mise run bench -- --operation challengers -- .tmp/artifacts/comparison/node --runtime=node
-mise run bench -- --operation challengers -- .tmp/artifacts/comparison/bun --runtime=bun
+mise run bench:challengers -- .tmp/artifacts/comparison/deno --runtime=deno
+mise run bench:challengers -- .tmp/artifacts/comparison/node --runtime=node
+mise run bench:challengers -- .tmp/artifacts/comparison/bun --runtime=bun
 ```
 
 Each comparison runs eight fresh processes serially. Four balanced candidate orders run twice; each candidate occupies
@@ -82,13 +82,13 @@ establish upstream strict TypeScript 6/7 compatibility. The artifact is ignored 
 ## Attribute the work before changing it
 
 ```sh
-mise run bench -- --operation profile -- .tmp/artifacts/profile/challengers-deno \
+mise run bench:profile -- .tmp/artifacts/profile/challengers-deno \
   --section=http --match=challenger- --duration=1000
-mise run bench -- --operation profile -- .tmp/artifacts/profile/challengers-node \
+mise run bench:profile -- .tmp/artifacts/profile/challengers-node \
   --section=http --runtime=node --match=challenger- --duration=1000
-mise run bench -- --operation profile:bun -- .tmp/artifacts/profile/challengers-bun \
+mise run bench:profile:bun -- .tmp/artifacts/profile/challengers-bun \
   --match=challenger- --duration=3000
-mise exec -- node tools/bench/profile-render.ts .tmp/artifacts/profile/challengers-deno
+mise exec -- node tools/bench/profile/render.ts .tmp/artifacts/profile/challengers-deno
 ```
 
 The registry contains 63 workload IDs and four candidates: the four batch workloads plus each individual API and routing

@@ -73,7 +73,7 @@ These objects divide responsibility for running and remembering the two photo wr
 | History and scheduler                | Retain completed instructions / decide whether a request reuses or runs work.           |
 | Context                              | Supply cancellation and local cleanup lifetime. It does not persist an execution.       |
 
-From the repository root, run `mise run prepare -- --kind deps` once. Save the next block as `recorded-upload.ts` and
+From the repository root, run `mise run prepare` once. Save the next block as `recorded-upload.ts` and
 run `mise exec -- deno run recorded-upload.ts`. These workspace imports need no published package or network service.
 
 ```ts runnable=recorded-upload.ts
@@ -399,9 +399,9 @@ recovery; composed recovery stays at root.
 From the repository root, run the package's tests and untimed benchmark checks before collecting timings:
 
 ```sh
-mise run test -- --project workflow
-mise run bench -- --project workflow --check
-mise run bench -- --project workflow
+pnpm --filter ./packages/workflow --fail-if-no-match run test
+pnpm --filter ./packages/workflow --fail-if-no-match run bench:check
+pnpm --filter ./packages/workflow --fail-if-no-match run bench
 ```
 
 These commands use package-owned fixtures and development dependencies. The

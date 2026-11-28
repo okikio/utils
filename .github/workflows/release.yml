@@ -77,7 +77,7 @@ jobs:
           permission-contents: write
           permission-pull-requests: write
       - name: Prepare versions and their JSR projection together
-        run: mise run release -- --operation version
+        run: mise run release:version
       - name: Propose the generated release
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
@@ -163,7 +163,7 @@ jobs:
           git config user.name 'utils-release[bot]'
           git config user.email 'utils-release[bot]@users.noreply.github.com'
       - name: Publish the tested artifact directories with Sampo
-        run: mise run release -- --operation publish --target npm
+        run: mise run release:publish --target npm
       - name: Retain successful npm tags, including after a partial failure
         if: always()
         env:
@@ -197,7 +197,7 @@ jobs:
           stores: pnpm deno
       - run: mise run prepare:node
       - name: Publish source from the same tested revision
-        run: mise run release -- --operation publish --target jsr
+        run: mise run release:publish --target jsr
 
   releases:
     needs: [npm, jsr]

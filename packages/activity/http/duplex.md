@@ -158,11 +158,11 @@ From this checkout, install the pinned tools and dependencies first. Prepare all
 declared by [the container fixture](../../../tests/fixtures/duplex/container.ts), then select only these resource tests:
 
 ```sh
-mise run prepare -- --kind deps
-mise run prepare -- --kind browser -- firefox webkit
+mise run prepare
+mise run fixture:browser -- firefox webkit
 docker pull node:26.10.0-bookworm-slim@sha256:3ffc19ea878019d9e9ae8971732ad4a03cda44f167107173174b60ed7c65bed3
-mise run test -- --suite containers tests/workflows/duplex-containers.test.ts
-mise run test -- --suite containers tests/workflows/duplex-browser.test.ts
+mise run test:containers -- tests/workflows/duplex-containers.test.ts
+mise run test:containers -- tests/workflows/duplex-browser.test.ts
 ```
 
 The fixture never pulls images implicitly. `UTILS_DUPLEX_NODE_IMAGE` can explicitly select a prepared local image;
@@ -251,7 +251,7 @@ backpressure or production load.
 
 ```sh
 # Docker must be running. The fixture pulls its pinned images if they are not cached.
-mise run test -- --suite containers tests/workflows/duplex-proxy.test.ts
+mise run test:containers -- tests/workflows/duplex-proxy.test.ts
 node bench/duplex-proxy.bench.ts --check
 node bench/duplex-proxy.bench.ts
 ```

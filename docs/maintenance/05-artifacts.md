@@ -40,8 +40,8 @@ Install the declared tools and frozen dependencies, then prepare the treatment m
 ```sh
 mise install
 mise run prepare:node
-mise run prepare -- --kind freeze
-mise run bench -- --operation freeze --check
+mise run bench:freeze:prepare
+mise run bench:freeze:check
 ```
 
 Preparation writes only current outputs under `.tmp/artifacts/bench/freeze/`. The check validates source and dependency
@@ -52,9 +52,9 @@ task.
 Select new sample names and run measurements sequentially on an otherwise idle machine:
 
 ```sh
-mise run bench -- --operation freeze -- --output .tmp/artifacts/bench/freeze/node-1701.json --seed 1701
-mise run bench -- --operation freeze -- --output .tmp/artifacts/bench/freeze/node-1702.json --seed 1702
-mise run bench -- --operation freeze:summarize -- .tmp/artifacts/bench/freeze/node-1701.json .tmp/artifacts/bench/freeze/node-1702.json
+mise run bench:freeze:run -- --output .tmp/artifacts/bench/freeze/node-1701.json --seed 1701
+mise run bench:freeze:run -- --output .tmp/artifacts/bench/freeze/node-1702.json --seed 1702
+mise run bench:freeze:summarize -- .tmp/artifacts/bench/freeze/node-1701.json .tmp/artifacts/bench/freeze/node-1702.json
 ```
 
 Raw measurements refuse an existing output filename. Summaries belong to the prepared inventory and reject mismatched

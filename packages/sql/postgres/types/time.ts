@@ -9,8 +9,7 @@
  *
  * @module
  */
-import { temporal } from '@okikio/duration/temporal';
-import type { Temporal } from '@okikio/duration/temporal';
+import { Temporal, temporal } from '@okikio/duration/temporal';
 import { type Fragment, group, join, keyword, once } from '../../fragment.ts';
 import { expect, type SqlType } from '../../type.ts';
 import { cast } from '../dialect.ts';
@@ -51,8 +50,13 @@ const dayAndClock = (utc: Fragment): Fragment =>
 		keyword(')::text'),
 	]);
 
+/** Accept both supported constructor families without admitting arbitrary lookalike objects. */
 const instant = (value: Temporal.Instant): Temporal.Instant =>
-	expect(value, (v): v is Temporal.Instant => v instanceof temporal.Instant, 'Temporal.Instant');
+	expect(
+		value,
+		(v): v is Temporal.Instant => (v instanceof temporal.Instant || v instanceof Temporal.Instant),
+		'Temporal.Instant',
+	);
 
 const nanosPerDay = 86_400_000_000_000n;
 const two = (value: number): string => String(value).padStart(2, '0');
@@ -137,7 +141,11 @@ const epochDay = (): Temporal.PlainDate => temporal.PlainDate.from('1970-01-01')
 export const date: SqlType<Temporal.PlainDate> = textual(
 	'date',
 	(value) => {
-		expect(value, (v): v is Temporal.PlainDate => v instanceof temporal.PlainDate, 'Temporal.PlainDate');
+		expect(
+			value,
+			(v): v is Temporal.PlainDate => (v instanceof temporal.PlainDate || v instanceof Temporal.PlainDate),
+			'Temporal.PlainDate',
+		);
 		const { text, suffix } = era(value.toString());
 		return text + suffix;
 	},
@@ -152,7 +160,11 @@ export const date: SqlType<Temporal.PlainDate> = textual(
 export const time: SqlType<Temporal.PlainTime> = textual(
 	'time',
 	(value) =>
-		expect(value, (v): v is Temporal.PlainTime => v instanceof temporal.PlainTime, 'Temporal.PlainTime').toString(),
+		expect(
+			value,
+			(v): v is Temporal.PlainTime => (v instanceof temporal.PlainTime || v instanceof Temporal.PlainTime),
+			'Temporal.PlainTime',
+		).toString(),
 	(raw) => {
 		const total = count(raw, 'time');
 		if (total >= 86_400_000_000n) throw new RangeError('PostgreSQL time 24:00:00 has no Temporal.PlainTime.');

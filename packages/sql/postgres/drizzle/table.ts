@@ -240,9 +240,12 @@ function define(key: string, info: RuntimeColumn): ColumnDef<unknown> {
 	if (!info.notNull) def = def.nullable();
 	if (info.name !== key) def = def.named(info.name);
 	if (info.generated !== undefined || info.generatedIdentity?.type === 'always') return def.computed();
-	if (info.default !== undefined || info.generatedIdentity || /Serial/u.test(info.columnType)) def = def.filled();
+	const filled = info.default !== undefined || info.generatedIdentity !== undefined || /Serial/u.test(info.columnType);
+	if (filled) def = def.filled();
 	const { defaultFn, onUpdateFn } = info;
-	if (defaultFn) def = def.onInsert(() => converted(info, key, defaultFn()) as never);
+	// Drizzle uses its update factory on INSERT only when no database or application default exists.
+	const insert = defaultFn ?? (filled ? undefined : onUpdateFn);
+	if (insert) def = def.onInsert(() => converted(info, key, insert()) as never);
 	if (onUpdateFn) def = def.onUpdate(() => converted(info, key, onUpdateFn()) as never);
 	return def;
 }

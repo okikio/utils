@@ -15,7 +15,7 @@ a network port until the application passes the resulting handler to its runtime
 
 Run a real Hono route in process before integrating a service runtime. This program supplies its own local input and
 uses public workspace imports. At the checkout root, review `mise.toml`, run `mise trust`, `mise install` and
-`mise run prepare -- --kind deps`. Save this as `health-hono.ts` and run `mise exec -- deno run health-hono.ts`.
+`mise run prepare`. Save this as `health-hono.ts` and run `mise exec -- deno run health-hono.ts`.
 
 ```ts runnable=health-hono.ts
 import { Hono } from 'hono';

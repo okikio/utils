@@ -107,6 +107,18 @@ export class Insert<
 		if (rows.length === 0) throw new TypeError(`An insert into ${table.schema}.${table.name} needs at least one row.`);
 		const records = rows as readonly Record<string, unknown>[];
 		const names = [...new Set(records.flatMap((row) => Object.keys(row).filter((key) => row[key] !== undefined)))];
+		if (names.length === 0) {
+			if (records.length === 1) return keyword('default values');
+			const name = Object.keys(table.columns)[0];
+			// DEFAULT is legal even for an identity/generated column; no caller value bypasses writable().
+			// A zero-column table needs one empty selected row per requested insert instead.
+			if (name === undefined) return keyword(`select from generate_series(1, ${records.length})`);
+			return join([
+				group(identifier(columnName(table, name))),
+				keyword(' values '),
+				join(records.map(() => group(keyword('default'))), ', '),
+			]);
+		}
 		const defs = names.map((name) => writable(table, name));
 		const lists = records.map((row) =>
 			group(join(

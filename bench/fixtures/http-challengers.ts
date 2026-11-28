@@ -5,10 +5,10 @@ import { createHonoApi, createHonoRouting } from '#fixtures/http-parity/hono.ts'
 import { createUtilsApi, createUtilsRouting } from '#fixtures/http-parity/utils.ts';
 import { createElysiaApi, createElysiaRouting } from '#fixtures/http-parity/elysia.ts';
 import { createVixenyApi, createVixenyRouting } from '#fixtures/http-parity/vixeny.ts';
-import { challengerCandidates } from '#tools/bench/challenger-contract.ts';
-import type { ChallengerCandidateType } from '#tools/bench/challenger-contract.ts';
-export { challengerCandidates, challengerNames } from '#tools/bench/challenger-contract.ts';
-export type { ChallengerCandidateType } from '#tools/bench/challenger-contract.ts';
+import { challengerCandidates } from '#tools/bench/challenger/contract.ts';
+import type { ChallengerCandidateType } from '#tools/bench/challenger/contract.ts';
+export { challengerCandidates, challengerNames } from '#tools/bench/challenger/contract.ts';
+export type { ChallengerCandidateType } from '#tools/bench/challenger/contract.ts';
 
 /** Compiled owner with a fully consumed independent response projection per run. */
 export interface ChallengerOperationType {

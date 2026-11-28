@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
-import { temporal } from '@okikio/duration/temporal';
+import { Temporal, temporal } from '@okikio/duration/temporal';
 import * as sql from './mod.ts';
 import { trigger, types } from './mod.ts';
 import { types as cockroach } from './cockroach.ts';
@@ -166,5 +166,22 @@ describe('limits', () => {
 			trigger.result('null'),
 		]);
 		expect(() => sql.toDdlQuery(reading.ddl)).toThrow('may not hold "$"');
+	});
+});
+
+describe('Temporal constructor compatibility', () => {
+	it('accepts the explicit ponyfill and the host-selected implementation', () => {
+		for (const implementation of [Temporal, temporal]) {
+			expect(sent(types.timestamptz as never, implementation.Instant.from('2026-01-02T03:04:05Z')).values).toEqual([
+				'2026-01-02T03:04:05Z',
+			]);
+			expect(sent(types.date as never, implementation.PlainDate.from('2026-01-02')).values).toEqual(['2026-01-02']);
+			expect(sent(types.time as never, implementation.PlainTime.from('03:04:05')).values).toEqual(['03:04:05']);
+		}
+	});
+	it('still rejects objects impersonating Temporal values', () => {
+		expect(() => sent(types.timestamptz as never, { epochNanoseconds: 0n })).toThrow(TypeError);
+		expect(() => sent(types.date as never, { toString: () => '2026-01-02' })).toThrow(TypeError);
+		expect(() => sent(types.time as never, '03:04:05')).toThrow(TypeError);
 	});
 });

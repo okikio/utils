@@ -23,7 +23,7 @@ Parsing configuration does not start the configured service.
 Supply port text explicitly and parse it before service startup. The definition owns the conversion and allowed range;
 the application retains the choice of configuration source and when to open its listener.
 
-From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare -- --kind deps` at the repository root. Save the following program as `example.ts` and run `mise exec -- deno run example.ts`. These commands use the workspace export maps; they do not assume a published registry version.
+From a checkout of this experimental workspace, run `mise trust`, `mise install`, then `mise run prepare` at the repository root. Save the following program as `example.ts` and run `mise exec -- deno run example.ts`. These commands use the workspace export maps; they do not assume a published registry version.
 
 ```ts runnable
 import * as env from '@okikio/env';

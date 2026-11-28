@@ -16,7 +16,7 @@ Click the report panel, then press `j` to select Report 2 and `k` to return to R
 panel, so typing elsewhere keeps its usual behavior. The app decides what each report means and stops the selection
 at the first or last report.
 
-Prepare the checkout from its root with `mise trust`, `mise install` and `mise run prepare -- --kind deps` after reviewing
+Prepare the checkout from its root with `mise trust`, `mise install` and `mise run prepare` after reviewing
 `mise.toml`. Save the HTML as `report-navigation.html` and TypeScript as `report-navigation.ts`.
 
 ```html
@@ -88,7 +88,7 @@ accessibility or device-specific touch behavior; test those in the consuming UI.
 
 This portable check exercises the same selected-index rule; it does not prove keyboard dispatch or rendered focus.
 
-After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../README.md#work-on-the-repository), run `mise run prepare` from the root.
 Save the next complete TypeScript block as
 `report-selection.ts` at that root, then run `mise exec -- deno run report-selection.ts`.
 

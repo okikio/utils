@@ -10,7 +10,7 @@
 		"lint": "mise run check:lint",
 		"check": "mise run check",
 		"test": "mise run test",
-		"test:docs": "mise run test -- --suite docs"
+		"test:docs": "mise run test:docs"
 	},
 	"test": {
 		"exclude": [
@@ -51,8 +51,17 @@
 			// Entire manages its settings and the Codex hooks it installs.
 			".codex/hooks.json",
 			".entire/settings.json",
+			// Copied guidance keeps its upstream formatting; local agent files retain this repository's rules.
+			".agents/START.md",
+			".agents/GUIDANCE.md",
+			".agents/guides/**",
+			".agents/references/**",
+			".agents/skills/**",
+			".agents/handbook/**",
 			"pnpm-lock.yaml",
 			"**/*.md",
+			// Hidden project profiles follow the same authored Markdown wrapping rule.
+			".agents/README.md",
 			".sampo/changesets/*.md",
 			"**/.example-*/**",
 			".tmp/artifacts/**",
@@ -67,7 +76,15 @@
 		"indentWidth": 2
 	},
 	"lint": {
-		"exclude": [".tmp/**", "**/.example-*/**"],
+		"exclude": [
+			".tmp/**",
+			"**/.example-*/**",
+			// Upstream owns these guidance examples; local agent programs remain subject to lint.
+			".agents/guides/**",
+			".agents/references/**",
+			".agents/skills/**",
+			".agents/handbook/**"
+		],
 		"rules": {
 			"tags": [
 				"recommended"

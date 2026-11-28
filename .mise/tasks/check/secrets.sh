@@ -2,7 +2,8 @@
 #MISE description="Scan the commit history for committed secrets with gitleaks"
 #MISE hide=true
 #MISE depends=[]
-# Scans every commit this clone holds (a shallow CI clone holds the tested commit). Reviewed test
-# fixtures are listed in .gitleaksignore as exact path:rule:line fingerprints, never whole files or rules.
+# The default scan covers this clone's available history, including a valid shallow history.
+# Git's native traversal status must confirm that scanning completed. Reviewed test fixtures use exact
+# path:rule:line fingerprints in .gitleaksignore, never whole files or rules.
 set -euo pipefail
-exec gitleaks git --redact --no-banner --log-level warn --exit-code 1 "$@" .
+exec mise exec gitleaks -- node tools/security/secrets.ts "$@"

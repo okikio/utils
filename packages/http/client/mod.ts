@@ -51,7 +51,7 @@ export class ClientResponseError extends Error {
 
 /** HTTP request mechanics; domain schemas, tenant constraints, and retries belong to callers. */
 export interface ClientRequest {
-	/** Same-origin absolute path with optional query; fragments and network-path URLs are rejected. */
+	/** Same-origin absolute path with optional query; reject fragments, backslashes, network paths and raw tab/CR/LF. */
 	readonly path: string;
 	readonly method: string;
 	readonly headers?: HeadersInit;
@@ -116,11 +116,15 @@ export function create(options: HttpClientOptions = {}): HttpClient {
 	const fetch = options.fetch ?? globalThis.fetch;
 	/** Start a transport whose caller must finish or transfer its cancellation and timer ownership. */
 	async function send(input: ClientRequest) {
+		// Keep the admitted value stable across caller getters used to construct the request.
+		const path = input.path;
 		if (
-			!input.path.startsWith('/') || input.path.startsWith('//') || input.path.includes('\\') ||
-			input.path.includes('#')
+			!path.startsWith('/') || path.startsWith('//') || path.includes('\\') ||
+			path.includes('#') || /[\t\n\r]/u.test(path)
 		) {
-			throw new TypeError('Client requests require a same-origin absolute path without a fragment.');
+			throw new TypeError(
+				'Client requests require a same-origin absolute path without a fragment or raw tab, CR or LF.',
+			);
 		}
 		const headers = new Headers(authentication);
 		for (const [name, value] of new Headers(input.headers)) {
@@ -152,7 +156,7 @@ export function create(options: HttpClientOptions = {}): HttpClient {
 		try {
 			let response: Response;
 			try {
-				const pending = fetch(`${origin.replace(/\/$/u, '')}${input.path}`, {
+				const pending = fetch(`${origin.replace(/\/$/u, '')}${path}`, {
 					method: input.method,
 					headers,
 					body: input.body,

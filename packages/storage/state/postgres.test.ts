@@ -8,6 +8,8 @@ import { AsyncDisposableStack, asyncDispose } from '@okikio/dispose';
 import * as state from '@okikio/context/state';
 import * as schema from '@okikio/schema';
 import * as adapter from './postgres.ts';
+import { database as bind } from '@okikio/sql/postgres/postgresjs';
+import type { Database } from '@okikio/sql';
 
 const url = process.env.UTILS_TEST_DATABASE_URL;
 let database: Sql;
@@ -102,6 +104,48 @@ describe('PostgreSQL state slots', { skip: url === undefined, concurrency: false
 			}
 		} finally {
 			await database.end({ timeout: 2 });
+		}
+	});
+
+	it('returns false for a competing generic save even when the pool defaults to repeatable read', async () => {
+		const peer = postgresjs(url!, { max: 2, connection: { default_transaction_isolation: 'repeatable read' } });
+		const port = bind(peer);
+		let armed = false, arrived = 0;
+		let release!: () => void;
+		const ready = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		// Both transactions establish their snapshots before either UPDATE, so inherited REPEATABLE READ fails.
+		const joined: Database = {
+			run: (query, options) => port.run(query, options),
+			begin: (work, options) =>
+				port.begin((tx) =>
+					work({
+						run: async (query, runOptions) => {
+							const rows = await tx.run(query, runOptions);
+							if (armed && query.text.includes('set_config')) {
+								if (++arrived === 2) release();
+								await ready;
+							}
+							return rows;
+						},
+					}), options),
+		};
+		const namespace = 'state-test-' + crypto.randomUUID();
+		namespaces.push(namespace);
+		try {
+			const store = adapter.open({ database: joined, namespace, key: 'cursor' });
+			const first = state.SnapshotSchema.parse({ format: 1, contract: 'count.v1', version: 'first', value: 1 });
+			await store.save(first, { expectedVersion: undefined });
+			armed = true;
+			const saved = await Promise.all(
+				['second', 'third'].map((version) => store.save({ ...first, version }, { expectedVersion: 'first' })),
+			);
+			expect(saved.filter(Boolean)).toHaveLength(1);
+			expect((await store.load())?.version).toBe(saved[0] ? 'second' : 'third');
+		} finally {
+			release();
+			await peer.end({ timeout: 2 });
 		}
 	});
 

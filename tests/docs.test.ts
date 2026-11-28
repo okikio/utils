@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { parse } from '@std/jsonc';
 
-import { checkExamples } from '#tools/testing/examples.ts';
+import { checkExamples } from '#tools/testing/examples/inventory.ts';
 
 import { packages as umbrellaPackages } from '@okikio/utils';
 

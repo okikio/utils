@@ -11,7 +11,7 @@ trust a request that simply claims `role: "editor"`.
 The example first resolves membership, then builds a checker, then asks about two photos. It needs no login provider;
 the hard-coded membership stands in for information your authenticated account lookup would supply.
 
-From the `utils` checkout root, review `mise.toml` and run `mise trust`, `mise install`, and `mise run prepare -- --kind deps`.
+From the `utils` checkout root, review `mise.toml` and run `mise trust`, `mise install`, and `mise run prepare`.
 Save the complete block as `gallery-role.ts` and run `mise exec -- deno run gallery-role.ts`. No server or database is needed.
 
 ```ts runnable=gallery-role.ts

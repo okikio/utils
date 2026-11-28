@@ -10,7 +10,6 @@ if (!['deno', 'node', 'bun'].includes(runtime)) throw new TypeError('Unknown ben
 if (runtime !== 'deno' && suite !== 'packages') throw new TypeError('The integration suite needs its Deno host.');
 const candidates = selectPrograms(
 	suite === 'packages' ? packagePrograms : suite === 'integration' ? integrationPrograms : programs,
-	Deno.args.find((arg) => arg.startsWith('--project='))?.slice(10),
 );
 const requested = Deno.args.find((arg) => arg.startsWith('--program='))?.slice(10);
 if (requested && !candidates.includes(requested)) {

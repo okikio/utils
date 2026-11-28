@@ -21,7 +21,7 @@ opening a listener. An injected host is borrowed; the service owns the resources
 The service owns its request lifetimes and resource cleanup. The imported utilities supply their time and disposal
 implementations locally; the application does not need to install global polyfills.
 
-After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare -- --kind deps` from the root.
+After the [checkout setup](../../../README.md#work-on-the-repository), run `mise run prepare` from the root.
 Save the next complete TypeScript block as
 `example.ts` at that root, then run `mise exec -- deno run example.ts`.
 

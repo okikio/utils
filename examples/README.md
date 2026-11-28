@@ -6,7 +6,7 @@ Pick an example by the behavior you want to see. Its README tells you what to ru
 To run the checks available for one JavaScript runtime, select `deno`, `node` or `bun`:
 
 ```sh
-mise run test -- --suite examples --runtime deno
+mise run test:examples -- --runtime deno
 ```
 
 The runner uses `check.<runtime>.ts` when present, otherwise `check.ts`. It skips

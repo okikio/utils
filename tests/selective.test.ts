@@ -2,9 +2,10 @@
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { graphProblems } from '#tools/packages/bundles.ts';
-import { packageProblems } from '#tools/packages/check.ts';
+import { packageProblems, taskProblems } from '#tools/packages/check.ts';
 import { patch, project, sync } from '#tools/packages/exports.ts';
 import { parse } from '@std/jsonc';
+import { pathToFileURL } from 'node:url';
 
 const bridge = 'packages/utils/result.ts';
 const owner = 'packages/result/';
@@ -138,35 +139,44 @@ describe('umbrella export projection', () => {
 		expect(() => project([value, value])).toThrow(TypeError);
 	});
 
-	it('checks without writes, publishes only validated output, then converges after a write', async () => {
+	it('preserves nested manifest ownership and authored text, then converges after a write', async () => {
 		await Deno.mkdir('.tmp/tests', { recursive: true });
 		const directory = await Deno.makeTempDir({ dir: `${Deno.cwd()}/.tmp/tests`, prefix: 'utils-export-projection-' });
 		// Lexical disposal runs on Deno too, where node:test per-test after hooks do not run.
 		await using _cleanup = { [Symbol.asyncDispose]: () => Deno.remove(directory, { recursive: true }) };
 		const root = new URL(`file://${directory}/`);
-		await Deno.mkdir(new URL('packages/example/', root), { recursive: true });
+		await Deno.writeTextFile(new URL('pnpm-workspace.yaml', root), "packages:\n  - 'packages/**'\n");
+		await Deno.writeTextFile(new URL('package.json', root), '{"private":true}\n');
+		await Deno.mkdir(new URL('packages/group/source/', root), { recursive: true });
 		await Deno.mkdir(new URL('packages/utils/', root));
 		await Deno.writeTextFile(
-			new URL('packages/example/package.json', root),
+			new URL('packages/group/source/package.json', root),
 			JSON.stringify({
 				name: '@okikio/example',
 				exports: { '.': './mod.ts' },
 				sideEffects: false,
+				scripts: { check: 'deno check --frozen .' },
 			}),
 		);
 		await Deno.writeTextFile(
-			new URL('packages/example/deno.jsonc', root),
+			new URL('packages/group/source/deno.jsonc', root),
 			'{"exports": {".": "./mod.ts"}, "tasks": {}}',
 		);
 		const manifest = '{\n\t// Preserve author intent.\n\t"exports": {},\n\t"sideEffects": false,\n\t"tasks": {}\n}\n';
 		await Deno.writeTextFile(new URL('packages/utils/deno.jsonc', root), manifest);
 		await Deno.writeTextFile(
 			new URL('packages/utils/package.json', root),
-			JSON.stringify({ exports: {}, sideEffects: false, note: 'authored' }),
+			JSON.stringify({
+				name: '@okikio/utils',
+				exports: {},
+				sideEffects: false,
+				scripts: { check: 'deno check --frozen .' },
+				note: 'authored',
+			}),
 		);
 		const before = await Deno.readTextFile(new URL('packages/utils/package.json', root));
 		expect(new Set(await sync(root))).toEqual(
-			new Set(['../example/deno.jsonc', 'example.ts', 'package.json', 'deno.jsonc']),
+			new Set(['../group/source/deno.jsonc', 'example.ts', 'package.json', 'deno.jsonc']),
 		);
 		expect(await Deno.readTextFile(new URL('packages/utils/package.json', root))).toBe(before);
 		await expect(Deno.stat(new URL('packages/utils/example.ts', root))).rejects.toBeInstanceOf(Deno.errors.NotFound);
@@ -185,4 +195,78 @@ describe('umbrella export projection', () => {
 		expect(await sync(root, 'write')).toEqual([]);
 		expect(await Deno.readTextFile(new URL('packages/utils/package.json', root))).toBe(written);
 	});
+
+	it('rejects a missing required owner and an independently drifted task projection', () => {
+		const scripts = {
+			check: 'deno check .',
+			test: 'deno test',
+			'test:deno': 'deno test',
+			'test:node': 'node --test',
+			'test:bun': 'bun test',
+			build: 'node build.ts',
+			bench: 'deno run bench.ts',
+			'bench:check': 'deno run bench.ts --check',
+		};
+		expect(taskProblems({ scripts }, { tasks: scripts })).toEqual([]);
+		const { check: _check, ...missing } = scripts;
+		expect(taskProblems({ scripts: missing }, { tasks: missing }))
+			.toEqual(['The package must own a non-empty check script.']);
+		expect(taskProblems({ scripts }, { tasks: { ...scripts, check: 'mise run check' } }))
+			.toEqual(['Deno tasks must project the package-owned npm scripts.']);
+	});
+
+	for (const name of ['example', 'utils']) {
+		it(`checks generated ${name} tasks in their owner and propagates a real compiler failure`, async () => {
+			const owner = name === 'example' ? 'http' : 'utils';
+			const actual = JSON.parse(await Deno.readTextFile(new URL(`../packages/${owner}/package.json`, import.meta.url)));
+			await Deno.mkdir('.tmp/tests', { recursive: true });
+			const directory = await Deno.makeTempDir({ dir: `${Deno.cwd()}/.tmp/tests`, prefix: 'utils-package-check-' });
+			await using _cleanup = { [Symbol.asyncDispose]: () => Deno.remove(directory, { recursive: true }) };
+			const root = pathToFileURL(`${directory}/`);
+			await Deno.writeTextFile(new URL('pnpm-workspace.yaml', root), "packages:\n  - 'packages/*'\n");
+			await Deno.writeTextFile(new URL('package.json', root), '{"private":true}\n');
+			await Deno.writeTextFile(new URL('deno.json', root), '{"workspace":["packages/*"]}\n');
+			for (const member of ['example', 'utils']) {
+				await Deno.mkdir(new URL(`packages/${member}/`, root), { recursive: true });
+				await Deno.writeTextFile(
+					new URL(`packages/${member}/package.json`, root),
+					JSON.stringify({
+						name: `@okikio/${member}`,
+						exports: { '.': './mod.ts' },
+						sideEffects: false,
+						scripts: { check: actual.scripts.check },
+					}),
+				);
+				await Deno.writeTextFile(
+					new URL(`packages/${member}/deno.jsonc`, root),
+					JSON.stringify({
+						name: `@okikio/${member}`,
+						exports: {},
+						tasks: {},
+					}),
+				);
+				await Deno.writeTextFile(new URL(`packages/${member}/mod.ts`, root), 'export const value: number = 1;\n');
+			}
+			await Deno.writeTextFile(new URL('packages/utils/all.ts', root), 'export {};\n');
+			await sync(root, 'write');
+			// Add an unrelated broken owner after projection: a local check must not expand into the whole workspace.
+			await Deno.mkdir(new URL('packages/unrelated/', root));
+			await Deno.writeTextFile(new URL('packages/unrelated/deno.json', root), '{"name":"@okikio/unrelated"}\n');
+			await Deno.writeTextFile(new URL('packages/unrelated/mod.ts', root), 'export const unrelated: string = 1;\n');
+			const invoke = () =>
+				new Deno.Command(Deno.execPath(), {
+					args: ['task', '--cwd', `packages/${name}`, 'check'],
+					cwd: directory,
+				}).output();
+			const initial = await invoke();
+			expect(initial.code, new TextDecoder().decode(initial.stderr)).toBe(0);
+			await Deno.writeTextFile(new URL(`packages/${name}/mod.ts`, root), 'export const value: string = 1;\n');
+			const failed = await invoke();
+			expect(failed.code).not.toBe(0);
+			expect(new TextDecoder().decode(failed.stderr)).toContain('TS2322');
+			await Deno.writeTextFile(new URL(`packages/${name}/mod.ts`, root), 'export const value: number = 1;\n');
+			const restored = await invoke();
+			expect(restored.code, new TextDecoder().decode(restored.stderr)).toBe(0);
+		});
+	}
 });

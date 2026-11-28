@@ -23,7 +23,7 @@ owner and acknowledgement. The example below stops at local acceptance.
 Declare the announcement and give it a recipient before emitting it. The local recipient lets you inspect the accepted
 value. Replace it with a durable recipient only when the announcement must survive this process.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the runnable block as `example.ts` at the checkout root and use
+Run from this checkout after `mise run prepare`. Save the runnable block as `example.ts` at the checkout root and use
 `mise exec -- deno run example.ts`.
 
 ```ts runnable

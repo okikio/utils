@@ -131,3 +131,146 @@ describe('generate', () => {
 		].join('\n'));
 	});
 });
+
+describe('generated module bindings', () => {
+	it('preserves custom types whose names match object prototype properties', () => {
+		for (const name of ['constructor', '__proto__', 'toString']) {
+			for (const kind of ['r', 'd']) {
+				const typeName = kind === 'd' ? 'domain_value' : name;
+				const info: InspectionType = {
+					enums: {},
+					tables: [{
+						schema: 'app',
+						name: 'sample',
+						kind: 'table',
+						primaryKey: [],
+						columns: [{
+							name: 'value',
+							position: 1,
+							declared: `app.${typeName}`,
+							typeSchema: 'app',
+							typeName,
+							typeKind: kind,
+							...(kind === 'd' ? { base: name } : {}),
+							nullable: false,
+							generated: false,
+						}],
+					}],
+				};
+				const body = generate(info).replace(/^import .*;\n/gmu, '').replace(/export const /gu, 'const ');
+				// Exercise the generated codec through a parameterized insert, including the exact custom SQL type.
+				const query: unknown = new Function(
+					'sql',
+					'types',
+					body + '\nreturn sql.toQuery(sql.insert(sample, { value: "[1,2)" }));',
+				)(sql, types);
+				expect(query).toMatchObject({
+					text: `insert into "app"."sample" ("value") values (($1::text)::"app"."${typeName}")`,
+					values: ['[1,2)'],
+				});
+			}
+		}
+	});
+
+	it('retains a column named __proto__ as an own field in the generated table', () => {
+		const info: InspectionType = {
+			enums: {},
+			tables: [{
+				schema: 'app',
+				name: 'notes',
+				kind: 'table',
+				primaryKey: [],
+				columns: [{
+					name: '__proto__',
+					position: 1,
+					declared: 'text',
+					typeSchema: 'pg_catalog',
+					typeName: 'text',
+					typeKind: 'b',
+					nullable: false,
+					generated: false,
+				}],
+			}],
+		};
+		const body = generate(info).replace(/^import .*;\n/gmu, '').replace(/export const /gu, 'const ');
+		const result: unknown = new Function(
+			'sql',
+			'types',
+			body +
+				'\nreturn { columns: Object.keys(notes.columns), query: sql.toQuery(sql.select({ value: notes.c.__proto__ }).from(notes)) };',
+		)(sql, types);
+		expect(result).toMatchObject({
+			columns: ['__proto__'],
+			query: {
+				text: 'select ("app"."notes"."__proto__")::text as "value" from "app"."notes"',
+				values: [],
+			},
+		});
+	});
+
+	it('keeps catalog comments inside comments without changing database identifiers', () => {
+		const info: InspectionType = {
+			enums: {},
+			tables: [{
+				schema: 'a*/s',
+				name: 'a*/b',
+				kind: 'table',
+				primaryKey: [],
+				columns: [{
+					name: 'value',
+					position: 1,
+					declared: 'text',
+					typeSchema: 'pg_catalog',
+					typeName: 'text',
+					typeKind: 'b',
+					nullable: false,
+					fallback: "'first\nsecond\rthird\u2028fourth\u2029last'::text",
+					generated: false,
+				}],
+			}],
+		};
+		const source = generate(info);
+		// Execute the emitted declarations, then compile a real query through the generated table.
+		const body = source.replace(/^import .*;\n/gmu, '').replace(/export const /gu, 'const ');
+		const query: unknown = new Function(
+			'sql',
+			'types',
+			body + '\nreturn sql.toQuery(sql.select({ value: a_b.c.value }).from(a_b));',
+		)(sql, types);
+		expect(query).toMatchObject({
+			text: 'select ("a*/s"."a*/b"."value")::text as "value" from "a*/s"."a*/b"',
+			values: [],
+		});
+	});
+
+	it('executes generated definitions for reserved, imported and colliding names', () => {
+		const info: InspectionType = {
+			enums: {},
+			tables: [
+				['app', 'default'],
+				['a', 'users'],
+				['b', 'users'],
+				['app', 'a-b'],
+				['app', 'a_b'],
+				['app', 'sql'],
+				['app', 'types'],
+				['app', 'appSchema'],
+				['a-b', 'items'],
+				['a_b', 'items'],
+				['app', 'await'],
+			].map(([schema, name]) => ({
+				schema: schema!,
+				name: name!,
+				kind: 'table',
+				columns: [],
+				primaryKey: [],
+			})),
+		};
+		const source = generate(info);
+		// Remove module syntax only; the engine must parse and execute every generated binding and table definition.
+		const body = source.replace(/^import .*;\n/gmu, '').replace(/export const /gu, 'const ');
+		expect(() => new Function('sql', 'types', body)(sql, types)).not.toThrow();
+		expect(generate(info)).toBe(source);
+		for (const table of info.tables) expect(source).toContain('.table(' + JSON.stringify(table.name));
+	});
+});

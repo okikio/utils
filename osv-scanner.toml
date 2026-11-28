@@ -6,7 +6,7 @@
 [[IgnoredVulns]]
 id = "GHSA-3g3m-2fjr-6pw4"
 ignoreUntil = 2027-02-21
-reason = """glob 10.5.0 appears only in deno.lock, through testcontainers > archiver > archiver-utils, a test-only dependency. Deno resolves its own npm graph and ignores the pnpm overrides; Deno 2.9 has no override mechanism. pnpm-lock.yaml, which installs node_modules (and Deno uses node_modules: nodeModulesDir manual), pins glob 14.0.6."""
+reason = """glob 10.5.0 appears only in deno.lock, through testcontainers > archiver > archiver-utils, a test-only dependency. Deno resolves its own npm graph and does not read pnpm's overrides. Root package.json currently mirrors only the separately reviewed Prisma and Sequelize overrides; the glob and minimatch graph still needs reconciliation. pnpm-lock.yaml, which installs node_modules (and Deno uses node_modules: nodeModulesDir manual), pins glob 14.0.6."""
 
 [[IgnoredVulns]]
 id = "GHSA-g3hv-75wg-m249"

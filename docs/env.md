@@ -30,7 +30,7 @@ copied definition the identity of its original. The examples keep those two oper
 The application supplies port text and asks its environment definition for a checked number. Parsing happens before any
 listener is opened, so an invalid setting can be corrected without starting a partially configured service.
 
-Run from this checkout after `mise run prepare -- --kind deps`. Save the block as `service-port.ts` at the checkout
+Run from this checkout after `mise run prepare`. Save the block as `service-port.ts` at the checkout
 root and run `mise exec -- deno run service-port.ts`.
 
 ```ts runnable=service-port.ts

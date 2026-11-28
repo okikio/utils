@@ -130,7 +130,7 @@ the focused implementations into the umbrella.
 
 ```sh
 mise run prepare:node
-mise run test -- --suite packages
+mise run test:packages
 ```
 
 CI bootstraps mise at the version the workflows pin, which matches `min_version` in `mise.toml`. The runtime versions remain declared once in `mise.toml`; the action
@@ -148,14 +148,15 @@ subpaths. The Runtime root and explicit Node, Bun and browser adapters are inclu
 every supported npm namespace while omitting Deno-specific exports. This is a distribution projection, not a second
 implementation or a replacement for those JSR capabilities.
 
-`tools/packages/npm.ts` checks every staged JavaScript and declaration target and rejects source runtime imports and hard Deno
-dependencies. Optional `globalThis.Deno` detection in the environment source is retained because it does not require
+`tools/packages/npm.ts` composes the artifact owners in `tools/packages/npm/`. The build owner prepares and emits each
+member. The inspection owner checks every staged JavaScript and declaration target and rejects source runtime imports
+and hard Deno dependencies. Optional `globalThis.Deno` detection in the environment source is retained because it does not require
 Deno in Node. Build-time source copies are removed before packing. The task packs every staged member, checks actual
 archive contents, extracts the exact archives, runs strict publint and Are the Types Wrong?, and writes SHA-256
 receipts. Each native command retains stdout, stderr and exit status under
 `.tmp/artifacts/npm/commands/`, including failed installs and compiler checks.
 
-The empty consumer is created outside the checkout, so unresolved imports cannot fall back to workspace ancestors. Its
+The consumer owner creates an empty directory outside the checkout, so unresolved imports cannot fall back to workspace ancestors. Its
 location is recorded in `.tmp/artifacts/npm/consumer-location.json`. It installs physical copies of those archives and
 imports every public subpath. It also type-checks every subpath from clean ESM consumers
 without Deno ambient types, including the public inference fixture. It then runs CSV parsing, result matching, duration
