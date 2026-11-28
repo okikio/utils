@@ -48,9 +48,23 @@ The small `packages/source.ts` adapter reads pnpm's JSON listing. It validates t
 source owners from that result, including nested packages and excluding private manifests. It does not crawl the workspace
 or rebuild dependency traversal. `packages/exports.ts`
 then reads the selected manifests and projects only declared public paths and scripts. Private source files never become
-exports merely because a file finder saw them. `packages/npm.ts` builds ESM and declarations, strips repository scripts
-from distribution manifests, packs archives and tests clean installed consumers. Rebuilding a selected package removes
-only that package's generated stage, including temporary files left by an interrupted build.
+exports merely because a file finder saw them. `packages/npm.ts` composes the npm artifact stages from one source
+snapshot. The owners in `packages/npm/` build ESM and declarations, inspect public targets, pack archives and test clean
+installed consumers. Rebuilding a selected package removes only that package's generated stage, including temporary
+files left by an interrupted build.
+
+| npm owner | Responsibility |
+| --- | --- |
+| `packages/npm/source.ts` | Read native workspace manifests and marked installed-consumer scenarios. |
+| `packages/npm/build.ts` | Prepare one member stage and emit its JavaScript and declarations. |
+| `packages/npm/inspect.ts` | Inspect public files and parsed runtime imports. |
+| `packages/npm/pack.ts` | Check physical archive contents and write their hashes. |
+| `packages/npm/consumer.ts` | Install archives outside the checkout and compose consumer checks. |
+| `packages/npm/consumer/` | Check declaration resolution, selective bundles and authored scenarios. |
+| `packages/npm/command.ts` | Retain native command output and exit status. |
+
+The imported owners do no work until the CLI calls them. The CLI owns arguments, and the stage that creates a resource
+owns its cleanup. Build and pack failures retain diagnostics under `.tmp/artifacts/npm/commands/`.
 
 `testing/run.ts` remains because tests have real host and resource contracts. Native file globs find authored tests;
 the owner classifies Node, Deno, Web Worker, PostgreSQL and container requirements, launches the actual runtime and
